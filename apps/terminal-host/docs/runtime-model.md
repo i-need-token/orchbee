@@ -1397,6 +1397,16 @@ On macOS the Keeper holds each terminal's PTY master instead, under the contract
   and reaps the leader on the owner's `reap`. A leader whose holding was released while it ran is
   reaped once it ends; a release or discard that would leave more than 512 such leaders is refused
   `capacity`.
+- **Update in place**: on `reexec` it runs the named program as `keep --check`, which reads the
+  state from standard input and exits 0 only when it can take it over. It then stops the listener
+  and each admitted connection between frames, holds the table's lock from its last snapshot through
+  `execve`, and executes the program with its `keep` options, `--resume <descriptor>`, and
+  `--previous <its own program>`. The new image takes the endpoint, the table, and each connection
+  over before it closes any other inherited descriptor, watches each Host and leader again, and
+  answers the pending `reexec`; one that cannot read the state executes the previous program with
+  `--returned`, which answers `exec-failed`. Outside release builds,
+  `ORCHBEE_TEST_KEEPER_REFUSE_STATE` naming a file makes the new image refuse the state once and
+  remove that file.
 
 ### Keeper link
 

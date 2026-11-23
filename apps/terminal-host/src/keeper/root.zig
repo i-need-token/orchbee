@@ -6,3 +6,6 @@ const builtin = @import("builtin");
 
 pub const supported = builtin.os.tag == .windows or builtin.os.tag == .macos;
 pub const service = if (supported) @import("service.zig") else struct {};
+/// A macOS Keeper's update in place: the check mode and the image that takes the state over.
+pub const check = if (builtin.os.tag == .macos) @import("check_darwin.zig") else struct {};
+pub const resume_state = if (builtin.os.tag == .macos) @import("resume_darwin.zig") else struct {};

@@ -11,6 +11,8 @@ pub const Extensions = handshake.message.Extensions;
 /// At most this many holdings in one Keeper, and Hosts registered with it.
 pub const maximum_holdings = 1024;
 pub const maximum_hosts = 256;
+/// At most this many bytes in the program a `reexec` names.
+pub const maximum_program_bytes = 1024;
 /// At most this many holdings, and Hosts, in one `status-result`.
 pub const maximum_status_entries = 256;
 /// A reply is due this long after its request.
@@ -129,6 +131,16 @@ pub const Reason = enum {
     spawn_failed,
     /// Under `parent`: a `reap` of a parented leader that has not ended.
     running,
+    /// Under `reexec`: a holding's owner is no live registered Host.
+    orphaned,
+    /// Under `reexec`: a `spawn` is starting a leader, another update is under way, or the
+    /// connections did not stop in time.
+    busy,
+    /// Under `reexec`: the new program's check of the state failed.
+    check_failed,
+    /// Under `reexec`: the new program could not be executed or could not read the state, and the
+    /// old program came back.
+    exec_failed,
     unknown,
 
     pub fn name(self: Reason) []const u8 {
@@ -195,6 +207,8 @@ pub const RequestKind = enum {
     /// request that the Keeper reap it, under `parent`.
     spawn,
     reap,
+    /// The Worker's request, under `reexec`, that the Keeper execute another program in place.
+    reexec,
 
     pub fn name(self: RequestKind) []const u8 {
         return wireName(self);
@@ -281,6 +295,8 @@ pub const Request = struct {
         hold_pty: pty.HoldPty,
         spawn: pty.Spawn,
         reap: RandomId,
+        /// The Terminal Host program to re-execute from: an absolute path.
+        reexec: []const u8,
     };
 
     /// Whether only a connection that negotiated `recovery` sends this request.
@@ -301,6 +317,11 @@ pub const Request = struct {
     /// Whether only a connection that negotiated `parent` sends this request.
     pub fn needsParent(kind: RequestKind) bool {
         return kind == .spawn or kind == .reap;
+    }
+
+    /// Whether only a connection that negotiated `reexec` sends this request.
+    pub fn needsReexec(kind: RequestKind) bool {
+        return kind == .reexec;
     }
 
     /// How many descriptors arrive with this request by `SCM_RIGHTS`.
@@ -392,6 +413,7 @@ pub const Reply = struct {
         hold_program,
         hold_pty,
         reap,
+        reexec,
         /// `spawn-result`: the leader the Keeper started.
         spawn: Process,
         status: StatusPage,
@@ -422,6 +444,7 @@ pub const Reply = struct {
                 .hold_program => kind == .hold_program,
                 .hold_pty => kind == .hold_pty,
                 .reap => kind == .reap,
+                .reexec => kind == .reexec,
                 .spawn => kind == .spawn,
                 .status => kind == .status,
                 .@"resume" => kind == .@"resume",
@@ -444,6 +467,13 @@ pub const AcceptorMessage = union(enum) {
     /// Another frame without `id`, which a receiver ignores; its other members are unread.
     event: []const u8,
 };
+
+/// Whether `program` can name the program a `reexec` executes: an absolute path of at most
+/// `maximum_program_bytes` bytes without a NUL.
+pub fn validProgram(program: []const u8) bool {
+    if (program.len == 0 or program.len > maximum_program_bytes or program[0] != '/') return false;
+    return std.mem.indexOfScalar(u8, program, 0) == null;
+}
 
 pub fn isZero(bytes: []const u8) bool {
     return std.mem.allEqual(u8, bytes, 0);

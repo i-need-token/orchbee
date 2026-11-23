@@ -1,7 +1,8 @@
 //! The Keeper's table: its holdings, the Hosts the Worker registered, and the open connections of
 //! each kind. One lock guards all of it and is held across no I/O and no wait, so requests apply one
 //! at a time across every connection and a claim and a resume of one mark never both succeed
-//! (TH-034). A Host handle the table forgets goes back to the caller, which releases it after the
+//! (TH-034). A macOS update holds it from its last snapshot through `execve`, once every connection
+//! stopped (`reexec_darwin.zig`). A Host handle the table forgets goes back to the caller, which releases it after the
 //! lock is released, because unregistering its wait can wait for a callback that takes the lock.
 
 const std = @import("std");
@@ -186,7 +187,10 @@ pub const Table = struct {
         return self.connections[slot].wake.?;
     }
 
+    /// Whether the connection in `slot` must end; on macOS an update also ends each connection not
+    /// yet admitted.
     pub fn closing(self: *Table, slot: usize) bool {
+        if (!windows and self.connections[slot].kind == .pending and self.extra.freeze.stage == .stopping) return true;
         return self.connections[slot].closing or self.lifecycle == .stopping;
     }
 
@@ -244,7 +248,7 @@ pub const Table = struct {
 
     /// Stamps the change that made the Keeper idle, or clears the stamp while it is not. Each change
     /// to what `idle` reads calls this under the lock, so the stamp never lags behind a change.
-    fn settleIdle(self: *Table) void {
+    pub fn settleIdle(self: *Table) void {
         if (!self.idle()) {
             self.idle_since_ns = null;
         } else if (self.idle_since_ns == null) {
@@ -291,7 +295,7 @@ pub const Table = struct {
 
     /// A registered Host's end: its holdings are orphaned, what holdings remember of claims from it
     /// is cleared, and it stays registered, as ended, while a holding names it as owner.
-    fn hostEndedLocked(self: *Table, index: usize, generation: u16) ?HostRelease {
+    pub fn hostEndedLocked(self: *Table, index: usize, generation: u16) ?HostRelease {
         if (self.host_generations[index] != generation) return null;
         const host = if (self.hosts[index]) |*host| host else return null;
         if (host.ended) return null;

@@ -231,6 +231,51 @@ pub const Server = if (builtin.os.tag == .windows) void else struct {
         };
     }
 
+    /// The endpoint an earlier image of this process bound and locked, from the listening socket
+    /// and lock descriptors it left open across `execve`; the socket keeps its path.
+    pub fn adoptInEndpointDirectory(
+        io: std.Io,
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_directory: []const u8,
+        endpoint_id: []const u8,
+        listener_socket: std.posix.fd_t,
+        lock_descriptor: std.posix.fd_t,
+    ) !Server {
+        if (!std.fs.path.isAbsolute(runtime_directory)) return error.RuntimeDirectoryNotAbsolute;
+        if (!std.fs.path.isAbsolute(endpoint_directory)) return error.EndpointDirectoryNotAbsolute;
+        if (!connection.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
+        output_wake.prepare();
+        const directory = try endpoint_security.validateRuntimeDirectory(io, runtime_directory);
+        errdefer directory.close(io);
+        const owns_endpoint_directory = !std.mem.eql(u8, endpoint_directory, runtime_directory);
+        const bind_directory = if (owns_endpoint_directory)
+            try endpoint_security.validateRuntimeDirectory(io, endpoint_directory)
+        else
+            directory;
+        errdefer if (owns_endpoint_directory) bind_directory.close(io);
+        const lock_name = try endpoint_security.lockName(allocator, endpoint_id);
+        errdefer allocator.free(lock_name);
+        const socket_name = try endpoint_security.endpointName(allocator, endpoint_id);
+        errdefer allocator.free(socket_name);
+        const socket_path = try std.fs.path.join(allocator, &.{ endpoint_directory, socket_name });
+        return .{
+            .allocator = allocator,
+            .directory = directory,
+            .endpoint_directory = bind_directory,
+            .owns_endpoint_directory = owns_endpoint_directory,
+            .io = io,
+            .listener = .{
+                .socket = .{ .handle = listener_socket, .address = .{ .ip4 = .loopback(0) } },
+                .options = if (std.Io.net.Server.AcceptOptions != void) .{ .mode = .stream, .protocol = null },
+            },
+            .lock_file = .{ .handle = lock_descriptor, .flags = .{ .nonblocking = false } },
+            .lock_name = lock_name,
+            .socket_name = socket_name,
+            .socket_path = socket_path,
+        };
+    }
+
     pub fn deinit(self: *Server) void {
         self.listener.deinit(self.io);
         self.endpoint_directory.deleteFile(self.io, self.socket_name) catch {};

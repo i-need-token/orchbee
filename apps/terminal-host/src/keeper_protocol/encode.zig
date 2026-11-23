@@ -276,6 +276,10 @@ fn writeInitiator(writer: *std.Io.Writer, value: message.InitiatorMessage) Write
                     try object.ptyFacts(hold.facts);
                 },
                 .spawn => |spawn| try object.spawn(spawn),
+                .reexec => |program| {
+                    if (!message.validProgram(program)) return error.InvalidMessage;
+                    try object.text("program", program);
+                },
                 .hold_program => |hold| {
                     try object.randomId("holding", hold.holding);
                     try object.programHandles(hold.handles);
@@ -348,7 +352,7 @@ fn writeAcceptor(writer: *std.Io.Writer, value: message.AcceptorMessage) WriteEr
                     try object.id(reply.id);
                     try object.process("leader", leader);
                 },
-                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap => |_, tag| {
+                inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec => |_, tag| {
                     try object.text("type", @field(message.RequestKind, @tagName(tag)).resultName());
                     try object.id(reply.id);
                 },

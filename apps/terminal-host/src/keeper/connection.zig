@@ -2,7 +2,9 @@
 //! Every read and write happens here, outside the table's lock, and a reply the peer does not take
 //! within the reply deadline ends only this connection, so a peer that stops reading stalls no
 //! other connection. On macOS a request's descriptors arrive with its frame and a reply's leave
-//! with it, and a Host's connection sends `exited` for its parented leaders between requests.
+//! with it, a Host's connection sends `exited` for its parented leaders between requests, and an
+//! update stops each admitted connection between frames, which the next image resumes
+//! (`reexec_darwin.zig`).
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -13,9 +15,11 @@ const platform = @import("terminal-host-platform");
 const local_ipc = @import("terminal-host-transport");
 const requests_module = @import("requests.zig");
 const state = @import("state.zig");
+const UsedIds = @import("used_ids.zig").UsedIds;
 
 const handles = state.handles;
 const darwin = builtin.os.tag == .macos;
+const reexec = if (darwin) @import("reexec_darwin.zig") else struct {};
 /// One accepted connection: a pipe instance on Windows, a Unix socket that carries descriptors on
 /// macOS.
 pub const Transport = if (darwin) platform.keeper.darwin.Stream else local_ipc.LocalServer;
@@ -42,18 +46,27 @@ pub const Context = struct {
 /// Serves one accepted connection, then releases its slot and closes it.
 pub fn run(context: Context) void {
     platform.fatal_record.markThread(.@"keeper-connection");
-    var connection: Connection = .{
-        .allocator = context.allocator,
-        .table = context.table,
-        .transport = context.transport,
-        .slot = context.slot,
-        .wake = context.table.wakeEvent(context.slot),
-    };
+    var connection = Connection.of(context);
     connection.serve() catch {};
-    context.table.lock();
-    context.table.releaseConnection(context.slot);
-    context.table.unlock();
-    connection.transport.deinit();
+    connection.end();
+}
+
+/// What a connection an earlier image admitted brings to this one, on macOS: its peer, the
+/// capabilities its `answer` listed, the ids it used, and the `reexec` it waits on with its answer.
+pub const Resumed = if (darwin) struct {
+    peer: state.Peer,
+    capabilities: reexec.Capabilities,
+    used: []const [2]u32,
+    pending: ?struct { id: u32, body: message.Reply.Body } = null,
+} else void;
+
+/// Serves on a connection an earlier image of this Keeper admitted, from its next request, after
+/// the answer to the `reexec` it waits on; then releases its slot and closes it.
+pub fn resumeRun(context: Context, resumed: Resumed) void {
+    platform.fatal_record.markThread(.@"keeper-connection");
+    var connection = Connection.of(context);
+    connection.resumed(resumed) catch {};
+    connection.end();
 }
 
 const Connection = struct {
@@ -71,8 +84,57 @@ const Connection = struct {
     pty: bool = false,
     /// The `answer` listed `parent`: a Host may spawn and reap leaders, and is sent `exited`.
     parent: bool = false,
+    /// The `answer` listed `reexec`: the Worker may update the Keeper in place.
+    reexec: bool = false,
     /// The Host this connection admitted.
     host: ?message.Process = null,
+    /// The admitted peer and the ids it used, while it sends requests.
+    peer: ?state.Peer = null,
+    used: ?*UsedIds = null,
+
+    fn of(context: Context) Connection {
+        return .{
+            .allocator = context.allocator,
+            .table = context.table,
+            .transport = context.transport,
+            .slot = context.slot,
+            .wake = context.table.wakeEvent(context.slot),
+        };
+    }
+
+    fn end(self: *Connection) void {
+        self.table.lock();
+        self.table.releaseConnection(self.slot);
+        self.table.unlock();
+        self.transport.deinit();
+    }
+
+    fn resumed(self: *Connection, value: Resumed) !void {
+        self.recovery = value.capabilities.recovery;
+        self.programs = value.capabilities.programs;
+        self.pty = value.capabilities.pty;
+        self.parent = value.capabilities.parent;
+        self.reexec = value.capabilities.reexec;
+        if (value.peer == .host) self.host = value.peer.host;
+        var arena_state = std.heap.ArenaAllocator.init(self.allocator);
+        defer arena_state.deinit();
+        const arena = arena_state.allocator();
+        var used = try UsedIds.fromRanges(self.allocator, value.used);
+        defer used.deinit(self.allocator);
+        if (value.pending) |pending| try self.write(try reply(arena, pending.id, pending.body));
+        _ = arena_state.reset(.retain_capacity);
+        return self.requests(arena, &arena_state, value.peer, &used);
+    }
+
+    /// What an update carries of this connection to the next image.
+    fn parked(self: *const Connection) reexec.Parked {
+        return .{
+            .socket = self.transport.socket,
+            .peer = self.peer.?,
+            .capabilities = .{ .recovery = self.recovery, .programs = self.programs, .pty = self.pty, .parent = self.parent, .reexec = self.reexec },
+            .used = self.used.?.ranges.items,
+        };
+    }
 
     fn serve(self: *Connection) !void {
         var arena_state = std.heap.ArenaAllocator.init(self.allocator);
@@ -109,6 +171,7 @@ const Connection = struct {
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.programs)) self.programs = true;
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.pty)) self.pty = true;
                     if (std.mem.eql(u8, capability, handshake.registry.keeper.parent)) self.parent = true;
+                    if (std.mem.eql(u8, capability, handshake.registry.keeper.reexec)) self.reexec = true;
                 }
                 try self.write(try handshakeReply(arena, .{ .answer = answer }));
             },
@@ -208,6 +271,8 @@ const Connection = struct {
         peer: state.Peer,
         used: *UsedIds,
     ) !void {
+        self.peer = peer;
+        self.used = used;
         while (true) {
             defer _ = arena_state.reset(.retain_capacity);
             var source = self.frameSource(.after_first_byte);
@@ -229,12 +294,20 @@ const Connection = struct {
                     if (message.Request.needsPrograms(kind) and !self.programs) break :applied .{ .unsupported = kind.name() };
                     if (message.Request.needsPty(kind) and !self.pty) break :applied .{ .unsupported = kind.name() };
                     if (message.Request.needsParent(kind) and !self.parent) break :applied .{ .unsupported = kind.name() };
+                    if (message.Request.needsReexec(kind) and !self.reexec) break :applied .{ .unsupported = kind.name() };
                     if (!requests_module.held.serves(kind)) break :applied .{ .unsupported = kind.name() };
                     if (!self.takeDescriptors(request.body, &effects)) break :applied .{ .refused = .handle_failed };
                     if (comptime darwin) if (request.body == .spawn) {
                         // A spawn forks with the lock released, so it takes the lock itself.
                         if (self.closingNow()) return;
                         break :applied try requests_module.held.spawn(self.table, arena, peer, request.body.spawn, &effects.descriptors);
+                    };
+                    if (comptime darwin) if (request.body == .reexec) {
+                        // An update stops every other connection and replaces this image; it
+                        // returns only with a refusal.
+                        var own = self.parked();
+                        own.pending = id;
+                        break :applied try reexec.run(self.table, arena, request.body.reexec, self.slot, own);
                     };
                     self.table.lock();
                     defer self.table.unlock();
@@ -353,6 +426,10 @@ const Source = struct {
     pub fn read(self: *Source, bytes: []u8) error{ FrameTimeout, ConnectionClosed }!usize {
         if (self.deadline == .within_deadline and self.timer == null) self.startTimer() catch return error.ConnectionClosed;
         while (true) {
+            // Between frames, an update stops this connection until it ends or replaces the image.
+            if (comptime darwin) if (self.timer == null and self.connection.peer != null and self.connection.transport.arrived_count == 0) {
+                reexec.parkConnection(self.connection.table, self.connection.slot, self.connection.parked());
+            };
             if (self.connection.closingNow()) return error.ConnectionClosed;
             self.connection.sendExits() catch return error.ConnectionClosed;
             var wait_ms: u32 = wait_slice_ms;
@@ -371,42 +448,6 @@ const Source = struct {
 
     fn startTimer(self: *Source) !void {
         self.timer = try monotonic.Timer.start();
-    }
-};
-
-/// The ids a connection has used, as disjoint ascending ranges, so a requester that counts up
-/// costs one range however long it lives.
-const UsedIds = struct {
-    ranges: std.ArrayList([2]u32) = .empty,
-
-    fn deinit(self: *UsedIds, allocator: std.mem.Allocator) void {
-        self.ranges.deinit(allocator);
-    }
-
-    /// Records `id`; false when it was already used.
-    fn insert(self: *UsedIds, allocator: std.mem.Allocator, id: u32) error{OutOfMemory}!bool {
-        const ranges = self.ranges.items;
-        var low: usize = 0;
-        var high: usize = ranges.len;
-        while (low < high) {
-            const middle = low + (high - low) / 2;
-            if (ranges[middle][1] < id) low = middle + 1 else high = middle;
-        }
-        const index = low;
-        if (index < ranges.len and ranges[index][0] <= id) return false;
-        const joins_left = index > 0 and ranges[index - 1][1] + 1 == id;
-        const joins_right = index < ranges.len and ranges[index][0] - 1 == id;
-        if (joins_left and joins_right) {
-            ranges[index - 1][1] = ranges[index][1];
-            _ = self.ranges.orderedRemove(index);
-        } else if (joins_left) {
-            ranges[index - 1][1] = id;
-        } else if (joins_right) {
-            ranges[index][0] = id;
-        } else {
-            try self.ranges.insert(allocator, index, .{ id, id });
-        }
-        return true;
     }
 };
 

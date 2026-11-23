@@ -74,7 +74,7 @@ fn handshakeFixtureModule(builder: *std.Build) *std.Build.Module {
 /// The Keeper protocol fixtures, embedded the same way.
 fn keeperFixtureModule(builder: *std.Build) *std.Build.Module {
     const files = builder.addWriteFiles();
-    for ([_][]const u8{ "claimant", "claimant-sequences", "owner", "owner-sequences", "pty", "recovery", "recovery-sequences", "worker" }) |name| {
+    for ([_][]const u8{ "claimant", "claimant-sequences", "owner", "owner-sequences", "pty", "recovery", "recovery-sequences", "update", "worker" }) |name| {
         _ = files.addCopyFile(.{ .cwd_relative = builder.pathFromRoot(builder.fmt(
             "../../schemas/keeper/v1/fixtures/{s}.json",
             .{name},
@@ -88,6 +88,7 @@ fn keeperFixtureModule(builder: *std.Build) *std.Build.Module {
         \\pub const pty: []const u8 = @embedFile("pty.json");
         \\pub const recovery: []const u8 = @embedFile("recovery.json");
         \\pub const recovery_sequences: []const u8 = @embedFile("recovery-sequences.json");
+        \\pub const update: []const u8 = @embedFile("update.json");
         \\pub const worker: []const u8 = @embedFile("worker.json");
         \\
     ) });

@@ -11,7 +11,7 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    InitiatorMessage, Offer, RECOVERY, ReadError, conclude_offer, encode_initiator_frame,
+    InitiatorMessage, Offer, RECOVERY, REEXEC, ReadError, conclude_offer, encode_initiator_frame,
     read_acceptor_message,
 };
 use orchbee_local_ipc::LocalStream;
@@ -19,6 +19,9 @@ use serde_json::{Map, Value};
 
 /// How long the Keeper may take to answer one request.
 pub const KEEPER_REPLY_BOUND: Duration = Duration::from_secs(2);
+/// How long a Keeper may take to answer `reexec`: its check of the new program takes at most 5
+/// seconds, and one that has not answered after 10 has stopped answering.
+pub const KEEPER_REEXEC_BOUND: Duration = Duration::from_secs(10);
 const MAGIC: [u8; 4] = *b"OBKP";
 const MAXIMUM_PAYLOAD: usize = 1_048_576;
 
@@ -92,6 +95,8 @@ pub enum KeeperRefusal {
 pub struct KeeperClient {
     stream: LocalStream,
     next_id: u32,
+    /// The connection negotiated `reexec`, so the Keeper re-executes itself in place.
+    reexec: bool,
 }
 
 impl KeeperClient {
@@ -122,7 +127,12 @@ impl KeeperClient {
         let answer =
             conclude_offer(offer, reply).map_err(|_| invalid("the Keeper refused this Worker"))?;
         let recovery = answer.capabilities.contains(RECOVERY);
-        let mut client = Self { stream, next_id: 1 };
+        let reexec = answer.capabilities.contains(REEXEC);
+        let mut client = Self {
+            stream,
+            next_id: 1,
+            reexec,
+        };
         client
             .send("hello", vec![("role", Value::from("worker"))])?
             .map_err(refusal_error)?;
@@ -233,12 +243,47 @@ impl KeeperClient {
             .map(|reply| reply.map(drop))
     }
 
+    /// Whether the connection negotiated `reexec`, so [`Self::reexec`] can update the Keeper.
+    #[must_use]
+    pub const fn reexecs(&self) -> bool {
+        self.reexec
+    }
+
+    /// Has the Keeper re-execute itself in place from `program`, a Terminal Host executable, keeping
+    /// its process, its holdings, and every connection; answered within [`KEEPER_REEXEC_BOUND`].
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when `program` is not a UTF-8 path, the connection fails, or no answer
+    /// arrives within the bound.
+    pub fn reexec(&mut self, program: &Path) -> io::Result<Result<(), KeeperRefusal>> {
+        let program = program
+            .to_str()
+            .ok_or_else(|| invalid("the Terminal Host program is not a UTF-8 path"))?;
+        self.send_within(
+            "reexec",
+            vec![("program", Value::from(program))],
+            KEEPER_REEXEC_BOUND,
+        )
+        .map(|reply| reply.map(drop))
+    }
+
     /// Sends one request of `kind` with `members` and reads its reply within the reply bound,
     /// skipping events.
     fn send(
         &mut self,
         kind: &str,
         members: Vec<(&str, Value)>,
+    ) -> io::Result<Result<Map<String, Value>, KeeperRefusal>> {
+        self.send_within(kind, members, KEEPER_REPLY_BOUND)
+    }
+
+    /// [`Self::send`], answered within `bound`.
+    fn send_within(
+        &mut self,
+        kind: &str,
+        members: Vec<(&str, Value)>,
+        bound: Duration,
     ) -> io::Result<Result<Map<String, Value>, KeeperRefusal>> {
         let id = self.next_id;
         self.next_id = id
@@ -255,7 +300,7 @@ impl KeeperClient {
             .ok()
             .filter(|length| (1..=MAXIMUM_PAYLOAD as u32).contains(length))
             .ok_or_else(|| invalid("a request exceeds the frame bound"))?;
-        let deadline = Instant::now() + KEEPER_REPLY_BOUND;
+        let deadline = Instant::now() + bound;
         let mut frame = Vec::with_capacity(8 + payload.len());
         frame.extend_from_slice(&MAGIC);
         frame.extend_from_slice(&length.to_be_bytes());

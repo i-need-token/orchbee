@@ -104,6 +104,12 @@ pub fn initiatorPayload(arena: std.mem.Allocator, payload: []const u8) PayloadEr
         },
         .hold_pty => .{ .hold_pty = try decode_pty.holdPty(object) },
         .spawn => .{ .spawn = try decode_pty.spawn(arena, object) },
+        .reexec => blk: {
+            try closed(object.members, &.{ "type", "id", "program", "extensions" });
+            const program = try string(try object.required("program"));
+            if (!message.validProgram(program)) return error.Message;
+            break :blk .{ .reexec = program };
+        },
     };
     return .{ .request = .{
         .id = id,
@@ -184,7 +190,7 @@ fn resultBody(arena: std.mem.Allocator, object: Object, kind: message.RequestKin
             try closed(object.members, &.{ "type", "id", "leader", "extensions" });
             return .{ .spawn = try processValue(try object.required("leader")) };
         },
-        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap => |empty| {
+        inline .hello, .register_host, .unregister_host, .hold, .mark, .claim, .release, .assign, .discard, .hold_program, .hold_pty, .reap, .reexec => |empty| {
             try closed(object.members, &.{ "type", "id", "extensions" });
             return @unionInit(message.Reply.Body, @tagName(empty), {});
         },

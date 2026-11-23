@@ -9,6 +9,10 @@ const endpoint_directory_option = "--endpoint-directory";
 const endpoint_id_option = "--endpoint-id";
 const host_epoch_option = "--host-epoch";
 const runtime_directory_option = "--runtime-directory";
+const check_option = "--check";
+const resume_option = "--resume";
+const previous_option = "--previous";
+const returned_option = "--returned";
 const scrollback_bytes_option = "--scrollback-bytes";
 const serve_option_names = [_][]const u8{
     endpoint_directory_option,
@@ -21,6 +25,9 @@ const keep_option_names = [_][]const u8{
     endpoint_directory_option,
     endpoint_id_option,
     runtime_directory_option,
+    resume_option,
+    previous_option,
+    returned_option,
 };
 
 pub const Command = union(enum) {
@@ -28,6 +35,8 @@ pub const Command = union(enum) {
     serve: ServeOptions,
     /// The Keeper, which holds terminals' handles for the Hosts of one Session.
     keep: KeepOptions,
+    /// `keep --check`: whether this build takes over the update state on standard input.
+    keep_check,
 };
 
 pub const KeepOptions = struct {
@@ -36,7 +45,26 @@ pub const KeepOptions = struct {
     endpoint_directory: ?[]const u8 = null,
     endpoint_id: []const u8,
     runtime_directory: []const u8,
+    /// An image a macOS Keeper executed in its own place, with the state it hands over.
+    resumed: ?Resumed = null,
 };
+
+pub const Resumed = struct {
+    /// The descriptor of the state file.
+    state: i32,
+    /// The program of the image that executed this one, the way back.
+    previous: []const u8,
+    /// This image is the way back: the update's new image could not take the state over.
+    returned: bool,
+};
+
+/// Whether `arguments`, without the program, start a Keeper image executed in place, which keeps
+/// the descriptors its state names.
+pub fn resumesKeeper(arguments: []const []const u8) bool {
+    if (arguments.len == 0 or !std.mem.eql(u8, arguments[0], "keep")) return false;
+    for (arguments[1..]) |argument| if (std.mem.eql(u8, argument, resume_option)) return true;
+    return false;
+}
 
 pub const ServeOptions = struct {
     /// Where a macOS or Linux Host binds its endpoint; without it the endpoint goes in the
@@ -57,7 +85,14 @@ pub fn parse(allocator: std.mem.Allocator, arguments: []const []const u8) !Comma
     var options = try argument_options.Options.parse(allocator, arguments[1..]);
     defer options.deinit();
 
-    if (std.mem.eql(u8, arguments[0], "keep")) return .{ .keep = try parseKeepOptions(options) };
+    if (std.mem.eql(u8, arguments[0], "keep")) {
+        if (options.get(check_option) != null) {
+            try options.ensureOnly(&.{check_option});
+            try options.requireFlag(check_option);
+            return .keep_check;
+        }
+        return .{ .keep = try parseKeepOptions(options) };
+    }
     if (!std.mem.eql(u8, arguments[0], "serve")) return error.InvalidArguments;
 
     return .{ .serve = try parseServeOptions(options) };
@@ -73,7 +108,21 @@ fn parseKeepOptions(options: argument_options.Options) !KeepOptions {
         if (!std.fs.path.isAbsolute(directory)) return error.EndpointDirectoryNotAbsolute;
     }
     if (!local_ipc.validEndpointId(endpoint_id)) return error.InvalidEndpointId;
-    return .{ .endpoint_directory = endpoint_directory, .endpoint_id = endpoint_id, .runtime_directory = runtime_directory };
+    const resumed: ?Resumed = if (try options.optionalOne(resume_option)) |descriptor| .{
+        .state = argument_options.parseInteger(i32, descriptor) catch return error.InvalidArguments,
+        .previous = try options.requireOne(previous_option),
+        .returned = if (options.get(returned_option)) |_| returned: {
+            try options.requireFlag(returned_option);
+            break :returned true;
+        } else false,
+    } else resumed: {
+        if (options.get(previous_option) != null or options.get(returned_option) != null) return error.InvalidArguments;
+        break :resumed null;
+    };
+    if (resumed) |value| {
+        if (value.state < 3 or !std.fs.path.isAbsolute(value.previous)) return error.InvalidArguments;
+    }
+    return .{ .endpoint_directory = endpoint_directory, .endpoint_id = endpoint_id, .runtime_directory = runtime_directory, .resumed = resumed };
 }
 
 fn parseServeOptions(options: argument_options.Options) !ServeOptions {

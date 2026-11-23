@@ -24,14 +24,14 @@ fn runtimeDirectory() []const u8 {
 fn expectServe(command: subject.Command) !subject.ServeOptions {
     return switch (command) {
         .serve => |options| options,
-        .version, .keep => error.ExpectedServeCommand,
+        .version, .keep, .keep_check => error.ExpectedServeCommand,
     };
 }
 
 test "launcher recognizes only the exact version command" {
     switch (try subject.parse(&.{"--version"})) {
         .version => {},
-        .serve, .keep => return error.ExpectedVersionCommand,
+        .serve, .keep, .keep_check => return error.ExpectedVersionCommand,
     }
     try std.testing.expectError(error.InvalidArguments, subject.parse(&.{}));
     try std.testing.expectError(

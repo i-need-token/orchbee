@@ -116,6 +116,10 @@ pub const PTY: &str = "pty";
 /// with `spawn` and reap it with `reap`, and the Keeper reports the leader's end with `exited`.
 pub const PARENT: &str = "parent";
 
+/// The `keeper` capability before the Worker may ask the Keeper to re-execute itself in place from
+/// another Terminal Host program with `reexec`.
+pub const REEXEC: &str = "reexec";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -198,11 +202,11 @@ impl ConnectionKind {
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
             // The Worker reads the holdings its platform's Hosts make: program holdings on Windows,
-            // PTY holdings elsewhere.
+            // PTY holdings elsewhere, where it updates the Keeper by re-execution.
             #[cfg(windows)]
             Self::Keeper => &[PROGRAMS, RECOVERY],
             #[cfg(not(windows))]
-            Self::Keeper => &[PTY, RECOVERY],
+            Self::Keeper => &[PTY, RECOVERY, REEXEC],
         };
         capability_set(names)
     }
@@ -236,7 +240,7 @@ impl ConnectionKind {
                 SCREEN_GATED_PROMPT,
                 SCREEN_GATED_SEND,
             ]),
-            Self::Keeper => capability_set(&[PARENT, PROGRAMS, PTY, RECOVERY]),
+            Self::Keeper => capability_set(&[PARENT, PROGRAMS, PTY, RECOVERY, REEXEC]),
             Self::MachineHub | Self::MachineLink => self.capabilities(),
         }
     }

@@ -64,11 +64,13 @@ pub const keeper = struct {
     /// Before a Host may ask the Keeper to start and parent a terminal's leader with `spawn` and
     /// reap it with `reap`, and the Keeper sends `exited`.
     pub const parent = "parent";
-    pub const declared_capabilities: []const []const u8 = &.{ parent, programs, pty, recovery };
+    /// Before the Worker may ask the Keeper to re-execute itself in place with `reexec`.
+    pub const reexec = "reexec";
+    pub const declared_capabilities: []const []const u8 = &.{ parent, programs, pty, recovery, reexec };
     /// What this build's Keeper serves and its Hosts offer: Windows holds handles and programs;
-    /// macOS holds PTY masters and parents leaders.
+    /// macOS holds PTY masters, parents leaders, and re-executes in place.
     pub const capabilities: []const []const u8 = if (builtin.os.tag.isDarwin())
-        &.{ parent, pty, recovery }
+        &.{ parent, pty, recovery, reexec }
     else
         &.{ programs, recovery };
     pub const development_fingerprint: []const u8 = options.keeper_fingerprint;

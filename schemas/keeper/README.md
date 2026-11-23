@@ -38,11 +38,13 @@ side closes. The frame has no version field: the answer's generation selects thi
   `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`,
   the program holdings it makes, and their entries in a Worker's `status`. `pty` adds the Host's `hold-pty`, the PTY holdings it
   makes, and their entries in a Worker's `status`; `parent` adds the Host's `spawn` and `reap`, the
-  event `exited`, and the reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings)).
-  The Keeper answers `assign`, `discard`, `hold-program`, `hold-pty`, `spawn`, and `reap` with
-  `unsupported` on a connection whose answer did not list their capability, and lists program and
-  PTY holdings only to a Worker whose answer listed `programs` or `pty`. A Windows Keeper serves
-  `programs` and `recovery`; a macOS Keeper serves `pty`, `parent`, and `recovery`.
+  event `exited`, and the reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings));
+  `reexec` adds the Worker's `reexec` and the reasons `orphaned`, `busy`, `check-failed`, and
+  `exec-failed` (see [Re-execution](#re-execution)). The Keeper answers `assign`, `discard`,
+  `hold-program`, `hold-pty`, `spawn`, `reap`, and `reexec` with `unsupported` on a connection whose
+  answer did not list their capability, and lists program and PTY holdings only to a Worker whose
+  answer listed `programs` or `pty`. A Windows Keeper serves `programs` and `recovery`; a macOS
+  Keeper serves `pty`, `parent`, `recovery`, and `reexec`.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -135,6 +137,7 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 | `hold-pty`        | Host        | `holding`, PTY `facts`                   | None                                                                 |
 | `spawn`           | Host        | `holding`, `input`, `launch`, `facts`    | `leader`, a process                                                  |
 | `reap`            | Owner       | `holding`                                | None                                                                 |
+| `reexec`          | Worker      | `program`, an absolute path              | None                                                                 |
 
 | Reply         | Members besides `type`                              |
 | ------------- | --------------------------------------------------- |
@@ -287,11 +290,56 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
   `capacity`.
 - `claim` of a PTY holding names the leader as `program`.
 
+## Re-execution
+
+A macOS Keeper is updated in place, as the [Host handover](../../proposals/platform/host-handover.md#the-keeper-update-on-macos)
+design says: `execve` keeps its process, its children, and every descriptor not marked
+close-on-exec, so its registration, its parented leaders, and its connections stay.
+
+- `reexec` names `program`, the Terminal Host executable to run: 1 to 1,024 bytes, starting with
+  `/`, without a NUL. A Host's `reexec` gets `wrong-role`. The Keeper refuses it while it drains
+  (`draining`), while a holding is quiesced (`marked`), while a holding's owner is not a registered
+  Host that runs (`orphaned`), and while a `spawn` starts a leader or another `reexec` is under way
+  (`busy`).
+- It runs `program keep --check` as a child, with a copy of the state on its standard input.
+  Anything but exit status 0 within 5 seconds gets `check-failed`, and a child still running then
+  is ended.
+- It stops each admitted connection at a frame boundary and closes each connection not yet admitted.
+  Bytes a peer sends meanwhile wait in its socket with their descriptors. Connections that have not
+  all stopped within 3 seconds get `busy`.
+- It writes the state to an unlinked file in its runtime folder, clears close-on-exec on that file
+  and on every descriptor the state names, and executes `program` with its own `keep` options and
+  `--resume`, the state's descriptor, and `--previous`, its own program.
+- The new image reads the state, takes over each descriptor and registration, records the end of
+  each parented leader that ended meanwhile, and answers the pending `reexec` with `reexec-result`.
+  An `execve` that returns gets `exec-failed`, and the old image serves on. A new image that cannot
+  read the state executes the `--previous` program with the same state and `--returned`, and that
+  image answers `exec-failed`.
+- Peers see a pause and no closed connection.
+
+The state is one JSON object under the [payload rules](#payload), with these members:
+
+| Member        | Content                                                                                                                                                                                                                                      |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `format`      | `1`                                                                                                                                                                                                                                          |
+| `previous`    | The program the old image ran                                                                                                                                                                                                                |
+| `listener`    | The listening socket's descriptor                                                                                                                                                                                                            |
+| `lock`        | The endpoint's lifetime lock's descriptor                                                                                                                                                                                                    |
+| `hosts`       | Each registered Host as `{process, ended}`                                                                                                                                                                                                   |
+| `holdings`    | Each holding in ascending id order as `{holding, owner, claimed, master, facts, parented, ended, reaped, exitSent}`: `claimed` as `{from, mark}` when present, `master` its descriptor, PTY `facts`, and `ended` an exit status when present |
+| `released`    | The process ids of released parented leaders that still run                                                                                                                                                                                  |
+| `connections` | Each admitted connection as `{socket, role, pid, host, capabilities, usedIds, pending}`: `host` the process for a Host, `usedIds` ascending `[first, last]` ranges, and `pending` the id of the `reexec` it waits on, when present           |
+
+- A reader refuses a `format` it does not know, a member it does not know, a descriptor that is not
+  open, and a table these rules do not allow.
+- Every later Keeper reads each format an earlier release wrote. Format 1 freezes with the release
+  in which a macOS Worker first offers `reexec`.
+
 ## Bounds
 
 - At most 1,024 holdings and 256 registered Hosts; a request beyond either gets `capacity`.
-- A reply is due within 2 seconds of its request. A requester that has none by then closes the
-  connection and counts the Keeper as unresponsive.
+- A reply is due within 2 seconds of its request, and a `reexec-result` within 10. A requester that
+  has none by then closes the connection and counts the Keeper as unresponsive.
 
 ## Freezing
 
@@ -303,13 +351,14 @@ Worker offer `keeper` and send that group, and the next release seals them; they
 afterwards. A release that only carries this contract, while no Host or Worker offers `keeper`,
 seals none of them, so no bytes are sealed before a real Keeper and Host exercise them.
 
-| Group    | Messages                                                                                             | Joins the frozen fixtures with                     |
-| -------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| Owner    | The frame, `hello`, `hold`, `mark`, `resume`, `release`, their results, `refused`, and `unsupported` | The change that makes a Host offer `keeper`        |
-| Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it |
-| Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it |
-| Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it |
-| PTY      | `hold-pty`, `spawn`, `reap`, their results, `exited`, and PTY status entries and inspect results     | The change that makes a macOS Host offer `keeper`  |
+| Group    | Messages                                                                                             | Joins the frozen fixtures with                      |
+| -------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| Owner    | The frame, `hello`, `hold`, `mark`, `resume`, `release`, their results, `refused`, and `unsupported` | The change that makes a Host offer `keeper`         |
+| Claimant | `inspect`, `claim`, `decline`, and their results                                                     | The H2 change that makes a release Worker offer it  |
+| Worker   | `register-host`, `unregister-host`, `status`, and their results                                      | The H2 change that makes a release Worker offer it  |
+| Recovery | `assign`, `discard`, their results, and `not-orphaned`                                               | The H2 change that makes a release Worker offer it  |
+| PTY      | `hold-pty`, `spawn`, `reap`, their results, `exited`, and PTY status entries and inspect results     | The change that makes a macOS Host offer `keeper`   |
+| Update   | `reexec`, its result, and the reasons `orphaned`, `busy`, `check-failed`, and `exec-failed`          | The change that makes a macOS Worker offer `reexec` |
 
 A later Keeper answers an owner's `resume` of its current mark only with `resumed` or `claimed`.
 No release Session moves a terminal into a Host of the first release, so the claimant's requests
@@ -327,6 +376,7 @@ first meet another version with H2's Keeper, and the Worker's requests with H2's
 | [`recovery.json`](v1/fixtures/recovery.json)                     | Valid, boundary, and invalid cases of the recovery group |
 | [`recovery-sequences.json`](v1/fixtures/recovery-sequences.json) | The state-table rows that the Worker's requests drive    |
 | [`pty.json`](v1/fixtures/pty.json)                               | Valid, boundary, and invalid cases of the PTY group      |
+| [`update.json`](v1/fixtures/update.json)                         | Valid, boundary, and invalid cases of the update group   |
 
 - A message file holds `valid`, `boundary`, and `invalid` arrays. Message cases hold `name`,
   `direction` (`initiator`, or `acceptor` for the Keeper), and `payload`, the exact JSON text. A

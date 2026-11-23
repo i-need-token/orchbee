@@ -11,6 +11,7 @@
 		{ "$ref": "#/$defs/holdProgram" },
 		{ "$ref": "#/$defs/holdPty" },
 		{ "$ref": "#/$defs/spawn" },
+		{ "$ref": "#/$defs/reexec" },
 		{ "$ref": "#/$defs/markRequest" },
 		{ "$ref": "#/$defs/markedRequest" },
 		{ "$ref": "#/$defs/claim" },
@@ -296,6 +297,18 @@
 				"extensions": { "$ref": "#/$defs/extensions" }
 			}
 		},
+		"reexec": {
+			"description": "Under reexec only; the Worker's request that the Keeper re-execute itself in place from program, a Terminal Host executable.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["type", "id", "program"],
+			"properties": {
+				"type": { "const": "reexec" },
+				"id": { "$ref": "#/$defs/id" },
+				"program": { "type": "string", "maxLength": 1024, "pattern": "^/[^\\u0000]*$" },
+				"extensions": { "$ref": "#/$defs/extensions" }
+			}
+		},
 		"markRequest": {
 			"type": "object",
 			"additionalProperties": false,
@@ -375,6 +388,7 @@
 									"hold-pty",
 									"spawn",
 									"reap",
+									"reexec",
 									"refused",
 									"unsupported"
 								]
@@ -404,7 +418,8 @@
 						"assign-result",
 						"discard-result",
 						"hold-pty-result",
-						"reap-result"
+						"reap-result",
+						"reexec-result"
 					]
 				},
 				"id": { "$ref": "#/$defs/id" },
@@ -563,7 +578,7 @@
 				"type": { "const": "refused" },
 				"id": { "$ref": "#/$defs/id" },
 				"reason": {
-					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, handle-failed, not-orphaned, spawn-failed, or running; a receiver reads any other name as unknown.",
+					"description": "not-registered, wrong-role, not-owner, not-target, unknown-holding, holding-exists, marked, stale-mark, identity-mismatch, capacity, draining, handle-failed, not-orphaned, spawn-failed, running, orphaned, busy, check-failed, or exec-failed; a receiver reads any other name as unknown.",
 					"$ref": "#/$defs/name"
 				},
 				"extensions": { "$ref": "#/$defs/extensions" }

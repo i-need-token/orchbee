@@ -29,6 +29,31 @@ pub const Server = struct {
         ) };
     }
 
+    /// The endpoint an earlier image of this Keeper left open across `execve`.
+    pub fn adopt(
+        allocator: std.mem.Allocator,
+        runtime_directory: []const u8,
+        endpoint_directory: []const u8,
+        endpoint_id: []const u8,
+        listener_socket: posix.fd_t,
+        lock: posix.fd_t,
+    ) !Server {
+        return .{ .inner = try local_ipc.LocalServer.adoptInEndpointDirectory(
+            platform.thread_sync.io(),
+            allocator,
+            runtime_directory,
+            endpoint_directory,
+            endpoint_id,
+            listener_socket,
+            lock,
+        ) };
+    }
+
+    /// The listening socket and the lifetime lock, which an update carries to the next image.
+    pub fn endpointDescriptors(self: *const Server) struct { listener: posix.fd_t, lock: posix.fd_t } {
+        return .{ .listener = self.inner.listenerSocket(), .lock = self.inner.lock_file.handle };
+    }
+
     /// Accepts one same-user connection within `timeout_ms`; another user's is closed unread.
     pub fn acceptBefore(self: *Server, timeout_ms: u32) !bool {
         var descriptors = [_]posix.pollfd{.{ .fd = self.inner.listenerSocket(), .events = posix.POLL.IN, .revents = 0 }};

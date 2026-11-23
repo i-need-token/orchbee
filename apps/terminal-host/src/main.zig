@@ -16,13 +16,16 @@ pub const debug = struct {
 };
 
 pub fn main(init: std.process.Init) !void {
-    // The pinned process.Init has not opened application descriptors or started
-    // I/O workers. Discard launcher resources before acquiring any Host state.
-    if (comptime builtin.os.tag == .linux or builtin.os.tag.isDarwin())
-        try platform.posix_compat.closeInheritedDescriptors(init.io);
     const allocator = init.gpa;
     const arguments = try init.minimal.args.toSlice(init.arena.allocator());
     if (arguments.len == 0) return error.InvalidArguments;
+    // The pinned process.Init has not opened application descriptors or started
+    // I/O workers. Discard launcher resources before acquiring any Host state; a
+    // Keeper image executed in place does so once it has taken its state over.
+    if (comptime builtin.os.tag == .linux or builtin.os.tag.isDarwin()) {
+        if (!launcher_arguments.resumesKeeper(arguments[1..]))
+            try platform.posix_compat.closeInheritedDescriptors(init.io);
+    }
 
     switch (try launcher_arguments.parse(allocator, arguments[1..])) {
         .version => try writeVersion(init.io),
@@ -32,6 +35,10 @@ pub fn main(init: std.process.Init) !void {
             return err;
         },
         .keep => |options| try keep(allocator, options),
+        .keep_check => {
+            if (comptime builtin.os.tag != .macos) return error.KeeperUnsupported;
+            terminal_host.keeper.check.serve(allocator);
+        },
     }
 }
 
@@ -39,11 +46,20 @@ pub fn main(init: std.process.Init) !void {
 /// to exit; it returns only when it could not start. A Keeper failure exits like a Host's.
 fn keep(allocator: std.mem.Allocator, options: launcher_arguments.KeepOptions) !void {
     if (comptime !terminal_host.keeper.supported) return error.KeeperUnsupported;
-    terminal_host.keeper.service.run(allocator, .{
+    const service_options: terminal_host.keeper.service.Options = .{
         .runtime_directory = options.runtime_directory,
         .endpoint_id = options.endpoint_id,
         .endpoint_directory = options.endpoint_directory,
-    }) catch |err| switch (err) {
+    };
+    if (options.resumed) |resumed| {
+        if (comptime builtin.os.tag != .macos) return error.KeeperUnsupported;
+        terminal_host.keeper.resume_state.run(allocator, service_options, .{
+            .state = resumed.state,
+            .previous = resumed.previous,
+            .returned = resumed.returned,
+        });
+    }
+    terminal_host.keeper.service.run(allocator, service_options) catch |err| switch (err) {
         error.InsecureRuntimeDirectory => failed(.runtime_directory, err),
         error.AlreadyRunning => failed(.already_running, err),
         error.Endpoint => failed(.endpoint, err),

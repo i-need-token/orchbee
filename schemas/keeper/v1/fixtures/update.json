@@ -1,0 +1,90 @@
+{
+	"valid": [
+		{
+			"name": "reexec",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"/Applications/Orchbee.app/Contents/MacOS/orchbee-terminal-host\"}"
+		},
+		{
+			"name": "reexec-result",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"reexec-result\",\"id\":41}"
+		},
+		{
+			"name": "reexec-refused-orphaned",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":41,\"reason\":\"orphaned\"}"
+		},
+		{
+			"name": "reexec-refused-busy",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":41,\"reason\":\"busy\"}"
+		},
+		{
+			"name": "reexec-refused-check-failed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":41,\"reason\":\"check-failed\"}"
+		},
+		{
+			"name": "reexec-refused-exec-failed",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"refused\",\"id\":41,\"reason\":\"exec-failed\"}"
+		}
+	],
+	"boundary": [
+		{
+			"name": "reexec-program-root",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":1,\"program\":\"/\"}"
+		},
+		{
+			"name": "reexec-program-longest",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":4294967295,\"program\":\"/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}"
+		}
+	],
+	"invalid": [
+		{
+			"name": "reexec-missing-program",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-relative-program",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"orchbee-terminal-host\"}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-empty-program",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"\"}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-program-too-long",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-program-nul",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"/bin/\\u0000sh\"}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-extra-member",
+			"direction": "initiator",
+			"payload": "{\"type\":\"reexec\",\"id\":41,\"program\":\"/Applications/Orchbee.app/Contents/MacOS/orchbee-terminal-host\",\"arguments\":[]}",
+			"layer": "schema"
+		},
+		{
+			"name": "reexec-result-extra-member",
+			"direction": "acceptor",
+			"payload": "{\"type\":\"reexec-result\",\"id\":41,\"program\":\"/Applications/Orchbee.app/Contents/MacOS/orchbee-terminal-host\"}",
+			"layer": "schema"
+		}
+	]
+}

@@ -38,7 +38,8 @@
 				{ "name": "parent", "addedIn": "0.1.0-beta.23" },
 				{ "name": "programs", "addedIn": "0.1.0-beta.23" },
 				{ "name": "pty", "addedIn": "0.1.0-beta.23" },
-				{ "name": "recovery", "addedIn": "0.1.0-beta.23" }
+				{ "name": "recovery", "addedIn": "0.1.0-beta.23" },
+				{ "name": "reexec", "addedIn": "0.1.0-beta.23" }
 			],
 			"fingerprintInputs": [
 				"apps/terminal-host/src/handshake",

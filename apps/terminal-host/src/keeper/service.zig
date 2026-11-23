@@ -1,6 +1,7 @@
 //! The Keeper's listener thread: it accepts each connection onto its own thread, on its own pipe
 //! instance on Windows, closes at once any connection beyond the Keeper's bounds, and ends the
-//! process once it is empty for 30 seconds or drained.
+//! process once it is empty for 30 seconds or drained. On macOS it stops while an update stops
+//! connections (`reexec_darwin.zig`).
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -10,7 +11,8 @@ const connection = @import("connection.zig");
 const state = @import("state.zig");
 
 const darwin = builtin.os.tag == .macos;
-const Server = if (darwin) @import("listener_darwin.zig").Server else local_ipc.LocalServer;
+pub const Server = if (darwin) @import("listener_darwin.zig").Server else local_ipc.LocalServer;
+const reexec = if (darwin) @import("reexec_darwin.zig") else struct {};
 
 const monotonic = platform.monotonic;
 const diagnostic_log = platform.diagnostic_log;
@@ -51,23 +53,61 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
         };
     };
     // The endpoint's lifetime lock is held from here on, so the runtime directory is this Keeper's.
-    fatal_record.armAs(.keeper, options.runtime_directory);
-    diagnostic_log.armKeeper(options.runtime_directory);
+    armProcess(options.runtime_directory, &server);
+    const table = try allocator.create(state.Table);
+    try table.init();
+    state.activate(table);
+    try table.startWatch();
+    if (darwin) armUpdate(allocator, options, &server);
+    serve(allocator, &server, table);
+}
+
+/// Arms what a Keeper that holds its endpoint's lifetime lock records for its runtime directory.
+pub fn armProcess(runtime_directory: []const u8, server: *const Server) void {
+    fatal_record.armAs(.keeper, runtime_directory);
+    diagnostic_log.armKeeper(runtime_directory);
     fatal_record.markThread(.@"keeper-listener");
     if (darwin) {
         platform.keeper.darwin.raiseDescriptorLimit();
         state.armEndpointRemoval(server.inner.socket_path);
     }
-    const table = try allocator.create(state.Table);
-    try table.init();
-    state.activate(table);
-    try table.startWatch();
+}
+
+/// Lets a macOS Keeper update in place from its endpoint; without its own program it cannot.
+pub fn armUpdate(allocator: std.mem.Allocator, options: Options, server: *const Server) void {
+    const program = reexec.ownProgram(allocator) orelse return;
+    const descriptors = server.endpointDescriptors();
+    reexec.arm(.{
+        .runtime_directory = options.runtime_directory,
+        .endpoint_id = options.endpoint_id,
+        .endpoint_directory = options.endpoint_directory,
+        .listener = descriptors.listener,
+        .lock = descriptors.lock,
+        .program = program,
+    });
+}
+
+/// Accepts and serves connections until the Keeper ends.
+pub fn serve(allocator: std.mem.Allocator, server: *Server, table: *state.Table) noreturn {
     var listener: Listener = .{
         .allocator = allocator,
-        .server = &server,
+        .server = server,
         .table = table,
     };
     listener.run();
+}
+
+/// Serves a connection an earlier image of this Keeper admitted, in `slot`, on its own thread;
+/// false when no thread starts.
+pub fn resumeConnection(allocator: std.mem.Allocator, table: *state.Table, transport: connection.Transport, slot: usize, resumed: connection.Resumed) bool {
+    const thread = std.Thread.spawn(.{ .stack_size = connection_stack_bytes }, connection.resumeRun, .{ connection.Context{
+        .allocator = allocator,
+        .table = table,
+        .transport = transport,
+        .slot = slot,
+    }, resumed }) catch return false;
+    thread.detach();
+    return true;
 }
 
 const Listener = struct {
@@ -77,6 +117,7 @@ const Listener = struct {
 
     fn run(self: *Listener) noreturn {
         while (true) {
+            if (darwin) reexec.parkListener(self.table);
             if (self.server.acceptBefore(accept_slice_ms)) |accepted| {
                 if (accepted) self.dispatch();
             } else |err| self.acceptFailed(err);

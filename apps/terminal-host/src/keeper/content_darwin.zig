@@ -8,6 +8,7 @@ const handshake = @import("terminal-host-handshake");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const state = @import("state.zig");
+const reexec = @import("reexec_darwin.zig");
 
 const darwin = platform.keeper.darwin;
 const posix_compat = platform.posix_compat;
@@ -90,6 +91,8 @@ pub const TableExtra = struct {
     /// Holdings a `spawn` reserved; each counts toward the holding bound until it is inserted.
     spawning: [state.maximum_host_connections]Reservation = undefined,
     spawning_count: usize = 0,
+    /// An update in place and the connections it stopped.
+    freeze: reexec.Freeze = .{},
 
     /// Whether a `spawn` of `process` is in flight, so the Host stays registered for its holding.
     pub fn reserves(self: *const TableExtra, process: Process) bool {
