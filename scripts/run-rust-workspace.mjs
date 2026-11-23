@@ -68,7 +68,7 @@ const unsafeBoundaries = Object.freeze([
 		module: 'process_identity_native',
 		system: 'crates/local-runtime/src/process_identity_native.rs',
 		systemTests: 'crates/local-runtime/src/process_identity_native/tests.rs',
-		reason: "reviewed libproc reads of a process's start time and program are isolated here",
+		reason: "reviewed libproc reads of a process's start time, program and children are isolated here",
 	},
 ]);
 const task = process.argv[2];
