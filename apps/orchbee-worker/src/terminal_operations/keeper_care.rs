@@ -2,12 +2,12 @@
 //! (`proposals/platform/host-handover.md`, the hang check and the Keeper's life from H2). It runs
 //! between Server requests: it starts the Session's Keeper when none runs and a Host holds
 //! terminals there, has each Host the Worker holds attach that Keeper, and replaces a Keeper a Host
-//! reports lost, or reports unresponsive and that does not answer the Worker either. On Windows it
-//! also updates an adopted Keeper that runs another installation's program and retires the Keeper
-//! an update leaves (`update`), and ends a Host whose dispatch has stopped turning once the Keeper
-//! holds every terminal it runs, so recovery follows as for a crash (`hang`), which macOS does too;
-//! macOS gains the update with H5's M7. A hang check never ends a Host that runs a terminal the
-//! Keeper does not hold, and no step here ends the Worker.
+//! reports lost, or reports unresponsive and that does not answer the Worker either. It updates an
+//! adopted Keeper that runs another installation's program, on Windows by a new Keeper and the
+//! retirement of the old one and on macOS in place (`update`), and ends a Host whose dispatch has
+//! stopped turning once the Keeper holds every terminal it runs, so recovery follows as for a crash
+//! (`hang`). A hang check never ends a Host that runs a terminal the Keeper does not hold, and no
+//! step here ends the Worker.
 //!
 //! A Server request that arrives while the care runs waits for it, so the care answers when it
 //! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
@@ -32,7 +32,7 @@ use crate::{
 };
 
 mod hang;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod update;
 
 pub(super) use hang::after_unanswered;
@@ -56,7 +56,7 @@ pub(super) struct KeeperCare {
     /// Whether the Keeper ended or stopped answering and waits for its replacement.
     replacing: bool,
     /// Whether the Keeper runs another installation's program and is updated.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     update: update::KeeperUpdate,
 }
 
@@ -122,7 +122,7 @@ impl KeeperCare {
             next_start: now,
             failed_starts: 0,
             replacing: false,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             update: update::KeeperUpdate::new(now),
         }
     }
@@ -131,15 +131,7 @@ impl KeeperCare {
     /// update of it is due or not yet judged, or another Keeper still `retiring`.
     #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keeper_changing(&self, keeper: Option<&SessionKeeper>, retiring: bool) -> bool {
-        #[cfg(windows)]
-        let updating = self.update.pending(keeper);
-        // A macOS Keeper is never updated in place before H5's M7.
-        #[cfg(target_os = "macos")]
-        let updating = {
-            let _ = keeper;
-            false
-        };
-        self.replacing || retiring || updating
+        self.replacing || retiring || self.update.pending(keeper)
     }
 
     /// When the next care is due.
@@ -188,8 +180,11 @@ impl KeeperCare {
             self.start(hosts, &mut keepers);
         } else {
             offer(hosts, keepers.keeper);
-            #[cfg(windows)]
-            self.update.run(hosts, &mut keepers);
+            // A Keeper that stops answering during its update is replaced at the next care.
+            #[cfg(any(windows, target_os = "macos"))]
+            if self.update.run(hosts, &mut keepers) {
+                self.replacing = true;
+            }
             for host in hosts.iter_mut() {
                 hang::probe(host, keepers.keeper);
             }

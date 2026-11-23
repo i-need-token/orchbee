@@ -2,13 +2,7 @@
 //! back, or one an adoption found beside the current Keeper, is retired. Each Host detaches it
 //! before it ends, so no Host reports it lost, and its slot in the Session record is then freed.
 
-use std::{
-    error::Error,
-    io,
-    num::NonZeroU32,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{error::Error, io, num::NonZeroU32, path::Path, time::Instant};
 
 use orchbee_local_runtime::{ExactProcess, KeeperProcess, KeeperSlot};
 use orchbee_terminal_protocol::{HandoverControl, HandoverProcess};
@@ -31,11 +25,6 @@ pub(crate) struct RetiringKeeper {
 }
 
 impl SessionKeeper {
-    /// The Keeper's process ID and creation time.
-    pub(crate) const fn identity(&self) -> (u32, u64) {
-        (self.process.pid, self.process.created)
-    }
-
     /// Makes this Keeper's slot the Session record's current Keeper's, which commits an update.
     ///
     /// # Errors
@@ -54,16 +43,6 @@ impl SessionKeeper {
     /// The live Keeper an adoption found in the other slot, which the caller retires.
     pub(crate) fn take_other(&mut self) -> Option<RetiringKeeper> {
         self.other.take()
-    }
-
-    /// Whether the Keeper runs `executable`: one this Worker started does; an adopted one runs
-    /// the program its full image path names. `None` when that path cannot be read.
-    pub(crate) fn runs(&self, executable: &Path) -> Option<bool> {
-        let Owner::Adopted(process) = &self.owner else {
-            return Some(true);
-        };
-        let image = process.image_path().ok()?;
-        Some(canonical(&image)? == canonical(executable)?)
     }
 
     /// This Keeper as one to retire, closing the Worker's connection to it.
@@ -163,9 +142,4 @@ fn detach(host: &HostBrokerConnection, keeper: HandoverProcess) -> Result<(), Bo
         HandoverControl::KeeperDetached => Ok(()),
         _ => Err(unexpected().into()),
     }
-}
-
-/// `path` with every link resolved, for comparing two programs.
-fn canonical(path: &Path) -> Option<PathBuf> {
-    std::fs::canonicalize(path).ok()
 }

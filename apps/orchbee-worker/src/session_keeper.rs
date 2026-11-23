@@ -1,9 +1,9 @@
 //! The Session's Keeper as the Worker owns it, on Windows and macOS: started once the Worker's first
 //! Host is ready, or adopted from the Session record by a replacement Worker; each Host it starts
 //! registered with it and told to attach it; replaced when it ended or stopped answering; and ended
-//! at a stop once the Host is gone. On Windows it is also updated when it runs another
-//! installation's program, and a Keeper an update replaced or rolled back is retired
-//! (`retiring`). A failed Keeper step leaves the terminals running unheld and the Worker serving,
+//! at a stop once the Host is gone. It is also updated when it runs another installation's program:
+//! on Windows a new Keeper replaces it, and a Keeper an update replaced or rolled back is retired
+//! (`retiring`); on macOS it executes the new program in its own process. A failed Keeper step leaves the terminals running unheld and the Worker serving,
 //! so nothing here ends a program or the Worker (`proposals/platform/host-handover.md`, The
 //! Keeper's life from H2, and the H4 design).
 //!
@@ -311,6 +311,44 @@ impl SessionKeeper {
     /// no Host holds a terminal in it, so ending it ends no program.
     pub(crate) fn end(&mut self, deadline: Instant) {
         self.owner.end(deadline);
+    }
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+impl SessionKeeper {
+    /// The Keeper's process ID and creation time.
+    pub(crate) const fn identity(&self) -> (u32, u64) {
+        (self.process.pid, self.process.created)
+    }
+
+    /// Whether the Keeper runs `executable`: one this Worker started does; an adopted one runs
+    /// the program its full image path names. `None` when that path cannot be read.
+    pub(crate) fn runs(&self, executable: &Path) -> Option<bool> {
+        let Owner::Adopted(process) = &self.owner else {
+            return Some(true);
+        };
+        let image = process.image_path().ok()?;
+        let canonical = |path: &Path| std::fs::canonicalize(path).ok();
+        Some(canonical(&image)? == canonical(executable)?)
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl SessionKeeper {
+    /// Whether the Keeper can execute another program in its own process.
+    pub(crate) const fn reexecs(&self) -> bool {
+        self.client.reexecs()
+    }
+
+    /// Has the Keeper execute `executable` in its own process, which keeps its process, its
+    /// holdings, and every connection.
+    ///
+    /// # Errors
+    ///
+    /// Returns the outer error when the Keeper does not answer within the update's bound, and
+    /// the inner one when it refuses and keeps its program.
+    pub(crate) fn reexec(&mut self, executable: &Path) -> io::Result<Result<(), io::Error>> {
+        Ok(self.client.reexec(executable)?.map_err(refusal))
     }
 }
 

@@ -1,42 +1,38 @@
-//! The Keeper update and the retirement of a Keeper on Windows (`proposals/platform/host-handover.md`,
-//! H4 design). A Worker that adopted a Keeper running another installation's program starts a new
-//! Keeper from its own in the other slot, has every Host attach it, and commits once the new Keeper
-//! holds every holding the old one does; the old Keeper is then retired. A failure before the commit
-//! retires the new Keeper instead, so the old one stays in charge, and the update is tried again
-//! later. Moves wait while an update is due and while a Keeper retires.
-//!
-//! Retiring a Keeper has each Host detach it before it ends: a Host whose Keeper link ends without a
-//! detach reports that Keeper lost, which would replace the current one.
+//! The Keeper update (`proposals/platform/host-handover.md`, the H4 design and H5's M7). A Worker
+//! that answers for a Keeper running another installation's program updates it to its own once
+//! every Host holding terminals attached it and nothing it holds is moving or orphaned. On Windows
+//! a new Keeper takes every holding over and the old one retires (`replacement`); on macOS the
+//! Keeper executes the Worker's program in its own process, keeping every holding and connection. A
+//! failed update leaves the old Keeper in charge and is tried again later. Moves wait while an
+//! update is due.
 
 use std::{
     error::Error,
-    io, thread,
+    path::Path,
     time::{Duration, Instant},
 };
 
-use orchbee_local_runtime::{Holding, HoldingState, KeeperStatus, ProgramHolding};
+use orchbee_local_runtime::{HoldingState, KeeperStatus};
 
 use super::{Cared, Keepers};
-use crate::{
-    diagnostic_events,
-    session_keeper::{Serving, SessionKeeper},
-};
+use crate::{diagnostic_events, session_keeper::SessionKeeper};
 
-/// How long the new Keeper may take to hold every holding the old one holds: a Host offers each
-/// running terminal to a new link within 50 milliseconds.
-const COMPARE_BUDGET: Duration = Duration::from_secs(2);
-/// How long apart two comparisons of the Keepers' holdings lie.
-const COMPARE_GAP: Duration = Duration::from_millis(20);
-/// How long after a rolled-back update the next may begin.
+#[cfg(windows)]
+mod replacement;
+
+#[cfg(windows)]
+pub(super) use replacement::retire;
+
+/// How long after a failed update the next may begin.
 const RETRY_SPACING: Duration = Duration::from_secs(30);
-/// Rolled-back updates after which this Worker tries none: moves then run under the old Keeper.
+/// Failed updates after which this Worker tries none: moves then run under the old Keeper.
 const ATTEMPTS: u32 = 3;
 
 /// Whether the Session's Keeper is updated, judged once for each Keeper the Worker answers for.
 pub(super) struct KeeperUpdate {
     /// The Keeper last judged, and whether it needs an update.
     judged: Option<((u32, u64), bool)>,
-    /// Rolled-back updates so far, and when the next may begin.
+    /// Failed updates so far, and when the next may begin.
     failed: u32,
     next: Instant,
 }
@@ -62,104 +58,112 @@ impl KeeperUpdate {
     }
 
     /// Updates the Keeper when it runs another program than the Worker's own Host and nothing it
-    /// holds is moving, orphaned, or unheld by a Host.
-    pub(super) fn run(&mut self, hosts: &[Cared<'_>], keepers: &mut Keepers<'_>) {
+    /// holds is moving, orphaned, or unheld by a Host. Returns whether the Keeper stopped
+    /// answering during the update, so it is replaced.
+    pub(super) fn run(&mut self, hosts: &[Cared<'_>], keepers: &mut Keepers<'_>) -> bool {
         let Some(old) = keepers.keeper.as_mut() else {
-            return;
+            return false;
         };
         let due = match self.judged {
             Some((judged, due)) if judged == old.identity() => due,
             _ => {
-                // A Keeper whose program cannot be read, or a Worker that knows no program to start
-                // one from, keeps the Keeper it has.
-                let due = keepers
-                    .program
-                    .is_some_and(|(_, executable)| old.runs(executable) == Some(false));
+                // A Keeper whose program cannot be read, one that cannot update, or a Worker that
+                // knows no program to update to keeps the Keeper it has.
+                let due = keepers.program.is_some_and(|(_, executable)| {
+                    updatable(old) && old.runs(executable) == Some(false)
+                });
                 self.judged = Some((old.identity(), due));
                 due
             }
         };
         let Some((runtime, executable)) = keepers.program else {
-            return;
+            return false;
         };
         let now = Instant::now();
-        if !due || self.failed >= ATTEMPTS || now < self.next || keepers.retiring.is_some() {
-            return;
+        if !due || self.failed >= ATTEMPTS || now < self.next {
+            return false;
         }
-        let holding = hosts.iter().filter(|host| host.connection.keeper());
-        if holding.clone().any(|host| !host.watch.attached) {
-            return;
+        #[cfg(windows)]
+        if keepers.retiring.is_some() {
+            return false;
         }
-        match old.status() {
-            Ok(status) if settled(&status) => {}
-            _ => return,
+        let mut holding = hosts.iter().filter(|host| host.connection.keeper());
+        if holding.any(|host| !host.watch.attached) {
+            return false;
         }
+        let status = match old.status() {
+            Ok(status) if settled(&status) => status,
+            _ => return false,
+        };
         let attempt = self.failed + 1;
-        let slot = old.slot().other();
-        let mut new = match SessionKeeper::start(runtime, slot, executable) {
-            Ok(new) => new,
-            Err(error) => return self.failed("start", attempt, error.as_ref(), None, keepers),
-        };
-        for host in holding {
-            let attached = host
-                .managed
-                .host_identity()
-                .map_err(Into::into)
-                .and_then(|process| new.attach(host.connection, Serving::BetweenRequests, process));
-            if let Err(error) = attached {
-                return self.failed("attach", attempt, error.as_ref(), Some(new), keepers);
-            }
-        }
-        let counts = match covered(old, &mut new) {
-            Ok(counts) => counts,
-            Err(error) => {
-                return self.failed("compare", attempt, error.as_ref(), Some(new), keepers);
-            }
-        };
-        if let Err(error) = new.make_current(runtime) {
-            return self.failed("commit", attempt, &error, Some(new), keepers);
-        }
-        self.judged = Some((new.identity(), false));
-        if let Some(old) = keepers.keeper.replace(new) {
-            *keepers.retiring = Some(old.retire());
-        }
-        diagnostic_events::keeper_updated(counts.0, counts.1, now.elapsed());
+        self.apply(hosts, keepers, (runtime, executable), &status, attempt, now)
     }
 
-    /// Records a failed update and retires the new Keeper, if one started, so the old one stays.
-    fn failed(
+    /// Replaces the Keeper with a new one started from the Worker's program.
+    #[cfg(windows)]
+    fn apply(
         &mut self,
-        step: &'static str,
-        attempt: u32,
-        error: &(dyn Error + 'static),
-        new: Option<SessionKeeper>,
+        hosts: &[Cared<'_>],
         keepers: &mut Keepers<'_>,
-    ) {
+        program: (&Path, &Path),
+        _status: &KeeperStatus,
+        attempt: u32,
+        began: Instant,
+    ) -> bool {
+        replacement::update(self, hosts, keepers, program, attempt, began);
+        false
+    }
+
+    /// Has the Keeper execute the Worker's program in its own process; one that does not answer
+    /// within the update's bound is replaced.
+    #[cfg(target_os = "macos")]
+    fn apply(
+        &mut self,
+        _hosts: &[Cared<'_>],
+        keepers: &mut Keepers<'_>,
+        (_, executable): (&Path, &Path),
+        status: &KeeperStatus,
+        attempt: u32,
+        began: Instant,
+    ) -> bool {
+        let Some(keeper) = keepers.keeper.as_mut() else {
+            return false;
+        };
+        match keeper.reexec(executable) {
+            Ok(Ok(())) => {
+                self.judged = Some((keeper.identity(), false));
+                diagnostic_events::keeper_updated(status.holdings.len(), 0, began.elapsed());
+                false
+            }
+            Ok(Err(refusal)) => {
+                self.failed("reexec", attempt, &refusal);
+                false
+            }
+            Err(error) => {
+                self.failed("reexec", attempt, &error);
+                true
+            }
+        }
+    }
+
+    /// Records a failed update; the next may begin after the retry spacing.
+    fn failed(&mut self, step: &'static str, attempt: u32, error: &(dyn Error + 'static)) {
         diagnostic_events::keeper_update_failed(step, attempt, error);
         self.failed = attempt;
         self.next = Instant::now() + RETRY_SPACING;
-        if let Some(new) = new {
-            *keepers.retiring = Some(new.retire());
-        }
     }
 }
 
-/// Has every Host detach the Keeper being retired, then ends it; a failed detach waits for the next
-/// care.
-pub(super) fn retire(hosts: &[Cared<'_>], keepers: &mut Keepers<'_>) {
-    let Some(retiring) = keepers.retiring.as_mut() else {
-        return;
-    };
-    let Some((runtime, _)) = keepers.program else {
-        return;
-    };
-    let detaching = hosts
-        .iter()
-        .filter(|host| host.connection.keeper())
-        .filter_map(|host| Some((host.connection, host.managed.host_identity().ok()?)));
-    if retiring.retire(runtime, detaching) {
-        *keepers.retiring = None;
-    }
+/// Whether `keeper` can be updated at all: every Windows Keeper can be replaced.
+#[cfg(windows)]
+const fn updatable(_keeper: &SessionKeeper) -> bool {
+    true
+}
+
+/// Whether `keeper` can be updated at all: a macOS Keeper must offer the update in place.
+#[cfg(target_os = "macos")]
+const fn updatable(keeper: &SessionKeeper) -> bool {
+    keeper.reexecs()
 }
 
 /// Whether every holding `status` reports is held for a running Host: none moving, orphaned, or in
@@ -173,56 +177,4 @@ fn settled(status: &KeeperStatus) -> bool {
             .programs
             .iter()
             .all(|program| program.state == HoldingState::Held)
-}
-
-/// Waits until `new` holds every holding `old` does, the same terminal or program under the same
-/// holding id for the same Host with the same processes, and answers how many terminal and program
-/// holdings that is.
-fn covered(
-    old: &mut SessionKeeper,
-    new: &mut SessionKeeper,
-) -> Result<(usize, usize), Box<dyn Error>> {
-    let deadline = Instant::now() + COMPARE_BUDGET;
-    loop {
-        let (before, after) = (old.status()?, new.status()?);
-        if !settled(&before) {
-            return Err(io::Error::other("a holding began to move during the update").into());
-        }
-        let terminals = before
-            .holdings
-            .iter()
-            .all(|held| after.holdings.iter().any(|copy| same_holding(held, copy)));
-        let programs = before
-            .programs
-            .iter()
-            .all(|held| after.programs.iter().any(|copy| same_program(held, copy)));
-        if terminals && programs {
-            return Ok((before.holdings.len(), before.programs.len()));
-        }
-        if Instant::now() >= deadline {
-            return Err(io::Error::new(
-                io::ErrorKind::TimedOut,
-                "the new Keeper did not hold every holding in time",
-            )
-            .into());
-        }
-        thread::sleep(COMPARE_GAP);
-    }
-}
-
-fn same_holding(held: &Holding, copy: &Holding) -> bool {
-    copy.state == HoldingState::Held
-        && copy.holding == held.holding
-        && copy.owner == held.owner
-        && copy.terminal == held.terminal
-        && copy.program == held.program
-        && copy.console == held.console
-}
-
-fn same_program(held: &ProgramHolding, copy: &ProgramHolding) -> bool {
-    copy.state == HoldingState::Held
-        && copy.holding == held.holding
-        && copy.owner == held.owner
-        && copy.process == held.process
-        && copy.program_id == held.program_id
 }

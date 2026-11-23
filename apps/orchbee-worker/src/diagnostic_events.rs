@@ -354,10 +354,10 @@ pub(crate) fn keeper_replaced() {
     log_event(LogLevel::Info, "keeper-replaced", &[]);
 }
 
-/// The Worker replaced the Session's Keeper with one that runs its own program: the new Keeper
-/// held `terminals` terminal holdings and `programs` program holdings, and the update took
-/// `elapsed` up to its commit.
-#[cfg(windows)]
+/// The Worker updated the Session's Keeper to its own program: on Windows a new Keeper held
+/// `terminals` terminal holdings and `programs` program holdings, and on macOS the Keeper carried
+/// `terminals` holdings into the program it executed; the update took `elapsed` up to its commit.
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duration) {
     log_event(
         LogLevel::Info,
@@ -372,7 +372,7 @@ pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duratio
 
 /// A Keeper update failed at `step` on its `attempt`, from 1, and was rolled back, so the old
 /// Keeper stays: the closed I/O error kind and the operating-system error code it carries.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_update_failed(
     step: &'static str,
     attempt: u32,
@@ -391,7 +391,7 @@ pub(crate) fn keeper_update_failed(
     log_event(LogLevel::Warning, "keeper-update-failed", &fields);
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn count(value: usize) -> LogValue {
     LogValue::Count(u64::try_from(value).unwrap_or(u64::MAX))
 }

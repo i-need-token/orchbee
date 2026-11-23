@@ -28,9 +28,10 @@ arrived. A failed adoption also ends the Worker with an `exited` record at site 
 
 On Windows and macOS the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
 its first Host attached it, `keeper-replaced` when one that ended or stopped answering was replaced,
-`keeper-updated` with the `terminals` and `programs` the new Keeper held and `elapsedMs` when an
-update committed, `keeper-update-failed` with `error`, `osError`, `step` (`start`, `attach`,
-`compare` or `commit`) and `attempt` when one rolled back, and `keeper-failed` for a step that
+`keeper-updated` with the `terminals` and `programs` the new Keeper held, or on macOS the holdings
+the Keeper carried into the program it executed, and `elapsedMs` when an update committed,
+`keeper-update-failed` with `error`, `osError`, `step` (`start`, `attach`, `compare` or `commit`,
+or `reexec` on macOS) and `attempt` when one rolled back, and `keeper-failed` for a step that
 failed, with `error`, `osError` and `step` (`start`, `attach`, `adopt`, `replace`, `discard`, `hold`
 when the Host runs a terminal its Keeper does not hold, `detach`, `release`, or `end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
 Worker ended it. `host-epoch-unrecorded` records, with `error`, a Host epoch the Session record did
@@ -406,6 +407,12 @@ detach fails, then the Worker ends it and frees its slot, so no Host reports it 
 before the commit retires the new Keeper instead; the next attempt follows 30 seconds later, and
 after three the old Keeper stays. Move turns answer `Waiting` while an update is due and while a
 Keeper retires.
+
+On macOS such a Keeper, when it offers `reexec`, is updated in place under the same conditions:
+the Worker sends `reexec` naming its own Host program, and the Keeper keeps its process, its
+holdings and every connection while it runs that program. A refusal is retried 30 seconds later, up
+to three attempts, and a Keeper that does not answer within the update's 10-second bound is
+replaced.
 
 A Host exchange between requests does not watch the Server, so a request that arrives meanwhile
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
