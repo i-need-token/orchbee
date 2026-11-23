@@ -5,6 +5,7 @@ pub const envelope = @import("envelope.zig");
 pub const host_sections = @import("host_sections.zig");
 pub const engine_section = @import("engine_section.zig");
 pub const screen_pages = @import("screen_pages.zig");
+pub const image_section = @import("image_section.zig");
 
 pub const generation = envelope.generation;
 pub const max_record_bytes = envelope.max_record_bytes;
@@ -25,6 +26,8 @@ pub const Content = struct {
     engine: EngineState,
     /// Present on Windows.
     console: ?ConsoleFacts,
+    /// Each screen's Kitty images; none leaves the section out.
+    images: []const image_section.Screen = &.{},
 };
 
 pub const EncodeError = error{ InvalidRecord, RecordTooLarge } || std.mem.Allocator.Error;
@@ -45,8 +48,13 @@ pub fn encode(allocator: std.mem.Allocator, content: Content) EncodeError![]u8 {
     if (content.console) |facts| {
         try host_sections.encodeConsole(.{ .allocator = allocator, .list = &console }, facts);
     }
+    var images: std.ArrayList(u8) = .empty;
+    defer images.deinit(allocator);
+    if (content.images.len != 0) {
+        try image_section.encode(.{ .allocator = allocator, .list = &images }, content.images);
+    }
 
-    var sections: [5]envelope.Section = undefined;
+    var sections: [6]envelope.Section = undefined;
     var count: usize = 0;
     for ([_]struct { envelope.Tag, []const u8 }{
         .{ .terminal, terminal.items },
@@ -59,6 +67,11 @@ pub fn encode(allocator: std.mem.Allocator, content: Content) EncodeError![]u8 {
     }
     if (content.console != null) {
         sections[count] = .{ .tag = .console, .required = true, .payload = console.items };
+        count += 1;
+    }
+    // An import that cannot restore images must refuse them rather than drop them.
+    if (content.images.len != 0) {
+        sections[count] = .{ .tag = .images, .required = true, .payload = images.items };
         count += 1;
     }
     return envelope.encode(allocator, .{
@@ -74,8 +87,8 @@ pub const DecodeError = envelope.DecodeError || std.mem.Allocator.Error || error
     SignalPending,
 };
 
-/// A validated record. Its screen and console borrow the record's bytes; the engine state lives
-/// in its own arena.
+/// A validated record. Its screen, console, and image pixels borrow the record's bytes; the engine
+/// state and the image lists live in its own arena.
 pub const Decoded = struct {
     arena: std.heap.ArenaAllocator,
     product_version: []const u8,
@@ -84,6 +97,7 @@ pub const Decoded = struct {
     screen: []const u8,
     engine: EngineState,
     console: ?ConsoleFacts,
+    images: []const image_section.Screen,
 
     pub fn deinit(self: *Decoded) void {
         self.arena.deinit();
@@ -108,6 +122,8 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, expected_pin: []c
     };
     if (engine_state.scanner_partial_state.len != 0) return error.ContinuationPending;
     if (!engine_state.conpty.empty()) return error.SignalPending;
+    // Decoded before the arena is copied into the result.
+    const images = if (framed.find(.images)) |section| try image_section.decode(arena.allocator(), section) else &.{};
     return .{
         .arena = arena,
         .product_version = framed.header.product_version,
@@ -116,6 +132,7 @@ pub fn decode(allocator: std.mem.Allocator, bytes: []const u8, expected_pin: []c
         .screen = screen,
         .engine = engine_state,
         .console = if (framed.find(.console)) |console| try host_sections.decodeConsole(console) else null,
+        .images = images,
     };
 }
 

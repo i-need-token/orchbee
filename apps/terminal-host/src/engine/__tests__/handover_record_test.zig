@@ -23,12 +23,15 @@ const sample_corpus = "\x1b]2;handover-sample\x1b\\\x1b]7;file://sample-host/wor
     "\x1b[1;32msample line\x1b[0m 中文 😀 \x1b]8;id=s;https://example.com/sample\x1b\\link\x1b]8;;\x1b\\\r\n" ++
     "\x07\x1b]52;c;c2FtcGxl\x1b\\\x1b]133;P\x1b\\sample> \x1b]133;B\x1b\\";
 
-/// A record of a terminal fed `sample_corpus`; the caller frees it.
+/// A Kitty image with two placements, so the record carries an image section.
+const image_corpus = "\x1b_Ga=T,t=d,f=24,i=7,s=1,v=2,q=2;AQIDBAUG\x1b\\\x1b_Ga=p,i=7,p=3,c=2,r=1,z=-5,q=2\x1b\\";
+
+/// A record of a terminal fed `sample_corpus` and `image_corpus`; the caller frees it.
 fn sourceRecord(stand_in: *const fixture.StandIn) ![]u8 {
     var output: ScriptedOutput = .{};
     const source = try fixture.createScripted(&output, stand_in, 80, 24);
     defer source.destroy();
-    output.commit(sample_corpus);
+    output.commit(sample_corpus ++ image_corpus);
     return fixture.exportParked(source);
 }
 
@@ -69,6 +72,7 @@ fn contentOf(decoded: *const handover.Decoded) handover.Content {
         .screen = decoded.screen,
         .engine = decoded.engine,
         .console = decoded.console,
+        .images = decoded.images,
     };
 }
 

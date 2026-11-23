@@ -69,13 +69,14 @@ The sections follow in strictly ascending tag order, and the record ends with th
   foreign one, and the pin before the sections' tags.
 - An import refuses a record without a `terminal`, `configuration`, `screen`, or `engine` section.
 
-| Tag | Section         | An H1 Host writes it    |
-| --- | --------------- | ----------------------- |
-| `1` | `terminal`      | Always, as required     |
-| `2` | `configuration` | Always, as required     |
-| `3` | `screen`        | Always, as required     |
-| `4` | `engine`        | Always, as required     |
-| `5` | `console`       | On Windows, as required |
+| Tag | Section         | A Host writes it                                   |
+| --- | --------------- | -------------------------------------------------- |
+| `1` | `terminal`      | Always, as required                                |
+| `2` | `configuration` | Always, as required                                |
+| `3` | `screen`        | Always, as required                                |
+| `4` | `engine`        | Always, as required                                |
+| `5` | `console`       | On Windows, as required                            |
+| `6` | `images`        | From H3, when a screen holds an image, as required |
 
 ## `terminal`
 
@@ -136,7 +137,7 @@ Every color is a `u32` of the form `0x00RRGGBB`.
   one, and refuses the record past 128 MiB. An export refuses such a screen the same way. Ghostty
   would otherwise allocate and zero a forged capacity before checking the record, and it asserts
   that one page stays under 4 GiB.
-- Kitty images are not in the snapshot, and a terminal that holds or is loading one is not exported.
+- Kitty images are not in the snapshot; the [`images`](#images) section carries them.
 
 ## `engine`
 
@@ -230,10 +231,58 @@ moved; and an exhausted flag.
 | OpenConsole process id    | `u32`           | Nonzero                             |
 | OpenConsole creation time | `u64`           | As the platform reports it          |
 
+## `images`
+
+Each screen's Kitty images and their placements, which the snapshot does not carry. An export writes
+the section, as required, when a screen holds an image, and leaves it out otherwise.
+
+The section is a `u8` screen count, `1` or `2`, followed by each screen:
+
+| Screen field               | Encoding | Rule                                                              |
+| -------------------------- | -------- | ----------------------------------------------------------------- |
+| Screen                     | Code     | `primary`, `alternate`; after the previous screen's               |
+| Next image id              | `u32`    | The id the screen gives the next image transmitted without one    |
+| Next internal placement id | `u32`    | The id the screen gives the next placement without an external id |
+| Image count                | `u16`    | 1 to 4,096                                                        |
+| Images                     |          | Each as the image fields below                                    |
+| Placement count            | `u16`    | 0 to 4,096                                                        |
+| Placements                 |          | Each as the placement fields below                                |
+
+| Image field | Encoding         | Rule                                                                       |
+| ----------- | ---------------- | -------------------------------------------------------------------------- |
+| Id          | `u32`            | Nonzero and greater than the previous image's                              |
+| Number      | `u32`            |                                                                            |
+| Width       | `u32`            | 1 to 10,000 pixels                                                         |
+| Height      | `u32`            | 1 to 10,000 pixels                                                         |
+| Format      | Code             | `rgb`, `rgba`, `gray`, `gray-alpha`                                        |
+| Transient   | Flag             |                                                                            |
+| Implicit id | Flag             |                                                                            |
+| Pixels      | Counted by `u32` | Exactly width times height pixels of 3, 4, 1, or 2 bytes as the format has |
+
+| Placement field                | Encoding   | Rule                                                           |
+| ------------------------------ | ---------- | -------------------------------------------------------------- |
+| Image id                       | `u32`      | One of the screen's images                                     |
+| Placement id kind              | Code       | `internal`, `external`                                         |
+| Placement id                   | `u32`      | Nonzero when external; each image and placement id once        |
+| Row                            | `u32`      | The anchor's row, counted from the top of the screen's history |
+| Column                         | `u16`      | The anchor's column                                            |
+| X and Y offsets                | `u32` each | Pixels from the anchor cell's top left                         |
+| Source X, Y, width, and height | `u32` each | The source rectangle Ghostty holds                             |
+| Columns and rows               | `u32` each | The cell size Ghostty holds                                    |
+| Z                              | `i32`      |                                                                |
+
+- A screen's pixels add up to at most 32 MiB, the Host's decoded image storage.
+- An import adds the images after it applies the Host's storage limits, anchors each placement on
+  the restored pages, and refuses a record whose anchor is not on them. A placement keeps its
+  internal or external id, and each screen its next ids.
+- An export refuses as `holds-image` a terminal whose image state the section cannot carry: a
+  medium being read or a transmission in progress, an animation, a virtual placement, which Unicode
+  placeholders name, a placement relative to another, or more images, placements, or pixels than a
+  screen admits. A placement whose rows left history, which Ghostty has not reaped yet, is left out.
+
 ## Not carried
 
 Attachments, viewer leases, delivery sequences, the creation binding, and the compression cursor
 stay with the exporting Host, and the Worker makes attachments again. Held input travels without
 its attachment ids: the importing Host keys each entry under a fresh id and detaches it once it
-claims the terminal, so the program hears the releases a detached attachment's repair sends. Kitty
-images wait for an image section.
+claims the terminal, so the program hears the releases a detached attachment's repair sends.

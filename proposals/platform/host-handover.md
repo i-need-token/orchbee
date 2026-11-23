@@ -299,8 +299,8 @@ new Host imports; and no Server and Worker restart or Keeper update is under way
   Attachments and viewer leases do not move; the Worker makes them again.
 - Kitty images are not in Ghostty's snapshot. An image section, bounded by the Host's image storage
   limit, carries the images and placements of the
-  [graphics projection](../../apps/terminal-host/docs/runtime-model.md#kitty-graphics-projection-model);
-  until it exists, a terminal holding an image stays on its Host.
+  [graphics projection](../../apps/terminal-host/docs/runtime-model.md#kitty-graphics-projection-model),
+  and a terminal holding image state the section cannot carry stays on its Host.
 - Rule: a new Host imports every format that a Host inside the
   [compatibility window](versioning-and-upgrade.md#compatibility-window) exports. A format change adds
   a reader, no reader is removed while a Host that writes its format can run, and each released
@@ -1506,6 +1506,9 @@ development builds until H4 through one constant, `moves_live`, and test builds 
   column, its z-index, its size in cells, and its source rectangle, bounded by the Host's 32 MiB of
   decoded storage per screen. An animation with more than one frame, a virtual, relative, or
   Unicode-placeholder placement, and a transmission in progress still answer `holds-image`.
+- Chosen: any animation answers `holds-image`, one with only its root frame included, since the
+  section carries no animation state; and each screen's next image and internal placement ids
+  travel, so ids given after a move match the old Host's.
 
 ### Diagnostics
 
@@ -1521,7 +1524,7 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 | S2    | The Worker's move: due terminals, the steps, abort, the kernel's rebinding and translation, controllers and viewers, the drop at the next turn, and diagnostics | Built  |
 | S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Built  |
 | S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Built  |
-| S5    | The image section                                                                                                                                               | Open   |
+| S5    | The image section                                                                                                                                               | Built  |
 | S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Open   |
 
 ## B1 design

@@ -22,6 +22,7 @@ const terminal_control = @import("terminal_control.zig");
 const handover_export = @import("handover_export.zig");
 const handover_shell = @import("handover_shell.zig");
 const handover_input = @import("handover_input.zig");
+const handover_images = @import("handover_images.zig");
 const runtime_completion = @import("../runtime_completion.zig");
 
 const EngineState = handover.EngineState;
@@ -127,6 +128,7 @@ pub fn prepare(allocator: std.mem.Allocator, record: []const u8) !Prepared {
     creation.wireStream(self);
     self.terminal.flags.shell_redraws_prompt = shell_redraws_prompt;
     applyHostLimits(self);
+    try handover_images.restore(&self.terminal, decoded.images);
     try install(self, engine, held_attachments);
     return .{
         .runtime = self,

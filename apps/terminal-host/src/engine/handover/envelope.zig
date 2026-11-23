@@ -21,6 +21,7 @@ pub const Tag = enum(u16) {
     screen = 3,
     engine = 4,
     console = 5,
+    images = 6,
     _,
 };
 
@@ -144,7 +145,7 @@ pub fn decode(bytes: []const u8, expected_pin: []const u8) DecodeError!Decoded {
     // Corruption is judged first, so a damaged pin never reads as a foreign one.
     if (!std.mem.eql(u8, pin, expected_pin)) return error.ForeignPin;
     for (result.sections[0..result.count]) |section| switch (section.tag) {
-        .terminal, .configuration, .screen, .engine, .console => {},
+        .terminal, .configuration, .screen, .engine, .console, .images => {},
         _ => if (section.required) return error.UnknownRequiredSection,
     };
     return result;

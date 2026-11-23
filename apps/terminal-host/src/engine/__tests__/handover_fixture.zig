@@ -145,6 +145,7 @@ pub fn expectSameSections(expected: *TerminalRuntime, actual: *TerminalRuntime) 
     try std.testing.expectEqualDeep(expected_decoded.terminal, actual_decoded.terminal);
     try std.testing.expectEqualDeep(expected_decoded.configuration, actual_decoded.configuration);
     try std.testing.expectEqualDeep(expected_decoded.console, actual_decoded.console);
+    try std.testing.expectEqualDeep(expected_decoded.images, actual_decoded.images);
     var expected_engine = expected_decoded.engine;
     var actual_engine = actual_decoded.engine;
     try std.testing.expectEqual(expected_engine.prompt_gate.anchor == null, actual_engine.prompt_gate.anchor == null);

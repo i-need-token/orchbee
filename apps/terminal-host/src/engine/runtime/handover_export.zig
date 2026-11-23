@@ -12,6 +12,7 @@ const clock = @import("clock.zig");
 const reader_pause = @import("reader_pause.zig");
 const handover_shell = @import("handover_shell.zig");
 const handover_input = @import("handover_input.zig");
+const handover_images = @import("handover_images.zig");
 
 /// The exporting Host's Ghostty pin: the package hash its build fetched.
 pub const pin = handover_options.ghostty_package_hash;
@@ -32,8 +33,8 @@ pub const Error = error{
     MidSequence,
     /// The reader has not parked.
     NotParked,
-    /// Ghostty's snapshot carries no Kitty images; until the image section exists such a
-    /// terminal stays on its Host.
+    /// The terminal holds image state the image section cannot carry: a transmission or medium
+    /// in progress, an animation, or a virtual or relative placement.
     HoldsImage,
     /// Accepted input waits to be written, or an attachment's input change is in flight.
     InputPending,
@@ -50,7 +51,7 @@ pub fn exportRecord(self: *state.State, allocator: std.mem.Allocator, inputs: In
     if (self.resize_effect_in_flight) return error.ResizeInFlight;
     if (!reader_pause.atGroundLocked(self)) return error.MidSequence;
     if (self.reader_pause != .parked) return error.NotParked;
-    if (holdsImage(self)) return error.HoldsImage;
+    if (handover_images.holdsUncarried(self)) return error.HoldsImage;
     self.input_mutex.lock();
     defer self.input_mutex.unlock();
     if (self.input_queue.entries.items.len != 0) return error.InputPending;
@@ -63,7 +64,7 @@ pub fn exportRecord(self: *state.State, allocator: std.mem.Allocator, inputs: In
 pub fn exportSettledRecord(self: *state.State, allocator: std.mem.Allocator, inputs: Inputs) Error![]u8 {
     self.terminal_mutex.lock();
     defer self.terminal_mutex.unlock();
-    if (holdsImage(self)) return error.HoldsImage;
+    if (handover_images.holdsUncarried(self)) return error.HoldsImage;
     return encodeLocked(self, allocator, inputs, .settled);
 }
 
@@ -105,17 +106,8 @@ fn encodeLocked(self: *state.State, allocator: std.mem.Allocator, inputs: Inputs
         .screen = screen.written(),
         .engine = engine,
         .console = inputs.console,
+        .images = try handover_images.exportScreens(self, arena.allocator()),
     });
-}
-
-fn holdsImage(self: *const state.State) bool {
-    if (self.graphics_media.pending != null or self.graphics_media.stalled != null) return true;
-    for ([_]ghostty_vt.ScreenSet.Key{ .primary, .alternate }) |key| {
-        const screen = self.terminal.screens.get(key) orelse continue;
-        const images = &screen.kitty_images;
-        if (images.images.count() != 0 or images.placements.count() != 0 or images.loading != null) return true;
-    }
-    return false;
 }
 
 fn engineState(self: *state.State, arena: std.mem.Allocator, kind: Kind) error{ InputPending, OutOfMemory }!handover.EngineState {

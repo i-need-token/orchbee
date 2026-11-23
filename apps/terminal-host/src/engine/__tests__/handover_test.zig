@@ -198,6 +198,51 @@ test "export then import restores prototype 2's corpus exactly in every section"
     try fixture.expectSameSections(source, imported.runtime);
 }
 
+/// Images on both screens: one with an internal and an external placement that scroll into
+/// history, one with no placement, one known only by its number, and one on the alternate screen.
+const image_corpus = "\x1b_Ga=T,t=d,f=24,i=7,s=1,v=2,q=2;AQIDBAUG\x1b\\" ++
+    "\x1b_Ga=p,i=7,p=3,c=4,r=2,z=-5,q=2\x1b\\" ++
+    "\x1b_Ga=t,t=d,f=32,i=9,s=1,v=1,q=2;AQIDBA==\x1b\\" ++
+    "\x1b_Ga=T,t=d,f=24,I=5,s=1,v=1,q=2;/wAA\x1b\\" ++
+    ("history\r\n" ** 30) ++
+    "\x1b[?1049h\x1b_Ga=T,t=d,f=24,i=11,s=1,v=1,q=2;AP8A\x1b\\";
+
+test "export then import restores each screen's Kitty images and placements, and a virtual placement stays" {
+    var stand_in: fixture.StandIn = try .init();
+    defer stand_in.deinit();
+    var source_output: ScriptedOutput = .{};
+    const source = try fixture.createScripted(&source_output, &stand_in, 80, 24);
+    defer source.destroy();
+    source_output.commit(image_corpus);
+
+    const record = try fixture.exportParked(source);
+    defer allocator.free(record);
+    var decoded = try fixture.handover.decode(allocator, record, subject.handover_pin);
+    defer decoded.deinit();
+    try std.testing.expectEqual(@as(usize, 2), decoded.images.len);
+    try std.testing.expectEqual(@as(usize, 3), decoded.images[0].images.len);
+    try std.testing.expectEqual(@as(usize, 3), decoded.images[0].placements.len);
+    try std.testing.expectEqual(@as(usize, 1), decoded.images[1].placements.len);
+
+    var imported_output: ScriptedOutput = .{};
+    var imported = try fixture.importScripted(record, &imported_output, &stand_in);
+    defer imported.deinit();
+    try fixture.expectSameTerminal(source, imported.runtime);
+    try fixture.expectSameSections(source, imported.runtime);
+
+    // Both go on identically: an image without an id and a placement without one take the same
+    // next ids.
+    const more = "\x1b_Ga=T,t=d,f=24,s=1,v=1,q=2;AAD/\x1b\\\x1b[?1049l\x1b_Ga=p,i=7,q=2\x1b\\";
+    source_output.commit(more);
+    imported_output.commit(more);
+    try fixture.expectSameTerminal(source, imported.runtime);
+    try fixture.expectSameSections(source, imported.runtime);
+
+    // Unicode placeholders name a virtual placement, which the section does not carry.
+    source_output.commit("\x1b_Ga=p,U=1,i=9,c=1,r=1,q=2\x1b\\");
+    try std.testing.expectError(error.HoldsImage, fixture.exportParked(source));
+}
+
 test "export then import restores a busy shell exactly" {
     const flood = "busy-";
     // A slow reader of a flood gets the PTY's whole buffer each read, 4,095 bytes on Linux. Lines
