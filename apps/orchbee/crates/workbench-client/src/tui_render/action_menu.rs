@@ -51,6 +51,11 @@ struct Keys {
 }
 
 /// One menu frame's rows, candidate and natural size, before it is placed.
+/// The rows an Agent list shows before it scrolls.
+const AGENT_LIST_ROWS: usize = 10;
+/// The cells a cascaded list's query row leaves for the query itself.
+const QUERY_ROOM: usize = 12;
+
 struct Measured<'v> {
     menu: MenuView<'v>,
     binding_labels: Vec<Option<String>>,
@@ -342,6 +347,17 @@ fn measure<'v>(
             )
         })
     };
+    // A cascaded list's query row keeps its label, some room to type, and the match count.
+    let desired = if menu.context_menu && menu.query.is_some() {
+        desired.max(
+            display_width(locale.menu_search_label())
+                .saturating_add(QUERY_ROOM)
+                .saturating_add(display_width(&locale.menu_search_count(menu.actions.len())))
+                .saturating_add(7),
+        )
+    } else {
+        desired
+    };
     let width = u16::try_from(desired.max(26))
         .unwrap_or(u16::MAX)
         .min(content.width);
@@ -359,6 +375,15 @@ fn measure<'v>(
         1
     } else {
         menu.result_row_height(&result_actions, 0, result_actions.len())
+    };
+    // A list of every installed Agent scrolls instead of filling the terminal, as in the window.
+    let result_row_count = if matches!(
+        menu.source,
+        MenuTarget::TabProfiles(_) | MenuTarget::WorkspaceAgents(_)
+    ) {
+        result_row_count.min(AGENT_LIST_ROWS)
+    } else {
+        result_row_count
     };
     let height = u16::try_from(result_row_count + search_rows + 2 + footer_rows + reason_rows)
         .unwrap_or(u16::MAX);
@@ -1517,6 +1542,11 @@ fn machine_name(label: &str, locale: Locale) -> Cow<'static, str> {
 fn no_results(menu: &MenuView<'_>, locale: Locale) -> &'static str {
     if menu.machines.is_some() {
         locale.machine_change_no_match()
+    } else if matches!(
+        menu.source,
+        MenuTarget::TabProfiles(_) | MenuTarget::WorkspaceAgents(_)
+    ) {
+        locale.new_tab_menu_no_results()
     } else {
         locale.menu_search_no_results()
     }

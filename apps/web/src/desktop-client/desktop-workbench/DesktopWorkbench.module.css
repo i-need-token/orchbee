@@ -39,6 +39,19 @@
 	app-region: no-drag;
 }
 
+/* A portaled menu follows every drag region, so one that reaches the title bar keeps its clicks. */
+:global(
+	:is(
+		[data-slot$='menu-content'],
+		[data-slot$='menu-sub-content'],
+		[data-slot='combobox-content'],
+		[data-slot='select-content']
+	)
+) {
+	-webkit-app-region: no-drag;
+	app-region: no-drag;
+}
+
 .root[data-window-controls='leading'] :global([data-slot='workbench-sidebar-toggle-position']),
 .root[data-window-controls='leading']
 	:global([data-workbench-touch] [data-slot='workbench-sidebar-toggle-position']) {

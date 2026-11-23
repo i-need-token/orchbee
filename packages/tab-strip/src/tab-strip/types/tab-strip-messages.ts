@@ -61,6 +61,8 @@ export interface TabStripMessages {
 	readonly newTab: string;
 	readonly newTabInGroup: string;
 	readonly newTabMenu: string;
+	readonly newTabMenuNoMatch: string;
+	readonly newTabMenuSearch: string;
 	/** Optional for older message providers; product hosts supply a localized loading title. */
 	readonly loadingTabTitle?: string;
 	readonly newTabTitle: string;

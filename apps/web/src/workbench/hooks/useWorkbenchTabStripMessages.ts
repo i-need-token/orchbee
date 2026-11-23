@@ -147,6 +147,8 @@ export function useWorkbenchTabStripMessages(): TabStripMessages {
 			newTab: format(workbenchTabMessages.newTab),
 			newTabInGroup: format(workbenchTabMessages.newTabInGroup),
 			newTabMenu: format(workbenchTabMessages.newTabMenu),
+			newTabMenuNoMatch: format(workbenchTabMessages.newTabMenuNoMatch),
+			newTabMenuSearch: format(workbenchTabMessages.newTabMenuSearch),
 			newTabTitle,
 			loadingTabTitle: format(workbenchTabMessages.loadingTabTitle),
 			previewUnavailable: format(workbenchTabMessages.previewUnavailable),

@@ -16,6 +16,7 @@ import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../types/workbench-action-menu';
+import { WorkbenchActionMenuSearchList } from '../workbench-action-menu-search-list/WorkbenchActionMenuSearchList';
 
 interface WorkbenchActionDropdownMenuContentProps {
 	readonly align?: 'end' | 'start';
@@ -71,6 +72,18 @@ export function WorkbenchActionDropdownMenuContent({
 						);
 					case 'separator':
 						return <DropdownMenuSeparator key={entry.id} />;
+					case 'search-submenu':
+						return (
+							<DropdownMenuSub key={entry.id}>
+								<DropdownMenuSubTrigger>
+									<ProductIcon name={entry.icon} size='menu-leading' />
+									{entry.label}
+								</DropdownMenuSubTrigger>
+								<DropdownMenuSubContent>
+									<WorkbenchActionMenuSearchList entry={entry} renderCommand={commandItem} />
+								</DropdownMenuSubContent>
+							</DropdownMenuSub>
+						);
 					case 'submenu':
 						return (
 							<DropdownMenuSub key={entry.id}>

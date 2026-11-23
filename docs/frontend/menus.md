@@ -52,6 +52,8 @@ not implement parallel mutations for those invocation paths.
 
 - Dropdown, Context, Menubar, and submenu surfaces use `--ob-ref-size-menu` (`250px`) and shrink
   only when the available viewport is narrower. Consumers do not assign one-off menu widths.
+- A menu that lists a whole catalog heads it with `MenuSearch` from `@orchbee/ui`, which holds the
+  keyboard and scrolls the rows at `--ob-ref-size-menu-list`.
 - Use the shared overlay surface, radius, shadow, padding, and collision behavior from
   `@orchbee/ui`; feature styles do not redraw the menu container.
 - A portaled menu opened from a modal participates in `--ob-ref-layer-modal` through the shared

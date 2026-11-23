@@ -1,0 +1,46 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	max-height: var(--ob-ref-size-menu-list);
+}
+
+/* Edge to edge in the menu's padding, its text where the rows' icons start. */
+.field {
+	flex: none;
+	width: calc(100% + var(--ob-ref-space-2));
+	height: var(--ob-ref-size-control-md);
+	margin: calc(var(--ob-ref-space-1) * -1) calc(var(--ob-ref-space-1) * -1) var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-2-5);
+	border-width: 0 0 var(--ob-ref-border-width-default);
+	border-style: solid;
+	border-color: var(--ob-sys-color-border-default);
+	outline: none;
+	color: var(--ob-sys-color-text-primary);
+	background: transparent;
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.field::placeholder {
+	color: var(--ob-sys-color-text-muted);
+}
+
+.results {
+	min-height: 0;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}
+
+/* The row Enter starts while the keyboard is in the field. */
+.field:focus ~ .results > [role='menuitem']:first-child,
+.field:focus ~ .results > :first-child > :nth-child(1 of [role='menuitem']) {
+	color: var(--ob-sys-color-text-primary);
+	background-color: var(--ob-sys-color-action-secondary-hover);
+}
+
+.empty {
+	margin: 0;
+	padding: var(--ob-ref-space-1-5);
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-sm);
+}

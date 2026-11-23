@@ -18,16 +18,17 @@ import { TabButton } from '../tab-button/TabButton';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripViewModel } from '../../../../types/tab-strip-view-model';
-import { LAYOUT_CONSTANTS, NEW_TAB_MENU_BUTTON_WIDTH } from '../../../../layout/layout-constants';
+import {
+	LAYOUT_CONSTANTS,
+	NEW_TAB_MENU_EXTRA_WIDTH,
+	NEW_TAB_SPLIT_BUTTON_WIDTH,
+} from '../../../../layout/layout-constants';
 import { DEFAULT_TAB_STYLE_METRICS } from '../../../../layout/tab-style-metrics';
 import { tabCollectionEaseOut } from '../../../../layout/tab-collection-animating-layout-manager';
 import {
 	clampDraggedViewPosition,
 	getAnimatedDraggedViewPosition,
 } from '../../../../dragging/dragged-tabs-container-layout';
-
-/** The New Tab button's box; the menu button starts where it ends. */
-const NEW_TAB_BUTTON_WIDTH = 28;
 
 export function HorizontalContents({
 	horizontalLeadingActions,
@@ -191,7 +192,7 @@ export function HorizontalContents({
 
 	const newTabButtonStart = Math.min(
 		newTabButtonTrailingEdge + 4,
-		Math.max(0, size.width - 38 - (newTabMenuShown ? NEW_TAB_MENU_BUTTON_WIDTH : 0)),
+		Math.max(0, size.width - 38 - (newTabMenuShown ? NEW_TAB_MENU_EXTRA_WIDTH : 0)),
 	);
 
 	return (
@@ -528,7 +529,7 @@ export function HorizontalContents({
 							);
 						}}
 						onContextMenu={openNewTabMenu}
-						inlineStart={newTabButtonStart + NEW_TAB_BUTTON_WIDTH}
+						inlineStart={newTabButtonStart + NEW_TAB_SPLIT_BUTTON_WIDTH}
 					/>
 				) : null}
 			</div>

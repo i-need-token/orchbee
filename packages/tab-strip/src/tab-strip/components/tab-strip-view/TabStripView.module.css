@@ -814,6 +814,11 @@
 	position: absolute;
 	top: var(--ob-comp-tab-strip-length-4);
 }
+/* With a menu button after it, + is a split button's wide part, at the same height. */
+.ct-new-tab:has(+ .ct-new-tab-menu),
+.ct-new-tab:has(+ .ct-new-tab-menu) .ct-tab-strip-control-button__target {
+	width: var(--ob-comp-tab-strip-length-36);
+}
 /* The menu button sits right after +, narrower, as a split button's arrow part does. */
 .ct-new-tab-menu {
 	width: var(--ob-comp-tab-strip-length-20);

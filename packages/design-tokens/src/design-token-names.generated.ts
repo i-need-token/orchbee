@@ -838,6 +838,7 @@ export const designTokenNames = [
 	'--ob-ref-size-icon-sm',
 	'--ob-ref-size-icon-xs',
 	'--ob-ref-size-menu',
+	'--ob-ref-size-menu-list',
 	'--ob-ref-size-scrollbar-thumb',
 	'--ob-ref-size-scrollbar-track',
 	'--ob-ref-space-0',

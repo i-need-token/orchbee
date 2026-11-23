@@ -72,8 +72,17 @@ impl Locale {
 
     pub(crate) fn menu_search_count(self, count: usize) -> String {
         match self {
+            Self::EnUs if count == 1 => "1 match".to_owned(),
             Self::EnUs => format!("{count} matches"),
             Self::ZhCn => format!("{count} 项匹配"),
+        }
+    }
+
+    /// The New Tab menu holds shells and Agents, so its empty result names neither.
+    pub(crate) const fn new_tab_menu_no_results(self) -> &'static str {
+        match self {
+            Self::EnUs => "No matches.",
+            Self::ZhCn => "没有匹配项。",
         }
     }
 

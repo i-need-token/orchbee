@@ -51,6 +51,8 @@ export const DEFAULT_TAB_STRIP_MESSAGES = {
 	newTab: 'New tab',
 	newTabInGroup: 'New Tab in group',
 	newTabMenu: 'New tab menu',
+	newTabMenuNoMatch: 'No matches.',
+	newTabMenuSearch: 'Search',
 	newTabTitle: 'New Tab',
 	loadingTabTitle: 'Loading…',
 	previewUnavailable: 'Preview unavailable',

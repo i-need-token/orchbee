@@ -950,7 +950,10 @@ impl ActionMenu {
             return false;
         };
         let searchable = match &source {
-            MenuTarget::Global | MenuTarget::TabCreate(_) => true,
+            MenuTarget::Global
+            | MenuTarget::TabCreate(_)
+            | MenuTarget::TabProfiles(_)
+            | MenuTarget::WorkspaceAgents(_) => true,
             // Past eight saved machines the list leads with its query row; This computer is the
             // one row that is no saved machine.
             MenuTarget::WorkspaceMachines(_) => {

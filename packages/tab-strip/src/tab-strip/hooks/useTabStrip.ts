@@ -70,7 +70,7 @@ import {
 import { requireDefined } from '../utils/requireDefined';
 import { TabStripOrientation, VerticalTabStripCollapseState } from '../types/tab-strip-types';
 import { DEFAULT_TAB_STYLE_METRICS } from '../layout/tab-style-metrics';
-import { LAYOUT_CONSTANTS, NEW_TAB_MENU_BUTTON_WIDTH } from '../layout/layout-constants';
+import { LAYOUT_CONSTANTS, NEW_TAB_MENU_EXTRA_WIDTH } from '../layout/layout-constants';
 import { TabGroupEditorBubbleTracker } from '../model/TabGroupEditorBubbleTracker';
 import { TabCollectionAnimationRuntime } from '../utils/TabCollectionAnimationRuntime';
 import { useElementSize } from './useElementSize';
@@ -769,8 +769,7 @@ export function useTabStrip(
 		(newTabSections ?? []).reduce((count, section) => count + section.choices.length, 0) > 1;
 	const layoutWidth = Math.max(
 		0,
-		size.width -
-			(showNewTabButton ? 42 + (newTabMenuAvailable ? NEW_TAB_MENU_BUTTON_WIDTH : 0) : 0),
+		size.width - (showNewTabButton ? 42 + (newTabMenuAvailable ? NEW_TAB_MENU_EXTRA_WIDTH : 0) : 0),
 	);
 	const effectiveLayoutWidth = Math.min(layoutWidth, tabClosingMode?.width ?? layoutWidth);
 	const expandedHeaderDragGroupId =

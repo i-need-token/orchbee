@@ -170,6 +170,16 @@ export const workbenchTabMessages = defineMessages({
 		id: 'workbench.tabs.menus.new',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.new'],
 	},
+	newTabMenuNoMatch: {
+		id: 'workbench.tabs.menus.newNoMatch',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.newNoMatch'],
+		description: 'What the New Tab menu says when no shell or Agent matches its search.',
+	},
+	newTabMenuSearch: {
+		id: 'workbench.tabs.menus.newSearch',
+		defaultMessage: enUSWorkbenchMessages['workbench.tabs.menus.newSearch'],
+		description: 'Accessible name and placeholder of the New Tab menu search field.',
+	},
 	newTabProfileCustomExecutable: {
 		id: 'workbench.tabs.profiles.customExecutable',
 		defaultMessage: enUSWorkbenchMessages['workbench.tabs.profiles.customExecutable'],

@@ -333,6 +333,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.menus.tab': 'Tab options',
 	'workbench.tabs.menus.group': 'Group options',
 	'workbench.tabs.menus.new': 'New Tab menu',
+	'workbench.tabs.menus.newNoMatch': 'No matches.',
+	'workbench.tabs.menus.newSearch': 'Search',
 	'workbench.tabs.profiles.customExecutable': 'Custom executable',
 	'workbench.tabs.profiles.default': 'Default',
 	'workbench.tabs.profiles.systemShell': 'System shell',

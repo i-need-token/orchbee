@@ -43,8 +43,8 @@ export interface WorkspaceAgentMenu {
 
 /**
  * Start Agent on a Workspace row: every installed Agent, the Recent first, each starting in a new Tab
- * of that Workspace. The row's + lists them under a search field and its menu lists them in a
- * submenu; while none is found, the list says why.
+ * of that Workspace. The row's + and its menu's submenu both list them under a search
+ * field; while none is found, the list says why.
  */
 export function useWorkspaceAgentMenu(
 	launch: WorkbenchWorkspaceAgentLaunch | undefined,
@@ -76,39 +76,34 @@ export function useWorkspaceAgentMenu(
 		/>
 	);
 	const label = intl.formatMessage(agentStartMessages.title);
+	const searchLabel = intl.formatMessage(agentStartMessages.search);
 	return {
 		choices,
 		emptyLabel,
 		label,
 		mark,
 		refresh: launch.catalog.refresh,
-		searchLabel: intl.formatMessage(agentStartMessages.search),
+		searchLabel,
 		start: launch.start,
-		submenu: (workspace) => {
-			const listed = choices('');
-			return {
-				groups: [
-					{
-						commands: listed.map(
-							(choice): WorkbenchActionMenuCommand => ({
-								icon: 'agent',
-								id: choice.providerId,
-								kind: 'command',
-								label: choice.label,
-								leadingMark: mark(workspace.id, choice.providerId),
-								onSelect: () => launch.start(workspace.id, choice.providerId),
-							}),
-						),
-						id: 'agents',
-						label: listed.length === 0 ? emptyLabel('') : undefined,
-					},
-				],
-				icon: 'agent',
-				id: 'start-workspace-agent',
-				kind: 'submenu',
-				label,
-			};
-		},
+		submenu: (workspace) => ({
+			commands: (query) =>
+				choices(query).map(
+					(choice): WorkbenchActionMenuCommand => ({
+						icon: 'agent',
+						id: choice.providerId,
+						kind: 'command',
+						label: choice.label,
+						leadingMark: mark(workspace.id, choice.providerId),
+						onSelect: () => launch.start(workspace.id, choice.providerId),
+					}),
+				),
+			emptyLabel,
+			icon: 'agent',
+			id: 'start-workspace-agent',
+			kind: 'search-submenu',
+			label,
+			searchLabel,
+		}),
 		title: (workspace) =>
 			intl.formatMessage(agentStartMessages.titleInWorkspace, { name: workspace.name }),
 	};

@@ -22,5 +22,11 @@ export const LAYOUT_CONSTANTS = {
 	verticalTabStripUncollapsedMaxWidth: 400,
 } as const;
 
-/** The horizontal strip's New Tab menu button beside +, which the Tabs also leave room for. */
-export const NEW_TAB_MENU_BUTTON_WIDTH = 20;
+/** The horizontal strip's + alone. */
+const NEW_TAB_BUTTON_WIDTH = 28;
+/** The horizontal strip's + with its New Tab menu button after it. */
+export const NEW_TAB_SPLIT_BUTTON_WIDTH = 36;
+const NEW_TAB_MENU_BUTTON_WIDTH = 20;
+/** What that pair takes beyond + alone, which the Tabs also leave room for. */
+export const NEW_TAB_MENU_EXTRA_WIDTH =
+	NEW_TAB_SPLIT_BUTTON_WIDTH + NEW_TAB_MENU_BUTTON_WIDTH - NEW_TAB_BUTTON_WIDTH;

@@ -19,6 +19,7 @@ import type {
 	WorkbenchActionMenuCommand,
 	WorkbenchActionMenuEntry,
 } from '../../types/workbench-action-menu';
+import { WorkbenchActionMenuSearchList } from '../workbench-action-menu-search-list/WorkbenchActionMenuSearchList';
 
 interface WorkbenchActionContextMenuContentProps {
 	/** A choice shows only here: no ellipsis menu holds one. */
@@ -84,6 +85,18 @@ export function WorkbenchActionContextMenuContent({
 						);
 					case 'separator':
 						return <ContextMenuSeparator key={entry.id} />;
+					case 'search-submenu':
+						return (
+							<ContextMenuSub key={entry.id}>
+								<ContextMenuSubTrigger>
+									<ProductIcon name={entry.icon} size='menu-leading' />
+									{entry.label}
+								</ContextMenuSubTrigger>
+								<ContextMenuSubContent>
+									<WorkbenchActionMenuSearchList entry={entry} renderCommand={commandItem} />
+								</ContextMenuSubContent>
+							</ContextMenuSub>
+						);
 					case 'submenu':
 						return (
 							<ContextMenuSub key={entry.id}>

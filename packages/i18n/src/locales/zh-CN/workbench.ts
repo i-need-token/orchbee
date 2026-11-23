@@ -313,6 +313,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.menus.tab': '标签页选项',
 	'workbench.tabs.menus.group': '组选项',
 	'workbench.tabs.menus.new': '新建标签页菜单',
+	'workbench.tabs.menus.newNoMatch': '没有匹配项。',
+	'workbench.tabs.menus.newSearch': '搜索',
 	'workbench.tabs.profiles.customExecutable': '自定义可执行文件',
 	'workbench.tabs.profiles.default': '默认',
 	'workbench.tabs.profiles.systemShell': '系统 Shell',

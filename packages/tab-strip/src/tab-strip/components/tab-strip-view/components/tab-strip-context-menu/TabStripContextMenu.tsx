@@ -23,7 +23,7 @@ import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripActions } from '../../../../types/tab-strip-actions';
 import { TAB_STRIP_ACTION_IDS } from '../../../../actions/tab-strip-action-contracts';
 import type { TabStripOptions } from '../../../../types/tab-strip-options';
-import { TabStripNewTabMenuItems } from './components/tab-strip-new-tab-menu-items/TabStripNewTabMenuItems';
+import { TabStripNewTabSearch } from './components/tab-strip-new-tab-search/TabStripNewTabSearch';
 
 interface TabStripContextMenuProps {
 	actions: TabStripActions;
@@ -79,7 +79,7 @@ export function TabStripContextMenu({
 		// Grouped and other new-Tab variants are Search Actions; this menu only picks how the Tab starts.
 		return (
 			<ContextMenuContent aria-label={messages.newTabMenu}>
-				<TabStripNewTabMenuItems
+				<TabStripNewTabSearch
 					sections={newTabSections}
 					onChoose={(choice) => run(choice.select)()}
 				/>
