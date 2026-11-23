@@ -294,6 +294,7 @@ impl super::CliText {
             (_, CommandPath::MachineList) => self.cli_machine_help(path),
             (_, CommandPath::MachineAdd) => self.cli_machine_help(path),
             (_, CommandPath::MachineRename) => self.cli_machine_help(path),
+            (_, CommandPath::MachineSetColor) => self.cli_machine_help(path),
             (_, CommandPath::MachineRemove) => self.cli_machine_help(path),
             (_, CommandPath::MachineEnable) => self.cli_machine_help(path),
             (_, CommandPath::MachineDisable) => self.cli_machine_help(path),

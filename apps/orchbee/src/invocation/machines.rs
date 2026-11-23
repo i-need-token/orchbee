@@ -6,17 +6,22 @@ use super::{
     ExpectedValue, FailureEnvelope, Options, OutputFormat, ParseFailure, Request, UsageContext,
     UsageReason, check_scope, missing_command, missing_required, unexpected_argument, usage_with,
 };
-use crate::machines::{Draft, default_label, valid_label, valid_target};
+use crate::machines::{Draft, MachineColor, default_label, valid_label, valid_target};
 use orchbee_local_runtime::SessionName;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum MachineCommand {
     List,
-    Add(Draft),
+    /// Without a color, the machine takes the one the fewest saved machines use.
+    Add(Draft, Option<MachineColor>),
     /// `machine` names one saved machine by ID or exact label; the catalog resolves it.
     Rename {
         machine: String,
         label: String,
+    },
+    SetColor {
+        machine: String,
+        color: MachineColor,
     },
     /// With `stop_session`, the remote Session stops first and the record goes only if it did.
     Remove {
@@ -45,8 +50,9 @@ impl MachineCommand {
     pub(crate) fn operation(&self) -> &'static str {
         match self {
             Self::List => "list",
-            Self::Add(_) => "add",
+            Self::Add(..) => "add",
             Self::Rename { .. } => "rename",
+            Self::SetColor { .. } => "set-color",
             Self::Remove { .. } => "remove",
             Self::Enable { enabled: true, .. } => "enable",
             Self::Enable { enabled: false, .. } => "disable",
@@ -74,6 +80,7 @@ pub(super) fn parse(
         "list" => "machine list",
         "add" => "machine add",
         "rename" => "machine rename",
+        "set-color" => "machine set-color",
         "remove" => "machine remove",
         "enable" => "machine enable",
         "disable" => "machine disable",
@@ -130,6 +137,14 @@ pub(super) fn parse(
         ("rename", None) => return Err(missing_required(context, "'--label'", envelope)),
         _ => String::new(),
     };
+    let color = match (verb, options.color.as_deref()) {
+        (_, Some(value)) => Some(
+            MachineColor::parse(value)
+                .ok_or_else(|| invalid("--color", value, ExpectedValue::MachineColor))?,
+        ),
+        ("set-color", None) => return Err(missing_required(context, "'--color'", envelope)),
+        _ => None,
+    };
     let seen = |flag| options.seen.contains(&flag);
     let command = if verb == "add" {
         if !valid_target(arg) {
@@ -148,7 +163,7 @@ pub(super) fn parse(
         if seen("--no-install") {
             MachineCommand::NotYetAvailable("add")
         } else {
-            MachineCommand::Add(draft)
+            MachineCommand::Add(draft, color)
         }
     } else {
         if !valid_selector(arg) {
@@ -157,6 +172,11 @@ pub(super) fn parse(
         let machine = (*arg).to_owned();
         match verb {
             "rename" => MachineCommand::Rename { machine, label },
+            "set-color" => MachineCommand::SetColor {
+                machine,
+                // Present: `set-color` without it was refused above.
+                color: color.unwrap_or(MachineColor::Cyan),
+            },
             "remove" => {
                 let stop_session = seen("--stop-session");
                 // Stopping the remote Session ends its terminals: it is confirmed as `server stop`

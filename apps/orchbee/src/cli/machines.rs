@@ -245,7 +245,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         deadline: Instant::now()
             + Duration::from_secs(match command {
                 // A hub start, then the hub's own 60-second attempt; a remote stop sets its own.
-                MachineCommand::Add(_) | MachineCommand::Connect { .. } => 90,
+                MachineCommand::Add(..) | MachineCommand::Connect { .. } => 90,
                 MachineCommand::Disconnect(_) => 15,
                 _ => 5,
             }),
@@ -326,7 +326,15 @@ fn execute(
     match command {
         MachineCommand::NotYetAvailable(_) => Err(Error::NotYetAvailable),
         MachineCommand::List => list::list(store.read().map_err(Error::Catalog)?, context, report),
-        MachineCommand::Add(draft) => connect::add(&store, draft, context, report, locale),
+        MachineCommand::Add(draft, color) => {
+            connect::add(&store, draft, *color, context, report, locale)
+        }
+        MachineCommand::SetColor { machine, color } => {
+            commit_selected(&store, machine, context, report, |id| Edit::SetColor {
+                id,
+                color: *color,
+            })
+        }
         MachineCommand::Rename { machine, label } => {
             commit_selected(&store, machine, context, report, |id| Edit::Rename {
                 id,

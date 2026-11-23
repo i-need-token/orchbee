@@ -76,6 +76,7 @@ impl super::CliText {
             CommandPath::MachineList => &[],
             CommandPath::MachineAdd => &[Argument::Ssh],
             CommandPath::MachineRename => &[Argument::Machine],
+            CommandPath::MachineSetColor => &[Argument::Machine],
             CommandPath::MachineRemove => &[Argument::Machine],
             CommandPath::MachineEnable => &[Argument::Machine],
             CommandPath::MachineDisable => &[Argument::Machine],

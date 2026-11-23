@@ -15,7 +15,7 @@ fn machine_grammar_is_complete_before_any_effect() {
     ));
     assert!(
         matches!(parse(&["machine","add","ssh://user@host:22","--label=工作","--remote-session=work"]).unwrap(),
-        Request::Machine {command:MachineCommand::Add(draft),..} if draft.session.as_str()=="work")
+        Request::Machine {command:MachineCommand::Add(draft, None),..} if draft.session.as_str()=="work")
     );
     let id = "11111111111111111111111111111111";
     for verb in ["enable", "disable", "remove"] {

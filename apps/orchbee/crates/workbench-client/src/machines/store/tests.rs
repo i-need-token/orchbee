@@ -53,6 +53,7 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
     let first = Edit::Add {
         id: id.clone(),
         draft: draft.clone(),
+        color: None,
     };
     let (catalog, _) = store.commit(&first).unwrap();
     assert_eq!(catalog.revision, 1);
@@ -72,7 +73,13 @@ fn store_reloads_concurrent_changes_and_preserves_corruption_under_real_private_
         })
         .unwrap();
     let other = ProfileId::generate().unwrap();
-    store.commit(&Edit::Add { id: other, draft }).unwrap();
+    store
+        .commit(&Edit::Add {
+            id: other,
+            draft,
+            color: None,
+        })
+        .unwrap();
     let current = store.read().unwrap();
     assert_eq!(before.revision, 1);
     assert_eq!(current.revision, 3);
@@ -104,6 +111,7 @@ fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
         .commit(&Edit::Add {
             id: id.clone(),
             draft: draft.clone(),
+            color: None,
         })
         .unwrap();
     let written: serde_json::Value =
@@ -115,7 +123,13 @@ fn extensions_survive_a_commit_and_a_newer_record_is_never_rewritten() {
     lock.replace(FILE, newer).unwrap();
     drop(lock);
     assert!(store.read().unwrap().profiles.is_empty());
-    store.commit(&Edit::Add { id, draft }).unwrap();
+    store
+        .commit(&Edit::Add {
+            id,
+            draft,
+            color: None,
+        })
+        .unwrap();
     assert_eq!(store.read().unwrap().profiles.len(), 1);
     assert_eq!(fs::read(store.record.path()).unwrap(), newer);
 }

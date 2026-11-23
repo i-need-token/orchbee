@@ -55,6 +55,7 @@ fn catalog_trace_retains_opaque_identity_noop_revision_and_duplicate_endpoints()
         .edit(&Edit::Add {
             id: id(1),
             draft: draft(),
+            color: None,
         })
         .unwrap();
     assert!(changed);
@@ -63,6 +64,7 @@ fn catalog_trace_retains_opaque_identity_noop_revision_and_duplicate_endpoints()
         .edit(&Edit::Add {
             id: id(2),
             draft: draft(),
+            color: None,
         })
         .unwrap();
     assert_eq!(two.profiles.len(), 2);
@@ -110,6 +112,7 @@ fn unknown_connection_kind_is_kept_and_leaves_other_machines_usable() {
         .edit(&Edit::Add {
             id: id(1),
             draft: draft(),
+            color: None,
         })
         .unwrap()
         .0
@@ -133,7 +136,7 @@ fn unknown_connection_kind_is_kept_and_leaves_other_machines_usable() {
         .unwrap();
     let written = edited.json();
     assert_eq!(written["profiles"][1]["connection"], later);
-    assert_eq!(written["profiles"][1]["extensions"], json!({"x":1}));
+    assert_eq!(written["profiles"][1]["extensions"]["x"], json!(1));
     value["profiles"][1]["remoteInstall"] = json!("later");
     assert!(Catalog::parse(&serde_json::to_vec(&value).unwrap()).is_none());
 }
@@ -143,6 +146,7 @@ fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
         .edit(&Edit::Add {
             id: id(1),
             draft: draft(),
+            color: None,
         })
         .unwrap();
     full.revision = MAX_REVISION;
@@ -179,9 +183,45 @@ fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
     assert_eq!(
         full.edit(&Edit::Add {
             id: id(65),
-            draft: draft()
+            draft: draft(),
+            color: None,
         })
         .unwrap_err(),
         Error::Capacity
     );
+}
+/// Colors stay apart for as long as there are colors and spread evenly afterwards; a record an
+/// earlier release saved, or one with a color outside the palette, takes the same default at load
+/// counting the machines before it, and the color travels in `extensions`.
+#[test]
+fn colors_default_to_the_least_used_and_travel_in_extensions() {
+    let mut catalog = Catalog::default();
+    for n in 1..=5 {
+        catalog = catalog
+            .edit(&Edit::Add {
+                id: id(n),
+                draft: draft(),
+                color: None,
+            })
+            .unwrap()
+            .0;
+    }
+    let colors: Vec<_> = catalog.profiles.iter().map(|p| p.color).collect();
+    use MachineColor::{Cyan, Grey, Pink, Purple};
+    assert_eq!(colors, [Cyan, Purple, Pink, Grey, Cyan]);
+    let (recolored, changed) = catalog
+        .edit(&Edit::SetColor {
+            id: id(5),
+            color: Grey,
+        })
+        .unwrap();
+    assert!(changed);
+    let mut value = recolored.json();
+    assert_eq!(value["profiles"][4]["extensions"]["color"], "grey");
+    value["profiles"][0]["extensions"] = json!({});
+    value["profiles"][2]["extensions"] = json!({"color": "red"});
+    let loaded = Catalog::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
+    let colors: Vec<_> = loaded.profiles.iter().map(|p| p.color).collect();
+    assert_eq!(colors, [Cyan, Purple, Pink, Grey, Grey]);
+    assert_eq!(MachineColor::parse("Cyan"), None);
 }

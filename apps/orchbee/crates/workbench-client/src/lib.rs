@@ -349,8 +349,8 @@ pub mod application {
 
     pub mod machines {
         pub use crate::machines::{
-            Catalog, Connection, Draft, Edit, Error, LOCAL, Profile, ProfileId, RemoteInstall,
-            Store, default_label, names_this_computer, valid_label, valid_target,
+            Catalog, Connection, Draft, Edit, Error, LOCAL, MachineColor, Profile, ProfileId,
+            RemoteInstall, Store, default_label, names_this_computer, valid_label, valid_target,
         };
     }
 

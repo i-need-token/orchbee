@@ -5,7 +5,7 @@
 //! that never comes `online` is dropped with its connection, and nothing was saved.
 //!
 //! Drawing-free: an interface shows [`Stage`] and the hub's state in its own words.
-use crate::machines::{Catalog, Draft, Edit, Error, ProfileId, Store};
+use crate::machines::{Catalog, Draft, Edit, Error, MachineColor, ProfileId, Store};
 use orchbee_machine_protocol::{
     MachineId, SessionName, Target,
     hub::{
@@ -92,13 +92,19 @@ impl Stage {
 pub struct Proposal {
     pub id: ProfileId,
     pub draft: Draft,
+    /// `None` takes the catalog's default when the machine is saved.
+    pub color: Option<MachineColor>,
 }
 
 impl Proposal {
     /// A new machine `draft` under a fresh id; `catalog` must be able to take it.
     pub fn new(draft: Draft, catalog: &Catalog) -> Result<Self, Error> {
         let id = ProfileId::generate()?;
-        let proposal = Self { id, draft };
+        let proposal = Self {
+            id,
+            draft,
+            color: None,
+        };
         catalog.edit(&proposal.edit())?;
         Ok(proposal)
     }
@@ -107,6 +113,7 @@ impl Proposal {
         Edit::Add {
             id: self.id.clone(),
             draft: self.draft.clone(),
+            color: self.color,
         }
     }
 

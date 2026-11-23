@@ -250,18 +250,56 @@ pub struct Profile {
     pub draft: Draft,
     pub enabled: bool,
     pub remote_install: RemoteInstall,
+    /// Kept in `extensions` as `color`, the record's forward slot, so an earlier release that
+    /// rejects unknown members still reads the catalog.
+    pub color: MachineColor,
     /// Fields a later release added to this machine, kept unread and written back unchanged.
     pub extensions: serde_json::Map<String, Value>,
 }
+/// The color of a saved machine's name wherever it is written: the Tab Group colors that no Agent
+/// state, warning or accent takes, in the order a default is chosen from. This computer has none.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum MachineColor {
+    Cyan,
+    Purple,
+    Pink,
+    Grey,
+}
+impl MachineColor {
+    pub const PALETTE: [Self; 4] = [Self::Cyan, Self::Purple, Self::Pink, Self::Grey];
+    /// The record's and every command's spellings, the same in every locale, in palette order.
+    pub const NAMES: [&'static str; 4] = ["cyan", "purple", "pink", "grey"];
+    pub const fn as_str(self) -> &'static str {
+        Self::NAMES[self as usize]
+    }
+    pub fn parse(value: &str) -> Option<Self> {
+        Self::PALETTE
+            .into_iter()
+            .find(|color| color.as_str() == value)
+    }
+    /// The color the fewest of `used` take; among equals, the earliest in the palette.
+    pub fn least_used(used: impl IntoIterator<Item = Self>) -> Self {
+        let mut counts = [0_usize; 4];
+        for color in used {
+            counts[color as usize] += 1;
+        }
+        Self::PALETTE
+            .into_iter()
+            .min_by_key(|color| counts[*color as usize])
+            .unwrap_or(Self::Cyan)
+    }
+}
 impl Profile {
     /// A newly added machine: enabled, with a remote copy someone else installed. Until Orchbee
-    /// installs remotes itself, an add succeeds only against an existing installation.
+    /// installs remotes itself, an add succeeds only against an existing installation. The
+    /// catalog's add gives it its color.
     pub fn new(id: ProfileId, draft: Draft) -> Self {
         Self {
             id,
             draft,
             enabled: true,
             remote_install: RemoteInstall::Manual,
+            color: MachineColor::Cyan,
             extensions: serde_json::Map::new(),
         }
     }
@@ -269,20 +307,29 @@ impl Profile {
     pub fn json(&self) -> Value {
         json!({"id":self.id.as_str(),"label":self.draft.label,"connection":self.draft.connection.json(),
             "session":self.draft.session.as_str(),"enabled":self.enabled,
-            "remoteInstall":self.remote_install.as_str()})
+            "remoteInstall":self.remote_install.as_str(),"color":self.color.as_str()})
     }
     fn record(&self) -> Value {
+        let mut extensions = self.extensions.clone();
+        extensions.insert(COLOR.to_owned(), Value::from(self.color.as_str()));
         json!({"id":self.id.as_str(),"label":self.draft.label,"connection":self.draft.connection.record(),
             "session":self.draft.session.as_str(),"enabled":self.enabled,
-            "remoteInstall":self.remote_install.as_str(),"extensions":self.extensions})
+            "remoteInstall":self.remote_install.as_str(),"extensions":extensions})
     }
-    fn parse(value: &Value) -> Option<Self> {
+    /// A record without a color, or with one outside the palette, takes `default`'s.
+    fn parse(value: &Value, default: impl FnOnce() -> MachineColor) -> Option<Self> {
         let mut value = value.clone();
-        let extensions = match value.as_object_mut()?.remove("extensions") {
+        let mut extensions = match value.as_object_mut()?.remove("extensions") {
             None => serde_json::Map::new(),
             Some(Value::Object(extensions)) => extensions,
             Some(_) => return None,
         };
+        let color = extensions
+            .remove(COLOR)
+            .as_ref()
+            .and_then(Value::as_str)
+            .and_then(MachineColor::parse)
+            .unwrap_or_else(default);
         if !keys(
             &value,
             &[
@@ -306,10 +353,13 @@ impl Profile {
             },
             enabled: value["enabled"].as_bool()?,
             remote_install: RemoteInstall::parse(value["remoteInstall"].as_str()?)?,
+            color,
             extensions,
         })
     }
 }
+/// The member of a profile's `extensions` that holds its color.
+const COLOR: &str = "color";
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Catalog {
     pub revision: u64,
@@ -320,10 +370,25 @@ pub struct Catalog {
 }
 #[derive(Clone, Debug)]
 pub enum Edit {
-    Add { id: ProfileId, draft: Draft },
-    Rename { id: ProfileId, label: String },
+    /// Without a color, the machine takes the one the fewest saved machines use.
+    Add {
+        id: ProfileId,
+        draft: Draft,
+        color: Option<MachineColor>,
+    },
+    Rename {
+        id: ProfileId,
+        label: String,
+    },
+    SetColor {
+        id: ProfileId,
+        color: MachineColor,
+    },
     Remove(ProfileId),
-    Enable { id: ProfileId, enabled: bool },
+    Enable {
+        id: ProfileId,
+        enabled: bool,
+    },
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Error {
@@ -356,7 +421,10 @@ impl Catalog {
             .filter(|p| p.len() <= MAX_PROFILES)?;
         let mut profiles = Vec::<Profile>::new();
         for value in raw {
-            let profile = Profile::parse(value)?;
+            // A machine saved without a color counts the colors of the ones before it.
+            let profile = Profile::parse(value, || {
+                MachineColor::least_used(profiles.iter().map(|p| p.color))
+            })?;
             if profiles.iter().any(|p| p.id == profile.id) {
                 return None;
             }
@@ -393,7 +461,7 @@ impl Catalog {
     pub fn edit(&self, edit: &Edit) -> Result<(Self, bool), Error> {
         let mut next = self.clone();
         match edit {
-            Edit::Add { id, draft } => {
+            Edit::Add { id, draft, color } => {
                 if self.profiles.len() == MAX_PROFILES {
                     return Err(Error::Capacity);
                 }
@@ -403,7 +471,9 @@ impl Catalog {
                 if names_this_computer(&draft.label) {
                     return Err(Error::Reserved);
                 }
-                next.profiles.push(Profile::new(id.clone(), draft.clone()));
+                let mut profile = Profile::new(id.clone(), draft.clone());
+                profile.color = color.unwrap_or_else(|| self.default_color());
+                next.profiles.push(profile);
             }
             Edit::Rename { id, label } => {
                 if !valid_label(label) {
@@ -423,6 +493,7 @@ impl Catalog {
                 next.profiles.remove(index);
             }
             Edit::Enable { id, enabled } => next.profile_mut(id)?.enabled = *enabled,
+            Edit::SetColor { id, color } => next.profile_mut(id)?.color = *color,
         }
         let changed = self.profiles != next.profiles;
         if changed {
@@ -433,6 +504,10 @@ impl Catalog {
                 .ok_or(Error::RevisionExhausted)?;
         }
         Ok((next, changed))
+    }
+    /// The color a machine added now takes: the one the fewest saved machines use.
+    pub fn default_color(&self) -> MachineColor {
+        MachineColor::least_used(self.profiles.iter().map(|p| p.color))
     }
     fn profile_mut(&mut self, id: &ProfileId) -> Result<&mut Profile, Error> {
         self.profiles

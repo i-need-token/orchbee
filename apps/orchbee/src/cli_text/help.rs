@@ -250,6 +250,10 @@ impl super::CliText {
             HelpTopic::Command(CommandPath::MachineRename) => {
                 ("Rename a saved remote machine.", "重命名已保存的远程机器。")
             }
+            HelpTopic::Command(CommandPath::MachineSetColor) => (
+                "Change the color of a saved remote machine.",
+                "修改已保存远程机器的颜色。",
+            ),
             HelpTopic::Command(CommandPath::MachineRemove) => {
                 ("Remove a saved remote machine.", "移除已保存的远程机器。")
             }

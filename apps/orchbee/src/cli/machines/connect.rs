@@ -63,12 +63,14 @@ mod requests {
     pub(in super::super) fn add(
         store: &Store,
         draft: &Draft,
+        color: Option<crate::machines::MachineColor>,
         context: &mut Context,
         report: &mut Report,
         locale: Locale,
     ) -> Result<(), Error> {
         let catalog = store.read().map_err(Error::Catalog)?;
-        let proposal = Proposal::new(draft.clone(), &catalog).map_err(Error::Catalog)?;
+        let mut proposal = Proposal::new(draft.clone(), &catalog).map_err(Error::Catalog)?;
+        proposal.color = color;
         report.id = Some(proposal.id.clone());
         let console = draft
             .ssh_target()

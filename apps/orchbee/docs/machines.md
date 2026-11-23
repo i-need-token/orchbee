@@ -16,6 +16,13 @@ migration before applying the edit. A record with a version this build cannot us
 newer version or not updated from an earlier one, is never rewritten: saved machines read as none,
 edits last only until the process ends, and the process shows the record message once.
 
+Each machine has a color, `cyan`, `purple`, `pink` or `grey`, kept as `color` in the profile's
+`extensions`, the record's forward slot, so an earlier release that rejects unknown members still
+reads the catalog and writes the color back unchanged. A machine added without a color takes the
+one the fewest saved machines use, the earliest in that order among equals; a record without a
+color, or with another value, takes the same default at load, counting only the machines before it
+in the catalog, and keeps it from the next save. Nothing recolors a saved machine by itself.
+
 A connection `kind` this build does not know is kept verbatim with every member it carries and
 written back unchanged. That machine is listed as unsupported, the same word in every client,
 cannot be routed to, chosen, or discovered, and leaves every other machine usable. The record never stores a

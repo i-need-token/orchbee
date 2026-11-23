@@ -70,7 +70,15 @@
 							"items": {
 								"type": "object",
 								"additionalProperties": false,
-								"required": ["id", "label", "connection", "session", "enabled", "remoteInstall"],
+								"required": [
+									"id",
+									"label",
+									"connection",
+									"session",
+									"enabled",
+									"remoteInstall",
+									"color"
+								],
 								"properties": {
 									"id": {
 										"type": "string",
@@ -112,6 +120,9 @@
 									},
 									"remoteInstall": {
 										"enum": ["managed", "manual"]
+									},
+									"color": {
+										"$ref": "#/$defs/color"
 									}
 								}
 							}
@@ -199,7 +210,17 @@
 					"type": "boolean"
 				},
 				"operation": {
-					"enum": ["list", "add", "rename", "remove", "enable", "disable", "connect", "disconnect"]
+					"enum": [
+						"list",
+						"add",
+						"rename",
+						"set-color",
+						"remove",
+						"enable",
+						"disable",
+						"connect",
+						"disconnect"
+					]
 				}
 			},
 			"if": {
@@ -282,7 +303,7 @@
 		"machine": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["local", "id", "label", "state", "capacity"],
+			"required": ["local", "id", "label", "color", "state", "capacity"],
 			"properties": {
 				"local": {
 					"type": "boolean"
@@ -295,6 +316,16 @@
 					"type": ["string", "null"],
 					"minLength": 1,
 					"maxLength": 128
+				},
+				"color": {
+					"anyOf": [
+						{
+							"$ref": "#/$defs/color"
+						},
+						{
+							"type": "null"
+						}
+					]
 				},
 				"state": {
 					"enum": [
@@ -343,6 +374,9 @@
 					"label": {
 						"type": "null"
 					},
+					"color": {
+						"type": "null"
+					},
 					"state": {
 						"type": "null"
 					}
@@ -356,11 +390,17 @@
 					"label": {
 						"type": "string"
 					},
+					"color": {
+						"type": "string"
+					},
 					"state": {
 						"type": "string"
 					}
 				}
 			}
+		},
+		"color": {
+			"enum": ["cyan", "purple", "pink", "grey"]
 		},
 		"capacity": {
 			"type": "object",

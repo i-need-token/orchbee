@@ -941,6 +941,7 @@ struct Options {
     content_revision: Option<String>,
     spec: Option<String>,
     remote_session: Option<String>,
+    color: Option<String>,
     plugin_enabled: bool,
     plugin_disabled: bool,
     plugin_id: Option<String>,

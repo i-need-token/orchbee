@@ -49,6 +49,7 @@ pub(super) fn arguments(path: CommandPath) -> &'static [&'static str] {
         CommandPath::MachineList => &[],
         CommandPath::MachineAdd => &["user@host", "--label", "remote"],
         CommandPath::MachineRename => &["remote", "--label", "build"],
+        CommandPath::MachineSetColor => &["remote", "--color", "purple"],
         CommandPath::MachineRemove => &["00000000000000000000000000000001"],
         CommandPath::MachineEnable => &["00000000000000000000000000000001"],
         CommandPath::MachineDisable => &["00000000000000000000000000000001"],

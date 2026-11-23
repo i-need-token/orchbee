@@ -57,6 +57,7 @@ commands! {
     MachineList => ["machine", "list"], 0, Operand, WindowsAndMacos, true, false, false;
     MachineAdd => ["machine", "add"], 1, Operand, WindowsAndMacos, true, false, false;
     MachineRename => ["machine", "rename"], 1, Operand, WindowsAndMacos, true, false, false;
+    MachineSetColor => ["machine", "set-color"], 1, Operand, WindowsAndMacos, true, false, false;
     MachineRemove => ["machine", "remove"], 1, Operand, WindowsAndMacos, true, false, false;
     MachineEnable => ["machine", "enable"], 1, Operand, WindowsAndMacos, true, false, false;
     MachineDisable => ["machine", "disable"], 1, Operand, WindowsAndMacos, true, false, false;

@@ -45,6 +45,7 @@ pub(crate) enum ExpectedValue {
     TerminalContentGeneration,
     MachineSelector,
     MachineLabel,
+    MachineColor,
     SshTarget,
     PluginId,
     PluginActionId,

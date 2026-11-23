@@ -139,6 +139,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
             Ok(())
         },
     },
+    OptionSpec {
+        spelling: "--color",
+        values: super::values::MACHINE_COLORS,
+        closed_values: true,
+        string_rule: None,
+        commands: &[CommandPath::MachineAdd, CommandPath::MachineSetColor],
+        role: OptionRole::Business,
+        value: Some("filter"),
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, value, _| {
+            options.color = Some(value);
+            Ok(())
+        },
+    },
     // `--no-install` is parsed in full and refused as not yet available until the slice that
     // implements it lands; discovery leaves it out meanwhile.
     OptionSpec {

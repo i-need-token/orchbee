@@ -212,6 +212,7 @@ impl Listed {
             "local": self.profile.is_none(),
             "id": self.profile.as_ref().map(|profile| profile.id.as_str()),
             "label": self.profile.as_ref().map(|profile| profile.draft.label.as_str()),
+            "color": self.profile.as_ref().map(|profile| profile.color.as_str()),
             "state": state,
             "capacity": self.capacity.as_ref().map_or_else(|| json!("unknown"), capacity_json),
         })
@@ -250,11 +251,13 @@ pub(super) fn text(machines: &[Listed], locale: Locale) -> String {
                     String::new(),
                     String::new(),
                     String::new(),
+                    String::new(),
                     free,
                 ],
                 Some(profile) => vec![
                     profile.id.as_str().to_owned(),
                     escape(&profile.draft.label),
+                    profile.color.as_str().to_owned(),
                     escape(
                         profile
                             .draft
