@@ -394,7 +394,11 @@ in the other slot, which it makes current, and on Windows it retires a live Keep
 did not adopt. Every Host the Worker holds attaches the one Keeper, a Host the Worker
 starts later at its next care; an attachment that fails is recorded once and leaves that Host's
 terminals unheld. A failed Keeper step leaves the terminals running unheld and the Worker serving;
-Keeper starts are 30 seconds apart, and after three failed ones the Worker starts no more. A stop
+Keeper starts are 30 seconds apart, and after three failed ones the Worker starts no more. A macOS
+Worker does not wait for its care when it starts a Host for a request: the Host attaches the
+Keeper, started first when none runs, before it starts that request's terminal, since a Keeper
+parents only the programs it starts and a terminal its Host forked loses its exit status once a move
+lets that Host end. A stop
 ends the Keeper, and a Keeper still retiring, once every Host is gone.
 
 On Windows an adopted Keeper whose program is not the Worker's own Host program, by canonical path,

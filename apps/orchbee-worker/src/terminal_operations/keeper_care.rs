@@ -139,6 +139,22 @@ impl KeeperCare {
         self.due
     }
 
+    /// Has each Host attach the Session's Keeper at once, starting it when none runs, as the care
+    /// does but outside its schedule: for a macOS Host the Worker just started for a request, so
+    /// the Keeper parents that request's terminal. A Keeper that waits for its replacement, or a
+    /// start not yet allowed, stays with the care.
+    #[cfg(target_os = "macos")]
+    pub(super) fn attach_now(&mut self, hosts: &mut [Cared<'_>], mut keepers: Keepers<'_>) {
+        if self.replacing {
+            return;
+        }
+        if keepers.keeper.is_none() {
+            self.start(hosts, &mut keepers);
+        } else {
+            offer(hosts, keepers.keeper);
+        }
+    }
+
     /// Cares for the Keeper and probes each Host when the care is due. Returns when the care began
     /// if a Server request became readable while it ran.
     pub(super) fn run(

@@ -375,8 +375,13 @@ impl<'a> HostSet<'a> {
                 self.failed_starts = 0;
                 connection.stream().set_nonblocking(true)?;
                 connection.pacing.begin_request_at(readable);
-                // The Keeper's care has this Host attach the Session's Keeper between requests.
+                // The Keeper's care has this Host attach the Session's Keeper between requests. A
+                // macOS Keeper parents only a terminal it starts, and one the Host forks itself
+                // loses its exit status once a move lets that Host end, so a macOS Host attaches
+                // it before it starts the terminal this request needs.
                 self.add(slot, connection, ManagedHost::new(child), false);
+                #[cfg(target_os = "macos")]
+                self.attach_keeper();
                 Ok(self.hosts.len() - 1)
             }
             Err(failure) => {
@@ -416,8 +421,30 @@ impl HostSet<'_> {
     /// The care between requests: the Session's Keeper and, on Windows, each Host's dispatch, then
     /// draining older Hosts. Returns when it began if a Server request became readable while it ran.
     pub(super) fn care(&mut self, server: &UnixStream) -> Option<Instant> {
-        use super::keeper_care::{Cared, Keepers};
         let began = Instant::now();
+        let cared_began = self.with_care(|care, cared, keepers| care.run(cared, keepers, server));
+        let checked = self.drain_empty();
+        cared_began
+            .or_else(|| (checked && super::server_transport::readable_now(server)).then_some(began))
+    }
+
+    /// Has each Host attach the Session's Keeper at once, starting it when none runs, ahead of the
+    /// care: for a macOS Host this Worker just started for a request.
+    #[cfg(target_os = "macos")]
+    pub(super) fn attach_keeper(&mut self) {
+        self.with_care(|care, cared, keepers| care.attach_now(cared, keepers));
+    }
+
+    /// Runs `turn` with the Keeper's care, each Host that still serves, and the Session's Keepers.
+    fn with_care<R>(
+        &mut self,
+        turn: impl FnOnce(
+            &mut super::keeper_care::KeeperCare,
+            &mut [super::keeper_care::Cared<'_>],
+            super::keeper_care::Keepers<'_>,
+        ) -> R,
+    ) -> R {
+        use super::keeper_care::{Cared, Keepers};
         let program = self
             .starter
             .as_ref()
@@ -441,10 +468,7 @@ impl HostSet<'_> {
             retiring: &mut self.retiring,
             program,
         };
-        let cared_began = self.care.run(&mut cared, keepers, server);
-        let checked = self.drain_empty();
-        cared_began
-            .or_else(|| (checked && super::server_transport::readable_now(server)).then_some(began))
+        turn(&mut self.care, &mut cared, keepers)
     }
 
     /// When the next care is due, so the wait for a request wakes for it.

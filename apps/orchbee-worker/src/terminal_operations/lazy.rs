@@ -322,17 +322,36 @@ pub(crate) fn run(
             // The Launch's bound runs from when it became readable; the Host start used part of it.
             host.pacing.begin_request_at(arrived);
             host.pacing.set_site(Site::Launch);
+            let mut hosts = super::host_set::HostSet::managed(super::host_set::Starter {
+                cohort,
+                runtime,
+                drain: Rc::clone(&drain),
+            });
+            hosts.add(
+                orchbee_local_runtime::HostSlot::FIRST,
+                host,
+                super::shutdown::ManagedHost::new(child),
+                false,
+            );
+            // The Keeper's care starts the Session's Keeper between requests, first right after
+            // this answer, so the start takes none of the Launch's bound. A macOS Keeper parents
+            // only a terminal it starts, and one the Host forks itself loses its exit status once a
+            // move lets that Host end, so a macOS Host attaches it before the Launch's terminal
+            // starts, within the Launch's bound.
+            #[cfg(target_os = "macos")]
+            hosts.attach_keeper();
+            let host = hosts.primary();
             let bound = host.pacing.exchange_bound();
             let delivered = (|| -> Result<bool, Box<dyn Error>> {
                 let disposition =
-                    prepared.execute(&mut kernel, &host, &server, unix_milliseconds, bound)?;
+                    prepared.execute(&mut kernel, host, &server, unix_milliseconds, bound)?;
                 if disposition == HostOperationDisposition::ServerClosed {
                     return Err(super::peer_closed().into());
                 }
                 let result = super::take_result(&mut kernel)?;
                 Ok(server_transport::send(
                     &server,
-                    (disposition == HostOperationDisposition::ResultReady).then_some(&host),
+                    (disposition == HostOperationDisposition::ResultReady).then_some(host),
                     &result,
                 )?)
             })();
@@ -341,24 +360,11 @@ pub(crate) fn run(
                 Ok(true) => {
                     return Err(super::exit_cause::attach(
                         super::peer_closed().into(),
-                        &host,
+                        host,
                     ));
                 }
-                Err(error) => return Err(super::exit_cause::attach(error, &host)),
+                Err(error) => return Err(super::exit_cause::attach(error, host)),
             }
-            let mut hosts = super::host_set::HostSet::managed(super::host_set::Starter {
-                cohort,
-                runtime,
-                drain: Rc::clone(&drain),
-            });
-            // The Keeper's care starts the Session's Keeper between requests, first right after
-            // this answer, so the start takes none of the Launch's bound.
-            hosts.add(
-                orchbee_local_runtime::HostSlot::FIRST,
-                host,
-                super::shutdown::ManagedHost::new(child),
-                false,
-            );
             return super::run_admitted_with_handoff(
                 server,
                 hosts,
