@@ -1085,6 +1085,40 @@ pub fn build(builder: *std.Build) void {
         );
         handover_black_box_step.dependOn(&run_handover_black_box_tests.step);
     }
+    if (target.result.os.tag == .macos) {
+        // The Host's Keeper link against a real Keeper on macOS: the service runs in the test, and
+        // the Keeper is the built executable.
+        const keeper_link_test_module = builder.createModule(.{
+            .root_source_file = builder.path("src/service/__tests__/keeper_link_darwin_test.zig"),
+            .target = target,
+            .optimize = optimize,
+        });
+        keeper_link_test_module.addImport("terminal-protocol", protocol_module);
+        keeper_link_test_module.addImport("terminal-host-control", control_module);
+        keeper_link_test_module.addImport("terminal-host-core", core_module);
+        keeper_link_test_module.addImport("terminal-host-engine", engine_module);
+        keeper_link_test_module.addImport("terminal-host-model", model_module);
+        keeper_link_test_module.addImport("terminal-host-platform", platform_module);
+        keeper_link_test_module.addImport("terminal-host-service", service_module);
+        keeper_link_test_module.addImport("terminal-host-keeper-protocol", keeper_protocol_module);
+        keeper_link_test_module.addImport("terminal-host-keeper-link", keeper_link_module);
+        const keeper_link_test_options = builder.addOptions();
+        keeper_link_test_options.addOptionPath("keeper_executable", executable.getEmittedBin());
+        keeper_link_test_module.addOptions("keeper_link_test_options", keeper_link_test_options);
+        const keeper_link_tests = builder.addTest(.{
+            .name = "terminal-host-keeper-link-tests",
+            .root_module = keeper_link_test_module,
+        });
+        keeper_link_tests.root_module.link_libc = true;
+        test_compile_step.dependOn(&keeper_link_tests.step);
+        const run_keeper_link_tests = addTestRun(builder, keeper_link_tests, test_home);
+        const keeper_link_test_step = builder.step(
+            "test-keeper-link",
+            "Run the Host's Keeper link witnesses against a real Keeper",
+        );
+        keeper_link_test_step.dependOn(&run_keeper_link_tests.step);
+        test_step.dependOn(&run_keeper_link_tests.step);
+    }
     const focused_cli_tests = builder.addTest(.{
         .name = "terminal-host-cli-tests",
         .root_module = cli_test_module,

@@ -29,7 +29,9 @@ const pty_process = platform.process;
 const thread_sync = platform.thread_sync;
 const terminal_runtime = @import("terminal-host-engine").runtime;
 const identifiers = @import("terminal-host-model").identifiers;
+const keeper_link = @import("terminal-host-keeper-link");
 const creation_failure = @import("creation_failure.zig");
+const creation_leader = @import("creation_leader.zig");
 const creation_holds = @import("creation_holds.zig");
 const restore_build = @import("moves/restore_build.zig");
 const host_outgoing = @import("outgoing.zig");
@@ -61,6 +63,9 @@ pub const Request = struct {
     host_epoch: identifiers.HostEpoch,
     /// The success response and `TerminalStarted`. Ownership moves only when the begin succeeds.
     reply: Outgoing,
+    /// The Keeper attachments: on macOS an attached Keeper that parents leaders starts the new
+    /// terminal's leader.
+    keepers: ?*keeper_link.Attachments = null,
 };
 
 /// What a settled creation sends its requester.
@@ -85,6 +90,15 @@ const Work = union(enum) {
     create: host_runtime_aggregate.CreateBuild,
     start: host_runtime_aggregate.StartBuild,
     restore: *restore_build.Job,
+
+    /// The identity a new or started terminal runs under.
+    fn identity(self: *const Work) host_runtime_aggregate.TerminalIdentity {
+        return switch (self.*) {
+            .create => |*build| build.identity(),
+            .start => |*build| build.pending.identity,
+            .restore => unreachable,
+        };
+    }
 
     fn terminalId(self: *const Work) core_module.TerminalId {
         return switch (self.*) {
@@ -141,6 +155,7 @@ const Creation = struct {
     work: Work,
     launch: pty_process.Launch = undefined,
     options: terminal_runtime.Options = undefined,
+    leader_start: creation_leader.LeaderStart = .{},
     creator: std.Thread = undefined,
     mutex: thread_sync.Mutex = .{},
     finished: thread_sync.Condition = .{},
@@ -189,7 +204,9 @@ pub const Pipeline = struct {
         creation.* = initCreation(aggregate.allocator, request, .{ .create = build });
         creation.launch = creation.work.create.processLaunch();
         creation.options = creation.work.create.runtimeOptions();
+        creation.leader_start = .pin(request.keepers, creation.work.identity(), request.host_epoch);
         self.launchCreator(creation) catch {
+            creation.leader_start.unpin();
             aggregate.allocator.destroy(creation.work.create.retained);
             preparation.* = .{ .pending = creation.work.create.pending };
             return error.CreatorUnavailable;
@@ -212,7 +229,9 @@ pub const Pipeline = struct {
         creation.* = initCreation(aggregate.allocator, request, .{ .start = build });
         creation.launch = creation.work.start.processLaunch();
         creation.options = creation.work.start.runtimeOptions();
+        creation.leader_start = .pin(request.keepers, creation.work.identity(), request.host_epoch);
         self.launchCreator(creation) catch {
+            creation.leader_start.unpin();
             preparation.* = .{ .pending = creation.work.start.pending };
             return error.CreatorUnavailable;
         };
@@ -358,10 +377,12 @@ fn runBuild(creation: *Creation) void {
     if (comptime target_builtin.is_test) {
         if (creation.build_gate) |gate| gate.pass();
     }
+    creation.leader_start.apply(&creation.launch);
     const built = switch (creation.work) {
         .restore => |job| job.run(),
         .create, .start => TerminalRuntime.createWithOptions(creation.allocator, creation.launch, creation.options),
     };
+    creation.leader_start.unpin();
     const outcome: BuildOutcome = if (built) |runtime| .{ .built = runtime } else |err| .{ .failed = err };
     creation.mutex.lock();
     creation.outcome = outcome;

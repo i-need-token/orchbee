@@ -73,7 +73,7 @@ pub fn prepare(item: Queued) error{ SystemConsole, HoldFailed }!Prepared {
                     .console = .{ .pid = snapshot.console.pid, .created = snapshot.console.created },
                     .console_build = own.console_sha256,
                     .signal_format = own.signal_format,
-                    .launch = launchName(snapshot.launch_kind),
+                    .launch = snapshot.launch_kind.wireName(),
                 },
             } } };
         },
@@ -124,17 +124,5 @@ fn handleValues(handles: [hold_snapshot.role_count]HANDLE) ?message.Handles {
         .reference = values[4],
         .input = values[5],
         .output = values[6],
-    };
-}
-
-fn launchName(kind: platform.process.LaunchKind) []const u8 {
-    return switch (kind) {
-        inline else => |tag| comptime blk: {
-            const text = @tagName(tag);
-            var spelled: [text.len]u8 = undefined;
-            for (text, &spelled) |byte, *out| out.* = if (byte == '_') '-' else byte;
-            const final = spelled;
-            break :blk &final;
-        },
     };
 }

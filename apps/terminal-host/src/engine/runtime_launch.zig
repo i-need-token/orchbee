@@ -93,6 +93,7 @@ pub fn prepare(
             .executable = launch.executable,
             .rows = geometry.rows,
             .stdin_fd = launch.stdin_fd,
+            .keeper = launch.keeper,
         },
         .runtime_options = .{
             .cell_pixel_height = pixel_pair.height,

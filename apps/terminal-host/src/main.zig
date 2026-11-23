@@ -139,6 +139,7 @@ fn serveHeld(
         .terminal_defaults = options.terminal_defaults,
         .host_epoch = options.host_epoch,
         .trace_interactions = environment.contains("ORCHBEE_TERMINAL_HOST_TRACE"),
+        .endpoint_directory = options.endpoint_directory orelse options.runtime_directory,
     });
     const serve_result = server.serveUntilIdle(&service);
     const shutdown_failed = service.deinitChecked() catch |shutdown_error| teardown_failed: {

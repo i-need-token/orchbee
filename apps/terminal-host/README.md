@@ -200,8 +200,8 @@ orchbee-terminal-host serve \
 
 The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
-On Windows the same binary also runs as the Keeper, which holds terminals' handles for the Hosts of
-one Session so a program outlives the Host that serves it:
+On Windows and macOS the same binary also runs as the Keeper, which holds terminals' handles, or on
+macOS their PTY masters, for the Hosts of one Session so a program outlives the Host that serves it:
 
 ```text
 orchbee-terminal-host keep \
@@ -216,8 +216,8 @@ The runtime directory and endpoint are the Keeper's own. Nothing starts a Keeper
 `keeper-fatal.json` and `keeper-diagnostics.jsonl` in the Host's formats with the role `keeper`.
 
 A Windows Host offers the `keeper` and `handover` capabilities, which hold its running terminals in
-a Keeper and move a terminal to another Host of the same Worker. No Worker offers either yet, so
-every terminal runs as before; the runtime model owns the [Keeper link](docs/runtime-model.md#keeper-link)
+a Keeper and move a terminal to another Host of the same Worker; a macOS Host offers `keeper`. No
+Worker offers either yet, so every terminal runs as before; the runtime model owns the [Keeper link](docs/runtime-model.md#keeper-link)
 and [moves between Hosts](docs/runtime-model.md#moves-between-hosts).
 
 A POSIX Host reads its managed zsh and bash startup from `shell-integration/` beside the binary:

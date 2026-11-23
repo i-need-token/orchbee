@@ -42,7 +42,7 @@ pub const Entry = struct {
     /// Whether a session has received this program's `ProgramExited`.
     announced: bool = false,
     /// Each attached Keeper's slot; a hold keeps the program's handles and label alive.
-    gate: Gate = if (is_windows) .{} else {},
+    gate: Gate = if (Gate == void) {} else .{},
 
     /// Starts `launch` and the threads that follow it. On failure nothing keeps running.
     pub fn start(allocator: std.mem.Allocator, id: [16]u8, label: []const u8, launch: program.Launch) !*Entry {

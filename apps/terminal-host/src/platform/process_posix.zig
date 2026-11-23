@@ -8,6 +8,7 @@ const posix_compat = @import("posix_compat.zig");
 const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
+const keeper_record = if (builtin.os.tag == .macos) @import("process_keeper_darwin.zig") else struct {};
 
 const ExitResult = process_types.ExitResult;
 const Launch = process_types.Launch;
@@ -32,6 +33,9 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     const default_path = "/usr/local/bin:/bin/:/usr/bin";
 
     child_id: posix.pid_t,
+    allocator: std.mem.Allocator,
+    /// What the macOS Keeper links read: the release-first gate and the facts a hold names.
+    keeper: if (builtin.os.tag == .macos) *keeper_record.Record else void,
     interactive_shell: bool = false,
     launch_kind: process_types.LaunchKind = .other,
     exit_reaped: bool = false,
@@ -75,6 +79,8 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .rows = launch.rows,
         });
         errdefer pty.deinit();
+        const keeper = if (comptime builtin.os.tag == .macos) try keeper_record.Record.create(allocator, pty.master) else {};
+        errdefer if (comptime builtin.os.tag == .macos) keeper.destroy(allocator);
         var child_stdin_fd: ?posix.fd_t = null;
         if (launch.stdin_fd) |raw_fd| {
             const duplicated = try duplicateCloexec(@intCast(raw_fd));
@@ -83,7 +89,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         errdefer if (child_stdin_fd) |fd| {
             _ = posix.system.close(fd);
         };
-        const child_id = try fork_launch.start(.{
+        const plan: fork_launch.Plan = .{
             .executable = launch.executable,
             .argv = argv,
             .environment = environment_pointer,
@@ -92,14 +98,21 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .master = pty.master,
             .slave = pty.slave.?,
             .input = child_stdin_fd,
-        });
+        };
+        const child_id = if (comptime builtin.os.tag == .macos)
+            try startThroughKeeper(launch, keeper, plan, integration.launch_kind)
+        else
+            try fork_launch.start(plan);
         if (child_stdin_fd) |fd| {
             _ = posix.system.close(fd);
             child_stdin_fd = null;
         }
         pty.closeSlave();
+        if (comptime builtin.os.tag == .macos) if (!keeper.isParented()) keeper.started(child_id);
         return .{
             .child_id = child_id,
+            .allocator = allocator,
+            .keeper = keeper,
             .pty = pty,
             .identity = .{},
             .interactive_shell = @import("interactive_shell.zig").isInteractive(launch.executable, launch.arguments),
@@ -111,6 +124,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         // Reaping is a fallible ownership transition and must have completed in
         // TerminalRuntime.shutdown before this infallible resource destructor.
         std.debug.assert(self.exit_reaped);
+        if (comptime builtin.os.tag == .macos) self.keeper.destroy(self.allocator);
         self.pty.deinit();
         self.* = undefined;
     }
@@ -200,6 +214,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn wait(self: *Process) !ExitResult {
         if (self.exit_result) |result| return result;
+        if (comptime builtin.os.tag == .macos) if (self.keeper.isParented()) {
+            const result = self.keeper.awaitExit(self.child_id);
+            self.exit_result = result;
+            return result;
+        };
         var result_kind: c_int = 0;
         var result_value: u32 = 0;
         const observe_error = orchbee_observe_process_exit(
@@ -219,6 +238,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn releaseProcessIdentity(self: *Process) !void {
         if (self.exit_reaped) return;
+        if (comptime builtin.os.tag == .macos) if (self.keeper.isParented()) {
+            try self.identity.release(self.child_id, KeeperReaper{ .record = self.keeper });
+            self.exit_reaped = true;
+            return;
+        };
         if (self.exit_result != null) {
             try self.identity.release(
                 self.child_id,
@@ -248,9 +272,11 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn finishPtyAfterChildExit(_: *Process) !void {}
 
-    /// No Keeper holds a POSIX terminal.
-    pub fn releaseKeepers(_: *Process) bool {
-        return true;
+    /// Release first, without waiting: true once no Keeper holds the terminal. Only a macOS
+    /// terminal is ever held.
+    pub fn releaseKeepers(self: *Process) bool {
+        if (comptime builtin.os.tag != .macos) return true;
+        return self.keeper.gate.tryPass();
     }
 
     /// Closes the PTY master for shutdown after containment, once the reader and writer have
@@ -263,6 +289,43 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     pub fn abortRead(self: *Process) !void {
         try self.pty.abortRead();
     }
+
+    /// Starts the leader through the attached Keeper, which then parents it, or forks it here when
+    /// no Keeper is attached or the Keeper started nothing.
+    fn startThroughKeeper(
+        launch: Launch,
+        record: *keeper_record.Record,
+        plan: fork_launch.Plan,
+        launch_kind: process_types.LaunchKind,
+    ) !posix.pid_t {
+        const spawner = launch.keeper orelse return fork_launch.start(plan);
+        const outcome = spawner.spawn(spawner.context, &.{
+            .record = record,
+            .master = plan.master,
+            .slave = plan.slave,
+            .input = plan.input,
+            .executable = plan.executable,
+            .argv = plan.argv,
+            .environment = plan.environment,
+            .candidates = plan.candidates,
+            .directory = plan.directory,
+            .launch_kind = launch_kind,
+        });
+        return switch (outcome) {
+            .started => |leader| leader,
+            .refused => fork_launch.start(plan),
+            .spawn_failed, .unanswered => error.SpawnFailed,
+        };
+    }
+
+    /// Releases a parented leader's identity through its parent's `reap`.
+    const KeeperReaper = struct {
+        record: *keeper_record.Record,
+
+        pub fn reap(self: KeeperReaper, _: posix.pid_t) !void {
+            self.record.awaitReap();
+        }
+    };
 
     fn duplicateCloexec(fd: posix.fd_t) !posix.fd_t {
         // Zig's std.c.F table does not expose Linux's platform-specific

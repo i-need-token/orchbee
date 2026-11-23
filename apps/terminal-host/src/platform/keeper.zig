@@ -8,13 +8,18 @@ const gate_module = @import("keeper_gate.zig");
 const process = @import("process.zig");
 
 pub const Gate = gate_module.Gate;
+pub const Wake = gate_module.Wake;
 pub const maximum_attachments = gate_module.maximum_attachments;
+/// Where a Keeper holds this platform's terminals.
+pub const supported = gate_module.supported;
 pub const builds = @import("conpty_builds.zig");
 pub const hold = @import("keeper_hold_windows.zig");
 /// The seven handles of a holding as the process that pulls them sees them.
 pub const handles = @import("keeper_handles_windows.zig");
 /// Descriptor passing, process identity, and PTY checks on macOS.
 pub const darwin = if (builtin.os.tag == .macos) @import("keeper_darwin.zig") else struct {};
+/// A macOS terminal's Keeper record and the Keeper's start of its leader.
+pub const parent = if (builtin.os.tag == .macos) @import("process_keeper_darwin.zig") else struct {};
 /// A terminal leader's start, which the macOS Keeper runs for a Host.
 pub const fork_launch = if (builtin.os.tag == .macos) @import("fork_launch_posix.zig") else struct {};
 
@@ -26,10 +31,11 @@ pub fn takesMoves() bool {
     };
 }
 
-/// The release-first gate of a terminal's process; Windows terminals alone are ever held.
+/// The release-first gate of a terminal's process; Windows and macOS terminals alone are held.
 pub fn gate(target: *process.Process) ?*Gate {
     return switch (builtin.os.tag) {
         .windows => &target.termination.keepers,
+        .macos => &target.keeper.gate,
         else => null,
     };
 }

@@ -60,10 +60,14 @@ pub const Keepers = struct {
     last_offer_ns: ?u64 = null,
     stopped: bool = false,
 
-    pub fn init(allocator: std.mem.Allocator) Keepers {
+    /// `endpoint_directory` is the folder of the Host's own socket, where a macOS Keeper's socket
+    /// is too.
+    pub fn init(allocator: std.mem.Allocator, endpoint_directory: []const u8) Keepers {
+        var attachments: keeper_link.Attachments = .init(allocator);
+        attachments.endpoint_directory = endpoint_directory;
         return .{
             .allocator = allocator,
-            .attachments = .init(allocator),
+            .attachments = attachments,
             .timer = platform.monotonic.Timer.start() catch null,
         };
     }
@@ -72,7 +76,7 @@ pub const Keepers = struct {
     /// once, so the links release in parallel, then waits for them, each bounded by its Keeper's
     /// reply deadline. The shutdowns that follow then never wait for a release.
     pub fn releaseAll(self: *Keepers, aggregate: *host_runtime_aggregate.HostRuntimeAggregate) void {
-        if (comptime builtin.os.tag != .windows) return;
+        if (comptime !platform.keeper.supported) return;
         if (self.stopped) return;
         const sessions = aggregate.coreRead().terminalValues();
         for (sessions) |session| if (gateOf(aggregate, session.terminal_id)) |gate| {
@@ -172,7 +176,7 @@ pub const Keepers = struct {
 
     /// Offers every running terminal to the attached Keepers, at most once per interval.
     pub fn offer(self: *Keepers, aggregate: *host_runtime_aggregate.HostRuntimeAggregate) void {
-        if (comptime builtin.os.tag != .windows) return;
+        if (comptime !platform.keeper.supported) return;
         if (self.stopped or !self.attachments.any()) return;
         if (self.timer) |*timer| {
             const now = timer.read();
@@ -299,7 +303,7 @@ pub const Holdings = struct {
 
     /// A held terminal's holding id; a moving one keeps naming its holding while no slot holds it.
     pub fn holdingId(self: Holdings, terminal_id: core_module.TerminalId) ?[16]u8 {
-        if (comptime builtin.os.tag != .windows) return null;
+        if (comptime !platform.keeper.supported) return null;
         if (!self.keeper) return null;
         const session = self.aggregate.coreRead().findTerminal(terminal_id) orelse return null;
         const gate = gateOf(self.aggregate, terminal_id) orelse return null;

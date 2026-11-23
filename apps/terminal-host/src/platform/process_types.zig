@@ -1,3 +1,5 @@
+const builtin = @import("builtin");
+
 pub const EnvironmentDelta = struct {
     name: []const u8,
     value: ?[]const u8,
@@ -15,6 +17,9 @@ pub const Launch = struct {
     // POSIX-only borrowed descriptor used as the child's stdin. The benchmark
     // opens and validates its fixture before launch, then the child inherits it.
     stdin_fd: ?isize = null,
+    /// macOS: the attached Keeper that starts the leader and parents it; null forks it here.
+    keeper: if (builtin.os.tag == .macos) ?@import("process_keeper_darwin.zig").Spawn else void =
+        if (builtin.os.tag == .macos) null else {},
 };
 
 /// How the Host started the root process. Clients choose a command format from
@@ -29,6 +34,19 @@ pub const LaunchKind = enum {
     /// bash with the Host's managed startup.
     managed_bash,
     other,
+
+    /// The kind's name on the Keeper's wire, such as `managed-zsh`.
+    pub fn wireName(self: LaunchKind) []const u8 {
+        return switch (self) {
+            inline else => |tag| comptime blk: {
+                const text = @tagName(tag);
+                var spelled: [text.len]u8 = undefined;
+                for (text, &spelled) |byte, *out| out.* = if (byte == '_') '-' else byte;
+                const final = spelled;
+                break :blk &final;
+            },
+        };
+    }
 };
 
 pub const ExitResult = union(enum) {

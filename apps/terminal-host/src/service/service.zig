@@ -31,6 +31,8 @@ pub const Options = struct {
     /// A recovery Host's epoch, the lost Host's; null mints one.
     host_epoch: ?identifiers.HostEpoch = null,
     trace_interactions: bool = false,
+    /// The folder of the Host's own socket on macOS and Linux, where a macOS Keeper's socket is too.
+    endpoint_directory: []const u8 = "",
 };
 
 const ServiceLifecycle = enum {
@@ -73,7 +75,7 @@ pub const HostService = struct {
         std.debug.assert(terminal_configuration.valid(options.terminal_defaults));
         return .{
             .allocator = allocator,
-            .keepers = .init(allocator),
+            .keepers = .init(allocator, options.endpoint_directory),
             .moves = .init(allocator),
             .programs = .init(allocator),
             .runtime_aggregate = .initWithEpoch(allocator, options.terminal_defaults, options.host_epoch),

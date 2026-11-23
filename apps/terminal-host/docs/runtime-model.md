@@ -1380,6 +1380,24 @@ Keeper may hold a program's last handles (`TH-034`).
   `11` for a runtime directory that is not private, `12` when another Keeper holds the endpoint,
   and `13` when the endpoint could not be created.
 
+On macOS the Keeper holds each terminal's PTY master instead, under the contract's `pty` and
+`parent` capabilities, and answers `hold` and `hold-program` with `unsupported`:
+
+- **Endpoint and admission**: it listens on the Unix socket `<endpoint id>-host.sock` in its
+  endpoint directory, with the Host's private-folder, same-user, and lifetime-lock protections,
+  and takes a peer's process id from the socket. `register-host` checks the process's start time,
+  and one `kqueue` watcher sees a registered Host end through `EVFILT_PROC`.
+- **Holdings**: `hold-pty` keeps the master that arrives with the request once its slave name and
+  its leader's start time match; `inspect` sends a claimant the master. It raises its soft
+  descriptor limit to the hard one.
+- **Parented leaders**: `spawn` forks the leader with the Host's child steps and the master,
+  slave, and input that arrive with the request, and reports an `exec` failure as `spawn-failed`.
+  It watches each leader it parents without reaping it, by `EVFILT_PROC` and a once-a-second
+  `waitid` poll, sends `exited` once per end to the owner's connection that negotiated `parent`,
+  and reaps the leader on the owner's `reap`. A leader whose holding was released while it ran is
+  reaped once it ends; a release or discard that would leave more than 512 such leaders is refused
+  `capacity`.
+
 ### Keeper link
 
 A Windows Host offers `keeper`, and to a Worker session that negotiated it, holds its running
@@ -1431,6 +1449,18 @@ its deadline (`TH-031`).
 - **A lost Keeper**: when the Keeper process ends, the link settles every holding, closes what it
   kept, and sends `KeeperLost`; every program keeps running unheld. Events go only to a session
   that negotiated `keeper`; without a session they are dropped.
+- **On macOS**: a macOS Host offers `keeper` and links to a Keeper that answers `pty`, through its
+  socket in the Host's own endpoint directory; the check compares the socket's peer process and its
+  start time. A hold sends the terminal's PTY master with `hold-pty` and keeps no duplicate. While a
+  link whose Keeper negotiated `parent` is attached, the newest such Keeper starts each new
+  terminal's leader with `spawn`, and the terminal is held from its start; a refused `spawn` leaves
+  the Host to fork the leader itself, `spawn-failed` fails the creation as a failed `exec` does,
+  and an unanswered one fails it. A parented leader's exit status is the Keeper's `exited`; once its
+  holding was released or its link ended, the Host watches the leader by its start time and reports
+  an unknown status. Nothing closes when a POSIX leader exits, so holdings are released only at
+  shutdown and detach; a leader still parented when the Host gives up its process identity is
+  reaped with `reap`. Between requests the link waits on its socket and its wake in 1 s slices and
+  checks the Keeper's start time, so a lost Keeper is seen within a second.
 - **Known builds**: the Host keeps a table of known conpty builds, keyed by the SHA-256 of
   `OpenConsole.exe`, with each build's signal format; only the Host's own pin gives the private
   pseudoconsole layout, so a pin missing from the table, or without its layout, fails the build.

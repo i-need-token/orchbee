@@ -154,6 +154,9 @@
 			"path": "schemas/keeper/v1/fixtures/owner.json"
 		},
 		{
+			"path": "schemas/keeper/v1/fixtures/pty.json"
+		},
+		{
 			"path": "schemas/keeper/v1/fixtures/recovery-sequences.json"
 		},
 		{

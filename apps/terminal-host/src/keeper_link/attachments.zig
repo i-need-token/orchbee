@@ -13,9 +13,35 @@ const moves = @import("moves.zig");
 const message = keeper_protocol.message;
 const maximum_attachments = platform.keeper.maximum_attachments;
 const is_windows = builtin.os.tag == .windows;
-const Link = if (is_windows) @import("link_windows.zig").Link else void;
-/// A background program offered for a hold.
+const supported = platform.keeper.supported;
+const Link = switch (builtin.os.tag) {
+    .windows => @import("link_windows.zig").Link,
+    .macos => @import("link_darwin.zig").Link,
+    else => void,
+};
+/// A background program offered for a hold; only a Windows Host holds them.
 pub const Program = if (is_windows) @import("link_windows.zig").Program else void;
+
+/// A link pinned for one creation, which may start that terminal's leader through its Keeper; the
+/// creation unpins it once its build returned.
+pub const Spawner = if (builtin.os.tag == .macos) struct {
+    link: *Link,
+    terminal: message.Terminal,
+
+    /// The hook a launch carries; valid while this spawner stays where it is.
+    pub fn hook(self: *Spawner) platform.keeper.parent.Spawn {
+        return .{ .context = self, .spawn = spawn };
+    }
+
+    fn spawn(context: *anyopaque, plan: *const platform.keeper.parent.Plan) platform.keeper.parent.Outcome {
+        const self: *Spawner = @ptrCast(@alignCast(context));
+        return self.link.spawnLeader(plan, self.terminal);
+    }
+
+    pub fn unpin(self: *Spawner) void {
+        self.link.unpin();
+    }
+} else void;
 
 pub const Attach = enum {
     /// The Keeper is already attached: the answer is due now, without effect.
@@ -43,6 +69,8 @@ pub const Attachments = struct {
     retiring: std.ArrayList(*Link) = .empty,
     /// Names each attachment in the gates, so one attachment tries a terminal once.
     next_serial: u64 = 1,
+    /// The folder of the Host's own socket, where a macOS Keeper binds its socket too.
+    endpoint_directory: []const u8 = "",
 
     pub fn init(allocator: std.mem.Allocator) Attachments {
         return .{ .allocator = allocator };
@@ -50,15 +78,16 @@ pub const Attachments = struct {
 
     /// Stops every link and joins it. Every terminal has ended, so no gate slot is active.
     pub fn deinit(self: *Attachments) void {
-        if (comptime is_windows) {
+        if (comptime supported) {
             for (&self.slots) |*slot| if (slot.*) |link| {
                 link.requestStop();
-                link.destroy();
+                if (!pinned(link)) link.destroy();
                 slot.* = null;
             };
             for (self.retiring.items) |link| {
                 link.requestStop();
-                link.destroy();
+                // A creation abandoned at teardown may still hold its link, which then stays.
+                if (!pinned(link)) link.destroy();
             }
         }
         self.retiring.deinit(self.allocator);
@@ -72,7 +101,7 @@ pub const Attachments = struct {
     }
 
     pub fn attach(self: *Attachments, keeper: message.Process, endpoint_id: [32]u8) Attach {
-        if (comptime !is_windows) return .unavailable;
+        if (comptime !supported) return .unavailable;
         self.retireSettled();
         var free: ?usize = null;
         for (self.slots, 0..) |slot, index| {
@@ -95,13 +124,13 @@ pub const Attachments = struct {
         const index = free orelse return .limit;
         self.retiring.ensureUnusedCapacity(self.allocator, 1) catch return .unavailable;
         const serial = self.next_serial;
-        self.slots[index] = Link.start(self.allocator, index, serial, keeper, endpoint_id) catch return .unavailable;
+        self.slots[index] = self.startLink(index, serial, keeper, endpoint_id) catch return .unavailable;
         self.next_serial += 1;
         return .pending;
     }
 
     pub fn detach(self: *Attachments, keeper: message.Process) Detach {
-        if (comptime !is_windows) return .done;
+        if (comptime !supported) return .done;
         for (self.slots) |slot| if (slot) |link| if (link.keeper.eql(keeper)) {
             if (link.status().index_free) continue;
             link.requestDetach();
@@ -113,7 +142,7 @@ pub const Attachments = struct {
     /// Offers one terminal to every link; a link that takes no holds, or tried this terminal,
     /// ignores it.
     pub fn offer(self: *Attachments, process: *platform.process.Process, terminal: message.Terminal) void {
-        if (comptime !is_windows) return;
+        if (comptime !supported) return;
         const gate = platform.keeper.gate(process) orelse return;
         for (self.slots) |slot| if (slot) |link| link.offer(gate, process, terminal);
     }
@@ -129,6 +158,24 @@ pub const Attachments = struct {
         for (self.slots) |slot| if (slot) |link| link.offerProgram(gate, program);
     }
 
+    /// The dispatch thread: pins the newest attachment whose Keeper starts leaders for one creation
+    /// of `terminal`; null when none does, and the creation forks its leader itself.
+    pub fn spawner(self: *Attachments, terminal: message.Terminal) ?Spawner {
+        if (comptime builtin.os.tag != .macos) return null;
+        var tried: [maximum_attachments]bool = @splat(false);
+        while (true) {
+            var newest: ?usize = null;
+            for (self.slots, 0..) |slot, index| if (slot) |link| {
+                if (tried[index]) continue;
+                if (newest == null or link.serial > self.slots[newest.?].?.serial) newest = index;
+            };
+            const index = newest orelse return null;
+            tried[index] = true;
+            const link = self.slots[index].?;
+            if (link.pin()) return .{ .link = link, .terminal = terminal };
+        }
+    }
+
     /// How many Keepers are attached, for the moves that need the Host's one Keeper.
     pub fn count(self: *const Attachments) usize {
         var attached: usize = 0;
@@ -138,7 +185,7 @@ pub const Attachments = struct {
 
     /// The Keeper of the one attachment, when exactly one is attached.
     pub fn sole(self: *const Attachments) ?message.Process {
-        if (comptime !is_windows) return null;
+        if (comptime !supported) return null;
         if (self.count() != 1) return null;
         for (self.slots) |slot| if (slot) |link| return link.keeper;
         unreachable;
@@ -146,7 +193,7 @@ pub const Attachments = struct {
 
     /// The Keeper whose attachment holds the terminal behind `gate`, when exactly one does.
     pub fn holder(self: *const Attachments, gate: *platform.keeper.Gate) ?message.Process {
-        if (comptime !is_windows) return null;
+        if (comptime !supported) return null;
         const index = gate.heldIndex() orelse return null;
         const link = self.slots[index] orelse return null;
         return link.keeper;
@@ -154,7 +201,7 @@ pub const Attachments = struct {
 
     /// Whether `keeper` is attached and its link has missed no deadline.
     pub fn answers(self: *const Attachments, keeper: message.Process) bool {
-        if (comptime !is_windows) return false;
+        if (comptime !supported) return false;
         const link = self.find(keeper) orelse return false;
         const status = link.status();
         return status.phase == .attached and !status.detaching;
@@ -175,7 +222,7 @@ pub const Attachments = struct {
     /// Moves every posted notice into `out` and joins links whose thread returned. On a failed
     /// append the notices stay posted for the next call.
     pub fn poll(self: *Attachments, out: *std.ArrayList(notice.Notice)) void {
-        if (comptime !is_windows) return;
+        if (comptime !supported) return;
         for (self.slots) |slot| if (slot) |link| link.takeNotices(self.allocator, out);
         self.retireSettled();
         var index: usize = 0;
@@ -184,11 +231,20 @@ pub const Attachments = struct {
             // Every notice precedes `finished`, so one read after it takes the last of them.
             const finished = link.status().finished;
             link.takeNotices(self.allocator, out);
-            if (finished and link.notices.items.len == 0) {
+            if (finished and link.notices.items.len == 0 and !pinned(link)) {
                 link.destroy();
                 _ = self.retiring.swapRemove(index);
             } else index += 1;
         }
+    }
+
+    /// Starts a link to `keeper`: on Windows through its pipe, on macOS through its socket beside
+    /// the Host's own.
+    fn startLink(self: *Attachments, index: usize, serial: u64, keeper: message.Process, endpoint_id: [32]u8) !*Link {
+        if (comptime is_windows) return Link.start(self.allocator, index, serial, keeper, endpoint_id);
+        const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}-host.sock", .{ self.endpoint_directory, &endpoint_id });
+        defer self.allocator.free(path);
+        return Link.start(self.allocator, index, serial, keeper, path);
     }
 
     /// Moves each link whose slots are all settled out of its index.
@@ -200,3 +256,9 @@ pub const Attachments = struct {
         };
     }
 };
+
+/// Whether a creation still holds `link`, which is then not freed.
+fn pinned(link: *Link) bool {
+    if (comptime builtin.os.tag != .macos) return false;
+    return link.status().users > 0;
+}

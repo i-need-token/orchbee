@@ -166,6 +166,37 @@ int orchbee_pty_slave_name(int master, char *name) {
     return 0;
 }
 
+// Connects a close-on-exec Unix stream socket to `path`, which writes never turn into SIGPIPE.
+// Answers 0 with the socket in `socket_out`, or an errno.
+int orchbee_connect_local(const char *path, int *socket_out) {
+    struct sockaddr_un address;
+    memset(&address, 0, sizeof(address));
+    const size_t length = strlen(path);
+    if (length == 0 || length >= sizeof(address.sun_path)) return ENAMETOOLONG;
+    address.sun_family = AF_UNIX;
+    memcpy(address.sun_path, path, length);
+    const int socket_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (socket_fd < 0) return errno;
+    const int enabled = 1;
+    if (fcntl(socket_fd, F_SETFD, FD_CLOEXEC) != 0 ||
+        setsockopt(socket_fd, SOL_SOCKET, SO_NOSIGPIPE, &enabled, sizeof(enabled)) != 0) {
+        const int failure = errno;
+        close(socket_fd);
+        return failure;
+    }
+    int connected;
+    do {
+        connected = connect(socket_fd, (const struct sockaddr *)&address, sizeof(address));
+    } while (connected != 0 && errno == EINTR);
+    if (connected != 0) {
+        const int failure = errno;
+        close(socket_fd);
+        return failure;
+    }
+    *socket_out = socket_fd;
+    return 0;
+}
+
 // Raises the soft descriptor limit to the hard limit, at most OPEN_MAX, since the Keeper's
 // connections, their wake queues, and the masters it holds exceed the default of 256.
 void orchbee_raise_descriptor_limit(void) {

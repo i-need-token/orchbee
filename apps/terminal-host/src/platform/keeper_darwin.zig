@@ -21,6 +21,7 @@ extern "c" fn orchbee_peer_process_id(socket: c_int, pid: *i32) c_int;
 extern "c" fn orchbee_process_start_microseconds(pid: i32, start: *u64) c_int;
 extern "c" fn orchbee_pty_slave_name(master: c_int, name: *[maximum_slave_bytes]u8) c_int;
 extern "c" fn orchbee_raise_descriptor_limit() void;
+extern "c" fn orchbee_connect_local(path: [*:0]const u8, socket: *c_int) c_int;
 extern "c" fn ioctl(fd: c_int, request: c_ulong, ...) c_int;
 
 const FIONREAD: c_ulong = 0x4004667f;
@@ -48,6 +49,22 @@ pub fn masterOf(master: posix.fd_t, slave: []const u8) bool {
     if (orchbee_pty_slave_name(master, &name) != 0) return false;
     const length = std.mem.indexOfScalar(u8, &name, 0) orelse return false;
     return std.mem.eql(u8, name[0..length], slave);
+}
+
+/// The name of the slave of the PTY master `master`, in `into`; null when `master` is no PTY
+/// master.
+pub fn slaveName(master: posix.fd_t, into: *[maximum_slave_bytes]u8) ?[]const u8 {
+    if (orchbee_pty_slave_name(master, into) != 0) return null;
+    const length = std.mem.indexOfScalar(u8, into, 0) orelse return null;
+    if (length == 0) return null;
+    return into[0..length];
+}
+
+/// A close-on-exec socket connected to the Unix socket at `path`, or null.
+pub fn connectLocal(path: [*:0]const u8) ?posix.fd_t {
+    var socket: c_int = -1;
+    if (orchbee_connect_local(path, &socket) != 0) return null;
+    return socket;
 }
 
 /// A close-on-exec duplicate of `descriptor`, or null.

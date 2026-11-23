@@ -16,8 +16,8 @@ pub const worker_host = struct {
     /// Every capability the registry declares for `worker-host`, in its order.
     pub const declared_capabilities: []const []const u8 = &.{ "background-programs", "handover", "keeper", "prompt-gated-input", "recovery", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
     /// The declared capabilities this Host implements and offers. `background-programs`, on Windows
-    /// only: this Host runs programs without a terminal for its Worker. `keeper`, on Windows only: this
-    /// Host attaches Keepers, holds its running terminals there, and releases them first.
+    /// only: this Host runs programs without a terminal for its Worker. `keeper`, on Windows and
+    /// macOS: this Host attaches Keepers, holds its running terminals there, and releases them first.
     /// `prompt-gated-input`: this Host types a `PromptLineInput` only at a confirmed idle prompt.
     /// `screen-gated-input`: this Host types a `ScreenGatedKeyInput` only on the frame it names.
     /// `screen-gated-send`: and an attachment that goes away holding no key and no mouse button
@@ -26,6 +26,8 @@ pub const worker_host = struct {
     /// `screen-gated-prompt`: applies the screen gate to a bracketed paste and Enter together.
     pub const capabilities: []const []const u8 = if (builtin.os.tag == .windows)
         &.{ "background-programs", "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
+    else if (builtin.os.tag == .macos)
+        &.{ "keeper", "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" }
     else
         &.{ "prompt-gated-input", "screen-gated-input", "screen-gated-prompt", "screen-gated-send" };
     /// `capabilities` with `handover` and `recovery`, on Windows only: this Host moves running

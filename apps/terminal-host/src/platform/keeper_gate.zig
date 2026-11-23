@@ -1,8 +1,9 @@
 //! Release first, as the platform enforces it. Each Windows terminal carries one gate in front of
 //! the end of its handles: before its pseudoconsole, signal, reference, or Job handle closes, or its
 //! Job is terminated, the gate has passed, so every Keeper link that queued or holds the terminal
-//! has released it or given up after its reply deadline. A link reports each step here, and only
-//! the link thread waits on a Keeper.
+//! has released it or given up after its reply deadline. A macOS terminal's gate stands in front of
+//! its PTY master's close, since a master a Keeper still holds keeps the terminal open. A link
+//! reports each step here, and only the link thread waits on a Keeper.
 //!
 //! The dispatch thread never waits here: `tryPass` starts the release and reports whether it is
 //! done, and an end that needs the gate waits for the next try. The last settle wakes the service
@@ -22,9 +23,27 @@ const thread_sync = @import("thread_sync.zig");
 /// A Host holds at most this many Keeper attachments.
 pub const maximum_attachments = 2;
 
-pub const Gate = if (builtin.os.tag != .windows) void else struct {
-    const windows = std.os.windows;
+/// Where a Keeper holds this platform's terminals.
+pub const supported = builtin.os.tag == .windows or builtin.os.tag == .macos;
 
+/// A link's wake: an auto-reset event on Windows, a `kqueue` user event on macOS.
+pub const Wake = switch (builtin.os.tag) {
+    .windows => std.os.windows.HANDLE,
+    .macos => std.posix.fd_t,
+    else => void,
+};
+
+fn signal(wake: Wake) void {
+    switch (builtin.os.tag) {
+        .windows => _ = SetEvent(wake),
+        .macos => @import("keeper_darwin.zig").wake_events.signal(wake),
+        else => unreachable,
+    }
+}
+
+extern "kernel32" fn SetEvent(event: std.os.windows.HANDLE) callconv(.winapi) std.os.windows.BOOL;
+
+pub const Gate = if (!supported) void else struct {
     mutex: thread_sync.Mutex = .{},
     condition: thread_sync.Condition = .{},
     /// Set by the first try: the terminal is ending, so no hold starts and every held slot
@@ -49,19 +68,17 @@ pub const Gate = if (builtin.os.tag != .windows) void else struct {
         /// The attachment the slot last served; zero before any.
         serial: u64 = 0,
         state: State = .idle,
-        /// The link's wake event, registered while the slot is active.
-        wake: ?windows.HANDLE = null,
+        /// The link's wake, registered while the slot is active.
+        wake: ?Wake = null,
 
         fn active(self: Slot) bool {
             return self.state != .idle;
         }
     };
 
-    extern "kernel32" fn SetEvent(event: windows.HANDLE) callconv(.winapi) windows.BOOL;
-
     /// Queues this terminal's hold for the attachment `serial` in slot `index` and returns its
     /// holding id. Null once the terminal is ending or when this attachment already tried it.
-    pub fn queue(self: *Gate, index: usize, serial: u64, wake: windows.HANDLE) ?[16]u8 {
+    pub fn queue(self: *Gate, index: usize, serial: u64, wake: Wake) ?[16]u8 {
         self.mutex.lock();
         defer self.mutex.unlock();
         const slot = &self.slots[index];
@@ -158,13 +175,21 @@ pub const Gate = if (builtin.os.tag != .windows) void else struct {
         while (self.anyActive()) self.condition.wait(&self.mutex);
     }
 
+    /// Wakes the link of every active slot, for a request that rides on the holding, such as a
+    /// parented leader's `reap`.
+    pub fn wakeActive(self: *Gate) void {
+        self.mutex.lock();
+        defer self.mutex.unlock();
+        for (self.slots) |slot| {
+            if (slot.active()) if (slot.wake) |wake| signal(wake);
+        }
+    }
+
     fn endLocked(self: *Gate) void {
         if (self.ending) return;
         self.ending = true;
         for (self.slots) |slot| {
-            if (slot.active()) if (slot.wake) |wake| {
-                _ = SetEvent(wake);
-            };
+            if (slot.active()) if (slot.wake) |wake| signal(wake);
         }
     }
 
@@ -227,7 +252,7 @@ pub const Gate = if (builtin.os.tag != .windows) void else struct {
 
     /// Records the holding a claim moved to this terminal: slot `index`, of the attachment
     /// `serial`, holds it under the record's holding id. A restored terminal has no active slot.
-    pub fn adopt(self: *Gate, index: usize, serial: u64, wake: windows.HANDLE, holding: [16]u8) void {
+    pub fn adopt(self: *Gate, index: usize, serial: u64, wake: Wake, holding: [16]u8) void {
         self.mutex.lock();
         defer self.mutex.unlock();
         std.debug.assert(!self.ending and !self.anyActive());

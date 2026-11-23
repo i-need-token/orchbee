@@ -185,6 +185,7 @@ fn beginBuild(
         .correlation_id = correlation_id,
         .host_epoch = self.context.hostEpoch(),
         .reply = reply,
+        .keepers = if (self.context.keepers) |keepers| &keepers.attachments else null,
     };
     const begun = switch (preparation) {
         .create => |create| self.context.creations.beginCreate(self.context.runtime_aggregate, request, create),
