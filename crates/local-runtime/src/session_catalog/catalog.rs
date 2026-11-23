@@ -1109,7 +1109,7 @@ fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
 /// current one with the Hosts, which stay attached to it, instead of starting another, and a stop
 /// ends the Keepers that hold their programs. None without a kept Host, whose Worker would adopt no
 /// Keeper, and none that cannot be observed, which leaves it unrecorded as before.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn kept_keepers(
     previous: Option<&Record>,
     kept: &[KeptHost],
@@ -1132,8 +1132,8 @@ fn kept_keepers(
     }
 }
 
-/// A macOS or Linux generation keeps no Keeper.
-#[cfg(unix)]
+/// A Linux generation keeps no Keeper.
+#[cfg(all(unix, not(target_os = "macos")))]
 fn kept_keepers(
     _previous: Option<&Record>,
     _kept: &[KeptHost],
