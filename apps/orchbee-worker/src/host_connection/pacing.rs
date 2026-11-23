@@ -156,7 +156,7 @@ impl Pacing {
     }
 
     /// The current request's deadline, when one runs.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn request_deadline(&self) -> Option<Instant> {
         self.request_deadline.get()
     }

@@ -1,4 +1,4 @@
-//! The Server's move turns on Windows (`proposals/platform/host-handover.md`, H3 design). While a
+//! The Server's move turns on Windows and macOS (`proposals/platform/host-handover.md`, H3 design). While a
 //! Worker that adopted its Hosts serves, a thread sends it a move turn every 2 seconds. The binding
 //! record is written before and right after every turn, so it names each Host a turn started and
 //! each terminal it moved; a Server that ends between turns then leaves no running Host the record

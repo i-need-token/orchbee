@@ -450,7 +450,7 @@ pub(crate) fn exchange_between_requests(
 
 /// [`exchange`] within `budget`, whose answer may come in any payload encoding: a handover record
 /// chunk comes back as raw bytes. It starts only if that budget ends within the current request.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn exchange_within(
     host: &HostBrokerConnection,
     server: &UnixStream,

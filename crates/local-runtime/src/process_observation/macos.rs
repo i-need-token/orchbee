@@ -117,6 +117,17 @@ pub fn running_program(process: (u32, u64)) -> Option<std::path::PathBuf> {
     same().then_some(path)
 }
 
+/// Whether `process`, an ID and start time, ended: its ID names no live process, or a later one. A
+/// process whose start time cannot be read counts as running.
+#[must_use]
+pub fn process_ended(process: (u32, u64)) -> bool {
+    match native::started(process.0) {
+        Ok(Started::Gone) => true,
+        Ok(Started::At(start)) => start != process.1,
+        Ok(Started::Denied) | Err(_) => false,
+    }
+}
+
 /// The child processes of `parent` that still run, each with its start time in microseconds, or
 /// `None` when that cannot be read; a child that ended and waits to be reaped is left out.
 ///

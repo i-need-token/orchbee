@@ -305,7 +305,7 @@ fn start(
     if let Some(kept) = &mut owners.checkpoint {
         kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
         // Only a Worker that adopted its Hosts can hold an older one.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if owners.adopted {
             kept.start_turns(
                 &owners.terminals,

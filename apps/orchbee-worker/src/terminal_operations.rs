@@ -51,7 +51,7 @@ pub(crate) use lazy::run as run_lazy;
 mod handoff;
 #[cfg(any(windows, target_os = "macos"))]
 mod keeper_care;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod moves;
 #[cfg(any(windows, target_os = "macos"))]
 mod recovery;
@@ -200,7 +200,7 @@ fn serve(
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let mut moving = moves::Moves::default();
     loop {
         hosts.end_request();
@@ -267,9 +267,9 @@ fn serve(
         }
         // A request the Server wrote before it recorded a move runs against the terminal as it
         // runs now.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let mut request = request;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let named = moving.before(&mut request, hosts);
         if let CapabilityNodeMessage::TerminalMoveTurnRequest(turn) = request {
             if turn.worker_id.as_bytes() != worker_id.as_bytes()
@@ -283,12 +283,12 @@ fn serve(
                 )?;
                 continue;
             }
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             let outcome = {
                 hosts.set_site(Site::Move);
                 moving.turn(hosts, &mut kernel, &server, readable)?
             };
-            #[cfg(not(windows))]
+            #[cfg(not(any(windows, target_os = "macos")))]
             let outcome = orchbee_capability_node_protocol::TerminalMoveTurnOutcome::Done;
             let result = TerminalMoveTurnResult {
                 request: turn,
@@ -510,7 +510,7 @@ fn serve(
             let result = kernel
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             let result = moves::lifecycle_answer(result, named.as_ref())?;
             // A retired terminal is never named again, so its cleanup cell frees for another Close.
             if result.outcome()
@@ -564,13 +564,13 @@ fn serve(
             let host = hosts.connection(index);
             host.pacing.set_site(Site::Viewer);
             #[cfg_attr(
-                not(windows),
+                not(any(windows, target_os = "macos")),
                 expect(unused_mut, reason = "only moves rewrite an answer")
             )]
             let mut result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             moves::viewer_answer(&mut result.outcome, named.as_ref());
             clean_and_send(
                 &server,

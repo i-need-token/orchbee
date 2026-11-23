@@ -1,4 +1,4 @@
-//! The Worker's moves of terminals from older Terminal Hosts into its own on Windows
+//! The Worker's moves of terminals from older Terminal Hosts into its own on Windows and macOS
 //! (`proposals/platform/host-handover.md`, H3 design). While a replacement serves, the Server sends
 //! a move turn every 2 seconds; the Worker picks the terminal, runs the move inside the turn in
 //! its serialized request loop, so every request the Server writes meanwhile waits for it, rebinds

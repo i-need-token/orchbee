@@ -165,7 +165,7 @@ impl HostViewers {
     /// Takes in the viewer `id`, whose terminal moved here as `terminal_id`, closed: its next Poll
     /// answers that it is gone, so its Client attaches again, and `demand` stays what its
     /// controller follows until then.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn adopt_moved(
         &mut self,
         id: OperationId,

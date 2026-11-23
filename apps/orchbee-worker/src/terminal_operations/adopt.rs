@@ -37,7 +37,7 @@ use crate::{
 };
 
 mod pages;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod pairs;
 
 /// How long after the last page arrives its answer is written at the latest, inside the Server's
@@ -295,7 +295,7 @@ fn adopt_slot(
     let found = match slot.kind {
         AdoptHostKind::Host { process } => {
             match host::adopt(runtime, host_slot, process, slot.epoch, channel) {
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "macos"))]
                 Err(failed)
                     if failed.error.is::<crate::host_connection::HostStopping>()
                         && ended_on_its_own(runtime, host_slot, process, keeper_channel.2) =>
@@ -349,7 +349,7 @@ fn adopt_slot(
 /// Frees `slot` of a Host that refused this Worker as `stopping` once its process ended within
 /// [`ENDED_BOUND`] and `deadline`: the Worker before drained it, or it stopped, and no Worker can
 /// reach its terminals any more.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn ended_on_its_own(
     runtime: &Path,
     slot: HostSlot,
@@ -372,7 +372,7 @@ fn ended_on_its_own(
 }
 
 /// How long an adoption waits for a Host that refused it as `stopping` to end.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const ENDED_BOUND: Duration = Duration::from_secs(2);
 
 /// What an adoption imports from one slot: the Host, how this Worker owns it, and the Host's
@@ -551,7 +551,7 @@ impl Adoption<'_> {
         let restarts = found
             .iter()
             .fold(0_u32, |sum, found| sum.saturating_add(found.restarts));
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let paired = match pairs::pair(
             &mut found,
             bindings,
@@ -561,7 +561,7 @@ impl Adoption<'_> {
             Ok(paired) => paired,
             Err(failed) => return Err(self.fail(failed)),
         };
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let bindings = paired.bindings.as_slice();
         let mut inventory = Vec::new();
         for found in &mut found {
@@ -591,13 +591,13 @@ impl Adoption<'_> {
         let quarantined = u32::try_from(imported.quarantined.len())?;
         let missing = u32::try_from(imported.missing.len())?;
         // A rebound binding whose owner the import did not take is missing, not moved.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let moved = paired
             .moved
             .into_iter()
             .filter(|moved| !imported.missing.contains(&moved.terminal_id))
             .collect();
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let moved = Vec::new();
         let host = &found
             .first()

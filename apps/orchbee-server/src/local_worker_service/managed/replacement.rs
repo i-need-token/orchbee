@@ -362,7 +362,7 @@ impl Supervision {
             .terminals
             .terminal_runtime()
             .set(TerminalRuntimeState::Serving);
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if let (Some(kept), Ok(worker)) = (
             &mut owners.checkpoint,
             super::stop::checkpoint_worker(&owners.handle),

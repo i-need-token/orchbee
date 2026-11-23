@@ -105,7 +105,7 @@ impl HostWatch {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl HostWatch {
     /// Whether this Host holds its running terminals in the Session's current Keeper.
     pub(super) const fn attached(&self) -> bool {
@@ -129,9 +129,17 @@ impl KeeperCare {
 
     /// Whether moves wait for the Session's Keeper `keeper`: it waits for its replacement, an
     /// update of it is due or not yet judged, or another Keeper still `retiring`.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keeper_changing(&self, keeper: Option<&SessionKeeper>, retiring: bool) -> bool {
-        self.replacing || retiring || self.update.pending(keeper)
+        #[cfg(windows)]
+        let updating = self.update.pending(keeper);
+        // A macOS Keeper is never updated in place before H5's M7.
+        #[cfg(target_os = "macos")]
+        let updating = {
+            let _ = keeper;
+            false
+        };
+        self.replacing || retiring || updating
     }
 
     /// When the next care is due.

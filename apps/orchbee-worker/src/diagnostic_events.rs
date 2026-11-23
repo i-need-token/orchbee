@@ -70,14 +70,14 @@ pub(crate) enum Site {
     /// A replacement Worker adopting the Host of the Worker it replaces.
     Adopt,
     /// A move turn: a terminal's move from an older Host into the Worker's own.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     Move,
 }
 
 /// Each site keeps its own once-a-minute slot for `host-slow` and for `host-unexpected`.
 const SITE_SLOTS: usize = 18;
 const _: () = assert!((Site::Adopt as usize) < SITE_SLOTS);
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const _: () = assert!((Site::Move as usize) < SITE_SLOTS);
 
 impl Site {
@@ -101,7 +101,7 @@ impl Site {
             Self::HostStart => "host-start",
             Self::Shutdown => "shutdown",
             Self::Adopt => "adopt",
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             Self::Move => "move",
         }
     }
@@ -306,7 +306,7 @@ pub(crate) fn host_drained(slot: u8, released: bool) {
 
 /// A terminal moved from the Host in slot `from` to the one in `to`: its record's size, whether it
 /// had settled, and the milliseconds from the quiesce to the claim.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn terminal_moved(
     from: u8,
     to: u8,
@@ -329,7 +329,7 @@ pub(crate) fn terminal_moved(
 
 /// A move's `step` failed: the refusal's `class` and `reason`, and whether moves stopped for the
 /// rest of the Worker's life.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn terminal_move_failed(
     step: &'static str,
     class: &'static str,

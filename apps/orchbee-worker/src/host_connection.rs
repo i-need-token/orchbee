@@ -38,7 +38,7 @@ pub(crate) use controllers::ControlGrant;
 mod exchange;
 mod host_colors;
 mod offer;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use offer::HostStopping;
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) use offer::source_commit;
@@ -51,7 +51,7 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use exchange::exchange_within;
 pub(crate) use exchange::{
     HostExchange, PeerFailure, UnexpectedAnswer, exchange, exchange_between_requests,
@@ -162,7 +162,7 @@ pub(crate) struct DialBounds {
 pub(crate) struct KeeperTerms {
     keeper: bool,
     recovery: bool,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     handover: bool,
 }
 
@@ -387,14 +387,14 @@ impl HostBrokerConnection {
     }
 
     /// Whether this Host exports and imports terminals that move between Hosts.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn handover(&self) -> bool {
         self.keeper.handover
     }
 
     /// Whether the Host reported its Keeper lost or unresponsive since the Keeper's care last took
     /// its events, which this call leaves for that care.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn keeper_troubled(&self) -> bool {
         let events = self.keeper_events.get();
         events.lost || events.unresponsive

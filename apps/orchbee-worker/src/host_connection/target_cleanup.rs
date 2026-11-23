@@ -135,7 +135,7 @@ impl HostBrokerConnection {
 
     /// Forgets what this connection kept of a terminal that moved to another Host and that this
     /// Host dropped or disposed.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn forget_moved(&self, identity: HostTerminalIdentity) {
         self.titles.borrow_mut().remove(identity);
         self.host_colors

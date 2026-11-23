@@ -52,7 +52,7 @@ const BETWEEN_REQUESTS_BUDGET: Duration = Duration::from_secs(3);
 #[derive(Clone, Copy)]
 pub(crate) enum Serving<'a> {
     Request(&'a LocalStream),
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     Within(&'a LocalStream, Duration),
     BetweenRequests,
 }
@@ -91,7 +91,7 @@ impl std::fmt::Display for HostRefusal {
 
 impl Error for HostRefusal {}
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl HostRefusal {
     /// Whether `error` is a Host's refusal of a step because the terminal is still moving: a
     /// quiesced terminal whose Keeper answers takes a drop only once its Host saw `claimed`.
@@ -353,7 +353,7 @@ pub(crate) fn request(
             &encoded.payload,
             encoded.payload_encoding,
         )?,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         Serving::Within(server, budget) => crate::host_connection::exchange_within(
             host,
             server,

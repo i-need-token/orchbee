@@ -422,7 +422,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
     match handle.request(request) {
         #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Handoff(_)) => Completion::Unknown,
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         Ok(WorkerOperationResult::MoveTurn(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Shutdown(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Launch(result)) => Completion::Launch(result),

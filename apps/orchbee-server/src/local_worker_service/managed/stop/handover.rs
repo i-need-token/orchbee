@@ -548,12 +548,12 @@ fn restart_saver(owners: &mut Owners) {
         .and_then(|()| checkpoint_worker(&owners.handle))
         .and_then(|worker| {
             kept.start_saver(&owners.terminals, worker.clone())?;
-            // Move turns run only on Windows, whose Worker can hold an older Host.
-            #[cfg(windows)]
+            // Move turns run only on Windows and macOS, whose Worker can hold an older Host.
+            #[cfg(any(windows, target_os = "macos"))]
             if kept.turns_started() {
                 kept.start_turns(&owners.terminals, &owners.handle, worker);
             }
-            #[cfg(unix)]
+            #[cfg(not(any(windows, target_os = "macos")))]
             let _ = worker;
             Ok(())
         });

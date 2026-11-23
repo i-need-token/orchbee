@@ -355,22 +355,21 @@ The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` from the lo
 the Worker is proven gone, unless a stop is admitted; `Serving` once a replacement serves, and
 `GivenUp` on giving up.
 
-On Windows a replacement that serves, and a Server that [adopted](#cold-adoption) its
+On Windows and macOS a replacement that serves, and a Server that [adopted](#cold-adoption) its
 predecessor's Hosts, sends its Worker a move turn every 2 seconds from its own thread, on the lane
-behind every person's request
-([H3 design](../../proposals/platform/host-handover.md#h3-design)); until H4 only test builds
-move, and the Worker answers the first turn `Done`. A `Moved` answer rebinds the binding that still
-names the old Host terminal to the new one, keeping its operation, fence and lease, so titles and
-every fact read through it follow; a binding closed meanwhile changes nothing. The binding record
-is written before and right after every turn, so it names each Host a turn started and each
-terminal it moved: a Server that ends between turns leaves no running Host it lacks, which would
-block [cold recovery](#cold-adoption), and the next turn, which ends the old copy, finds it naming
-the new one. Unchanged bytes are not written again, and a write before a turn that waits for a Host
-holds that turn. A binding the adoption answers as moved is rebound the same
-way once the replacement serves. The turns end at `Done`, at a turn declined or left unanswered,
-and when the Session stops, before its final capture; a restart the Server takes back starts them
-again. A Close begun before a rebinding still names the old Host terminal and retires the binding
-that moved from it.
+behind every person's request ([H3 design](../../proposals/platform/host-handover.md#h3-design)); a
+Worker that moves nothing, on macOS any but a test build until H5's M9, answers the first turn
+`Done`. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
+keeping its operation, fence and lease, so titles and every fact read through it follow; a binding
+closed meanwhile changes nothing. The binding record is written before and right after every turn,
+so it names each Host a turn started and each terminal it moved: a Server that ends between turns
+leaves no running Host it lacks, which would block [cold recovery](#cold-adoption), and the next
+turn, which ends the old copy, finds it naming the new one. Unchanged bytes are not written again,
+and a write before a turn that waits for a Host holds that turn. A binding the adoption answers as
+moved is rebound the same way once the replacement serves. The turns end at `Done`, at a turn
+declined or left unanswered, and when the Session stops, before its final capture; a restart the
+Server takes back starts them again. A Close begun before a rebinding still names the old Host
+terminal and retires the binding that moved from it.
 
 `host-gone` makes the Server stop itself; `host-unverified`, `host-mismatch` and `host-refused`
 give up at once; every other failure, `recovery-failed` among them, a timeout, a decline, and a

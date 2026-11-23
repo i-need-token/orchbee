@@ -273,6 +273,25 @@ pub(crate) fn release_slot(
         .is_ok()
 }
 
+/// Whether the Host process `process` names ended, or ends before `deadline`. One whose ID names no
+/// live process, or a later one, ended; nothing holds a POSIX process, so its start time is read
+/// every few milliseconds.
+#[cfg(target_os = "macos")]
+pub(crate) fn ended_before(process: AdoptHostProcess, deadline: Instant) -> bool {
+    const POLL: std::time::Duration = std::time::Duration::from_millis(20);
+    let identity = (process.process_id.get(), process.creation_time.get());
+    loop {
+        if orchbee_local_runtime::process_ended(identity) {
+            return true;
+        }
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return false;
+        }
+        std::thread::sleep(left.min(POLL));
+    }
+}
+
 /// Whether the Host process `process` names ended, or ends before `deadline`. One that can no
 /// longer be opened, or whose ID names a later process, ended.
 #[cfg(windows)]

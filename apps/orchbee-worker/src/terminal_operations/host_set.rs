@@ -207,10 +207,14 @@ impl<'a> HostSet<'a> {
 
     /// Whether moves wait for the Session's Keeper: its replacement or update is due or under way,
     /// or a Keeper still retires.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keeper_changing(&self) -> bool {
-        self.care
-            .keeper_changing(self.keeper.as_ref(), self.retiring.is_some())
+        #[cfg(windows)]
+        let retiring = self.retiring.is_some();
+        // A macOS Keeper retires only once updates arrive with H5's M7.
+        #[cfg(target_os = "macos")]
+        let retiring = false;
+        self.care.keeper_changing(self.keeper.as_ref(), retiring)
     }
 
     /// Whether this Worker owns its Hosts in a managed Session.
@@ -449,7 +453,7 @@ impl HostSet<'_> {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 impl HostSet<'_> {
     /// The older Hosts that still serve, which a move empties into the own Host.
     pub(super) fn older(&self) -> Vec<usize> {

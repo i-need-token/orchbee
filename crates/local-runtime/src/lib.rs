@@ -168,7 +168,7 @@ pub use standard_rights::{
 };
 mod process_observation;
 #[cfg(target_os = "macos")]
-pub use process_observation::{running_children, running_program};
+pub use process_observation::{process_ended, running_children, running_program};
 mod process_registration;
 mod recovery_blocker;
 pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
