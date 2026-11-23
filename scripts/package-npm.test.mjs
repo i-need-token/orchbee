@@ -220,34 +220,18 @@ test('the launcher orders versions by SemVer precedence', () => {
 	assert.equal(compareVersions('0.1.0-beta.1', '0.1.0-beta.1'), 0);
 });
 
-test('the launcher reads only a format-1 pointer as an active version', () => {
-	const digest = 'a'.repeat(64);
-	const entry = (product) => ({ product, manifest: digest });
-	assert.equal(parsePointer(JSON.stringify({ version: 1, active: entry('0.1.0') })), '0.1.0');
-	assert.equal(
-		parsePointer(
-			JSON.stringify({
-				version: 1,
-				active: entry('0.1.0'),
-				previous: entry('0.1.0-beta.3'),
-				extensions: {},
-			}),
-		),
-		'0.1.0',
+test('the launcher reads the shared pointer samples as the release records crate does', () => {
+	const samples = readJson(
+		path.join(import.meta.dirname, '..', 'crates/release-records/fixtures/pointers.json'),
 	);
-	for (const other of [
-		'',
-		'[]',
-		JSON.stringify({ version: 2, active: entry('0.1.0') }),
-		JSON.stringify({ version: 1, active: entry('../0.1.0') }),
-		JSON.stringify({ version: 1, active: { product: '0.1.0', manifest: 'A'.repeat(64) } }),
-		JSON.stringify({ version: 1, active: entry('0.1.0'), other: true }),
-		JSON.stringify({ version: 1, active: entry('0.1.0'), extensions: [] }),
-	])
-		assert.equal(parsePointer(other), null, other);
+	for (const sample of samples.cases) {
+		const text = sample.text ?? JSON.stringify(sample.pointer);
+		assert.equal(parsePointer(text), sample.active, sample.name);
+		assert.deepEqual(heldVersions(text), sample.held, sample.name);
+	}
 });
 
-test('the launcher holds only the versions a well-formed fallback record holds above the active one', () => {
+test('the launcher holds only the versions a fallback record holds above the active one', () => {
 	const digest = 'a'.repeat(64);
 	const entry = (product) => ({ product, manifest: digest });
 	const pointer = (fallback) =>
@@ -263,22 +247,6 @@ test('the launcher holds only the versions a well-formed fallback record holds a
 		},
 	};
 	assert.deepEqual(heldVersions(pointer(fallback)), ['0.3.0']);
-	assert.equal(parsePointer(pointer(fallback)), '0.2.0');
-	for (const other of [
-		{ ...fallback, extra: true },
-		{ ...fallback, held: ['0.3.0', '0.3.0'] },
-		{ ...fallback, move: { ...fallback.move, restore: false } },
-		{ ...fallback, move: { ...fallback.move, client: { since: 1, failures: 4 } } },
-		{
-			...fallback,
-			move: {
-				...fallback.move,
-				session: { since: 1, starts: ['b'.repeat(32)], failed: ['c'.repeat(32)] },
-			},
-		},
-	])
-		assert.deepEqual(heldVersions(pointer(other)), [], JSON.stringify(other));
-	assert.deepEqual(heldVersions('{}'), []);
 });
 
 test('the launcher records a failed Client through the previous version only while its move counts', () => {

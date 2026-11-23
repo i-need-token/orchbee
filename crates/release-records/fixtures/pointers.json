@@ -1,0 +1,534 @@
+{
+	"cases": [
+		{
+			"name": "format 1 names its active entry",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": "0.1.0",
+			"held": []
+		},
+		{
+			"name": "previous and extensions are optional",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"previous": {
+					"product": "0.1.0-beta.3",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {}
+			},
+			"active": "0.1.0",
+			"held": []
+		},
+		{
+			"name": "extensions keep members of any shape",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.3.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"previous": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"later": [1],
+					"noPath": true
+				}
+			},
+			"active": "0.3.0",
+			"held": []
+		},
+		{
+			"name": "a well-formed fallback record holds its versions",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.4.0-beta.1"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": ["0.3.0", "0.4.0-beta.1"]
+		},
+		{
+			"name": "a fallback move needs only its entry and back",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": true
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": ["0.3.0"]
+		},
+		{
+			"name": "a fallback record with another member reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.4.0-beta.1"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						},
+						"extra": true
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a fallback record that holds a version twice reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.3.0"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a fallback record that holds more than eight versions reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": [
+							"0.3.0",
+							"0.4.0",
+							"0.5.0",
+							"0.6.0",
+							"0.7.0",
+							"0.8.0",
+							"0.9.0",
+							"0.10.0",
+							"0.11.0"
+						],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a held version with build metadata reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0+build"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a move whose restore is not true reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.4.0-beta.1"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": false,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a Client window past three failures reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.4.0-beta.1"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 4
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccccccccccccccc"],
+								"failed": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "a Session window that failed a start it did not make reads as absent",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.2.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": {
+					"fallback": {
+						"held": ["0.3.0", "0.4.0-beta.1"],
+						"move": {
+							"entry": {
+								"product": "0.2.0",
+								"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+							},
+							"back": false,
+							"restore": true,
+							"client": {
+								"since": 1,
+								"failures": 3
+							},
+							"session": {
+								"since": 1,
+								"starts": ["bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"],
+								"failed": ["cccccccccccccccccccccccccccccccc"]
+							}
+						}
+					},
+					"other": 1
+				}
+			},
+			"active": "0.2.0",
+			"held": []
+		},
+		{
+			"name": "empty bytes",
+			"text": "",
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "truncated JSON",
+			"text": "{",
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "an array",
+			"text": "[]",
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "another format",
+			"pointer": {
+				"version": 2,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a format that is a string",
+			"pointer": {
+				"version": "1",
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "no active entry",
+			"pointer": {
+				"version": 1
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a product that is not a version",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "../0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a version with a leading zero",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "01.0.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a version with build metadata",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0+build",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a version longer than 64 bytes",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "1.0.0-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "an uppercase digest",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "an entry with another member",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					"size": 1
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "a previous entry that is not an entry",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"previous": {
+					"product": "next",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "another member",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"other": true
+			},
+			"active": null,
+			"held": []
+		},
+		{
+			"name": "extensions that are not an object",
+			"pointer": {
+				"version": 1,
+				"active": {
+					"product": "0.1.0",
+					"manifest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+				},
+				"extensions": []
+			},
+			"active": null,
+			"held": []
+		}
+	]
+}

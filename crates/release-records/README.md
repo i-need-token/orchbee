@@ -31,6 +31,11 @@ The record layouts are owned by
 [Release distribution](../../proposals/platform/release-distribution.md#runtime-store). This crate
 reads no file, takes no lock and starts no process.
 
+`fixtures/pointers.json` holds store pointer samples, each with the active version it names, or
+`null`, and the versions a well-formed fallback record holds. The format has readers in JavaScript
+too: the npm launcher and Desktop's window pointer check the same samples, so a rule change edits
+the samples and every reader with them.
+
 ## Verification
 
 Run from the repository root:

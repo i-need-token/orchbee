@@ -1,4 +1,7 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 import {
 	locateWindowDesktopRoot,
@@ -10,7 +13,6 @@ import {
 
 const ROOT = 'C:\\Users\\a\\AppData\\Local\\Programs\\Orchbee\\desktop';
 const STORE = '/Users/a/.local/share/orchbee';
-const ENTRY = { manifest: 'a'.repeat(64), product: '0.3.0' };
 
 function locate(executablePath: string, overrides: { development?: boolean } = {}) {
 	return locateWindowDesktopRoot({
@@ -101,33 +103,31 @@ describe('readFallbackFromVersion', () => {
 	});
 });
 
-describe('parseWindowPointer', () => {
-	it('names the active version of a format-1 pointer', () => {
-		expect(parseWindowPointer(JSON.stringify({ active: ENTRY, version: 1 }))).toBe('0.3.0');
-		expect(
-			parseWindowPointer(
-				JSON.stringify({
-					active: ENTRY,
-					extensions: { later: true },
-					previous: { ...ENTRY, product: '0.2.0' },
-					version: 1,
-				}),
+/** The pointer samples every reader of the format shares (`crates/release-records`). */
+const POINTER_SAMPLES = z
+	.strictObject({
+		cases: z.array(
+			z.strictObject({
+				active: z.string().nullable(),
+				held: z.array(z.string()),
+				name: z.string(),
+				pointer: z.unknown().optional(),
+				text: z.string().optional(),
+			}),
+		),
+	})
+	.parse(
+		JSON.parse(
+			readFileSync(
+				new URL('../../../../../../crates/release-records/fixtures/pointers.json', import.meta.url),
+				'utf8',
 			),
-		).toBe('0.3.0');
-	});
+		),
+	).cases;
 
-	it('reads anything else as no active version', () => {
-		for (const text of [
-			'',
-			'{',
-			JSON.stringify({ active: ENTRY, version: 2 }),
-			JSON.stringify({ active: ENTRY, other: 1, version: 1 }),
-			JSON.stringify({ active: { ...ENTRY, manifest: 'A'.repeat(64) }, version: 1 }),
-			JSON.stringify({ active: { ...ENTRY, product: '01.0.0' }, version: 1 }),
-			JSON.stringify({ active: ENTRY, extensions: [], version: 1 }),
-		]) {
-			expect(parseWindowPointer(text)).toBeNull();
-		}
+describe('parseWindowPointer', () => {
+	it.each(POINTER_SAMPLES)('reads "$name" as the release records crate does', (sample) => {
+		expect(parseWindowPointer(sample.text ?? JSON.stringify(sample.pointer))).toBe(sample.active);
 	});
 });
 

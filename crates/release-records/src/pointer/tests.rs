@@ -1,4 +1,5 @@
 use super::{Entry, Pointer};
+use serde_json::Value;
 
 const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
@@ -52,4 +53,36 @@ fn clearing_the_member_leaves_no_extensions_object_behind() {
     assert!(String::from_utf8_lossy(&pointer.encode()).contains(r#""noPath":true"#));
     pointer.set_no_path(false);
     assert_eq!(pointer.encode(), before);
+}
+
+// The shared samples, which the npm launcher and Desktop's window pointer read as well: each names
+// the active version this reader finds, or none, and the versions a well-formed fallback holds.
+#[test]
+fn the_shared_samples_read_as_their_expectations_say() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/fixtures/pointers.json");
+    let samples: Value =
+        serde_json::from_slice(&std::fs::read(path).expect("the samples read")).expect("JSON");
+    for case in samples["cases"].as_array().expect("cases") {
+        let bytes = match case.get("text") {
+            Some(text) => text.as_str().expect("text").as_bytes().to_vec(),
+            None => serde_json::to_vec(&case["pointer"]).expect("pointer"),
+        };
+        let pointer = Pointer::parse(&bytes);
+        let active = pointer
+            .as_ref()
+            .map(|pointer| pointer.active.product.as_str());
+        assert_eq!(active, case["active"].as_str(), "{}", case["name"]);
+        let held = pointer
+            .as_ref()
+            .and_then(Pointer::fallback)
+            .map(|fallback| fallback.held)
+            .unwrap_or_default();
+        let expected: Vec<&str> = case["held"]
+            .as_array()
+            .expect("held")
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(held, expected, "{}", case["name"]);
+    }
 }
