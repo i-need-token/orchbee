@@ -20,3 +20,19 @@ pub(crate) use unix::ProcessSnapshot;
 pub(crate) use windows::{
     ProcessSnapshot, current_identity, identity, observe, presence, role_absent,
 };
+
+/// What [`crate::RetainedSessionRecord::hosts`] observed of a generation's Terminal Host in one slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HostPresence {
+    /// No Host was started (Windows only).
+    NotStarted,
+    /// The Host's creation is reserved but not identified, so it never ran (Windows and macOS only).
+    Spawning,
+    /// The registered Host is gone, or, on Linux, no process holds the Host lock.
+    Gone,
+    /// A Host runs: on Windows and macOS its registered process ID and creation or start time; Linux
+    /// registers none.
+    Running(Option<(u32, u64)>),
+    /// The registered Host could not be observed.
+    Unknown,
+}

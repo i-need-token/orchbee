@@ -158,7 +158,9 @@ fn restore_notice_reads_while_server_owns_store_and_only_projects_the_active_gen
                 notice
             );
         }
-        let path = store.directory.join(crate::checkpoint_restore_notice::FILE);
+        let path = store
+            .directory
+            .join(crate::session_store::restore_notice::FILE);
         let stale = b"orchbee-checkpoint-restore-v1:02020202020202020202020202020202:E";
         write_private(&path, stale).unwrap();
         assert_eq!(
@@ -198,7 +200,9 @@ fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() 
     store
         .publish_restore_notice(&owner, Some(Notice::Empty))
         .unwrap();
-    let path = store.directory.join(crate::checkpoint_restore_notice::FILE);
+    let path = store
+        .directory
+        .join(crate::session_store::restore_notice::FILE);
     let before = fs::read(&path).unwrap();
     let consumer = permissions::open_snapshot_file(&path).unwrap();
     assert!(store.publish_restore_notice(&owner, None).is_err());
@@ -206,7 +210,7 @@ fn blocked_notice_replacement_preserves_current_feedback_and_reclaims_pending() 
     assert!(
         !store
             .directory
-            .join(crate::checkpoint_restore_notice::PENDING)
+            .join(crate::session_store::restore_notice::PENDING)
             .exists()
     );
     drop(consumer);

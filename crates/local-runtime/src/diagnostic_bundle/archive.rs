@@ -66,7 +66,7 @@ pub fn diagnostic_archive(entries: &[(String, Vec<u8>)], unix_seconds: u64) -> i
 /// The MS-DOS date and time fields, clamped to the format's 1980 epoch.
 fn dos_date_time(unix_seconds: u64) -> (u16, u16) {
     let days = i64::try_from(unix_seconds / 86_400).unwrap_or(0);
-    let (year, month, day) = crate::diagnostic_log::civil_from_days(days);
+    let (year, month, day) = crate::civil_date::civil_from_days(days);
     if year < 1980 {
         return (1 << 5 | 1, 0);
     }

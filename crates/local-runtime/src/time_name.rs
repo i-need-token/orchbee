@@ -1,6 +1,6 @@
 //! File names that carry a UTC time, `YYYY-MM-DDTHH-MM-SSZ`, followed by `-2`, `-3` and so on when
 //! a name with that time already holds different content.
-use crate::diagnostic_log::{civil_from_days, days_from_civil};
+use crate::civil_date::{civil_from_days, days_from_civil};
 
 const LENGTH: usize = "YYYY-MM-DDTHH-MM-SSZ".len();
 

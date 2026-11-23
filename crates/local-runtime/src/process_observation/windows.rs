@@ -5,10 +5,9 @@
 //! another program holds, names no live process that started from the expected program.
 use crate::{
     BlockerRole, CohortArtifact,
-    durable_sessions::RecordWriter,
     process_registration::{
-        KeptHost, ProcessIdentity, ProcessObservation, ProcessRole, ROLES, RecoveryVerdict,
-        Registration, SessionProcesses,
+        KeptHost, ProcessIdentity, ProcessObservation, ProcessRole, ROLES, Registration,
+        SessionProcesses,
     },
 };
 use std::io;
@@ -46,14 +45,9 @@ impl ProcessSnapshot {
         }
         snapshot
     }
-    /// Cold recovery's verdict on the record `processes` was read from under `_writer`, the lock a
-    /// registered child's creator holds across its whole attempt.
-    pub(crate) fn verdict(
-        &self,
-        processes: &SessionProcesses,
-        _writer: &RecordWriter,
-    ) -> RecoveryVerdict {
-        processes.status(self.observations)
+    /// What the snapshot observed of each role, in `ROLES` order.
+    pub(crate) const fn observations(&self) -> [ProcessObservation; ROLES.len()] {
+        self.observations
     }
 }
 

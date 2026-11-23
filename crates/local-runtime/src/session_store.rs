@@ -14,6 +14,7 @@ use std::{
 
 pub(crate) mod bindings;
 mod restore;
+pub(crate) mod restore_notice;
 mod terminal_output;
 
 /// Visible startup recovery facts; filesystem admission errors never become an empty fallback.
@@ -62,11 +63,7 @@ impl SessionStore {
         };
         store.cleanup_pending()?;
         remove_if_present(&store.directory.join(bindings::PENDING))?;
-        crate::checkpoint_restore_notice::remove_pending(
-            &store
-                .directory
-                .join(crate::checkpoint_restore_notice::PENDING),
-        )?;
+        restore_notice::remove_pending(&store.directory.join(restore_notice::PENDING))?;
         Ok(store)
     }
 

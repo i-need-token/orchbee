@@ -73,7 +73,7 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
     processes.identify(ProcessRole::Server, identity).unwrap();
     let snapshot = ProcessSnapshot::observe(&processes);
     assert_eq!(
-        snapshot.verdict(&processes, &writer),
+        writer.verdict(&snapshot, &processes),
         RecoveryVerdict::Live(ProcessRole::Server)
     );
     thread::sleep(Duration::from_millis(100));
@@ -91,7 +91,7 @@ fn suspended_child_identity_precedes_execution_and_exit_259_is_gone() {
     assert_eq!(observed, identity);
     assert_eq!(status.code(), Some(259));
     assert_eq!(
-        ProcessSnapshot::observe(&processes).verdict(&processes, &writer),
+        writer.verdict(&ProcessSnapshot::observe(&processes), &processes),
         RecoveryVerdict::Gone
     );
 }

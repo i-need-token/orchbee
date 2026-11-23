@@ -33,6 +33,7 @@ pub use installed_shells::{InstalledShell, InstalledShellKind, installed_shells}
 mod host_name;
 #[cfg(unix)]
 pub use host_name::local_host_name;
+mod civil_date;
 mod local_clock;
 pub use local_clock::{LocalClock, local_clock, unix_milliseconds_at_local};
 mod file_lock;
@@ -167,6 +168,7 @@ pub use standard_rights::{
     token_rights,
 };
 mod process_observation;
+pub use process_observation::HostPresence;
 #[cfg(target_os = "macos")]
 pub use process_observation::{process_ended, running_children, running_program};
 mod process_registration;
@@ -182,7 +184,7 @@ pub use registered_child::{
 };
 mod durable_sessions;
 pub use durable_sessions::{
-    Fenced, HostPresence, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
+    Fenced, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
 };
 #[cfg(any(windows, target_os = "macos"))]
 mod exact_process;
@@ -194,7 +196,6 @@ mod successor_record;
 pub use successor_record::{
     RestartCleared, RestartRefusal, RestartReservation, SuccessorRecord, clear_restart,
 };
-mod checkpoint_restore_notice;
 mod checkpoint_rotation;
 mod layout_history;
 mod machine_hub;

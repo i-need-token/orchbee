@@ -83,7 +83,7 @@ fn every_stored_sample_opens_through_todays_opener() {
                 write_private(
                     directory
                         .folder(SCOPE)
-                        .join(crate::checkpoint_restore_notice::FILE),
+                        .join(crate::session_store::restore_notice::FILE),
                     &bytes,
                 )
                 .unwrap();

@@ -32,7 +32,7 @@ pub fn unix_milliseconds_at_local(clock: LocalClock) -> Option<u64> {
 }
 
 fn local_seconds(clock: LocalClock) -> Option<i64> {
-    use crate::diagnostic_log::{civil_from_days, days_from_civil};
+    use crate::civil_date::{civil_from_days, days_from_civil};
 
     let (year, month, day) = (
         i64::from(clock.year),
@@ -112,7 +112,7 @@ const fn platform(_unix_milliseconds: u64) -> Option<LocalClock> {
 #[cfg(unix)]
 fn wall_clock(seconds: i64, offset: i32) -> Option<LocalClock> {
     let local = seconds.checked_add(i64::from(offset))?;
-    let (year, month, day) = crate::diagnostic_log::civil_from_days(local.div_euclid(86_400));
+    let (year, month, day) = crate::civil_date::civil_from_days(local.div_euclid(86_400));
     let second_of_day = local.rem_euclid(86_400);
     Some(LocalClock {
         year: u16::try_from(year).ok()?,

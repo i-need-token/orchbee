@@ -65,8 +65,8 @@ const SESSION_FILES: &[&str] = &[
     "checkpoint.previous-2.json",
     "checkpoint.pending",
     "state.lock",
-    crate::checkpoint_restore_notice::FILE,
-    crate::checkpoint_restore_notice::PENDING,
+    crate::session_store::restore_notice::FILE,
+    crate::session_store::restore_notice::PENDING,
     crate::session_store::bindings::FILE,
     crate::session_store::bindings::PENDING,
     // The TUI position record, `data_root::TUI_POSITION_RECORD`, with its lock and staging file.
@@ -187,7 +187,7 @@ impl SessionCatalog {
                             .ok_or(io::ErrorKind::InvalidData)?;
                         let processes = &record.processes;
                         let snapshot = ProcessSnapshot::observe(processes);
-                        let verdict = snapshot.verdict(processes, &writer);
+                        let verdict = writer.verdict(&snapshot, processes);
                         if verdict != RecoveryVerdict::Gone {
                             return Err(RecoveryBlocker::refusal(processes, verdict));
                         }
@@ -260,7 +260,7 @@ impl SessionCatalog {
         }
         let processes = &record.processes;
         let snapshot = ProcessSnapshot::observe(processes);
-        let verdict = snapshot.verdict(processes, &writer);
+        let verdict = writer.verdict(&snapshot, processes);
         let kept = adoptable(processes, verdict, &snapshot)
             .ok_or_else(|| RecoveryBlocker::refusal(processes, verdict))?;
         // begin_activation closes the prior generation before publishing the fresh
@@ -841,7 +841,7 @@ impl NamedSessionEntry {
             }
             let processes = &record.processes;
             let snapshot = ProcessSnapshot::observe(processes);
-            let verdict = snapshot.verdict(processes, &writer);
+            let verdict = writer.verdict(&snapshot, processes);
             let blocked = || {
                 RecoveryBlocker::named(processes, verdict)
                     .map_or(NotRecoverable, ColdObservation::Blocked)

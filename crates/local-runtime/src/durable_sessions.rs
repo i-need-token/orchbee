@@ -5,7 +5,9 @@
 use crate::process_registration::ProcessIdentity;
 use crate::{
     ActivationState, DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous as Rendezvous,
-    SessionName, private_filesystem as permissions, process_registration::SessionProcesses,
+    SessionName, private_filesystem as permissions,
+    process_observation::{HostPresence, ProcessSnapshot},
+    process_registration::{RecoveryVerdict, SessionProcesses},
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -174,6 +176,18 @@ pub(crate) fn is_record_guard(name: &str) -> bool {
 /// Spawning slot read under it names an attempt that ended without an identity.
 pub(crate) struct RecordWriter {
     _lock: HeldLock,
+}
+
+impl RecordWriter {
+    /// Cold recovery's verdict on the record `processes` was read from under this lock, which a
+    /// registered child's creator holds across its whole attempt, by what `snapshot` observed.
+    pub(crate) fn verdict(
+        &self,
+        snapshot: &ProcessSnapshot,
+        processes: &SessionProcesses,
+    ) -> RecoveryVerdict {
+        processes.status(snapshot.observations())
+    }
 }
 
 /// The `sessions/` folder of one data root. A scope is the spelling of one Session's folder name;
@@ -574,22 +588,6 @@ pub fn session_moved_to(root: &DataRoot, runtime: &Path) -> io::Result<Option<St
         .get(MOVED_TO)
         .and_then(|value| value.as_str())
         .map(str::to_owned))
-}
-
-/// What [`RetainedSessionRecord::hosts`] observed of a generation's Terminal Host in one slot.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum HostPresence {
-    /// No Host was started (Windows only).
-    NotStarted,
-    /// The Host's creation is reserved but not identified, so it never ran (Windows and macOS only).
-    Spawning,
-    /// The registered Host is gone, or, on Linux, no process holds the Host lock.
-    Gone,
-    /// A Host runs: on Windows and macOS its registered process ID and creation or start time; Linux
-    /// registers none.
-    Running(Option<(u32, u64)>),
-    /// The registered Host could not be observed.
-    Unknown,
 }
 
 /// What [`RetainedSessionRecord::hosts`] observed of one Host slot.

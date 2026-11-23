@@ -2,10 +2,7 @@
 //! Host's lock, so a record written here leaves every role unregistered. No observation is ever
 //! made and an identified registration stays unknown; a Host's absence is its free lock, which the
 //! rendezvous observes.
-use crate::{
-    durable_sessions::RecordWriter,
-    process_registration::{ProcessObservation, ROLES, RecoveryVerdict, SessionProcesses},
-};
+use crate::process_registration::{ProcessObservation, ROLES, SessionProcesses};
 
 pub(crate) struct ProcessSnapshot {
     observations: [ProcessObservation; ROLES.len()],
@@ -16,12 +13,8 @@ impl ProcessSnapshot {
             observations: [ProcessObservation::Unknown; ROLES.len()],
         }
     }
-    /// Cold recovery's verdict on the record `processes` was read from under `_writer`.
-    pub(crate) fn verdict(
-        &self,
-        processes: &SessionProcesses,
-        _writer: &RecordWriter,
-    ) -> RecoveryVerdict {
-        processes.status(self.observations)
+    /// What the snapshot observed of each role, in `ROLES` order.
+    pub(crate) const fn observations(&self) -> [ProcessObservation; ROLES.len()] {
+        self.observations
     }
 }

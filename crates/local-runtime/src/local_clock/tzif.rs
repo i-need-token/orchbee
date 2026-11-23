@@ -2,7 +2,7 @@
 //! instant: from its transitions, and past the last one from the POSIX `TZ` rule in its footer.
 //! Leap-second records are skipped, so a zone that counts leap seconds reads that many seconds early.
 
-use crate::diagnostic_log::{civil_from_days, days_from_civil};
+use crate::civil_date::{civil_from_days, days_from_civil};
 
 /// A parsed zone.
 #[derive(Debug)]
