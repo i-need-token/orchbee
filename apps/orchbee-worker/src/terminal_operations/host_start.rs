@@ -387,7 +387,7 @@ pub(super) fn start_host(
     match ready {
         Ok(host) => {
             // The Server pairs this Host with its terminals through the epoch the record keeps.
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             if let Ok(process) = child.exact_identity() {
                 crate::host_adoption::record_epoch(
                     runtime,

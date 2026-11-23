@@ -175,7 +175,7 @@ pub(crate) fn adopt(
         ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime)
     };
     let found = adopt_endpoint(runtime, &endpoint, process, epoch, channel)?;
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     if let Some(process) = process {
         record_epoch(
             runtime,
@@ -191,7 +191,7 @@ pub(crate) fn adopt(
 /// still names `process`, so the Server can pair that Host with the terminals that carry it. A
 /// failed write is reported and changes nothing else: a Server that finds no epoch recorded takes a
 /// lone Host's from its terminals.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn record_epoch(
     runtime: &Path,
     slot: orchbee_local_runtime::HostSlot,
@@ -266,7 +266,7 @@ pub(crate) fn ended_before(process: AdoptHostProcess, deadline: Instant) -> bool
 }
 
 /// How long writing a Host's epoch into the Session record may wait for the record's writer lock.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const EPOCH_RECORD_BUDGET: Duration = Duration::from_secs(1);
 
 /// [`adopt`] at a known endpoint.

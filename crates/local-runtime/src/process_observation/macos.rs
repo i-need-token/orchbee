@@ -56,6 +56,26 @@ impl ProcessSnapshot {
     }
 }
 
+impl ProcessSnapshot {
+    /// The identified Hosts of `processes` this snapshot found running with their exact identities.
+    pub(crate) fn present_hosts(
+        &self,
+        processes: &SessionProcesses,
+    ) -> Vec<crate::process_registration::KeptHost> {
+        processes
+            .identified_hosts()
+            .into_iter()
+            .filter(|kept| {
+                ROLES
+                    .into_iter()
+                    .position(|role| role == ProcessRole::Host(kept.slot))
+                    .and_then(|index| self.observations.get(index))
+                    == Some(&ProcessObservation::Present(kept.identity))
+            })
+            .collect()
+    }
+}
+
 /// What the registration of `role`, the Host or the Keeper, names now, in the Host's terms.
 pub(crate) fn presence(processes: &SessionProcesses, role: ProcessRole) -> crate::HostPresence {
     match processes.registration(role) {

@@ -62,7 +62,7 @@ impl SessionStore {
 /// next generation may adopt those Hosts; the adopting Server reads the whole record and checks it
 /// again. A missing, unreadable or larger record names no Host. It reads like
 /// [`read_session_bindings`], without the store.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn names_hosts(
     folder: &std::path::Path,
     hosts: &[crate::process_registration::KeptHost],

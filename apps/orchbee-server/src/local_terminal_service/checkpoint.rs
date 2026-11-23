@@ -183,7 +183,7 @@ impl LocalTerminalService {
     /// Presentation of an offered terminal shows it again without a launch, a kept-output
     /// replay or an Agent resume. Every other Presentation restores as at any start, and no
     /// identity the predecessor may have issued is issued again.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn adopting_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,

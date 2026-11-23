@@ -45,7 +45,7 @@ mod agent_resume;
 mod agent_start_delivery;
 mod checkpoint;
 pub(crate) use checkpoint::CheckpointRestore;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use checkpoint::Offered;
 mod close_maintenance;
 mod connected_hosts;

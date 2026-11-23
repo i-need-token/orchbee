@@ -4,7 +4,7 @@
 //! pathname or pipe disappearance proves process exit.
 
 use crate::local_terminal_service::LocalTerminalService;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use orchbee_local_runtime::RetainedChild;
 use orchbee_local_runtime::{
     DataRoot, LogLevel, LogValue, ModeCheckedLocalSessionRendezvous, RetainedSessionRecord,
@@ -16,7 +16,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use std::{thread, time::Duration};
 pub(super) mod autosave;
 mod bindings;
@@ -207,7 +207,7 @@ impl Kept {
     /// The binding record this generation adopts its predecessor's Host from, read through the
     /// store; the record this generation writes keeps its `extensions`. An absent or unusable
     /// record fails.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn adopted_record(&self) -> io::Result<crate::binding_record::BindingRecord> {
         let bytes = self
             .store
@@ -379,7 +379,7 @@ fn failed(stage: &'static str, error: Option<io::ErrorKind>) {
 mod tests;
 
 /// No launch has been sent; this Worker cannot own a Host or terminal.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn abort_before_launch(
     mut worker: RetainedChild,
     carrier: Option<thread::JoinHandle<()>>,

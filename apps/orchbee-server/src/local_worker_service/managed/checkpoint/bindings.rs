@@ -18,10 +18,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Whether this platform's Session keeps a binding record: Windows, whose Host outlives its Server.
-/// macOS keeps one once its Server can adopt a Host it did not start. A policy constant, so every
-/// branch compiles everywhere.
-pub(super) const RECORDED: bool = cfg!(windows);
+/// Whether this platform's Session keeps a binding record: Windows and macOS, whose Host outlives
+/// its Server. A policy constant, so every branch compiles everywhere.
+pub(super) const RECORDED: bool = cfg!(any(windows, target_os = "macos"));
 
 /// How long the first change waits before the record is written; later changes ride along.
 const DEBOUNCE: Duration = Duration::from_millis(500);
@@ -69,7 +68,7 @@ impl Writer {
 
     /// Writes `extensions`, the members a later release added to the record this generation
     /// adopted its Host from, back unchanged.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keep_extensions(
         &mut self,
         extensions: serde_json::Map<String, serde_json::Value>,

@@ -1035,7 +1035,8 @@ fn free_endpoints(runtime: &Path, kept: &[KeptHost]) -> io::Result<()> {
 
 /// Whether recovery may go on after `verdict`, the process verdict `snapshot` gave on
 /// `processes`, and the Hosts it keeps: none when every registered process is gone, and on Windows
-/// each registered Host the snapshot found running when the Server and Worker are proven gone.
+/// and macOS each registered Host the snapshot found running when the Server and Worker are proven
+/// gone.
 fn adoptable(
     processes: &crate::process_registration::SessionProcesses,
     verdict: RecoveryVerdict,
@@ -1043,7 +1044,7 @@ fn adoptable(
 ) -> Option<Vec<KeptHost>> {
     match verdict {
         RecoveryVerdict::Gone => Some(Vec::new()),
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         RecoveryVerdict::Live(crate::process_registration::ProcessRole::Host(_)) => {
             Some(snapshot.present_hosts(processes))
         }
@@ -1060,9 +1061,9 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
     if kept.is_empty() {
         return true;
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     return crate::session_store::bindings::names_hosts(folder, kept);
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     {
         let _ = folder;
         false
@@ -1072,7 +1073,7 @@ fn names_kept_hosts(folder: &Path, kept: &[KeptHost]) -> bool {
 /// The Hosts the crashed generation `previous` left running, which the next generation keeps
 /// registered: none after a stop, and none of a slot without a Host or whose Host is gone; a Host
 /// still spawning names an ended attempt, as recovery reads it. An unknown observation refuses.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     let Some(previous) = previous.filter(|record| record.lifecycle == Lifecycle::Crashed) else {
         return Ok(Vec::new());
@@ -1093,8 +1094,8 @@ fn kept_hosts(previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(kept)
 }
 
-/// A macOS or Linux generation keeps no Host: a macOS Server does not adopt one yet.
-#[cfg(unix)]
+/// A Linux generation keeps no Host.
+#[cfg(all(unix, not(target_os = "macos")))]
 fn kept_hosts(_previous: Option<&Record>) -> io::Result<Vec<KeptHost>> {
     Ok(Vec::new())
 }
