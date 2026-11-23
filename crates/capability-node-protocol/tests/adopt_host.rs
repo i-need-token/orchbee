@@ -1,11 +1,11 @@
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostOutcome,
-    AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostResult,
-    AdoptHostTarget, CapabilityNodeMessage as Message, DeclinedRequestKind, HostCreationId,
-    HostEpoch, HostTerminalId, HostTerminalIdentity, LifecycleStepOrdinal,
-    MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_FRAME_PAYLOAD_BYTES,
-    OperationId, TerminalFence, TerminalId, WorkerGeneration, WorkerId, WorkerRequestDeclined,
-    decode_message, encode_message, read_message,
+    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
+    AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, CapabilityNodeMessage as Message,
+    DeclinedRequestKind, HostCreationId, HostEpoch, HostTerminalId, HostTerminalIdentity,
+    LifecycleStepOrdinal, MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
+    MAXIMUM_FRAME_PAYLOAD_BYTES, OperationId, TerminalFence, TerminalId, WorkerGeneration,
+    WorkerId, WorkerRequestDeclined, decode_message, encode_message, read_message,
 };
 use std::{
     io::Cursor,
@@ -25,14 +25,25 @@ fn epoch() -> HostEpoch {
     HostEpoch::from_bytes([0x33; 16]).unwrap()
 }
 
-fn host(process: bool, epoch: Option<HostEpoch>) -> AdoptHostTarget {
-    AdoptHostTarget::Host {
-        process: process.then(|| AdoptHostProcess {
-            process_id: NonZeroU32::new(0x1234).unwrap(),
-            creation_time: NonZeroU64::new(0x5678).unwrap(),
-        }),
+fn process(id: u32, created: u64) -> AdoptHostProcess {
+    AdoptHostProcess {
+        process_id: NonZeroU32::new(id).unwrap(),
+        creation_time: NonZeroU64::new(created).unwrap(),
+    }
+}
+
+fn slot(slot: u8, process: Option<AdoptHostProcess>, epoch: Option<HostEpoch>) -> AdoptHostSlot {
+    AdoptHostSlot {
+        slot,
+        kind: AdoptHostKind::Host { process },
         epoch,
     }
+}
+
+/// One Host in the first slot.
+fn host(with_process: bool, epoch: Option<HostEpoch>) -> AdoptHostTarget {
+    let registered = with_process.then(|| process(0x1234, 0x5678));
+    AdoptHostTarget::new(vec![slot(0, registered, epoch)], None).unwrap()
 }
 
 /// A binding whose terminal, creation and Host terminal IDs all derive from `seed`.
@@ -114,12 +125,16 @@ fn pages_and_answers_match_hand_derived_bytes() {
         .unwrap(),
     );
     let expected = [
-        &b"OBCN\x00\x01\x00\xfb"[..],
+        &b"OBCN\x00\x01\x00\xfe"[..],
         &[40],
         &identity_bytes(),
-        // Host target: present process 0x1234 created at 0x5678, present epoch.
-        &[2, 1, 0, 0, 0x12, 0x34, 0, 0, 0, 0, 0, 0, 0x56, 0x78, 1],
+        // One slot: slot 0, a Host with process 0x1234 created at 0x5678, present epoch.
+        &[
+            1, 0, 1, 1, 0, 0, 0x12, 0x34, 0, 0, 0, 0, 0, 0, 0x56, 0x78, 1,
+        ],
         &[0x33; 16],
+        // No Keeper.
+        &[0],
         // Page 1, not last, two bindings.
         &[0, 1, 0, 0, 2],
         // Started, fence 7, Close attempt 3 step 2 with an unknown effect.
@@ -141,16 +156,48 @@ fn pages_and_answers_match_hand_derived_bytes() {
     assert_eq!(roundtrip(&page), expected);
 
     let no_host = Message::AdoptHostRequest(
-        AdoptHostRequest::new(key(0, true), AdoptHostTarget::NoHost, Vec::new()).unwrap(),
+        AdoptHostRequest::new(key(0, true), AdoptHostTarget::none(), Vec::new()).unwrap(),
     );
     let expected = [
-        &b"OBCN\x00\x01\x00\x2f"[..],
+        &b"OBCN\x00\x01\x00\x30"[..],
         &[40],
         &identity_bytes(),
-        &[1, 0, 0, 1, 0, 0],
+        &[0, 0, 0, 0, 1, 0, 0],
     ]
     .concat();
     assert_eq!(roundtrip(&no_host), expected);
+
+    // An older Host in slot 2 with neither recorded fact, and a recovery in slot 1 with the Keeper.
+    let recovery = Message::AdoptHostRequest(
+        AdoptHostRequest::new(
+            key(0, true),
+            AdoptHostTarget::new(
+                vec![
+                    slot(2, None, None),
+                    AdoptHostSlot {
+                        slot: 1,
+                        kind: AdoptHostKind::Recovery,
+                        epoch: Some(epoch()),
+                    },
+                ],
+                Some(process(0x9abc, 0xdef0)),
+            )
+            .unwrap(),
+            Vec::new(),
+        )
+        .unwrap(),
+    );
+    let expected = [
+        &b"OBCN\x00\x01\x00\x53"[..],
+        &[40],
+        &identity_bytes(),
+        &[2, 2, 1, 0, 0, 1, 2, 1],
+        &[0x33; 16],
+        &[1, 0, 0, 0x9a, 0xbc, 0, 0, 0, 0, 0, 0, 0xde, 0xf0],
+        &[0, 0, 1, 0, 0],
+    ]
+    .concat();
+    assert_eq!(roundtrip(&recovery), expected);
 
     let adopted = Message::AdoptHostResult(
         AdoptHostResult::new(
@@ -213,11 +260,22 @@ fn the_largest_page_and_answer_fit_one_frame() {
     let bindings = (0..u16::try_from(MAXIMUM_ADOPT_HOST_PAGE_BINDINGS).unwrap())
         .map(|seed| binding(seed, Some(close())))
         .collect();
+    // The largest target: four Hosts, each with its process and epoch.
+    let four = AdoptHostTarget::new(
+        (0..4_u8)
+            .map(|index| {
+                let epoch = HostEpoch::from_bytes([0x33 + index; 16]).unwrap();
+                slot(index, Some(process(0x1234, 0x5678)), Some(epoch))
+            })
+            .collect(),
+        None,
+    )
+    .unwrap();
     let largest = Message::AdoptHostRequest(
-        AdoptHostRequest::new(key(u16::MAX, true), host(true, Some(epoch())), bindings).unwrap(),
+        AdoptHostRequest::new(key(u16::MAX, true), four, bindings).unwrap(),
     );
     let frame = roundtrip(&largest);
-    assert_eq!(frame.len(), 8 + 77 + 256 * 100);
+    assert_eq!(frame.len(), 8 + 176 + 256 * 100);
     assert!(frame.len() - 8 <= MAXIMUM_FRAME_PAYLOAD_BYTES);
 
     let missing = (0..u16::try_from(MAXIMUM_ADOPT_HOST_BINDINGS).unwrap())
@@ -259,7 +317,7 @@ fn contradictory_pages_and_answers_are_refused() {
             .map(|seed| binding(seed, None))
             .collect(),
     );
-    refused_page(AdoptHostTarget::NoHost, vec![binding(1, None)]);
+    refused_page(AdoptHostTarget::none(), vec![binding(1, None)]);
     let other_epoch = HostEpoch::from_bytes([0x34; 16]).unwrap();
     refused_page(host(true, Some(other_epoch)), vec![binding(1, None)]);
     let same_terminal = AdoptBinding {
@@ -289,6 +347,26 @@ fn contradictory_pages_and_answers_are_refused() {
         ..binding(2, None)
     };
     refused_page(host(false, None), vec![binding(1, None), same_creation]);
+
+    let recovery = |slot| AdoptHostSlot {
+        slot,
+        kind: AdoptHostKind::Recovery,
+        epoch: None,
+    };
+    let keeper = Some(process(0x9abc, 0xdef0));
+    for (slots, keeper) in [
+        ((0..5).map(|index| slot(index, None, None)).collect(), None),
+        (vec![slot(4, None, None)], None),
+        (vec![slot(1, None, None), slot(1, None, None)], None),
+        (
+            vec![slot(0, None, Some(epoch())), slot(1, None, Some(epoch()))],
+            None,
+        ),
+        (vec![slot(0, None, None)], keeper),
+        (vec![recovery(0)], None),
+    ] {
+        assert!(AdoptHostTarget::new(slots, keeper).is_err());
+    }
 
     let adopted = |missing| AdoptHostOutcome::Adopted {
         imported: 0,
@@ -320,9 +398,10 @@ fn malformed_pages_and_answers_are_refused() {
     .unwrap();
     // Offsets count from the frame start: an 8-byte header, the kind, then 40 identity bytes.
     const TARGET: usize = 49;
-    const PROCESS_ID: usize = TARGET + 2;
+    const PROCESS_ID: usize = TARGET + 4;
     const CREATION: usize = PROCESS_ID + 4;
-    const LAST: usize = TARGET + 33;
+    const KEEPER: usize = CREATION + 25;
+    const LAST: usize = TARGET + 36;
     const COUNT: usize = LAST + 1;
     const STATE: usize = COUNT + 2 + 64;
     const FENCE: usize = STATE + 1;
@@ -330,14 +409,17 @@ fn malformed_pages_and_answers_are_refused() {
     const ATTEMPT: usize = CLOSE + 17;
     const ORDINAL: usize = ATTEMPT + 8;
     type Corruption = fn(&mut Vec<u8>);
-    let cases: [(&str, Corruption); 15] = [
-        ("unknown target", |bad| bad[TARGET] = u8::MAX),
-        ("process flag", |bad| bad[TARGET + 1] = 2),
+    let cases: [(&str, Corruption); 18] = [
+        ("five slots", |bad| bad[TARGET] = 5),
+        ("slot past 3", |bad| bad[TARGET + 1] = 4),
+        ("unknown slot kind", |bad| bad[TARGET + 2] = 3),
+        ("process flag", |bad| bad[TARGET + 3] = 2),
         ("zero process id", |bad| bad[PROCESS_ID..CREATION].fill(0)),
         ("zero creation time", |bad| {
             bad[CREATION..CREATION + 8].fill(0)
         }),
         ("zero epoch", |bad| bad[CREATION + 9..CREATION + 25].fill(0)),
+        ("keeper flag", |bad| bad[KEEPER] = 2),
         ("last flag", |bad| bad[LAST] = 2),
         ("count beyond the bindings", |bad| bad[COUNT + 1] = 2),
         ("unknown state", |bad| bad[STATE] = 3),
@@ -348,10 +430,10 @@ fn malformed_pages_and_answers_are_refused() {
         ("ordinal past 32", |bad| bad[ORDINAL] = 33),
         ("unknown effect flag", |bad| bad[ORDINAL + 1] = 2),
         ("bindings for no Host", |bad| {
-            // NoHost drops the 30 process and epoch bytes and keeps the binding.
-            bad[TARGET] = 1;
-            bad.drain(TARGET + 1..TARGET + 31);
-            bad[7] -= 30;
+            // No slot drops the slot's 32 bytes and keeps the binding.
+            bad[TARGET] = 0;
+            bad.drain(TARGET + 1..TARGET + 33);
+            bad[7] -= 32;
         }),
     ];
     for (case, corrupt) in cases {

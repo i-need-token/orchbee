@@ -1,10 +1,11 @@
 //! Shared activation generations bind catalog admission, direct-child registration and clean-stop
 //! publication. Private lifecycle records, one `session.json` in each Session's folder, outlive the
 //! runtime folder. Effects derive their paths from admission.
+#[cfg(windows)]
+use crate::process_registration::ProcessIdentity;
 use crate::{
     ActivationState, DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous as Rendezvous,
-    SessionName, private_filesystem as permissions,
-    process_registration::{ProcessIdentity, SessionProcesses},
+    SessionName, private_filesystem as permissions, process_registration::SessionProcesses,
 };
 use serde::{Deserialize, Serialize};
 use std::{
@@ -99,18 +100,16 @@ impl Record {
             processes: SessionProcesses::default(),
         })
     }
-    /// The record of a new generation, which adopts `host`, the Host its predecessor left running,
-    /// when there is one.
+    /// The record of a new generation, which adopts `hosts`, the Hosts its predecessor left
+    /// running.
     pub(crate) fn registered(
         runtime: &Path,
         name: &SessionName,
         activation_id: [u8; 16],
-        host: Option<ProcessIdentity>,
+        hosts: &[crate::process_registration::KeptHost],
     ) -> io::Result<Self> {
         let mut record = Self::new(runtime, name, Some(activation_id), Lifecycle::Active)?;
-        if let Some(host) = host {
-            record.processes = SessionProcesses::adopting(host);
-        }
+        record.processes = SessionProcesses::adopting(hosts);
         Ok(record)
     }
     /// The runtime folder this record's generation uses.
@@ -564,7 +563,7 @@ pub fn session_moved_to(root: &DataRoot, runtime: &Path) -> io::Result<Option<St
         .map(str::to_owned))
 }
 
-/// What [`RetainedSessionRecord::host_presence`] observed of a generation's Terminal Host.
+/// What [`RetainedSessionRecord::hosts`] observed of a generation's Terminal Host in one slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum HostPresence {
     /// No Host was started (Windows only).
@@ -577,6 +576,40 @@ pub enum HostPresence {
     Running(Option<(u32, u64)>),
     /// The registered Host could not be observed.
     Unknown,
+}
+
+/// What [`RetainedSessionRecord::hosts`] observed of one Host slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct HostSlotPresence {
+    pub slot: crate::HostSlot,
+    pub presence: HostPresence,
+    /// The epoch the slot's Host recorded once its Worker connected.
+    pub epoch: Option<[u8; 16]>,
+}
+
+/// What `record` registers for `role`, the Host of a slot or the Keeper, observed now.
+fn role_presence(
+    record: &Record,
+    role: crate::process_registration::ProcessRole,
+) -> io::Result<HostPresence> {
+    #[cfg(windows)]
+    return Ok(crate::process_observation::presence(
+        &record.processes,
+        role,
+    ));
+    // POSIX runs its one Host in the first slot and starts no Keeper.
+    #[cfg(unix)]
+    return Ok(match role {
+        crate::process_registration::ProcessRole::Host(crate::HostSlot::FIRST)
+            if crate::rendezvous::host_lock_held(record.runtime())? =>
+        {
+            HostPresence::Running(None)
+        }
+        crate::process_registration::ProcessRole::Host(crate::HostSlot::FIRST) => {
+            HostPresence::Gone
+        }
+        _ => HostPresence::NotStarted,
+    });
 }
 
 impl RetainedSessionRecord {
@@ -629,21 +662,33 @@ impl RetainedSessionRecord {
             return Err(io::ErrorKind::InvalidData.into());
         }
         #[cfg(windows)]
-        return Ok(crate::process_observation::role_absent(
-            &current.processes,
-            crate::process_registration::ProcessRole::Host,
-        ));
+        return Ok(crate::process_registration::HOST_ROLES
+            .into_iter()
+            .all(|role| crate::process_observation::role_absent(&current.processes, role)));
         #[cfg(unix)]
         return Ok(!crate::rendezvous::host_lock_held(current.runtime())?);
     }
-    /// What this generation's Terminal Host is now, for a Server that lost its Worker. A Spawning
-    /// Host never ran, since a child runs only once identified. On Windows a running Host carries
-    /// its registered process; a process with the registered ID but another creation time means
-    /// the registered Host is gone. POSIX registers no Host, so there a Host holding the Host lock
-    /// runs, and a free lock reads as gone, which also covers a Host that never started.
+    /// What each of this generation's Terminal Host slots holds now. A Spawning Host never ran,
+    /// since a child runs only once identified. On Windows a running Host carries its registered
+    /// process; a process with the registered ID but another creation time means the registered
+    /// Host is gone. POSIX registers no Host and runs one, in the first slot: a Host holding the
+    /// Host lock runs, and a free lock reads as gone, which also covers a Host that never started.
     /// Observation grants no termination authority.
-    pub fn host_presence(&self) -> io::Result<HostPresence> {
-        self.child_presence(crate::process_registration::ProcessRole::Host)
+    ///
+    /// Each slot comes back in order, with the epoch its Host recorded once its Worker connected.
+    pub fn hosts(&self) -> io::Result<Vec<HostSlotPresence>> {
+        let current = self.current()?;
+        crate::HostSlot::ALL
+            .into_iter()
+            .map(|slot| {
+                let role = crate::process_registration::ProcessRole::Host(slot);
+                Ok(HostSlotPresence {
+                    slot,
+                    presence: role_presence(&current, role)?,
+                    epoch: current.processes.registration(role).epoch(),
+                })
+            })
+            .collect()
     }
     /// The Keeper this generation records now, by its process ID and creation time; `None` when
     /// it records none.
@@ -665,15 +710,16 @@ impl RetainedSessionRecord {
             .registration(crate::process_registration::ProcessRole::Keeper)
             .identity())
     }
-    /// What this generation's Keeper is now, in the same terms as [`Self::host_presence`]. POSIX
+    /// What this generation's Keeper is now, in the same terms as [`Self::hosts`]. POSIX
     /// starts no Keeper, so there it reads as never started.
     pub fn keeper_presence(&self) -> io::Result<HostPresence> {
-        self.child_presence(crate::process_registration::ProcessRole::Keeper)
+        role_presence(
+            &self.current()?,
+            crate::process_registration::ProcessRole::Keeper,
+        )
     }
-    fn child_presence(
-        &self,
-        role: crate::process_registration::ProcessRole,
-    ) -> io::Result<HostPresence> {
+    /// The record as it stands now, which must still name this generation.
+    fn current(&self) -> io::Result<Record> {
         let current = self
             .directory
             .read(&self.scope)?
@@ -681,19 +727,7 @@ impl RetainedSessionRecord {
         if !current.same_active_generation(&self.active) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        #[cfg(windows)]
-        return Ok(crate::process_observation::presence(
-            &current.processes,
-            role,
-        ));
-        #[cfg(unix)]
-        return Ok(match role {
-            crate::process_registration::ProcessRole::Keeper => HostPresence::NotStarted,
-            _ if crate::rendezvous::host_lock_held(current.runtime())? => {
-                HostPresence::Running(None)
-            }
-            _ => HostPresence::Gone,
-        });
+        Ok(current)
     }
     /// Only after confirmed child exit and listener cleanup, before the runtime stop receipt.
     pub fn complete(&mut self, request_id: [u8; 16]) -> io::Result<()> {

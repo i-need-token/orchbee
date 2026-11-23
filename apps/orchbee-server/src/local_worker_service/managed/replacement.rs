@@ -14,9 +14,10 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptHostFailure, AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey,
-    AdoptHostProcess, AdoptHostRequest, AdoptHostTarget, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
-    OperationId, TerminalId, WorkerGeneration, WorkerId,
+    AdoptBinding, AdoptHostFailure, AdoptHostKind, AdoptHostOutcome, AdoptHostPage,
+    AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostSlot, AdoptHostTarget,
+    HostEpoch, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, OperationId, TerminalId, WorkerGeneration,
+    WorkerId,
 };
 use orchbee_local_runtime::{HostPresence, LogField, LogLevel, LogValue, RetainedChild};
 
@@ -125,7 +126,7 @@ impl Supervision {
             owners.handle.generation(),
             proof,
             self.attempts.len(),
-            decision,
+            &decision,
             cause,
         );
         match decision {
@@ -149,7 +150,6 @@ impl Supervision {
 
     /// The action for a Worker proven gone while no stop is admitted.
     fn decide(&self, owners: &Owners, lost: WorkerPlacement, cause: Cause) -> Decision {
-        let presence = owners.session_record.host_presence();
         // A POSIX Host lock that no process holds also reads as gone for a Host that never
         // started; only a binding the lost Worker settled shows that one ran.
         #[cfg(unix)]
@@ -164,25 +164,9 @@ impl Supervision {
             let _ = lost;
             false
         };
-        let target = match presence {
-            Ok(HostPresence::Spawning) => return Decision::Stop(Reason::HostSpawning),
-            Ok(HostPresence::Gone) if never_ran() => AdoptHostTarget::NoHost,
-            // A running Keeper kept the lost Host's programs: the replacement recovers them.
-            Ok(HostPresence::Gone) => match recovery_target(owners) {
-                Some(target) => target,
-                None => return Decision::Stop(Reason::HostGone),
-            },
-            Ok(HostPresence::NotStarted) => AdoptHostTarget::NoHost,
-            Ok(HostPresence::Running(process)) => AdoptHostTarget::Host {
-                process: process.and_then(|(pid, creation)| {
-                    Some(AdoptHostProcess {
-                        process_id: std::num::NonZeroU32::new(pid)?,
-                        creation_time: std::num::NonZeroU64::new(creation)?,
-                    })
-                }),
-                epoch: None,
-            },
-            Ok(HostPresence::Unknown) | Err(_) => return Decision::GiveUp(Reason::HostUnverified),
+        let target = match host_target(owners, never_ran) {
+            Ok(target) => target,
+            Err(decision) => return decision,
         };
         if cause == Cause::Loss && self.attempts.len() >= CAP_ATTEMPTS {
             return Decision::GiveUp(Reason::CapReached);
@@ -213,7 +197,7 @@ impl Supervision {
                 self.attempts.push_back(Instant::now());
             }
             counted = true;
-            let failure = match self.attempt(owners, shutdown, lost, target) {
+            let failure = match self.attempt(owners, shutdown, lost, target.clone()) {
                 Attempt::Adopted => {
                     self.unreplaced = None;
                     return false;
@@ -239,7 +223,7 @@ impl Supervision {
             }
             // A failed recovery leaves its recovery Host running, which the next attempt adopts
             // with the orphans still in the Keeper; a Host gone again is recovered afresh.
-            if !matches!(target, AdoptHostTarget::NoHost) {
+            if !target.is_none() {
                 match retarget(owners) {
                     Some(next) => target = next,
                     None => return true,
@@ -449,38 +433,64 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
     }
 }
 
-/// The recovery target when the Session record names a running Keeper, which only a Windows
-/// Session starts: its recorded identity, with the lost Host's epoch filled in from the bindings.
-fn recovery_target(owners: &Owners) -> Option<AdoptHostTarget> {
+/// The Keeper the Session record names running, which only a Windows Session starts.
+fn running_keeper(owners: &Owners) -> Option<AdoptHostProcess> {
     match owners.session_record.keeper_presence() {
-        Ok(HostPresence::Running(Some((pid, creation)))) => Some(AdoptHostTarget::Recovery {
-            keeper: AdoptHostProcess {
-                process_id: std::num::NonZeroU32::new(pid)?,
-                creation_time: std::num::NonZeroU64::new(creation)?,
-            },
-            epoch: None,
-        }),
+        Ok(HostPresence::Running(Some(process))) => {
+            crate::binding_record::registered_process(process)
+        }
         _ => None,
     }
 }
 
-/// The target for the next attempt after a failed one: the running Host, a recovery target while
-/// the Host is gone and a Keeper runs, or `None` when the Host is gone with nothing
-/// to recover from or cannot be observed, which stops as a gone Host does.
-fn retarget(owners: &Owners) -> Option<AdoptHostTarget> {
-    match owners.session_record.host_presence() {
-        Ok(HostPresence::Running(process)) => Some(AdoptHostTarget::Host {
-            process: process.and_then(|(pid, creation)| {
-                Some(AdoptHostProcess {
-                    process_id: std::num::NonZeroU32::new(pid)?,
-                    creation_time: std::num::NonZeroU64::new(creation)?,
-                })
-            }),
-            epoch: None,
-        }),
-        Ok(HostPresence::Gone) => recovery_target(owners),
-        _ => None,
+/// The Hosts the Session record names now, as one adoption target: each running Host in its slot,
+/// and a recovery for each registered Host that is gone while a Keeper kept its programs, each with
+/// the epoch its Worker recorded. A Host still spawning stops, as a gone Host with no Keeper does,
+/// and one that cannot be observed gives up. `never_ran` answers whether a gone Host in the first
+/// slot never ran, which only a POSIX Host lock leaves open.
+fn host_target(owners: &Owners, never_ran: impl Fn() -> bool) -> Result<AdoptHostTarget, Decision> {
+    let Ok(hosts) = owners.session_record.hosts() else {
+        return Err(Decision::GiveUp(Reason::HostUnverified));
+    };
+    let mut slots = Vec::new();
+    let mut keeper = None;
+    for host in hosts {
+        let kind = match host.presence {
+            HostPresence::NotStarted => continue,
+            HostPresence::Spawning => return Err(Decision::Stop(Reason::HostSpawning)),
+            HostPresence::Unknown => return Err(Decision::GiveUp(Reason::HostUnverified)),
+            HostPresence::Running(process) => AdoptHostKind::Host {
+                process: process.and_then(crate::binding_record::registered_process),
+            },
+            HostPresence::Gone
+                if host.slot == orchbee_local_runtime::HostSlot::FIRST && never_ran() =>
+            {
+                continue;
+            }
+            // A running Keeper kept the lost Host's programs: the replacement recovers them.
+            HostPresence::Gone => {
+                keeper = Some(running_keeper(owners).ok_or(Decision::Stop(Reason::HostGone))?);
+                AdoptHostKind::Recovery
+            }
+        };
+        slots.push(AdoptHostSlot {
+            slot: host.slot.index(),
+            kind,
+            epoch: host
+                .epoch
+                .and_then(|epoch| HostEpoch::from_bytes(epoch).ok()),
+        });
     }
+    AdoptHostTarget::new(slots, keeper).map_err(|_| Decision::GiveUp(Reason::HostUnverified))
+}
+
+/// The target for the next attempt after a failed one: the running Hosts and a recovery for each
+/// gone one while a Keeper runs, or `None` when no Host is left, one is gone with nothing to
+/// recover from, or one cannot be observed, which stops as a gone Host does.
+fn retarget(owners: &Owners) -> Option<AdoptHostTarget> {
+    host_target(owners, || false)
+        .ok()
+        .filter(|target| !target.is_none())
 }
 
 /// Sends the replacement its `AdoptHost` pages, its first requests, and reads the last page's
@@ -495,26 +505,37 @@ fn adopt(
     let Ok(bindings) = owners.terminals.adoption_bindings(lost) else {
         return Adoption::Failed("unavailable", Class::Retry);
     };
-    // A target that names no Host carries no binding, and a Host target names the epoch its
-    // bindings share as they stand now.
-    let (target, bindings) = match target {
-        AdoptHostTarget::NoHost => (target, Vec::new()),
-        AdoptHostTarget::Host { process, .. } => (
-            AdoptHostTarget::Host {
-                process,
-                epoch: shared_epoch(&bindings),
-            },
-            bindings,
-        ),
-        AdoptHostTarget::Recovery { keeper, .. } => (
-            AdoptHostTarget::Recovery {
-                keeper,
-                epoch: shared_epoch(&bindings),
-            },
-            bindings,
-        ),
-    };
+    let (target, bindings) = adoptable(target, bindings);
     send_pages(handle, target, bindings, || shutdown.ending())
+}
+
+/// What an adoption of `target` sends of `bindings`. A target that names no Host carries no
+/// binding. A lone slot whose Worker recorded no epoch names the epoch its bindings share as they
+/// stand now; once every slot names one, a binding of an epoch no slot serves runs in no Host and
+/// is left out.
+fn adoptable(
+    target: AdoptHostTarget,
+    mut bindings: Vec<AdoptBinding>,
+) -> (AdoptHostTarget, Vec<AdoptBinding>) {
+    if target.is_none() {
+        return (target, Vec::new());
+    }
+    let target = match target.slots() {
+        [slot] if slot.epoch.is_none() => AdoptHostTarget::new(
+            vec![AdoptHostSlot {
+                epoch: shared_epoch(&bindings),
+                ..*slot
+            }],
+            target.keeper(),
+        )
+        .unwrap_or(target),
+        _ => target,
+    };
+    let epochs: Option<Vec<HostEpoch>> = target.slots().iter().map(|slot| slot.epoch).collect();
+    if let Some(epochs) = epochs {
+        bindings.retain(|binding| epochs.contains(&binding.identity.host_epoch()));
+    }
+    (target, bindings)
 }
 
 /// Sends the adopting Worker `handle` its `AdoptHost` pages for `bindings` and `target`, its first
@@ -552,7 +573,7 @@ pub(super) fn send_pages(
             worker_generation: WorkerGeneration::new(handle.generation()),
             page: AdoptHostPage { index, last },
         };
-        let Ok(request) = AdoptHostRequest::new(key, target, page.to_vec()) else {
+        let Ok(request) = AdoptHostRequest::new(key, target.clone(), page.to_vec()) else {
             return Adoption::Failed("unavailable", Class::Retry);
         };
         let outcome = match handle.request(WorkerOperationRequest::AdoptHost(request)) {
@@ -665,7 +686,7 @@ fn give_up(owners: &Owners) {
 }
 
 /// The Host epoch every binding names, when they agree.
-fn shared_epoch(bindings: &[AdoptBinding]) -> Option<orchbee_capability_node_protocol::HostEpoch> {
+fn shared_epoch(bindings: &[AdoptBinding]) -> Option<HostEpoch> {
     let epoch = bindings.first()?.identity.host_epoch();
     bindings
         .iter()
@@ -700,7 +721,7 @@ enum Reason {
     CapReached,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 enum Decision {
     Replace(AdoptHostTarget),
     Stop(Reason),
@@ -789,7 +810,7 @@ fn lost_record(
     generation: std::num::NonZeroU64,
     proof: Proof,
     attempts: usize,
-    decision: Decision,
+    decision: &Decision,
     cause: Cause,
 ) {
     let mut fields: Vec<LogField> = Vec::with_capacity(7);
@@ -820,8 +841,8 @@ fn lost_record(
     fields.push(("attempts", LogValue::Count(attempts as u64)));
     let (action, reason) = match decision {
         Decision::Replace(_) => ("replace", None),
-        Decision::Stop(reason) => ("stop", Some(reason)),
-        Decision::GiveUp(reason) => ("give-up", Some(reason)),
+        Decision::Stop(reason) => ("stop", Some(*reason)),
+        Decision::GiveUp(reason) => ("give-up", Some(*reason)),
     };
     fields.push(("action", LogValue::Token(action)));
     if let Some(reason) = reason {

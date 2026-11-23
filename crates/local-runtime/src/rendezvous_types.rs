@@ -7,6 +7,35 @@ use crate::{AdmissionRefusal, RefusalReason};
 use nix::sys::stat::SFlag;
 use std::{error::Error, fmt, path::PathBuf};
 const ACTIVATION_LOCK_NAME: &str = "activation.lock";
+
+/// The most Terminal Hosts one Session runs at once: its Worker's own Host, and older ones the
+/// Worker still serves until they hold nothing.
+pub const MAXIMUM_HOSTS: usize = 4;
+
+/// One of a Session's Host slots. Each slot has its own registration, endpoint and runtime folder;
+/// the first keeps the names a Session's one Host had before several could run, so a Host
+/// released earlier runs in it. Only a Windows Session uses a slot other than the first.
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct HostSlot(u8);
+
+impl HostSlot {
+    /// The slot of a Session's only Host before several could run.
+    pub const FIRST: Self = Self(0);
+    /// Every slot, in order.
+    pub const ALL: [Self; MAXIMUM_HOSTS] = [Self(0), Self(1), Self(2), Self(3)];
+
+    /// The slot numbered `index`, when there is one.
+    #[must_use]
+    pub fn new(index: u8) -> Option<Self> {
+        (usize::from(index) < MAXIMUM_HOSTS).then_some(Self(index))
+    }
+
+    /// The slot's number, from 0.
+    #[must_use]
+    pub const fn index(self) -> u8 {
+        self.0
+    }
+}
 const SESSION_LIFETIME_LOCK_NAME: &str = "session-lifetime.lock";
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SessionScope(String);

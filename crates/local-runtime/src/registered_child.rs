@@ -7,10 +7,12 @@ pub enum SessionChild {
     /// handle proved the recorded Worker gone or a failed replacement left no process; the Host keeps
     /// its registration, and a Host still spawning refuses the start.
     ReplacementWorker,
-    Host,
-    /// A Host that takes the place of the recorded Host once that Host is proven gone, so the
-    /// programs the Keeper kept can be recovered into it. Only the recorded Worker starts it.
-    RecoveryHost,
+    /// A Host in a slot not started in this generation.
+    Host(crate::HostSlot),
+    /// A Host that takes the place of the Host recorded in its slot once that Host is proven gone,
+    /// so the programs the Keeper kept can be recovered into it. Only the recorded Worker starts
+    /// it.
+    RecoveryHost(crate::HostSlot),
     /// The Session's Keeper, which only the recorded Worker starts: the first one, or one that
     /// replaces a Keeper proven gone.
     Keeper,
@@ -46,7 +48,7 @@ impl SessionChildStep {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::spawn_session_child;
+pub use windows::{record_session_host_epoch, spawn_session_child};
 #[cfg(windows)]
 pub(crate) use windows::{spawn_registered, spawn_registered_with};
 #[cfg(not(windows))]

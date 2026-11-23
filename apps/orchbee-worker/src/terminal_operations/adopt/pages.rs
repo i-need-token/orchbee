@@ -4,7 +4,7 @@
 use std::{collections::BTreeSet, num::NonZeroU64};
 
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptHostRequest, AdoptHostTarget, HostCreationId, HostTerminalId,
+    AdoptBinding, AdoptHostRequest, AdoptHostTarget, HostCreationId, HostEpoch, HostTerminalId,
     MAXIMUM_ADOPT_HOST_BINDINGS, OperationId, TerminalId,
 };
 use orchbee_local_worker_protocol::WorkerId;
@@ -21,8 +21,8 @@ struct Pending {
     next: u16,
     bindings: Vec<AdoptBinding>,
     terminals: BTreeSet<TerminalId>,
-    hosted: BTreeSet<HostTerminalId>,
-    creations: BTreeSet<HostCreationId>,
+    hosted: BTreeSet<(HostEpoch, HostTerminalId)>,
+    creations: BTreeSet<(HostEpoch, HostCreationId)>,
 }
 
 /// A page that continued its adoption.
@@ -43,7 +43,7 @@ impl Pages {
     /// Takes one page. Page 0 begins a new adoption, discarding one in progress; every later page
     /// must name the same adoption and target with the next index. Every page must name this
     /// Worker and generation, and all pages together stay within [`MAXIMUM_ADOPT_HOST_BINDINGS`]
-    /// without naming a terminal, Host terminal or creation twice.
+    /// without naming a terminal twice, or a Host terminal or creation of one epoch twice.
     pub(super) fn accept(
         &mut self,
         request: AdoptHostRequest,
@@ -64,7 +64,7 @@ impl Pages {
         if key.page.index == 0 {
             let fresh = Pending {
                 adoption_id: key.adoption_id,
-                target: request.target(),
+                target: request.target().clone(),
                 next: 0,
                 bindings: Vec::new(),
                 terminals: BTreeSet::new(),
@@ -77,7 +77,7 @@ impl Pages {
             self.pending = Some(fresh);
         } else if !self.pending.as_ref().is_some_and(|pending| {
             pending.adoption_id == key.adoption_id
-                && pending.target == request.target()
+                && pending.target == *request.target()
                 && pending.next == key.page.index
                 && pending.admits(request.bindings())
         }) {
@@ -87,9 +87,14 @@ impl Pages {
             return Err(Refused);
         };
         for binding in request.bindings() {
+            let epoch = binding.identity.host_epoch();
             pending.terminals.insert(binding.terminal_id);
-            pending.hosted.insert(binding.identity.terminal_id());
-            pending.creations.insert(binding.identity.creation_id());
+            pending
+                .hosted
+                .insert((epoch, binding.identity.terminal_id()));
+            pending
+                .creations
+                .insert((epoch, binding.identity.creation_id()));
         }
         pending.bindings.extend_from_slice(request.bindings());
         match next {
@@ -98,7 +103,7 @@ impl Pages {
                 Ok(Accepted::Page)
             }
             None => {
-                let target = pending.target;
+                let target = std::mem::take(&mut pending.target);
                 let bindings = std::mem::take(&mut pending.bindings);
                 self.pending = None;
                 Ok(Accepted::Complete { target, bindings })
@@ -111,9 +116,14 @@ impl Pending {
     fn admits(&self, bindings: &[AdoptBinding]) -> bool {
         self.bindings.len().saturating_add(bindings.len()) <= MAXIMUM_ADOPT_HOST_BINDINGS
             && bindings.iter().all(|binding| {
+                let epoch = binding.identity.host_epoch();
                 !self.terminals.contains(&binding.terminal_id)
-                    && !self.hosted.contains(&binding.identity.terminal_id())
-                    && !self.creations.contains(&binding.identity.creation_id())
+                    && !self
+                        .hosted
+                        .contains(&(epoch, binding.identity.terminal_id()))
+                    && !self
+                        .creations
+                        .contains(&(epoch, binding.identity.creation_id()))
             })
     }
 }

@@ -45,8 +45,8 @@ pub fn spawn_session_child(
     let reservation = match child {
         SessionChild::Worker => Reservation::Fresh(ProcessRole::Worker),
         SessionChild::ReplacementWorker => Reservation::ReplacementWorker,
-        SessionChild::Host => Reservation::Fresh(ProcessRole::Host),
-        SessionChild::RecoveryHost => Reservation::RecoveryHost,
+        SessionChild::Host(slot) => Reservation::Fresh(ProcessRole::Host(slot)),
+        SessionChild::RecoveryHost(slot) => Reservation::RecoveryHost(slot),
         SessionChild::Keeper => Reservation::Keeper,
     };
     spawn_reserved_with(
@@ -61,6 +61,59 @@ pub fn spawn_session_child(
     .map(|(child, ())| child)
 }
 
+/// Writes `epoch`, the one the Host in `slot` answered with, into the Active record of the Session
+/// whose runtime folder is `runtime`, while that slot still names `process` (its ID and creation
+/// time). The Worker that started or adopted the Host writes it once connected, so the Server can
+/// pair the Host with the terminals whose identities carry the epoch.
+pub fn record_session_host_epoch(
+    root: &DataRoot,
+    runtime: &Path,
+    slot: crate::HostSlot,
+    process: (u32, u64),
+    epoch: [u8; 16],
+    deadline: Instant,
+) -> io::Result<()> {
+    let identity = crate::process_registration::ProcessIdentity::new(process.0, process.1)
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    let _runtime = permissions::open_tree(runtime)?;
+    let scope = runtime
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    let directory = Directory::open(root)?.ok_or(io::ErrorKind::NotFound)?;
+    let _writer = loop {
+        if Instant::now() >= deadline {
+            return Err(io::ErrorKind::TimedOut.into());
+        }
+        match directory.try_writer(scope) {
+            Ok(writer) => break writer,
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => thread::sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(Duration::from_millis(10)),
+            ),
+            Err(error) => return Err(error),
+        }
+    };
+    let mut record = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
+    if record.lifecycle != Lifecycle::Active || !record.uses_runtime(runtime) {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    if record
+        .processes
+        .registration(ProcessRole::Host(slot))
+        .epoch()
+        == Some(epoch)
+    {
+        return Ok(());
+    }
+    record
+        .processes
+        .record_host_epoch(slot, identity, epoch)
+        .map_err(|_| io::ErrorKind::InvalidData)?;
+    directory.publish(scope, &record)
+}
+
 /// How a registered child's slot is reserved before its creation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Reservation {
@@ -68,8 +121,8 @@ enum Reservation {
     Fresh(ProcessRole),
     /// The Worker slot, returned to spawning for a replacement of a Worker proven gone.
     ReplacementWorker,
-    /// The Host slot, returned to spawning for a recovery Host once the recorded Host is gone.
-    RecoveryHost,
+    /// A Host slot, returned to spawning for a recovery Host once the Host recorded there is gone.
+    RecoveryHost(crate::HostSlot),
     /// The Keeper slot, for the first Keeper or one that replaces a Keeper proven gone.
     Keeper,
 }
@@ -79,7 +132,7 @@ impl Reservation {
         match self {
             Self::Fresh(role) => role,
             Self::ReplacementWorker => ProcessRole::Worker,
-            Self::RecoveryHost => ProcessRole::Host,
+            Self::RecoveryHost(slot) => ProcessRole::Host(slot),
             Self::Keeper => ProcessRole::Keeper,
         }
     }
@@ -166,7 +219,7 @@ fn spawn_reserved_with<T>(
         }
         let creator = match role {
             ProcessRole::Server => Creator::Activator,
-            ProcessRole::Worker | ProcessRole::Host | ProcessRole::Keeper => {
+            ProcessRole::Worker | ProcessRole::Host(_) | ProcessRole::Keeper => {
                 Creator::Process(process_observation::current_identity()?)
             }
         };
@@ -174,12 +227,12 @@ fn spawn_reserved_with<T>(
             Reservation::Fresh(role) => record.processes.reserve(role, creator),
             Reservation::ReplacementWorker => record.processes.reserve_replacement_worker(creator),
             // Under the writer lock, so the Host observed gone stays the recorded one.
-            Reservation::RecoveryHost
-                if process_observation::role_absent(&record.processes, ProcessRole::Host) =>
+            Reservation::RecoveryHost(slot)
+                if process_observation::role_absent(&record.processes, ProcessRole::Host(slot)) =>
             {
-                record.processes.reserve_recovery_host(creator)
+                record.processes.reserve_recovery_host(slot, creator)
             }
-            Reservation::RecoveryHost => return Err(io::ErrorKind::ResourceBusy.into()),
+            Reservation::RecoveryHost(_) => return Err(io::ErrorKind::ResourceBusy.into()),
             Reservation::Keeper
                 if process_observation::role_absent(&record.processes, ProcessRole::Keeper) =>
             {

@@ -615,26 +615,28 @@ Worker still ends its connection on a whole frame it cannot decode.
 ## AdoptHost messages
 
 Kind 40 `AdoptHostRequest` and kind 41 `AdoptHostResult` carry a replacement Worker's adoption of
-the Session's running Terminal Host under frame version 1 and the 40 KiB bound, with no capability
+the Session's running Terminal Hosts under frame version 1 and the 40 KiB bound, with no capability
 name. All integers are unsigned big-endian, IDs are nonzero 16-byte values, and every option or
 flag byte is `0` or `1`.
 
 An adoption is one or more pages, each its own request answered before the next is sent; the
 Worker applies them together only after the last. A page's body after its kind is the adoption ID
 (16), Worker ID (16), positive Worker generation (`u64`), the Host target, page index (`u16`, from
-0), last flag, binding count (`u16`, 0 through 256) and the bindings. The target tag is 1 NoHost,
-2 Host or 3 Recovery; Host adds the registered process (option: nonzero PID `u32`, nonzero creation
-time `u64`) and the Host epoch (option: 16), and Recovery, for a Host that ended while the Keeper
-kept its programs, adds the registered Keeper (nonzero PID `u32`, nonzero creation time `u64`) and
-the lost Host's epoch (option: 16). A binding is its product Terminal ID (16), Host creation, epoch and
+0), last flag, binding count (`u16`, 0 through 256) and the bindings. The target is a slot count
+(`u8`, 0 through 4; 0 when no Host was started), each slot, and the registered Keeper (option:
+nonzero PID `u32`, nonzero creation time `u64`), present exactly when a slot is a recovery. A slot
+is its number (`u8`, 0 through 3, each named once), a tag, 1 Host with the registered process
+(option: nonzero PID `u32`, nonzero creation time `u64`) or 2 Recovery for a Host that ended while
+the Keeper kept its programs, and the Host's or the lost Host's epoch (option: 16; two slots never
+name one). A binding is its product Terminal ID (16), Host creation, epoch and
 terminal IDs (16 each), state (`u8`: 1 awaiting start, 2 started), the highest fence the Server
 issued (positive `u64`), and an optional Close in flight: Close operation ID (16), highest attempt
 generation (positive `u64`), step ordinal (`u8`, 1 through 32) and an effect-unknown flag. A page
-is at most 25,677 payload bytes.
+is at most 25,776 payload bytes.
 
-Construction and decoding refuse bindings under NoHost, a binding whose epoch differs from a
-present target epoch, and two bindings in one page naming one product terminal, Host terminal or
-creation. Agreement between the pages of one adoption, their order, their total of at most 1,024
+Construction and decoding refuse bindings with no slot, a binding whose epoch is none of the slots'
+when every slot names one, and two bindings in one page naming one product terminal, or one Host
+terminal or creation of one epoch. Agreement between the pages of one adoption, their order, their total of at most 1,024
 bindings (the generation-local binding bound) and duplicates across pages are the Worker's checks.
 
 A result echoes the adoption ID, Worker ID, generation, page index and last flag, then an outcome

@@ -854,7 +854,12 @@ fn a_restart_commits_only_the_entry_it_reserved() {
         .unwrap();
     let registered = |role| record.processes.registration(role).identity();
     assert_eq!(
-        [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host].map(registered),
+        [
+            ProcessRole::Server,
+            ProcessRole::Worker,
+            ProcessRole::Host(crate::HostSlot::FIRST)
+        ]
+        .map(registered),
         [Some(server), Some(worker), Some(identity(13))]
     );
     assert_eq!(record.activation_id, Some(activation));

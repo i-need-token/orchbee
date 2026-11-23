@@ -268,11 +268,16 @@ fn a_child_slot_an_ended_attempt_left_spawning_never_blocks_recovery() {
             if case != "spawning-worker" {
                 processes.identify(ProcessRole::Worker, worker).unwrap();
                 processes
-                    .reserve(ProcessRole::Host, Creator::Process(worker))
+                    .reserve(
+                        ProcessRole::Host(crate::HostSlot::FIRST),
+                        Creator::Process(worker),
+                    )
                     .unwrap();
             }
             if case == "spawning-replacement" {
-                processes.identify(ProcessRole::Host, host).unwrap();
+                processes
+                    .identify(ProcessRole::Host(crate::HostSlot::FIRST), host)
+                    .unwrap();
                 processes
                     .reserve_replacement_worker(Creator::Process(server))
                     .unwrap();
@@ -323,11 +328,14 @@ fn exact_live_registration_refuses_without_publication() {
                     .unwrap();
                 processes.identify(ProcessRole::Worker, worker).unwrap();
                 processes
-                    .reserve(ProcessRole::Host, Creator::Process(worker))
+                    .reserve(
+                        ProcessRole::Host(crate::HostSlot::FIRST),
+                        Creator::Process(worker),
+                    )
                     .unwrap();
                 processes
                     .identify(
-                        ProcessRole::Host,
+                        ProcessRole::Host(crate::HostSlot::FIRST),
                         crate::process_observation::current_identity().unwrap(),
                     )
                     .unwrap();
@@ -409,9 +417,14 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
                 .unwrap();
             processes.identify(ProcessRole::Worker, worker).unwrap();
             processes
-                .reserve(ProcessRole::Host, Creator::Process(worker))
+                .reserve(
+                    ProcessRole::Host(crate::HostSlot::FIRST),
+                    Creator::Process(worker),
+                )
                 .unwrap();
-            processes.identify(ProcessRole::Host, host).unwrap();
+            processes
+                .identify(ProcessRole::Host(crate::HostSlot::FIRST), host)
+                .unwrap();
         }
         directory.publish(&scope, &record).unwrap();
         let named = if case == "this-host" {
@@ -455,7 +468,13 @@ fn a_live_host_is_kept_for_adoption_only_when_the_binding_record_names_it() {
         assert_eq!(next.activation_id, Some([2; 16]));
         assert_eq!(
             next.processes,
-            crate::process_registration::SessionProcesses::adopting(host)
+            crate::process_registration::SessionProcesses::adopting(&[
+                crate::process_registration::KeptHost {
+                    slot: crate::HostSlot::FIRST,
+                    identity: host,
+                    epoch: None,
+                }
+            ])
         );
     }
 }
@@ -577,7 +596,7 @@ fn clean_stop_preserves_children_registered_after_the_server_retained_its_genera
             ProcessIdentity::new(12, 20).unwrap(),
         ),
         (
-            ProcessRole::Host,
+            ProcessRole::Host(crate::HostSlot::FIRST),
             Creator::Process(ProcessIdentity::new(12, 20).unwrap()),
             ProcessIdentity::new(16, 30).unwrap(),
         ),

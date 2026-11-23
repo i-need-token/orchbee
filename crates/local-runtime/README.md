@@ -689,10 +689,13 @@ clean-stop publication. `spawn_server` requires the catalog and matching activat
 `CREATE_BREAKAWAY_FROM_JOB`, or inside the activator's Job when that Job refuses, and answers
 which as `JobPlacement`; the remote link helper uses it so a Session outlives the `ssh`
 connection's Job. `spawn_session_child` requires the exact registered direct parent for Worker,
-Host or Keeper. The recorded Worker alone starts a Keeper, the first or one that replaces a
-Keeper observed gone, and a recovery Host, which takes the Host slot only once the recorded Host
-is observed gone under the record's writer lock; a record writes its Keeper slot only once one is
-reserved. Each
+Host or Keeper. A Session has four Host slots, `host` and `host1` to `host3`, and a Host starts into
+a slot no Host holds; a record writes a slot past the first, or its Keeper slot, only once one is
+reserved. The recorded Worker alone starts a Keeper, the first or one that replaces a Keeper
+observed gone, and a recovery Host, which takes a Host's slot only once the Host recorded there is
+observed gone under the record's writer lock. `record_session_host_epoch` writes the epoch a Host
+answered with into its slot while the slot still names that process, so a Server pairs each Host
+with the terminals that carry its epoch. Each
 child is created suspended and released only after its identity is flushed. A failed start's I/O
 error keeps the failed operation's kind and operating-system code and names its step,
 `SessionChildStep::of`: registration, creation or release. Explicit confirmed
@@ -943,7 +946,9 @@ its connection even while a terminal it started lives on.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private
-`host` directory and binds its endpoint in the socket folder.
+`host` directory and binds its endpoint in the socket folder. On Windows a Host in a later slot
+keeps its records in `host-<n>` and serves its own pipe, whose name hashes the runtime folder with
+the slot.
 Invalid authorization produces the existing typed result without a Host. The admitted dispatch
 and kernel survive Host startup; the Host handoff revalidates authorization. The absolute Host
 endpoint address is checked against the platform socket-address ABI before the `host` directory
@@ -1157,11 +1162,12 @@ policy, retry, or grant recovery authority.
 unreaped child by `SIGKILL`, and confirms its exit before a cooperative deadline. It does not
 terminate descendants. Managed startup uses it before the Worker can create a Host, and the
 Server's Worker supervision to prove a lost Worker gone and to end a replacement that will not
-serve; later cleanup belongs to the Worker shutdown protocol. `RetainedSessionRecord::host_presence`
-reports the current generation's Host for that supervision: on Windows not started, spawning, gone,
-running with its registered process ID and creation time, or unknown, where a live process with the
-registered ID but another creation time is gone; on POSIX running while a process holds the Host
-lock, and gone otherwise. It grants no termination authority.
+serve; later cleanup belongs to the Worker shutdown protocol. `RetainedSessionRecord::hosts`
+reports each of the current generation's Host slots for that supervision, with the epoch its Worker
+recorded: on Windows not started, spawning, gone, running with its registered process ID and
+creation time, or unknown, where a live process with the registered ID but another creation time is
+gone; on POSIX the first slot runs while a process holds the Host lock and is gone otherwise, and
+the others never start. It grants no termination authority.
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in
 the handshake's `query` reply.

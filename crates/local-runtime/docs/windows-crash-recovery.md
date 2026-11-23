@@ -151,17 +151,18 @@ generation's record starts without the entry, so no successor can commit onto it
 
 ## Cold adoption
 
-A generation whose Server and Worker are proven gone while its registered Host still runs is
-recovered only when the Session's binding record names that Host: `bindings.json` reads as version
-1 with exactly one Host entry whose process ID and creation time equal the registration. Recovery
+A generation whose Server and Worker are proven gone while registered Hosts still run is recovered
+only when the Session's binding record names each of them: `bindings.json` reads as version 1 with
+a Host entry whose process ID and creation time equal each running Host's registration. Recovery
 reads only those members, under the storage guard, and leaves the rest of the record to the
-Server. The fresh generation then keeps the Host's Identified registration with Server and Worker
-NotStarted, its Host endpoint need not be absent, and its Server adopts the Host from the record
-([cold adoption](../../../apps/orchbee-server/README.md#cold-adoption)); the Host's epoch is not
-registered, so that adoption checks it. Without such a record the live Host blocks recovery as
-before, and the refusal names it. `begin_activation` keeps the Host only from a Crashed predecessor
-whose Host it observes running: a Host gone, NotStarted or Spawning starts a generation without
-one, and an unknown observation refuses. An adopting generation keeps its predecessor's receipt
+Server. The fresh generation then keeps each running Host's Identified registration in its slot,
+with the epoch its Worker recorded, and Server and Worker NotStarted; those Hosts' endpoints need
+not be absent, and its Server adopts them from the record
+([cold adoption](../../../apps/orchbee-server/README.md#cold-adoption)), which checks each epoch
+again. Without such a record the live Hosts block recovery as before, and the refusal names them.
+`begin_activation` keeps only the Hosts of a Crashed predecessor it observes running: a slot whose
+Host is gone, NotStarted or Spawning starts the generation without it, and an unknown observation
+refuses. An adopting generation keeps its predecessor's receipt
 across an interrupted activation as an unstarted one does, since it created no process. A reader
 that predates the rule refuses the adopting record as malformed.
 

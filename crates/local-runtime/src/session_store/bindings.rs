@@ -57,15 +57,15 @@ impl SessionStore {
     }
 }
 
-/// Whether the binding record in the Session folder `folder` names `host` as its one Host: version
-/// 1 with a single Host entry whose process is `host`. Recovery reads only this much to decide
-/// whether the next generation may adopt that Host; the adopting Server reads the whole record and
-/// checks it again. A missing, unreadable or larger record names no Host. It reads like
+/// Whether the binding record in the Session folder `folder` names each of `hosts`: version 1 with
+/// a Host entry whose process is each one's. Recovery reads only this much to decide whether the
+/// next generation may adopt those Hosts; the adopting Server reads the whole record and checks it
+/// again. A missing, unreadable or larger record names no Host. It reads like
 /// [`read_session_bindings`], without the store.
 #[cfg(windows)]
-pub(crate) fn names_host(
+pub(crate) fn names_hosts(
     folder: &std::path::Path,
-    host: crate::process_registration::ProcessIdentity,
+    hosts: &[crate::process_registration::KeptHost],
 ) -> bool {
     #[derive(serde::Deserialize)]
     struct Header {
@@ -89,20 +89,15 @@ pub(crate) fn names_host(
     let Ok(header) = serde_json::from_slice::<Header>(&bytes) else {
         return false;
     };
-    match header.hosts.as_slice() {
-        [
-            HostEntry {
-                process: Some(process),
-            },
-        ] => {
-            header.version == 1
-                && crate::process_registration::ProcessIdentity::new(
-                    process.pid,
-                    process.creation_time,
-                ) == Some(host)
-        }
-        _ => false,
-    }
+    let named: Vec<_> = header
+        .hosts
+        .iter()
+        .filter_map(|entry| entry.process.as_ref())
+        .filter_map(|process| {
+            crate::process_registration::ProcessIdentity::new(process.pid, process.creation_time)
+        })
+        .collect();
+    header.version == 1 && hosts.iter().all(|host| named.contains(&host.identity))
 }
 
 /// The binding record of the Session whose runtime `session` admitted, read without its store: it

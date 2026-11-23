@@ -9,5 +9,5 @@ mod windows;
 pub(crate) use unix::ProcessSnapshot;
 #[cfg(windows)]
 pub(crate) use windows::{
-    ProcessSnapshot, current_identity, host_presence, identity, observe, presence, role_absent,
+    ProcessSnapshot, current_identity, identity, observe, presence, role_absent,
 };

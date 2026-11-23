@@ -31,7 +31,8 @@ its first Host attached it, `keeper-replaced` when one that ended or stopped ans
 and `keeper-failed` for a step that failed, with `error`, `osError` and `step` (`start`, `attach`,
 `adopt`, `replace`, `discard`, `hold` when the Host runs a terminal its Keeper does not hold, or
 `end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
-Worker ended it.
+Worker ended it. `host-epoch-unrecorded` records, with `error`, a Host epoch the Session record did
+not take.
 
 A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
@@ -238,8 +239,8 @@ registers with that Server-minted ID on every platform and serves only
 `WorkerShutdownRequest` until its adoption completes; every other request is declined with cause
 `unavailable`, and it never ends itself while it waits. Page 0 begins an adoption, discarding one in
 progress; each later page must name the same adoption ID and target with the next index, and all
-pages together hold at most 1,024 bindings without naming a terminal, Host terminal or creation
-twice. A page that breaks this is declined as `adopt-host` with cause `unavailable` and leaves the
+pages together hold at most 1,024 bindings without naming a terminal twice, or a Host terminal or
+creation of one epoch twice. A page that breaks this is declined as `adopt-host` with cause `unavailable` and leaves the
 pages before it unchanged; a page before the last is answered `PageAccepted`. Without `--worker-id`
 nothing changes. On Windows a trailing `--ticket <32 lowercase hex digits>` names the Server that
 started this Worker as the successor of a
@@ -249,8 +250,10 @@ Server still serves.
 
 The last page is answered within 18 seconds of its arrival, inside the Server's 20-second window:
 
-- `NoHost` is answered `Adopted` with no counts, and the Worker continues in the lazy loop above.
-- For a Host, Windows opens the recorded process by ID, requires it alive with the recorded creation
+- A target with no slot is answered `Adopted` with no counts, and the Worker continues in the lazy
+  loop above. This Worker adopts one slot: a target with several is `host-refused`, as is one naming
+  a slot other than the first on macOS and Linux.
+- For a Host, the Worker dials the endpoint of its slot. Windows opens the recorded process by ID, requires it alive with the recorded creation
   time, keeps its handle, and after the dial requires the pipe's server process to be that process.
   macOS and Linux require the Host lock held, the endpoint to be a socket of this user with mode
   0600, and the peer's effective user to be this user; a recorded process ID is never trusted there.
@@ -267,9 +270,9 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   it is never attached, sent input, named in a title or drained, and a Start naming it is refused.
   A binding the inventory lacks or contradicts is reported missing.
 
-A `Recovery` target names the Session's Keeper, which kept the programs of a Host that ended. The
-Worker adopts that Keeper, requiring the recorded process ID and creation time, starts a recovery
-Host in the Host's slot that serves the lost epoch, the one the target names or else the one the
+A `Recovery` slot comes with the Session's Keeper, which kept the programs of the Host that ended
+there. The Worker adopts that Keeper, requiring the recorded process ID and creation time, starts a
+recovery Host in that slot that serves the lost epoch, the one the target names or else the one the
 bindings name, registers it with the Keeper and has it attach the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
 assigned to the recovery Host under a mark derived from the holding and that Host, so a retry assigns
 it again without effect; `RecoverTerminal` restores it at 80 by 24 cells with the system's display
@@ -283,6 +286,9 @@ names a live Keeper adopts the Keeper too and recovers the orphans of that Host'
 before its inventory is read again; a Keeper that cannot be adopted leaves the terminals unheld and
 the adoption going on. Once an import succeeded, each orphan of the Host's epoch that no binding
 names is discarded, which ends its program.
+
+On Windows, once a Worker reached a Host it started or adopted, it writes the Host's epoch into that
+slot of the Session record; a failed write changes nothing else.
 
 After `Adopted` the Worker serves the admitted loop with the imported kernel. Its stop still
 inventories, forces and disposes every Host terminal, then waits for the adopted Host to exit: on

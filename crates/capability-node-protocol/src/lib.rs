@@ -4,9 +4,10 @@
 
 mod adopt_host;
 pub use adopt_host::{
-    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostOutcome,
-    AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostResult,
-    AdoptHostTarget, MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS,
+    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
+    AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, MAXIMUM_ADOPT_HOST_BINDINGS,
+    MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_ADOPT_HOST_SLOTS,
 };
 mod agent_drain;
 mod agent_integration_job;

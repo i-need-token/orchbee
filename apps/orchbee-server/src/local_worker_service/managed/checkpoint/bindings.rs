@@ -5,16 +5,15 @@
 //! removed, so no reader adopts from one that no longer describes the Session.
 
 use crate::{
-    binding_record::{self, BindingRecord, SessionHost},
+    binding_record::{self, BindingRecord, RunningHost},
     local_terminal_service::LocalTerminalService,
     session_coordinator::BindingObservation,
 };
-use orchbee_capability_node_protocol::AdoptHostProcess;
+use orchbee_capability_node_protocol::HostEpoch;
 use orchbee_local_runtime::{HostPresence, RetainedSessionRecord, SessionStore};
 use orchbee_workbench_protocol::WorkerId;
 use std::{
     io,
-    num::{NonZeroU32, NonZeroU64},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -155,22 +154,26 @@ impl Writer {
     }
 
     fn write(&mut self, terminals: &LocalTerminalService, worker: &WorkerId) -> Wrote {
-        let host = match self.session.host_presence() {
-            Ok(HostPresence::NotStarted | HostPresence::Gone) => SessionHost::Absent,
-            Ok(HostPresence::Running(process)) => {
-                SessionHost::Running(process.and_then(|(pid, creation)| {
-                    Some(AdoptHostProcess {
-                        process_id: NonZeroU32::new(pid)?,
-                        creation_time: NonZeroU64::new(creation)?,
-                    })
-                }))
-            }
-            Ok(HostPresence::Spawning | HostPresence::Unknown) => return Wrote::Deferred,
+        let slots = match self.session.hosts() {
+            Ok(slots) => slots,
             Err(error) => {
                 self.report("host", &error);
                 return Wrote::Deferred;
             }
         };
+        let mut hosts = Vec::new();
+        for slot in slots {
+            match slot.presence {
+                HostPresence::NotStarted | HostPresence::Gone => {}
+                HostPresence::Running(process) => hosts.push(RunningHost {
+                    process: process.and_then(binding_record::registered_process),
+                    epoch: slot
+                        .epoch
+                        .and_then(|epoch| HostEpoch::from_bytes(epoch).ok()),
+                }),
+                HostPresence::Spawning | HostPresence::Unknown => return Wrote::Deferred,
+            }
+        }
         let activation_id = match self.session.current_activation_id() {
             Ok(activation_id) => activation_id,
             Err(error) => {
@@ -184,9 +187,10 @@ impl Writer {
         };
         self.observed = Some(observation);
         let (record, mixed) =
-            BindingRecord::assemble(activation_id, capture, host, self.extensions.clone());
+            BindingRecord::assemble(activation_id, capture, &hosts, self.extensions.clone());
         if mixed {
-            // One Host never gives its terminals two epochs; the record names none of them.
+            // A Host whose Worker recorded no epoch is paired with its terminals only when they share
+            // one; the record leaves those terminals out.
             eprintln!(
                 "orchbee-server diagnostic component=checkpoint operation=bindings stage=hosts cause=mixed-epochs"
             );

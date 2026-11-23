@@ -313,17 +313,20 @@ action that applies follows:
 | The cap allows no attempt                                  | Give up                           |
 | Otherwise                                                  | Replace the Worker                |
 
-On Windows the retained record observes the Host by its registered process ID and creation time,
-and a Host never started is adopted as no Host. POSIX registers no Host, so a Host lock no process
-holds reads as gone; there the Server stops itself only when the lost Worker held a settled binding,
+On Windows the retained record observes each Host slot by its registered process ID and creation
+time, and `AdoptHost` names each running Host in its slot with the epoch its Worker recorded; a
+Session that never started a Host is adopted as no Host. POSIX registers no Host and runs one, in
+the first slot, so a Host lock no process holds reads as gone; there the Server stops itself only when the lost Worker held a settled binding,
 and otherwise replaces it with no Host. A Host still spawning never ran.
 
 On Windows a Host gone while the record names a running Keeper, which kept that Host's programs, is
-replaced rather than stopped: `AdoptHost` names a Recovery target, the Keeper's recorded process,
+replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,
 and the replacement [recovers those programs](../orchbee-worker/README.md#replacement-adoption) into
-a recovery Host. An attempt after a failed one adopts the Host the record names running, which is
-the recovery Host a failed recovery left, or recovers again while the Host is gone and the Keeper
-runs; with neither, the Server stops itself. POSIX starts no Keeper.
+a recovery Host in that slot. An attempt after a failed one adopts the Hosts the record names
+running, the recovery Host a failed recovery left among them, and recovers again each one gone while
+the Keeper runs; with no Host left, or one gone and no Keeper, the Server stops itself. A lone Host
+whose Worker recorded no epoch is named with the epoch its bindings share, and once every slot names
+an epoch, a binding of an epoch no slot serves is not sent. POSIX starts no Keeper.
 
 The cap allows 3 attempts in any trailing 10 minutes of one Server process, and an attempt counts
 when it starts. Attempts run one at a time, the first at once and each later one a second after the
@@ -358,18 +361,19 @@ them. The supervision never ends a Host or a Keeper.
 ## Cold adoption
 
 On Windows a Server can start for a generation that kept its predecessor's running Terminal Host:
-the Server and Worker ended, by a crash or an `exit`, while the Host kept its terminals. Crash
+the Server and Worker ended, by a crash or an `exit`, while its Hosts kept their terminals. Crash
 recovery admits that generation only when the Session's
-[binding record](docs/workbench-checkpoint.md#binding-record) names the Host, and publishes it with
-the Host's registration and no Server or Worker
+[binding record](docs/workbench-checkpoint.md#binding-record) names each running Host, and
+publishes it with those Hosts' registrations and no Server or Worker
 ([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)).
-The Server learns it at startup from that record: a registered Host it observes running is adopted,
-and one gone, still spawning or not observable fails the start, so the next activation decides
-again.
+The Server learns it at startup from that record: each registered Host it observes running is
+adopted, and one gone, still spawning or not observable fails the start, so the next activation
+decides again.
 
-The Server decodes the whole binding record and requires its one Host entry to name the registered
+The Server decodes the whole binding record and requires an entry naming each registered Host's
 process. It starts its Worker with the record's Session Worker id, admits it as a replacement, and
-before any job sends `AdoptHost` for the recorded Host and epoch, in the pages
+before any job sends `AdoptHost` for the recorded Hosts, each in its slot with its recorded epoch,
+in the pages
 [Worker replacement](#managed-worker-replacement) sends, with each recorded terminal whose
 Presentation the restored Workbench holds. A Close that was in flight is not carried: its Tab stays,
 and a later Close works. Once the last page answers `adopted`, the coordinator imports each
@@ -382,7 +386,7 @@ terminal the Host no longer runs reads unavailable, a terminal the Host runs tha
 not name stays quarantined in the Host, and every other Presentation restores as at any start. The
 binding writer keeps the adopted record's `extensions`.
 
-A start makes one attempt. A record that does not decode or names another Host, or an `AdoptHost`
+A start makes one attempt. A record that does not decode or misses a kept Host, or an `AdoptHost`
 that does not answer `adopted`, fails the start; its Worker then shuts down with its terminals kept,
 never disposed, so the Host keeps every terminal, those a restore launched in that start included,
 and the next activation tries again. `host-adopted` records the attempt.

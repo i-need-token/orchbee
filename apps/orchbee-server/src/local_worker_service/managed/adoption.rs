@@ -1,19 +1,18 @@
-//! Starts a Windows Session generation that kept the Terminal Host its predecessor left running:
-//! its Session record carries that Host's registration and the binding record names it, so the
-//! Worker this Server starts adopts it in the replacement adopt mode before any job is served, and
-//! each Presentation the record names shows its running terminal again. A start that cannot adopt
-//! the Host fails and leaves the Host and its terminals running for the next activation. It records
+//! Starts a Windows Session generation that kept the Terminal Hosts its predecessor left running:
+//! its Session record carries their registrations and the binding record names each, so the Worker
+//! this Server starts adopts them in the replacement adopt mode before any job is served, and each
+//! Presentation the record names shows its running terminal again. A start that cannot adopt the
+//! Hosts fails and leaves them and their terminals running for the next activation. It records
 //! `host-adopted`.
 
 use std::{
     io,
-    num::{NonZeroU32, NonZeroU64},
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
 use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptHostProcess, AdoptHostTarget, TerminalId,
+    AdoptBinding, AdoptHostKind, AdoptHostSlot, AdoptHostTarget, TerminalId,
 };
 use orchbee_local_runtime::{HostPresence, LogField, LogLevel, LogValue, RetainedSessionRecord};
 
@@ -30,8 +29,8 @@ use crate::{
 
 const HOST_ADOPTED: &str = "host-adopted";
 
-/// The running Host a starting generation adopts, as its Session record registered it, and the
-/// binding record that names it.
+/// The running Hosts a starting generation adopts, as its Session record registered them, and the
+/// binding record that names them.
 pub(super) struct Adopting {
     record: BindingRecord,
     target: AdoptHostTarget,
@@ -39,7 +38,7 @@ pub(super) struct Adopting {
 }
 
 impl Adopting {
-    /// The Host this generation adopts: none when its Session record registered no Host, as every
+    /// The Hosts this generation adopts: none when its Session record registered no Host, as every
     /// generation that kept none starts. A kept Host that no longer runs or cannot be observed, or
     /// one the binding record does not name, fails the start.
     pub(super) fn find(
@@ -47,23 +46,27 @@ impl Adopting {
         kept: Option<&Kept>,
     ) -> io::Result<Option<Self>> {
         let started = Instant::now();
-        let process = match session.host_presence()? {
-            HostPresence::NotStarted => return Ok(None),
-            HostPresence::Running(Some((pid, creation))) => NonZeroU32::new(pid)
-                .zip(NonZeroU64::new(creation))
-                .map(|(process_id, creation_time)| AdoptHostProcess {
-                    process_id,
-                    creation_time,
-                }),
-            HostPresence::Running(None)
-            | HostPresence::Spawning
-            | HostPresence::Gone
-            | HostPresence::Unknown => None,
-        };
-        let Some(process) = process else {
-            failed_record("host", started.elapsed());
-            return Err(io::Error::other("the kept Terminal Host is unavailable"));
-        };
+        let mut processes = Vec::new();
+        for host in session.hosts()? {
+            let process = match host.presence {
+                HostPresence::NotStarted => continue,
+                HostPresence::Running(Some(process)) => {
+                    crate::binding_record::registered_process(process)
+                }
+                HostPresence::Running(None)
+                | HostPresence::Spawning
+                | HostPresence::Gone
+                | HostPresence::Unknown => None,
+            };
+            let Some(process) = process else {
+                failed_record("host", started.elapsed());
+                return Err(io::Error::other("a kept Terminal Host is unavailable"));
+            };
+            processes.push((host.slot, process));
+        }
+        if processes.is_empty() {
+            return Ok(None);
+        }
         let record = match kept.map(Kept::adopted_record) {
             Some(Ok(record)) => record,
             Some(Err(error)) => {
@@ -75,21 +78,33 @@ impl Adopting {
                 return Err(io::Error::other("this Session keeps no binding record"));
             }
         };
-        let epoch = match record.hosts.as_slice() {
-            [host] if host.process == Some(process) => host.epoch,
-            _ => {
+        let mut slots = Vec::new();
+        for (slot, process) in processes {
+            let Some(named) = record
+                .hosts
+                .iter()
+                .find(|host| host.process == Some(process))
+            else {
                 failed_record("record", started.elapsed());
                 return Err(io::Error::other(
-                    "the binding record names another Terminal Host",
+                    "the binding record does not name a kept Terminal Host",
                 ));
-            }
-        };
+            };
+            slots.push(AdoptHostSlot {
+                slot: slot.index(),
+                kind: AdoptHostKind::Host {
+                    process: Some(process),
+                },
+                epoch: named.epoch,
+            });
+        }
+        let target = AdoptHostTarget::new(slots, None).map_err(|_| {
+            failed_record("record", started.elapsed());
+            io::Error::other("the binding record names its Terminal Hosts inconsistently")
+        })?;
         Ok(Some(Self {
             record,
-            target: AdoptHostTarget::Host {
-                process: Some(process),
-                epoch,
-            },
+            target,
             started,
         }))
     }
@@ -146,7 +161,7 @@ impl Adopting {
         handle: &WorkerRequestHandle,
         bindings: Vec<AdoptBinding>,
     ) -> io::Result<Vec<TerminalId>> {
-        match replacement::send_pages(handle, self.target, bindings, || false) {
+        match replacement::send_pages(handle, self.target.clone(), bindings, || false) {
             Adoption::Adopted { outcome, .. } => {
                 let fields: [LogField; 5] = [
                     ("outcome", LogValue::Token("adopted")),

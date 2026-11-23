@@ -58,11 +58,12 @@ pub(super) struct Recovered {
     pub(super) restarts: u32,
 }
 
-/// Recovers the programs that `keeper`, the Session's recorded Keeper, kept after the Host that
-/// served `epoch` ended, into a recovery Host this Worker starts from `cohort`.
+/// Recovers the programs that `keeper`, the Session's recorded Keeper, kept after the Host in
+/// `slot` that served `epoch` ended, into a recovery Host this Worker starts there from `cohort`.
 pub(super) fn recover(
     cohort: &Cohort,
     runtime: &std::path::Path,
+    slot: orchbee_local_runtime::HostSlot,
     keeper: AdoptHostProcess,
     epoch: Option<HostEpoch>,
     bindings: &[AdoptBinding],
@@ -89,7 +90,7 @@ pub(super) fn recover(
         cohort,
         runtime,
         Rc::clone(&channel.drain),
-        HostStart::Recovery(epoch),
+        HostStart::Recovery(slot, epoch),
     )
     .map_err(|failure| {
         failure.record();

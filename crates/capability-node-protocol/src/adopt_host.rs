@@ -1,7 +1,7 @@
-//! Carries a replacement Worker's adoption of the Session's running Terminal Host: the recorded
-//! Host and, in pages, the Server's terminal bindings, then the Worker's one answer. Construction
-//! checks each page and answer alone; whether the pages agree, the Host verification and the
-//! import belong to the Worker, and the rebinding to the Server.
+//! Carries a replacement Worker's adoption of the Session's running Terminal Hosts: the recorded
+//! Host slots and, in pages, the Server's terminal bindings, then the Worker's one answer.
+//! Construction checks each page and answer alone; whether the pages agree, the Host verification
+//! and the import belong to the Worker, and the rebinding to the Server.
 
 use std::{
     collections::BTreeSet,
@@ -28,25 +28,100 @@ pub struct AdoptHostProcess {
     pub creation_time: NonZeroU64,
 }
 
-/// The Host to adopt, or none.
+/// The most Host slots one adoption names: a Session's Host slots.
+pub const MAXIMUM_ADOPT_HOST_SLOTS: usize = 4;
+
+/// What runs in one Host slot.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum AdoptHostTarget {
-    /// No Host was started: the replacement starts one on the next Launch.
-    NoHost,
+pub enum AdoptHostKind {
+    /// A running Host.
     Host {
         /// The registered process, where the Session record registers one (Windows).
         process: Option<AdoptHostProcess>,
-        /// The Host epoch, when the Server knows it from a binding's Host identity.
-        epoch: Option<HostEpoch>,
     },
-    /// The Host ended while the Session's Keeper kept its programs: the replacement adopts the
-    /// Keeper, starts a recovery Host and recovers each bound terminal into it.
-    Recovery {
-        /// The Keeper the Session record registered.
-        keeper: AdoptHostProcess,
-        /// The lost Host's epoch, which the recovery Host serves, when a binding names it.
-        epoch: Option<HostEpoch>,
-    },
+    /// The Host ended while the Session's Keeper kept its programs: the replacement starts a
+    /// recovery Host in the slot and recovers each terminal and program of the lost epoch into it.
+    Recovery,
+}
+
+/// One Host slot to adopt.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AdoptHostSlot {
+    /// The slot's number, 0 through 3.
+    pub slot: u8,
+    pub kind: AdoptHostKind,
+    /// The Host's epoch, or the lost Host's for a recovery, when the Server knows it.
+    pub epoch: Option<HostEpoch>,
+}
+
+/// The Hosts to adopt: none, when no Host was started and the replacement starts one on the next
+/// Launch, or up to four slots, with the Keeper the Session record registered when any is a
+/// recovery.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct AdoptHostTarget {
+    slots: Vec<AdoptHostSlot>,
+    keeper: Option<AdoptHostProcess>,
+}
+
+impl AdoptHostTarget {
+    /// No Host to adopt.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            slots: Vec::new(),
+            keeper: None,
+        }
+    }
+
+    /// # Errors
+    ///
+    /// Returns [`ProtocolError::InvalidPayload`] for more than [`MAXIMUM_ADOPT_HOST_SLOTS`] slots,
+    /// a slot number past 3 or named twice, two slots with one epoch, or a Keeper given exactly
+    /// when no slot is a recovery.
+    pub fn new(
+        slots: Vec<AdoptHostSlot>,
+        keeper: Option<AdoptHostProcess>,
+    ) -> Result<Self, ProtocolError> {
+        let mut numbers = BTreeSet::new();
+        let mut epochs = BTreeSet::new();
+        let recovering = slots
+            .iter()
+            .any(|slot| slot.kind == AdoptHostKind::Recovery);
+        let valid = slots.len() <= MAXIMUM_ADOPT_HOST_SLOTS
+            && slots.iter().all(|slot| {
+                usize::from(slot.slot) < MAXIMUM_ADOPT_HOST_SLOTS
+                    && numbers.insert(slot.slot)
+                    && slot.epoch.is_none_or(|epoch| epochs.insert(epoch))
+            })
+            && recovering == keeper.is_some();
+        if !valid {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        Ok(Self { slots, keeper })
+    }
+
+    /// The slots, in the order the Server named them.
+    #[must_use]
+    pub fn slots(&self) -> &[AdoptHostSlot] {
+        &self.slots
+    }
+
+    /// The Keeper, present exactly when a slot is a recovery.
+    #[must_use]
+    pub const fn keeper(&self) -> Option<AdoptHostProcess> {
+        self.keeper
+    }
+
+    /// Whether no Host is to be adopted.
+    #[must_use]
+    pub fn is_none(&self) -> bool {
+        self.slots.is_empty()
+    }
+
+    /// The epochs the slots name, when every slot names one.
+    fn epochs(&self) -> Option<Vec<HostEpoch>> {
+        self.slots.iter().map(|slot| slot.epoch).collect()
+    }
 }
 
 /// Whether the Host terminal behind a binding has started its program.
@@ -95,7 +170,7 @@ pub struct AdoptHostPageKey {
     pub page: AdoptHostPage,
 }
 
-/// One page of an adoption. Every page names the adoption, the Worker and the Host target.
+/// One page of an adoption. Every page names the adoption, the Worker and the Host targets.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AdoptHostRequest {
     key: AdoptHostPageKey,
@@ -108,29 +183,27 @@ impl AdoptHostRequest {
     ///
     /// Returns [`ProtocolError::InvalidPayload`] for more than
     /// [`MAXIMUM_ADOPT_HOST_PAGE_BINDINGS`] bindings, a binding with no Host target, a binding whose
-    /// Host epoch differs from the target's, or two bindings naming one product terminal, Host
-    /// terminal or creation.
+    /// Host epoch is none of the targets' when every target names one, or two bindings naming one
+    /// product terminal, or one Host terminal or creation of one epoch.
     pub fn new(
         key: AdoptHostPageKey,
         target: AdoptHostTarget,
         bindings: Vec<AdoptBinding>,
     ) -> Result<Self, ProtocolError> {
-        let epoch = match target {
-            AdoptHostTarget::NoHost if !bindings.is_empty() => {
-                return Err(ProtocolError::InvalidPayload);
-            }
-            AdoptHostTarget::NoHost => None,
-            AdoptHostTarget::Host { epoch, .. } | AdoptHostTarget::Recovery { epoch, .. } => epoch,
-        };
+        if target.is_none() && !bindings.is_empty() {
+            return Err(ProtocolError::InvalidPayload);
+        }
+        let epochs = target.epochs();
         let mut terminals = BTreeSet::new();
         let mut host_terminals = BTreeSet::new();
         let mut creations = BTreeSet::new();
         let valid = bindings.len() <= MAXIMUM_ADOPT_HOST_PAGE_BINDINGS
             && bindings.iter().all(|binding| {
-                epoch.is_none_or(|epoch| binding.identity.host_epoch() == epoch)
+                let epoch = binding.identity.host_epoch();
+                epochs.as_ref().is_none_or(|epochs| epochs.contains(&epoch))
                     && terminals.insert(binding.terminal_id)
-                    && host_terminals.insert(binding.identity.terminal_id())
-                    && creations.insert(binding.identity.creation_id())
+                    && host_terminals.insert((epoch, binding.identity.terminal_id()))
+                    && creations.insert((epoch, binding.identity.creation_id()))
             });
         if !valid {
             return Err(ProtocolError::InvalidPayload);
@@ -148,8 +221,8 @@ impl AdoptHostRequest {
     }
 
     #[must_use]
-    pub const fn target(&self) -> AdoptHostTarget {
-        self.target
+    pub const fn target(&self) -> &AdoptHostTarget {
+        &self.target
     }
 
     #[must_use]

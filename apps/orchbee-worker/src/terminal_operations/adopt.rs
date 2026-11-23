@@ -15,12 +15,12 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    AdoptHostFailure, AdoptHostOutcome, AdoptHostPageKey, AdoptHostResult, AdoptHostTarget,
+    AdoptHostFailure, AdoptHostKind, AdoptHostOutcome, AdoptHostPageKey, AdoptHostResult,
     CapabilityNodeMessage, DeclinedRequestKind, WorkerRequestDeclined, WorkerShutdownOutcome,
     WorkerShutdownResult,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_runtime::Cohort;
+use orchbee_local_runtime::{Cohort, HostSlot};
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
 
@@ -208,12 +208,41 @@ fn serve_until_adopted(
                     drain: Rc::clone(drain),
                     deadline: arrived + ADOPTION_BUDGET,
                 };
-                return match target {
-                    AdoptHostTarget::NoHost => adoption.no_host(),
-                    AdoptHostTarget::Host { process, epoch } => {
+                let slot = match target.slots() {
+                    [] => return adoption.no_host(),
+                    [slot] => *slot,
+                    _ => {
+                        let _ = (cohort, channel);
+                        return Err(adoption.fail(host::Failed {
+                            failure: AdoptHostFailure::HostRefused,
+                            restarts: 0,
+                            error: "this Worker adopts one Host".into(),
+                        }));
+                    }
+                };
+                let Some(host_slot) = HostSlot::new(slot.slot) else {
+                    return Err(adoption.fail(host::Failed {
+                        failure: AdoptHostFailure::HostRefused,
+                        restarts: 0,
+                        error: "no such Host slot".into(),
+                    }));
+                };
+                // A POSIX Session runs its one Host in the first slot.
+                #[cfg(not(windows))]
+                if host_slot != HostSlot::FIRST {
+                    let _ = (cohort, channel);
+                    return Err(adoption.fail(host::Failed {
+                        failure: AdoptHostFailure::HostRefused,
+                        restarts: 0,
+                        error: "a POSIX Session runs one Host".into(),
+                    }));
+                }
+                let epoch = slot.epoch;
+                return match slot.kind {
+                    AdoptHostKind::Host { process } => {
                         #[cfg(windows)]
                         let keeper_channel = (server, channel.correlation, channel.deadline);
-                        let found = host::adopt(runtime, process, epoch, channel);
+                        let found = host::adopt(runtime, host_slot, process, epoch, channel);
                         #[cfg(windows)]
                         let found = found.and_then(|found| {
                             with_keeper(found, runtime, keeper_channel, &bindings)
@@ -223,15 +252,22 @@ fn serve_until_adopted(
                         adoption.import(found, &bindings)
                     }
                     #[cfg(windows)]
-                    AdoptHostTarget::Recovery { keeper, epoch } => {
-                        let recovered = super::recovery::recover(
-                            cohort, runtime, keeper, epoch, &bindings, channel,
-                        );
+                    AdoptHostKind::Recovery => {
+                        let recovered = match target.keeper() {
+                            Some(keeper) => super::recovery::recover(
+                                cohort, runtime, host_slot, keeper, epoch, &bindings, channel,
+                            ),
+                            None => Err(host::Failed {
+                                failure: AdoptHostFailure::RecoveryFailed,
+                                restarts: 0,
+                                error: "a recovery names no Keeper".into(),
+                            }),
+                        };
                         adoption.import(recovered.map(Found::from), &bindings)
                     }
                     // Only a Windows Session starts a Keeper, so no other Server sends this target.
                     #[cfg(not(windows))]
-                    AdoptHostTarget::Recovery { .. } => {
+                    AdoptHostKind::Recovery => {
                         let _ = (cohort, channel);
                         Err(adoption.fail(host::Failed {
                             failure: AdoptHostFailure::RecoveryFailed,

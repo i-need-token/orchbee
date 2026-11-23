@@ -136,17 +136,67 @@ fn failed(failure: AdoptHostFailure, error: impl Into<Box<dyn Error>>) -> Failed
     }
 }
 
-/// Verifies, dials and reads the Host of the Session `runtime` within `channel`'s deadline. A
-/// recorded `epoch` must be the Host's.
+/// Verifies, dials and reads the Host in `slot` of the Session `runtime` within `channel`'s
+/// deadline. A recorded `epoch` must be the Host's.
 pub(crate) fn adopt(
     runtime: &Path,
+    slot: orchbee_local_runtime::HostSlot,
     process: Option<AdoptHostProcess>,
     epoch: Option<HostEpoch>,
     channel: Channel<'_>,
 ) -> Result<Found, Failed> {
-    let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
-    adopt_endpoint(runtime, &endpoint, process, epoch, channel)
+    #[cfg(windows)]
+    let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(runtime, slot);
+    // A POSIX Session runs its one Host in the first slot, which the caller checked.
+    #[cfg(unix)]
+    let endpoint = {
+        let _ = slot;
+        ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime)
+    };
+    let found = adopt_endpoint(runtime, &endpoint, process, epoch, channel)?;
+    #[cfg(windows)]
+    if let Some(process) = process {
+        record_epoch(
+            runtime,
+            slot,
+            (process.process_id.get(), process.creation_time.get()),
+            *found.host.host_epoch().as_bytes(),
+        );
+    }
+    Ok(found)
 }
+
+/// Writes `epoch`, the one the Host in `slot` answered with, into the Session record while the slot
+/// still names `process`, so the Server can pair that Host with the terminals that carry it. A
+/// failed write is reported and changes nothing else: a Server that finds no epoch recorded takes a
+/// lone Host's from its terminals.
+#[cfg(windows)]
+pub(crate) fn record_epoch(
+    runtime: &Path,
+    slot: orchbee_local_runtime::HostSlot,
+    process: (u32, u64),
+    epoch: [u8; 16],
+) {
+    let recorded = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))
+        .and_then(|root| {
+            orchbee_local_runtime::record_session_host_epoch(
+                &root,
+                runtime,
+                slot,
+                process,
+                epoch,
+                Instant::now() + EPOCH_RECORD_BUDGET,
+            )
+        });
+    if let Err(error) = recorded {
+        crate::diagnostic_events::host_epoch_unrecorded(&error);
+    }
+}
+
+/// How long writing a Host's epoch into the Session record may wait for the record's writer lock.
+#[cfg(windows)]
+const EPOCH_RECORD_BUDGET: Duration = Duration::from_secs(1);
 
 /// [`adopt`] at a known endpoint.
 pub(crate) fn adopt_endpoint(

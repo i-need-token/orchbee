@@ -17,7 +17,7 @@ use orchbee_capability_node_protocol::{
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_local_runtime::{
-    Cohort, CohortArtifact, HOST_SCOPE_NAME, ModeCheckedLocalSessionRendezvous, SessionScope,
+    Cohort, CohortArtifact, ModeCheckedLocalSessionRendezvous, SessionScope,
 };
 use orchbee_local_worker_protocol::WorkerId;
 #[cfg(unix)]
@@ -306,7 +306,8 @@ pub(crate) fn run(
                 continue;
             };
             site.set(Site::HostStart);
-            let started = start_host(cohort, runtime, Rc::clone(&drain), HostStart::First)
+            let fresh = HostStart::Fresh(orchbee_local_runtime::HostSlot::FIRST);
+            let started = start_host(cohort, runtime, Rc::clone(&drain), fresh)
                 .map(|host| (prepared, host));
             let (prepared, (mut host, child)) = match started {
                 Ok(started) => {
@@ -507,13 +508,27 @@ const HOST_EXIT_GRACE: Duration = Duration::from_millis(250);
 /// one does.
 const HOST_START_ATTEMPTS: u32 = 3;
 
-/// Which Host a start makes: the Session's first, or a recovery Host in the slot of a Host that
-/// ended while the Keeper kept its programs, serving that Host's epoch when the bindings name one.
+/// Which Host a start makes: a Host in a slot no Host holds, or a recovery Host in the slot of a
+/// Host that ended while the Keeper kept its programs, serving that Host's epoch when the bindings
+/// name one. A POSIX Worker starts only the first slot's Host.
 #[derive(Clone, Copy)]
 pub(super) enum HostStart {
-    First,
+    Fresh(orchbee_local_runtime::HostSlot),
     #[cfg(windows)]
-    Recovery(Option<orchbee_capability_node_protocol::HostEpoch>),
+    Recovery(
+        orchbee_local_runtime::HostSlot,
+        Option<orchbee_capability_node_protocol::HostEpoch>,
+    ),
+}
+
+impl HostStart {
+    fn slot(self) -> orchbee_local_runtime::HostSlot {
+        match self {
+            Self::Fresh(slot) => slot,
+            #[cfg(windows)]
+            Self::Recovery(slot, _) => slot,
+        }
+    }
 }
 
 pub(super) fn start_host(
@@ -534,6 +549,9 @@ pub(super) fn start_host(
     // The Host binds `<id>-host.sock` relatively inside the socket folder while the Worker
     // connects through the derived absolute path; validate that address before the Host
     // directory or process can appear.
+    #[cfg(windows)]
+    let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(runtime, start.slot());
+    #[cfg(unix)]
     let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
     // A failure no later start could pass leaves no retry: the address is the same every time.
     let permanent = |stage, error: Box<dyn Error>| HostStartFailure {
@@ -541,9 +559,20 @@ pub(super) fn start_host(
         ..failed(stage, error)
     };
     #[cfg(unix)]
+    if start.slot() != orchbee_local_runtime::HostSlot::FIRST {
+        return Err(permanent(
+            HostStartStage::Endpoint,
+            "a POSIX Session runs its one Host in the first slot".into(),
+        ));
+    }
+    #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)
         .map_err(|error| permanent(HostStartStage::Endpoint, error.into()))?;
-    let directory = SessionScope::parse(HOST_SCOPE_NAME)
+    #[cfg(windows)]
+    let scope_name = ModeCheckedLocalSessionRendezvous::slot_scope_name(start.slot());
+    #[cfg(unix)]
+    let scope_name = orchbee_local_runtime::HOST_SCOPE_NAME.to_owned();
+    let directory = SessionScope::parse(&scope_name)
         .map_err(Box::<dyn Error>::from)
         .and_then(|scope| {
             ModeCheckedLocalSessionRendezvous::prepare_mode_checked(runtime, scope)
@@ -567,6 +596,10 @@ pub(super) fn start_host(
         Ok(true) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
         Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
     }
+    #[cfg(windows)]
+    let host_endpoint_id =
+        ModeCheckedLocalSessionRendezvous::slot_endpoint_id(runtime, start.slot());
+    #[cfg(unix)]
     let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
     let executable = cohort.executable(CohortArtifact::TerminalHost);
     let arguments = [
@@ -579,12 +612,12 @@ pub(super) fn start_host(
     // A recovery Host serves the lost Host's epoch, so each recovered terminal keeps its identity.
     #[cfg(windows)]
     let epoch = match start {
-        HostStart::Recovery(Some(epoch)) => Some(
+        HostStart::Recovery(_, Some(epoch)) => Some(
             orchbee_terminal_protocol::HostEpoch::from_bytes(epoch.as_bytes())
                 .map_err(|error| permanent(HostStartStage::Spawn, error.into()))?
                 .to_text(),
         ),
-        HostStart::First | HostStart::Recovery(None) => None,
+        HostStart::Fresh(_) | HostStart::Recovery(_, None) => None,
     };
     #[cfg(windows)]
     let mut arguments = arguments.to_vec();
@@ -596,7 +629,7 @@ pub(super) fn start_host(
         ]);
     }
     #[cfg(not(windows))]
-    let HostStart::First = start;
+    let HostStart::Fresh(_) = start;
     // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
     #[cfg(unix)]
     let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
@@ -617,8 +650,10 @@ pub(super) fn start_host(
                 &root,
                 runtime,
                 match start {
-                    HostStart::First => orchbee_local_runtime::SessionChild::Host,
-                    HostStart::Recovery(_) => orchbee_local_runtime::SessionChild::RecoveryHost,
+                    HostStart::Fresh(slot) => orchbee_local_runtime::SessionChild::Host(slot),
+                    HostStart::Recovery(slot, _) => {
+                        orchbee_local_runtime::SessionChild::RecoveryHost(slot)
+                    }
                 },
                 &executable,
                 &arguments,
@@ -724,7 +759,19 @@ pub(super) fn start_host(
         }
     })();
     match ready {
-        Ok(host) => Ok((host, child)),
+        Ok(host) => {
+            // The Server pairs this Host with its terminals through the epoch the record keeps.
+            #[cfg(windows)]
+            if let Ok(process) = child.exact_identity() {
+                crate::host_adoption::record_epoch(
+                    runtime,
+                    start.slot(),
+                    process,
+                    *host.host_epoch().as_bytes(),
+                );
+            }
+            Ok((host, child))
+        }
         // A Host still running could later bind the endpoint a second start dials, one that bound
         // its endpoint before it ended leaves that endpoint behind, and a Windows registration
         // outlives the process; each leaves this Worker no further start.

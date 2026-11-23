@@ -179,8 +179,9 @@ pub(crate) fn remove(record: &mut Record, ticket: [u8; 16]) -> bool {
 /// Whether one of `record`'s registrations already names `identity`.
 #[cfg(windows)]
 fn named(record: &Record, identity: ProcessIdentity) -> bool {
-    [ProcessRole::Server, ProcessRole::Worker, ProcessRole::Host]
+    [ProcessRole::Server, ProcessRole::Worker]
         .into_iter()
+        .chain(crate::process_registration::HOST_ROLES)
         .any(|role| record.processes.registration(role).identity() == Some(identity))
 }
 

@@ -7,8 +7,8 @@ use crate::{
     BlockerRole, CohortArtifact,
     durable_sessions::RecordWriter,
     process_registration::{
-        ProcessIdentity, ProcessObservation, ProcessRole, ROLES, RecoveryVerdict, Registration,
-        SessionProcesses,
+        KeptHost, ProcessIdentity, ProcessObservation, ProcessRole, ROLES, RecoveryVerdict,
+        Registration, SessionProcesses,
     },
 };
 use std::io;
@@ -57,10 +57,21 @@ impl ProcessSnapshot {
     }
 }
 
-/// What the Host registration of `processes` names now. A live process with the registered ID but
-/// another creation time is another process, so the registered Host is gone.
-pub(crate) fn host_presence(processes: &SessionProcesses) -> crate::HostPresence {
-    presence(processes, ProcessRole::Host)
+/// The identified Hosts of `processes` this snapshot found running with their exact identities.
+impl ProcessSnapshot {
+    pub(crate) fn present_hosts(&self, processes: &SessionProcesses) -> Vec<KeptHost> {
+        processes
+            .identified_hosts()
+            .into_iter()
+            .filter(|kept| {
+                ROLES
+                    .into_iter()
+                    .position(|role| role == ProcessRole::Host(kept.slot))
+                    .and_then(|index| self.observations.get(index))
+                    == Some(&ProcessObservation::Present(kept.identity))
+            })
+            .collect()
+    }
 }
 
 /// What the registration of `role`, the Host or the Keeper, names now, in the Host's terms.
@@ -68,7 +79,7 @@ pub(crate) fn presence(processes: &SessionProcesses, role: ProcessRole) -> crate
     match processes.registration(role) {
         Registration::NotStarted => crate::HostPresence::NotStarted,
         Registration::Spawning => crate::HostPresence::Spawning,
-        Registration::Identified { identity } => match observe(identity, program(role)).0 {
+        Registration::Identified { identity, .. } => match observe(identity, program(role)).0 {
             ProcessObservation::Gone => crate::HostPresence::Gone,
             ProcessObservation::Present(observed) if observed == identity => {
                 crate::HostPresence::Running(Some((identity.pid(), identity.creation_time())))
@@ -85,7 +96,7 @@ pub(crate) fn role_absent(processes: &SessionProcesses, role: ProcessRole) -> bo
     match processes.registration(role) {
         Registration::NotStarted => true,
         Registration::Spawning => false,
-        Registration::Identified { identity } => {
+        Registration::Identified { identity, .. } => {
             observe(identity, program(role)).0 == ProcessObservation::Gone
         }
     }

@@ -319,46 +319,58 @@ fn check(
     if !clients_rejoin(answered.extensions()) {
         return Err(RestartRefusal::Clients);
     }
-    let host = match RetainedSessionRecord::retain(root, session)
-        .and_then(|record| record.host_presence())
-    {
-        Ok(HostPresence::Running(Some(host))) => host,
-        Ok(_) => return Err(RestartRefusal::Host),
-        Err(_) => return Err(RestartRefusal::Records),
-    };
+    let slots = RetainedSessionRecord::retain(root, session)
+        .and_then(|record| record.hosts())
+        .map_err(|_| RestartRefusal::Records)?;
+    let mut hosts = Vec::new();
+    for slot in slots {
+        match slot.presence {
+            HostPresence::NotStarted => {}
+            HostPresence::Running(Some(host)) => hosts.push((slot.slot, host)),
+            _ => return Err(RestartRefusal::Host),
+        }
+    }
+    // A restart from another installation may need a Host of its own, which a Session whose every
+    // slot holds a Host leaves no room for.
+    if hosts.is_empty() || hosts.len() == orchbee_local_runtime::MAXIMUM_HOSTS {
+        return Err(RestartRefusal::Host);
+    }
     let bindings = orchbee_local_runtime::read_session_bindings(root, session)
         .ok()
         .flatten()
         .and_then(|bytes| crate::binding_record::decode(&bytes))
         .ok_or(RestartRefusal::Records)?;
-    let named = matches!(
-        bindings.hosts.as_slice(),
-        [named] if named.process.is_some_and(|process| {
-            (process.process_id.get(), process.creation_time.get()) == host
+    let named = hosts.iter().all(|(_, host)| {
+        bindings.hosts.iter().any(|named| {
+            named.process.is_some_and(|process| {
+                (process.process_id.get(), process.creation_time.get()) == *host
+            })
         })
-    );
+    });
     if !named {
         return Err(RestartRefusal::Records);
     }
-    let answered = exchange_query_before(
-        &Rendezvous::host_endpoint_path(session.runtime_directory()),
-        environment.clone(),
-        (Instant::now() + QUERY).min(deadline),
-        None,
-    )
-    .map_err(|_| RestartRefusal::Host)?;
     let ours = ConnectionKind::WorkerHost.supported_generations();
-    let ready = answered.processes().first().is_some_and(|entry| {
-        entry.role == ProcessRole::TerminalHost
-            && entry.pid.get() == host.0
-            && entry.state == ProcessState::Ready
-            && entry.connections.iter().any(|connection| {
-                connection.kind.as_str() == ConnectionKind::WorkerHost.name()
-                    && connection.generations.highest_common(ours).is_some()
-            })
-    });
-    if !ready {
-        return Err(RestartRefusal::Host);
+    for (slot, host) in hosts {
+        let answered = exchange_query_before(
+            &Rendezvous::slot_endpoint_path(session.runtime_directory(), slot),
+            environment.clone(),
+            (Instant::now() + QUERY).min(deadline),
+            None,
+        )
+        .map_err(|_| RestartRefusal::Host)?;
+        let ready = answered.processes().first().is_some_and(|entry| {
+            entry.role == ProcessRole::TerminalHost
+                && entry.pid.get() == host.0
+                && entry.state == ProcessState::Ready
+                && entry.connections.iter().any(|connection| {
+                    connection.kind.as_str() == ConnectionKind::WorkerHost.name()
+                        && connection.generations.highest_common(ours).is_some()
+                })
+        });
+        if !ready {
+            return Err(RestartRefusal::Host);
+        }
     }
     Ok(WorkerId::from_bytes(bindings.worker_id.as_bytes()))
 }

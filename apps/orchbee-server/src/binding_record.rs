@@ -97,13 +97,21 @@ impl RecordedTerminal {
     }
 }
 
-/// Whether the Session's Host runs, as the binding writer observed its registration.
+/// A Host the binding writer observed running, as the Session record registers it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum SessionHost {
-    /// No Host runs, so no terminal can be adopted.
-    Absent,
-    /// A Host runs; Windows registers its process, POSIX none.
-    Running(Option<AdoptHostProcess>),
+pub(crate) struct RunningHost {
+    /// Windows registers its process, POSIX none.
+    pub(crate) process: Option<AdoptHostProcess>,
+    /// The epoch its Worker recorded once connected; none before one did.
+    pub(crate) epoch: Option<HostEpoch>,
+}
+
+/// The process a Session record registers as its ID and creation time, in protocol terms.
+pub(crate) fn registered_process((pid, creation): (u32, u64)) -> Option<AdoptHostProcess> {
+    Some(AdoptHostProcess {
+        process_id: NonZeroU32::new(pid)?,
+        creation_time: NonZeroU64::new(creation)?,
+    })
 }
 
 /// What the coordinator settled, joined with the Workbench, in one look.
@@ -115,13 +123,15 @@ pub(crate) struct Capture {
 }
 
 impl BindingRecord {
-    /// The record a generation writes from `capture` while `host` runs. Recorded terminals must all
-    /// carry the running Host's epoch; when they do not, which one Host never gives, the record names
-    /// none of them and `true` comes back so the writer can report it.
+    /// The record a generation writes from `capture` while `hosts` run. A terminal is recorded
+    /// only with a running Host that serves its epoch: the epoch the Host recorded, or for the one
+    /// Host that recorded none, the epoch every terminal no recorded epoch names shares. When they
+    /// share none, or several Hosts recorded none, those terminals are left out and `true` comes
+    /// back so the writer can report it.
     pub(crate) fn assemble(
         activation_id: [u8; 16],
         capture: Capture,
-        host: SessionHost,
+        hosts: &[RunningHost],
         extensions: serde_json::Map<String, serde_json::Value>,
     ) -> (Self, bool) {
         let Capture {
@@ -129,31 +139,33 @@ impl BindingRecord {
             next_identity,
             mut terminals,
         } = capture;
-        let mut mixed = false;
-        let hosts = match host {
-            SessionHost::Absent => {
-                terminals.clear();
-                Vec::new()
-            }
-            SessionHost::Running(process) => {
-                let epoch = terminals
-                    .first()
-                    .map(|terminal| terminal.binding.identity.host_epoch());
-                if terminals
-                    .iter()
-                    .any(|terminal| Some(terminal.binding.identity.host_epoch()) != epoch)
-                {
-                    mixed = true;
-                    terminals.clear();
-                }
-                vec![RecordedHost {
-                    process,
-                    epoch: terminals
-                        .first()
-                        .map(|terminal| terminal.binding.identity.host_epoch()),
-                }]
-            }
+        let known: Vec<HostEpoch> = hosts.iter().filter_map(|host| host.epoch).collect();
+        let mut others = terminals
+            .iter()
+            .map(|terminal| terminal.binding.identity.host_epoch())
+            .filter(|epoch| !known.contains(epoch));
+        let other = others.next();
+        let shared = others.all(|epoch| Some(epoch) == other);
+        let unrecorded = hosts.iter().filter(|host| host.epoch.is_none()).count();
+        let (lone, mixed) = match other {
+            // Terminals of a Host that no longer runs cannot be adopted.
+            Some(_) if unrecorded == 0 => (None, false),
+            Some(epoch) if unrecorded == 1 && shared => (Some(epoch), false),
+            Some(_) => (None, true),
+            None => (None, false),
         };
+        let hosts: Vec<RecordedHost> = hosts
+            .iter()
+            .map(|host| RecordedHost {
+                process: host.process,
+                epoch: host.epoch.or(lone),
+            })
+            .collect();
+        terminals.retain(|terminal| {
+            hosts
+                .iter()
+                .any(|host| host.epoch == Some(terminal.binding.identity.host_epoch()))
+        });
         (
             Self {
                 activation_id,

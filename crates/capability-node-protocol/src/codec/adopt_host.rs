@@ -5,11 +5,11 @@ use std::num::{NonZeroU32, NonZeroU64};
 
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
-    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostOutcome,
-    AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest, AdoptHostResult,
-    AdoptHostTarget, HostEpoch, LifecycleStepOrdinal, MAXIMUM_ADOPT_HOST_BINDINGS,
-    MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, OperationId, ProtocolError, TerminalFence, TerminalId,
-    WorkerGeneration, WorkerId,
+    AdoptBinding, AdoptBindingState, AdoptCloseInFlight, AdoptHostFailure, AdoptHostKind,
+    AdoptHostOutcome, AdoptHostPage, AdoptHostPageKey, AdoptHostProcess, AdoptHostRequest,
+    AdoptHostResult, AdoptHostSlot, AdoptHostTarget, HostEpoch, LifecycleStepOrdinal,
+    MAXIMUM_ADOPT_HOST_BINDINGS, MAXIMUM_ADOPT_HOST_PAGE_BINDINGS, MAXIMUM_ADOPT_HOST_SLOTS,
+    OperationId, ProtocolError, TerminalFence, TerminalId, WorkerGeneration, WorkerId,
 };
 
 pub(super) const REQUEST_KIND: u8 = 40;
@@ -20,30 +20,23 @@ pub(super) fn encode_request(request: &AdoptHostRequest) -> Vec<u8> {
     let mut bytes = Vec::with_capacity(77 + bindings.len() * 100);
     bytes.push(REQUEST_KIND);
     encode_identity(&mut bytes, request.key());
-    match request.target() {
-        AdoptHostTarget::NoHost => bytes.push(1),
-        AdoptHostTarget::Host { process, epoch } => {
-            bytes.push(2);
-            bytes.push(u8::from(process.is_some()));
-            if let Some(process) = process {
-                bytes.extend(process.process_id.get().to_be_bytes());
-                bytes.extend(process.creation_time.get().to_be_bytes());
+    let target = request.target();
+    bytes.push(u8::try_from(target.slots().len()).expect("an adoption names at most four slots"));
+    for slot in target.slots() {
+        bytes.push(slot.slot);
+        match slot.kind {
+            AdoptHostKind::Host { process } => {
+                bytes.push(1);
+                encode_process_option(&mut bytes, process);
             }
-            bytes.push(u8::from(epoch.is_some()));
-            if let Some(epoch) = epoch {
-                bytes.extend(epoch.as_bytes());
-            }
+            AdoptHostKind::Recovery => bytes.push(2),
         }
-        AdoptHostTarget::Recovery { keeper, epoch } => {
-            bytes.push(3);
-            bytes.extend(keeper.process_id.get().to_be_bytes());
-            bytes.extend(keeper.creation_time.get().to_be_bytes());
-            bytes.push(u8::from(epoch.is_some()));
-            if let Some(epoch) = epoch {
-                bytes.extend(epoch.as_bytes());
-            }
+        bytes.push(u8::from(slot.epoch.is_some()));
+        if let Some(epoch) = slot.epoch {
+            bytes.extend(epoch.as_bytes());
         }
     }
+    encode_process_option(&mut bytes, target.keeper());
     encode_page(&mut bytes, request.key().page);
     bytes.extend(
         u16::try_from(bindings.len())
@@ -69,43 +62,52 @@ pub(super) fn encode_request(request: &AdoptHostRequest) -> Vec<u8> {
     bytes
 }
 
+fn encode_process_option(bytes: &mut Vec<u8>, process: Option<AdoptHostProcess>) {
+    bytes.push(u8::from(process.is_some()));
+    if let Some(process) = process {
+        bytes.extend(process.process_id.get().to_be_bytes());
+        bytes.extend(process.creation_time.get().to_be_bytes());
+    }
+}
+
+fn decode_process_option(
+    reader: &mut PayloadReader<'_>,
+) -> Result<Option<AdoptHostProcess>, ProtocolError> {
+    if !read_flag(reader)? {
+        return Ok(None);
+    }
+    Ok(Some(AdoptHostProcess {
+        process_id: NonZeroU32::new(reader.read_u32()?).ok_or(ProtocolError::InvalidPayload)?,
+        creation_time: positive(reader.read_u64()?)?,
+    }))
+}
+
 pub(super) fn decode_request(payload: &[u8]) -> Result<AdoptHostRequest, ProtocolError> {
     let mut reader = PayloadReader::after_kind(payload, REQUEST_KIND)?;
     let (adoption_id, worker_id, worker_generation) = decode_identity(&mut reader)?;
-    let target = match reader.read_u8()? {
-        1 => AdoptHostTarget::NoHost,
-        2 => {
-            let process = if read_flag(&mut reader)? {
-                Some(AdoptHostProcess {
-                    process_id: NonZeroU32::new(reader.read_u32()?)
-                        .ok_or(ProtocolError::InvalidPayload)?,
-                    creation_time: positive(reader.read_u64()?)?,
-                })
-            } else {
-                None
-            };
-            let epoch = if read_flag(&mut reader)? {
-                Some(HostEpoch::from_bytes(reader.read_array()?)?)
-            } else {
-                None
-            };
-            AdoptHostTarget::Host { process, epoch }
-        }
-        3 => {
-            let keeper = AdoptHostProcess {
-                process_id: NonZeroU32::new(reader.read_u32()?)
-                    .ok_or(ProtocolError::InvalidPayload)?,
-                creation_time: positive(reader.read_u64()?)?,
-            };
-            let epoch = if read_flag(&mut reader)? {
-                Some(HostEpoch::from_bytes(reader.read_array()?)?)
-            } else {
-                None
-            };
-            AdoptHostTarget::Recovery { keeper, epoch }
-        }
-        _ => return Err(ProtocolError::InvalidPayload),
-    };
+    let count = usize::from(reader.read_u8()?);
+    if count > MAXIMUM_ADOPT_HOST_SLOTS {
+        return Err(ProtocolError::InvalidPayload);
+    }
+    let mut slots = Vec::with_capacity(count);
+    for _ in 0..count {
+        let slot = reader.read_u8()?;
+        let kind = match reader.read_u8()? {
+            1 => AdoptHostKind::Host {
+                process: decode_process_option(&mut reader)?,
+            },
+            2 => AdoptHostKind::Recovery,
+            _ => return Err(ProtocolError::InvalidPayload),
+        };
+        let epoch = if read_flag(&mut reader)? {
+            Some(HostEpoch::from_bytes(reader.read_array()?)?)
+        } else {
+            None
+        };
+        slots.push(AdoptHostSlot { slot, kind, epoch });
+    }
+    let keeper = decode_process_option(&mut reader)?;
+    let target = AdoptHostTarget::new(slots, keeper)?;
     let page = decode_page(&mut reader)?;
     let count = usize::from(reader.read_u16()?);
     if count > MAXIMUM_ADOPT_HOST_PAGE_BINDINGS {

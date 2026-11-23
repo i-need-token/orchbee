@@ -1,7 +1,8 @@
 //! Native Windows refinement of the lock/marker state machine; pipes are not
 //! filesystem socket leaves and are authenticated only at connection admission.
 use crate::rendezvous_types::{
-    LockKind, RendezvousError, SessionHolderObservation, SessionLifetimeObservation, SessionScope,
+    HostSlot, LockKind, RendezvousError, SessionHolderObservation, SessionLifetimeObservation,
+    SessionScope,
 };
 use crate::{HeldLock, private_filesystem as permissions};
 use sha2::{Digest, Sha256};
@@ -134,7 +135,34 @@ impl ModeCheckedLocalSessionRendezvous {
         endpoint_id(runtime)
     }
     pub fn host_endpoint_path(runtime: &Path) -> PathBuf {
-        format!(r"\\.\pipe\orchbee-terminal-host-{}", endpoint_id(runtime)).into()
+        Self::slot_endpoint_path(runtime, HostSlot::FIRST)
+    }
+    /// The Session scope that names the runtime folder of the Host in `slot`, which holds its
+    /// lifetime lock, fatal record and log: `host` for the first slot, `host-<n>` for the others.
+    pub fn slot_scope_name(slot: HostSlot) -> String {
+        match slot.index() {
+            0 => HOST_SCOPE_NAME.to_owned(),
+            index => format!("{HOST_SCOPE_NAME}-{index}"),
+        }
+    }
+    /// The endpoint id of the Host in `slot`: the first slot's is the runtime's own, the address
+    /// every earlier Host served; the others hash the runtime under their own domain.
+    pub fn slot_endpoint_id(runtime: &Path, slot: HostSlot) -> String {
+        match slot.index() {
+            0 => endpoint_id(runtime),
+            index => hashed_id(
+                &[b"orchbee-windows-host-slot-v1\0".as_slice(), &[index]].concat(),
+                runtime,
+            ),
+        }
+    }
+    /// The pipe the Host in `slot` serves.
+    pub fn slot_endpoint_path(runtime: &Path, slot: HostSlot) -> PathBuf {
+        format!(
+            r"\\.\pipe\orchbee-terminal-host-{}",
+            Self::slot_endpoint_id(runtime, slot)
+        )
+        .into()
     }
     /// The Keeper's endpoint id: the Host's address math under its own domain, so the Keeper's pipe
     /// belongs to this Session alone and a Worker that adopts the Keeper derives it again.

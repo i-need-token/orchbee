@@ -4,8 +4,8 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 pub use crate::rendezvous_types::{
-    EntryKind, EntryObservation, LockKind, RendezvousError, SessionHolderObservation,
-    SessionLifetimeObservation, SessionScope,
+    EntryKind, EntryObservation, HostSlot, LockKind, MAXIMUM_HOSTS, RendezvousError,
+    SessionHolderObservation, SessionLifetimeObservation, SessionScope,
 };
 #[cfg(unix)]
 pub use unix::host_lock_held;

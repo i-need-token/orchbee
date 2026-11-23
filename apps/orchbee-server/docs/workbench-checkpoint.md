@@ -309,9 +309,9 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
 - **Contents.** One JSON object of at most 1 MiB with snake_case members and identities as 32
   lowercase hexadecimal digits: `version` 1; `extensions`; the activation id of the generation that
   wrote it, a diagnostic only, since validity comes from the running Host; the Session Worker id;
-  `next_identity`, the identity the coordinator allocates next; one entry for the Session's Host, with
-  the process id and creation time `session.json` registered and the epoch its terminals carry; and
-  one entry per terminal. A terminal entry holds the product Terminal ID, the Host creation, epoch and
+  `next_identity`, the identity the coordinator allocates next; one entry for each running Host of
+  the Session, with the process id and creation time `session.json` registered and the epoch its
+  terminals carry; and one entry per terminal. A terminal entry holds the product Terminal ID, the Host creation, epoch and
   terminal ids, whether it awaits its start or started, the highest fence issued for it and the Close
   in flight on it (operation id, attempt generation, step, effect-unknown): the fields of
   `AdoptBinding`. Beside them it holds what serving the terminal needs: the Presentation that shows
@@ -320,9 +320,10 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
   Launch Profile provenance and explicit launch selection.
 - **What is left out.** Popups, which no Presentation shows; a binding whose launch or start is in
   flight, unknown or unavailable, as a Worker replacement leaves them out; and a binding no
-  Presentation shows, which stays in the coordinator only for replay. When no Host runs, the record
-  names no Host and no terminal; terminals carrying two epochs, which one Host never gives, are all
-  left out with a diagnostic.
+  Presentation shows, which stays in the coordinator only for replay. A Host's epoch is the one its
+  Worker wrote into `session.json`; a lone Host without one takes the epoch every remaining terminal
+  shares. A terminal no running Host serves is left out, and when those terminals share no epoch, or
+  several Hosts have none, they are left out with a diagnostic.
 - **Rules.** It belongs to the class of `session.json`: two installed versions read it at once, later
   facts go into `extensions`, which a writer that adopted the record writes back unchanged, and
   nothing restores it from a backup. It is not a versioned record of the
@@ -338,9 +339,9 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
   Every final capture, of a stop or an `exit`, writes it right after the final checkpoint. A stop
   removes it once the Worker's disposal, or the stop after that Worker exited, ended the Host, so
   nothing is left to adopt; an `exit` keeps the Host running and leaves the record in place.
-- **Adoption.** A Server started for a generation that kept its predecessor's running Host decodes
-  the record whole and requires its Host entry to name the Host `session.json` registered; crash
-  recovery already read only that entry before admitting the generation. Each recorded terminal
+- **Adoption.** A Server started for a generation that kept its predecessor's running Hosts decodes
+  the record whole and requires an entry naming each Host `session.json` registered; crash recovery
+  already read only those entries before admitting the generation. Each recorded terminal
   whose Presentation the restored checkpoint holds is offered to the Host's adoption; a confirmed one
   is bound to its Presentation without a launch, kept-output replay or Agent resume, and one the
   Host no longer runs leaves its Presentation unavailable. Every other Presentation restores as

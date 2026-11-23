@@ -166,10 +166,12 @@ mod recovery_blocker;
 pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
+#[cfg(windows)]
+pub use registered_child::record_session_host_epoch;
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
 mod durable_sessions;
 pub use durable_sessions::{
-    Fenced, HostPresence, RetainedSessionRecord, Successor, session_moved_to,
+    Fenced, HostPresence, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
 };
 #[cfg(windows)]
 mod exact_process;
@@ -228,7 +230,7 @@ pub use rendezvous::host_lock_held;
 #[cfg(windows)]
 pub use rendezvous::{CLIENT_PENDING_SOCKET_NAME, HOST_ENDPOINT_ID, HOST_ENDPOINT_NAME};
 pub use rendezvous::{
-    EntryKind, EntryObservation, HOST_SCOPE_NAME, LockAttempt, LockKind,
+    EntryKind, EntryObservation, HOST_SCOPE_NAME, HostSlot, LockAttempt, LockKind, MAXIMUM_HOSTS,
     ModeCheckedLocalSessionRendezvous, ModeCheckedSessionLock, RendezvousError,
     SessionHolderObservation, SessionLifetimeObservation, SessionScope, acquire_past_probes,
 };

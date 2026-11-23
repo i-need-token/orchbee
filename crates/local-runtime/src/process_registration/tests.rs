@@ -13,7 +13,7 @@ fn enrolled() -> SessionProcesses {
             identity(2, 20),
         ),
         (
-            ProcessRole::Host,
+            ProcessRole::Host(crate::HostSlot::FIRST),
             Creator::Process(identity(2, 20)),
             identity(3, 30),
         ),
@@ -31,7 +31,10 @@ fn only_the_exact_registered_parent_can_reserve_its_direct_child() {
         (ProcessRole::Server, Creator::Process(identity(1, 10))),
         (ProcessRole::Worker, Creator::Activator),
         (ProcessRole::Worker, Creator::Process(identity(1, 10))),
-        (ProcessRole::Host, Creator::Process(identity(2, 20))),
+        (
+            ProcessRole::Host(crate::HostSlot::FIRST),
+            Creator::Process(identity(2, 20)),
+        ),
     ] {
         let before = processes.clone();
         assert_eq!(
@@ -76,8 +79,11 @@ fn an_ended_reservation_never_refuses_recovery_and_only_identified_roles_decide(
     worker.reserve(ProcessRole::Worker, server).unwrap();
     let mut host = worker.clone();
     host.identify(ProcessRole::Worker, identity(2, 20)).unwrap();
-    host.reserve(ProcessRole::Host, Creator::Process(identity(2, 20)))
-        .unwrap();
+    host.reserve(
+        ProcessRole::Host(crate::HostSlot::FIRST),
+        Creator::Process(identity(2, 20)),
+    )
+    .unwrap();
     let mut replacement = enrolled();
     replacement.reserve_replacement_worker(server).unwrap();
     for processes in [fresh, worker, host, replacement] {
@@ -137,7 +143,7 @@ fn repeated_registration_and_aliasing_cannot_replace_an_owner() {
         Err(RegistrationError::AlreadyStarted)
     );
     assert_eq!(
-        processes.identify(ProcessRole::Host, identity(5, 50)),
+        processes.identify(ProcessRole::Host(crate::HostSlot::FIRST), identity(5, 50)),
         Err(RegistrationError::NoReservation)
     );
     assert_eq!(processes, before);
@@ -224,8 +230,8 @@ fn only_the_recorded_server_returns_a_gone_worker_to_spawning_and_the_host_keeps
         Registration::Spawning
     );
     assert_eq!(
-        processes.registration(ProcessRole::Host),
-        before.registration(ProcessRole::Host)
+        processes.registration(ProcessRole::Host(crate::HostSlot::FIRST)),
+        before.registration(ProcessRole::Host(crate::HostSlot::FIRST))
     );
     let reread: SessionProcesses =
         serde_json::from_value(serde_json::to_value(&processes).unwrap()).unwrap();
@@ -236,12 +242,17 @@ fn only_the_recorded_server_returns_a_gone_worker_to_spawning_and_the_host_keeps
         .identify(ProcessRole::Worker, identity(4, 40))
         .unwrap();
     assert_eq!(
-        processes.registration(ProcessRole::Host).identity(),
+        processes
+            .registration(ProcessRole::Host(crate::HostSlot::FIRST))
+            .identity(),
         Some(identity(3, 30))
     );
     // The adopted Host's identity is never reused, and only the new Worker may reserve a Host.
     assert_eq!(
-        processes.reserve(ProcessRole::Host, Creator::Process(identity(4, 40))),
+        processes.reserve(
+            ProcessRole::Host(crate::HostSlot::FIRST),
+            Creator::Process(identity(4, 40))
+        ),
         Err(RegistrationError::AlreadyStarted)
     );
 }
@@ -265,7 +276,10 @@ fn a_replacement_needs_a_worker_and_a_settled_host() {
         .identify(ProcessRole::Worker, identity(2, 20))
         .unwrap();
     processes
-        .reserve(ProcessRole::Host, Creator::Process(identity(2, 20)))
+        .reserve(
+            ProcessRole::Host(crate::HostSlot::FIRST),
+            Creator::Process(identity(2, 20)),
+        )
         .unwrap();
     let before = processes.clone();
     assert_eq!(
@@ -288,7 +302,11 @@ fn a_spawning_host_needs_an_identified_worker_and_an_identified_host_none() {
     assert!(serde_json::from_value::<SessionProcesses>(spawning).is_err());
     // A generation adopting its predecessor's Host starts with that Host alone, and has started
     // nothing of its own.
-    let adopting = SessionProcesses::adopting(identity(3, 30));
+    let adopting = SessionProcesses::adopting(&[KeptHost {
+        slot: crate::HostSlot::FIRST,
+        identity: identity(3, 30),
+        epoch: None,
+    }]);
     let read: SessionProcesses =
         serde_json::from_value(serde_json::to_value(&adopting).unwrap()).unwrap();
     assert_eq!(read, adopting);

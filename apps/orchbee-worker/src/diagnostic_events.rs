@@ -266,6 +266,13 @@ pub(crate) fn keeper_failed(step: &'static str, error: &(dyn Error + 'static)) {
     log_event(LogLevel::Warning, "keeper-failed", &fields);
 }
 
+/// A Host's epoch could not be written into the Session record: the closed I/O error kind.
+#[cfg(windows)]
+pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
+    let fields = [error_kind(error)];
+    log_event(LogLevel::Warning, "host-epoch-unrecorded", &fields);
+}
+
 /// The Session's Keeper ended or stopped answering, and another took its place.
 #[cfg(windows)]
 pub(crate) fn keeper_replaced() {
