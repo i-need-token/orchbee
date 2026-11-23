@@ -82,7 +82,12 @@ instead of 70 to 72 ms, level with the same start outside a Job.
 
 Rust 1.97.0 offers neither alternative on stable: the main thread handle that process creation
 returns is exposed only through `ChildExt::main_thread_handle`, and creating the process inside
-its Job (`PROC_THREAD_ATTRIBUTE_JOB_LIST`) needs `ProcThreadAttributeList`; both are unstable. The
+its Job (`PROC_THREAD_ATTRIBUTE_JOB_LIST`) needs `ProcThreadAttributeList`; both are unstable. So
+creation and assignment stay two calls, and a parent that ends between them, a window of
+microseconds, leaves the new process suspended outside any Job until it is ended by its process ID
+or Windows restarts; meanwhile it holds its program file open, so removing that version reports a
+running program. A Server ended right after it created its Worker did this once in a fault-injection
+rehearsal (2026-11-22). The
 `Win32_System_Diagnostics_Debug` and `Win32_System_Kernel` bindings only complete the
 `PSS_THREAD_ENTRY` type.
 
