@@ -28,7 +28,7 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableRecoveryBlocked: message(
 		'session.connection.unavailable.recoveryBlocked',
-		'A process an earlier start left running keeps the Session from recovering. Matches the TUI and CLI refusal word for word. role is server, worker or terminal-host, whose names Server, Worker and Terminal Host stay in English; program is its program file name and processId its process ID, neither translated.',
+		'A process an earlier start left running keeps the Session from recovering. Matches the TUI and CLI refusal word for word. role is server, worker or terminal-host, whose names Server, Worker and Terminal Host stay in English; program is its program file name and processId its process ID, neither translated. system is macos or windows and picks the tool the system ends a process with: Activity Monitor on macOS, Task Manager on Windows.',
 	),
 	unavailableRecoveryRequired: message(
 		'session.connection.unavailable.recoveryRequired',

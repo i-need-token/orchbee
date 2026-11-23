@@ -29,7 +29,7 @@ export const zhCNSessionConnectionMessages = {
 	'session.connection.unavailable.pathRefused.unsafeSocketFolder':
 		'Orchbee 无法用 {path} 存放套接字：它属于其他用户或对其他用户开放。请删除它，然后重新启动 Orchbee。',
 	'session.connection.unavailable.recoveryBlocked':
-		'之前启动的 {role, select, server {Server} worker {Worker} other {Terminal Host}} 仍在运行（{program}，进程 {processId}），Orchbee 无法启动此会话。请在任务管理器中结束该进程或重启电脑，下次启动会自动恢复会话。',
+		'之前启动的 {role, select, server {Server} worker {Worker} other {Terminal Host}} 仍在运行（{program}，进程 {processId}），Orchbee 无法启动此会话。请在{system, select, macos {活动监视器} other {任务管理器}}中结束该进程或重启电脑，下次启动会自动恢复会话。',
 	'session.connection.unavailable.recoveryRequired':
 		'该会话需要恢复后才能启动。如需检查，请在终端中运行 <command>orchbee doctor</command>。',
 	'session.connection.unavailable.serverNotStarted':

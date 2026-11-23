@@ -181,6 +181,7 @@ function showSessionUnavailable(
 	reactRoot: Root,
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
+	shortcutPlatform: WorkbenchShortcutPlatform,
 	refusal: DesktopSessionRefusal | null,
 ): void {
 	const locale = resolveOrchbeeLocale(preferredLocales);
@@ -196,6 +197,8 @@ function showSessionUnavailable(
 			createElement(SessionUnavailable, {
 				onTryAgain: () => targetWindow.location.reload(),
 				refusal,
+				// Desktop runs on Windows and macOS, the platform the shortcuts read as Apple.
+				system: shortcutPlatform === 'apple' ? 'macos' : 'windows',
 			}),
 		),
 	);
@@ -237,6 +240,7 @@ async function run(
 			reactRoot,
 			documentElement,
 			preferredLocales,
+			shortcutPlatform,
 			bootstrap.sessionRefusal,
 		);
 		return;
@@ -500,6 +504,13 @@ export function startDesktopServerWorkbench(
 		ctrlCCopiesSelection,
 		storage,
 	).catch(() => {
-		showSessionUnavailable(targetWindow, reactRoot, documentElement, preferredLocales, null);
+		showSessionUnavailable(
+			targetWindow,
+			reactRoot,
+			documentElement,
+			preferredLocales,
+			shortcutPlatform,
+			null,
+		);
 	});
 }

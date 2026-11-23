@@ -13,6 +13,8 @@ export interface SessionUnavailableProps {
 	readonly onTryAgain: () => void;
 	/** Why starting the Session was refused, or null when nothing says why the window cannot reach it. */
 	readonly refusal: DesktopSessionRefusal | null;
+	/** The system this window and its Session run on, whose own tool the copy names to end a process. */
+	readonly system: 'macos' | 'windows';
 }
 
 /** A command the copy names stays on one line, so it reads and copies as written. */
@@ -41,6 +43,7 @@ function systemAnswer({ ioKind, osError }: ServerNotStarted): { cause: string; c
 function describe(
 	intl: ReturnType<typeof useOrchbeeIntl>,
 	refusal: DesktopSessionRefusal | null,
+	system: SessionUnavailableProps['system'],
 ): ReactNode {
 	switch (refusal?.reason) {
 		case undefined:
@@ -53,6 +56,7 @@ function describe(
 						processId: String(refusal.blockingProcess.processId),
 						program: refusal.blockingProcess.program,
 						role: refusal.blockingProcess.role,
+						system,
 					});
 		case 'server-not-started':
 			return intl.formatMessage(
@@ -94,7 +98,11 @@ function describe(
  * command; trying again is the only effect here. The window keeps a title-bar strip to be moved by,
  * since no Workbench draws one.
  */
-export function SessionUnavailable({ onTryAgain, refusal }: SessionUnavailableProps): ReactNode {
+export function SessionUnavailable({
+	onTryAgain,
+	refusal,
+	system,
+}: SessionUnavailableProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	return (
 		<main
@@ -107,7 +115,7 @@ export function SessionUnavailable({ onTryAgain, refusal }: SessionUnavailablePr
 				<h1 className={styles['title']}>
 					{intl.formatMessage(sessionConnectionMessages.unavailableTitle)}
 				</h1>
-				<p className={styles['description']}>{describe(intl, refusal)}</p>
+				<p className={styles['description']}>{describe(intl, refusal, system)}</p>
 				<Button
 					className={styles['action']}
 					data-slot='session-try-again'

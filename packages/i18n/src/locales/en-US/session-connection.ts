@@ -28,7 +28,7 @@ export const enUSSessionConnectionMessages = {
 	'session.connection.unavailable.pathRefused.unsafeSocketFolder':
 		"Orchbee can't use {path} for its sockets: it belongs to another user or is open to other users. Remove it, then start Orchbee again.",
 	'session.connection.unavailable.recoveryBlocked':
-		"Orchbee can't start this Session while the {role, select, server {Server} worker {Worker} other {Terminal Host}} from an earlier start is still running ({program}, process {processId}). End that process in Task Manager or restart the computer; the next start then recovers the Session by itself.",
+		"Orchbee can't start this Session while the {role, select, server {Server} worker {Worker} other {Terminal Host}} from an earlier start is still running ({program}, process {processId}). End that process in {system, select, macos {Activity Monitor} other {Task Manager}} or restart the computer; the next start then recovers the Session by itself.",
 	'session.connection.unavailable.recoveryRequired':
 		'The Session needs recovery before it can start. To inspect it, run <command>orchbee doctor</command> in a terminal.',
 	'session.connection.unavailable.serverNotStarted':

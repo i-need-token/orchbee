@@ -6,7 +6,7 @@ import { SessionUnavailable } from '../src/desktop-client/session-unavailable';
 const meta = {
 	title: 'Desktop/Session Unavailable',
 	component: SessionUnavailable,
-	args: { onTryAgain: () => undefined, refusal: null },
+	args: { onTryAgain: () => undefined, refusal: null, system: 'windows' },
 	parameters: { layout: 'fullscreen' },
 } satisfies Meta<typeof SessionUnavailable>;
 
@@ -75,6 +75,12 @@ export const RecoveryRequired: Story = {
 
 /** A process an earlier start left running is named with what clears it. */
 export const RecoveryBlocked: Story = { args: { refusal: recoveryBlocked }, decorators: english };
+
+/** macOS names its own tool for ending a process. */
+export const MacRecoveryBlocked: Story = {
+	args: { refusal: recoveryBlocked, system: 'macos' },
+	decorators: english,
+};
 
 export const ServerProgramMissing: Story = {
 	args: { refusal: serverMissing },

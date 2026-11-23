@@ -127,8 +127,10 @@ impl Locale {
     }
 
     /// A recovery refused because a process an earlier start registered still runs, naming its
-    /// role, program and process ID and what clears it. Only Windows registers processes. The
-    /// desktop window says the same through `session.connection.unavailable.recoveryBlocked`.
+    /// role, program and process ID and what clears it: the system's own tool for ending a process,
+    /// Task Manager on Windows and Activity Monitor on macOS, the two platforms that register
+    /// processes. The desktop window says the same through
+    /// `session.connection.unavailable.recoveryBlocked`.
     fn recovery_blocked(self, blocker: &orchbee_local_runtime::RecoveryBlocker) -> String {
         use orchbee_local_runtime::BlockerRole;
         // The runtime roles keep their English names in both languages (`docs/GLOSSARY.md`).
@@ -139,13 +141,28 @@ impl Locale {
         };
         let program = blocker.role.program().file_name();
         let process = blocker.process_id;
+        let macos = cfg!(target_os = "macos");
         match self {
-            Self::EnUs => format!(
-                "Orchbee can't start this Session while the {role} from an earlier start is still running ({program}, process {process}). End that process in Task Manager or restart the computer; the next start then recovers the Session by itself.\n"
-            ),
-            Self::ZhCn => format!(
-                "之前启动的 {role} 仍在运行（{program}，进程 {process}），Orchbee 无法启动此会话。请在任务管理器中结束该进程或重启电脑，下次启动会自动恢复会话。\n"
-            ),
+            Self::EnUs => {
+                let tool = if macos {
+                    "Activity Monitor"
+                } else {
+                    "Task Manager"
+                };
+                format!(
+                    "Orchbee can't start this Session while the {role} from an earlier start is still running ({program}, process {process}). End that process in {tool} or restart the computer; the next start then recovers the Session by itself.\n"
+                )
+            }
+            Self::ZhCn => {
+                let tool = if macos {
+                    "活动监视器"
+                } else {
+                    "任务管理器"
+                };
+                format!(
+                    "之前启动的 {role} 仍在运行（{program}，进程 {process}），Orchbee 无法启动此会话。请在{tool}中结束该进程或重启电脑，下次启动会自动恢复会话。\n"
+                )
+            }
         }
     }
 
