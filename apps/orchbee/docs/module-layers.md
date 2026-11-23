@@ -23,7 +23,7 @@ names its layer in its own file, as those rules describe.
 Every `cli` child inherits `composition`, so only the no-cycle rule orders them. These invariants
 keep that order:
 
-- The result model, `results`, `output`, `handles`, and `terminal_observation`, never names a
+- The result model, `results`, `output`, and `terminal_observation`, never names a
   command owner. A query document whose owner composes other result values and renders its own text
   enters `results::Projection` as a `results::OwnedDocument`.
 - `present` renders result values only. Command text that needs a command owner's types stays with
@@ -49,7 +49,8 @@ down through these groups:
   call a command's feature parser.
 - `help` derives help paths, help requests, and usage option candidates from `grammar`; `grammar`
   never reaches `help`.
-- `failure` holds the failure vocabulary and its constructors and names no sibling. The root holds
+- `failure` holds the failure vocabulary and its constructors and names no sibling. `handles`
+  prints the compact selectors that `target_syntax` accepts and names no sibling either. The root holds
   the typed request vocabulary and the `Options` scan state.
 
 ## Maintenance

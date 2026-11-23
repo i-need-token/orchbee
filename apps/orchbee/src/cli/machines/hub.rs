@@ -22,8 +22,6 @@ mod server;
 mod state;
 mod stop;
 
-pub(crate) use printer::StateFailure;
-
 use crate::{cli::Output, localization::Locale, tui_capabilities::Capability};
 
 /// Serves the hub until it closes. The status is 0 after closing or when another hub holds the

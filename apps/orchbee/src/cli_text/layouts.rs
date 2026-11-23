@@ -76,7 +76,7 @@ impl super::CliText {
             if let Some(id) = result[key].as_str() {
                 text.push_str(&format!(
                     "{label}: {}\n",
-                    crate::cli_text::escape::escape(&crate::cli::handles::tab(id))
+                    crate::cli_text::escape::escape(&crate::invocation::handles::tab(id))
                 ));
             }
         }

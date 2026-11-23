@@ -427,9 +427,9 @@ impl super::CliText {
     /// The machine hub state printer's failure line.
     pub(crate) fn cli_machine_hub_failure(
         self,
-        failure: &crate::cli::machines::hub::StateFailure,
+        failure: &orchbee_workbench_client::application::machine_hub::AttachFailure,
     ) -> String {
-        use crate::cli::machines::hub::StateFailure as F;
+        use orchbee_workbench_client::application::machine_hub::AttachFailure as F;
         use orchbee_workbench_client::application::machine_hub::Incompatible as I;
         match (self.locale, failure) {
             (Locale::EnUs, F::Incompatible(I::Environment { environment })) => format!(
@@ -453,9 +453,9 @@ impl super::CliText {
     fn cli_machine_hub_fixed_failure(
         self,
         locale: Locale,
-        failure: &crate::cli::machines::hub::StateFailure,
+        failure: &orchbee_workbench_client::application::machine_hub::AttachFailure,
     ) -> &'static str {
-        use crate::cli::machines::hub::StateFailure as F;
+        use orchbee_workbench_client::application::machine_hub::AttachFailure as F;
         match (locale, failure) {
             (Locale::EnUs, F::DataRoot) if cfg!(windows) => {
                 "The Orchbee data folder is unavailable; check USERPROFILE or ORCHBEE_HOME."

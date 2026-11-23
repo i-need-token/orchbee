@@ -407,7 +407,7 @@ fn project(
         Verdict::Failed { .. } => None,
     };
     // Text names the Panel by the handle a person types next; the document keeps its canonical ID.
-    let handle = |panel: &WorkbenchPanelId| super::handles::panel(panel.as_str());
+    let handle = |panel: &WorkbenchPanelId| crate::invocation::handles::panel(panel.as_str());
     let started = match (&report.verdict, panel) {
         (Verdict::Started { session }, Some(panel)) => Some((
             "session",

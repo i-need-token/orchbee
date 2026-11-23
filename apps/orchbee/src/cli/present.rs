@@ -301,7 +301,7 @@ fn terminal_list_cells(
 
 /// Print stable compact identities when no snapshot placement was attached.
 fn terminal_handles(rows: &[TerminalRow]) -> Vec<String> {
-    super::handles::stable(
+    crate::invocation::handles::stable(
         "terminal",
         &rows
             .iter()

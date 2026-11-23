@@ -1,5 +1,6 @@
-//! Lossless compact identities. Membership changes never alter printed handles.
-pub(super) fn stable(kind: &str, ids: &[&str]) -> Vec<String> {
+//! Lossless compact identities, the form `target_syntax` accepts as a selector. Membership changes
+//! never alter printed handles.
+pub(crate) fn stable(kind: &str, ids: &[&str]) -> Vec<String> {
     ids.iter().map(|id| compact(kind, id)).collect()
 }
 

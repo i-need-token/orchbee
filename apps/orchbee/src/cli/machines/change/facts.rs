@@ -2,7 +2,9 @@
 //! --dry-run` reads it: every terminal, each with whether it runs a program. An older Orchbee there
 //! lists the terminals without that, and every one of them counts as unknown, never idle.
 use super::Answer;
-use crate::{cli::handles, cli_text::Stops, localization::Locale, terminal_title::display_name};
+use crate::{
+    cli_text::Stops, invocation::handles, localization::Locale, terminal_title::display_name,
+};
 use serde_json::{Value, json};
 
 pub(super) struct Facts {

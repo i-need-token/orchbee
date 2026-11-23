@@ -1121,8 +1121,8 @@ pub(crate) fn terminal_select(
                 );
                 failure.candidate_display(
                     [
-                        super::handles::stable("terminal", &[id]),
-                        super::handles::stable("panel", &[id]),
+                        crate::invocation::handles::stable("terminal", &[id]),
+                        crate::invocation::handles::stable("panel", &[id]),
                     ]
                     .concat(),
                 );
@@ -2181,7 +2181,7 @@ fn list_handles<'a>(
     let ids: Vec<&str> = ids.collect();
     ids.iter()
         .copied()
-        .zip(super::handles::stable(resource.as_str(), &ids))
+        .zip(crate::invocation::handles::stable(resource.as_str(), &ids))
         .collect()
 }
 
@@ -2966,7 +2966,7 @@ pub(super) fn presentation_handle(snapshot: &Snapshot, presentation_id: &str) ->
         .iter()
         .flat_map(|context| &context.tabs)
         .find_map(|tab| find(&tab.root, presentation_id))?;
-    super::handles::stable(resource.as_str(), &[id.as_str()]).pop()
+    crate::invocation::handles::stable(resource.as_str(), &[id.as_str()]).pop()
 }
 
 pub(super) fn terminal_rows(snapshot: &Snapshot) -> Vec<TerminalRow> {

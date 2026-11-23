@@ -47,7 +47,7 @@ impl super::CliText {
         let workspace = status["workspaceId"]
             .as_str()
             .or_else(|| status["progress"]["workspace"]["workspaceId"].as_str())
-            .map(crate::cli::handles::workspace);
+            .map(crate::invocation::handles::workspace);
         let fields = [
             ("Operation", "操作", Some(id)),
             ("Phase", "阶段", status["phase"].as_str()),
@@ -186,7 +186,7 @@ impl super::CliText {
             && status["progress"]["workspace"]["kind"] == "closing"
             && let Some(workspace) = status["progress"]["workspace"]["workspaceId"].as_str()
         {
-            let workspace = escape(&crate::cli::handles::workspace(workspace));
+            let workspace = escape(&crate::invocation::handles::workspace(workspace));
             text.push_str(&match self.locale {
                 Locale::EnUs => format!("Git no longer lists this checkout as a worktree; this removal cannot resume. Inspect the directory and `git worktree list`, then close the held Workspace:\norchbee workspace close {workspace} --confirm\n"),
                 Locale::ZhCn => format!("Git 已不再将此 checkout 登记为工作树，此移除无法恢复。请检查该目录和 `git worktree list`，然后关闭仍保持关闭中的工作区：\norchbee workspace close {workspace} --confirm\n"),
@@ -309,11 +309,11 @@ impl super::CliText {
                             "  {}: {} ({})  {}: {}\n",
                             word("Workspace", "Workspace"),
                             escape(workspace.label.as_str()),
-                            crate::cli::handles::workspace(workspace.workspace_id.as_str()),
+                            crate::invocation::handles::workspace(workspace.workspace_id.as_str()),
                             word("Project", "项目"),
                             workspace.project_id.as_ref().map_or_else(
                                 || self.cli_ungrouped().to_owned(),
-                                |project| crate::cli::handles::project(project.as_str())
+                                |project| crate::invocation::handles::project(project.as_str())
                             )
                         ));
                     }

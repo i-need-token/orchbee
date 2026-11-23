@@ -59,7 +59,7 @@ impl super::CliText {
                     escape(
                         &member["workspaceId"]
                             .as_str()
-                            .map(crate::cli::handles::workspace)
+                            .map(crate::invocation::handles::workspace)
                             .unwrap_or_default()
                     ),
                     escape(member["label"].as_str().unwrap_or("")),

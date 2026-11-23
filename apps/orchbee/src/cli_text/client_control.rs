@@ -6,7 +6,7 @@ use serde_json::Value;
 /// A Panel by the handle a person types next, `-` when there is none.
 fn panel(id: &Value) -> String {
     id.as_str()
-        .map_or_else(|| "-".to_owned(), crate::cli::handles::panel)
+        .map_or_else(|| "-".to_owned(), crate::invocation::handles::panel)
 }
 
 pub(super) const HELP_AGENT_FOCUS_EN: crate::cli_text::HelpDetails =
@@ -361,7 +361,7 @@ impl super::CliText {
             escape(
                 &adjustment["tabId"]
                     .as_str()
-                    .map(crate::cli::handles::tab)
+                    .map(crate::invocation::handles::tab)
                     .unwrap_or_default()
             )
         ));
@@ -385,10 +385,12 @@ impl super::CliText {
     fn client_selection_text(self, text: &mut String, selection: &Value, labels: &[&str; 9]) {
         // A Terminal Context has no handle of its own; a Tab and a Panel go by theirs.
         let context = selection["terminalContextId"].as_str().map(str::to_owned);
-        let tab = selection["tabId"].as_str().map(crate::cli::handles::tab);
+        let tab = selection["tabId"]
+            .as_str()
+            .map(crate::invocation::handles::tab);
         let panel = selection["panelId"]
             .as_str()
-            .map(crate::cli::handles::panel);
+            .map(crate::invocation::handles::panel);
         for (label, value) in [(labels[2], context), (labels[3], tab), (labels[4], panel)] {
             if let Some(value) = value {
                 text.push_str(&format!("  {label}: {}\n", escape(&value)));

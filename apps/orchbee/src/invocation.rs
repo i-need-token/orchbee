@@ -66,6 +66,7 @@ mod agent_options;
 mod argv;
 mod dispatch;
 mod failure;
+pub(crate) mod handles;
 mod launch_options;
 mod option_scope;
 mod scan;

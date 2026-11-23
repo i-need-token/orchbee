@@ -58,7 +58,7 @@ impl super::CliText {
         };
         format!(
             "{}: {message}\n",
-            crate::cli_text::escape::escape(&crate::cli::handles::terminal(terminal))
+            crate::cli_text::escape::escape(&crate::invocation::handles::terminal(terminal))
         )
     }
 }

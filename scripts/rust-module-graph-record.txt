@@ -53,7 +53,6 @@ cycle apps/orchbee bin cli::worktree_operation -> cli::workspace_focus
 cycle apps/orchbee bin cli::worktree_operation -> cli::worktree_source
 cycle apps/orchbee bin cli::worktree_source -> cli::client_control
 cycle apps/orchbee bin cli::worktree_source -> cli::source_context
-cycle apps/orchbee bin cli_text -> cli
 cycle apps/orchbee bin diagnostic_events -> relaunch
 cycle apps/orchbee bin local_startup -> cli
 cycle apps/orchbee bin local_startup -> relaunch
@@ -277,19 +276,6 @@ cycle crates/workbench-protocol lib validation -> model
 cycle crates/workbench-protocol lib workspace_order -> command
 cycle crates/workbench-protocol lib workspace_order -> model
 cycle crates/workbench-protocol lib workspace_order -> validation
-upward apps/orchbee bin cli_text -> cli in cli_text::agent_projection 1
-upward apps/orchbee bin cli_text -> cli in cli_text::agent_start 1
-upward apps/orchbee bin cli_text -> cli in cli_text::client_control 4
-upward apps/orchbee bin cli_text -> cli in cli_text::layouts 1
-upward apps/orchbee bin cli_text -> cli in cli_text::machines 26
-upward apps/orchbee bin cli_text -> cli in cli_text::panel_agent 1
-upward apps/orchbee bin cli_text -> cli in cli_text::panel_metadata 1
-upward apps/orchbee bin cli_text -> cli in cli_text::panel_relocation 6
-upward apps/orchbee bin cli_text -> cli in cli_text::receipt 8
-upward apps/orchbee bin cli_text -> cli in cli_text::terminal_clear 1
-upward apps/orchbee bin cli_text -> cli in cli_text::workspace_group_close 1
-upward apps/orchbee bin cli_text -> cli in cli_text::workspace_metadata 1
-upward apps/orchbee bin cli_text -> cli in cli_text::worktree 4
 upward apps/orchbee/crates/workbench-client lib client_actions -> machine_picker in client_actions 1
 upward apps/orchbee/crates/workbench-client lib client_view -> tui_hit_map in client_view::tab_list 4
 upward apps/orchbee/crates/workbench-client lib localization -> client_view in localization::startup 1

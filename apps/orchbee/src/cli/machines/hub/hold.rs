@@ -4,11 +4,11 @@
 //! the contract's names, `attached <process id> <hubs started> <state>`, `reattached` likewise,
 //! `event hub <state>`, `event catalog <revision>`, `event machine <id>`, and `ended`.
 
-use super::printer::StateFailure;
+use super::printer::status;
 use crate::{cli::Output, cli_text::CliText, localization::Locale};
 use orchbee_machine_protocol::hub::{Event, HubState};
 use orchbee_workbench_client::application::machine_hub::{
-    Attached, Attachment, HubClient, Notice, data_root, running,
+    AttachFailure, Attached, Attachment, HubClient, Notice, data_root, running,
 };
 use std::{
     io::{Read, Write},
@@ -31,15 +31,15 @@ pub(super) fn run(locale: Locale) -> Output {
         asks: false,
         watch: true,
     };
-    let failed = |failure: StateFailure| Output {
-        status: failure.status(),
+    let failed = |failure: AttachFailure| Output {
+        status: status(&failure),
         stdout: Vec::new(),
         stderr: format!("{}\n", text.cli_machine_hub_failure(&failure)),
         finalization: None,
     };
     let (client, attached) = match HubClient::open(attachment, Instant::now() + ATTACH) {
         Ok(opened) => opened,
-        Err(failure) => return failed(failure.into()),
+        Err(failure) => return failed(failure),
     };
     line(&attachment_line("attached", attached));
     let (ended, input_ended) = mpsc::channel::<()>();
@@ -51,7 +51,7 @@ pub(super) fn run(locale: Locale) -> Output {
         });
     if reader.is_err() {
         client.close();
-        return failed(StateFailure::Unavailable);
+        return failed(AttachFailure::Unavailable);
     }
     loop {
         if !matches!(input_ended.try_recv(), Err(mpsc::TryRecvError::Empty)) {
@@ -70,7 +70,7 @@ pub(super) fn run(locale: Locale) -> Output {
             Some(Notice::Ended(failure)) => {
                 line("ended");
                 client.close();
-                return failed(failure.into());
+                return failed(failure);
             }
         }
     }

@@ -9,7 +9,7 @@ use orchbee_machine_protocol::{
     hub::{Catalog, Event, HubState, MachineState},
 };
 use orchbee_workbench_client::application::machine_hub::{
-    AttachFailure, Attachment, HubClient, Incompatible, Notice, data_root, running,
+    AttachFailure, Attachment, HubClient, Notice, data_root, running,
 };
 use std::{
     collections::BTreeMap,
@@ -21,45 +21,15 @@ const ATTACH: Duration = Duration::from_secs(10);
 /// The bound on the attachment's events, and on the `query`.
 const READ: Duration = Duration::from_secs(5);
 
-/// Why the printer printed no state.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum StateFailure {
-    DataRoot,
-    Unavailable,
-    Denied,
-    /// A hub started as administrator refused this standard process.
-    Elevated,
-    Closing,
-    Lost,
-    Incompatible(Incompatible),
-    Timeout,
-}
-
-impl StateFailure {
-    pub(super) const fn status(&self) -> u8 {
-        match self {
-            Self::DataRoot => 1,
-            Self::Denied | Self::Elevated => 3,
-            Self::Unavailable | Self::Closing => 4,
-            Self::Lost => 5,
-            Self::Incompatible(_) => 6,
-            Self::Timeout => 7,
-        }
-    }
-}
-
-impl From<AttachFailure> for StateFailure {
-    fn from(failure: AttachFailure) -> Self {
-        match failure {
-            AttachFailure::DataRoot => Self::DataRoot,
-            AttachFailure::Unavailable => Self::Unavailable,
-            AttachFailure::Denied => Self::Denied,
-            AttachFailure::Elevated => Self::Elevated,
-            AttachFailure::Closing => Self::Closing,
-            AttachFailure::Incompatible(incompatible) => Self::Incompatible(incompatible),
-            AttachFailure::Lost => Self::Lost,
-            AttachFailure::Timeout => Self::Timeout,
-        }
+/// The exit status of a printer that printed no state, by why.
+pub(super) const fn status(failure: &AttachFailure) -> u8 {
+    match failure {
+        AttachFailure::DataRoot => 1,
+        AttachFailure::Denied | AttachFailure::Elevated => 3,
+        AttachFailure::Unavailable | AttachFailure::Closing => 4,
+        AttachFailure::Lost => 5,
+        AttachFailure::Incompatible(_) => 6,
+        AttachFailure::Timeout => 7,
     }
 }
 
@@ -80,7 +50,7 @@ pub(super) fn run(locale: Locale) -> Output {
             finalization: None,
         },
         Err(failure) => Output {
-            status: failure.status(),
+            status: status(&failure),
             stdout: Vec::new(),
             stderr: format!("{}\n", text.cli_machine_hub_failure(&failure)),
             finalization: None,
@@ -88,7 +58,7 @@ pub(super) fn run(locale: Locale) -> Output {
     }
 }
 
-fn collect() -> Result<(Report, u32), StateFailure> {
+fn collect() -> Result<(Report, u32), AttachFailure> {
     let attachment = Attachment {
         presence: false,
         asks: false,
@@ -101,7 +71,7 @@ fn collect() -> Result<(Report, u32), StateFailure> {
     let pid = running(&data_root()?, Instant::now() + READ)
         .ok()
         .flatten()
-        .ok_or(StateFailure::Unavailable)?;
+        .ok_or(AttachFailure::Unavailable)?;
     Ok((report, pid))
 }
 
@@ -111,7 +81,7 @@ fn watch(
     client: &HubClient,
     attached: HubState,
     deadline: Instant,
-) -> Result<Report, StateFailure> {
+) -> Result<Report, AttachFailure> {
     let mut hub = attached;
     let mut catalog: Option<Catalog> = None;
     let mut machines: BTreeMap<String, MachineState> = BTreeMap::new();
@@ -140,8 +110,8 @@ fn watch(
                 catalog = None;
                 machines.clear();
             }
-            Some(Notice::Ended(failure)) => return Err(failure.into()),
-            None => return Err(StateFailure::Timeout),
+            Some(Notice::Ended(failure)) => return Err(failure),
+            None => return Err(AttachFailure::Timeout),
         }
     }
 }

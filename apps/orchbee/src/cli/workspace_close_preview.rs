@@ -3,13 +3,13 @@
 //! Workspace Close reads. A Server without the check, or one that does not answer in time, leaves
 //! every terminal unknown, never idle. Nothing is submitted.
 use super::{
-    Failure, FailureKind, Output, failure_output, handles, output,
+    Failure, FailureKind, Output, failure_output, output,
     results::{self, Projection, TerminalListDetails, TerminalListDocument, TerminalRow},
     success_output, terminal_list,
 };
 use crate::{
     cli_text::{CliText, Stops},
-    invocation::{OutputFormat, QueryCommand, Target, TerminalListFilter},
+    invocation::{OutputFormat, QueryCommand, Target, TerminalListFilter, handles},
     local_client::LocalClient,
     localization::Locale,
     terminal_title::{display_name, program_name},

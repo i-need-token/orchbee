@@ -3,8 +3,8 @@
 //! resource. Revisions, request IDs and other internal identities stay in
 //! the JSON document.
 use super::Locale;
-use crate::cli::handles;
 use crate::cli_text::escape::{display_width, escape, quoted, unquoted};
+use crate::invocation::handles;
 use serde_json::Value;
 
 /// A receipt names each resource by the handle a person types next; the JSON document keeps the

@@ -91,7 +91,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
         else {
             return Err(classify(Error::Invalid));
         };
-        let handles = super::handles::stable(
+        let handles = crate::invocation::handles::stable(
             "panel",
             &panels
                 .iter()

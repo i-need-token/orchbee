@@ -1,6 +1,6 @@
 //! Formats Panel relocation outcomes without selecting or moving a live Panel.
 use super::Locale;
-use crate::cli::handles;
+use crate::invocation::handles;
 use serde_json::Value;
 
 /// Names a resource of a kind people address by handle.
