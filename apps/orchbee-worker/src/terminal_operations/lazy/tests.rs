@@ -1351,31 +1351,44 @@ fn require_worker_ended(server: &mut UnixStream) -> TestResult {
 /// last start's failure is answered, then the Worker ends, so the Server stops the Session. Each
 /// failed start is recorded with its stage. The fixture cohort's Host artifact is not a program,
 /// so each start fails at the spawn, or when the interpreter a platform falls back to exits at
-/// once.
+/// once. On macOS, as on Windows, a start registers its Host first, and neither a failed
+/// registration nor a registered Host that exited leaves a further start; the fixture keeps no
+/// Session record, so its first start fails at the registration, its Launch is answered, and the
+/// Worker ends.
 #[test]
 fn host_start_failures_fail_only_their_launches_until_the_start_bound_ends_the_worker() -> TestResult
 {
     use orchbee_local_runtime::LogValue;
     let (mut server, _fixture, _runtime, worker_thread) = lazy_worker_over_fixture()?;
-    for id in [1, 2] {
-        launch_fails_before_handoff(&mut server, id)?;
-    }
-    // A request of another kind is still answered.
-    let mut mint = TokenMint(0);
-    assert!(drain(&mut server, &mut mint, 0)?.entries().is_empty());
-    launch_fails_before_handoff(&mut server, 3)?;
+    #[cfg(not(target_os = "macos"))]
+    let starts = {
+        for id in [1, 2] {
+            launch_fails_before_handoff(&mut server, id)?;
+        }
+        // A request of another kind is still answered.
+        let mut mint = TokenMint(0);
+        assert!(drain(&mut server, &mut mint, 0)?.entries().is_empty());
+        launch_fails_before_handoff(&mut server, 3)?;
+        3
+    };
+    #[cfg(target_os = "macos")]
+    let starts = {
+        launch_fails_before_handoff(&mut server, 1)?;
+        1
+    };
     require_worker_ended(&mut server)?;
     let (ended, noted) = worker_thread
         .join()
         .map_err(|_panic| io::Error::other("lazy Worker test thread panicked"))?;
     assert!(ended);
     let stages = failed_start_stages(&noted);
-    assert_eq!(stages.len(), 3, "{noted:?}");
+    assert_eq!(stages.len(), starts, "{noted:?}");
     for stage in stages {
-        assert!(
-            matches!(stage, LogValue::Token("spawn" | "exited")),
-            "{stage:?}"
-        );
+        #[cfg(not(target_os = "macos"))]
+        let expected = matches!(stage, LogValue::Token("spawn" | "exited"));
+        #[cfg(target_os = "macos")]
+        let expected = matches!(stage, LogValue::Token("registration"));
+        assert!(expected, "{stage:?}");
     }
     Ok(())
 }
