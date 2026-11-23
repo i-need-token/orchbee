@@ -104,15 +104,13 @@ impl Handoff {
         &mut self,
         server: &mut LocalStream,
         host: Option<&HostBrokerConnection>,
+        attached: bool,
         request: WorkerHandoffRequest,
         worker_id: WorkerId,
         generation: NonZeroU64,
     ) -> Result<(), Box<dyn Error>> {
         self.expire(Instant::now());
-        let empty = host.is_none_or(|host| {
-            host.viewers.borrow().is_empty() && host.controllers.borrow().is_empty()
-        });
-        let refusal = self.refusal(request, worker_id, generation, empty);
+        let refusal = self.refusal(request, worker_id, generation, !attached);
         if let Some(reason) = refusal {
             return reply(server, host, request, Outcome::Refused(reason));
         }

@@ -1,6 +1,7 @@
-//! Serializes admitted Server requests across the authorization kernel, Host connection,
-//! retained jobs, and managed lifecycle operations. This loop preserves one physical operation
-//! owner without deciding Workbench membership or implementing PTY and VT behavior.
+//! Serializes admitted Server requests across the authorization kernel, the Hosts the Worker holds,
+//! retained jobs, and managed lifecycle operations. A request goes to the Host that serves what it
+//! names, and a launch to the Worker's own Host. This loop preserves one physical operation owner
+//! without deciding Workbench membership or implementing PTY and VT behavior.
 
 use orchbee_local_ipc::LocalStream as UnixStream;
 use std::{
@@ -9,11 +10,12 @@ use std::{
     io,
     num::NonZeroU64,
     rc::Rc,
-    time::{SystemTime, UNIX_EPOCH},
+    time::{Instant, SystemTime, UNIX_EPOCH},
 };
 
 use orchbee_capability_node_protocol::{
-    CapabilityNodeMessage, DeclinedRequestKind, HostEpoch, LaunchPreferences, WorkerRequestDeclined,
+    CapabilityNodeMessage, DeclinedRequestKind, HostEpoch, LaunchPreferences, TerminalViewerAction,
+    WorkerRequestDeclined,
 };
 use orchbee_local_worker_protocol::WorkerId;
 use orchbee_terminal_protocol::CorrelationId;
@@ -37,6 +39,9 @@ pub(crate) use adopt::run as run_adopt;
 mod background_jobs;
 mod exit_cause;
 mod host_query;
+mod host_set;
+#[cfg(any(target_os = "linux", target_os = "macos", windows))]
+mod host_start;
 mod launch_facts;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod lazy;
@@ -58,7 +63,7 @@ mod tests;
 
 pub(crate) fn run(
     server: &UnixStream,
-    host: &mut HostBrokerConnection,
+    host: HostBrokerConnection,
     worker_id: WorkerId,
     generation: NonZeroU64,
     drain: &Rc<RefCell<AgentDrain>>,
@@ -88,7 +93,6 @@ pub(crate) fn run(
             mutation_slot: &mutation_slot,
             plugin_jobs: &plugin_jobs,
             session_runtime: None,
-            managed_host: None,
         },
     );
     background_jobs::BackgroundJobs {
@@ -114,31 +118,12 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
     pub(crate) session_runtime: Option<&'a std::path::Path>,
-    pub(super) managed_host: Option<&'a mut shutdown::ManagedHost>,
-}
-
-#[cfg(windows)]
-impl AdmittedAux<'_> {
-    /// The same owners, lent to one serving loop, so the managed Host stays at hand after it.
-    fn reborrow(&mut self) -> AdmittedAux<'_> {
-        AdmittedAux {
-            drain: self.drain,
-            system_shell: self.system_shell,
-            worktree_slot: self.worktree_slot,
-            agent_integrations: self.agent_integrations,
-            agent_probes: self.agent_probes,
-            mutation_slot: self.mutation_slot,
-            plugin_jobs: self.plugin_jobs,
-            session_runtime: self.session_runtime,
-            managed_host: self.managed_host.as_deref_mut(),
-        }
-    }
 }
 
 /// Owns the admitted Server wire and preserves its physical owners across an explicit handoff.
 pub(crate) fn run_admitted(
     server: UnixStream,
-    host: &mut HostBrokerConnection,
+    host: HostBrokerConnection,
     worker_id: WorkerId,
     generation: NonZeroU64,
     kernel: AuthorizedHostOperationKernel,
@@ -148,7 +133,7 @@ pub(crate) fn run_admitted(
     let handoff = handoff::Handoff::new(aux.session_runtime);
     run_admitted_with_handoff(
         server,
-        host,
+        host_set::HostSet::unmanaged(host),
         worker_id,
         generation,
         kernel,
@@ -158,12 +143,13 @@ pub(crate) fn run_admitted(
     )
 }
 
-/// Serves the admitted connection and attaches the classified cause to the error that ends it.
-/// On Windows a Host that left an exchange unanswered for its whole bound is checked for a hang
-/// before the Worker exits, so a hang a request met first is recovered as one the care found.
+/// Serves the admitted connection and attaches the classified cause to the error that ends it,
+/// named for the Host whose failure ended it. On Windows a Host that left an exchange unanswered
+/// for its whole bound is checked for a hang before the Worker exits, so a hang a request met first
+/// is recovered as one the care found.
 fn run_admitted_with_handoff(
     server: UnixStream,
-    host: &mut HostBrokerConnection,
+    mut hosts: host_set::HostSet<'_>,
     worker_id: WorkerId,
     generation: NonZeroU64,
     kernel: AuthorizedHostOperationKernel,
@@ -171,30 +157,25 @@ fn run_admitted_with_handoff(
     #[cfg(windows)] handoff: handoff::Handoff,
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
-    let mut aux = aux;
-    #[cfg(windows)]
-    let mut care = keeper_care::KeeperCare::new(std::time::Instant::now());
+    let mut care = keeper_care::KeeperCare::new(Instant::now());
     let outcome = serve(
         server,
-        host,
+        &mut hosts,
         worker_id,
         generation,
         kernel,
-        #[cfg(windows)]
-        aux.reborrow(),
-        #[cfg(not(windows))]
         aux,
         #[cfg(windows)]
         (handoff, &mut care),
     );
+    let failed = hosts.failed();
     #[cfg(windows)]
     if let Err(error) = &outcome
-        && let Some(managed) = aux.managed_host.as_deref_mut()
-        && exit_cause::host_unanswered(error.as_ref(), host)
+        && exit_cause::host_unanswered(error.as_ref(), hosts.connection(failed))
     {
-        care.after_unanswered(host, managed);
+        hosts.after_unanswered(failed);
     }
-    outcome.map_err(|error| exit_cause::attach(error, host))
+    outcome.map_err(|error| exit_cause::attach(error, hosts.connection(failed)))
 }
 
 /// Each Server request bounds its Host exchanges from when its bytes first became readable
@@ -202,12 +183,15 @@ fn run_admitted_with_handoff(
 /// connection no longer uses runs after the request's own work, so it never takes the request's
 /// room, and before the result, while the Server sends nothing.
 ///
-/// On Windows the loop also keeps, between requests, the explicit handoff and the Keeper's care.
+/// A request that names a terminal goes to the Host that serves its epoch, one that names an
+/// attachment to the Host that holds it, a launch to the Worker's own Host, and a request that
+/// reads every Host to each that still serves. On Windows the loop also keeps, between requests,
+/// the explicit handoff and the Keeper's care.
 ///
 /// [`Pacing`]: crate::host_connection::Pacing
 fn serve(
     server: UnixStream,
-    host: &mut HostBrokerConnection,
+    hosts: &mut host_set::HostSet<'_>,
     worker_id: WorkerId,
     generation: NonZeroU64,
     mut kernel: AuthorizedHostOperationKernel,
@@ -216,70 +200,79 @@ fn serve(
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
-    #[cfg(windows)]
-    let mut aux = aux;
-    let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
     loop {
-        host.pacing.end_request();
-        host.pacing.set_site(Site::ServerReceive);
-        #[cfg(not(windows))]
-        let (request, readable) = server_transport::receive_timed(&server, Some(host))?;
-        #[cfg(windows)]
+        hosts.end_request();
         let (request, readable) = loop {
             // The Keeper's care runs between requests, never under a prepared handoff, so nothing
             // changes under one. A request that arrived while it ran waited for it, so that
             // request's bound runs from when the care began.
-            let mut cared = None;
-            let wake = match aux.managed_host.as_deref_mut() {
-                _ if handoff.is_prepared() => handoff.deadline(),
-                Some(managed) => {
-                    cared = care.run(host, &server, managed);
-                    Some(care.due())
-                }
-                None => None,
+            #[cfg(windows)]
+            let (wake, cared) = if handoff.is_prepared() {
+                (handoff.deadline(), None)
+            } else if hosts.is_managed() {
+                let cared = hosts.care(care, &server);
+                (Some(care.due()), cared)
+            } else {
+                (None, None)
             };
-            if let Some((request, readable)) =
-                server_transport::receive_until_timed(&server, Some(host), wake)?
-            {
+            #[cfg(not(windows))]
+            let (wake, cared) = (None, None::<Instant>);
+            if let Some((request, readable)) = hosts.receive(&server, wake)? {
                 break (request, cared.map_or(readable, |began| readable.min(began)));
             }
-            handoff.expire(std::time::Instant::now());
+            #[cfg(windows)]
+            handoff.expire(Instant::now());
         };
-        host.pacing.begin_request_at(readable);
+        hosts.begin_request_at(readable);
         #[cfg(windows)]
-        handoff.expire(std::time::Instant::now());
+        handoff.expire(Instant::now());
         #[cfg(windows)]
         if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
+            let host = hosts.primary();
             host.pacing.set_site(Site::Handoff);
-            handoff.execute(&mut server, Some(host), request, worker_id, generation)?;
+            let attached = hosts.serving().iter().any(|host| {
+                !host.viewers.borrow().is_empty() || !host.controllers.borrow().is_empty()
+            });
+            handoff.execute(
+                &mut server,
+                Some(host),
+                attached,
+                request,
+                worker_id,
+                generation,
+            )?;
             continue;
         }
         // A prepared handoff hands this connection to another Server: an ordinary request now is
         // declined, so nothing changes under the handoff, and the connection serves on.
         #[cfg(windows)]
         if handoff.is_prepared() {
-            decline(&server, Some(&*host), &request, DeclineCause::Handoff)?;
+            decline(
+                &server,
+                Some(hosts.primary()),
+                &request,
+                DeclineCause::Handoff,
+            )?;
             continue;
         }
+        let primary = hosts.primary();
         if let CapabilityNodeMessage::HostQueryRequest(request) = request {
-            let result = host_query::execute(Some(host), request, worker_id, generation);
-            if server_transport::send(
+            let result = host_query::execute(&hosts.serving(), request, worker_id, generation);
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::HostQueryResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::WorkerShutdownRequest(request) = request {
-            host.pacing.set_site(Site::Shutdown);
+            hosts.set_site(Site::Shutdown);
             if let Some(reason) =
-                shutdown::refusal(request, worker_id, generation, aux.managed_host.is_some())
+                shutdown::refusal(request, worker_id, generation, hosts.is_managed())
             {
-                if server_transport::send(
+                answer(
                     &server,
-                    Some(host),
+                    hosts.primary(),
                     &CapabilityNodeMessage::WorkerShutdownResult(
                         orchbee_capability_node_protocol::WorkerShutdownResult {
                             request,
@@ -289,9 +282,7 @@ fn serve(
                                 ),
                         },
                     ),
-                )? {
-                    return Err(peer_closed().into());
-                }
+                )?;
                 continue;
             }
             return shutdown::run(
@@ -306,37 +297,34 @@ fn serve(
                     mutations: aux.mutation_slot,
                     plugins: aux.plugin_jobs,
                 },
-                aux.managed_host.map(|owner| (&*host, owner)),
+                hosts.stop_hosts(),
             );
         }
         if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
-            host.pacing.set_site(Site::Titles);
-            let result = titles::execute(&server, Some(host), request, worker_id, generation)?;
-            if server_transport::send(
+            hosts.set_site(Site::Titles);
+            let result =
+                titles::execute(&server, &hosts.serving(), request, worker_id, generation)?;
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::TerminalTitlesResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalTitleChangesRequest(request) = request {
-            let result = title_changes::execute(Some(host), request, worker_id, generation);
-            if server_transport::send(
+            let result = title_changes::execute(Some(primary), request, worker_id, generation);
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::TerminalTitleChangesResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::AgentDrainRequest(request) = request {
-            host.pacing.set_site(Site::Drain);
+            primary.pacing.set_site(Site::Drain);
             let host_closed = dispatch_drain_request(
                 &server,
-                Some(host),
+                Some(primary),
                 aux.drain,
                 &request,
                 worker_id,
@@ -352,29 +340,26 @@ fn serve(
             let result = aux
                 .agent_integrations
                 .execute(request, worker_id, generation);
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::AgentIntegrationJobResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::AgentProbeJobRequest(request) = request {
             // Start only admits the job owner; it never waits for the lookup.
             let result = aux.agent_probes.execute(request, worker_id, generation);
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::AgentProbeJobResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::PluginJobRequest(request) = request {
-            let programs = crate::host_programs::HostPrograms::serving(host, &server);
+            // A program starts on the Worker's own Host and is reached on the Host that runs it.
+            let programs = hosts.programs(&server);
             let result = crate::plugin_job_operation::execute(
                 request,
                 worker_id,
@@ -385,13 +370,11 @@ fn serve(
                     .as_ref()
                     .map(|programs| programs as &dyn crate::plugin_jobs::ProgramHost),
             );
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::PluginJobResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::WorktreeMutationRequest(request) = request {
@@ -401,13 +384,11 @@ fn serve(
                 generation,
                 aux.mutation_slot,
             );
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::WorktreeMutationResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::WorktreeJobRequest(request) = request {
@@ -419,28 +400,26 @@ fn serve(
                 generation,
                 aux.worktree_slot,
             );
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::WorktreeJobResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalCwdValidationRequest(request) = request {
             let result = crate::terminal_cwd_validation::validate(request, worker_id, generation);
-            if server_transport::send(
+            answer(
                 &server,
-                Some(host),
+                primary,
                 &CapabilityNodeMessage::TerminalCwdValidationResult(result),
-            )? {
-                return Err(peer_closed().into());
-            }
+            )?;
             continue;
         }
         if let CapabilityNodeMessage::TerminalLifecycleRequest(request) = request {
             use crate::terminal_authorization::LifecycleAdmission;
+            let host = hosts.connection(hosts.by_epoch(request.target.host_epoch()));
+            let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes())?;
             host.pacing.set_site(Site::Lifecycle);
             let declined = WorkerRequestDeclined::operation(
                 DeclinedRequestKind::Lifecycle,
@@ -472,7 +451,7 @@ fn serve(
                 Ok(LifecycleAdmission::ResultReady) => HostOperationDisposition::ResultReady,
                 // The kernel refused it before any effect, so only this request is declined.
                 Ok(LifecycleAdmission::SlotOccupied) | Err(_) => {
-                    send_decline(&server, Some(&*host), declined, DeclineCause::State)?;
+                    send_decline(&server, Some(host), declined, DeclineCause::State)?;
                     continue;
                 }
             };
@@ -493,7 +472,7 @@ fn serve(
             }
             if server_transport::send(
                 &server,
-                (disposition == HostOperationDisposition::ResultReady).then_some(&*host),
+                (disposition == HostOperationDisposition::ResultReady).then_some(host),
                 &CapabilityNodeMessage::TerminalLifecycleResult(result),
             )? {
                 return Err(peer_closed().into());
@@ -501,6 +480,7 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::TerminalControlRequest(request) = request {
+            let host = hosts.connection(hosts.by_attachment(request.viewer_id));
             host.pacing.set_site(Site::Control);
             let result = crate::terminal_control_operation::execute(
                 request, worker_id, generation, host, &server,
@@ -513,6 +493,7 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::TerminalGraphicsDecodeRequest(request) = request {
+            let host = hosts.connection(hosts.by_attachment(request.attachment_id));
             host.pacing.set_site(Site::Graphics);
             let result = crate::terminal_viewer_operation::decode_graphics(
                 request, worker_id, generation, host, &server,
@@ -525,6 +506,14 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::TerminalViewerRequest(request) = request {
+            let index = match &request.action {
+                TerminalViewerAction::Attach { host_epoch, .. } => hosts.by_epoch(*host_epoch),
+                TerminalViewerAction::ReadLifecycle { target } => {
+                    hosts.by_epoch(target.host_epoch())
+                }
+                _ => hosts.by_attachment(request.attachment_id),
+            };
+            let host = hosts.connection(index);
             host.pacing.set_site(Site::Viewer);
             let result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
@@ -537,6 +526,7 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::TerminalSendRequest(request) = request {
+            let host = hosts.connection(hosts.by_epoch(request.target.host_epoch()));
             host.pacing.set_site(Site::Send);
             let execution = crate::terminal_send_operation::execute(
                 request, worker_id, generation, host, &server,
@@ -554,55 +544,95 @@ fn serve(
         }
         let now = unix_milliseconds();
         let mut output_seed = None;
-        let (admission, declined) = match request {
+        // A Start goes to the Host that serves its terminal; a Launch finds its Host once admitted.
+        let (admission, declined, site, routed) = match request {
             CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) => {
-                host.pacing.set_site(Site::Launch);
                 let declined = WorkerRequestDeclined::operation(
                     DeclinedRequestKind::Launch,
                     launch.authorization().operation_id(),
                 );
                 // The kernel retains its launch for replay; the earlier output travels apart.
                 output_seed = launch.take_output_seed();
-                (kernel.admit_launch(launch, now), declined)
+                (
+                    kernel.admit_launch(launch, now),
+                    declined,
+                    Site::Launch,
+                    None,
+                )
             }
             CapabilityNodeMessage::AuthorizedTerminalStart(start) => {
-                host.pacing.set_site(Site::Start);
                 let declined = WorkerRequestDeclined::operation(
                     DeclinedRequestKind::Start,
                     start.authorization().operation_id(),
                 );
-                (kernel.admit_start(start, now, epoch), declined)
+                let index = hosts.by_epoch(start.identity().host_epoch());
+                let epoch =
+                    HostEpoch::from_bytes(*hosts.connection(index).host_epoch().as_bytes())?;
+                (
+                    kernel.admit_start(start, now, epoch),
+                    declined,
+                    Site::Start,
+                    Some(index),
+                )
             }
             // Every request served above has continued; what remains is declined.
             other => {
-                decline(&server, Some(&*host), &other, DeclineCause::Unserved)?;
+                decline(&server, Some(primary), &other, DeclineCause::Unserved)?;
                 continue;
             }
         };
-        let observed_colors = host.host_colors.borrow().latest();
+        let mut answered = routed.unwrap_or_else(|| hosts.primary_index());
+        hosts.connection(answered).pacing.set_site(site);
         let disposition = match admission {
             Ok(HostOperationAdmission::Dispatch(dispatch)) => {
-                let bound = host.pacing.exchange_bound();
-                match prepare_or_fail(
-                    &mut kernel,
-                    &dispatch,
-                    host.pacing.site(),
-                    aux.session_runtime,
-                    observed_colors,
-                    aux.system_shell,
-                )?
-                .map(|prepared| prepared.with_output_seed(output_seed))
-                {
-                    Some(prepared) => {
-                        prepared.execute(&mut kernel, host, &server, unix_milliseconds, bound)?
+                // A new terminal runs on the Worker's own Host, which starts here when it holds
+                // none; a start that fails fails only this launch.
+                let routed = match routed {
+                    Some(index) => Ok(index),
+                    None => hosts.own_or_start(readable),
+                };
+                match routed {
+                    Err(error) => {
+                        crate::diagnostic_events::request_unprepared(site, error.as_ref());
+                        kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
+                        HostOperationDisposition::ResultReady
                     }
-                    None => HostOperationDisposition::ResultReady,
+                    Ok(index) => {
+                        answered = index;
+                        let host = hosts.connection(index);
+                        host.pacing.set_site(site);
+                        let bound = host.pacing.exchange_bound();
+                        match prepare_or_fail(
+                            &mut kernel,
+                            &dispatch,
+                            site,
+                            aux.session_runtime,
+                            hosts.observed_colors(),
+                            aux.system_shell,
+                        )?
+                        .map(|prepared| prepared.with_output_seed(output_seed))
+                        {
+                            Some(prepared) => prepared.execute(
+                                &mut kernel,
+                                host,
+                                &server,
+                                unix_milliseconds,
+                                bound,
+                            )?,
+                            None => HostOperationDisposition::ResultReady,
+                        }
+                    }
                 }
             }
             Ok(HostOperationAdmission::ResultReady) => HostOperationDisposition::ResultReady,
             // The kernel refused it before any effect, so only this request is declined.
             Ok(HostOperationAdmission::SlotOccupied) | Err(_) => {
-                send_decline(&server, Some(&*host), declined, DeclineCause::State)?;
+                send_decline(
+                    &server,
+                    Some(hosts.connection(answered)),
+                    declined,
+                    DeclineCause::State,
+                )?;
                 continue;
             }
         };
@@ -613,12 +643,24 @@ fn serve(
         // No next admission occurs while this exact result is being delivered. A
         // failed write abandons the process; it never causes a Host retry.
         if disposition == HostOperationDisposition::ResultReady {
-            clean_and_send(&server, host, &result)?;
+            clean_and_send(&server, hosts.connection(answered), &result)?;
         } else {
             let _host_closed = server_transport::send(&server, None, &result)?;
             return Err(peer_closed().into());
         }
     }
+}
+
+/// Delivers `result` while reading `host`; a Host that ended meanwhile ends the connection.
+fn answer(
+    server: &UnixStream,
+    host: &HostBrokerConnection,
+    result: &CapabilityNodeMessage,
+) -> Result<(), Box<dyn Error>> {
+    if server_transport::send(server, Some(host), result)? {
+        return Err(peer_closed().into());
+    }
+    Ok(())
 }
 
 /// Answers a whole Server request this Worker will not serve with a decline, records its `cause`,

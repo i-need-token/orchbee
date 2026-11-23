@@ -1,4 +1,5 @@
-//! Observation-only title read on every platform. No Host startup, viewer, input or Agent
+//! Observation-only title read on every platform, across every Host the Worker serves: a row is
+//! read from the Host that serves its epoch. No Host startup, viewer, input or Agent
 //! acknowledgement.
 use super::{Error, HostBrokerConnection, NonZeroU64, UnixStream, WorkerId};
 use orchbee_capability_node_protocol::{
@@ -6,7 +7,7 @@ use orchbee_capability_node_protocol::{
 };
 pub(super) fn execute(
     server: &UnixStream,
-    host: Option<&HostBrokerConnection>,
+    hosts: &[&HostBrokerConnection],
     request: TerminalTitlesRequest,
     worker: WorkerId,
     generation: NonZeroU64,
@@ -14,7 +15,7 @@ pub(super) fn execute(
     request.validate()?;
     let current = request.worker_id.as_bytes() == worker.as_bytes()
         && request.worker_generation.get() == generation.get();
-    if current && let Some(host) = host {
+    for host in hosts.iter().filter(|_| current) {
         let observation = crate::host_connection::HostExchange::observer(host, server);
         observation
             .observe_pending(32)
@@ -24,8 +25,9 @@ pub(super) fn execute(
         .identities
         .into_iter()
         .map(|identity| {
-            let observation = host
-                .filter(|host| {
+            let observation = hosts
+                .iter()
+                .find(|host| {
                     current
                         && identity.host_epoch().as_bytes() == *host.host_epoch().as_bytes()
                         && !host.unavailable_terminal(identity.terminal_id())

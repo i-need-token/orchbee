@@ -1,4 +1,6 @@
-//! Managed shutdown retains creation-owned resources across explicit attempts.
+//! Managed shutdown retains creation-owned resources across explicit attempts. A stop that
+//! disposes ends every Host the Worker holds, one after another, and then the Session's Keeper; one
+//! that keeps the terminals releases every Host.
 use super::{background_jobs::BackgroundJobs, server_transport};
 use crate::host_connection::HostBrokerConnection;
 use orchbee_capability_node_protocol::{
@@ -22,6 +24,8 @@ mod host;
 enum HostState {
     Connected,
     Empty,
+    /// The Host exited after its terminals ended; a later attempt finds it stopped.
+    Ended,
     Unavailable {
         stage: ShutdownStage,
         failure: ShutdownFailure,
@@ -50,12 +54,15 @@ impl HostOwner {
 pub(crate) struct ManagedHost {
     owner: HostOwner,
     state: HostState,
-    /// The Session's Keeper, which a stop ends once the Host is gone.
+}
+
+/// What a stop ends: each Host the Worker holds with its owner, the epoch the outcome names, and
+/// the Session's Keeper, which ends once every Host is gone.
+pub(super) struct StopHosts<'a> {
+    pub(super) hosts: Vec<(&'a HostBrokerConnection, &'a mut ManagedHost)>,
+    pub(super) epoch: HostEpoch,
     #[cfg(windows)]
-    keeper: Option<crate::session_keeper::SessionKeeper>,
-    /// The Session runtime folder and the Terminal Host program a Keeper for this Host starts from.
-    #[cfg(windows)]
-    keeper_program: Option<(std::path::PathBuf, std::path::PathBuf)>,
+    pub(super) keeper: &'a mut Option<crate::session_keeper::SessionKeeper>,
 }
 
 impl ManagedHost {
@@ -63,10 +70,6 @@ impl ManagedHost {
         Self {
             owner: HostOwner::Started(child),
             state: HostState::Connected,
-            #[cfg(windows)]
-            keeper: None,
-            #[cfg(windows)]
-            keeper_program: None,
         }
     }
 
@@ -75,44 +78,23 @@ impl ManagedHost {
         Self {
             owner: HostOwner::Adopted(host),
             state: HostState::Connected,
-            #[cfg(windows)]
-            keeper: None,
-            #[cfg(windows)]
-            keeper_program: None,
         }
     }
 
-    /// Names where a Keeper for this Host starts from: the Session runtime folder `runtime` and
-    /// the Terminal Host program `executable`.
+    /// Whether the Host runs `executable`, this Worker's cohort Terminal Host: one it started does,
+    /// and an adopted one whose image is that program.
     #[cfg(windows)]
-    pub(super) fn keep_from(&mut self, runtime: &std::path::Path, executable: std::path::PathBuf) {
-        self.keeper_program = Some((runtime.to_owned(), executable));
+    pub(super) fn runs(&self, executable: &std::path::Path) -> bool {
+        match &self.owner {
+            HostOwner::Started(_) => true,
+            HostOwner::Adopted(host) => host.runs(executable),
+        }
     }
 
-    /// Where a Keeper for this Host starts from, once named.
+    /// Whether the Host process has exited.
     #[cfg(windows)]
-    pub(super) fn keeper_program(&self) -> Option<(&std::path::Path, &std::path::Path)> {
-        self.keeper_program
-            .as_ref()
-            .map(|(runtime, executable)| (runtime.as_path(), executable.as_path()))
-    }
-
-    /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, until a stop ends it.
-    #[cfg(windows)]
-    pub(super) fn keep(&mut self, keeper: Option<crate::session_keeper::SessionKeeper>) {
-        self.keeper = keeper;
-    }
-
-    /// The Session's Keeper, while this Worker answers for one.
-    #[cfg(windows)]
-    pub(super) fn keeper(&mut self) -> Option<&mut crate::session_keeper::SessionKeeper> {
-        self.keeper.as_mut()
-    }
-
-    /// Takes the Session's Keeper from this owner, for its replacement.
-    #[cfg(windows)]
-    pub(super) fn take_keeper(&mut self) -> Option<crate::session_keeper::SessionKeeper> {
-        self.keeper.take()
+    pub(super) fn exited(&mut self) -> io::Result<bool> {
+        self.owner.exited()
     }
 
     /// The Host's process ID and creation time.
@@ -150,6 +132,12 @@ impl ManagedHost {
             failure,
         };
         match self.state {
+            HostState::Ended => {
+                return WorkerShutdownOutcome::Stopped {
+                    host_epoch: epoch,
+                    disposed_terminals: 0,
+                };
+            }
             HostState::Unavailable { stage, failure } => return incomplete(stage, failure, 0),
             HostState::Connected => {
                 if let Err(error) =
@@ -178,12 +166,7 @@ impl ManagedHost {
         loop {
             match self.owner.exited() {
                 Ok(true) => {
-                    // The Host released every holding before it ended its terminals, so the
-                    // Keeper holds nothing and ending it ends no program.
-                    #[cfg(windows)]
-                    if let Some(mut keeper) = self.keeper.take() {
-                        keeper.end(deadline);
-                    }
+                    self.state = HostState::Ended;
                     return WorkerShutdownOutcome::Stopped {
                         host_epoch: epoch,
                         disposed_terminals: disposed,
@@ -230,7 +213,7 @@ pub(super) fn run(
     worker_id: WorkerId,
     generation: NonZeroU64,
     jobs: BackgroundJobs<'_>,
-    mut managed: Option<(&HostBrokerConnection, &mut ManagedHost)>,
+    mut managed: Option<StopHosts<'_>>,
 ) -> Result<(), Box<dyn Error>> {
     loop {
         let deadline =
@@ -241,10 +224,7 @@ pub(super) fn run(
             match jobs.stop_before(deadline) {
                 Err(error) if request.terminals == ShutdownTerminals::Dispose => {
                     WorkerShutdownOutcome::Incomplete {
-                        host_epoch: managed.as_ref().map(|(host, _)| {
-                            HostEpoch::from_bytes(*host.host_epoch().as_bytes())
-                                .expect("admitted nonzero epoch")
-                        }),
+                        host_epoch: managed.as_ref().map(|stop| stop.epoch),
                         disposed_terminals: 0,
                         stage: ShutdownStage::BackgroundJobs,
                         failure: if error.kind() == io::ErrorKind::TimedOut {
@@ -290,31 +270,65 @@ pub(super) fn run(
     }
 }
 
-/// Ends the Host's terminals and the Host, or releases them, once the background jobs are settled.
+/// Ends every Host's terminals and the Hosts, or releases them, once the background jobs are
+/// settled. The outcome names the epoch `managed` gives and counts the terminals every Host ended
+/// in this attempt; the first Host that does not stop names its own epoch.
 fn end(
-    managed: &mut Option<(&HostBrokerConnection, &mut ManagedHost)>,
+    managed: &mut Option<StopHosts<'_>>,
     server: &LocalStream,
     request: WorkerShutdownRequest,
     deadline: Instant,
 ) -> WorkerShutdownOutcome {
-    let Some((host, owner)) = managed.as_mut() else {
+    let Some(stop) = managed.as_mut() else {
         return WorkerShutdownOutcome::NoHost;
     };
-    match request.terminals {
-        ShutdownTerminals::Dispose => owner.stop(host, server, request, deadline),
-        ShutdownTerminals::Keep => release(host),
+    if request.terminals == ShutdownTerminals::Keep {
+        for (host, _) in &stop.hosts {
+            release(host);
+        }
+        return WorkerShutdownOutcome::Released {
+            host_epoch: stop.epoch,
+        };
+    }
+    let mut disposed = 0_u32;
+    for (host, owner) in &mut stop.hosts {
+        match owner.stop(host, server, request, deadline) {
+            WorkerShutdownOutcome::Stopped {
+                disposed_terminals, ..
+            } => disposed = disposed.saturating_add(disposed_terminals),
+            WorkerShutdownOutcome::Incomplete {
+                host_epoch,
+                disposed_terminals,
+                stage,
+                failure,
+            } => {
+                return WorkerShutdownOutcome::Incomplete {
+                    host_epoch,
+                    disposed_terminals: disposed.saturating_add(disposed_terminals),
+                    stage,
+                    failure,
+                };
+            }
+            other => return other,
+        }
+    }
+    // Each Host released every holding before it ended its terminals, so the Keeper holds nothing
+    // and ending it ends no program.
+    #[cfg(windows)]
+    if let Some(mut keeper) = stop.keeper.take() {
+        keeper.end(deadline);
+    }
+    WorkerShutdownOutcome::Stopped {
+        host_epoch: stop.epoch,
+        disposed_terminals: disposed,
     }
 }
 
 /// A Server `exit` ends this Worker without ending any terminal: closing the broker connection
 /// leaves the Host with every terminal unchanged, and the retained Host child or adopted Host
 /// owner is dropped without a wait or a termination.
-fn release(host: &HostBrokerConnection) -> WorkerShutdownOutcome {
+fn release(host: &HostBrokerConnection) {
     let _closed = host.stream().shutdown(Shutdown::Both);
-    WorkerShutdownOutcome::Released {
-        host_epoch: HostEpoch::from_bytes(*host.host_epoch().as_bytes())
-            .expect("admitted nonzero epoch"),
-    }
 }
 
 fn pause_before(deadline: Instant) -> bool {

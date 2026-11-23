@@ -23,7 +23,7 @@ const EPOCH: [u8; 16] = [4; 16];
 
 #[test]
 fn a_flow_break_closes_only_its_viewer_while_the_neighbour_is_served() {
-    let (mut host, drain, mut host_peer) = connected_host();
+    let (host, drain, mut host_peer) = connected_host();
     admit(&host, &[(A, 91), (B, 92)]);
     let host_script = thread::spawn(move || {
         // A replayed bell breaks A's sequence; B's first bell is in order.
@@ -55,7 +55,7 @@ fn a_flow_break_closes_only_its_viewer_while_the_neighbour_is_served() {
     });
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,
@@ -79,7 +79,7 @@ fn a_flow_break_closes_only_its_viewer_while_the_neighbour_is_served() {
 
 #[test]
 fn an_invalid_answer_refuses_only_its_request_while_another_terminal_is_served() {
-    let (mut host, drain, mut host_peer) = connected_host();
+    let (host, drain, mut host_peer) = connected_host();
     admit(&host, &[(A, 91), (B, 92)]);
     let host_script = thread::spawn(move || {
         // An intact acceptance that names B answers A's Detach.
@@ -99,7 +99,7 @@ fn an_invalid_answer_refuses_only_its_request_while_another_terminal_is_served()
     });
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,
@@ -118,7 +118,8 @@ fn an_invalid_answer_refuses_only_its_request_while_another_terminal_is_served()
     assert!(contained(&noted, "viewer", "answer"), "{noted:?}");
 }
 
-/// The loop ended only when the Server closed its end, and sent the Host nothing unanswered.
+/// The loop ended only when the Server closed its end, and sent the Host nothing unanswered before
+/// its exit closed the Host connection.
 fn assert_served_until_the_server_left(
     result: Result<(), Box<dyn std::error::Error>>,
     host_peer: &LocalStream,
@@ -128,11 +129,9 @@ fn assert_served_until_the_server_left(
         .downcast_ref::<ExitCause>()
         .expect("a classified exit");
     assert_eq!(cause.peer, Peer::Server, "{cause:?}");
-    host_peer.set_nonblocking(true).unwrap();
-    assert_eq!(
-        (&*host_peer).read(&mut [0]).unwrap_err().kind(),
-        io::ErrorKind::WouldBlock
-    );
+    let mut rest = Vec::new();
+    (&*host_peer).read_to_end(&mut rest).unwrap();
+    assert!(rest.is_empty());
 }
 
 /// Whether a `host-unexpected` record names `site` and `anomaly`.

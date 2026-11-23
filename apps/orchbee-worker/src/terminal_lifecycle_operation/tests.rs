@@ -168,8 +168,11 @@ struct Fixture {
     peer: UnixStream,
     server: UnixStream,
     server_peer: UnixStream,
-    directory: PathBuf,
+    _directory: Directory,
 }
+
+/// The fixture's socket directory, removed when the fixture ends.
+struct Directory(PathBuf);
 impl Fixture {
     fn new() -> TestResult<Self> {
         // A Unix socket path must stay short, so the socket's directory sits in /tmp there.
@@ -238,13 +241,13 @@ impl Fixture {
             peer,
             server,
             server_peer,
-            directory,
+            _directory: Directory(directory),
         })
     }
 }
-impl Drop for Fixture {
+impl Drop for Directory {
     fn drop(&mut self) {
-        let _removed = fs::remove_dir_all(&self.directory);
+        let _removed = fs::remove_dir_all(&self.0);
     }
 }
 
@@ -471,7 +474,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
         CapabilityNodeMessage, TerminalViewerAction, TerminalViewerRequest, read_message,
         write_message,
     };
-    let mut fixture = Fixture::new()?;
+    let fixture = Fixture::new()?;
     let unrelated = TerminalViewerRequest {
         request_id: OperationId::from_bytes([61; 16])?,
         attachment_id: OperationId::from_bytes([60; 16])?,
@@ -558,7 +561,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let outcome = crate::terminal_operations::run_admitted(
         fixture.server.try_clone()?,
-        &mut fixture.host,
+        fixture.host,
         orchbee_local_worker_protocol::WorkerId::from_bytes([3; 16]),
         nz(7),
         kernel,
@@ -573,7 +576,6 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
-            managed_host: None,
         },
     );
     assert!(outcome.is_err());

@@ -1,7 +1,7 @@
-//! Reads the Host's own process entry with one `query` control request on a new connection to the
-//! Host's endpoint, under the caller's deadline. The Host answers on a control lane from facts it
-//! publishes, leaving the broker connection untouched. The entry is relayed without capabilities,
-//! which only the answering process states.
+//! Sends the Host one control request on a new connection to its endpoint, under the caller's
+//! deadline: `query` reads its own process entry, and `drain` stops it taking new terminals. The
+//! Host answers on a control lane, leaving the broker connection untouched. A queried entry is
+//! relayed without capabilities, which only the answering process states.
 
 use std::{error::Error, io::Write, path::Path, time::Instant};
 
@@ -59,6 +59,30 @@ pub(super) fn query_with_progress(
         .get(DISPATCH_PROGRESS)
         .and_then(|progress| progress.as_u64());
     Ok((entry, progress))
+}
+
+/// Has the Host at `endpoint` drain: it takes no new terminal and ends once it holds none.
+///
+/// # Errors
+///
+/// Returns an error when the Host cannot be reached, refuses, answers with anything but a
+/// `drain-result`, or has not answered by `deadline`.
+#[cfg(windows)]
+pub(super) fn drain(endpoint: &Path, deadline: Instant) -> Result<(), Box<dyn Error>> {
+    let mut transport = Admission::connect(endpoint, deadline)?;
+    let request = ControlRequest {
+        kind: RequestKind::Drain,
+        environment: EnvironmentName::new(orchbee_local_runtime::environment_stem())?,
+        extensions: Extensions::new(),
+    };
+    transport.write_all(&encode_initiator_frame(&InitiatorMessage::Request(
+        request,
+    ))?)?;
+    let reply = read_acceptor_message(&mut transport)?;
+    match conclude_request(RequestKind::Drain, reply) {
+        Ok(RequestReply::Drain(_)) => Ok(()),
+        _ => Err("Terminal Host did not answer the drain".into()),
+    }
 }
 
 /// The `query-result` extension that counts the Host's completed dispatch-loop turns.

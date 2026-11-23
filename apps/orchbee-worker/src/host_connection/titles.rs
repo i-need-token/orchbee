@@ -1,5 +1,5 @@
-//! Connection-owned projection of exact physical OSC titles and its change sequence, read by the
-//! Server by cursor. Never Agent semantic state, and never a decision about which title a Client
+//! The projection of exact physical OSC titles every Host connection of a Worker shares, and its
+//! change sequence, read by the Server by cursor. Never Agent semantic state, and never a decision about which title a Client
 //! shows: the Server projects, paces and retains what it reads.
 use orchbee_capability_node_protocol::{
     HostTerminalIdentity, MAXIMUM_TERMINAL_TITLE_CHANGE_BYTES, MAXIMUM_TERMINAL_TITLE_CHANGES,
@@ -36,8 +36,9 @@ struct Note {
 }
 
 /// Every terminal key appears in `changes` once, at its latest change, and lives in exactly one
-/// of `rows` or `removed`; every change is above `floor`. One Host connection serves one Worker
-/// generation, so `newest` is that generation's change sequence.
+/// of `rows` or `removed`; every change is above `floor`. The Host connections of one Worker
+/// generation share the projection, so `newest` is that generation's change sequence; a terminal ID
+/// names one terminal across every Host.
 #[derive(Default)]
 pub(super) struct Titles {
     rows: BTreeMap<[u8; 16], Row>,
@@ -54,22 +55,40 @@ impl Titles {
     pub(super) fn observe(&mut self, event: TerminalMetadataChanged) -> io::Result<()> {
         let identity = crate::terminal_host_launch_adapter::capability_identity(event.identity)
             .map_err(io::Error::other)?;
+        self.observe_row(identity, event.revision, event.title)
+    }
+
+    /// Takes in each title another connection's projection holds, as a change of this one, when
+    /// that connection joins this Worker's other Hosts; a title this projection refuses is left out.
+    #[cfg(windows)]
+    pub(super) fn absorb(&mut self, other: Self) {
+        for row in other.rows.into_values() {
+            let _refused = self.observe_row(row.identity, row.revision, row.title);
+        }
+    }
+
+    fn observe_row(
+        &mut self,
+        identity: HostTerminalIdentity,
+        revision: NonZeroU64,
+        title: Option<String>,
+    ) -> io::Result<()> {
         let key = identity.terminal_id().as_bytes();
         let previous = self.rows.get(&key);
         if let Some(row) = previous {
             if row.identity != identity
-                || event.revision < row.revision
-                || (event.revision == row.revision && event.title != row.title)
+                || revision < row.revision
+                || (revision == row.revision && title != row.title)
             {
                 return Err(io::Error::other(
                     "invalid physical terminal title revision or identity",
                 ));
             }
-            if event.revision == row.revision {
+            if revision == row.revision {
                 return Ok(());
             }
         }
-        let n = event.title.as_ref().map_or(0, String::len);
+        let n = title.as_ref().map_or(0, String::len);
         if n > orchbee_capability_node_protocol::MAXIMUM_TERMINAL_TITLE_BYTES {
             return Err(io::Error::other("physical terminal title is too large"));
         }
@@ -96,8 +115,8 @@ impl Titles {
             key,
             Row {
                 identity,
-                revision: event.revision,
-                title: event.title,
+                revision,
+                title,
                 change,
             },
         );

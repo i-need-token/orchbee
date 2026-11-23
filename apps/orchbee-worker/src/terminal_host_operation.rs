@@ -174,7 +174,7 @@ impl PreparedHostOperation {
     pub(crate) fn execute(
         self,
         kernel: &mut AuthorizedHostOperationKernel,
-        host: &mut HostBrokerConnection,
+        host: &HostBrokerConnection,
         server: &UnixStream,
         now_unix_milliseconds: impl FnOnce() -> u64,
         budget: Duration,

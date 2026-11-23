@@ -227,7 +227,7 @@ fn pre_host_unreadable_frame_is_answered_and_the_next_request_arrives() -> TestR
 /// Each is recorded with its cause.
 #[test]
 fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult {
-    let (mut connection, drain, mut host_peer, directory) = scripted_host_peer()?;
+    let (connection, drain, mut host_peer, directory) = scripted_host_peer()?;
     let (server, mut server_peer) = UnixStream::pair()?;
     server_peer.set_read_timeout(Some(Duration::from_secs(3)))?;
     server_peer.set_write_timeout(Some(Duration::from_secs(3)))?;
@@ -289,7 +289,7 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let outcome = super::super::run_admitted(
         server,
-        &mut connection,
+        connection,
         LOCAL_WORKER_ID,
         nz(GENERATION),
         kernel,
@@ -304,7 +304,6 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
-            managed_host: None,
         },
     );
     let noted = crate::diagnostic_events::take_noted();
@@ -385,7 +384,7 @@ fn foreign_epoch_signal_mints_nothing() -> TestResult {
 /// request returns it on the wire through one shared queue state.
 #[test]
 fn admitted_request_replies_with_host_observed_event() -> TestResult {
-    let (mut connection, drain, mut host_peer, directory) = scripted_host_peer()?;
+    let (connection, drain, mut host_peer, directory) = scripted_host_peer()?;
     let (server, mut server_peer) = UnixStream::pair()?;
     server_peer.set_read_timeout(Some(Duration::from_secs(3)))?;
     server_peer.set_write_timeout(Some(Duration::from_secs(3)))?;
@@ -429,7 +428,7 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let outcome = super::super::run_admitted(
         server,
-        &mut connection,
+        connection,
         LOCAL_WORKER_ID,
         nz(GENERATION),
         kernel,
@@ -444,7 +443,6 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
-            managed_host: None,
         },
     );
     assert!(outcome.is_err());

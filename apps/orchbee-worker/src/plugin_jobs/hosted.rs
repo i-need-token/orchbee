@@ -29,6 +29,10 @@ pub(crate) trait ProgramHost {
     fn request(&self, request: &ProgramRequest) -> Result<Reply, ()>;
     /// The exits the Host reported since the last call.
     fn take_exits(&self) -> Vec<ProgramExited>;
+    /// Whether a new program starts here; one that does not runs as without a Host.
+    fn starts(&self) -> bool {
+        true
+    }
 }
 
 /// The most programs one Host lists, and so the most disposals kept for another attempt.

@@ -1,8 +1,10 @@
 //! A replacement Worker's first phase. Until the Server's AdoptHost pages are complete it serves
-//! only those pages and a stop, declining every other request; it then adopts the Host of the
+//! only those pages and a stop, declining every other request; it then adopts the Hosts of the
 //! Worker it replaces, or none, and continues in the loop of that state: the admitted loop with
-//! the imported kernel, or the lazy pre-Host loop. A failed adoption is answered, then ends the
-//! Worker. It never starts a Host and never ends itself before an adoption fails.
+//! the kernel imported from every Host's inventory, or the lazy pre-Host loop. On Windows that is
+//! up to one Host per slot, each adopted, or recovered into a recovery Host when it ended, with
+//! the Session's Keeper adopted once for all of them. A failed adoption is answered, then ends the
+//! Worker. It starts no Host but a recovery Host and never ends itself before an adoption fails.
 
 use std::{
     cell::RefCell,
@@ -46,13 +48,14 @@ enum Phase {
     Stopped,
     /// The Worker it replaces had no Host.
     NoHost,
-    /// The Host was adopted and its bindings imported.
+    /// The Hosts were adopted and their bindings imported.
     Host(Box<Adopted>),
 }
 
 struct Adopted {
-    host: HostBrokerConnection,
-    managed: shutdown::ManagedHost,
+    found: Vec<Found>,
+    #[cfg(windows)]
+    keeper: Option<crate::session_keeper::SessionKeeper>,
     kernel: AuthorizedHostOperationKernel,
 }
 
@@ -100,26 +103,33 @@ pub(crate) fn run(
         }
         Ok(Phase::Stopped) => Ok(()),
         Ok(Phase::Host(adopted)) => {
-            let Adopted {
-                mut host,
-                managed: mut managed_host,
-                kernel,
-            } = *adopted;
-            #[cfg(windows)]
-            managed_host.keep_from(
+            let adopted = *adopted;
+            let mut hosts = super::host_set::HostSet::managed(super::host_set::Starter {
+                cohort,
                 runtime,
-                cohort.executable(orchbee_local_runtime::CohortArtifact::TerminalHost),
-            );
-            // The background programs the Host still runs for the Worker this one replaces.
-            if let Some(programs) = crate::host_programs::HostPrograms::between_requests(&host) {
-                plugin_jobs.adopt(&programs);
+                drain: Rc::clone(&drain),
+            });
+            for found in adopted.found {
+                // The background programs each Host still runs for the Worker this one replaces.
+                if let Some(programs) =
+                    crate::host_programs::HostPrograms::between_requests(&found.host)
+                {
+                    plugin_jobs.adopt(&programs);
+                }
+                #[cfg(windows)]
+                let offered = found.offered;
+                #[cfg(not(windows))]
+                let offered = false;
+                hosts.add(found.slot, found.host, found.managed, offered);
             }
+            #[cfg(windows)]
+            hosts.keep(adopted.keeper);
             super::run_admitted_with_handoff(
                 server,
-                &mut host,
+                hosts,
                 worker_id,
                 generation,
-                kernel,
+                adopted.kernel,
                 super::AdmittedAux {
                     drain: &drain,
                     system_shell,
@@ -129,7 +139,6 @@ pub(crate) fn run(
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
-                    managed_host: Some(&mut managed_host),
                 },
                 #[cfg(windows)]
                 super::handoff::Handoff::new(Some(runtime)),
@@ -202,149 +211,211 @@ fn serve_until_adopted(
                     worker_id,
                     generation,
                 };
-                let channel = host::Channel {
-                    server,
-                    correlation: CorrelationId::from_bytes(key.adoption_id.as_bytes())?,
-                    drain: Rc::clone(drain),
-                    deadline: arrived + ADOPTION_BUDGET,
-                };
-                let slot = match target.slots() {
-                    [] => return adoption.no_host(),
-                    [slot] => *slot,
-                    _ => {
-                        let _ = (cohort, channel);
-                        return Err(adoption.fail(host::Failed {
-                            failure: AdoptHostFailure::HostRefused,
-                            restarts: 0,
-                            error: "this Worker adopts one Host".into(),
-                        }));
-                    }
-                };
-                let Some(host_slot) = HostSlot::new(slot.slot) else {
-                    return Err(adoption.fail(host::Failed {
-                        failure: AdoptHostFailure::HostRefused,
-                        restarts: 0,
-                        error: "no such Host slot".into(),
-                    }));
-                };
-                // A POSIX Session runs its one Host in the first slot.
-                #[cfg(not(windows))]
-                if host_slot != HostSlot::FIRST {
-                    let _ = (cohort, channel);
-                    return Err(adoption.fail(host::Failed {
-                        failure: AdoptHostFailure::HostRefused,
-                        restarts: 0,
-                        error: "a POSIX Session runs one Host".into(),
-                    }));
+                if target.slots().is_empty() {
+                    return adoption.no_host();
                 }
-                let epoch = slot.epoch;
-                return match slot.kind {
-                    AdoptHostKind::Host { process } => {
-                        #[cfg(windows)]
-                        let keeper_channel = (server, channel.correlation, channel.deadline);
-                        let found = host::adopt(runtime, host_slot, process, epoch, channel);
-                        #[cfg(windows)]
-                        let found = found.and_then(|found| {
-                            with_keeper(found, runtime, keeper_channel, &bindings)
-                        });
-                        #[cfg(not(windows))]
-                        let found = found.map(Found::from);
-                        adoption.import(found, &bindings)
-                    }
-                    #[cfg(windows)]
-                    AdoptHostKind::Recovery => {
-                        let recovered = match target.keeper() {
-                            Some(keeper) => super::recovery::recover(
-                                cohort, runtime, host_slot, keeper, epoch, &bindings, channel,
-                            ),
-                            None => Err(host::Failed {
-                                failure: AdoptHostFailure::RecoveryFailed,
-                                restarts: 0,
-                                error: "a recovery names no Keeper".into(),
-                            }),
-                        };
-                        adoption.import(recovered.map(Found::from), &bindings)
-                    }
-                    // Only a Windows Session starts a Keeper, so no other Server sends this target.
-                    #[cfg(not(windows))]
-                    AdoptHostKind::Recovery => {
-                        let _ = (cohort, channel);
-                        Err(adoption.fail(host::Failed {
-                            failure: AdoptHostFailure::RecoveryFailed,
-                            restarts: 0,
-                            error: "no Keeper runs on this platform".into(),
-                        }))
-                    }
+                let correlation = CorrelationId::from_bytes(key.adoption_id.as_bytes())?;
+                #[cfg(windows)]
+                let mut keeper = KeeperAdoption {
+                    runtime,
+                    named: target.keeper(),
+                    keeper: None,
+                    tried: false,
                 };
+                let mut found = Vec::with_capacity(target.slots().len());
+                for slot in target.slots() {
+                    let channel = host::Channel {
+                        server,
+                        correlation,
+                        drain: Rc::clone(drain),
+                        deadline: arrived + ADOPTION_BUDGET,
+                    };
+                    match adopt_slot(
+                        slot,
+                        cohort,
+                        runtime,
+                        channel,
+                        #[cfg(windows)]
+                        &mut keeper,
+                        &bindings,
+                    ) {
+                        Ok(adopted) => found.push(adopted),
+                        Err(failed) => return Err(adoption.fail(failed)),
+                    }
+                }
+                return adoption.import(
+                    found,
+                    #[cfg(windows)]
+                    keeper.keeper,
+                    &bindings,
+                );
             }
         }
     }
 }
 
-/// What an adoption imports: the Host, how this Worker owns it, the Keeper it answers for, and
-/// the Host's complete inventory.
+/// Adopts the Host in one slot of the target, or on Windows recovers the terminals of one that
+/// ended into a recovery Host this Worker starts in that slot.
+fn adopt_slot(
+    slot: &orchbee_capability_node_protocol::AdoptHostSlot,
+    cohort: &Cohort,
+    runtime: &Path,
+    channel: host::Channel<'_>,
+    #[cfg(windows)] keeper: &mut KeeperAdoption<'_>,
+    bindings: &[orchbee_capability_node_protocol::AdoptBinding],
+) -> Result<Found, host::Failed> {
+    #[cfg(not(windows))]
+    let _ = bindings;
+    let refused = |error: &str| host::Failed {
+        failure: AdoptHostFailure::HostRefused,
+        restarts: 0,
+        error: error.into(),
+    };
+    let Some(host_slot) = HostSlot::new(slot.slot) else {
+        return Err(refused("no such Host slot"));
+    };
+    // A POSIX Session runs its one Host in the first slot.
+    #[cfg(not(windows))]
+    if host_slot != HostSlot::FIRST {
+        let _ = (cohort, channel);
+        return Err(refused("a POSIX Session runs one Host"));
+    }
+    #[cfg(windows)]
+    let keeper_channel = (channel.server, channel.correlation, channel.deadline);
+    let found = match slot.kind {
+        AdoptHostKind::Host { process } => {
+            host::adopt(runtime, host_slot, process, slot.epoch, channel)
+                .map(|found| Found::adopted(host_slot, found))
+        }
+        #[cfg(windows)]
+        AdoptHostKind::Recovery => {
+            let held = if keeper.named.is_some() {
+                keeper.adopted()
+            } else {
+                None
+            };
+            match held {
+                Some(held) => super::recovery::recover(
+                    cohort, runtime, host_slot, held, slot.epoch, bindings, channel,
+                )
+                .map(|recovered| Found::recovered(host_slot, recovered)),
+                None => Err(host::Failed {
+                    failure: AdoptHostFailure::RecoveryFailed,
+                    restarts: 0,
+                    error: if keeper.named.is_some() {
+                        "the Session's Keeper is gone".into()
+                    } else {
+                        "a recovery names no Keeper".into()
+                    },
+                }),
+            }
+        }
+        // Only a Windows Session starts a Keeper, so no other Server sends this target.
+        #[cfg(not(windows))]
+        AdoptHostKind::Recovery => {
+            let _ = (cohort, channel);
+            Err(host::Failed {
+                failure: AdoptHostFailure::RecoveryFailed,
+                restarts: 0,
+                error: "no Keeper runs on this platform".into(),
+            })
+        }
+    }?;
+    #[cfg(windows)]
+    if matches!(slot.kind, AdoptHostKind::Host { .. }) {
+        return with_keeper(found, keeper, keeper_channel, bindings);
+    }
+    Ok(found)
+}
+
+/// What an adoption imports from one slot: the Host, how this Worker owns it, and the Host's
+/// complete inventory.
 struct Found {
     target: &'static str,
+    slot: HostSlot,
     host: HostBrokerConnection,
     managed: shutdown::ManagedHost,
+    /// Whether the Session's Keeper was offered to the Host during the adoption.
     #[cfg(windows)]
-    keeper: Option<crate::session_keeper::SessionKeeper>,
+    offered: bool,
     inventory: Vec<crate::terminal_authorization::InventoryTerminal>,
     restarts: u32,
 }
 
-impl From<host::Found> for Found {
-    fn from(found: host::Found) -> Self {
+impl Found {
+    fn adopted(slot: HostSlot, found: host::Found) -> Self {
         Self {
             target: "host",
+            slot,
             host: found.host,
             managed: shutdown::ManagedHost::adopted(found.owner),
             #[cfg(windows)]
-            keeper: None,
+            offered: false,
             inventory: found.inventory,
             restarts: found.restarts,
         }
     }
-}
 
-#[cfg(windows)]
-impl From<super::recovery::Recovered> for Found {
-    fn from(recovered: super::recovery::Recovered) -> Self {
+    #[cfg(windows)]
+    fn recovered(slot: HostSlot, recovered: super::recovery::Recovered) -> Self {
         Self {
             target: "recovery",
+            slot,
             host: recovered.host,
             managed: shutdown::ManagedHost::new(recovered.child),
-            keeper: Some(recovered.keeper),
+            offered: true,
             inventory: recovered.inventory,
             restarts: recovered.restarts,
         }
     }
 }
 
-/// An adopted Host with the Session's Keeper, where the record names a live one: this Worker
-/// answers for the Keeper, the Host holds in it, and the orphans of the Host's epoch a binding
-/// names are recovered into it before its inventory is read again. A Keeper that cannot be
-/// adopted leaves the terminals unheld and the adoption going on; a recovery that fails fails it.
+/// The Session's Keeper an adoption answers for, adopted once, when the first Host that holds in
+/// one needs it: the one the target names, or any the Session record names when it names none.
+#[cfg(windows)]
+struct KeeperAdoption<'a> {
+    runtime: &'a Path,
+    named: Option<orchbee_capability_node_protocol::AdoptHostProcess>,
+    keeper: Option<crate::session_keeper::SessionKeeper>,
+    tried: bool,
+}
+
+#[cfg(windows)]
+impl KeeperAdoption<'_> {
+    /// The adopted Keeper; a failed adoption is recorded once and leaves none.
+    fn adopted(&mut self) -> Option<&mut crate::session_keeper::SessionKeeper> {
+        if !std::mem::replace(&mut self.tried, true) {
+            let expected = self
+                .named
+                .map(|keeper| (keeper.process_id.get(), keeper.creation_time.get()));
+            match crate::session_keeper::SessionKeeper::adopt(self.runtime, expected) {
+                Ok(keeper) => self.keeper = keeper,
+                Err(error) => crate::diagnostic_events::keeper_failed("adopt", error.as_ref()),
+            }
+        }
+        self.keeper.as_mut()
+    }
+}
+
+/// An adopted Host with the Session's Keeper, where the record names a live one: the Host holds in
+/// it, and the orphans of the Host's epoch a binding names are recovered into it before its
+/// inventory is read again. A Keeper that cannot be adopted leaves the terminals unheld and the
+/// adoption going on; a recovery that fails fails it.
 #[cfg(windows)]
 fn with_keeper(
-    found: host::Found,
-    runtime: &Path,
+    mut adopted: Found,
+    keeper: &mut KeeperAdoption<'_>,
     channel: (&UnixStream, CorrelationId, Instant),
     bindings: &[orchbee_capability_node_protocol::AdoptBinding],
 ) -> Result<Found, host::Failed> {
     let (server, correlation, deadline) = channel;
-    let mut adopted = Found::from(found);
     if !adopted.host.keeper() {
         return Ok(adopted);
     }
-    let mut keeper = match crate::session_keeper::SessionKeeper::adopt(runtime, None) {
-        Ok(Some(keeper)) => keeper,
-        Ok(None) => return Ok(adopted),
-        Err(error) => {
-            crate::diagnostic_events::keeper_failed("adopt", error.as_ref());
-            return Ok(adopted);
-        }
+    let Some(keeper) = keeper.adopted() else {
+        return Ok(adopted);
     };
+    adopted.offered = true;
     let attached = adopted
         .managed
         .host_identity()
@@ -366,7 +437,7 @@ fn with_keeper(
     };
     let restarts = adopted.restarts;
     let recovered =
-        super::recovery::recover_orphans(&mut keeper, &adopted.host, server, process, bindings)
+        super::recovery::recover_orphans(keeper, &adopted.host, server, process, bindings)
             .map_err(|error| host::Failed {
                 failure: AdoptHostFailure::RecoveryFailed,
                 restarts,
@@ -377,7 +448,6 @@ fn with_keeper(
         adopted.inventory = inventory;
         adopted.restarts += more;
     }
-    adopted.keeper = Some(keeper);
     Ok(adopted)
 }
 
@@ -406,39 +476,56 @@ impl Adoption<'_> {
         Ok(Phase::NoHost)
     }
 
+    /// Imports the bindings against every adopted Host's inventory at once, so each binding finds
+    /// its terminal on the Host that serves its epoch, and answers the adoption.
     fn import(
         self,
-        found: Result<Found, host::Failed>,
+        mut found: Vec<Found>,
+        #[cfg(windows)] keeper: Option<crate::session_keeper::SessionKeeper>,
         bindings: &[orchbee_capability_node_protocol::AdoptBinding],
     ) -> Result<Phase, Box<dyn Error>> {
-        let found = match found {
-            Ok(found) => found,
-            Err(failed) => return Err(self.fail(failed)),
+        let target = if found.iter().any(|found| found.target == "recovery") {
+            "recovery"
+        } else {
+            "host"
         };
-        let target = found.target;
+        let restarts = found
+            .iter()
+            .fold(0_u32, |sum, found| sum.saturating_add(found.restarts));
+        let mut inventory = Vec::new();
+        for found in &mut found {
+            inventory.append(&mut found.inventory);
+        }
         let mut kernel = AuthorizedHostOperationKernel::new(self.worker_id, self.generation)?;
-        let imported = match kernel.import(bindings, &found.inventory) {
+        let imported = match kernel.import(bindings, &inventory) {
             Ok(imported) => imported,
             Err(error) => {
                 return Err(self.fail(host::Failed {
                     failure: AdoptHostFailure::InventoryFailed,
-                    restarts: found.restarts,
+                    restarts,
                     error: Box::new(error),
                 }));
             }
         };
-        let host = found.host;
-        host.quarantine(
-            imported
-                .quarantined
-                .iter()
-                .map(|identity| identity.terminal_id()),
-        );
+        for found in &found {
+            let epoch = *found.host.host_epoch().as_bytes();
+            found.host.quarantine(
+                imported
+                    .quarantined
+                    .iter()
+                    .filter(|identity| identity.host_epoch().as_bytes() == epoch)
+                    .map(|identity| identity.terminal_id()),
+            );
+        }
         let quarantined = u32::try_from(imported.quarantined.len())?;
         let missing = u32::try_from(imported.missing.len())?;
+        let host = &found
+            .first()
+            .ok_or_else(|| io::Error::other("an adoption without a Host"))?
+            .host;
         let host_closed = answer(
             self.server,
-            Some(&host),
+            Some(host),
             self.key,
             AdoptHostOutcome::Adopted {
                 imported: imported.imported,
@@ -449,38 +536,34 @@ impl Adoption<'_> {
         match host_closed {
             Ok(false) => {}
             Ok(true) => {
-                return Err(super::exit_cause::attach(
-                    super::peer_closed().into(),
-                    &host,
-                ));
+                return Err(super::exit_cause::attach(super::peer_closed().into(), host));
             }
-            Err(error) => return Err(super::exit_cause::attach(error, &host)),
+            Err(error) => return Err(super::exit_cause::attach(error, host)),
         }
         crate::diagnostic_events::adoption(AdoptionRecord {
             imported: imported.imported,
             quarantined,
             missing,
-            ..self.record(target, "adopted", found.restarts)
+            ..self.record(target, "adopted", restarts)
         });
-        let managed = found.managed;
-        // An orphan of this Host's epoch that no binding names is discarded once the import
+        // An orphan of an adopted Host's epoch that no binding names is discarded once the import
         // succeeded: no person can reach it.
         #[cfg(windows)]
-        let managed = {
-            let mut managed = managed;
-            if let Some(mut keeper) = found.keeper {
+        let mut keeper = keeper;
+        #[cfg(windows)]
+        if let Some(keeper) = keeper.as_mut() {
+            for found in &found {
                 super::recovery::discard_unbound(
-                    &mut keeper,
-                    *host.host_epoch().as_bytes(),
+                    keeper,
+                    *found.host.host_epoch().as_bytes(),
                     bindings,
                 );
-                managed.keep(Some(keeper));
             }
-            managed
-        };
+        }
         Ok(Phase::Host(Box::new(Adopted {
-            host,
-            managed,
+            found,
+            #[cfg(windows)]
+            keeper,
             kernel,
         })))
     }

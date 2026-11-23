@@ -109,7 +109,12 @@ pub(crate) struct HostBrokerConnection {
     pub(crate) viewers: RefCell<HostViewers>,
     pub(crate) controllers: RefCell<controllers::HostControllers>,
     retired_targets: RefCell<target_cleanup::RetiredTargets>,
-    titles: RefCell<titles::Titles>,
+    /// The title projection every Host connection of this Worker shares, so one change sequence
+    /// covers all of them.
+    titles: Rc<RefCell<titles::Titles>>,
+    /// The background programs this Host runs for the Worker, as its program answers showed: each
+    /// it started or listed, until it disposed of it.
+    programs: RefCell<std::collections::BTreeSet<orchbee_terminal_protocol::ProgramId>>,
     pub(crate) host_colors: RefCell<HostColors>,
     /// Shared handle to the admitted Server connection's Agent Drain queue.
     /// The broker only appends; the connection loop owns the watermark and
@@ -254,7 +259,8 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
-            titles: RefCell::new(titles::Titles::default()),
+            titles: Rc::default(),
+            programs: RefCell::default(),
             host_colors: RefCell::new(HostColors::default()),
             drain,
             pacing: Pacing::default(),
@@ -308,7 +314,8 @@ impl HostBrokerConnection {
             viewers: RefCell::new(HostViewers::default()),
             controllers: RefCell::new(controllers::HostControllers::default()),
             retired_targets: RefCell::new(target_cleanup::RetiredTargets::default()),
-            titles: RefCell::new(titles::Titles::default()),
+            titles: Rc::default(),
+            programs: RefCell::default(),
             host_colors: RefCell::new(HostColors::default()),
             drain,
             pacing: Pacing::default(),
@@ -379,6 +386,54 @@ impl HostBrokerConnection {
     /// The program exits the Host reported since the last call, which this call clears.
     pub(crate) fn take_program_exits(&self) -> Vec<orchbee_terminal_protocol::ProgramExited> {
         self.program_exits.take()
+    }
+
+    /// Notes which programs one of this Host's program answers shows it running or no longer
+    /// running.
+    pub(crate) fn note_program_answer(&self, answer: &orchbee_terminal_protocol::ProgramAnswer) {
+        use orchbee_terminal_protocol::ProgramAnswer;
+        let mut programs = self.programs.borrow_mut();
+        match answer {
+            ProgramAnswer::Started { program_id, .. } => {
+                programs.insert(*program_id);
+            }
+            ProgramAnswer::Disposed(program_id) => {
+                programs.remove(program_id);
+            }
+            ProgramAnswer::Page {
+                programs: listed, ..
+            } => programs.extend(listed.iter().map(|summary| summary.program_id)),
+            _ => {}
+        }
+    }
+
+    /// Whether this Host runs `program` for the Worker, as far as its answers showed.
+    pub(crate) fn runs_program(&self, program: orchbee_terminal_protocol::ProgramId) -> bool {
+        self.programs.borrow().contains(&program)
+    }
+
+    /// Whether this Host runs any program for the Worker, as far as its answers showed.
+    #[cfg(windows)]
+    pub(crate) fn runs_programs(&self) -> bool {
+        !self.programs.borrow().is_empty()
+    }
+
+    /// Joins this connection's title projection to the one `primary` shares, so the Worker keeps one
+    /// change sequence across its Hosts; the titles this connection read so far become changes there.
+    #[cfg(windows)]
+    pub(crate) fn share_titles(&mut self, primary: &Self) {
+        if Rc::ptr_eq(&self.titles, &primary.titles) {
+            return;
+        }
+        let own = std::mem::replace(&mut self.titles, Rc::clone(&primary.titles));
+        primary.titles.borrow_mut().absorb(own.take());
+    }
+
+    /// Sends this Host one `drain` control request on a new connection to its endpoint, so it takes
+    /// no new terminal and ends once it holds none; `false` when it has not answered by `deadline`.
+    #[cfg(windows)]
+    pub(crate) fn drain_host(&self, deadline: Instant) -> bool {
+        process_query::drain(&self.endpoint, deadline).is_ok()
     }
 
     /// Routes one intact Host event to connection state. An event this Worker cannot use never

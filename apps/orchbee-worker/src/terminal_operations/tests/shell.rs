@@ -123,7 +123,7 @@ pub(super) fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>
 
 #[test]
 fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay() {
-    let (mut host, drain, mut host_peer) = connected_host();
+    let (host, drain, mut host_peer) = connected_host();
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
     let driver = thread::spawn(move || {
@@ -188,7 +188,7 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
     assert!(
         run_admitted(
             server,
-            &mut host,
+            host,
             WORKER,
             NonZeroU64::MIN,
             AuthorizedHostOperationKernel::new(WORKER, NonZeroU64::MIN).unwrap(),
@@ -201,7 +201,6 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
                 session_runtime: None,
-                managed_host: None,
             }
         )
         .is_err()

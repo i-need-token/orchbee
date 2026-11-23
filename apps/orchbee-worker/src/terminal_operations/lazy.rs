@@ -3,12 +3,12 @@
 //! existing Host, which only a replacement Worker's adoption does, or replay a launch whose
 //! delivery is uncertain.
 
+use super::host_start::{HOST_START_ATTEMPTS, HostStart, start_host};
 use super::{server_transport, unix_milliseconds};
 use crate::{
     agent_drain::AgentDrain,
     default_interactive_launch::SystemShell,
-    diagnostic_events::{DeclineCause, ExitCause, Peer, Reason, Site},
-    host_connection::{DialFailure, HostBrokerConnection},
+    diagnostic_events::{DeclineCause, Site},
     terminal_authorization::{AuthorizedHostOperationKernel, HostOperationAdmission},
     terminal_host_operation::HostOperationDisposition,
 };
@@ -16,22 +16,9 @@ use orchbee_capability_node_protocol::{
     CapabilityNodeMessage, DeclinedRequestKind, WorkerRequestDeclined,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
-use orchbee_local_runtime::{
-    Cohort, CohortArtifact, ModeCheckedLocalSessionRendezvous, SessionScope,
-};
+use orchbee_local_runtime::Cohort;
 use orchbee_local_worker_protocol::WorkerId;
-#[cfg(unix)]
-use std::os::unix::fs::{FileTypeExt, MetadataExt};
-use std::{
-    cell::RefCell,
-    error::Error,
-    io,
-    num::NonZeroU64,
-    path::Path,
-    rc::Rc,
-    thread,
-    time::{Duration, Instant},
-};
+use std::{cell::RefCell, error::Error, num::NonZeroU64, path::Path, rc::Rc};
 
 pub(crate) fn run(
     server: UnixStream,
@@ -75,14 +62,14 @@ pub(crate) fn run(
                 {
                     break received;
                 }
-                handoff.expire(Instant::now());
+                handoff.expire(std::time::Instant::now());
             };
             #[cfg(windows)]
             handoff.expire(std::time::Instant::now());
             #[cfg(windows)]
             if let CapabilityNodeMessage::WorkerHandoffRequest(request) = request {
                 site.set(Site::Handoff);
-                handoff.execute(&mut server, None, request, worker_id, generation)?;
+                handoff.execute(&mut server, None, false, request, worker_id, generation)?;
                 continue;
             }
             // As in the admitted loop, an ordinary request under a prepared handoff is declined.
@@ -117,7 +104,7 @@ pub(crate) fn run(
             }
             if let CapabilityNodeMessage::HostQueryRequest(request) = request {
                 // No Host exists before the first Launch starts one.
-                let result = super::host_query::execute(None, request, worker_id, generation);
+                let result = super::host_query::execute(&[], request, worker_id, generation);
                 let _no_host = server_transport::send(
                     &server,
                     None,
@@ -161,7 +148,7 @@ pub(crate) fn run(
             }
             if let CapabilityNodeMessage::TerminalTitlesRequest(request) = request {
                 site.set(Site::Titles);
-                let result = super::titles::execute(&server, None, request, worker_id, generation)?;
+                let result = super::titles::execute(&server, &[], request, worker_id, generation)?;
                 let _no_host = server_transport::send(
                     &server,
                     None,
@@ -309,18 +296,13 @@ pub(crate) fn run(
             let fresh = HostStart::Fresh(orchbee_local_runtime::HostSlot::FIRST);
             let started = start_host(cohort, runtime, Rc::clone(&drain), fresh)
                 .map(|host| (prepared, host));
-            let (prepared, (mut host, child)) = match started {
+            let (prepared, (host, child)) = match started {
                 Ok(started) => {
                     crate::diagnostic_events::host_started();
                     started
                 }
                 Err(failure) => {
-                    crate::diagnostic_events::host_start_failed(
-                        failure.stage.token(),
-                        failure.error.as_ref(),
-                        failure.host_exit,
-                        failure.elapsed,
-                    );
+                    failure.record();
                     kernel.record_pre_handoff_failure(&dispatch, unix_milliseconds())?;
                     let result = super::take_result(&mut kernel)?;
                     // The failure fails only this Launch while a later one can start a Host. A
@@ -328,7 +310,7 @@ pub(crate) fn run(
                     // terminal: it ends after its answer, so the Server stops this Session and
                     // cleans up what the start left.
                     failed_starts += 1;
-                    if !failure.retryable || failed_starts >= HOST_START_ATTEMPTS {
+                    if !failure.retryable() || failed_starts >= HOST_START_ATTEMPTS {
                         let _delivery = server_transport::send(&server, None, &result);
                         return Err(failure.into_exit_cause());
                     }
@@ -343,7 +325,7 @@ pub(crate) fn run(
             let bound = host.pacing.exchange_bound();
             let delivered = (|| -> Result<bool, Box<dyn Error>> {
                 let disposition =
-                    prepared.execute(&mut kernel, &mut host, &server, unix_milliseconds, bound)?;
+                    prepared.execute(&mut kernel, &host, &server, unix_milliseconds, bound)?;
                 if disposition == HostOperationDisposition::ServerClosed {
                     return Err(super::peer_closed().into());
                 }
@@ -364,14 +346,22 @@ pub(crate) fn run(
                 }
                 Err(error) => return Err(super::exit_cause::attach(error, &host)),
             }
-            let mut managed_host = super::shutdown::ManagedHost::new(child);
+            let mut hosts = super::host_set::HostSet::managed(super::host_set::Starter {
+                cohort,
+                runtime,
+                drain: Rc::clone(&drain),
+            });
             // The Keeper's care starts the Session's Keeper between requests, first right after
             // this answer, so the start takes none of the Launch's bound.
-            #[cfg(windows)]
-            managed_host.keep_from(runtime, cohort.executable(CohortArtifact::TerminalHost));
+            hosts.add(
+                orchbee_local_runtime::HostSlot::FIRST,
+                host,
+                super::shutdown::ManagedHost::new(child),
+                false,
+            );
             return super::run_admitted_with_handoff(
                 server,
-                &mut host,
+                hosts,
                 worker_id,
                 generation,
                 kernel,
@@ -384,7 +374,6 @@ pub(crate) fn run(
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
-                    managed_host: Some(&mut managed_host),
                 },
                 #[cfg(windows)]
                 handoff,
@@ -400,419 +389,6 @@ pub(crate) fn run(
         plugins: &plugin_jobs,
     }
     .settle_exit(outcome)
-}
-
-/// Where a managed Host start failed, named in its diagnostic record.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum HostStartStage {
-    /// Preparing the Host's runtime folder.
-    Directory,
-    /// Checking the endpoint address, or an endpoint that existed before the start.
-    Endpoint,
-    /// Registering the Host in the Session record before creating it; only Windows registers.
-    #[cfg(windows)]
-    Registration,
-    /// Creating the Host process.
-    Spawn,
-    /// Publishing the created Host's identity and releasing its initial thread.
-    #[cfg(windows)]
-    Release,
-    /// The Host exited, or could not be observed, before its endpoint appeared.
-    Exited,
-    /// Dialing the Host's endpoint, which never reached the Host.
-    Connect,
-    /// The `worker-host` offer or the protocol `Hello` with a reached Host.
-    Handshake,
-    /// The shared deadline passed before the endpoint appeared.
-    Deadline,
-}
-
-impl HostStartStage {
-    /// The closed token the diagnostic record names this stage by.
-    fn token(self) -> &'static str {
-        match self {
-            Self::Directory => "directory",
-            Self::Endpoint => "endpoint",
-            #[cfg(windows)]
-            Self::Registration => "registration",
-            Self::Spawn => "spawn",
-            #[cfg(windows)]
-            Self::Release => "release",
-            Self::Exited => "exited",
-            Self::Connect => "connect",
-            Self::Handshake => "handshake",
-            Self::Deadline => "deadline",
-        }
-    }
-}
-
-/// A failed managed Host start: its stage, the time since the start began, the Host's exit code
-/// when it had exited, the failure itself, and whether this Worker may start a Host again.
-#[derive(Debug)]
-pub(super) struct HostStartFailure {
-    stage: HostStartStage,
-    elapsed: Duration,
-    host_exit: Option<u32>,
-    error: Box<dyn Error>,
-    /// No Host process was registered or created, or the one created has exited and left no
-    /// endpoint, so a later start cannot meet it; and the failure is not one every later start
-    /// would repeat, such as an endpoint present before the start. A Windows Host's registration
-    /// outlives its process, so there only a failure before registration leaves a retry.
-    retryable: bool,
-}
-
-impl HostStartFailure {
-    /// Writes the failure's diagnostic record.
-    #[cfg(windows)]
-    pub(super) fn record(&self) {
-        crate::diagnostic_events::host_start_failed(
-            self.stage.token(),
-            self.error.as_ref(),
-            self.host_exit,
-            self.elapsed,
-        );
-    }
-
-    /// The failure itself.
-    #[cfg(windows)]
-    pub(super) fn into_error(self) -> Box<dyn Error> {
-        self.error
-    }
-
-    /// The loop's end after a failure that leaves no retry, or the last of its starts: the Host
-    /// never answered in time, ended before it was reached, or a local step failed.
-    fn into_exit_cause(self) -> Box<dyn Error> {
-        let (reason, peer) = match self.stage {
-            HostStartStage::Deadline => (Reason::Deadline, Peer::Host),
-            HostStartStage::Exited | HostStartStage::Connect | HostStartStage::Handshake => {
-                (Reason::HostClosed, Peer::Host)
-            }
-            _ => (Reason::Local, Peer::None),
-        };
-        Box::new(ExitCause {
-            site: Site::HostStart,
-            reason,
-            peer,
-            waited: None,
-            source: self.error,
-        })
-    }
-}
-
-/// How long a failed dial waits for the Host to exit, so the record carries the exit code of a
-/// Host that ended the connection by ending itself.
-const HOST_EXIT_GRACE: Duration = Duration::from_millis(250);
-
-/// Host starts a Worker makes. A start that fails in a way a later one could pass leaves a retry,
-/// but only this many in a row: the last failure ends the Worker after its answer, as a permanent
-/// one does.
-const HOST_START_ATTEMPTS: u32 = 3;
-
-/// Which Host a start makes: a Host in a slot no Host holds, or a recovery Host in the slot of a
-/// Host that ended while the Keeper kept its programs, serving that Host's epoch when the bindings
-/// name one. A POSIX Worker starts only the first slot's Host.
-#[derive(Clone, Copy)]
-pub(super) enum HostStart {
-    Fresh(orchbee_local_runtime::HostSlot),
-    #[cfg(windows)]
-    Recovery(
-        orchbee_local_runtime::HostSlot,
-        Option<orchbee_capability_node_protocol::HostEpoch>,
-    ),
-}
-
-impl HostStart {
-    fn slot(self) -> orchbee_local_runtime::HostSlot {
-        match self {
-            Self::Fresh(slot) => slot,
-            #[cfg(windows)]
-            Self::Recovery(slot, _) => slot,
-        }
-    }
-}
-
-pub(super) fn start_host(
-    cohort: &Cohort,
-    runtime: &Path,
-    drain: Rc<RefCell<AgentDrain>>,
-    start: HostStart,
-) -> Result<(HostBrokerConnection, orchbee_local_runtime::RetainedChild), HostStartFailure> {
-    let began = Instant::now();
-    let deadline = began + Duration::from_secs(5);
-    let failed = |stage, error: Box<dyn Error>| HostStartFailure {
-        stage,
-        elapsed: began.elapsed(),
-        host_exit: None,
-        error,
-        retryable: true,
-    };
-    // The Host binds `<id>-host.sock` relatively inside the socket folder while the Worker
-    // connects through the derived absolute path; validate that address before the Host
-    // directory or process can appear.
-    #[cfg(windows)]
-    let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(runtime, start.slot());
-    #[cfg(unix)]
-    let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
-    // A failure no later start could pass leaves no retry: the address is the same every time.
-    let permanent = |stage, error: Box<dyn Error>| HostStartFailure {
-        retryable: false,
-        ..failed(stage, error)
-    };
-    #[cfg(unix)]
-    if start.slot() != orchbee_local_runtime::HostSlot::FIRST {
-        return Err(permanent(
-            HostStartStage::Endpoint,
-            "a POSIX Session runs its one Host in the first slot".into(),
-        ));
-    }
-    #[cfg(unix)]
-    nix::sys::socket::UnixAddr::new(&endpoint)
-        .map_err(|error| permanent(HostStartStage::Endpoint, error.into()))?;
-    #[cfg(windows)]
-    let scope_name = ModeCheckedLocalSessionRendezvous::slot_scope_name(start.slot());
-    #[cfg(unix)]
-    let scope_name = orchbee_local_runtime::HOST_SCOPE_NAME.to_owned();
-    let directory = SessionScope::parse(&scope_name)
-        .map_err(Box::<dyn Error>::from)
-        .and_then(|scope| {
-            ModeCheckedLocalSessionRendezvous::prepare_mode_checked(runtime, scope)
-                .map_err(Box::<dyn Error>::from)
-        })
-        .map_err(|error| failed(HostStartStage::Directory, error))?;
-    // An endpoint already present belongs to a Host this Worker did not start, live or dead, and
-    // stays until the Session cleans up: every later start would meet it too.
-    let recovery_required = || -> Box<dyn Error> {
-        io::Error::new(io::ErrorKind::AlreadyExists, "Host recovery is required").into()
-    };
-    #[cfg(unix)]
-    match std::fs::symlink_metadata(&endpoint) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Ok(_) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
-        Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
-    }
-    #[cfg(windows)]
-    match orchbee_local_ipc::endpoint_exists(&endpoint) {
-        Ok(false) => {}
-        Ok(true) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
-        Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
-    }
-    #[cfg(windows)]
-    let host_endpoint_id =
-        ModeCheckedLocalSessionRendezvous::slot_endpoint_id(runtime, start.slot());
-    #[cfg(unix)]
-    let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
-    let executable = cohort.executable(CohortArtifact::TerminalHost);
-    let arguments = [
-        std::ffi::OsStr::new("serve"),
-        std::ffi::OsStr::new("--runtime-directory"),
-        directory.runtime_directory().as_os_str(),
-        std::ffi::OsStr::new("--endpoint-id"),
-        std::ffi::OsStr::new(&host_endpoint_id),
-    ];
-    // A recovery Host serves the lost Host's epoch, so each recovered terminal keeps its identity.
-    #[cfg(windows)]
-    let epoch = match start {
-        HostStart::Recovery(_, Some(epoch)) => Some(
-            orchbee_terminal_protocol::HostEpoch::from_bytes(epoch.as_bytes())
-                .map_err(|error| permanent(HostStartStage::Spawn, error.into()))?
-                .to_text(),
-        ),
-        HostStart::Fresh(_) | HostStart::Recovery(_, None) => None,
-    };
-    #[cfg(windows)]
-    let mut arguments = arguments.to_vec();
-    #[cfg(windows)]
-    if let Some(epoch) = &epoch {
-        arguments.extend([
-            std::ffi::OsStr::new("--host-epoch"),
-            std::ffi::OsStr::new(epoch),
-        ]);
-    }
-    #[cfg(not(windows))]
-    let HostStart::Fresh(_) = start;
-    // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
-    #[cfg(unix)]
-    let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
-    #[cfg(unix)]
-    let arguments = [
-        &arguments[..],
-        &[
-            std::ffi::OsStr::new("--endpoint-directory"),
-            socket_root.as_os_str(),
-        ],
-    ]
-    .concat();
-    #[cfg(windows)]
-    let mut child = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
-        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))
-        .and_then(|root| {
-            orchbee_local_runtime::spawn_session_child(
-                &root,
-                runtime,
-                match start {
-                    HostStart::Fresh(slot) => orchbee_local_runtime::SessionChild::Host(slot),
-                    HostStart::Recovery(slot, _) => {
-                        orchbee_local_runtime::SessionChild::RecoveryHost(slot)
-                    }
-                },
-                &executable,
-                &arguments,
-                deadline,
-            )
-        })
-        .map_err(|error| {
-            use orchbee_local_runtime::SessionChildStep;
-            let stage = match SessionChildStep::of(&error) {
-                Some(SessionChildStep::Creation) => HostStartStage::Spawn,
-                Some(SessionChildStep::Release) => HostStartStage::Release,
-                Some(SessionChildStep::Registration) | None => HostStartStage::Registration,
-            };
-            HostStartFailure {
-                retryable: false,
-                ..failed(stage, error.into())
-            }
-        })?;
-    #[cfg(not(windows))]
-    let mut child = orchbee_local_runtime::spawn_retained(&executable, &arguments)
-        .map_err(|error| failed(HostStartStage::Spawn, error.into()))?;
-    let dialed = |child: &mut orchbee_local_runtime::RetainedChild,
-                  dial: Result<HostBrokerConnection, DialFailure>| {
-        let failure = match dial {
-            Ok(host) => return Ok(host),
-            Err(DialFailure::Connect(error)) => failed(HostStartStage::Connect, error.into()),
-            #[cfg(windows)]
-            Err(DialFailure::ServerProcess(error)) => failed(HostStartStage::Connect, error.into()),
-            Err(DialFailure::Busy(error) | DialFailure::Handshake(error)) => {
-                failed(HostStartStage::Handshake, error)
-            }
-        };
-        // The elapsed time stays the dial's own; the wait only observes the Host's exit.
-        Err(HostStartFailure {
-            host_exit: exit_after_failure(child),
-            ..failure
-        })
-    };
-    let ready = (|| loop {
-        if Instant::now() >= deadline {
-            return Err(failed(
-                HostStartStage::Deadline,
-                io::Error::from(io::ErrorKind::TimedOut).into(),
-            ));
-        }
-        match child.try_wait() {
-            Ok(None) => {}
-            Ok(Some(status)) => {
-                return Err(HostStartFailure {
-                    host_exit: exit_code(status),
-                    ..failed(
-                        HostStartStage::Exited,
-                        io::Error::other("Terminal Host exited before readiness").into(),
-                    )
-                });
-            }
-            Err(error) => return Err(failed(HostStartStage::Exited, error.into())),
-        }
-        #[cfg(windows)]
-        {
-            match orchbee_local_ipc::endpoint_exists(&endpoint) {
-                Ok(true) => {
-                    let dial = HostBrokerConnection::connect_before(
-                        &endpoint,
-                        deadline,
-                        Rc::clone(&drain),
-                    );
-                    return dialed(&mut child, dial);
-                }
-                Ok(false) => thread::sleep(Duration::from_millis(10)),
-                Err(error) => return Err(failed(HostStartStage::Connect, error.into())),
-            }
-        }
-        #[cfg(unix)]
-        match std::fs::symlink_metadata(&endpoint) {
-            Ok(status)
-                if status.file_type().is_socket()
-                    && status.uid() == nix::unistd::geteuid().as_raw()
-                    && status.mode() & 0o7777 == 0o600 =>
-            {
-                let dial =
-                    HostBrokerConnection::connect_before(&endpoint, deadline, Rc::clone(&drain));
-                return dialed(&mut child, dial);
-            }
-            Ok(status)
-                if status.file_type().is_socket()
-                    && status.uid() == nix::unistd::geteuid().as_raw() =>
-            {
-                // This endpoint did not exist before our one spawn. Wait for the Host's
-                // final chmod; never connect to the intermediate socket mode.
-                thread::sleep(Duration::from_millis(10));
-            }
-            Ok(_) => {
-                return Err(failed(
-                    HostStartStage::Endpoint,
-                    io::Error::new(io::ErrorKind::PermissionDenied, "invalid Host endpoint").into(),
-                ));
-            }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                thread::sleep(Duration::from_millis(10))
-            }
-            Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
-        }
-    })();
-    match ready {
-        Ok(host) => {
-            // The Server pairs this Host with its terminals through the epoch the record keeps.
-            #[cfg(windows)]
-            if let Ok(process) = child.exact_identity() {
-                crate::host_adoption::record_epoch(
-                    runtime,
-                    start.slot(),
-                    process,
-                    *host.host_epoch().as_bytes(),
-                );
-            }
-            Ok((host, child))
-        }
-        // A Host still running could later bind the endpoint a second start dials, one that bound
-        // its endpoint before it ended leaves that endpoint behind, and a Windows registration
-        // outlives the process; each leaves this Worker no further start.
-        Err(failure) => Err(HostStartFailure {
-            retryable: cfg!(not(windows))
-                && matches!(child.try_wait(), Ok(Some(_)))
-                && endpoint_absent(&endpoint),
-            ..failure
-        }),
-    }
-}
-
-/// Whether no endpoint, not even one a Host that ended left behind, is at the Host's address.
-#[cfg(unix)]
-fn endpoint_absent(endpoint: &Path) -> bool {
-    matches!(std::fs::symlink_metadata(endpoint), Err(error) if error.kind() == io::ErrorKind::NotFound)
-}
-
-#[cfg(windows)]
-fn endpoint_absent(endpoint: &Path) -> bool {
-    matches!(orchbee_local_ipc::endpoint_exists(endpoint), Ok(false))
-}
-
-/// The Host's exit code once it exits within [`HOST_EXIT_GRACE`]; a Host still running keeps none.
-fn exit_after_failure(child: &mut orchbee_local_runtime::RetainedChild) -> Option<u32> {
-    let until = Instant::now() + HOST_EXIT_GRACE;
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => return exit_code(status),
-            Ok(None) if Instant::now() < until => thread::sleep(Duration::from_millis(10)),
-            Ok(None) | Err(_) => return None,
-        }
-    }
-}
-
-/// A Windows exit code keeps all 32 bits, so a crash reads as its status value; a POSIX Host ended
-/// by a signal has none.
-fn exit_code(status: std::process::ExitStatus) -> Option<u32> {
-    status
-        .code()
-        .map(|code| u32::from_ne_bytes(code.to_ne_bytes()))
 }
 
 #[cfg(all(test, unix))]

@@ -48,7 +48,7 @@ impl SessionChildStep {
 #[cfg(windows)]
 mod windows;
 #[cfg(windows)]
-pub use windows::{record_session_host_epoch, spawn_session_child};
+pub use windows::{record_session_host_epoch, release_session_host, spawn_session_child};
 #[cfg(windows)]
 pub(crate) use windows::{spawn_registered, spawn_registered_with};
 #[cfg(not(windows))]

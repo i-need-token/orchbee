@@ -32,7 +32,8 @@ and `keeper-failed` for a step that failed, with `error`, `osError` and `step` (
 `adopt`, `replace`, `discard`, `hold` when the Host runs a terminal its Keeper does not hold, or
 `end`). `host-hung` records a Host whose dispatch stopped turning: `stalledMs`, and `ended` when the
 Worker ended it. `host-epoch-unrecorded` records, with `error`, a Host epoch the Session record did
-not take.
+not take. `host-draining` records the `slot` of an older Host the Worker told to drain, and
+`host-drained` its end: `slot`, and `released` once the Session record freed that slot.
 
 A failed `exited` also names where and why the Worker stopped: `site`, the step it was serving
 (`server-receive`, `server-send`, `viewer`, `process-read`, `lifecycle`, `graphics`, `control`,
@@ -251,8 +252,9 @@ Server still serves.
 The last page is answered within 18 seconds of its arrival, inside the Server's 20-second window:
 
 - A target with no slot is answered `Adopted` with no counts, and the Worker continues in the lazy
-  loop above. This Worker adopts one slot: a target with several is `host-refused`, as is one naming
-  a slot other than the first on macOS and Linux.
+  loop above. On Windows the Worker adopts every slot the target names, each as below, and the first
+  that fails fails the adoption; on macOS and Linux a target naming a slot other than the first is
+  `host-refused`.
 - For a Host, the Worker dials the endpoint of its slot. Windows opens the recorded process by ID, requires it alive with the recorded creation
   time, keeps its handle, and after the dial requires the pipe's server process to be that process.
   macOS and Linux require the Host lock held, the endpoint to be a socket of this user with mode
@@ -261,7 +263,8 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   the lost Worker's session, then performs the `Hello`. A recorded epoch must be the Host's.
 - `ListTerminals` is read page by page; a changed inventory or a stale cursor restarts the read, at
   most eight times, and at most 4,096 Host terminals are read.
-- One kernel import then gives the new kernel the bindings: a binding matches the Host terminal with
+- One kernel import of every adopted Host's inventory together then gives the new kernel the
+  bindings: a binding matches the Host terminal with
   its whole identity and the same started state (an exited or failed terminal counts as started),
   and is imported with its fence as a floor, so every Start or lifecycle step at or below it is
   refused. A Close in flight keeps its receipts: no step of its attempt at or below the issued
@@ -271,7 +274,8 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   A binding the inventory lacks or contradicts is reported missing.
 
 A `Recovery` slot comes with the Session's Keeper, which kept the programs of the Host that ended
-there. The Worker adopts that Keeper, requiring the recorded process ID and creation time, starts a
+there. The Worker adopts that Keeper, once for every slot of the target, requiring the recorded
+process ID and creation time, starts a
 recovery Host in that slot that serves the lost epoch, the one the target names or else the one the
 bindings name, registers it with the Keeper and has it attach the Keeper. For each binding, the orphaned holding of that epoch with the binding's identity is
 assigned to the recovery Host under a mark derived from the holding and that Host, so a retry assigns
@@ -291,9 +295,31 @@ On Windows, once a Worker reached a Host it started or adopted, it writes the Ho
 slot of the Session record; a failed write changes nothing else.
 
 After `Adopted` the Worker serves the admitted loop with the imported kernel. Its stop still
-inventories, forces and disposes every Host terminal, then waits for the adopted Host to exit: on
+inventories, forces and disposes every Host terminal, then waits for each adopted Host to exit: on
 Windows on the retained process handle, and on macOS and Linux until the Host lock is free. `exit`
-releases the Host as for a started one.
+releases each Host as for a started one.
+
+## Several Hosts
+
+On Windows one Worker can hold a Host in each of the Session's four slots: its own Host, which runs
+its cohort's Terminal Host, and older Hosts a replacement adopted from another installation. An
+adopted Host is the Worker's own when its process image is that program; a Host whose image cannot
+be read counts as its own, so it is never drained by mistake. A request goes to the Host that serves
+what it names: a terminal by the epoch of its identity, an attachment by the Host that holds it, a
+background program by the Host that runs it. A Launch and a new program go to the own Host; when the
+Worker holds none, the Launch starts one in the lowest free slot, and a failed start fails only that
+Launch, as in the lazy loop, while the older Hosts keep serving. A new program while no own Host runs
+starts as it does before any Host. A Host query and a title read ask every Host; title changes come
+from one projection the Hosts share. Between requests the Worker reads every Host's events, and the
+loss of any Host ends the Worker as before, so the next replacement adopts the others and recovers
+the lost one.
+
+While it holds its own Host, the Worker checks each older Host between requests at most every two
+seconds and tells one that runs no terminal and no program to drain. A drained Host takes nothing
+new and ends; its end is normal, the Worker drops it and, once its process exited, frees its slot
+in the Session record. A stop that disposes ends every Host in turn, counting the terminals of all;
+the first Host that does not stop answers the attempt, and a later attempt finds the stopped ones
+stopped. The outcome names the own Host's epoch, or the first Host's. `exit` releases every Host.
 
 A failure is answered, then ends the Worker with an `exited` record at site `adopt`. No process with
 the recorded ID, or a free Host lock, is `host-gone`; a failed dial, a missing endpoint or a Host
@@ -316,9 +342,11 @@ prepared handoff: first right after the answer that admitted its Host, then ever
 Host that offers both `keeper` and `recovery` and has no Keeper gets one: the Worker starts it,
 registers the Host with it and has the Host attach it, so the Host holds each running terminal
 there. A Host without `recovery`, such as one on the system ConHost, gets none, since no Host could
-take a kept program back. A replacement Worker adopts the recorded Keeper instead. A failed Keeper
-step leaves the terminals running unheld and the Worker serving; Keeper starts are 30 seconds apart,
-and after three failed ones the Worker starts no more. A stop ends the Keeper once the Host is gone.
+take a kept program back. A replacement Worker adopts the recorded Keeper instead. Every Host the
+Worker holds attaches the one Keeper, a Host the Worker starts later at its next care; an attachment
+that fails is recorded once and leaves that Host's terminals unheld. A failed Keeper step leaves the
+terminals running unheld and the Worker serving; Keeper starts are 30 seconds apart, and after three
+failed ones the Worker starts no more. A stop ends the Keeper once every Host is gone.
 
 A Host exchange between requests does not watch the Server, so a request that arrives meanwhile
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
@@ -465,7 +493,7 @@ full snapshot cannot collide with an obsolete relay flight. The pause regression
 `src/host_connection/viewers/tests.rs` covers queued and delivered frames, event preservation,
 byte-budget release, neighboring Viewers and sequence fencing.
 
-The Worker owns one Host broker; Server alone issues viewer attachments. Each generation-scoped viewer has read capability, an independent bounded delivery slot and at most one frame awaiting exact Client feedback. Worker validates the envelope and fixed routing metadata, retaining the opaque Host record without decoding rows, VT or history. Attach/poll/feedback/detach serialize with Launch/Start on the admitted Server connection. Poll transfers ready records without awaiting terminal output; downstream delivery cannot retain the Worker operation slot. The Server relay core abstracts lane isolation; concrete carrier tests check this integration.
+The Worker owns one broker connection per Host; Server alone issues viewer attachments. Each generation-scoped viewer has read capability, an independent bounded delivery slot and at most one frame awaiting exact Client feedback. Worker validates the envelope and fixed routing metadata, retaining the opaque Host record without decoding rows, VT or history. Attach/poll/feedback/detach serialize with Launch/Start on the admitted Server connection. Poll transfers ready records without awaiting terminal output; downstream delivery cannot retain the Worker operation slot. The Server relay core abstracts lane isolation; concrete carrier tests check this integration.
 
 When a viewer's record or event first becomes pollable, the Worker's server transport writes one
 `TerminalViewerRecordReady` between requests, while it waits for the next one. A viewer repeats the

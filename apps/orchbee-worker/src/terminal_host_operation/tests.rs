@@ -43,20 +43,14 @@ fn exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect
         TerminalLaunchMode::Deferred,
         TerminalLaunchMode::Immediate(geometry()?),
     ] {
-        let mut fixture = Fixture::fake()?;
+        let fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
         let launch = AuthorizedTerminalLaunch::new(authorization(1)?, None, mode, None);
         let dispatch = dispatch(kernel.admit_launch(launch.clone(), 100)?)?;
         let operation = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
         let peer = respond(fixture.peer.try_clone()?, Ok);
         assert_eq!(
-            operation.execute(
-                &mut kernel,
-                &mut fixture.host,
-                &fixture.server,
-                || 100,
-                BUDGET
-            )?,
+            operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
             HostOperationDisposition::ResultReady
         );
         join(peer)?;
@@ -94,7 +88,7 @@ fn exact_launch_success_remains_in_the_kernel_slot_and_replays_without_an_effect
 
 #[test]
 fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
     let dispatch = launch_dispatch(&mut kernel)?;
     assert!(PreparedHostOperation::start(&dispatch, correlation()?).is_err());
@@ -102,7 +96,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
     assert!(matches!(
         invalid.execute(
             &mut kernel,
-            &mut fixture.host,
+            &fixture.host,
             &fixture.server,
             || 100,
             Duration::ZERO
@@ -112,13 +106,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
     assert!(kernel.take_result().is_none());
     let expired = PreparedHostOperation::launch(&dispatch, facts()?, correlation()?, None)?;
     assert_eq!(
-        expired.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 200,
-            BUDGET
-        )?,
+        expired.execute(&mut kernel, &fixture.host, &fixture.server, || 200, BUDGET)?,
         HostOperationDisposition::ResultReady
     );
     assert!(
@@ -140,13 +128,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
     )?)?;
     let operation = PreparedHostOperation::start(&dispatch, correlation()?)?;
     assert_eq!(
-        operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET
-        )?,
+        operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
         HostOperationDisposition::ResultReady
     );
     assert!(
@@ -159,7 +141,7 @@ fn handoff_rejections_and_invalid_preparation_never_send_a_command() -> TestResu
 #[test]
 fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_retryable()
 -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
     let operation = PreparedHostOperation::launch(
         &launch_dispatch(&mut kernel)?,
@@ -184,13 +166,7 @@ fn exact_generic_failure_is_failed_even_when_its_diagnostics_say_rejected_and_re
         )
     });
     assert_eq!(
-        operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET
-        )?,
+        operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
         HostOperationDisposition::ResultReady
     );
     join(peer)?;
@@ -210,7 +186,7 @@ fn malformed_response_partitions_cache_unknown_and_never_resend() -> TestResult 
         // puts the stream out of step.
         let unanswered = matches!(partition, 3 | 12);
         let out_of_step = unanswered || matches!(partition, 9 | 11);
-        let mut fixture = Fixture::fake()?;
+        let fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
         let launch = AuthorizedTerminalLaunch::new(
             authorization(1)?,
@@ -277,7 +253,7 @@ fn malformed_response_partitions_cache_unknown_and_never_resend() -> TestResult 
         assert_eq!(
             operation.execute(
                 &mut kernel,
-                &mut fixture.host,
+                &fixture.host,
                 &fixture.server,
                 || 100,
                 if partition == 11 {
@@ -317,7 +293,7 @@ fn malformed_response_partitions_cache_unknown_and_never_resend() -> TestResult 
 
 #[test]
 fn observed_host_loss_before_handoff_is_a_definite_failure() -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     fixture.peer.shutdown(Shutdown::Both)?;
     let mut kernel = kernel()?;
     let operation = PreparedHostOperation::launch(
@@ -327,13 +303,7 @@ fn observed_host_loss_before_handoff_is_a_definite_failure() -> TestResult {
         None,
     )?;
     assert_eq!(
-        operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET
-        )?,
+        operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
         HostOperationDisposition::HostClosed
     );
     assert!(
@@ -344,7 +314,7 @@ fn observed_host_loss_before_handoff_is_a_definite_failure() -> TestResult {
 
 #[test]
 fn server_loss_before_handoff_abandons_without_sending_or_inventing_a_result() -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     fixture.server_peer.shutdown(Shutdown::Both)?;
     let mut kernel = kernel()?;
     let operation = PreparedHostOperation::launch(
@@ -354,13 +324,7 @@ fn server_loss_before_handoff_abandons_without_sending_or_inventing_a_result() -
         None,
     )?;
     assert_eq!(
-        operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET
-        )?,
+        operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
         HostOperationDisposition::ServerClosed
     );
     assert!(kernel.take_result().is_none());
@@ -372,7 +336,7 @@ fn server_loss_before_handoff_abandons_without_sending_or_inventing_a_result() -
 fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> TestResult {
     use orchbee_terminal_protocol::{StartTransition, TerminalStartAccepted};
     for partition in 0..8 {
-        let mut fixture = Fixture::fake()?;
+        let fixture = Fixture::fake()?;
         let mut kernel = kernel()?;
         let start = AuthorizedTerminalStart::new(
             authorization(1)?,
@@ -447,13 +411,8 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
                 correlation().map_err(io_error)?,
             )?)
         });
-        let disposition = operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET,
-        )?;
+        let disposition =
+            operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?;
         join(response)?;
         // Every answer that arrives whole settles the Start, a contradictory one as unknown, and
         // leaves the Host open; only a lost Host closes it.
@@ -467,13 +426,7 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
         );
         if partition != 7 {
             assert!(matches!(
-                duplicate.execute(
-                    &mut kernel,
-                    &mut fixture.host,
-                    &fixture.server,
-                    || 100,
-                    BUDGET
-                ),
+                duplicate.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET),
                 Err(HostOperationError::Kernel(
                     AuthorizationKernelError::InvalidDispatchPhase
                 ))
@@ -511,7 +464,7 @@ fn start_responses_preserve_transitions_and_reject_contradictory_payloads() -> T
 
 #[test]
 fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
     let operation = PreparedHostOperation::launch(
         &launch_dispatch(&mut kernel)?,
@@ -527,13 +480,7 @@ fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
         require_closed(&peer)
     });
     assert_eq!(
-        operation.execute(
-            &mut kernel,
-            &mut fixture.host,
-            &fixture.server,
-            || 100,
-            BUDGET
-        )?,
+        operation.execute(&mut kernel, &fixture.host, &fixture.server, || 100, BUDGET)?,
         HostOperationDisposition::ServerClosed
     );
     join(barrier)?;
@@ -545,7 +492,7 @@ fn server_loss_interrupts_a_waiting_host_and_closes_both_links() -> TestResult {
 
 #[test]
 fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
-    let mut fixture = Fixture::fake()?;
+    let fixture = Fixture::fake()?;
     let mut kernel = kernel()?;
     let operation = PreparedHostOperation::launch(
         &launch_dispatch(&mut kernel)?,
@@ -557,7 +504,7 @@ fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
     assert_eq!(
         operation.execute(
             &mut kernel,
-            &mut fixture.host,
+            &fixture.host,
             &fixture.server,
             || 100,
             Duration::from_millis(30)
@@ -575,10 +522,10 @@ fn a_silent_host_is_bounded_by_the_operation_deadline() -> TestResult {
 fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss() -> TestResult {
     let real = RealHost::start(1)?;
     let endpoint = &real.endpoint;
-    let mut host = real.connect()?;
+    let host = real.connect()?;
     let (server, _server_peer) = UnixStream::pair()?;
     let mut kernel = kernel()?;
-    let (_start, identity) = launch_and_start(&mut kernel, &mut host, &server)?;
+    let (_start, identity) = launch_and_start(&mut kernel, &host, &server)?;
     drop(host);
     let observer = HostBrokerConnection::connect(endpoint, fresh_drain()?)
         .map_err(|error| format!("retained Host connection: {error}"))?;
@@ -652,10 +599,10 @@ fn real_zig_host_creates_starts_and_retains_the_same_terminal_after_broker_loss(
 fn a_second_connection_adopts_the_real_host_and_imports_its_terminal() -> TestResult {
     use orchbee_capability_node_protocol::{AdoptBinding, AdoptBindingState, AdoptHostProcess};
     let real = RealHost::start(2)?;
-    let mut host = real.connect()?;
+    let host = real.connect()?;
     let (server, _server_peer) = UnixStream::pair()?;
     let mut kernel = kernel()?;
-    let (start, identity) = launch_and_start(&mut kernel, &mut host, &server)?;
+    let (start, identity) = launch_and_start(&mut kernel, &host, &server)?;
     drop(host);
     let process_id = real.process_id;
     let handle = winsafe::HPROCESS::OpenProcess(
@@ -846,7 +793,7 @@ impl RealHost {
 /// terminal's Host identity.
 fn launch_and_start(
     kernel: &mut AuthorizedHostOperationKernel,
-    host: &mut HostBrokerConnection,
+    host: &HostBrokerConnection,
     server: &UnixStream,
 ) -> TestResult<(AuthorizedTerminalStart, HostTerminalIdentity)> {
     let operation =

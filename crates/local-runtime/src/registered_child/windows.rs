@@ -75,6 +75,46 @@ pub fn record_session_host_epoch(
 ) -> io::Result<()> {
     let identity = crate::process_registration::ProcessIdentity::new(process.0, process.1)
         .ok_or(io::ErrorKind::InvalidInput)?;
+    edit_active_record(root, runtime, deadline, |processes| {
+        if processes.registration(ProcessRole::Host(slot)).epoch() == Some(epoch) {
+            return Ok(false);
+        }
+        processes
+            .record_host_epoch(slot, identity, epoch)
+            .map_err(|_| io::ErrorKind::InvalidData)?;
+        Ok(true)
+    })
+}
+
+/// Frees `slot` of the Active record of the Session whose runtime folder is `runtime`, while that
+/// slot still names `process`: the Worker drained that Host and saw it end, so the Session keeps no
+/// Host there to adopt or recover, and a later Host may start in the slot.
+pub fn release_session_host(
+    root: &DataRoot,
+    runtime: &Path,
+    slot: crate::HostSlot,
+    process: (u32, u64),
+    deadline: Instant,
+) -> io::Result<()> {
+    let identity = crate::process_registration::ProcessIdentity::new(process.0, process.1)
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    edit_active_record(root, runtime, deadline, |processes| {
+        processes
+            .release_host(slot, identity)
+            .map_err(|_| io::ErrorKind::InvalidData)?;
+        Ok(true)
+    })
+}
+
+/// Applies `edit` to the process registrations of the Active record whose runtime folder is
+/// `runtime`, under the record's writer lock taken before `deadline`, and publishes the record
+/// when `edit` changed it.
+fn edit_active_record(
+    root: &DataRoot,
+    runtime: &Path,
+    deadline: Instant,
+    edit: impl FnOnce(&mut crate::process_registration::SessionProcesses) -> io::Result<bool>,
+) -> io::Result<()> {
     let _runtime = permissions::open_tree(runtime)?;
     let scope = runtime
         .file_name()
@@ -99,19 +139,10 @@ pub fn record_session_host_epoch(
     if record.lifecycle != Lifecycle::Active || !record.uses_runtime(runtime) {
         return Err(io::ErrorKind::InvalidData.into());
     }
-    if record
-        .processes
-        .registration(ProcessRole::Host(slot))
-        .epoch()
-        == Some(epoch)
-    {
-        return Ok(());
+    if edit(&mut record.processes)? {
+        directory.publish(scope, &record)?;
     }
-    record
-        .processes
-        .record_host_epoch(slot, identity, epoch)
-        .map_err(|_| io::ErrorKind::InvalidData)?;
-    directory.publish(scope, &record)
+    Ok(())
 }
 
 /// How a registered child's slot is reserved before its creation.

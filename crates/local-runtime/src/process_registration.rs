@@ -373,6 +373,21 @@ impl SessionProcesses {
         };
         Ok(())
     }
+    /// Frees `slot`, which must still name `identity`: the Worker that drained that Host saw it end
+    /// normally, so no Host is left there to adopt or recover, and a later Host may start in it.
+    #[cfg(windows)]
+    pub(crate) fn release_host(
+        &mut self,
+        slot: HostSlot,
+        identity: ProcessIdentity,
+    ) -> Result<(), RegistrationError> {
+        let registration = self.registration_mut(ProcessRole::Host(slot));
+        if registration.identity() != Some(identity) {
+            return Err(RegistrationError::NotThatHost);
+        }
+        *registration = Registration::NotStarted;
+        Ok(())
+    }
     /// Reserves the Keeper slot for a Keeper the recorded Worker starts: the first one, or one that
     /// replaces a Keeper proven gone, which the caller observed under the record's writer lock.
     #[cfg(windows)]

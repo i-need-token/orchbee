@@ -166,9 +166,9 @@ mod recovery_blocker;
 pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
-#[cfg(windows)]
-pub use registered_child::record_session_host_epoch;
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
+#[cfg(windows)]
+pub use registered_child::{record_session_host_epoch, release_session_host};
 mod durable_sessions;
 pub use durable_sessions::{
     Fenced, HostPresence, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,

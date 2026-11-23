@@ -695,7 +695,8 @@ reserved. The recorded Worker alone starts a Keeper, the first or one that repla
 observed gone, and a recovery Host, which takes a Host's slot only once the Host recorded there is
 observed gone under the record's writer lock. `record_session_host_epoch` writes the epoch a Host
 answered with into its slot while the slot still names that process, so a Server pairs each Host
-with the terminals that carry its epoch. Each
+with the terminals that carry its epoch, and `release_session_host` frees a slot that still names a
+Host its Worker drained and saw end. Each
 child is created suspended and released only after its identity is flushed. A failed start's I/O
 error keeps the failed operation's kind and operating-system code and names its step,
 `SessionChildStep::of`: registration, creation or release. Explicit confirmed

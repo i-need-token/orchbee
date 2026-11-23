@@ -52,7 +52,7 @@ fn a_host_silent_past_the_bound_ends_the_connection_with_reason_deadline() {
     let started = Instant::now();
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,
@@ -158,7 +158,7 @@ fn a_slow_host_that_answers_every_exchange_is_served_across_requests_past_the_re
     });
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,
@@ -171,16 +171,14 @@ fn a_slow_host_that_answers_every_exchange_is_served_across_requests_past_the_re
         .downcast_ref::<ExitCause>()
         .expect("a classified exit");
     assert_eq!(cause.peer, Peer::Server, "{cause:?}");
-    assert_eq!(host.pacing.failure(), None);
     assert!(
         served >= 2,
         "cleanup past the request bound waits: {served}"
     );
     detached.sort_unstable();
     assert_eq!(detached, CLOSED, "each closed viewer is detached once");
-    host_peer.set_nonblocking(true).unwrap();
-    assert_eq!(
-        host_peer.read(&mut [0]).unwrap_err().kind(),
-        io::ErrorKind::WouldBlock
-    );
+    // The Worker's exit closed the Host connection; nothing else reached the Host before it.
+    let mut rest = Vec::new();
+    host_peer.read_to_end(&mut rest).unwrap();
+    assert!(rest.is_empty());
 }

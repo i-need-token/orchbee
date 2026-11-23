@@ -17,16 +17,14 @@ use std::{
     time::{Duration, Instant},
 };
 
-use orchbee_capability_node_protocol::{
-    AdoptBinding, AdoptHostFailure, AdoptHostProcess, HostEpoch,
-};
+use orchbee_capability_node_protocol::{AdoptBinding, AdoptHostFailure, HostEpoch};
 use orchbee_local_runtime::{Cohort, HoldingState, KeeperProcess, KeeperStatus, RetainedChild};
 use orchbee_terminal_protocol::{
     CreationId, HandoverControl, ProgramAnswer, ProgramRequest, RecoverTerminal, TerminalId,
     TerminalPixelGeometry,
 };
 
-use super::lazy::{HostStart, start_host};
+use super::host_start::{HostStart, start_host};
 use crate::{
     host_adoption as host,
     host_connection::HostBrokerConnection,
@@ -53,7 +51,6 @@ const ORPHAN_WAIT: Duration = Duration::from_secs(2);
 pub(super) struct Recovered {
     pub(super) host: HostBrokerConnection,
     pub(super) child: RetainedChild,
-    pub(super) keeper: SessionKeeper,
     pub(super) inventory: Vec<InventoryTerminal>,
     pub(super) restarts: u32,
 }
@@ -64,7 +61,7 @@ pub(super) fn recover(
     cohort: &Cohort,
     runtime: &std::path::Path,
     slot: orchbee_local_runtime::HostSlot,
-    keeper: AdoptHostProcess,
+    keeper: &mut SessionKeeper,
     epoch: Option<HostEpoch>,
     bindings: &[AdoptBinding],
     channel: host::Channel<'_>,
@@ -80,12 +77,6 @@ pub(super) fn recover(
             .first()
             .map(|binding| binding.identity.host_epoch())
     });
-    let expected = (keeper.process_id.get(), keeper.creation_time.get());
-    let mut keeper = match SessionKeeper::adopt(runtime, Some(expected)) {
-        Ok(Some(keeper)) => keeper,
-        Ok(None) => return Err(failed("the Session's Keeper is gone".into())),
-        Err(error) => return Err(failed(error)),
-    };
     let (host, child) = start_host(
         cohort,
         runtime,
@@ -110,13 +101,12 @@ pub(super) fn recover(
         Ok(process)
     })();
     let process = attached.map_err(failed)?;
-    recover_orphans(&mut keeper, &host, channel.server, process, bindings).map_err(failed)?;
+    recover_orphans(keeper, &host, channel.server, process, bindings).map_err(failed)?;
     let (inventory, restarts) =
         host::read_inventory(&host, channel.server, channel.correlation, channel.deadline)?;
     Ok(Recovered {
         host,
         child,
-        keeper,
         inventory,
         restarts,
     })

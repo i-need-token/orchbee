@@ -145,12 +145,11 @@ pub(crate) fn run(
     // The Agent Drain queue belongs to this admitted Server connection and is
     // created before the Host broker so both paths share one owner.
     let drain = Rc::new(RefCell::new(AgentDrain::new()));
-    let mut host =
-        HostBrokerConnection::connect(&options.terminal_host_endpoint, Rc::clone(&drain))?;
+    let host = HostBrokerConnection::connect(&options.terminal_host_endpoint, Rc::clone(&drain))?;
     write_ready_marker(&server, &host)?;
     terminal_operations::run(
         server.stream(),
-        &mut host,
+        host,
         server.worker_id,
         server.generation(),
         &drain,

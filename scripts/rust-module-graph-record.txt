@@ -257,7 +257,6 @@ cycle crates/workbench-protocol lib layout_template -> command
 cycle crates/workbench-protocol lib layout_template -> model
 cycle crates/workbench-protocol lib layout_template -> panel_label
 cycle crates/workbench-protocol lib layout_template -> validation
-cycle crates/workbench-protocol lib model -> launch_options
 cycle crates/workbench-protocol lib model -> panel_label
 cycle crates/workbench-protocol lib model -> split_ratio
 cycle crates/workbench-protocol lib navigation -> command

@@ -95,8 +95,9 @@ impl PluginJobs {
         if let Some(host) = host {
             hosted::settle(&mut inner, host);
         }
+        let start_host = host.filter(|host| host.starts());
         match action {
-            PluginJobAction::StartConfigured(intent) => match host {
+            PluginJobAction::StartConfigured(intent) => match start_host {
                 None => configured::start(&mut inner, id, intent),
                 Some(host) => match configured::admission(&inner, id, &intent) {
                     Ok(fingerprint) => {
@@ -105,7 +106,7 @@ impl PluginJobs {
                     Err(outcome) => outcome,
                 },
             },
-            PluginJobAction::Start(intent) => self.start(&mut inner, id, intent, host),
+            PluginJobAction::Start(intent) => self.start(&mut inner, id, intent, start_host),
             PluginJobAction::Get { job_id } => Outcome::Logs {
                 logs: inner
                     .records

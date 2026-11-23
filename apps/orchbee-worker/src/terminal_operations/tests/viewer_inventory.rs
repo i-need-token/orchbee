@@ -198,7 +198,7 @@ fn answer_detach(host: &mut LocalStream, request: &[u8]) -> bool {
 fn a_viewer_inventory_walk_reads_every_page_until_the_inventory_ends() {
     // One summary per page puts the target far beyond any fixed page allowance.
     const LENGTH: u64 = 40;
-    let (mut host, drain, mut host_peer) = connected_host();
+    let (host, drain, mut host_peer) = connected_host();
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
     let driver = thread::spawn(move || {
@@ -224,7 +224,7 @@ fn a_viewer_inventory_walk_reads_every_page_until_the_inventory_ends() {
     });
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,
@@ -236,7 +236,7 @@ fn a_viewer_inventory_walk_reads_every_page_until_the_inventory_ends() {
 
 #[test]
 fn an_unfinished_inventory_walk_refuses_only_its_own_request() {
-    let (mut host, drain, mut host_peer) = connected_host();
+    let (host, drain, mut host_peer) = connected_host();
     let (server, mut peer) = LocalStream::pair().unwrap();
     timeout(&peer);
     let driver = thread::spawn(move || {
@@ -270,7 +270,7 @@ fn an_unfinished_inventory_walk_refuses_only_its_own_request() {
     });
     let result = run(
         &server,
-        &mut host,
+        host,
         WORKER,
         NonZeroU64::MIN,
         &drain,

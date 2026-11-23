@@ -79,6 +79,27 @@ impl AdoptedHost {
         Ok((pid, u64::from(creation)))
     }
 
+    /// Whether the adopted Host runs `executable`, the Terminal Host of this Worker's cohort. A Host
+    /// whose image cannot be read counts as running it, so it is never drained by mistake.
+    #[cfg(windows)]
+    pub(crate) fn runs(&self, executable: &std::path::Path) -> bool {
+        let Ok(image) = self
+            .process
+            .QueryFullProcessImageName(winsafe::co::PROCESS_NAME::WIN32)
+        else {
+            return true;
+        };
+        match (
+            std::fs::canonicalize(image),
+            std::fs::canonicalize(executable),
+        ) {
+            (Ok(image), Ok(executable)) => image
+                .as_os_str()
+                .eq_ignore_ascii_case(executable.as_os_str()),
+            _ => true,
+        }
+    }
+
     /// Ends the adopted Host and waits until it exited or `deadline` passes; one that already
     /// exited counts as ended.
     #[cfg(windows)]
@@ -192,6 +213,29 @@ pub(crate) fn record_epoch(
     if let Err(error) = recorded {
         crate::diagnostic_events::host_epoch_unrecorded(&error);
     }
+}
+
+/// Frees `slot` in the Session record while it still names `process`, a Host this Worker drained
+/// and saw end; `false` when the record could not be written, which leaves the slot to the next
+/// activation.
+#[cfg(windows)]
+pub(crate) fn release_slot(
+    runtime: &Path,
+    slot: orchbee_local_runtime::HostSlot,
+    process: (u32, u64),
+) -> bool {
+    orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
+        .map_err(|_| io::Error::from(io::ErrorKind::NotFound))
+        .and_then(|root| {
+            orchbee_local_runtime::release_session_host(
+                &root,
+                runtime,
+                slot,
+                process,
+                Instant::now() + EPOCH_RECORD_BUDGET,
+            )
+        })
+        .is_ok()
 }
 
 /// How long writing a Host's epoch into the Session record may wait for the record's writer lock.

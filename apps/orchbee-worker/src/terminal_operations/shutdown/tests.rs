@@ -572,7 +572,15 @@ fn keep_shutdown_releases_the_host_without_a_terminal_request() {
             ),
             plugins: &crate::plugin_jobs::PluginJobs::new(),
         },
-        Some((&host, &mut owner)),
+        Some(super::StopHosts {
+            epoch: orchbee_capability_node_protocol::HostEpoch::from_bytes(
+                *host.host_epoch().as_bytes(),
+            )
+            .unwrap(),
+            hosts: vec![(&host, &mut owner)],
+            #[cfg(windows)]
+            keeper: &mut None,
+        }),
     )
     .unwrap();
     assert_eq!(

@@ -1,8 +1,9 @@
 //! Reads and writes one Server protocol record under bounded deadlines while continuing to
 //! consume admitted Host events. Host events are read as they arrive, never waited for, so a Host
 //! pausing inside one cannot hold a Server record; a Host stopped inside one past the exchange
-//! bound is lost. It owns transport progress without dispatching requests, issuing
-//! authorization, or recovering a lost connection.
+//! bound is lost. Between requests it reads every Host the Worker holds, and a Host whose end is
+//! expected, as a drained one's, ends without failing the wait. It owns transport progress without
+//! dispatching requests, issuing authorization, or recovering a lost connection.
 
 use orchbee_local_ipc::AsLocalIo;
 use orchbee_local_ipc::LocalStream as UnixStream;
@@ -22,6 +23,37 @@ use crate::host_connection::{HostBrokerConnection, drain_events};
 const RECORD_BUDGET: Duration = Duration::from_secs(2);
 /// Whole Host events read per wake-up before the Server is looked at again.
 const EVENTS_PER_WAKE: usize = 64;
+
+/// One Host a receive between requests reads events from.
+pub(super) struct Watched<'a> {
+    pub(super) connection: &'a HostBrokerConnection,
+    /// Its connection may end without failing the receive, as a drained Host's does.
+    pub(super) may_end: bool,
+}
+
+/// What a receive among several Hosts found: the request, unless the idle cutoff passed first,
+/// and the positions of the watched Hosts whose expected end it saw.
+pub(super) struct Among {
+    pub(super) received: Option<(CapabilityNodeMessage, Instant)>,
+    pub(super) ended: Vec<usize>,
+}
+
+/// One Host a record reads events from while it waits.
+struct Live<'a> {
+    connection: &'a HostBrokerConnection,
+    may_end: bool,
+    ended: bool,
+}
+
+fn live(host: Option<&HostBrokerConnection>) -> Vec<Live<'_>> {
+    host.map(|connection| Live {
+        connection,
+        may_end: false,
+        ended: false,
+    })
+    .into_iter()
+    .collect()
+}
 
 pub(super) fn receive(
     server: &UnixStream,
@@ -57,10 +89,42 @@ pub(super) fn receive_until_timed(
     host: Option<&HostBrokerConnection>,
     idle_deadline: Option<Instant>,
 ) -> Result<Option<(CapabilityNodeMessage, Instant)>, ReadMessageError> {
+    receive_live(server, &mut live(host), idle_deadline)
+}
+
+/// Waits for the Server's next request while reading every one of `watched`, until
+/// `idle_deadline` passes, as [`receive_until_timed`] waits with one Host.
+pub(super) fn receive_among(
+    server: &UnixStream,
+    watched: &[Watched<'_>],
+    idle_deadline: Option<Instant>,
+) -> Result<Among, ReadMessageError> {
+    let mut hosts: Vec<_> = watched
+        .iter()
+        .map(|watched| Live {
+            connection: watched.connection,
+            may_end: watched.may_end,
+            ended: false,
+        })
+        .collect();
+    let received = receive_live(server, &mut hosts, idle_deadline)?;
+    let ended = hosts
+        .iter()
+        .enumerate()
+        .filter_map(|(index, host)| host.ended.then_some(index))
+        .collect();
+    Ok(Among { received, ended })
+}
+
+fn receive_live(
+    server: &UnixStream,
+    hosts: &mut [Live<'_>],
+    idle_deadline: Option<Instant>,
+) -> Result<Option<(CapabilityNodeMessage, Instant)>, ReadMessageError> {
     loop {
         let mut transport = ServerRecord {
             server,
-            host,
+            hosts: &mut *hosts,
             deadline: idle_deadline,
             host_closed: false,
             readable: None,
@@ -80,7 +144,7 @@ pub(super) fn receive_until_timed(
             Ok(request) => return Ok(Some((request, readable))),
             // The frame ended where its header said, so the stream sits at the next one: one
             // record fails, not the connection.
-            Err(_undecodable) => answer_unreadable(server, host)?,
+            Err(_undecodable) => answer_unreadable(server, hosts)?,
         }
     }
 }
@@ -88,27 +152,26 @@ pub(super) fn receive_until_timed(
 /// Answers a whole frame this Worker could not decode, such as a request kind newer than it. The
 /// frame names no identity to trust, so the answer matches by position: the Server waits on one
 /// request at a time, and this is the only one this Worker has not answered.
-fn answer_unreadable(
-    server: &UnixStream,
-    host: Option<&HostBrokerConnection>,
-) -> Result<(), ReadMessageError> {
+fn answer_unreadable(server: &UnixStream, hosts: &mut [Live<'_>]) -> Result<(), ReadMessageError> {
     crate::diagnostic_events::server_unexpected(
         crate::diagnostic_events::ServerUnexpected::Unreadable,
     );
-    match send(
+    match send_live(
         server,
-        host,
+        hosts,
         &CapabilityNodeMessage::WorkerRequestUnreadable,
+        Instant::now() + RECORD_BUDGET,
     ) {
-        // The Host ended while the answer was written, which a receive treats as Host loss.
+        // A Host ended while the answer was written, which a receive treats as Host loss.
         // Before the first Launch there is no Host, and the send reports it as closed.
-        Ok(true) if host.is_some() => return Err(super::peer_closed().into()),
+        Ok(true) if !hosts.is_empty() => return Err(super::peer_closed().into()),
         Ok(_) => {}
         Err(WriteMessageError::Io(error)) => return Err(error.into()),
         Err(WriteMessageError::Protocol(error)) => return Err(ReadMessageError::Protocol(error)),
     }
-    if let Some(host) = host {
-        host.pacing
+    for host in hosts.iter() {
+        host.connection
+            .pacing
             .set_site(crate::diagnostic_events::Site::ServerReceive);
     }
     Ok(())
@@ -129,16 +192,29 @@ pub(super) fn send_until(
     result: &CapabilityNodeMessage,
     deadline: Instant,
 ) -> Result<bool, WriteMessageError> {
+    send_live(server, &mut live(host), result, deadline)
+}
+
+/// Writes `result` while reading `hosts`; true when a Host whose end is not expected ended, or
+/// there is none.
+fn send_live(
+    server: &UnixStream,
+    hosts: &mut [Live<'_>],
+    result: &CapabilityNodeMessage,
+    deadline: Instant,
+) -> Result<bool, WriteMessageError> {
     let deadline = deadline.min(Instant::now() + RECORD_BUDGET);
-    if let Some(host) = host {
-        host.pacing
+    for host in hosts.iter() {
+        host.connection
+            .pacing
             .set_site(crate::diagnostic_events::Site::ServerSend);
     }
+    let host_closed = hosts.iter().all(|host| host.ended);
     let mut transport = ServerRecord {
         server,
-        host,
+        hosts,
         deadline: Some(deadline),
-        host_closed: host.is_none(),
+        host_closed,
         readable: None,
     };
     write_message(&mut transport, result)?;
@@ -148,16 +224,16 @@ pub(super) fn send_until(
     Ok(transport.host_closed)
 }
 
-struct ServerRecord<'a> {
-    server: &'a UnixStream,
-    host: Option<&'a HostBrokerConnection>,
+struct ServerRecord<'s, 'h, 'a> {
+    server: &'s UnixStream,
+    hosts: &'h mut [Live<'a>],
     deadline: Option<Instant>,
     host_closed: bool,
     /// When the Server's bytes were first seen readable.
     readable: Option<Instant>,
 }
 
-impl ServerRecord<'_> {
+impl ServerRecord<'_, '_, '_> {
     /// Whether the Server's next request is already readable, which starts its bound now.
     fn server_readable(&mut self) -> io::Result<bool> {
         let mut descriptors = [PollFd::new(self.server.as_local_io(), PollFlags::POLLIN)];
@@ -180,11 +256,12 @@ impl ServerRecord<'_> {
     /// handoff waits under a deadline and therefore sends none. A request that becomes readable
     /// while hints are written starts its bound then, so hint time counts against it.
     fn send_ready_hints(&mut self) -> io::Result<()> {
-        let Some(host) = self.host else {
-            return Ok(());
-        };
-        let ready = host.viewers.borrow_mut().take_ready();
-        let titles = host.take_title_note();
+        let live = || self.hosts.iter().filter(|host| !host.ended);
+        let ready: Vec<_> = live()
+            .flat_map(|host| host.connection.viewers.borrow_mut().take_ready())
+            .collect();
+        // Every Host shares one title projection, so the first note taken is the only one.
+        let titles = live().find_map(|host| host.connection.take_title_note());
         if ready.is_empty() && titles.is_none() {
             return Ok(());
         }
@@ -222,7 +299,12 @@ impl ServerRecord<'_> {
                 return Err(io::ErrorKind::TimedOut.into());
             }
             // A Host record begun but not finished also wakes the wait when its bound passes.
-            let stall = self.host.and_then(HostBrokerConnection::partial_deadline);
+            let stall = self
+                .hosts
+                .iter()
+                .filter(|host| !host.ended)
+                .filter_map(|host| host.connection.partial_deadline())
+                .min();
             let wake = match (self.deadline, stall) {
                 (Some(deadline), Some(stall)) => Some(deadline.min(stall)),
                 (deadline, stall) => deadline.or(stall),
@@ -236,11 +318,18 @@ impl ServerRecord<'_> {
                 )
                 .map_err(io::Error::other)?,
             };
+            let watched: Vec<(usize, &HostBrokerConnection)> = self
+                .hosts
+                .iter()
+                .enumerate()
+                .filter(|(_, host)| !host.ended)
+                .map(|(index, host)| (index, host.connection))
+                .collect();
             let mut descriptors = vec![PollFd::new(
                 self.server.as_local_io(),
                 interest | PollFlags::POLLIN,
             )];
-            if let Some(host) = self.host {
+            for (_, host) in &watched {
                 descriptors.push(PollFd::new(host.stream().as_local_io(), PollFlags::POLLIN));
             }
             match poll(&mut descriptors, timeout) {
@@ -263,9 +352,9 @@ impl ServerRecord<'_> {
                     self.deadline = Some(now + RECORD_BUDGET);
                 }
             }
-            if let Some(host) = self.host {
+            for (position, (index, host)) in watched.into_iter().enumerate() {
                 let ready = descriptors
-                    .get(1)
+                    .get(position + 1)
                     .is_some_and(|host| host.revents().is_none_or(|events| !events.is_empty()));
                 let read = if ready {
                     drain_events(host, EVENTS_PER_WAKE)
@@ -277,12 +366,16 @@ impl ServerRecord<'_> {
                     _ => Ok(()),
                 });
                 if read.is_err() {
+                    self.hosts[index].ended = true;
+                    // A Host whose end is expected leaves the others serving.
+                    if self.hosts[index].may_end {
+                        continue;
+                    }
                     if interest == PollFlags::POLLIN {
                         return Err(super::peer_closed());
                     }
                     // A known result still gets its bounded delivery attempt after
                     // Host loss. Admission stops as soon as that write finishes.
-                    self.host = None;
                     self.host_closed = true;
                 }
             }
@@ -348,7 +441,7 @@ fn write_hint(
     Ok(())
 }
 
-impl Read for ServerRecord<'_> {
+impl Read for ServerRecord<'_, '_, '_> {
     fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
         loop {
             self.wait(PollFlags::POLLIN)?;
@@ -360,7 +453,7 @@ impl Read for ServerRecord<'_> {
     }
 }
 
-impl Write for ServerRecord<'_> {
+impl Write for ServerRecord<'_, '_, '_> {
     fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
         loop {
             self.wait(PollFlags::POLLOUT)?;

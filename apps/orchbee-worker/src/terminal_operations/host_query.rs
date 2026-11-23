@@ -1,6 +1,6 @@
-//! Answers the Server's Host query with the entry the connected Host reports for itself. The Host
-//! is asked, not described from the Worker's records, because only the Host knows its state, its
-//! live terminal count and the generations it supports. A Host that has not answered within the
+//! Answers the Server's Host query with the entry each Host the Worker serves reports for itself.
+//! A Host is asked, not described from the Worker's records, because only the Host knows its state,
+//! its live terminal count and the generations it supports. A Host that has not answered within the
 //! budget is left out, and a request fenced to another Worker or generation lists no Host.
 
 use std::{
@@ -17,7 +17,7 @@ use crate::host_connection::HostBrokerConnection;
 const HOST_QUERY_BUDGET: Duration = Duration::from_millis(500);
 
 pub(super) fn execute(
-    host: Option<&HostBrokerConnection>,
+    hosts: &[&HostBrokerConnection],
     request: HostQueryRequest,
     worker: WorkerId,
     generation: NonZeroU64,
@@ -25,10 +25,10 @@ pub(super) fn execute(
     let current = request.worker_id.as_bytes() == worker.as_bytes()
         && request.worker_generation.get() == generation.get();
     let deadline = Instant::now() + HOST_QUERY_BUDGET;
-    let hosts = host
+    let hosts = hosts
+        .iter()
         .filter(|_| current)
-        .and_then(|host| host.query_process(deadline))
-        .into_iter()
+        .filter_map(|host| host.query_process(deadline))
         .collect();
     let mut result = HostQueryResult { request, hosts };
     // A Host reply the protocol refuses (connections out of kind order or over bound) is answered

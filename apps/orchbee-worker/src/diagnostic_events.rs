@@ -273,6 +273,30 @@ pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
     log_event(LogLevel::Warning, "host-epoch-unrecorded", &fields);
 }
 
+/// An older Host in `slot`, from another installation, held no terminal and ran no program, and was
+/// told to drain.
+#[cfg(windows)]
+pub(crate) fn host_draining(slot: u8) {
+    log_event(
+        LogLevel::Info,
+        "host-draining",
+        &[("slot", LogValue::Count(u64::from(slot)))],
+    );
+}
+
+/// The drained Host in `slot` ended: `released` once the Session record freed its slot.
+#[cfg(windows)]
+pub(crate) fn host_drained(slot: u8, released: bool) {
+    log_event(
+        LogLevel::Info,
+        "host-drained",
+        &[
+            ("slot", LogValue::Count(u64::from(slot))),
+            ("released", LogValue::Flag(released)),
+        ],
+    );
+}
+
 /// The Session's Keeper ended or stopped answering, and another took its place.
 #[cfg(windows)]
 pub(crate) fn keeper_replaced() {

@@ -189,28 +189,28 @@ fn handoff_abort_closes_only_standby_and_never_reuses_a_spent_ticket() {
     let standby = Standby::new(&runtime, prepare, Ready::Exact);
     let (mut worker, mut old) = pair();
     let mut slot = Handoff::new(Some(&runtime));
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(&mut old, prepare, Outcome::Prepared);
     assert!(slot.is_prepared());
     let mismatch = request(Action::Abort, 8);
-    slot.execute(&mut worker, None, mismatch, WORKER, generation())
+    slot.execute(&mut worker, None, false, mismatch, WORKER, generation())
         .unwrap();
     result(
         &mut old,
         mismatch,
         Outcome::Refused(Refusal::TicketMismatch),
     );
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(&mut old, prepare, Outcome::Refused(Refusal::Busy));
     let abort = request(Action::Abort, 4);
-    slot.execute(&mut worker, None, abort, WORKER, generation())
+    slot.execute(&mut worker, None, false, abort, WORKER, generation())
         .unwrap();
     result(&mut old, abort, Outcome::Aborted);
     assert!(!slot.is_prepared());
     assert_eq!(standby.finish(), None);
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(&mut old, prepare, Outcome::Refused(Refusal::ReusedTicket));
     write_message(
@@ -234,7 +234,7 @@ fn handoff_exact_expiry_closes_standby_and_late_commit_cannot_move_the_old_wire(
     let standby = Standby::new(&runtime, prepare, Ready::Exact);
     let (mut worker, mut old) = pair();
     let mut slot = Handoff::new(Some(&runtime));
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(&mut old, prepare, Outcome::Prepared);
     let cutoff = Instant::now();
@@ -242,7 +242,7 @@ fn handoff_exact_expiry_closes_standby_and_late_commit_cannot_move_the_old_wire(
     slot.expire(cutoff);
     assert_eq!(standby.finish(), None);
     let commit = request(Action::Commit, 4);
-    slot.execute(&mut worker, None, commit, WORKER, generation())
+    slot.execute(&mut worker, None, false, commit, WORKER, generation())
         .unwrap();
     result(&mut old, commit, Outcome::Refused(Refusal::NotPrepared));
     assert!(slot.spent.contains(&prepare.target.handoff_id));
@@ -262,7 +262,7 @@ fn handoff_rejects_every_ready_echo_mismatch_and_unsolicited_tail_without_switch
         let standby = Standby::new(&runtime, prepare, ready);
         let (mut worker, mut old) = pair();
         let mut slot = Handoff::new(Some(&runtime));
-        slot.execute(&mut worker, None, prepare, WORKER, generation())
+        slot.execute(&mut worker, None, false, prepare, WORKER, generation())
             .unwrap();
         result(&mut old, prepare, Outcome::Refused(Refusal::Authentication));
         assert!(!slot.is_prepared());
@@ -278,7 +278,7 @@ fn handoff_partial_ready_and_failed_old_commit_write_preserve_original_connectio
     let standby = Standby::new(&runtime, prepare, Ready::Partial);
     let (mut worker, mut old) = pair();
     let mut slot = Handoff::new(Some(&runtime));
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(
         &mut old,
@@ -288,7 +288,7 @@ fn handoff_partial_ready_and_failed_old_commit_write_preserve_original_connectio
     assert_eq!(standby.finish(), None);
     let next = request(Action::Prepare, 6);
     let standby = Standby::new(&runtime, next, Ready::Exact);
-    slot.execute(&mut worker, None, next, WORKER, generation())
+    slot.execute(&mut worker, None, false, next, WORKER, generation())
         .unwrap();
     result(&mut old, next, Outcome::Prepared);
     old.shutdown(Shutdown::Both).unwrap();
@@ -296,6 +296,7 @@ fn handoff_partial_ready_and_failed_old_commit_write_preserve_original_connectio
         slot.execute(
             &mut worker,
             None,
+            false,
             request(Action::Commit, 6),
             WORKER,
             generation()
@@ -321,11 +322,11 @@ fn handoff_commit_emits_exact_owned_on_new_wire_and_closes_old_wire() {
     let standby = Standby::new(&runtime, prepare, Ready::Exact);
     let (mut worker, mut old) = pair();
     let mut slot = Handoff::new(Some(&runtime));
-    slot.execute(&mut worker, None, prepare, WORKER, generation())
+    slot.execute(&mut worker, None, false, prepare, WORKER, generation())
         .unwrap();
     result(&mut old, prepare, Outcome::Prepared);
     let commit = request(Action::Commit, 4);
-    slot.execute(&mut worker, None, commit, WORKER, generation())
+    slot.execute(&mut worker, None, false, commit, WORKER, generation())
         .unwrap();
     result(&mut old, commit, Outcome::Committed);
     assert_eq!(old.read(&mut [0]).unwrap(), 0);
@@ -402,7 +403,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
     );
     let listener = LocalListener::bind(endpoint).unwrap();
     let (worker, mut old) = pair();
-    let (mut host, mut host_peer) = connected_host();
+    let (host, mut host_peer) = connected_host();
     host.stream().set_nonblocking(true).unwrap();
     let epoch = HostEpoch::from_bytes(*host.host_epoch().as_bytes()).unwrap();
     let authorization = TerminalOperationAuthorization::new(
@@ -480,7 +481,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
     assert!(
         super::super::run_admitted(
             worker,
-            &mut host,
+            host,
             WORKER,
             generation(),
             kernel,
@@ -493,7 +494,6 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,
                 session_runtime: Some(&runtime),
-                managed_host: None,
             }
         )
         .is_err(),
@@ -501,13 +501,10 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
     );
     old_server.join().unwrap();
     new_server.join().unwrap();
-    assert_eq!(*host.host_epoch().as_bytes(), epoch.as_bytes());
-    host_peer.set_nonblocking(true).unwrap();
-    assert_eq!(
-        host_peer.read(&mut [0]).unwrap_err().kind(),
-        io::ErrorKind::WouldBlock,
-        "handoff/replay emitted no Host command and kept connection alive"
-    );
+    // The Worker's exit closed the Host connection; nothing reached the Host before it.
+    let mut emitted = Vec::new();
+    host_peer.read_to_end(&mut emitted).unwrap();
+    assert!(emitted.is_empty(), "handoff/replay emitted no Host command");
 }
 
 fn connected_host() -> (HostBrokerConnection, LocalStream) {
