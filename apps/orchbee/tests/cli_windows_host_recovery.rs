@@ -10,8 +10,11 @@
 //! once it runs nothing. With moves on, as in a test build (H3 acceptance), such a restart moves an
 //! idle terminal to the new installation's Host with its program running, keys typed meanwhile
 //! arrive once and in order, the old Host ends once its last terminal moved, and a Server ended
-//! right after a move adopts the terminal from the new Host. The oracle is what the CLI reads and
-//! lists, the diagnostic log and the programs' own processes; nothing imports Server internals.
+//! right after a move adopts the terminal from the new Host. Before that first move the Keeper is
+//! updated (H4 acceptance): a Keeper started from the new installation's Host program takes over and
+//! the old Keeper ends, and a new Host ended right after its move brings the program back on screen.
+//! The oracle is what the CLI reads and lists, the diagnostic log, the Session record's Keepers as
+//! the local runtime reads them, and the programs' own processes; nothing imports Server internals.
 //!
 //! A Host offers `recovery`, and so starts a Keeper, only on the product's ConPTY, so these
 //! witnesses run only when asked for, with `ORCHBEE_TEST_CONPTY_DIR` naming a verified bundle.
@@ -330,6 +333,9 @@ fn restarts_into_other_installations_move_the_terminal_and_a_server_ended_after_
     let first = worker(&fixture).expect("a Worker serves");
     let old = host_of(first);
     let program = program_of(&old);
+    let mut old_keepers = keepers(&fixture);
+    assert_eq!(old_keepers.len(), 1, "the Session runs one Keeper");
+    let old_keeper = old_keepers.remove(0);
 
     // A restart into a second installation moves the terminal to that installation's Host once it
     // is idle, while keys go on arriving.
@@ -361,6 +367,13 @@ fn restarts_into_other_installations_move_the_terminal_and_a_server_ended_after_
     let elapsed = moved["fields"]["elapsedMs"].as_u64().unwrap();
     let claimed = time_of_day(&moved);
     let quiesced = claimed - elapsed;
+    // The Keeper the first installation started was replaced before the move, holding the terminal.
+    let updated = logged(&fixture, "keeper-updated").expect("the Keeper was updated");
+    assert!(
+        time_of_day(&updated) <= quiesced,
+        "the Keeper was updated after the move began: {updated}"
+    );
+    assert_eq!(updated["fields"]["terminals"], 1, "{updated}");
     // Input reached the Worker after its send began and before it ended, and a move starts only
     // two seconds after the last input it relayed.
     let (relayed, _) = sends
@@ -395,9 +408,40 @@ fn restarts_into_other_installations_move_the_terminal_and_a_server_ended_after_
         !signaled(&program, Duration::ZERO),
         "the program ended with the move"
     );
-    assert_runs_from(&fixture, &host_of(second), SECOND);
+    assert!(
+        signaled(&old_keeper, DRAINED),
+        "the old Keeper did not end once the new one took over"
+    );
+    let new_keepers = keepers(&fixture);
+    assert_eq!(
+        new_keepers.len(),
+        1,
+        "the Session runs one Keeper after the update"
+    );
+    assert_runs_from(&fixture, &new_keepers[0], SECOND);
+    let new_host = serving_host(&fixture, second);
+    assert_runs_from(&fixture, &new_host, SECOND);
     expect_keys(&fixture, &terminal, &typed);
     expect_counts_once(&recent(&fixture, &terminal));
+
+    // The new Host ended right after the move: the new Keeper gives the terminal to a recovery Host,
+    // and the program counts on screen again.
+    let shown = last_tick(&read_terminal(&fixture, &terminal)).expect("the terminal counts");
+    new_host.TerminateProcess(1).unwrap();
+    until(
+        "the terminal counts after its new Host ended",
+        RECOVERED,
+        || last_tick(&read_terminal(&fixture, &terminal)).filter(|tick| *tick > shown),
+    );
+    assert!(
+        !signaled(&program, Duration::ZERO),
+        "the program ended with its new Host"
+    );
+    // A recovery Host starts a new screen, so the keys read from here on are the ones typed since.
+    let sent = fixture.run(&["terminal", "send", &terminal, "--text", "recovered,"]);
+    assert_eq!(sent.code, Some(0), "{sent}");
+    typed = String::from("recovered,");
+    expect_keys(&fixture, &terminal, &typed);
 
     // A restart into a third installation moves it again, and a Server ended right after that move
     // adopts it from the third installation's Host.
@@ -464,16 +508,67 @@ fn server_of(fixture: &Fixture) -> CloseHandleGuard<HPROCESS> {
     .unwrap_or_else(|error| panic!("open Server {pid}: {error}"))
 }
 
-fn assert_runs_from(fixture: &Fixture, host: &HPROCESS, folder: &str) {
-    let image = host
+fn assert_runs_from(fixture: &Fixture, process: &HPROCESS, folder: &str) {
+    let image = process
         .QueryFullProcessImageName(co::PROCESS_NAME::WIN32)
         .unwrap();
     assert!(
         fs::canonicalize(&image)
             .unwrap()
             .starts_with(fs::canonicalize(fixture.path(folder)).unwrap()),
-        "the Host runs {image}, not the {folder} installation's Host"
+        "the process runs {image}, not the {folder} installation's Host program"
     );
+}
+
+/// The default Session's live Keepers, as the local runtime reads them from its record, each opened
+/// to query, wait and end.
+fn keepers(fixture: &Fixture) -> Vec<CloseHandleGuard<HPROCESS>> {
+    let status = fixture.run(&["status", "server", "--session", "default"]);
+    assert_eq!(status.code, Some(0), "{status}");
+    let runtime = &status.document["result"]["runtimeDirectory"];
+    let runtime = runtime["path"]
+        .as_str()
+        .or_else(|| runtime.as_str())
+        .unwrap_or_else(|| panic!("{status}"));
+    let root = orchbee_local_runtime::DataRoot::resolve(fixture.state_environment()).unwrap();
+    let recorded =
+        orchbee_local_runtime::recorded_keepers(&root, std::path::Path::new(runtime)).unwrap();
+    recorded
+        .live
+        .iter()
+        .map(|(_, process)| {
+            let (pid, created) = process.identity();
+            let keeper = HPROCESS::OpenProcess(
+                co::PROCESS::QUERY_LIMITED_INFORMATION
+                    | co::PROCESS::SYNCHRONIZE
+                    | co::PROCESS::TERMINATE,
+                false,
+                pid,
+            )
+            .unwrap_or_else(|error| panic!("open Keeper {pid}: {error}"));
+            assert_eq!(
+                creation(&keeper),
+                created,
+                "Keeper {pid} is another process now"
+            );
+            keeper
+        })
+        .collect()
+}
+
+/// The Host `worker` serves, the oldest Terminal Host process it started that is no Keeper the
+/// Session records: a Worker that updates the Keeper starts it from the same program.
+fn serving_host(fixture: &Fixture, worker: u32) -> CloseHandleGuard<HPROCESS> {
+    let keepers: Vec<u32> = keepers(fixture)
+        .iter()
+        .map(|keeper| keeper.GetProcessId().unwrap())
+        .collect();
+    let parent = HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, worker)
+        .unwrap_or_else(|error| panic!("open Worker {worker}: {error}"));
+    children(&parent, "terminal-host.exe")
+        .into_iter()
+        .find(|host| !keepers.contains(&host.GetProcessId().unwrap()))
+        .unwrap_or_else(|| panic!("Worker {worker} started no Host"))
 }
 
 /// Every `terminal-moved` record the fixture's Workers wrote.

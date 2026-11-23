@@ -87,9 +87,9 @@ pub const fn keeper_live() -> bool {
     }
 }
 
-/// Whether release builds move terminals between Hosts: false until H4 turns moves on in updates
-/// (`proposals/platform/host-handover.md`, H3 design). Development builds follow it.
-const MOVES_IN_RELEASE_BUILDS: bool = false;
+/// Whether release builds move terminals between Hosts: true since the H3 and H4 acceptance passed
+/// on real Windows (`proposals/platform/host-handover.md`, H4 design). Development builds follow it.
+const MOVES_IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build moves terminals from an older Host to its Worker's own. Test builds always
 /// do, so tests and acceptance runs drive moves; release and development builds do while

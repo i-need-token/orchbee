@@ -1415,9 +1415,9 @@ coordinator's brief. Each pick is marked Chosen, which the owner may veto, or Ru
 ## H3 design
 
 Settled on 2026-11-23 by the main session, which decides and records each pick as vetoable. It
-builds on H1's Host requests, P1c's Host set, and H2's Keeper. Moves stay off in release and
-development builds until H4 through one constant, `moves_live`, and test builds run them, as
-`keeper_live` did for H2.
+builds on H1's Host requests, P1c's Host set, and H2's Keeper. Moves stayed off in release and
+development builds until H4 through one constant, `moves_live`, and test builds ran them, as
+`keeper_live` did for H2; H4's S4 turned them on.
 
 ### Turns
 
@@ -1620,7 +1620,7 @@ server` lists no Keeper, and gives the move and the exits 120 seconds.
 | S1    | The Keeper update: the second slot, the steps, rollback and retries, adoption and stop with two Keepers, diagnostics | Built  |
 | S2    | The confirmation reduced to terminals that cannot move, and `status server`'s `terminals` and `moves`                | Built  |
 | S3    | The release gate's H4 checks                                                                                         | Built  |
-| S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Open   |
+| S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Built  |
 
 ## B1 design
 
