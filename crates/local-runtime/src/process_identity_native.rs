@@ -80,6 +80,37 @@ pub(crate) fn program_path(pid: u32) -> Option<PathBuf> {
     Some(PathBuf::from(OsString::from_vec(path)))
 }
 
+/// The IDs of the child processes of `parent`, ended ones still waiting to be reaped included, read
+/// with `proc_listchildpids`.
+pub(crate) fn children(parent: u32) -> io::Result<Vec<u32>> {
+    let parent =
+        libc::pid_t::try_from(parent).map_err(|_| io::Error::from(io::ErrorKind::InvalidInput))?;
+    let mut capacity = 64_usize;
+    loop {
+        let mut pids = vec![0 as libc::pid_t; capacity];
+        let bytes = libc::c_int::try_from(capacity * size_of::<libc::pid_t>())
+            .map_err(|_| io::Error::from(io::ErrorKind::InvalidData))?;
+        // SAFETY: `pids` is an owned, writable buffer of `bytes` bytes; the call writes at most that
+        // many and returns how many IDs it wrote.
+        let listed = unsafe { libc::proc_listchildpids(parent, pids.as_mut_ptr().cast(), bytes) };
+        let listed = usize::try_from(listed).map_err(|_| io::Error::last_os_error())?;
+        // A full buffer may have left children out, so a larger one reads them again.
+        if listed >= capacity && capacity < MAXIMUM_CHILDREN {
+            capacity *= 4;
+            continue;
+        }
+        pids.truncate(listed.min(capacity));
+        return Ok(pids
+            .into_iter()
+            .filter_map(|pid| u32::try_from(pid).ok())
+            .filter(|pid| *pid != 0)
+            .collect());
+    }
+}
+
+/// The most child IDs one read lists.
+const MAXIMUM_CHILDREN: usize = 4096;
+
 #[cfg(test)]
 #[deny(unsafe_code)]
 mod tests;

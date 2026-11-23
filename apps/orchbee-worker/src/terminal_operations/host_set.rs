@@ -476,7 +476,10 @@ impl HostSet<'_> {
     pub(super) fn slot_index(&self, index: usize) -> u8 {
         self.hosts[index].slot.index()
     }
+}
 
+#[cfg(any(windows, target_os = "macos"))]
+impl HostSet<'_> {
     /// Checks the Host left one of its exchanges unanswered once more as the Worker exits, as the
     /// Keeper's care does.
     pub(super) fn after_unanswered(&mut self, index: usize) {
@@ -491,10 +494,7 @@ impl HostSet<'_> {
         };
         super::keeper_care::after_unanswered(&mut cared, &mut self.keeper);
     }
-}
 
-#[cfg(any(windows, target_os = "macos"))]
-impl HostSet<'_> {
     /// Drains each older Host that holds no terminal and runs no program, while the Worker holds its
     /// own Host: such a Host takes nothing new, so one check between requests at most every
     /// [`DRAIN_CHECK_PERIOD`] finds it empty for good. Returns whether any Host was checked.

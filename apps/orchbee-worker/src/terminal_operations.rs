@@ -53,7 +53,7 @@ mod handoff;
 mod keeper_care;
 #[cfg(windows)]
 mod moves;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod recovery;
 mod server_transport;
 mod shutdown;
@@ -169,7 +169,7 @@ fn run_admitted_with_handoff(
         handoff,
     );
     let failed = hosts.failed();
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     if let Err(error) = &outcome
         && exit_cause::host_unanswered(error.as_ref(), hosts.connection(failed))
     {

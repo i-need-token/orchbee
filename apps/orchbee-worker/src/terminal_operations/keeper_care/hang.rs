@@ -1,4 +1,5 @@
-//! The hang check on Windows: the Worker reads each Host's `dispatch-progress` between requests and
+//! The hang check on Windows and macOS: the Worker reads each Host's `dispatch-progress` between
+//! requests and
 //! ends a Host whose dispatch has stopped turning once the Keeper holds every terminal it runs, so
 //! recovery follows as for a crash. It never ends a Host that runs a terminal the Keeper does not
 //! hold.
@@ -9,6 +10,7 @@ use std::{
 };
 
 use orchbee_local_runtime::{HoldingState, KeeperProcess, KeeperStatus};
+#[cfg(windows)]
 use winsafe::{HPROCESS, HPROCESSLIST, co};
 
 use super::{Cared, END_BOUND, ManagedHost};
@@ -45,7 +47,9 @@ pub(super) fn probe(host: &mut Cared<'_>, keeper: &mut Option<SessionKeeper>) {
 /// Checks a Host once more as the Worker exits because the Host left one of its exchanges
 /// unanswered for the whole exchange bound, which counts as hung unless two `dispatch-progress`
 /// reads [`RECHECK_GAP`] apart show its dispatch still turning; a hung Host is then ended as the
-/// care ends one, and recovery follows the Worker's exit.
+/// care ends one, and recovery follows the Worker's exit. A Host that leaves the first read
+/// unanswered too shows nothing turning, so it is ended without a second read: the Server ends a
+/// lost Worker that has not exited within two seconds.
 pub(in crate::terminal_operations) fn after_unanswered(
     host: &mut Cared<'_>,
     keeper: &mut Option<SessionKeeper>,
@@ -54,8 +58,10 @@ pub(in crate::terminal_operations) fn after_unanswered(
         return;
     }
     let first = host.connection.query_progress(Instant::now() + PROBE_BOUND);
-    std::thread::sleep(RECHECK_GAP);
-    let second = host.connection.query_progress(Instant::now() + PROBE_BOUND);
+    let second = first.and_then(|_| {
+        std::thread::sleep(RECHECK_GAP);
+        host.connection.query_progress(Instant::now() + PROBE_BOUND)
+    });
     if let (Some((before, _)), Some((after, _))) = (first, second)
         && before != after
     {
@@ -117,19 +123,22 @@ fn holds_every_terminal(
         && matches!(every_child_held(host, &held), Ok(true))
 }
 
-/// The program and OpenConsole processes of each holding held for `owner`.
+/// The program and OpenConsole processes of each holding held for `owner`; on macOS, each leader.
 fn held_processes(status: &KeeperStatus, owner: KeeperProcess) -> Vec<u32> {
     status
         .holdings
         .iter()
         .filter(|holding| holding.owner == owner && holding.state == HoldingState::Held)
-        .flat_map(|holding| [holding.program.pid, holding.console.pid])
+        .flat_map(|holding| [Some(holding.program), holding.console])
+        .flatten()
+        .map(|process| process.pid)
         .collect()
 }
 
 /// Whether every live child process of the Host `host` is one of `held`. A held process keeps its
 /// ID while the Keeper holds it, so its ID names it; a process whose parent ID is the Host's but
 /// that started before the Host is the child of an earlier process with that ID.
+#[cfg(windows)]
 fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
     let mut snapshot = HPROCESSLIST::CreateToolhelp32Snapshot(co::TH32CS::SNAPPROCESS, None)
         .map_err(io::Error::other)?;
@@ -146,7 +155,19 @@ fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
     Ok(true)
 }
 
+/// Whether every running child process of the Host `host` is one of `held`, as on Windows: a
+/// leader the Host forked is its child, and a held leader keeps its ID while the Keeper holds it.
+#[cfg(target_os = "macos")]
+fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
+    Ok(orchbee_local_runtime::running_children(host.0)?
+        .into_iter()
+        .all(|(pid, started)| {
+            held.contains(&pid) || started.is_some_and(|started| started < host.1)
+        }))
+}
+
 /// Whether process `pid` started before `created`; `None` when it cannot be opened or queried.
+#[cfg(windows)]
 fn started_before(pid: u32, created: u64) -> Option<bool> {
     let process = HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, pid).ok()?;
     let (creation, _, _, _) = process.GetProcessTimes().ok()?;

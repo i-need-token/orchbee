@@ -45,7 +45,7 @@ pub(super) fn attach(error: Box<dyn Error>, host: &HostBrokerConnection) -> Box<
 
 /// Whether the serving loop's final error is a Host exchange that passed its bound unanswered,
 /// which [`attach`] records as a Host deadline.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn host_unanswered(error: &(dyn Error + 'static), host: &HostBrokerConnection) -> bool {
     host_failure(error, host)
         .is_some_and(|failure| failure.deadline && !matches!(failure.class, PeerFailure::Server))

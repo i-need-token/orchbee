@@ -279,7 +279,6 @@ impl SessionKeeper {
     }
 
     /// Assigns the orphaned `holding` to the registered Host `target` under `mark`.
-    #[cfg(windows)]
     ///
     /// # Errors
     ///
@@ -301,7 +300,6 @@ impl SessionKeeper {
     /// # Errors
     ///
     /// Returns an error when the Keeper refuses or does not answer.
-    #[cfg(windows)]
     pub(crate) fn discard(&mut self, holding: [u8; 16]) -> Result<(), Box<dyn Error>> {
         self.client
             .discard(holding)?

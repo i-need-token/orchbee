@@ -1,4 +1,5 @@
-//! A replacement Worker's recovery on Windows (`proposals/platform/host-handover.md`, H2 design):
+//! A replacement Worker's recovery on Windows and macOS (`proposals/platform/host-handover.md`, H2
+//! design):
 //! the Host ended while the Session's Keeper kept its programs. The replacement adopts that Keeper,
 //! starts a recovery Host in the Host's slot that serves the lost epoch, and recovers each bound
 //! terminal into it before the recovery Host's inventory is read as an adoption reads it, then each
@@ -178,7 +179,7 @@ pub(super) fn recover_orphans(
 }
 
 /// Recovers into `host` each orphaned program holding. Only this Session's Hosts hold programs
-/// in its Keeper, so every orphan is a lost Host's. A program whose recovery fails keeps running
+/// in its Keeper, so every orphan is a lost Host's; a macOS Keeper holds none. A program whose recovery fails keeps running
 /// in the Keeper and fails the replacement.
 fn recover_programs(
     keeper: &mut SessionKeeper,

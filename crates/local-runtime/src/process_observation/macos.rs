@@ -117,6 +117,24 @@ pub fn running_program(process: (u32, u64)) -> Option<std::path::PathBuf> {
     same().then_some(path)
 }
 
+/// The child processes of `parent` that still run, each with its start time in microseconds, or
+/// `None` when that cannot be read; a child that ended and waits to be reaped is left out.
+///
+/// # Errors
+///
+/// Returns an error when the children cannot be listed.
+pub fn running_children(parent: u32) -> io::Result<Vec<(u32, Option<u64>)>> {
+    let mut running = Vec::new();
+    for pid in native::children(parent)? {
+        match native::started(pid) {
+            Ok(Started::Gone) => {}
+            Ok(Started::At(start)) => running.push((pid, Some(start))),
+            Ok(Started::Denied) | Err(_) => running.push((pid, None)),
+        }
+    }
+    Ok(running)
+}
+
 /// The program a registered `role` starts from.
 fn program(role: ProcessRole) -> CohortArtifact {
     BlockerRole::of(role).program()

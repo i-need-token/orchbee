@@ -42,6 +42,22 @@ impl ExactProcess {
         Ok(())
     }
 
+    /// Ends the Terminal Host `process` names by its ID and start time, and waits until it exited or
+    /// `deadline` passes. An identity no live process has is gone, and nothing is ended for it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the process cannot be proven gone or ended, naming it.
+    #[cfg(target_os = "macos")]
+    pub fn end_host(process: (u32, u64), deadline: Instant) -> io::Result<()> {
+        let identity = ProcessIdentity::new(process.0, process.1)
+            .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;
+        match Self::open(identity, BlockerRole::TerminalHost)? {
+            Some(host) => host.end_before(deadline),
+            None => Ok(()),
+        }
+    }
+
     /// The recorded identity this process matched: its process ID and creation time.
     pub fn identity(&self) -> (u32, u64) {
         (self.identity.pid(), self.identity.creation_time())

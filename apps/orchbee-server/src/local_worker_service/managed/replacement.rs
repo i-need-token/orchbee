@@ -514,11 +514,9 @@ fn host_target(
                 process: process.and_then(crate::binding_record::registered_process),
             },
             HostPresence::Gone if never_ran(host.slot, host.epoch) => continue,
-            // A running Keeper kept the lost Host's programs: the replacement recovers them. A macOS
-            // Worker recovers none before H5's M5, so there the Session stops as without a Keeper.
+            // A running Keeper kept the lost Host's programs: the replacement recovers them.
             HostPresence::Gone => {
-                let running = running_keeper(owners).filter(|_| cfg!(windows));
-                keeper = Some(running.ok_or(Decision::Stop(Reason::HostGone))?);
+                keeper = Some(running_keeper(owners).ok_or(Decision::Stop(Reason::HostGone))?);
                 AdoptHostKind::Recovery
             }
         };

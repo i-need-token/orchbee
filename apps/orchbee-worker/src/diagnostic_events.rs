@@ -398,7 +398,7 @@ fn count(value: usize) -> LogValue {
 
 /// The Host's dispatch stopped turning for `stalled`: `ended` when the Keeper held every terminal
 /// it runs and the Worker ended it, so recovery follows; otherwise the Host is left running.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_hung(ended: bool, stalled: Duration) {
     log_event(
         LogLevel::Warning,

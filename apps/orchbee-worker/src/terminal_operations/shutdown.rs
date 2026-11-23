@@ -109,7 +109,7 @@ impl ManagedHost {
     }
 
     /// The Host's process, for the hang check that may end it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn end_host(&mut self, deadline: Instant) -> io::Result<()> {
         match &mut self.owner {
             HostOwner::Started(child) => child.terminate_before(deadline).map(drop),

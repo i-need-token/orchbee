@@ -319,21 +319,20 @@ creation or start time, and `AdoptHost` names each running Host in its slot, wit
 Worker recorded; a Session that never started a Host is adopted as no Host. Linux
 registers no Host and runs one, in the first slot, so a Host lock no process holds reads as gone.
 On Linux, which runs no Keeper, a gone first Host stops the Server only when the lost Worker held a
-settled binding; otherwise the Server replaces the Worker with no Host. On macOS, which runs no
-Keeper yet, a gone Host in any slot stops the Server only when a binding the lost Worker settled
-names its epoch, or, with no epoch recorded, when any binding settled; otherwise the Server frees
-that Host's registered slot, removes the socket a killed Host left, and replaces the Worker without
-it. A Host still spawning never ran. A stop whose Worker is lost sends `exit` to each Host the record
+settled binding; otherwise the Server replaces the Worker with no Host. On macOS a gone Host in
+any slot that no binding the lost Worker settled names by its epoch, or, with no epoch recorded, a
+gone Host while no binding settled, leaves nothing to keep: the Server frees that Host's registered
+slot, removes the socket a killed Host left, and replaces the Worker without it. A Host still spawning never ran. A stop whose Worker is lost sends `exit` to each Host the record
 names running.
 
-On Windows a Host gone while the record names a running Keeper, which kept that Host's programs, is
-replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,
+On Windows and macOS a Host gone while the record names a running Keeper, which kept that Host's
+programs, is replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,
 and the replacement [recovers those programs](../orchbee-worker/README.md#replacement-adoption) into
 a recovery Host in that slot. An attempt after a failed one adopts the Hosts the record names
 running, the recovery Host a failed recovery left among them, and recovers again each one gone while
 the Keeper runs; with no Host left, or one gone and no Keeper, the Server stops itself. A lone Host
 whose Worker recorded no epoch is named with the epoch its bindings share, and once every slot names
-an epoch, a binding of an epoch no slot serves is not sent. POSIX starts no Keeper.
+an epoch, a binding of an epoch no slot serves is not sent. Linux starts no Keeper.
 
 The cap allows 3 attempts in any trailing 10 minutes of one Server process, and an attempt counts
 when it starts. Attempts run one at a time, the first at once and each later one a second after the

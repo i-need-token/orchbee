@@ -311,8 +311,9 @@ time in microseconds. Nothing holds a POSIX process ID open, so whoever observes
 registered process reads its start time again first, and a process with that ID and another start
 time is a later process. The reads come from the private `src/process_identity_native.rs` adapter,
 this crate's fourth authored unsafe boundary: `proc_pidinfo` with `PROC_PIDTBSDINFO` for the start
-time and state, and `proc_pidpath` for the program. Callers get gone, a start time or denied, and a
-path or `None`; no failure panics.
+time and state, `proc_pidpath` for the program, and `proc_listchildpids` for the children the
+Worker's hang check reads. Callers get gone, a start time or denied, a path or `None`, and a list of
+IDs or an error; no failure panics.
 
 - **Start time.** The call gets a zeroed `proc_bsdinfo` with its exact size, and the reading is used
   only when the kernel wrote exactly that many bytes; the structure holds only integers, so every
@@ -322,6 +323,9 @@ path or `None`; no failure panics.
 - **Program.** `proc_pidpath` needs no right to the process. It gets an owned buffer of
   `PROC_PIDPATHINFO_MAXSIZE` bytes with that length and returns how many it wrote; only those are
   read.
+- **Children.** `proc_listchildpids` gets an owned buffer of process IDs with its length in bytes
+  and returns how many IDs it wrote; only those are read, and zero IDs are skipped. A full buffer is
+  read again with a larger one, up to 4096 IDs.
 - **Denied.** A live process keeps its ID and its program until it ends, so an ID another account's
   process holds can name the recorded process only when that process runs a program with the
   recorded role's file name. Observation reads such a process as unknown, which refuses recovery,

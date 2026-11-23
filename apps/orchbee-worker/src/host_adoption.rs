@@ -112,6 +112,13 @@ impl AdoptedHost {
             .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
     }
 
+    /// Ends the adopted Host and waits until it exited or `deadline` passes; one that already
+    /// exited counts as ended.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn end_before(&self, deadline: Instant) -> io::Result<()> {
+        orchbee_local_runtime::ExactProcess::end_host(self.identity()?, deadline)
+    }
+
     /// Whether the adopted Host runs `executable`, the Terminal Host of this Worker's cohort, read
     /// while its start time still matches. A Host whose program cannot be read counts as running
     /// it, so it is never drained by mistake.

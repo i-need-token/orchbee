@@ -197,7 +197,12 @@ impl ConnectionKind {
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
             Self::MachineHub | Self::MachineLink => &[CAPACITY],
+            // The Worker reads the holdings its platform's Hosts make: program holdings on Windows,
+            // PTY holdings elsewhere.
+            #[cfg(windows)]
             Self::Keeper => &[PROGRAMS, RECOVERY],
+            #[cfg(not(windows))]
+            Self::Keeper => &[PTY, RECOVERY],
         };
         capability_set(names)
     }

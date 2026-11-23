@@ -144,7 +144,7 @@ mod host_capacity_native;
 #[cfg(target_os = "macos")]
 #[allow(
     unsafe_code,
-    reason = "reviewed libproc reads of a process's start time and program are isolated here"
+    reason = "reviewed libproc reads of a process's start time, program and children are isolated here"
 )]
 mod process_identity_native;
 #[cfg(target_os = "macos")]
@@ -168,7 +168,7 @@ pub use standard_rights::{
 };
 mod process_observation;
 #[cfg(target_os = "macos")]
-pub use process_observation::running_program;
+pub use process_observation::{running_children, running_program};
 mod process_registration;
 mod recovery_blocker;
 pub use recovery_blocker::{BlockerRole, RecoveryBlocker};

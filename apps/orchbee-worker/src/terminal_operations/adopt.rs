@@ -262,8 +262,8 @@ fn serve_until_adopted(
     }
 }
 
-/// Adopts the Host in one slot of the target, or on Windows recovers the terminals of one that
-/// ended into a recovery Host this Worker starts in that slot. `None` on Windows names a Host that
+/// Adopts the Host in one slot of the target, or on Windows and macOS recovers the terminals of one
+/// that ended into a recovery Host this Worker starts in that slot. `None` on Windows names a Host that
 /// refused this Worker as `stopping` and then ended: it drained or stopped on its own, and its slot
 /// is freed.
 fn adopt_slot(
@@ -305,7 +305,7 @@ fn adopt_slot(
                 adopted => adopted.map(|found| Found::adopted(host_slot, found)),
             }
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         AdoptHostKind::Recovery => {
             let held = if keeper.named.is_some() {
                 keeper.adopted()
@@ -328,9 +328,8 @@ fn adopt_slot(
                 }),
             }
         }
-        // A Windows Worker recovers; a macOS one fails the recovery until H5's M5, and no Linux
-        // Session starts a Keeper.
-        #[cfg(not(windows))]
+        // No Linux Session starts a Keeper.
+        #[cfg(not(any(windows, target_os = "macos")))]
         AdoptHostKind::Recovery => {
             let _ = (cohort, channel);
             Err(host::Failed {
@@ -404,7 +403,7 @@ impl Found {
         }
     }
 
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     fn recovered(slot: HostSlot, recovered: super::recovery::Recovered) -> Self {
         Self {
             target: "recovery",
@@ -446,11 +445,10 @@ impl KeeperAdoption<'_> {
 }
 
 /// An adopted Host with the Session's Keeper, where the record names a live one: the Host holds in
-/// it, and on Windows the orphans of the Host's epoch a binding names are recovered into it before
+/// it, and the orphans of the Host's epoch a binding names are recovered into it before
 /// its inventory is read again. A Keeper that cannot be adopted leaves the terminals unheld and the
 /// adoption going on; a recovery that fails fails it.
 #[cfg(any(windows, target_os = "macos"))]
-#[cfg_attr(target_os = "macos", expect(unused_variables))]
 fn with_keeper(
     mut adopted: Found,
     keeper: &mut KeeperAdoption<'_>,
@@ -484,7 +482,6 @@ fn with_keeper(
             return Ok(adopted);
         }
     };
-    #[cfg(windows)]
     {
         let restarts = adopted.restarts;
         let recovered =
@@ -632,9 +629,9 @@ impl Adoption<'_> {
         });
         // An orphan of an adopted Host's epoch that no binding names is discarded once the import
         // succeeded: no person can reach it.
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let mut keeper = keeper;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if let Some(keeper) = keeper.as_mut() {
             for found in &found {
                 super::recovery::discard_unbound(

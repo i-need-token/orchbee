@@ -52,9 +52,8 @@ pub(super) struct Answer {
 
 /// This build's `worker-host` offer: the registry's generations and capabilities, the package
 /// version, the source commit release packaging compiled in, and the compiled environment. On
-/// Windows it adds `background-programs`, and where this build runs the Keeper also `keeper` and
-/// `recovery`; it never offers `handover` before moves turn on. Where a macOS build runs the Keeper
-/// it offers `keeper` alone, since a macOS Worker recovers nothing before H5's M5.
+/// Windows it adds `background-programs`. Where a Windows or macOS build runs the Keeper it also
+/// offers `keeper` and `recovery`; it never offers `handover` before moves turn on.
 pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
     let mut offer = Offer::local(
         ConnectionKind::WorkerHost,
@@ -74,22 +73,13 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
                 .chain([CapabilityName::new(BACKGROUND_PROGRAMS)?]),
         )?;
     }
-    if cfg!(windows) && orchbee_local_runtime::keeper_live() {
+    if cfg!(any(windows, target_os = "macos")) && orchbee_local_runtime::keeper_live() {
         offer.capabilities = CapabilitySet::new(
             offer
                 .capabilities
                 .iter()
                 .cloned()
                 .chain([CapabilityName::new(KEEPER)?, CapabilityName::new(RECOVERY)?]),
-        )?;
-    }
-    if cfg!(target_os = "macos") && orchbee_local_runtime::keeper_live() {
-        offer.capabilities = CapabilitySet::new(
-            offer
-                .capabilities
-                .iter()
-                .cloned()
-                .chain([CapabilityName::new(KEEPER)?]),
         )?;
     }
     if cfg!(windows) && orchbee_local_runtime::moves_live() {

@@ -307,7 +307,9 @@ stays recovered, and the next replacement adopts the recovery Host. Adopting a H
 names a live Keeper adopts the Keeper too and recovers the orphans of that Host's epoch the same way
 before its inventory is read again; a Keeper that cannot be adopted leaves the terminals unheld and
 the adoption going on. Once an import succeeded, each orphan of the Host's epoch that no binding
-names is discarded, which ends its program.
+names is discarded, which ends its program. A macOS Keeper holds terminals only, each by its PTY
+master and leader, so a macOS recovery recovers no program; the lost Host's socket outlives it, and
+the Worker removes it once that Host's lock is free, before it starts the recovery Host.
 
 On Windows, once a Worker reached a Host it started or adopted, it writes the Host's epoch into that
 slot of the Session record; a failed write changes nothing else.
@@ -350,8 +352,8 @@ Launch, as in the lazy loop, while the older Hosts keep serving. A new program w
 starts as it does before any Host. A Host query and a title read ask every Host; title changes come
 from one projection the Hosts share. Between requests the Worker reads every Host's events, and the
 loss of any Host ends the Worker as before, so the next replacement adopts the others and recovers
-the lost one; on macOS, which recovers no Host yet, the Server replaces the Worker without a lost
-Host whose terminals no settled binding names, and otherwise stops, even while a Keeper runs.
+the lost one; on macOS the Server replaces the Worker without a lost Host whose terminals no settled
+binding names.
 
 While it holds its own Host, the Worker checks each older Host between requests at most every two
 seconds and tells one that runs no terminal and no program to drain. A drained Host takes nothing
@@ -382,8 +384,8 @@ as moving first resumes the copy through the Keeper, which answers `claimed-else
 On Windows and macOS the managed Worker cares for the Session's Keeper between Server requests,
 never under a prepared handoff: first right after the answer that admitted its Host, then every two
 seconds. A macOS Worker runs it only where its build runs the Keeper, a test build until H5's M9,
-and offers its Hosts `keeper` alone. A Host that offers both `keeper` and `recovery`, or on macOS
-`keeper`, and has no Keeper gets one: the Worker starts it, registers the Host with it and has the
+and there offers its Hosts `keeper` and `recovery` as on Windows. A Host that offers both `keeper`
+and `recovery` and has no Keeper gets one: the Worker starts it, registers the Host with it and has the
 Host attach it, so the Host holds each running terminal there. A Windows Host without `recovery`,
 such as one on the system ConHost, gets none, since no Host could take a kept program back. A
 replacement Worker adopts the recorded Keeper instead: the current one, or the one live Keeper left
@@ -409,16 +411,17 @@ A Host exchange between requests does not watch the Server, so a request that ar
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
 the care began. A Keeper the Host reports lost, or reports unresponsive and that does not answer the
 Worker within its two-second reply bound either, is ended and replaced, and the Host attaches the
-new one. On Windows the same care reads the Host's `dispatch-progress` with a `query` on a control
-lane, within one second. A count that has not
+new one. On Windows and macOS the same care reads the Host's `dispatch-progress` with a `query` on a
+control lane, within one second. A count that has not
 changed for 10 seconds, or a Host that has not answered for as long, counts as hung: the Worker ends
 the Host only when the Keeper holds, for that Host, at least as many terminals as the Host's last
 answer counted and every live child process of the Host is the program or OpenConsole of one of
-those holdings, and recovery then follows as for a crash. Otherwise the Host is left running and the
+those holdings, on macOS its leader, and recovery then follows as for a crash. Otherwise the Host is left running and the
 stall recorded once. A request that meets a hung Host first holds the care off until its exchange
 passes the 10-second bound, which ends the Worker; before it exits, the Worker reads
-`dispatch-progress` twice, one second apart, and a count that did not change, or a Host that
-answered neither read, counts as hung and is ended under the same conditions.
+`dispatch-progress`, and once more a second later when the Host answered. A count that did not
+change, or a Host that left the first read unanswered, counts as hung and is ended under the same
+conditions, within the two seconds the Server gives a lost Worker to exit.
 
 ## Worktree discovery job
 

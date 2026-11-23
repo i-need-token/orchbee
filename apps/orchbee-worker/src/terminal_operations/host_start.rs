@@ -139,7 +139,7 @@ pub(super) const HOST_START_ATTEMPTS: u32 = 3;
 #[derive(Clone, Copy)]
 pub(super) enum HostStart {
     Fresh(orchbee_local_runtime::HostSlot),
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     Recovery(
         orchbee_local_runtime::HostSlot,
         Option<orchbee_capability_node_protocol::HostEpoch>,
@@ -150,7 +150,7 @@ impl HostStart {
     pub(super) const fn slot(self) -> orchbee_local_runtime::HostSlot {
         match self {
             Self::Fresh(slot) => slot,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             Self::Recovery(slot, _) => slot,
         }
     }
@@ -206,6 +206,22 @@ pub(super) fn start_host(
     #[cfg(unix)]
     match std::fs::symlink_metadata(&endpoint) {
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        // The lost Host's socket outlives it. Once no Host holds the slot's lock the socket names
+        // no listener, so it goes before the recovery Host starts, which a dial would meet first.
+        #[cfg(target_os = "macos")]
+        Ok(_) if matches!(start, HostStart::Recovery(..)) => {
+            match orchbee_local_runtime::host_lock_held(runtime, start.slot()) {
+                Ok(false) => {}
+                Ok(true) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
+                Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
+            }
+            match std::fs::remove_file(&endpoint) {
+                Err(error) if error.kind() != io::ErrorKind::NotFound => {
+                    return Err(failed(HostStartStage::Endpoint, error.into()));
+                }
+                _ => {}
+            }
+        }
         Ok(_) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
         Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
     }
@@ -226,7 +242,7 @@ pub(super) fn start_host(
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
     // A recovery Host serves the lost Host's epoch, so each recovered terminal keeps its identity.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let epoch = match start {
         HostStart::Recovery(_, Some(epoch)) => Some(
             orchbee_terminal_protocol::HostEpoch::from_bytes(epoch.as_bytes())
@@ -235,16 +251,16 @@ pub(super) fn start_host(
         ),
         HostStart::Fresh(_) | HostStart::Recovery(_, None) => None,
     };
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let mut arguments = arguments.to_vec();
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     if let Some(epoch) = &epoch {
         arguments.extend([
             std::ffi::OsStr::new("--host-epoch"),
             std::ffi::OsStr::new(epoch),
         ]);
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     let HostStart::Fresh(_) = start;
     // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
     #[cfg(unix)]
@@ -267,7 +283,7 @@ pub(super) fn start_host(
                 runtime,
                 match start {
                     HostStart::Fresh(slot) => orchbee_local_runtime::SessionChild::Host(slot),
-                    #[cfg(windows)]
+                    #[cfg(any(windows, target_os = "macos"))]
                     HostStart::Recovery(slot, _) => {
                         orchbee_local_runtime::SessionChild::RecoveryHost(slot)
                     }

@@ -5,9 +5,9 @@
 //! reports lost, or reports unresponsive and that does not answer the Worker either. On Windows it
 //! also updates an adopted Keeper that runs another installation's program and retires the Keeper
 //! an update leaves (`update`), and ends a Host whose dispatch has stopped turning once the Keeper
-//! holds every terminal it runs, so recovery follows as for a crash (`hang`); macOS gains both with
-//! H5's M7 and M5. A hang check never ends a Host that runs a terminal the Keeper does not hold, and
-//! no step here ends the Worker.
+//! holds every terminal it runs, so recovery follows as for a crash (`hang`), which macOS does too;
+//! macOS gains the update with H5's M7. A hang check never ends a Host that runs a terminal the
+//! Keeper does not hold, and no step here ends the Worker.
 //!
 //! A Server request that arrives while the care runs waits for it, so the care answers when it
 //! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
@@ -31,12 +31,10 @@ use crate::{
     session_keeper::{Serving, SessionKeeper},
 };
 
-#[cfg(windows)]
 mod hang;
 #[cfg(windows)]
 mod update;
 
-#[cfg(windows)]
 pub(super) use hang::after_unanswered;
 
 /// How often the Worker cares for the Keeper and, on Windows, reads each Host's `dispatch-progress`.
@@ -69,15 +67,11 @@ pub(super) struct HostWatch {
     /// Whether this Host attached the Session's current Keeper.
     attached: bool,
     /// The last `dispatch-progress` the Host answered, and when it last changed.
-    #[cfg(windows)]
     progress: Option<u64>,
-    #[cfg(windows)]
     turned: Instant,
     /// The terminals the Host's last answer counted.
-    #[cfg(windows)]
     terminals: Option<u32>,
     /// Whether the current stall was recorded; a Host left running is recorded once per stall.
-    #[cfg(windows)]
     recorded: bool,
 }
 
@@ -99,18 +93,13 @@ pub(super) struct Keepers<'a> {
 
 impl HostWatch {
     /// A Host the Session's current Keeper was already `offered` to, or not yet.
-    #[cfg_attr(not(windows), expect(unused_variables))]
     pub(super) const fn new(now: Instant, offered: bool) -> Self {
         Self {
             offered,
             attached: offered,
-            #[cfg(windows)]
             progress: None,
-            #[cfg(windows)]
             turned: now,
-            #[cfg(windows)]
             terminals: None,
-            #[cfg(windows)]
             recorded: false,
         }
     }
@@ -192,11 +181,9 @@ impl KeeperCare {
         } else {
             offer(hosts, keepers.keeper);
             #[cfg(windows)]
-            {
-                self.update.run(hosts, &mut keepers);
-                for host in hosts.iter_mut() {
-                    hang::probe(host, keepers.keeper);
-                }
+            self.update.run(hosts, &mut keepers);
+            for host in hosts.iter_mut() {
+                hang::probe(host, keepers.keeper);
             }
         }
         #[cfg(windows)]
@@ -207,12 +194,11 @@ impl KeeperCare {
     /// replaces, and has every Host attach it. A failed start leaves the terminals running unheld.
     fn start(&mut self, hosts: &mut [Cared<'_>], keepers: &mut Keepers<'_>) {
         let now = Instant::now();
-        // On Windows only a Host that can take a kept program back gets a Keeper. A macOS Host holds
-        // its terminals before recovery comes there with H5's M5, while the Keeper's switch stays
-        // off for macOS.
-        let Some(first) = hosts.iter().position(|host| {
-            host.connection.keeper() && (cfg!(target_os = "macos") || host.connection.recovery())
-        }) else {
+        // Only a Host that can take a kept program back gets a Keeper.
+        let Some(first) = hosts
+            .iter()
+            .position(|host| host.connection.keeper() && host.connection.recovery())
+        else {
             return;
         };
         if self.failed_starts >= START_ATTEMPTS || now < self.next_start {

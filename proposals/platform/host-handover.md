@@ -1751,7 +1751,7 @@ the new release.
 | M2    | Cold adoption at activation and `server restart` on macOS, with the Update click's restart and the required Host replacement; the restart acceptance on the Mac | Built  |
 | M3    | The Host set on macOS: new terminals on the Worker's own Host, and drained older Hosts                                                                          | Built  |
 | M4    | The Keeper on macOS: keep mode, admission, `spawn`, POSIX `hold`, `exited` and `reap`, the Host's side, and the Worker's start and adoption of it               | Built  |
-| M5    | Recovery on macOS                                                                                                                                               | Open   |
+| M5    | Recovery on macOS: the recovery Host's import of a kept PTY, the Worker's recovery, the Server's replacement, and the hang check                                | Built  |
 | M6    | Moves across versions on macOS                                                                                                                                  | Open   |
 | M7    | The Keeper update by re-execution, its check mode, and its way back                                                                                             | Open   |
 | M8    | Background programs in the Host on macOS                                                                                                                        | Open   |

@@ -47,7 +47,8 @@ pub enum HoldingState {
     Unknown,
 }
 
-/// One holding the Keeper reported, with the program and OpenConsole processes it holds.
+/// One terminal holding the Keeper reported, with the program and OpenConsole processes it holds;
+/// a macOS PTY holding names its leader as the program and has no console.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Holding {
     pub holding: [u8; 16],
@@ -55,7 +56,7 @@ pub struct Holding {
     pub state: HoldingState,
     pub terminal: HeldTerminal,
     pub program: KeeperProcess,
-    pub console: KeeperProcess,
+    pub console: Option<KeeperProcess>,
 }
 
 /// One background program a Host holds in the Keeper, under `programs`: the program's process and
@@ -173,7 +174,8 @@ impl KeeperClient {
                 .ok_or_else(|| invalid("a status page has no holdings"))?;
             for entry in holdings {
                 match entry.get("kind").map(Value::as_str) {
-                    None => status.holdings.push(holding(entry)?),
+                    None => status.holdings.push(holding(entry, false)?),
+                    Some(Some("pty")) => status.holdings.push(holding(entry, true)?),
                     Some(Some("program")) => status.programs.push(program_holding(entry)?),
                     Some(_) => return Err(invalid("a holding names an unknown kind")),
                 }
@@ -377,7 +379,8 @@ fn program_holding(entry: &Value) -> io::Result<ProgramHolding> {
     })
 }
 
-fn holding(entry: &Value) -> io::Result<Holding> {
+/// A terminal holding; a PTY holding's facts name its `leader` and no console.
+fn holding(entry: &Value, pty: bool) -> io::Result<Holding> {
     let state = holding_state(entry)?;
     let facts = entry
         .get("facts")
@@ -394,8 +397,12 @@ fn holding(entry: &Value) -> io::Result<Holding> {
             host_epoch: identity(terminal.get("hostEpoch"))?,
             terminal_id: identity(terminal.get("terminalId"))?,
         },
-        program: process(facts.get("program"))?,
-        console: process(facts.get("console"))?,
+        program: process(facts.get(if pty { "leader" } else { "program" }))?,
+        console: if pty {
+            None
+        } else {
+            Some(process(facts.get("console"))?)
+        },
     })
 }
 

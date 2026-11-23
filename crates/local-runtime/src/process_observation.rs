@@ -9,7 +9,7 @@ mod unix;
 #[cfg(windows)]
 mod windows;
 #[cfg(target_os = "macos")]
-pub use macos::running_program;
+pub use macos::{running_children, running_program};
 #[cfg(target_os = "macos")]
 pub(crate) use macos::{
     ProcessSnapshot, current_identity, identity, observe, presence, role_absent,

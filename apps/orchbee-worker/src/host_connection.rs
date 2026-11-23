@@ -348,7 +348,7 @@ impl HostBrokerConnection {
     /// The Host's `dispatch-progress` and terminal count, from one `query` control request as
     /// [`Self::query_process`] sends it; `None` when the Host has not answered by `deadline` or its
     /// answer carries no progress.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn query_progress(&self, deadline: Instant) -> Option<(u64, u32)> {
         let (entry, progress) =
             process_query::query_with_progress(&self.endpoint, deadline).ok()?;
