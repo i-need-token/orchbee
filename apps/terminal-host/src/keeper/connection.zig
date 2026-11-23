@@ -161,7 +161,7 @@ const Connection = struct {
                 self.table.stop();
                 self.table.unlock();
                 self.finish(try handshakeReply(arena, .{ .exit_result = .{} })) catch {};
-                std.process.exit(0);
+                state.exitProcess();
             },
         }
     }

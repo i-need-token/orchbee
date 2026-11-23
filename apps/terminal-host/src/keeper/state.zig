@@ -384,6 +384,20 @@ pub fn activate(table: *Table) void {
     active = table;
 }
 
+/// The macOS Keeper's socket; a Windows pipe ends with its process.
+var endpoint_socket: ?[]const u8 = null;
+
+pub fn armEndpointRemoval(path: []const u8) void {
+    endpoint_socket = path;
+}
+
+/// Ends the Keeper process. Its socket is removed first, while the endpoint's lifetime lock is still
+/// held, so no later Keeper's socket is removed.
+pub fn exitProcess() noreturn {
+    if (endpoint_socket) |path| std.Io.Dir.cwd().deleteFile(platform.thread_sync.io(), path) catch {};
+    std.process.exit(0);
+}
+
 /// Runs once a registered Host ends: on a thread-pool thread on Windows, on the watcher thread on
 /// macOS.
 pub const hostEnded = if (windows) hostEndedOnPool else endHost;

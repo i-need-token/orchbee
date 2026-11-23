@@ -54,7 +54,10 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
     fatal_record.armAs(.keeper, options.runtime_directory);
     diagnostic_log.armKeeper(options.runtime_directory);
     fatal_record.markThread(.@"keeper-listener");
-    if (darwin) platform.keeper.darwin.raiseDescriptorLimit();
+    if (darwin) {
+        platform.keeper.darwin.raiseDescriptorLimit();
+        state.armEndpointRemoval(server.inner.socket_path);
+    }
     const table = try allocator.create(state.Table);
     try table.init();
     state.activate(table);
@@ -138,6 +141,6 @@ const Listener = struct {
         const ending = lifecycle != .stopping and (drained or expired) and !replying;
         if (ending) self.table.stop();
         self.table.unlock();
-        if (ending) std.process.exit(0);
+        if (ending) state.exitProcess();
     }
 };

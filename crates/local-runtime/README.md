@@ -1128,7 +1128,7 @@ first 32 hex digits of SHA-256 over `orchbee-posix-host-slot-v1`, a NUL byte, th
 byte, and `<id>`. A macOS Keeper receives `<keeper-id>`, the first 32 hex digits of SHA-256 over
 `orchbee-posix-keeper-v1` for the first Keeper slot or `orchbee-posix-keeper-second-v1` for the
 second, a NUL byte, and `<id>`, with the socket folder and the `host` folder as its runtime
-directory; `start_keeper` counts it listening once its socket carries the final mode. The derived
+directory; `start_keeper` counts it listening once a new socket carries the final mode. The derived
 paths are pure joins that answer even when the folders cannot be inspected.
 
 The socket folder's parent must belong to root and carry the sticky bit. Preparation creates the
