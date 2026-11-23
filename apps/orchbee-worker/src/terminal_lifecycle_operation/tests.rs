@@ -663,6 +663,7 @@ fn summary_core(
             scrollback_bytes: 0,
         },
         configuration_revision: 0,
+        handover: None,
         identity: TerminalIdentity {
             creation_id: orchbee_terminal_protocol::CreationId::from_bytes([creation; 16])?,
             host_epoch: HostEpoch::from_bytes([4; 16])?,

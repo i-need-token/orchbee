@@ -110,9 +110,10 @@ pub use input::{
     decode_input_message, encode_input_message,
 };
 pub use inventory::{
-    ColorScheme, EncodedInventoryControl, FailureContainment, InventoryControl, ListTerminals,
-    TerminalGeometry, TerminalInventoryCursor, TerminalList, TerminalSummary, TerminalSummaryCore,
-    TerminalTheme, TerminalThemeState, decode_inventory_control, encode_inventory_control,
+    ColorScheme, EncodedInventoryControl, FailureContainment, HandoverState, InventoryControl,
+    ListTerminals, TerminalGeometry, TerminalInventoryCursor, TerminalList, TerminalSummary,
+    TerminalSummaryCore, TerminalTheme, TerminalThemeState, decode_inventory_control,
+    encode_inventory_control,
 };
 pub use lifecycle::{
     EncodedLifecycleControl, LifecycleControl, StartTerminal, StartTransition, TerminalExited,

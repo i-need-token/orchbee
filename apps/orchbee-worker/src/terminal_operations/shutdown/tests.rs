@@ -213,6 +213,7 @@ fn core(terminal: u8) -> orchbee_terminal_protocol::TerminalSummaryCore {
             scrollback_bytes: 0,
         },
         configuration_revision: 0,
+        handover: None,
         identity: TerminalIdentity {
             creation_id: orchbee_terminal_protocol::CreationId::from_bytes([9; 16]).unwrap(),
             host_epoch: orchbee_terminal_protocol::HostEpoch::from_bytes([4; 16]).unwrap(),

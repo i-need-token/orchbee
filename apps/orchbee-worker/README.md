@@ -277,6 +277,16 @@ The last page is answered within 18 seconds of its arrival, inside the Server's 
   attempt continues. A Host terminal no binding matches is quarantined for the connection's life:
   it is never attached, sent input, named in a title or drained, and a Start naming it is refused.
   A binding the inventory lacks or contradicts is reported missing.
+- On Windows, before that import, the copies a half-done move left of a terminal a binding names
+  pair by creation id across the adopted Hosts, from the `handoverState` a Host reports while moves
+  run ([H3 design](../../proposals/platform/host-handover.md#a-terminal-in-two-hosts)). The copy
+  that runs owns the terminal, or, when none does, the one quiesced copy; two that run, or no owner,
+  leave the copies to the import. A `moved` copy, or a quiesced one beside a running owner, is
+  dropped; a `restored` import is discarded; a quiesced owner is resumed. A copy whose drop or
+  discard is refused, or unanswered before the deadline, stays and is quarantined. A binding that named another
+  copy is imported as its owner and answered in `moved`, at most 16. A discard answering `claimed`,
+  or a resume answering `claimed-elsewhere`, is `inventory-failed`, and a lost Host exchange
+  `host-unreachable`, so the next attempt reads the settled states.
 
 A `Recovery` slot comes with the Session's Keeper, which kept the programs of the Host that ended
 there. The Worker adopts that Keeper, once for every slot of the target, requiring the recorded

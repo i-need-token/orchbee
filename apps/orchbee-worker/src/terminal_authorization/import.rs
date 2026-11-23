@@ -20,6 +20,8 @@ pub(crate) struct InventoryTerminal {
     pub(crate) identity: HostTerminalIdentity,
     /// Its program has started: any phase but awaiting start, an exited one included.
     pub(crate) started: bool,
+    /// Where a move left it, which pairs the two copies of a half-done move.
+    pub(crate) handover: Option<orchbee_terminal_protocol::HandoverState>,
 }
 
 /// What an import took in.

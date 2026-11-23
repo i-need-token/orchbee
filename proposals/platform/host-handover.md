@@ -1493,6 +1493,10 @@ development builds until H4 through one constant, `moves_live`, and test builds 
   copy, and lists the binding in `Adopted`'s new `moved` with its new identity, which the Server
   rebinds as for a turn. A restored import that was never claimed is discarded, and the binding
   stays with its old Host, which resumes it.
+- Chosen: the copies pair by creation id, which a move keeps, rather than by holding id through the
+  Keeper's `status`: the copy with no handover state owns the terminal, or, when none does, the one
+  quiesced copy. An answer that shows a claim the inventory did not fails the adoption as
+  `inventory-failed`, so the next attempt reads the settled states.
 
 ### The image section
 
@@ -1516,7 +1520,7 @@ development builds until H4 through one constant, `moves_live`, and test builds 
 | S1    | The Rust codec for H1's requests and answers, `moves_live`, and `TerminalMoveTurn` and `Adopted`'s `moved` in the Worker protocol                               | Built  |
 | S2    | The Worker's move: due terminals, the steps, abort, the kernel's rebinding and translation, controllers and viewers, the drop at the next turn, and diagnostics | Built  |
 | S3    | The Server's turns and rebinding, and the binding record                                                                                                        | Built  |
-| S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Open   |
+| S4    | An adoption of a terminal seen in two Hosts                                                                                                                     | Built  |
 | S5    | The image section                                                                                                                                               | Open   |
 | S6    | The [H3 acceptance](#acceptance) on real Windows                                                                                                                | Open   |
 

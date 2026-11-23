@@ -49,6 +49,7 @@ fn running(
                 scrollback_bytes: 0,
             },
             configuration_revision: 0,
+            handover: None,
             identity: terminal::TerminalIdentity {
                 creation_id: terminal::CreationId::from_bytes(creation_id).unwrap(),
                 host_epoch: terminal::HostEpoch::from_bytes(EPOCH).unwrap(),

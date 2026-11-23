@@ -558,6 +558,7 @@ fn inventory_terminal(
         | TerminalSummary::Failed { core, .. } => (core, true),
     };
     let identity = core.identity;
+    let handover = core.handover;
     if identity.host_epoch != host.host_epoch() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
@@ -572,5 +573,6 @@ fn inventory_terminal(
             HostTerminalId::from_bytes(*identity.terminal_id.as_bytes())?,
         ),
         started,
+        handover,
     })
 }

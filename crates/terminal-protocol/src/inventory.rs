@@ -53,9 +53,22 @@ pub struct TerminalThemeState {
 pub struct TerminalSummaryCore {
     pub configuration: TerminalConfiguration,
     pub configuration_revision: u64,
+    /// Where a move left the terminal, reported only on a connection that negotiated `handover`.
+    pub handover: Option<HandoverState>,
     pub identity: TerminalIdentity,
     pub revision: u64,
     pub theme: TerminalThemeState,
+}
+
+/// A terminal's part in a move between two Hosts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum HandoverState {
+    /// The old Host paused it for an export.
+    Quiesced,
+    /// The Keeper answered the new Host's claim; the old copy waits for `DropTerminal`.
+    Moved,
+    /// The new Host restored it from a record; it waits for its claim or discard.
+    Restored,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -258,10 +271,10 @@ struct TerminalSummaryWire {
     /// holdings through the Keeper, so the member is checked and not kept.
     #[serde(default)]
     holding_id: Option<String>,
-    /// Added on a connection that negotiated `handover`, which no Worker offers before moves;
-    /// checked and not kept.
-    #[serde(default, rename = "handoverState")]
-    _handover_state: Option<HandoverStateWire>,
+    /// Added on a connection that negotiated `handover`, which a Worker offers only while moves
+    /// run.
+    #[serde(default)]
+    handover_state: Option<HandoverStateWire>,
     phase: TerminalPhaseWire,
     #[serde(default)]
     process: RequiredNullable<ProcessObservationWire>,
@@ -545,6 +558,11 @@ fn terminal_summary_from_wire(wire: TerminalSummaryWire) -> Result<TerminalSumma
     let core = TerminalSummaryCore {
         configuration: configuration_from_wire(wire.configuration)?,
         configuration_revision: canonical_u64(&wire.configuration_revision)?,
+        handover: wire.handover_state.map(|state| match state {
+            HandoverStateWire::Quiesced => HandoverState::Quiesced,
+            HandoverStateWire::Moved => HandoverState::Moved,
+            HandoverStateWire::Restored => HandoverState::Restored,
+        }),
         identity: identity_from_wire(wire.identity)?,
         revision: canonical_u64(&wire.revision)?,
         theme: theme_state_from_wire(wire.theme)?,

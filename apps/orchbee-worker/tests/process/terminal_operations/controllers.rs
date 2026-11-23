@@ -28,6 +28,7 @@ fn read_past_inventory(host: &mut UnixStream) -> io::Result<Vec<u8>> {
                 scrollback_bytes: 0,
             },
             configuration_revision: 0,
+            handover: None,
             identity: TerminalIdentity {
                 creation_id: CreationId::from_bytes([33; 16]).map_err(protocol_io)?,
                 host_epoch: HostEpoch::from_bytes([0x44; 16]).map_err(protocol_io)?,

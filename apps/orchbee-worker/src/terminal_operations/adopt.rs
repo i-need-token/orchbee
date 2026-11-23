@@ -37,6 +37,8 @@ use crate::{
 };
 
 mod pages;
+#[cfg(windows)]
+mod pairs;
 
 /// How long after the last page arrives its answer is written at the latest, inside the Server's
 /// 20 s window.
@@ -527,7 +529,9 @@ impl Adoption<'_> {
     }
 
     /// Imports the bindings against every adopted Host's inventory at once, so each binding finds
-    /// its terminal on the Host that serves its epoch, and answers the adoption.
+    /// its terminal on the Host that serves its epoch, and answers the adoption. On Windows the two
+    /// copies a half-done move left of a terminal are paired first, and a binding that names the
+    /// copy a move left behind is answered as moved.
     fn import(
         self,
         mut found: Vec<Found>,
@@ -542,6 +546,18 @@ impl Adoption<'_> {
         let restarts = found
             .iter()
             .fold(0_u32, |sum, found| sum.saturating_add(found.restarts));
+        #[cfg(windows)]
+        let paired = match pairs::pair(
+            &mut found,
+            bindings,
+            self.server,
+            self.arrived + ADOPTION_BUDGET,
+        ) {
+            Ok(paired) => paired,
+            Err(failed) => return Err(self.fail(failed)),
+        };
+        #[cfg(windows)]
+        let bindings = paired.bindings.as_slice();
         let mut inventory = Vec::new();
         for found in &mut found {
             inventory.append(&mut found.inventory);
@@ -569,6 +585,15 @@ impl Adoption<'_> {
         }
         let quarantined = u32::try_from(imported.quarantined.len())?;
         let missing = u32::try_from(imported.missing.len())?;
+        // A rebound binding whose owner the import did not take is missing, not moved.
+        #[cfg(windows)]
+        let moved = paired
+            .moved
+            .into_iter()
+            .filter(|moved| !imported.missing.contains(&moved.terminal_id))
+            .collect();
+        #[cfg(not(windows))]
+        let moved = Vec::new();
         let host = &found
             .first()
             .ok_or_else(|| io::Error::other("an adoption without a Host"))?
@@ -581,7 +606,7 @@ impl Adoption<'_> {
                 imported: imported.imported,
                 quarantined,
                 missing: imported.missing,
-                moved: Vec::new(),
+                moved,
             },
         );
         match host_closed {

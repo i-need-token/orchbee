@@ -221,6 +221,7 @@ fn terminal(value: u8, started: bool) -> TestResult<InventoryTerminal> {
             HostTerminalId::from_bytes([value + 200; 16])?,
         ),
         started,
+        handover: None,
     })
 }
 fn binding(
