@@ -108,6 +108,18 @@ impl<'a> HeldPrograms<'a> {
         (!hosts.is_empty()).then_some(Self { hosts })
     }
 
+    /// The programs of `hosts`, each with whether it is the Worker's own, between Server requests.
+    #[cfg(any(windows, target_os = "macos"))]
+    pub(crate) fn between_requests(
+        hosts: impl IntoIterator<Item = (&'a HostBrokerConnection, bool)>,
+    ) -> Option<Self> {
+        let hosts: Vec<_> = hosts
+            .into_iter()
+            .filter_map(|(host, own)| Some((HostPrograms::between_requests(host)?, own)))
+            .collect();
+        (!hosts.is_empty()).then_some(Self { hosts })
+    }
+
     fn own(&self) -> Option<&HostPrograms<'a>> {
         self.hosts
             .iter()

@@ -357,7 +357,9 @@ the lost one; on macOS the Server replaces the Worker without a lost Host whose 
 binding names.
 
 While it holds its own Host, the Worker checks each older Host between requests at most every two
-seconds and tells one that runs no terminal and no program to drain. A drained Host takes nothing
+seconds and tells one that runs no terminal and no program to drain; before each check it collects the
+program exits a Host reported and disposes of those programs, so a Host whose last program ended
+counts as running none without waiting for a plugin-job request. A drained Host takes nothing
 new and ends; its end is normal, the Worker drops it and, once its process exited, frees its slot
 in the Session record. A stop that disposes ends every Host in turn, counting the terminals of all;
 the first Host that does not stop answers the attempt, and a later attempt finds the stopped ones

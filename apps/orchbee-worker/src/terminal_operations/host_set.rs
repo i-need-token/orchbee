@@ -471,6 +471,27 @@ impl HostSet<'_> {
         turn(&mut self.care, &mut cared, keepers)
     }
 
+    /// Collects, between requests, the program exits a Host reported, so an ended program's job
+    /// finishes and an older Host that runs no other program drains at its next check instead of at
+    /// the next plugin-job request.
+    pub(super) fn settle_programs(&self, jobs: &crate::plugin_jobs::PluginJobs) {
+        if !self
+            .hosts
+            .iter()
+            .any(|held| held.connection.has_program_exits())
+        {
+            return;
+        }
+        if let Some(programs) = HeldPrograms::between_requests(
+            self.hosts
+                .iter()
+                .filter(|held| !held.drained())
+                .map(|held| (&held.connection, held.own)),
+        ) {
+            jobs.settle_exits(&programs);
+        }
+    }
+
     /// When the next care is due, so the wait for a request wakes for it.
     pub(super) const fn care_due(&self) -> Instant {
         self.care.due()

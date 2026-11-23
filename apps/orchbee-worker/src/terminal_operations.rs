@@ -212,6 +212,7 @@ fn serve(
             let (wake, cared) = if handoff.is_prepared() {
                 (handoff.deadline(), None)
             } else if hosts.is_managed() {
+                hosts.settle_programs(aux.plugin_jobs);
                 let cared = hosts.care(&server);
                 (Some(hosts.care_due()), cared)
             } else {
@@ -220,6 +221,7 @@ fn serve(
             // A macOS Worker takes no handoff.
             #[cfg(target_os = "macos")]
             let (wake, cared) = if hosts.is_managed() {
+                hosts.settle_programs(aux.plugin_jobs);
                 let cared: Option<Instant> = hosts.care(&server);
                 (Some(hosts.care_due()), cared)
             } else {

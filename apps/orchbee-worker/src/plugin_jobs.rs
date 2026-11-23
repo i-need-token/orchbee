@@ -77,6 +77,17 @@ impl PluginJobs {
     pub(crate) fn execute(&self, id: OperationId, action: PluginJobAction) -> Outcome {
         self.execute_on(id, action, None)
     }
+    /// Collects the program exits `host` reported and disposes of each collected program, as a
+    /// plugin-job action does first, for a Worker between Server requests.
+    #[cfg(any(windows, target_os = "macos"))]
+    pub(crate) fn settle_exits(&self, host: &dyn ProgramHost) {
+        let Ok(mut inner) = self.inner.lock() else {
+            return;
+        };
+        settle(&mut inner);
+        hosted::settle(&mut inner, host);
+    }
+
     /// Serves one plugin-job action. `host` is the Terminal Host that runs background programs for
     /// this Worker, when it has one that does.
     pub(crate) fn execute_on(

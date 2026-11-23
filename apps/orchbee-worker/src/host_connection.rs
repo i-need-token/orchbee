@@ -411,6 +411,12 @@ impl HostBrokerConnection {
         self.background_programs
     }
 
+    /// Whether the Host reported a program exit that the Worker has not taken yet.
+    #[cfg(any(windows, target_os = "macos"))]
+    pub(crate) fn has_program_exits(&self) -> bool {
+        !self.program_exits.borrow().is_empty()
+    }
+
     /// The program exits the Host reported since the last call, which this call clears.
     pub(crate) fn take_program_exits(&self) -> Vec<orchbee_terminal_protocol::ProgramExited> {
         self.program_exits.take()
@@ -508,7 +514,8 @@ impl HostBrokerConnection {
             return self.keeper_events.set(events);
         }
         // `ProgramExited` comes only to a session that negotiated `background-programs`; the
-        // Worker's program owner takes the exits when it next serves a plugin-job request.
+        // Worker's program owner takes the exits when it next serves a plugin-job request, or a
+        // managed Worker at its next care between requests.
         if envelope.kind == orchbee_terminal_protocol::PROGRAM_EXITED_KIND {
             let Ok(exit) = orchbee_terminal_protocol::decode_program_exited(
                 envelope.kind,
