@@ -64,33 +64,31 @@ impl Job {
         if !executable.is_file() {
             return None;
         }
-        Self::spawn(move || run(&executable, &session, joins))
+        Self::spawn(move |report| run(&executable, &session, joins, report))
     }
 
     /// Starts the confirmed Host replacement: stops the Session whose runtime folder is `runtime`
     /// through this TUI's own connection and reports [`Progress::Leave`] once the stop ended, so the
     /// active version starts the Session again, or [`Progress::Waiting`] when it did not.
     pub(super) fn replace_host(runtime: PathBuf) -> Option<Self> {
-        Self::spawn(move || {
-            vec![
-                Progress::Restarting,
-                if stop(&runtime) {
-                    Progress::Leave
-                } else {
-                    Progress::Waiting
-                },
-            ]
+        Self::spawn(move |report| {
+            report(Progress::Restarting);
+            report(if stop(&runtime) {
+                Progress::Leave
+            } else {
+                Progress::Waiting
+            });
         })
     }
 
-    fn spawn(steps: impl FnOnce() -> Vec<Progress> + Send + 'static) -> Option<Self> {
+    /// Runs `steps` on the job's thread; each report reaches the TUI as it is made, so Restarting
+    /// shows while the restart or stop runs. A TUI that dropped the job hears nothing more.
+    fn spawn(steps: impl FnOnce(&dyn Fn(Progress)) + Send + 'static) -> Option<Self> {
         let (send, progress) = mpsc::channel();
         let thread = BackgroundThread::spawn("orchbee-update-restart", move || {
-            for step in steps() {
-                if send.send(step).is_err() {
-                    return;
-                }
-            }
+            steps(&|step| {
+                let _ = send.send(step);
+            });
         })
         .ok()?;
         Some(Self {
@@ -109,11 +107,11 @@ impl Job {
     }
 }
 
-/// The reports of one job. A Host whose own tier is `required` asks the person first, since the
+/// Reports one job's steps. A Host whose own tier is `required` asks the person first, since the
 /// restart's successor could not adopt it. A Session the active version joins without a tier, or
 /// whose tier does not read, switches as before; a restart that does not answer `restarted` changes
 /// nothing the TUI can use, so the update waits.
-fn run(executable: &Path, session: &str, joins: bool) -> Vec<Progress> {
+fn run(executable: &Path, session: &str, joins: bool, report: &dyn Fn(Progress)) {
     let status = command_json(
         executable,
         session,
@@ -127,16 +125,19 @@ fn run(executable: &Path, session: &str, joins: bool) -> Vec<Progress> {
         .and_then(|restart| restart["hosts"].as_array())
         .is_some_and(|hosts| hosts.iter().any(|host| host["tier"] == "required"))
     {
-        return vec![Progress::HostRequired];
+        report(Progress::HostRequired);
+        return;
     }
     if joins {
         let needed = restart
             .and_then(|restart| restart["tier"].as_str())
             .is_some_and(|tier| matches!(tier, "recommended" | "required"));
         if !needed {
-            return vec![Progress::Leave];
+            report(Progress::Leave);
+            return;
         }
     }
+    report(Progress::Restarting);
     let restarted = command_json(
         executable,
         session,
@@ -144,14 +145,11 @@ fn run(executable: &Path, session: &str, joins: bool) -> Vec<Progress> {
         RESTART_BUDGET,
     )
     .is_some_and(|document| document["result"]["outcome"] == "restarted");
-    vec![
-        Progress::Restarting,
-        if restarted {
-            Progress::Leave
-        } else {
-            Progress::Waiting
-        },
-    ]
+    report(if restarted {
+        Progress::Leave
+    } else {
+        Progress::Waiting
+    });
 }
 
 /// Stops the Session whose runtime folder is `runtime` as a TUI's stop does, under a fresh
