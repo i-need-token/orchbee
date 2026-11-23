@@ -1758,7 +1758,7 @@ the new release.
 | M6    | Moves across versions on macOS                                                                                                                                  | Built  |
 | M7    | The Keeper update by re-execution, its check mode, and its way back                                                                                             | Built  |
 | M8    | Background programs in the Host on macOS                                                                                                                        | Built  |
-| M9    | The gate on macOS, the H5 acceptance on the real Mac, and the switches turned on for macOS                                                                      | Open   |
+| M9    | The gate on macOS, the H5 acceptance on the real Mac, and the switches turned on for macOS                                                                      | Built  |
 
 ## B1 design
 

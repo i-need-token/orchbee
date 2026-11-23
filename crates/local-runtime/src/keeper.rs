@@ -73,9 +73,10 @@ pub fn end_recorded_keeper(
 }
 
 /// Whether release builds run the Keeper: on Windows since the recovery acceptance passed there
-/// (`proposals/platform/host-handover.md`, decision 65); macOS joins with H5's M9. Development builds
-/// follow it, so a development Session never runs a Keeper that release builds do not.
-const IN_RELEASE_BUILDS: bool = cfg!(windows);
+/// (`proposals/platform/host-handover.md`, decision 65), and on macOS since the H5 acceptance passed
+/// on the real Mac (decision 92). Development builds follow it, so a development Session never runs
+/// a Keeper that release builds do not.
+const IN_RELEASE_BUILDS: bool = cfg!(any(windows, target_os = "macos"));
 
 /// Whether this build runs the Keeper. Test builds always do, so tests and acceptance runs drive
 /// it; release and development builds do while `IN_RELEASE_BUILDS` is set. It is a constant
@@ -88,7 +89,8 @@ pub const fn keeper_live() -> bool {
 }
 
 /// Whether release builds move terminals between Hosts: true since the H3 and H4 acceptance passed
-/// on real Windows (`proposals/platform/host-handover.md`, H4 design). Development builds follow it.
+/// on real Windows (`proposals/platform/host-handover.md`, H4 design), and on macOS wherever the
+/// Keeper runs, since the H5 acceptance passed there. Development builds follow it.
 const MOVES_IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build moves terminals from an older Host to its Worker's own. Test builds always

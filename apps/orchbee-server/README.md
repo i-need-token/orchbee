@@ -358,8 +358,7 @@ the Worker is proven gone, unless a stop is admitted; `Serving` once a replaceme
 On Windows and macOS a replacement that serves, and a Server that [adopted](#cold-adoption) its
 predecessor's Hosts, sends its Worker a move turn every 2 seconds from its own thread, on the lane
 behind every person's request ([H3 design](../../proposals/platform/host-handover.md#h3-design)); a
-Worker that moves nothing, on macOS any but a test build until H5's M9, answers the first turn
-`Done`. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
+Worker that moves nothing answers the first turn `Done`. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
 keeping its operation, fence and lease, so titles and every fact read through it follow; a binding
 closed meanwhile changes nothing. The binding record is written before and right after every turn,
 so it names each Host a turn started and each terminal it moved: a Server that ends between turns

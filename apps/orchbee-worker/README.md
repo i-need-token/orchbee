@@ -384,8 +384,7 @@ as moving first resumes the copy through the Keeper, which answers `claimed-else
 
 On Windows and macOS the managed Worker cares for the Session's Keeper between Server requests,
 never under a prepared handoff: first right after the answer that admitted its Host, then every two
-seconds. A macOS Worker runs it only where its build runs the Keeper, a test build until H5's M9,
-and there offers its Hosts `keeper` and `recovery` as on Windows. A Host that offers both `keeper`
+seconds, and offers its Hosts `keeper` and `recovery`. A Host that offers both `keeper`
 and `recovery` and has no Keeper gets one: the Worker starts it, registers the Host with it and has the
 Host attach it, so the Host holds each running terminal there. A Windows Host without `recovery`,
 such as one on the system ConHost, gets none, since no Host could take a kept program back. A
