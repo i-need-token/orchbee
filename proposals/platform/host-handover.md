@@ -1591,7 +1591,9 @@ marked Chosen, which the owner may veto, or Rule.
 - Rule 14 holds: at a security floor, the confirmation names the terminals that cannot move.
 - Chosen: each Host in `status server`'s `restart.hosts` adds `terminals`, the count it runs, and
   `moves`: true when the active release moves terminals and its Worker adopts that Host, which
-  needs a shared `worker-host` generation. The text output names a Host whose terminals stay.
+  needs a shared `worker-host` generation. A Host that offers no `handover` still keeps its
+  terminals, since a query lists capabilities for the answering Server alone; the count read after
+  the restart catches them. The text output names a Host whose terminals stay.
 - Chosen: a click asks before the restart only for a `required` Host that does not move. Otherwise
   it restarts; then, while a `required` Host still runs terminals, it reads `status server` every 2
   seconds until that count has not changed for 6 seconds, since each turn moves one idle terminal,
@@ -1606,7 +1608,10 @@ marked Chosen, which the owner may veto, or Rule.
 - From H4, a path whose new release ships another Terminal Host build also checks that the
   Session's Keeper process changed and runs the new release's program, that the probe's terminal
   moved to the new release's Host with its program's process id and its numbers intact, and that the
-  old Host and the old Keeper exited. A path from a release whose Host predates H1 keeps P1c's check.
+  old Host and the old Keeper exited. A path from a release whose Host offers no `handover`
+  (0.1.0-beta.22 and earlier) keeps P1c's check, as does one whose new release moves no terminals.
+- Chosen: the gate finds Keepers by program folder and their `keep` command line, since `status
+server` lists no Keeper, and gives the move and the exits 120 seconds.
 
 ### H4 slices
 
@@ -1614,7 +1619,7 @@ marked Chosen, which the owner may veto, or Rule.
 | ----- | -------------------------------------------------------------------------------------------------------------------- | ------ |
 | S1    | The Keeper update: the second slot, the steps, rollback and retries, adoption and stop with two Keepers, diagnostics | Built  |
 | S2    | The confirmation reduced to terminals that cannot move, and `status server`'s `terminals` and `moves`                | Built  |
-| S3    | The release gate's H4 checks                                                                                         | Open   |
+| S3    | The release gate's H4 checks                                                                                         | Built  |
 | S4    | The [H3 and H4 acceptance](#acceptance) on real Windows, and `moves_live` turned on in release builds                | Open   |
 
 ## B1 design

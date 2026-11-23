@@ -118,8 +118,8 @@ with reason `runtime-absent` or `endpoint-absent`, or `running` with `restartKee
 gives the Session's Server and Worker (`none`, `recommended` or `required`), and in `hosts` each
 Host's own tier by process ID, the `terminals` it runs, and `moves`: whether that version's Worker
 moves those terminals to its own Host, since that version moves terminals and its Worker shares a
-`worker-host` generation with the Host; text names each `required` Host whose terminals do not
-move. `doctor` carries the same member in its Session check, and text
+`worker-host` generation with the Host (a Host that offers no `handover` keeps them all the same);
+text names each `required` Host whose terminals do not move. `doctor` carries the same member in its Session check, and text
 labels it Restart for the update. A `not-running` Session the automatic update's idle move ended carries `movedTo`, the
 installed version it moved to, which the next start runs; a person's stop or a crash carries none. On Windows the scope is the Session name, the name of its runtime folder, and the read
 does not activate a missing named Session.

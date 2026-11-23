@@ -67,7 +67,11 @@
 //   Server by its process id and the new Client starts the Session, adopting the probe's Host cold;
 //   either way the new release's Server must serve the Session, the probe must go on as the same
 //   process, the new Client must read its newer lines, and the layout must stay, before the probe is
-//   told to end. The record must hold one process id and the numbers from 1 without a gap. A failure names the stage, prints
+//   told to end. From an older release whose Host offers `handover`, when the new release's
+//   `status server` says its Worker moves that Host's terminals, the probe's terminal must also move
+//   to the new release's Host, the older Hosts and Keepers must exit, and one Keeper must run the new
+//   release's Terminal Host program, found by its `keep` command line; the probe then goes on as
+//   before. The record must hold one process id and the numbers from 1 without a gap. A failure names the stage, prints
 //   the probe record's last line and the diagnostic log's tail, and says not to publish. A test
 //   build's Session is stopped at the end; a release build's stays for the discarded runner.
 // - window-update: the real-window Update check (scripts/release-window-update.mjs) of a packaged
@@ -851,6 +855,11 @@ const windowsPort = {
 		send(['send', terminal, '--text', line, '--enter'], 'terminal send');
 		return terminal;
 	},
+	// The Session's Keepers that run version `version`'s Terminal Host program: `keep` starts one.
+	keepers: (storeRoot, version) =>
+		processesIn(path.join(storeRoot, 'versions', version)).filter(({ commandLine }) =>
+			/\skeep\s/u.test(commandLine),
+		),
 	finishGateSession({ sessionStarted, stem, olderClient, newClient, olderEnv }) {
 		// A test build's Session ends here; a release build asks a person to type its name, and the
 		// gate's runner is discarded after the path.
@@ -861,8 +870,8 @@ const windowsPort = {
 	},
 };
 
-// Every process whose program lies in the folder WINDOW_UPDATE_WORK names, as JSON.
-const processScript = `$work = $env:WINDOW_UPDATE_WORK.TrimEnd('\\') + '\\'
+// Every process whose program lies in the folder PROCESS_FOLDER names, as JSON.
+const processScript = `$work = $env:PROCESS_FOLDER.TrimEnd('\\') + '\\'
 $found = @(Get-CimInstance Win32_Process | Where-Object {
 	$_.ExecutablePath -and $_.ExecutablePath.StartsWith($work, [StringComparison]::OrdinalIgnoreCase)
 } | ForEach-Object { @{ pid = $_.ProcessId; program = $_.ExecutablePath; commandLine = [string]$_.CommandLine } })
@@ -874,28 +883,7 @@ ConvertTo-Json -Compress -InputObject $found`;
  * `<stem>-desktop-launcher.exe` or the entry `desktop\<stem>-desktop.exe`.
  */
 function windowProcesses(work) {
-	const result = spawnSync(
-		system32(path.join('WindowsPowerShell', 'v1.0', 'powershell.exe')),
-		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', processScript],
-		{
-			encoding: 'utf8',
-			// Windows PowerShell 5.1 started from PowerShell 7 needs its own module folder for CIM.
-			env: {
-				...process.env,
-				PSModulePath: system32(path.join('WindowsPowerShell', 'v1.0', 'Modules')),
-				WINDOW_UPDATE_WORK: work,
-			},
-			stdio: ['ignore', 'pipe', 'pipe'],
-			timeout: commandDeadline,
-			windowsHide: true,
-		},
-	);
-	if (result.error !== undefined || result.status !== 0)
-		throw new StepFailure(
-			`The process list failed: ${result.error?.message ?? `${result.stderr}`.trim()}`,
-		);
-	const listed = result.stdout.trim() === '' ? [] : JSON.parse(result.stdout);
-	return listed.map(({ pid, program, commandLine }) => {
+	return processesIn(work).map(({ pid, program, commandLine }) => {
 		const folder = path.dirname(program);
 		const name = path.basename(program).toLowerCase();
 		return {
@@ -950,6 +938,33 @@ const windowUpdatePort = {
 	}),
 	processes: windowProcesses,
 };
+
+/** Every process whose program lies in `folder`, with its program path and command line. */
+function processesIn(folder) {
+	// The long form, as the process list reports program paths.
+	const long = existsSync(folder) ? realpathSync.native(folder) : folder;
+	const result = spawnSync(
+		system32(path.join('WindowsPowerShell', 'v1.0', 'powershell.exe')),
+		['-NoLogo', '-NoProfile', '-NonInteractive', '-Command', processScript],
+		{
+			encoding: 'utf8',
+			// Windows PowerShell 5.1 started from PowerShell 7 needs its own module folder for CIM.
+			env: {
+				...process.env,
+				PSModulePath: system32(path.join('WindowsPowerShell', 'v1.0', 'Modules')),
+				PROCESS_FOLDER: long,
+			},
+			stdio: ['ignore', 'pipe', 'pipe'],
+			timeout: commandDeadline,
+			windowsHide: true,
+		},
+	);
+	if (result.error !== undefined || result.status !== 0)
+		throw new StepFailure(
+			`The process list failed: ${result.error?.message ?? `${result.stderr}`.trim()}`,
+		);
+	return result.stdout.trim() === '' ? [] : JSON.parse(result.stdout);
+}
 
 function parseArguments(argv) {
 	const [step, artifacts, ...rest] = argv;

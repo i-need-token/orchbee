@@ -36,7 +36,8 @@ pub(in crate::cli) struct Restart {
 
 /// One Terminal Host's own tier, the terminals it runs, and whether the active version's Worker
 /// moves them to its own Host: that version moves terminals, and its Worker shares a `worker-host`
-/// generation with the Host, so it adopts it.
+/// generation with the Host, so it adopts it. A Host that offers no `handover` keeps them all the
+/// same, since a query lists capabilities for the answering Server alone.
 #[derive(Debug, Eq, PartialEq)]
 pub(in crate::cli) struct HostRestart {
     pub(in crate::cli) pid: NonZeroU32,

@@ -70,6 +70,12 @@ const probeLimit = 18_000;
 const probeLine = /probe-(\d+)-(\d+)/gu;
 // `server restart` ends within its own 150 seconds.
 const restartDeadline = 180_000;
+// The first release whose Terminal Host offers `handover` (proposals/platform/host-handover.md, H1):
+// a path from it on whose new release moves terminals also checks the move (see `handoverStart`).
+const handoverSince = '0.1.0-beta.23';
+// The new Worker updates the Keeper, then moves one idle terminal every two seconds, and an older
+// Host left without a terminal and its retired Keeper then exit.
+const handoverDeadline = 120_000;
 // How the Session reaches the new release on a gate path; see `gatePathModes`.
 const gateModes = ['move', 'restart', 'adopt'];
 // Release builds support `--installer-window-v1` and window self-updates from 0.1.0-beta.14 on.
@@ -916,7 +922,18 @@ export function runGatePath(options, progress, port, usage) {
 		log(`The Client of ${version} joined and reads probe line ${shown.at(-1)[2]}.`);
 
 		if (options.mode !== 'move') {
-			keepProbeAcross({ options, progress, server, newClient, env, record, terminal, pid });
+			keepProbeAcross({
+				options,
+				progress,
+				port,
+				storeRoot,
+				server,
+				newClient,
+				env,
+				record,
+				terminal,
+				pid,
+			});
 		}
 
 		progress.stage = 'ending the probe';
@@ -988,11 +1005,24 @@ export function runGatePath(options, progress, port, usage) {
  * Host cold. No shipped command sends the Server's `exit` while a terminal runs, and both ends leave
  * the Host to the same adoption. Either way the new release's Server must serve the Session, the
  * probe must go on as the same process without a gap, the new Client must read its newer lines, and
- * the Workspaces and Tabs must stay.
+ * the Workspaces and Tabs must stay. When the new release moves the probe's terminal off its Host,
+ * the move is checked as well (see `expectHandover`).
  */
-function keepProbeAcross({ options, progress, server, newClient, env, record, terminal, pid }) {
+function keepProbeAcross({
+	options,
+	progress,
+	port,
+	storeRoot,
+	server,
+	newClient,
+	env,
+	record,
+	terminal,
+	pid,
+}) {
 	const { older, version } = options;
 	const layout = layoutOf(newClient, env);
+	const handover = handoverStart({ options, port, storeRoot, newClient, env });
 	const before = probeRecord(record).length;
 	if (options.mode === 'restart') {
 		progress.stage = `restarting the Session with ${version} while the probe runs`;
@@ -1029,12 +1059,45 @@ function keepProbeAcross({ options, progress, server, newClient, env, record, te
 	log(`The Session's Server runs ${version} as process ${moved.processId}.`);
 
 	progress.stage = 'checking that the probe kept running';
+	const went = expectProbeGoesOn({ newClient, env, record, terminal, pid, before, version });
+	const after = layoutOf(newClient, env);
+	if (after !== layout)
+		throw new StepFailure(
+			`The layout changed across the change:\n  before ${layout}\n  after  ${after}`,
+		);
+	log(
+		`The probe went on from line ${before} to ${went.last} as process ${pid}, and the Client of ${version} reads line ${went.read}; the layout is unchanged.`,
+	);
+	if (handover !== undefined) {
+		expectHandover({ options, progress, port, storeRoot, newClient, env, handover });
+		progress.stage = 'checking that the probe kept running across its move';
+		const settled = probeRecord(record).length;
+		const across = expectProbeGoesOn({
+			newClient,
+			env,
+			record,
+			terminal,
+			pid,
+			before: settled,
+			version,
+		});
+		log(
+			`The probe went on from line ${settled} to ${across.last} as process ${pid} on the Host of ${version}, and its Client reads line ${across.read}.`,
+		);
+	}
+}
+
+/**
+ * Waits for two more seconds of probe lines after line `before`, which prove the probe outlived
+ * what came before, then checks that it still runs as process `pid` without a gap and that the
+ * Client of `version` reads a line after `before`. Answers the probe's last line and the line read.
+ */
+function expectProbeGoesOn({ newClient, env, record, terminal, pid, before, version }) {
 	const checking = Date.now();
-	// Two more seconds of lines prove the probe outlived the change.
 	while (probeRecord(record).length < before + 20) {
 		if (Date.now() - checking >= terminalDeadline)
 			throw new StepFailure(
-				`The probe wrote no new line within ${terminalDeadline} ms of the Session's change`,
+				`The probe wrote no line after line ${before} within ${terminalDeadline} ms`,
 			);
 		sleep(terminalPoll);
 	}
@@ -1048,7 +1111,7 @@ function keepProbeAcross({ options, progress, server, newClient, env, record, te
 		{ deadline: commandDeadline, quiet: true },
 	);
 	if (read.status !== 0)
-		throw new StepFailure(`terminal read after the change exited ${read.status}`);
+		throw new StepFailure(`terminal read after line ${before} exited ${read.status}`);
 	const shown = [...String(read.document?.result?.content?.text ?? '').matchAll(probeLine)];
 	if (
 		shown.length === 0 ||
@@ -1058,14 +1121,81 @@ function keepProbeAcross({ options, progress, server, newClient, env, record, te
 		throw new StepFailure(
 			`The Client of ${version} does not read the probe's lines after line ${before} from process ${pid}`,
 		);
-	const after = layoutOf(newClient, env);
-	if (after !== layout)
-		throw new StepFailure(
-			`The layout changed across the change:\n  before ${layout}\n  after  ${after}`,
-		);
-	log(
-		`The probe went on from line ${before} to ${facts.last} as process ${pid}, and the Client of ${version} reads line ${shown.at(-1)[2]}; the layout is unchanged.`,
-	);
+	return { last: facts.last, read: Number(shown.at(-1)[2]) };
+}
+
+/**
+ * What H4's checks of a gate path start from (proposals/platform/host-handover.md, H4 design): when
+ * the older release's Host offers `handover` and the new release's `status server` says its Worker
+ * moves that Host's terminals, the processes of the older Hosts and of the Session's Keepers from
+ * the older release, which must exit once the probe moved. Otherwise `undefined`: the path keeps
+ * P1c's check, as one from a release before `handoverSince` does, or one whose new release does
+ * not move terminals yet.
+ */
+function handoverStart({ options, port, storeRoot, newClient, env }) {
+	if (port.keepers === undefined || compareVersions(options.older, handoverSince) < 0)
+		return undefined;
+	const status = runDocument(newClient, ['status', 'server'], env, {
+		deadline: commandDeadline,
+		quiet: true,
+	});
+	if (status.status !== 0)
+		throw new StepFailure(`status server before the change exited ${status.status}`);
+	const hosts = status.document?.result?.server?.restart?.hosts ?? [];
+	if (!hosts.some((host) => host.moves === true)) return undefined;
+	return {
+		hosts: hosts.map((host) => host.processId),
+		keepers: port.keepers(storeRoot, options.older).map((keeper) => keeper.pid),
+	};
+}
+
+/**
+ * H4's checks once the Session runs the new release: the older Hosts and the older release's
+ * Keepers exited, one Keeper runs the new release's program, and every Host the Session lists is
+ * the new release's, with the probe's terminal on it.
+ */
+function expectHandover({ options, progress, port, storeRoot, newClient, env, handover }) {
+	const { older, version } = options;
+	progress.stage = `waiting for the probe to move to the Host of ${version} and the processes of ${older} to exit`;
+	const began = Date.now();
+	for (;;) {
+		const status = runDocument(newClient, ['status', 'server'], env, {
+			deadline: commandDeadline,
+			quiet: true,
+		});
+		const hosts = (status.document?.result?.server?.processes ?? [])
+			.filter((each) => each.role === 'terminal-host')
+			.map(({ processId, terminals, version: hostVersion }) => ({
+				processId,
+				terminals,
+				version: hostVersion,
+			}));
+		const facts = {
+			olderHosts: handover.hosts.filter((each) => processExists(each)),
+			olderKeepers: handover.keepers.filter((each) => processExists(each)),
+			keepers: port.keepers(storeRoot, version).map((keeper) => keeper.pid),
+			hosts,
+		};
+		if (
+			status.status === 0 &&
+			facts.olderHosts.length === 0 &&
+			facts.olderKeepers.length === 0 &&
+			facts.keepers.length === 1 &&
+			hosts.length > 0 &&
+			hosts.every((host) => host.version === version) &&
+			hosts.some((host) => host.terminals > 0)
+		) {
+			log(
+				`The probe's terminal moved to the Host of ${version}, Keeper ${facts.keepers[0]} runs ${version}, and the Hosts ${handover.hosts.join(', ')} and Keepers ${handover.keepers.join(', ') || 'none'} of ${older} exited.`,
+			);
+			return;
+		}
+		if (Date.now() - began >= handoverDeadline)
+			throw new StepFailure(
+				`The probe's terminal did not move to the Host of ${version}, or the processes of ${older} did not exit, within ${handoverDeadline} ms: ${JSON.stringify(facts)}`,
+			);
+		sleep(terminalPoll);
+	}
 }
 
 /** What the owner must do after a failed update check: the channel must not move. */
