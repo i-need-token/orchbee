@@ -212,7 +212,7 @@ fn serve_until_adopted(
                     generation,
                 };
                 if target.slots().is_empty() {
-                    return adoption.no_host();
+                    return adoption.no_host(Vec::new());
                 }
                 let correlation = CorrelationId::from_bytes(key.adoption_id.as_bytes())?;
                 #[cfg(windows)]
@@ -239,9 +239,15 @@ fn serve_until_adopted(
                         &mut keeper,
                         &bindings,
                     ) {
-                        Ok(adopted) => found.push(adopted),
+                        Ok(Some(adopted)) => found.push(adopted),
+                        Ok(None) => {}
                         Err(failed) => return Err(adoption.fail(failed)),
                     }
+                }
+                // Every Host the target named ended on its own, and with it every terminal.
+                if found.is_empty() {
+                    let missing = bindings.iter().map(|binding| binding.terminal_id).collect();
+                    return adoption.no_host(missing);
                 }
                 return adoption.import(
                     found,
@@ -255,7 +261,9 @@ fn serve_until_adopted(
 }
 
 /// Adopts the Host in one slot of the target, or on Windows recovers the terminals of one that
-/// ended into a recovery Host this Worker starts in that slot.
+/// ended into a recovery Host this Worker starts in that slot. `None` on Windows names a Host that
+/// refused this Worker as `stopping` and then ended: it drained or stopped on its own, and its slot
+/// is freed.
 fn adopt_slot(
     slot: &orchbee_capability_node_protocol::AdoptHostSlot,
     cohort: &Cohort,
@@ -263,7 +271,7 @@ fn adopt_slot(
     channel: host::Channel<'_>,
     #[cfg(windows)] keeper: &mut KeeperAdoption<'_>,
     bindings: &[orchbee_capability_node_protocol::AdoptBinding],
-) -> Result<Found, host::Failed> {
+) -> Result<Option<Found>, host::Failed> {
     #[cfg(not(windows))]
     let _ = bindings;
     let refused = |error: &str| host::Failed {
@@ -284,8 +292,16 @@ fn adopt_slot(
     let keeper_channel = (channel.server, channel.correlation, channel.deadline);
     let found = match slot.kind {
         AdoptHostKind::Host { process } => {
-            host::adopt(runtime, host_slot, process, slot.epoch, channel)
-                .map(|found| Found::adopted(host_slot, found))
+            match host::adopt(runtime, host_slot, process, slot.epoch, channel) {
+                #[cfg(windows)]
+                Err(failed)
+                    if failed.error.is::<crate::host_connection::HostStopping>()
+                        && ended_on_its_own(runtime, host_slot, process, keeper_channel.2) =>
+                {
+                    return Ok(None);
+                }
+                adopted => adopted.map(|found| Found::adopted(host_slot, found)),
+            }
         }
         #[cfg(windows)]
         AdoptHostKind::Recovery => {
@@ -323,10 +339,39 @@ fn adopt_slot(
     }?;
     #[cfg(windows)]
     if matches!(slot.kind, AdoptHostKind::Host { .. }) {
-        return with_keeper(found, keeper, keeper_channel, bindings);
+        return with_keeper(found, keeper, keeper_channel, bindings).map(Some);
     }
-    Ok(found)
+    Ok(Some(found))
 }
+
+/// Frees `slot` of a Host that refused this Worker as `stopping` once its process ended within
+/// [`ENDED_BOUND`] and `deadline`: the Worker before drained it, or it stopped, and no Worker can
+/// reach its terminals any more.
+#[cfg(windows)]
+fn ended_on_its_own(
+    runtime: &Path,
+    slot: HostSlot,
+    process: Option<orchbee_capability_node_protocol::AdoptHostProcess>,
+    deadline: Instant,
+) -> bool {
+    let Some(process) = process else {
+        return false;
+    };
+    if !host::ended_before(process, deadline.min(Instant::now() + ENDED_BOUND)) {
+        return false;
+    }
+    let released = host::release_slot(
+        runtime,
+        slot,
+        (process.process_id.get(), process.creation_time.get()),
+    );
+    crate::diagnostic_events::host_drained(slot.index(), released);
+    true
+}
+
+/// How long an adoption waits for a Host that refused it as `stopping` to end.
+#[cfg(windows)]
+const ENDED_BOUND: Duration = Duration::from_secs(2);
 
 /// What an adoption imports from one slot: the Host, how this Worker owns it, and the Host's
 /// complete inventory.
@@ -461,7 +506,11 @@ struct Adoption<'a> {
 }
 
 impl Adoption<'_> {
-    fn no_host(self) -> Result<Phase, Box<dyn Error>> {
+    /// Answers an adoption that leaves no Host, with `missing` the bindings whose Host ended.
+    fn no_host(
+        self,
+        missing: Vec<orchbee_capability_node_protocol::TerminalId>,
+    ) -> Result<Phase, Box<dyn Error>> {
         let _no_host = answer(
             self.server,
             None,
@@ -469,7 +518,7 @@ impl Adoption<'_> {
             AdoptHostOutcome::Adopted {
                 imported: 0,
                 quarantined: 0,
-                missing: Vec::new(),
+                missing,
             },
         )?;
         crate::diagnostic_events::adoption(self.record("no-host", "adopted", 0));

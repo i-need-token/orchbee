@@ -94,7 +94,8 @@ pub(crate) fn source_commit() -> Option<SourceCommit> {
 /// # Errors
 ///
 /// Returns an error for a Host that predates the handshake, refuses this Worker for any reason
-/// but `capacity`, answers outside the offer, or fails the stream other than by closing.
+/// but `capacity`, answers outside the offer, or fails the stream other than by closing; a
+/// `stopping` refusal is [`HostStopping`].
 pub(super) fn exchange(
     stream: &mut (impl Read + Write),
     offer: &Offer,
@@ -131,6 +132,9 @@ pub(super) fn exchange(
         Err(OfferFailure::Rejected(rejection)) if rejection.reason == RejectionReason::Capacity => {
             Ok(Outcome::Busy)
         }
+        Err(OfferFailure::Rejected(rejection)) if rejection.reason == RejectionReason::Stopping => {
+            Err(Box::new(HostStopping))
+        }
         Err(OfferFailure::Rejected(rejection)) => Err(refused(&format!(
             "Terminal Host refused the Worker connection: {}",
             rejection.reason.as_str()
@@ -140,6 +144,18 @@ pub(super) fn exchange(
         )),
     }
 }
+
+/// A Host refused this Worker as `stopping`: it drains or stops, and takes no Worker again.
+#[derive(Debug)]
+pub(crate) struct HostStopping;
+
+impl std::fmt::Display for HostStopping {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("Terminal Host refused the Worker connection: stopping")
+    }
+}
+
+impl Error for HostStopping {}
 
 /// The error for a Host that stayed busy until the caller's deadline.
 pub(super) fn still_busy() -> Box<dyn Error> {

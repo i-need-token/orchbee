@@ -238,6 +238,33 @@ pub(crate) fn release_slot(
         .is_ok()
 }
 
+/// Whether the Host process `process` names ended, or ends before `deadline`. One that can no
+/// longer be opened, or whose ID names a later process, ended.
+#[cfg(windows)]
+pub(crate) fn ended_before(process: AdoptHostProcess, deadline: Instant) -> bool {
+    use winsafe::{HPROCESS, co};
+    let handle = match HPROCESS::OpenProcess(
+        co::PROCESS::QUERY_LIMITED_INFORMATION | co::PROCESS::SYNCHRONIZE,
+        false,
+        process.process_id.get(),
+    ) {
+        Ok(handle) => handle,
+        Err(error) => return error == co::ERROR::INVALID_PARAMETER,
+    };
+    if handle
+        .GetProcessTimes()
+        .is_ok_and(|(creation, ..)| u64::from(creation) != process.creation_time.get())
+    {
+        return true;
+    }
+    let wait = deadline.saturating_duration_since(Instant::now());
+    let milliseconds = u32::try_from(wait.as_millis()).unwrap_or(u32::MAX);
+    matches!(
+        handle.WaitForSingleObject(Some(milliseconds)),
+        Ok(co::WAIT::OBJECT_0)
+    )
+}
+
 /// How long writing a Host's epoch into the Session record may wait for the record's writer lock.
 #[cfg(windows)]
 const EPOCH_RECORD_BUDGET: Duration = Duration::from_secs(1);

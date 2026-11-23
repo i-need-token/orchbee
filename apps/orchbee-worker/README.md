@@ -299,6 +299,25 @@ inventories, forces and disposes every Host terminal, then waits for each adopte
 Windows on the retained process handle, and on macOS and Linux until the Host lock is free. `exit`
 releases each Host as for a started one.
 
+A failure is answered, then ends the Worker with an `exited` record at site `adopt`. No process with
+the recorded ID, or a free Host lock, is `host-gone`; a failed dial, a missing endpoint or a Host
+still busy after five seconds is `host-unreachable`; another creation time, another pipe server
+process, no recorded process on Windows, a foreign endpoint or a refused peer user is
+`host-unverified`; another epoch is `host-mismatch`; a handshake refusal for any reason but capacity
+is `host-refused`; and an inventory that cannot be read, never stays the same, or cannot be imported
+is `inventory-failed`. Host gone and unreachable record reason `host-closed`, the others
+`host-protocol`.
+
+On Windows a Host that refuses the dial with `stopping` drains or stops on its own: once its
+process ends within two seconds the Worker frees its slot, records `host-drained`, and adopts the
+other slots without it, so that Host's bindings are reported missing. When no slot is left, the
+target is answered as one with no slot, with every binding missing.
+
+A real Windows Host witness in `src/terminal_host_operation/tests.rs` starts a terminal through one
+connection, drops it, adopts the Host with a second, imports the terminal and has it answer. Kernel
+tests in `src/terminal_authorization/import/tests.rs` cover the fence floor, Close receipts,
+quarantine and missing bindings. The macOS and Linux verification has no Host witness yet.
+
 ## Several Hosts
 
 On Windows one Worker can hold a Host in each of the Session's four slots: its own Host, which runs
@@ -320,20 +339,6 @@ new and ends; its end is normal, the Worker drops it and, once its process exite
 in the Session record. A stop that disposes ends every Host in turn, counting the terminals of all;
 the first Host that does not stop answers the attempt, and a later attempt finds the stopped ones
 stopped. The outcome names the own Host's epoch, or the first Host's. `exit` releases every Host.
-
-A failure is answered, then ends the Worker with an `exited` record at site `adopt`. No process with
-the recorded ID, or a free Host lock, is `host-gone`; a failed dial, a missing endpoint or a Host
-still busy after five seconds is `host-unreachable`; another creation time, another pipe server
-process, no recorded process on Windows, a foreign endpoint or a refused peer user is
-`host-unverified`; another epoch is `host-mismatch`; a handshake refusal for any reason but capacity
-is `host-refused`; and an inventory that cannot be read, never stays the same, or cannot be imported
-is `inventory-failed`. Host gone and unreachable record reason `host-closed`, the others
-`host-protocol`.
-
-A real Windows Host witness in `src/terminal_host_operation/tests.rs` starts a terminal through one
-connection, drops it, adopts the Host with a second, imports the terminal and has it answer. Kernel
-tests in `src/terminal_authorization/import/tests.rs` cover the fence floor, Close receipts,
-quarantine and missing bindings. The macOS and Linux verification has no Host witness yet.
 
 ## The Session's Keeper
 

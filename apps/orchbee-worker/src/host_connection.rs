@@ -39,7 +39,7 @@ mod exchange;
 mod host_colors;
 mod offer;
 #[cfg(windows)]
-pub(crate) use offer::source_commit;
+pub(crate) use offer::{HostStopping, source_commit};
 mod pacing;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod process_query;
