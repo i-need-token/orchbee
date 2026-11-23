@@ -90,7 +90,6 @@ impl<'a> HostExchange<'a> {
     /// An exchange between Server requests, with at most `budget`. The Server may send its next
     /// request meanwhile, which waits in its stream until this exchange ends, so that stream is not
     /// watched; the caller starts that request's bound no later than this exchange began.
-    #[cfg(windows)]
     pub(crate) fn between_requests(
         host: &'a HostBrokerConnection,
         budget: Duration,
@@ -436,7 +435,6 @@ pub(crate) fn exchange(
 
 /// [`exchange`] between Server requests, within `budget`, as
 /// [`HostExchange::between_requests`] runs it.
-#[cfg(windows)]
 pub(crate) fn exchange_between_requests(
     host: &HostBrokerConnection,
     correlation: CorrelationId,

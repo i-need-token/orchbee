@@ -292,10 +292,12 @@ pub enum PluginJobOutcome {
     Cancellation {
         already_complete: bool,
     },
-    /// The plugin jobs and configured commands still running when the Worker answered.
+    /// The plugin jobs and configured commands the Worker itself still ran when it answered, and
+    /// apart the background programs its Terminal Host runs for it, which outlive the Worker.
     Running {
         plugin_jobs: u8,
         configured_commands: u8,
+        host_programs: u8,
     },
     Refused(PluginJobRefusal),
 }

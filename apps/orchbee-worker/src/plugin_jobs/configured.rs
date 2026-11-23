@@ -1,5 +1,6 @@
-//! Configured jobs have their own receipt identity; they never enter plugin history.
-use super::{Inner, MAX_LOGS, MAX_RUNNING, Outcome, Refusal, running};
+//! Configured jobs have their own receipt identity; they never enter plugin history. The Worker
+//! runs one itself, or its Terminal Host runs it as a background program.
+use super::{Fingerprint, Inner, MAX_LOGS, MAX_RUNNING, Outcome, Refusal, running};
 use orchbee_capability_node_protocol::{ConfiguredCommandIntent, OperationId};
 use orchbee_local_runtime::{CommandChild, CommandSpawnFailure};
 use std::{
@@ -21,13 +22,26 @@ const SPAWN_CONFIRMATION_TIMEOUT: Duration = Duration::from_secs(5);
 pub(super) struct Record {
     pub(super) id: OperationId,
     accepted: bool,
-    intent: ConfiguredCommandIntent,
-    cancel: Arc<AtomicBool>,
-    join: Option<JoinHandle<bool>>,
+    /// The fingerprint of the intent that started it.
+    fingerprint: u64,
+    owner: Owner,
+}
+enum Owner {
+    Worker {
+        cancel: Arc<AtomicBool>,
+        join: Option<JoinHandle<bool>>,
+    },
+    /// The Terminal Host runs it, until the Host reports its exit.
+    Host { running: bool },
 }
 impl Record {
+    /// Whether the Worker itself still runs it.
     pub(super) fn running(&self) -> bool {
-        self.join.is_some()
+        matches!(&self.owner, Owner::Worker { join: Some(_), .. })
+    }
+    /// Whether the Terminal Host still runs it.
+    pub(super) fn hosted(&self) -> bool {
+        matches!(self.owner, Owner::Host { running: true })
     }
 }
 pub(super) fn start(
@@ -36,6 +50,94 @@ pub(super) fn start(
     intent: ConfiguredCommandIntent,
 ) -> Outcome {
     start_with(inner, id, intent, SPAWN_CONFIRMATION_TIMEOUT, run)
+}
+
+/// The fingerprint of a start this Worker admits as a new command, or the answer to one it does
+/// not: a repeat of an earlier start, an identity in use, or no room to start one.
+pub(super) fn admission(
+    inner: &Inner,
+    id: OperationId,
+    intent: &ConfiguredCommandIntent,
+) -> Result<u64, Outcome> {
+    let fingerprint = Fingerprint::new()
+        .field(intent.command_id.as_bytes())
+        .field(intent.directory.as_bytes())
+        .field(intent.command.as_bytes())
+        .variables(&intent.environment)
+        .get();
+    if let Some(record) = inner.commands.iter().find(|r| r.id == id) {
+        return Err(if record.fingerprint != fingerprint {
+            Outcome::Refused(Refusal::Conflict)
+        } else if record.accepted {
+            Outcome::ConfiguredStarted {
+                job_id: id,
+                existing: true,
+            }
+        } else {
+            Outcome::Refused(if inner.retired {
+                Refusal::PhysicalUnknown
+            } else {
+                Refusal::Unavailable
+            })
+        });
+    }
+    // Operation identities cannot alias across either kind of process.
+    if inner.records.iter().any(|r| r.log.job_id == id) {
+        return Err(Outcome::Refused(Refusal::Conflict));
+    }
+    if inner.retired {
+        return Err(Outcome::Refused(Refusal::PhysicalUnknown));
+    }
+    if inner.stopping {
+        return Err(Outcome::Refused(Refusal::Unavailable));
+    }
+    if running(inner) >= MAX_RUNNING {
+        return Err(Outcome::Refused(Refusal::Busy));
+    }
+    Ok(fingerprint)
+}
+
+/// Retains a command's record, making room by dropping the oldest finished one.
+fn retain(inner: &mut Inner, record: Record) {
+    if inner.commands.len() == MAX_LOGS {
+        let index = inner
+            .commands
+            .iter()
+            .position(|r| !r.running() && !r.hosted())
+            .expect("bounded running jobs");
+        inner.commands.remove(index);
+    }
+    inner.commands.push(record);
+}
+
+/// Records a command the Terminal Host runs: started now, or one a replacement Worker found.
+pub(super) fn admit_hosted(inner: &mut Inner, id: OperationId, fingerprint: u64) {
+    retain(
+        inner,
+        Record {
+            id,
+            accepted: true,
+            fingerprint,
+            owner: Owner::Host { running: true },
+        },
+    );
+}
+
+/// Records that the Host's program ended, when it ran a configured command.
+pub(super) fn finish_hosted(inner: &mut Inner, program: orchbee_terminal_protocol::ProgramId) {
+    for record in &mut inner.commands {
+        if record.id.as_bytes() == program
+            && let Owner::Host { running } = &mut record.owner
+        {
+            *running = false;
+        }
+    }
+}
+
+/// The absolute path of the command processor a configured command runs in, on Windows, where a
+/// Terminal Host runs background programs.
+pub(super) fn command_processor() -> Option<String> {
+    shell::processor()
 }
 
 fn start_with(
@@ -47,37 +149,10 @@ fn start_with(
     + Send
     + 'static,
 ) -> Outcome {
-    if let Some(record) = inner.commands.iter().find(|r| r.id == id) {
-        return if record.intent == intent {
-            if record.accepted {
-                Outcome::ConfiguredStarted {
-                    job_id: id,
-                    existing: true,
-                }
-            } else {
-                Outcome::Refused(if inner.retired {
-                    Refusal::PhysicalUnknown
-                } else {
-                    Refusal::Unavailable
-                })
-            }
-        } else {
-            Outcome::Refused(Refusal::Conflict)
-        };
-    }
-    // Operation identities cannot alias across either kind of process.
-    if inner.records.iter().any(|r| r.log.job_id == id) {
-        return Outcome::Refused(Refusal::Conflict);
-    }
-    if inner.retired {
-        return Outcome::Refused(Refusal::PhysicalUnknown);
-    }
-    if inner.stopping {
-        return Outcome::Refused(Refusal::Unavailable);
-    }
-    if running(inner) >= MAX_RUNNING {
-        return Outcome::Refused(Refusal::Busy);
-    }
+    let fingerprint = match admission(inner, id, &intent) {
+        Ok(fingerprint) => fingerprint,
+        Err(outcome) => return outcome,
+    };
     let cancel = Arc::new(AtomicBool::new(false));
     let worker_cancel = Arc::clone(&cancel);
     let command = intent.clone();
@@ -98,21 +173,18 @@ fn start_with(
         Ok(join) => join,
         Err(_) => return Outcome::Refused(Refusal::Unavailable),
     };
-    if inner.commands.len() == MAX_LOGS {
-        let index = inner
-            .commands
-            .iter()
-            .position(|r| !r.running())
-            .expect("bounded running jobs");
-        inner.commands.remove(index);
-    }
-    inner.commands.push(Record {
-        id,
-        accepted: false,
-        intent,
-        cancel,
-        join: Some(join),
-    });
+    retain(
+        inner,
+        Record {
+            id,
+            accepted: false,
+            fingerprint,
+            owner: Owner::Worker {
+                cancel,
+                join: Some(join),
+            },
+        },
+    );
     if admit.send(()).is_err() {
         inner.retired = true;
     }
@@ -238,17 +310,24 @@ fn spawn_configured(mut command: Command) -> Result<CommandChild, CommandSpawnFa
 
 pub(super) fn settle(inner: &mut Inner) {
     for record in &mut inner.commands {
-        if record.join.as_ref().is_some_and(JoinHandle::is_finished) {
-            let join = record.join.take().expect("finished job");
+        if let Owner::Worker { join, .. } = &mut record.owner
+            && join.as_ref().is_some_and(JoinHandle::is_finished)
+        {
+            let join = join.take().expect("finished job");
             inner.retired |= !join.join().unwrap_or(false);
         }
     }
 }
+/// Signals each command the Worker itself runs; those the Host runs outlive the Worker.
 pub(super) fn cancel(records: &[Record]) -> bool {
     let mut running = false;
     for record in records {
-        if record.running() {
-            record.cancel.store(true, Ordering::Relaxed);
+        if let Owner::Worker {
+            cancel,
+            join: Some(_),
+        } = &record.owner
+        {
+            cancel.store(true, Ordering::Relaxed);
             running = true;
         }
     }

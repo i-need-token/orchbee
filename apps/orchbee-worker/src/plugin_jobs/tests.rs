@@ -221,12 +221,14 @@ fn running_query_counts_a_configured_shell_command_only_while_it_runs() {
             std::num::NonZeroU64::MIN,
             &owned.jobs,
             None,
+            None,
         )
         .outcome
     };
     let counts = |configured_commands| Outcome::Running {
         plugin_jobs: 0,
         configured_commands,
+        host_programs: 0,
     };
     assert_eq!(ask(900, PluginJobAction::Running), counts(0));
     let command = orchbee_capability_node_protocol::ConfiguredCommandIntent {
@@ -372,6 +374,7 @@ fn plugin_capacity_fencing_cancellation_and_shutdown_join_owners() {
         orchbee_local_worker_protocol::WorkerId::from_bytes([4; 16]),
         std::num::NonZeroU64::MIN,
         &jobs,
+        None,
         None,
     );
     assert_eq!(refused.outcome, Outcome::Refused(Refusal::RejectedFencing));

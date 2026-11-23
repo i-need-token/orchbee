@@ -68,7 +68,8 @@ Configured receipts are bounded to 200 records and are never exposed as plugin
 history. Shutdown cancels and joins both kinds before a complete receipt.
 
 Request action 6 carries no operand and reads how many plugin jobs and configured commands still
-run; result outcome 6 carries both counts as `u8`. It changes nothing in the Worker, and a Worker
+run; result outcome 6 carries three counts as `u8`: the plugin jobs and the configured commands
+the Worker itself runs, then the background programs its Terminal Host runs for it. It changes nothing in the Worker, and a Worker
 whose process cleanup is unknown refuses it with `physical-unknown`. Action 6 is same-version only:
 the Server sends it only to the Worker it started from its own version folder, so it carries no
 negotiation, and a Worker that predates it would reject the frame as malformed.

@@ -10,10 +10,10 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    Build, CapabilityName, CapabilitySet, ConnectionKind, EnvironmentName, InitiatorMessage,
-    KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion, RECOVERY, ReadError,
-    RejectionReason, SCREEN_GATED_SEND, SourceCommit, conclude_offer, encode_initiator_frame,
-    read_acceptor_message,
+    BACKGROUND_PROGRAMS, Build, CapabilityName, CapabilitySet, ConnectionKind, EnvironmentName,
+    InitiatorMessage, KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion, RECOVERY,
+    ReadError, RejectionReason, SCREEN_GATED_SEND, SourceCommit, conclude_offer,
+    encode_initiator_frame, read_acceptor_message,
 };
 
 /// How long a Worker waits before it dials a busy Host again.
@@ -44,12 +44,14 @@ pub(super) struct Answer {
     /// (`keeper`) and recovers a program the Keeper kept after its Host ended (`recovery`).
     #[cfg(windows)]
     pub(super) keeper: super::KeeperTerms,
+    /// Whether the Host runs this Worker's background programs (`background-programs`).
+    pub(super) background_programs: bool,
 }
 
 /// This build's `worker-host` offer: the registry's generations and capabilities, the package
-/// version, the source commit release packaging compiled in, and the compiled environment. Where
-/// this build runs the Keeper, on Windows, it adds `keeper` and `recovery`; it never offers
-/// `handover` before moves turn on.
+/// version, the source commit release packaging compiled in, and the compiled environment. On
+/// Windows it adds `background-programs`, and where this build runs the Keeper also `keeper` and
+/// `recovery`; it never offers `handover` before moves turn on.
 pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
     let mut offer = Offer::local(
         ConnectionKind::WorkerHost,
@@ -60,6 +62,15 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
         },
         EnvironmentName::new(orchbee_local_runtime::environment_stem())?,
     );
+    if cfg!(windows) {
+        offer.capabilities = CapabilitySet::new(
+            offer
+                .capabilities
+                .iter()
+                .cloned()
+                .chain([CapabilityName::new(BACKGROUND_PROGRAMS)?]),
+        )?;
+    }
     if cfg!(windows) && orchbee_local_runtime::keeper_live() {
         offer.capabilities = CapabilitySet::new(
             offer
@@ -115,6 +126,7 @@ pub(super) fn exchange(
                 keeper: answer.capabilities.contains(KEEPER),
                 recovery: answer.capabilities.contains(RECOVERY),
             },
+            background_programs: answer.capabilities.contains(BACKGROUND_PROGRAMS),
         })),
         Err(OfferFailure::Rejected(rejection)) if rejection.reason == RejectionReason::Capacity => {
             Ok(Outcome::Busy)

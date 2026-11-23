@@ -13,6 +13,7 @@ pub(crate) fn execute(
     generation: NonZeroU64,
     jobs: &crate::plugin_jobs::PluginJobs,
     runtime: Option<&std::path::Path>,
+    host: Option<&dyn crate::plugin_jobs::ProgramHost>,
 ) -> PluginJobResult {
     let outcome = if request.worker_id.as_bytes() != worker.as_bytes()
         || request.worker_generation.get() != generation.get()
@@ -22,7 +23,7 @@ pub(crate) fn execute(
         PluginJobOutcome::Refused(PluginJobRefusal::Unsupported)
     } else {
         match route(request.action, runtime) {
-            Ok(action) => jobs.execute(request.operation_id, action),
+            Ok(action) => jobs.execute_on(request.operation_id, action, host),
             Err(()) => PluginJobOutcome::Refused(PluginJobRefusal::InvalidIntent),
         }
     };

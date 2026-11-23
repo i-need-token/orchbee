@@ -186,7 +186,8 @@ impl LocalTerminalService {
         })
     }
 
-    /// Whether the Worker reports that none of its plugin jobs and configured commands still runs.
+    /// Whether the Worker reports that none of its plugin jobs and configured commands still runs,
+    /// neither under the Worker nor in its Terminal Host.
     /// The query only reads. Anything short of a correlated zero answer reads as running: no
     /// Worker or identity, backpressure, a refusal, or a reply that is lost, late or does not
     /// correlate. None of these ends the Worker or its carrier.
@@ -210,12 +211,14 @@ impl LocalTerminalService {
             request_plugin_job(&handle, identity, node::PluginJobAction::Running),
             Ok(node::PluginJobOutcome::Running {
                 plugin_jobs: 0,
-                configured_commands: 0
+                configured_commands: 0,
+                host_programs: 0,
             })
         )
     }
 
-    /// How many plugin jobs and configured commands the Worker reports running, read before
+    /// How many plugin jobs and configured commands the Worker reports running itself, which a
+    /// restart would end, read before
     /// `deadline` through the serving Worker, also while a restart holds it. `None` short of a
     /// correlated answer in time; the carrier discards a late reply.
     #[cfg(windows)]
@@ -247,9 +250,11 @@ impl LocalTerminalService {
         match *result {
             Ok(WorkerOperationResult::PluginJob(result)) if result.answers(&dispatch) => {
                 match result.outcome {
+                    // The programs its Terminal Host runs outlive the Worker and its restart.
                     node::PluginJobOutcome::Running {
                         plugin_jobs,
                         configured_commands,
+                        ..
                     } => Some(u32::from(plugin_jobs) + u32::from(configured_commands)),
                     _ => None,
                 }

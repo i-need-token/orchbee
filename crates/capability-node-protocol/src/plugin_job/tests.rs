@@ -198,6 +198,7 @@ fn plugin_query_cancel_and_refusal_tags_roundtrip() {
         outcome: PluginJobOutcome::Running {
             plugin_jobs: 2,
             configured_commands: 1,
+            host_programs: 3,
         },
     };
     let m = Message::PluginJobResult(counts.clone());

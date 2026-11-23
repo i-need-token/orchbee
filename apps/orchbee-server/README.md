@@ -202,7 +202,7 @@ version the Session moved to in the stop's record and starts that version.
 
 After the minute the Server compares the name of the version folder it runs from with the store's
 active version, found by the same rule as a run; only an older Server goes on. It then asks its
-Worker how many plugin jobs and configured commands still run, with
+Worker how many plugin jobs and configured commands still run, its Terminal Host's included, with
 [OBPJ action 6](../../crates/capability-node-protocol/README.md#configured-background-commands).
 Anything but a correlated answer of zero counts as running: no Worker, backpressure, a refusal, and
 a reply that is lost, late or uncorrelated. Nothing about the query ends the Worker or its carrier.
@@ -401,8 +401,9 @@ answered `busy`. The decisions the code does not state:
   names the successor's Worker as well as its Server, and only once the owner has opened both on
   their recorded process ID and creation time; otherwise it refuses `not-recorded`. Every way a hold
   ends can then end both through those handles, so no successor process outlives a take-back.
-- `prepare` refuses rather than cut work short: `background-programs` while a plugin job or
-  configured command runs, since it runs in the Worker the hand-over ends, and `busy` while admitted
+- `prepare` refuses rather than cut work short: `background-programs` while the Worker itself runs
+  a plugin job or configured command, since the hand-over ends it, while one its Terminal Host runs
+  outlives the hand-over; and `busy` while admitted
   intents or operations do not settle. A Worker that neither releases its Host nor ends through its
   handle in time does not stop `prepared`: the Host admits one Worker session, so neither the
   successor's Worker nor a take-back replacement can adopt beside it, as for any hung Worker.

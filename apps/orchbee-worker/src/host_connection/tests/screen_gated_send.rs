@@ -45,6 +45,8 @@ fn host(screen_gated_send: bool) -> TestResult<(HostBrokerConnection, UnixStream
             keeper: crate::host_connection::KeeperTerms::default(),
             #[cfg(windows)]
             keeper_events: std::cell::Cell::default(),
+            background_programs: false,
+            program_exits: std::cell::RefCell::default(),
             negotiated_limits: NegotiatedHostLimits {
                 frame_bytes: 1_048_576,
                 input_bytes: 4096,

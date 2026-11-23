@@ -55,17 +55,20 @@ pub(super) fn run(
 }
 
 pub(super) fn clear_context(command: &mut Command) {
-    // Context belongs to this invocation. Never leak a parent plugin's identifiers.
-    for (name, _) in std::env::vars_os() {
-        if name
-            .to_string_lossy()
+    for name in context_removals() {
+        command.env_remove(name);
+    }
+}
+
+/// The variables a command must not inherit. Context belongs to this invocation: never leak a
+/// parent plugin's identifiers.
+pub(super) fn context_removals() -> Vec<std::ffi::OsString> {
+    let plugin = std::env::vars_os().map(|(name, _)| name).filter(|name| {
+        name.to_string_lossy()
             .to_ascii_uppercase()
             .starts_with("ORCHBEE_PLUGIN_")
-        {
-            command.env_remove(name);
-        }
-    }
-    for name in [
+    });
+    let fixed = [
         "ORCHBEE_WORKSPACE_ID",
         "ORCHBEE_TAB_ID",
         "ORCHBEE_PANEL_ID",
@@ -73,7 +76,7 @@ pub(super) fn clear_context(command: &mut Command) {
         "ORCHBEE_WORKER_ID",
         // A Server started by an announced TUI inherits its launcher's relaunch variable.
         orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE,
-    ] {
-        command.env_remove(name);
-    }
+    ]
+    .map(std::ffi::OsString::from);
+    plugin.chain(fixed).collect()
 }

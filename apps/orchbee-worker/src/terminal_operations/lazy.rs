@@ -214,6 +214,7 @@ pub(crate) fn run(
                     generation,
                     &plugin_jobs,
                     Some(runtime),
+                    None,
                 );
                 let _no_host = server_transport::send(
                     &server,

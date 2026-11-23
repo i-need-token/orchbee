@@ -97,6 +97,10 @@ pub const RECOVERY: &str = "recovery";
 /// peer without it is never asked and reads every machine's capacity as unknown.
 pub const CAPACITY: &str = "capacity";
 
+/// The `worker-host` capability before a Worker may ask a Host to run a program without a terminal,
+/// which outlives the Worker, and the Host reports its exit with `ProgramExited`.
+pub const BACKGROUND_PROGRAMS: &str = "background-programs";
+
 /// A connection that starts with an `OBHS` offer.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum ConnectionKind {
@@ -203,6 +207,7 @@ impl ConnectionKind {
                 WORKSPACE_IDLE,
             ]),
             Self::WorkerHost => capability_set(&[
+                BACKGROUND_PROGRAMS,
                 HANDOVER,
                 KEEPER,
                 PROMPT_GATED_INPUT,

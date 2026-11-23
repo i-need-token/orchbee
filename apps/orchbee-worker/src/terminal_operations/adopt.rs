@@ -110,6 +110,10 @@ pub(crate) fn run(
                 runtime,
                 cohort.executable(orchbee_local_runtime::CohortArtifact::TerminalHost),
             );
+            // The background programs the Host still runs for the Worker this one replaces.
+            if let Some(programs) = crate::host_programs::HostPrograms::between_requests(&host) {
+                plugin_jobs.adopt(&programs);
+            }
             super::run_admitted_with_handoff(
                 server,
                 &mut host,

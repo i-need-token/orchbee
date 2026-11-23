@@ -304,21 +304,24 @@ fn worker_process_query_reads_only_a_correlated_zero_as_idle() {
         workers,
         Ok(SessionId::parse(&"2".repeat(32)).unwrap()),
     );
-    let counts = |plugin_jobs, configured_commands| node::PluginJobOutcome::Running {
-        plugin_jobs,
-        configured_commands,
-    };
+    let counts =
+        |plugin_jobs, configured_commands, host_programs| node::PluginJobOutcome::Running {
+            plugin_jobs,
+            configured_commands,
+            host_programs,
+        };
     // Each answer, whether it correlates, and the reading the query must give.
     let script = [
-        (counts(0, 1), true, false),
-        (counts(1, 0), true, false),
+        (counts(0, 1, 0), true, false),
+        (counts(1, 0, 0), true, false),
+        (counts(0, 0, 1), true, false),
         (
             node::PluginJobOutcome::Refused(node::PluginJobRefusal::PhysicalUnknown),
             true,
             false,
         ),
-        (counts(0, 0), false, false),
-        (counts(0, 0), true, true),
+        (counts(0, 0, 0), false, false),
+        (counts(0, 0, 0), true, true),
     ];
     let answers = script
         .iter()

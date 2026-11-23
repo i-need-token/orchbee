@@ -117,7 +117,8 @@ decoders only.
   connection with exactly `productVersion`, `generations` (the `client-server` range that Client
   offered) and `capabilities` (every capability it offered, not only those both sides share). When
   its Worker answers in time it also adds `background-programs`, an integer from 0 to 510 counting
-  the plugin jobs and configured commands that Worker runs. A reader that does not know them
+  the plugin jobs and configured commands that Worker runs itself; those its Terminal Host runs
+  outlive a restart and are not counted. A reader that does not know them
   ignores them.
 
 ## Admission

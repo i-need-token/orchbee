@@ -7,16 +7,33 @@ use std::process::Command;
 #[cfg(windows)]
 pub(super) fn command(text: &str) -> Option<Command> {
     use std::os::windows::process::CommandExt;
-    let shell = std::env::var_os("ComSpec")
+    let mut command = Command::new(shell()?);
+    command.args(["/d", "/c"]).raw_arg(text);
+    Some(command)
+}
+
+/// `ComSpec` when it is absolute, else the system's `cmd.exe`.
+#[cfg(windows)]
+fn shell() -> Option<std::ffi::OsString> {
+    std::env::var_os("ComSpec")
         .filter(|path| std::path::Path::new(path).is_absolute())
         .or_else(|| {
             orchbee_local_runtime::windows_system_program("cmd.exe")
                 .ok()
                 .map(std::path::PathBuf::into_os_string)
-        })?;
-    let mut command = Command::new(shell);
-    command.args(["/d", "/c"]).raw_arg(text);
-    Some(command)
+        })
+}
+
+/// The processor a Terminal Host starts with `/d /c` and the command text as one raw argument.
+#[cfg(windows)]
+pub(super) fn processor() -> Option<String> {
+    shell()?.into_string().ok()
+}
+
+/// Terminal Hosts run background programs only on Windows.
+#[cfg(unix)]
+pub(super) fn processor() -> Option<String> {
+    None
 }
 
 /// `$SHELL`, else the account's shell, else `/bin/sh`, as for a new terminal, run as a login

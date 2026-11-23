@@ -102,7 +102,8 @@ pub(super) fn encode(message: &CapabilityNodeMessage) -> Result<Vec<u8>, Protoco
                 PluginJobOutcome::Running {
                     plugin_jobs,
                     configured_commands,
-                } => body.extend([6, *plugin_jobs, *configured_commands]),
+                    host_programs,
+                } => body.extend([6, *plugin_jobs, *configured_commands, *host_programs]),
                 PluginJobOutcome::Refused(reason) => body.extend([
                     4,
                     match reason {
@@ -367,6 +368,7 @@ fn decode_body(body: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError> {
                 6 => PluginJobOutcome::Running {
                     plugin_jobs: r.read_u8()?,
                     configured_commands: r.read_u8()?,
+                    host_programs: r.read_u8()?,
                 },
                 4 => PluginJobOutcome::Refused(match r.read_u8()? {
                     1 => PluginJobRefusal::RejectedFencing,

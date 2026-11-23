@@ -374,12 +374,16 @@ fn serve(
             continue;
         }
         if let CapabilityNodeMessage::PluginJobRequest(request) = request {
+            let programs = crate::host_programs::HostPrograms::serving(host, &server);
             let result = crate::plugin_job_operation::execute(
                 request,
                 worker_id,
                 generation,
                 aux.plugin_jobs,
                 aux.session_runtime,
+                programs
+                    .as_ref()
+                    .map(|programs| programs as &dyn crate::plugin_jobs::ProgramHost),
             );
             if server_transport::send(
                 &server,

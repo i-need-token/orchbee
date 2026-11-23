@@ -49,10 +49,9 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
-#[cfg(windows)]
-pub(crate) use exchange::exchange_between_requests;
 pub(crate) use exchange::{
-    HostExchange, PeerFailure, UnexpectedAnswer, exchange, response_envelope,
+    HostExchange, PeerFailure, UnexpectedAnswer, exchange, exchange_between_requests,
+    response_envelope,
 };
 pub(crate) use host_colors::HostColors;
 #[cfg(test)]
@@ -80,6 +79,8 @@ fn contract(site: crate::diagnostic_events::Site, kind: u16) {
 }
 
 const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(2);
+/// The program exits kept for the Worker's program owner: twice what one Host lists.
+const MAXIMUM_PENDING_PROGRAM_EXITS: usize = 128;
 const CLIENT_ID_BYTES: [u8; 16] = *b"orchbee-worker-1";
 const HELLO_CORRELATION_BYTES: [u8; 16] = *b"worker-host-hi-1";
 
@@ -98,6 +99,10 @@ pub(crate) struct HostBrokerConnection {
     /// The Keeper events the Host sent since the Worker last took them.
     #[cfg(windows)]
     keeper_events: std::cell::Cell<KeeperEvents>,
+    /// The Host's answer listed `background-programs`.
+    background_programs: bool,
+    /// The `ProgramExited` events the Host sent since the Worker last took them.
+    program_exits: RefCell<Vec<orchbee_terminal_protocol::ProgramExited>>,
     stream: UnixStream,
     /// The Host record every reader of `stream` continues.
     inbound: RefCell<events::PartialRecord>,
@@ -242,6 +247,8 @@ impl HostBrokerConnection {
             keeper: answer.keeper,
             #[cfg(windows)]
             keeper_events: std::cell::Cell::default(),
+            background_programs: answer.background_programs,
+            program_exits: RefCell::default(),
             stream: transport.stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -294,6 +301,8 @@ impl HostBrokerConnection {
             keeper: answer.keeper,
             #[cfg(windows)]
             keeper_events: std::cell::Cell::default(),
+            background_programs: answer.background_programs,
+            program_exits: RefCell::default(),
             stream,
             inbound: RefCell::default(),
             viewers: RefCell::new(HostViewers::default()),
@@ -362,6 +371,16 @@ impl HostBrokerConnection {
         self.keeper_events.take()
     }
 
+    /// Whether this Host runs the Worker's background programs.
+    pub(crate) const fn background_programs(&self) -> bool {
+        self.background_programs
+    }
+
+    /// The program exits the Host reported since the last call, which this call clears.
+    pub(crate) fn take_program_exits(&self) -> Vec<orchbee_terminal_protocol::ProgramExited> {
+        self.program_exits.take()
+    }
+
     /// Routes one intact Host event to connection state. An event this Worker cannot use never
     /// ends the connection: one whose envelope or payload breaks its contract is dropped, a break in
     /// one attachment's flow closes only that attachment, and each is recorded. Only a record whose
@@ -404,6 +423,23 @@ impl HostBrokerConnection {
                 _ => events.unheld = true,
             }
             return self.keeper_events.set(events);
+        }
+        // `ProgramExited` comes only to a session that negotiated `background-programs`; the
+        // Worker's program owner takes the exits when it next serves a plugin-job request.
+        if envelope.kind == orchbee_terminal_protocol::PROGRAM_EXITED_KIND {
+            let Ok(exit) = orchbee_terminal_protocol::decode_program_exited(
+                envelope.kind,
+                envelope.role,
+                envelope.payload,
+            ) else {
+                return contract(self.pacing.site(), envelope.kind);
+            };
+            let mut exits = self.program_exits.borrow_mut();
+            // The Host lists at most 64 programs and reports each once to a session.
+            if exits.len() < MAXIMUM_PENDING_PROGRAM_EXITS {
+                exits.push(exit);
+            }
+            return;
         }
         if envelope.payload_encoding == PayloadEncoding::ControlJson
             && let Ok(TerminalEffectEvent::ApplicationSignal(signal)) =

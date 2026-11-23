@@ -92,6 +92,8 @@ fn windows_host() -> Result<
         keeper: crate::host_connection::KeeperTerms::default(),
         #[cfg(windows)]
         keeper_events: std::cell::Cell::default(),
+        background_programs: false,
+        program_exits: std::cell::RefCell::default(),
         negotiated_limits: NegotiatedHostLimits {
             frame_bytes: 1048576,
             input_bytes: 4096,
