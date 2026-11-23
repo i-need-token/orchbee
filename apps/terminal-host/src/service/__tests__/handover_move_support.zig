@@ -1144,7 +1144,7 @@ fn keeperCall(session: *support.Session, arena: std.mem.Allocator, body: message
                 if (reply.id != id) return error.ReplyIdMismatch;
                 return reply.body;
             },
-            .event => {},
+            .exited, .event => {},
         }
     }
 }

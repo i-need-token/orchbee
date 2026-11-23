@@ -78,7 +78,7 @@ fn call(session: *support.Session, arena: std.mem.Allocator, body: message.Reque
                 if (reply.id != id) return error.ReplyIdMismatch;
                 return reply.body;
             },
-            .event => {},
+            .exited, .event => {},
         }
     }
 }

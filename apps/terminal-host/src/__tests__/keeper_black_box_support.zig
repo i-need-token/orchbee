@@ -574,7 +574,7 @@ pub const Session = struct {
 pub fn decodeReply(arena: std.mem.Allocator, payload: []const u8) !message.Reply {
     return switch (try keeper_protocol.decode.acceptorPayload(arena, payload)) {
         .reply => |reply| reply,
-        .event => error.UnexpectedEvent,
+        .exited, .event => error.UnexpectedEvent,
     };
 }
 

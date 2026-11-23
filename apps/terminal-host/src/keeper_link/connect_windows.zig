@@ -82,7 +82,7 @@ pub const Connection = struct {
         const payload = try self.exchange(arena, frame, watch, timer, deadline_ns, keeper_protocol.frame.readPayload);
         return switch (keeper_protocol.decode.acceptorPayload(arena, payload) catch return error.Closed) {
             .reply => |reply| reply,
-            .event => error.Closed,
+            .exited, .event => error.Closed,
         };
     }
 
