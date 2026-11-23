@@ -615,7 +615,7 @@ fn role_presence(
     #[cfg(all(unix, not(target_os = "macos")))]
     return Ok(match role {
         crate::process_registration::ProcessRole::Host(crate::HostSlot::FIRST)
-            if crate::rendezvous::host_lock_held(record.runtime())? =>
+            if crate::rendezvous::host_lock_held(record.runtime(), crate::HostSlot::FIRST)? =>
         {
             HostPresence::Running(None)
         }
@@ -680,7 +680,10 @@ impl RetainedSessionRecord {
             .into_iter()
             .all(|role| crate::process_observation::role_absent(&current.processes, role)));
         #[cfg(all(unix, not(target_os = "macos")))]
-        return Ok(!crate::rendezvous::host_lock_held(current.runtime())?);
+        return Ok(!crate::rendezvous::host_lock_held(
+            current.runtime(),
+            crate::HostSlot::FIRST,
+        )?);
     }
     /// What each of this generation's Terminal Host slots holds now. A Spawning Host never ran,
     /// since a child runs only once identified. On Windows and macOS a running Host carries its registered

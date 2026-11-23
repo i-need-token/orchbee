@@ -337,10 +337,11 @@ quarantine and missing bindings. The macOS and Linux verification has no Host wi
 
 ## Several Hosts
 
-On Windows one Worker can hold a Host in each of the Session's four slots: its own Host, which runs
-its cohort's Terminal Host, and older Hosts a replacement adopted from another installation. An
-adopted Host is the Worker's own when its process image is that program; a Host whose image cannot
-be read counts as its own, so it is never drained by mistake. A request goes to the Host that serves
+On Windows and macOS one Worker can hold a Host in each of the Session's four slots: its own Host,
+which runs its cohort's Terminal Host, and older Hosts a replacement adopted from another
+installation. An adopted Host is the Worker's own when its process image is that program, read on
+macOS by the recorded process ID while its start time matches; a Host whose image cannot be read
+counts as its own, so it is never drained by mistake. A request goes to the Host that serves
 what it names: a terminal by the epoch of its identity, an attachment by the Host that holds it, a
 background program by the Host that runs it. A Launch and a new program go to the own Host; when the
 Worker holds none, the Launch starts one in the lowest free slot, and a failed start fails only that
@@ -348,7 +349,8 @@ Launch, as in the lazy loop, while the older Hosts keep serving. A new program w
 starts as it does before any Host. A Host query and a title read ask every Host; title changes come
 from one projection the Hosts share. Between requests the Worker reads every Host's events, and the
 loss of any Host ends the Worker as before, so the next replacement adopts the others and recovers
-the lost one.
+the lost one; on macOS, which runs no Keeper yet, the Server replaces the Worker without a lost Host
+whose terminals no settled binding names, and otherwise stops.
 
 While it holds its own Host, the Worker checks each older Host between requests at most every two
 seconds and tells one that runs no terminal and no program to drain. A drained Host takes nothing

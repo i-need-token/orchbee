@@ -44,13 +44,18 @@ const _: () = assert!(PAGE_TERMINALS as usize == MAXIMUM_INVENTORY_PAGE_TERMINAL
 /// The Host's retryable refusal of a cursor from an inventory that has since changed.
 const STALE_INVENTORY_CURSOR: &str = "stale-inventory-cursor";
 
-/// The adopted Host's process, whose exit completes a managed stop: its handle on Windows, and its
-/// Session runtime, whose Host lock it holds, on macOS and Linux.
+/// The adopted Host's process, whose exit completes a managed stop: its handle on Windows, and on
+/// macOS and Linux its Session runtime and slot, whose Host lock it holds, with the process the
+/// Session record names on macOS.
 pub(crate) struct AdoptedHost {
     #[cfg(windows)]
     process: winsafe::guard::CloseHandleGuard<winsafe::HPROCESS>,
     #[cfg(unix)]
     runtime: std::path::PathBuf,
+    #[cfg(unix)]
+    slot: orchbee_local_runtime::HostSlot,
+    #[cfg(target_os = "macos")]
+    process: Option<(u32, u64)>,
 }
 
 impl AdoptedHost {
@@ -67,7 +72,7 @@ impl AdoptedHost {
         }
         #[cfg(unix)]
         {
-            orchbee_local_runtime::host_lock_held(&self.runtime).map(|held| !held)
+            orchbee_local_runtime::host_lock_held(&self.runtime, self.slot).map(|held| !held)
         }
     }
 
@@ -86,6 +91,35 @@ impl AdoptedHost {
         let Ok(image) = self
             .process
             .QueryFullProcessImageName(winsafe::co::PROCESS_NAME::WIN32)
+        else {
+            return true;
+        };
+        match (
+            std::fs::canonicalize(image),
+            std::fs::canonicalize(executable),
+        ) {
+            (Ok(image), Ok(executable)) => image
+                .as_os_str()
+                .eq_ignore_ascii_case(executable.as_os_str()),
+            _ => true,
+        }
+    }
+
+    /// The adopted Host's process ID and start time, as the Session record names it.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn identity(&self) -> io::Result<(u32, u64)> {
+        self.process
+            .ok_or_else(|| io::Error::from(io::ErrorKind::NotFound))
+    }
+
+    /// Whether the adopted Host runs `executable`, the Terminal Host of this Worker's cohort, read
+    /// while its start time still matches. A Host whose program cannot be read counts as running
+    /// it, so it is never drained by mistake.
+    #[cfg(target_os = "macos")]
+    pub(crate) fn runs(&self, executable: &std::path::Path) -> bool {
+        let Some(image) = self
+            .process
+            .and_then(orchbee_local_runtime::running_program)
         else {
             return true;
         };
@@ -166,15 +200,9 @@ pub(crate) fn adopt(
     epoch: Option<HostEpoch>,
     channel: Channel<'_>,
 ) -> Result<Found, Failed> {
-    #[cfg(windows)]
+    // A Linux Session runs its one Host in the first slot, which the caller checked.
     let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(runtime, slot);
-    // A POSIX Session runs its one Host in the first slot, which the caller checked.
-    #[cfg(unix)]
-    let endpoint = {
-        let _ = slot;
-        ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime)
-    };
-    let found = adopt_endpoint(runtime, &endpoint, process, epoch, channel)?;
+    let found = adopt_endpoint(runtime, slot, &endpoint, process, epoch, channel)?;
     #[cfg(any(windows, target_os = "macos"))]
     if let Some(process) = process {
         record_epoch(
@@ -218,7 +246,7 @@ pub(crate) fn record_epoch(
 /// Frees `slot` in the Session record while it still names `process`, a Host this Worker drained
 /// and saw end; `false` when the record could not be written, which leaves the slot to the next
 /// activation.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn release_slot(
     runtime: &Path,
     slot: orchbee_local_runtime::HostSlot,
@@ -272,6 +300,7 @@ const EPOCH_RECORD_BUDGET: Duration = Duration::from_secs(1);
 /// [`adopt`] at a known endpoint.
 pub(crate) fn adopt_endpoint(
     runtime: &Path,
+    slot: orchbee_local_runtime::HostSlot,
     endpoint: &Path,
     process: Option<AdoptHostProcess>,
     epoch: Option<HostEpoch>,
@@ -283,7 +312,7 @@ pub(crate) fn adopt_endpoint(
         drain,
         deadline,
     } = channel;
-    let owner = verify(runtime, process, endpoint)?;
+    let owner = verify(runtime, slot, process, endpoint)?;
     let bounds = DialBounds {
         #[cfg(windows)]
         server_process: process.map(|process| process.process_id),
@@ -337,6 +366,7 @@ pub(crate) fn adopt_endpoint(
 #[cfg(windows)]
 fn verify(
     _runtime: &Path,
+    _slot: orchbee_local_runtime::HostSlot,
     process: Option<AdoptHostProcess>,
     _endpoint: &Path,
 ) -> Result<AdoptedHost, Failed> {
@@ -396,13 +426,17 @@ fn verify(
 #[cfg(unix)]
 fn verify(
     runtime: &Path,
-    _process: Option<AdoptHostProcess>,
+    slot: orchbee_local_runtime::HostSlot,
+    process: Option<AdoptHostProcess>,
     endpoint: &Path,
 ) -> Result<AdoptedHost, Failed> {
     use std::os::unix::fs::{FileTypeExt, MetadataExt};
     // Only the held Host lock proves the Host lives; a socket file outlives its listener, and a
-    // recorded process ID may name another process by now.
-    match orchbee_local_runtime::host_lock_held(runtime) {
+    // recorded process ID may name another process by now, so macOS keeps it only to read which
+    // program the Host runs, by its start time.
+    #[cfg(not(target_os = "macos"))]
+    let _ = process;
+    match orchbee_local_runtime::host_lock_held(runtime, slot) {
         Ok(true) => {}
         Ok(false) => {
             return Err(failed(
@@ -422,6 +456,10 @@ fn verify(
         {
             Ok(AdoptedHost {
                 runtime: runtime.to_path_buf(),
+                slot,
+                #[cfg(target_os = "macos")]
+                process: process
+                    .map(|process| (process.process_id.get(), process.creation_time.get())),
             })
         }
         Ok(_) => Err(failed(

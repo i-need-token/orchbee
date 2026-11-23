@@ -345,6 +345,41 @@ pub(crate) fn endpoint_id(runtime_base: &[u8], session: &str) -> String {
     format!("{:x}", hash.finalize())[..32].to_owned()
 }
 
+/// The Session scope that names the runtime folder of the Host in `slot`, which holds its fatal
+/// record and log, and on POSIX its lifetime lock: `host` for the first slot, `host-<n>` for the
+/// others.
+pub(crate) fn slot_scope_name(slot: HostSlot) -> String {
+    match slot.index() {
+        0 => crate::rendezvous::HOST_SCOPE_NAME.to_owned(),
+        index => format!("{}-{index}", crate::rendezvous::HOST_SCOPE_NAME),
+    }
+}
+
+/// The slot whose Host runtime folder `name` is, as [`slot_scope_name`] names it.
+pub(crate) fn slot_of_scope(name: &str) -> Option<HostSlot> {
+    HostSlot::ALL
+        .into_iter()
+        .find(|slot| slot_scope_name(*slot) == name)
+}
+
+/// The endpoint id of the Host in `slot` of the POSIX runtime whose socket names start with
+/// `runtime_id`: the first slot's is the runtime's own, the address every earlier Host served; the
+/// others hash it under their own domain, so each keeps the same length.
+#[cfg(unix)]
+pub(crate) fn slot_endpoint_id(runtime_id: &str, slot: HostSlot) -> String {
+    use sha2::{Digest, Sha256};
+    match slot.index() {
+        0 => runtime_id.to_owned(),
+        index => {
+            let mut hash = Sha256::new();
+            hash.update(b"orchbee-posix-host-slot-v1\0");
+            hash.update([index]);
+            hash.update(runtime_id.as_bytes());
+            format!("{:x}", hash.finalize())[..32].to_owned()
+        }
+    }
+}
+
 /// What one Session socket is for.
 #[cfg(any(unix, test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

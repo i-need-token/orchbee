@@ -246,9 +246,10 @@ pub(in crate::local_worker_service) fn run(
     leave(&replaced);
     let opened = (|| {
         let lifetime = lifetime_lock(&session)?;
-        // The replaced Server leaves its socket files, which no listener serves once it ended.
+        // The replaced Server leaves its socket files, which no listener serves once it ended; the
+        // Worker endpoint of this restart stays, where this successor's Worker connects.
         #[cfg(unix)]
-        session.remove_endpoints(&lifetime)?;
+        session.remove_endpoints_beside(&lifetime, *ticket.as_bytes())?;
         let activation = session.retain_active_record()?;
         let session_record = RetainedSessionRecord::retain(&root, &session)?;
         kept.committed(RetainedSessionRecord::retain(&root, &session)?)?;
@@ -389,15 +390,7 @@ fn check(
     }
     let ours = ConnectionKind::WorkerHost.supported_generations();
     for (slot, host) in hosts {
-        #[cfg(windows)]
         let endpoint = Rendezvous::slot_endpoint_path(session.runtime_directory(), slot);
-        // A macOS Session runs its one Host in the first slot.
-        #[cfg(unix)]
-        let endpoint = if slot == orchbee_local_runtime::HostSlot::FIRST {
-            Rendezvous::host_endpoint_path(session.runtime_directory())
-        } else {
-            return Err(RestartRefusal::Host);
-        };
         let answered = exchange_query_before(
             &endpoint,
             environment.clone(),

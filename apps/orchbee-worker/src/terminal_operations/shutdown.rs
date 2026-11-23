@@ -85,7 +85,7 @@ impl ManagedHost {
 
     /// Whether the Host runs `executable`, this Worker's cohort Terminal Host: one it started does,
     /// and an adopted one whose image is that program.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn runs(&self, executable: &std::path::Path) -> bool {
         match &self.owner {
             HostOwner::Started(_) => true,
@@ -94,13 +94,13 @@ impl ManagedHost {
     }
 
     /// Whether the Host process has exited.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn exited(&mut self) -> io::Result<bool> {
         self.owner.exited()
     }
 
-    /// The Host's process ID and creation time.
-    #[cfg(windows)]
+    /// The Host's process ID and creation time, its start time on macOS.
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn host_identity(&self) -> io::Result<(u32, u64)> {
         match &self.owner {
             HostOwner::Started(child) => child.exact_identity(),

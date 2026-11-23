@@ -156,35 +156,38 @@ impl Supervision {
         // A Linux Host lock that no process holds also reads as gone for a Host that never
         // started; only a binding the lost Worker settled shows that one ran.
         #[cfg(all(unix, not(target_os = "macos")))]
-        let never_ran = || {
-            owners
-                .terminals
-                .adoption_bindings(lost)
-                .is_ok_and(|bindings| bindings.is_empty())
+        let never_ran = |slot: orchbee_local_runtime::HostSlot, _: Option<[u8; 16]>| {
+            slot == orchbee_local_runtime::HostSlot::FIRST
+                && owners
+                    .terminals
+                    .adoption_bindings(lost)
+                    .is_ok_and(|bindings| bindings.is_empty())
         };
-        // A macOS Host that ended before any binding settled still holds its registered slot,
-        // and one killed before its stop leaves its socket too; both are freed so the replacement
-        // starts a Host there as after one that never ran.
+        // A macOS Host that ended while no binding the lost Worker settled names its epoch still
+        // holds its registered slot, and one killed before its stop leaves its socket too; both are
+        // freed so the replacement starts a Host there as after one that never ran. A Host whose
+        // epoch is unrecorded counts so only while no binding settled at all.
         #[cfg(target_os = "macos")]
-        let never_ran = || {
+        let never_ran = |slot: orchbee_local_runtime::HostSlot, epoch: Option<[u8; 16]>| {
             owners
                 .terminals
                 .adoption_bindings(lost)
-                .is_ok_and(|bindings| bindings.is_empty())
+                .is_ok_and(|bindings| {
+                    bindings.iter().all(|binding| {
+                        epoch.is_some_and(|epoch| binding.identity.host_epoch().as_bytes() != epoch)
+                    })
+                })
                 && owners
                     .session_record
-                    .release_gone_host(
-                        orchbee_local_runtime::HostSlot::FIRST,
-                        Instant::now() + RECORD_WAIT,
-                    )
+                    .release_gone_host(slot, Instant::now() + RECORD_WAIT)
                     .unwrap_or(false)
                 && owners
                     .session
-                    .remove_host_endpoint(&owners.lifetime)
+                    .remove_host_endpoint(&owners.lifetime, slot)
                     .is_ok()
         };
         #[cfg(not(unix))]
-        let never_ran = || {
+        let never_ran = |_: orchbee_local_runtime::HostSlot, _: Option<[u8; 16]>| {
             let _ = lost;
             false
         };
@@ -489,10 +492,14 @@ fn running_keeper(owners: &Owners) -> Option<AdoptHostProcess> {
 /// The Hosts the Session record names now, as one adoption target: each running Host in its slot,
 /// and a recovery for each registered Host that is gone while a Keeper kept its programs, each with
 /// the epoch its Worker recorded. A Host still spawning stops, as a gone Host with no Keeper does,
-/// and one that cannot be observed gives up. `never_ran` answers whether a gone Host in the first
-/// slot leaves nothing to keep: on Linux one that never ran, which a free Host lock leaves open,
-/// and on macOS one that ended before any binding settled, whose slot it frees.
-fn host_target(owners: &Owners, never_ran: impl Fn() -> bool) -> Result<AdoptHostTarget, Decision> {
+/// and one that cannot be observed gives up. `never_ran` answers whether a gone Host in a slot,
+/// with its recorded epoch, leaves nothing to keep: on Linux a first-slot Host that never ran,
+/// which a free Host lock leaves open, and on macOS one whose terminals no settled binding names,
+/// whose slot it frees.
+fn host_target(
+    owners: &Owners,
+    never_ran: impl Fn(orchbee_local_runtime::HostSlot, Option<[u8; 16]>) -> bool,
+) -> Result<AdoptHostTarget, Decision> {
     let Ok(hosts) = owners.session_record.hosts() else {
         return Err(Decision::GiveUp(Reason::HostUnverified));
     };
@@ -506,11 +513,7 @@ fn host_target(owners: &Owners, never_ran: impl Fn() -> bool) -> Result<AdoptHos
             HostPresence::Running(process) => AdoptHostKind::Host {
                 process: process.and_then(crate::binding_record::registered_process),
             },
-            HostPresence::Gone
-                if host.slot == orchbee_local_runtime::HostSlot::FIRST && never_ran() =>
-            {
-                continue;
-            }
+            HostPresence::Gone if never_ran(host.slot, host.epoch) => continue,
             // A running Keeper kept the lost Host's programs: the replacement recovers them.
             HostPresence::Gone => {
                 keeper = Some(running_keeper(owners).ok_or(Decision::Stop(Reason::HostGone))?);
@@ -532,7 +535,7 @@ fn host_target(owners: &Owners, never_ran: impl Fn() -> bool) -> Result<AdoptHos
 /// gone one while a Keeper runs, or `None` when no Host is left, one is gone with nothing to
 /// recover from, or one cannot be observed, which stops as a gone Host does.
 fn retarget(owners: &Owners) -> Option<AdoptHostTarget> {
-    host_target(owners, || false)
+    host_target(owners, |_, _| false)
         .ok()
         .filter(|target| !target.is_none())
 }

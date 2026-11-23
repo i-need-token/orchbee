@@ -71,7 +71,7 @@ pub(super) fn receive_timed(
 }
 
 /// Whether the Server's next request has begun to arrive, seen without waiting.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn readable_now(server: &UnixStream) -> bool {
     let mut descriptors = [PollFd::new(server.as_local_io(), PollFlags::POLLIN)];
     poll(&mut descriptors, PollTimeout::ZERO).is_ok()

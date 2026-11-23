@@ -834,7 +834,7 @@ fn lifetime_owner_removes_stale_sockets_but_not_a_held_hosts() -> TestResult {
     for path in others.iter().chain([&host]) {
         drop(std::os::unix::net::UnixListener::bind(path)?);
     }
-    assert!(!host_lock_held(&runtime)?);
+    assert!(!host_lock_held(&runtime, crate::HostSlot::FIRST)?);
 
     let activation = acquired(session.try_acquire_activation_lock()?)?;
     assert!(session.remove_endpoints(&activation).is_err());
@@ -855,7 +855,7 @@ fn lifetime_owner_removes_stale_sockets_but_not_a_held_hosts() -> TestResult {
             .mode(0o600)
             .open(&host_lock)?,
     )?;
-    assert!(host_lock_held(&runtime)?);
+    assert!(host_lock_held(&runtime, crate::HostSlot::FIRST)?);
 
     let lifetime = acquired(session.try_acquire_session_lifetime_lock()?)?;
     session.remove_endpoints(&lifetime)?;
@@ -864,7 +864,7 @@ fn lifetime_owner_removes_stale_sockets_but_not_a_held_hosts() -> TestResult {
 
     // A released Host lock frees its name; anything that is not a socket stays.
     drop(held);
-    assert!(!host_lock_held(&runtime)?);
+    assert!(!host_lock_held(&runtime, crate::HostSlot::FIRST)?);
     fs::write(&others[0], b"not a socket")?;
     session.remove_endpoints(&lifetime)?;
     assert!(!host.exists());

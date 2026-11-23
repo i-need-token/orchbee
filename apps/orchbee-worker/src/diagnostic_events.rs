@@ -282,7 +282,7 @@ pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
 
 /// An older Host in `slot`, from another installation, held no terminal and ran no program, and was
 /// told to drain.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_draining(slot: u8) {
     log_event(
         LogLevel::Info,
@@ -292,7 +292,7 @@ pub(crate) fn host_draining(slot: u8) {
 }
 
 /// The drained Host in `slot` ended: `released` once the Session record freed its slot.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_drained(slot: u8, released: bool) {
     log_event(
         LogLevel::Info,

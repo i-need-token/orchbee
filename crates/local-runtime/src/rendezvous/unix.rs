@@ -4,6 +4,7 @@
 //! `/tmp/<stem>-<uid>` (`/private/tmp` on macOS), named `<id>-<role>.sock`. It never repairs
 //! another owner's path or infers authenticated peer identity from a socket name.
 
+use crate::HostSlot;
 #[cfg(not(target_os = "macos"))]
 use crate::rendezvous_types::LINUX_SOCKET_PARENT as SOCKET_PARENT;
 #[cfg(target_os = "macos")]
@@ -13,7 +14,7 @@ pub use crate::rendezvous_types::{
     SessionScope,
 };
 use crate::rendezvous_types::{
-    SessionHolderObservation, SocketRole, endpoint_id, socket_leaf, socket_root,
+    SessionHolderObservation, SocketRole, endpoint_id, slot_endpoint_id, socket_leaf, socket_root,
 };
 use crate::{AdmissionRefusal, HeldLock, RefusalReason};
 use std::{
@@ -158,6 +159,27 @@ impl ModeCheckedLocalSessionRendezvous {
     /// as its endpoint identity. Pure path math.
     pub fn host_endpoint_id(runtime_directory: &Path) -> String {
         runtime_endpoint_id(runtime_directory)
+    }
+
+    /// The Session scope that names the runtime folder of the Host in `slot`, which holds its lock:
+    /// `host` for the first slot, `host-<n>` for the others.
+    pub fn slot_scope_name(slot: HostSlot) -> String {
+        crate::rendezvous_types::slot_scope_name(slot)
+    }
+
+    /// The endpoint identity the Host in `slot` receives, which names its socket and its lock: the
+    /// first slot's is [`Self::host_endpoint_id`]. Pure path math.
+    pub fn slot_endpoint_id(runtime_directory: &Path, slot: HostSlot) -> String {
+        slot_endpoint_id(&runtime_endpoint_id(runtime_directory), slot)
+    }
+
+    /// The socket the Host in `slot` binds in the socket folder; the first slot's is
+    /// [`Self::host_endpoint_path`]. Pure path math.
+    pub fn slot_endpoint_path(runtime_directory: &Path, slot: HostSlot) -> PathBuf {
+        Self::socket_root_path().join(socket_leaf(
+            &Self::slot_endpoint_id(runtime_directory, slot),
+            SocketRole::Host,
+        ))
     }
 
     /// The pending client socket path a runtime directory derives — the socket the Server binds
@@ -542,11 +564,31 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     /// Removes the sockets a Session that ended without its stop left behind: the Client, pending,
-    /// Worker and Agent observation sockets, and the Host's while no Terminal Host holds its lock.
+    /// Worker and Agent observation sockets, on macOS the Worker endpoints of restarts' successors,
+    /// and each Host slot's while no Terminal Host holds that slot's lock.
     /// Only the Session lifetime owner removes them, before it binds and once more as it stops, so
     /// a socket a live Server or Host still serves is never touched. An entry goes only when it is
     /// a socket of this user; anything else stays and makes the bind fail.
     pub fn remove_endpoints(&self, lifetime: &ModeCheckedSessionLock) -> std::io::Result<()> {
+        self.remove_endpoints_keeping(lifetime, None)
+    }
+
+    /// [`Self::remove_endpoints`] for the successor Server of the restart `ticket` names, which
+    /// keeps the Worker endpoint of that ticket, where its own Worker connects.
+    #[cfg(unix)]
+    pub fn remove_endpoints_beside(
+        &self,
+        lifetime: &ModeCheckedSessionLock,
+        ticket: [u8; 16],
+    ) -> std::io::Result<()> {
+        self.remove_endpoints_keeping(lifetime, Some(ticket))
+    }
+
+    fn remove_endpoints_keeping(
+        &self,
+        lifetime: &ModeCheckedSessionLock,
+        kept: Option<[u8; 16]>,
+    ) -> std::io::Result<()> {
         self.require_lock(lifetime, LockKind::SessionLifetime)?;
         let Some(sockets) = &self.sockets else {
             return Ok(());
@@ -559,27 +601,71 @@ impl ModeCheckedLocalSessionRendezvous {
         ] {
             self.remove_socket(sockets, role)?;
         }
+        #[cfg(target_os = "macos")]
+        self.remove_successor_worker_sockets(sockets, kept)?;
+        #[cfg(not(target_os = "macos"))]
+        let _ = kept;
         self.remove_free_host_socket(sockets)
     }
 
-    /// Removes the Host's socket while no Terminal Host holds its lock, for the Session lifetime
-    /// owner that freed the registered slot of a Host that ended: a Host killed before its stop
-    /// leaves its socket, which the next Host start in that slot would meet.
+    /// Removes the Worker endpoints earlier restarts' successors bound, which a Server a restart
+    /// started serves for its whole life and leaves when it is killed: each socket of this user
+    /// named `<id>-worker-<ticket>.sock` but the one of the restart `kept` names.
     #[cfg(target_os = "macos")]
-    pub fn remove_host_endpoint(&self, lifetime: &ModeCheckedSessionLock) -> std::io::Result<()> {
+    fn remove_successor_worker_sockets(
+        &self,
+        sockets: &OwnedFd,
+        kept: Option<[u8; 16]>,
+    ) -> std::io::Result<()> {
+        let kept = kept.map(|ticket| successor_worker_leaf(&self.paths.endpoint_id, ticket));
+        let prefix = format!("{}-worker-", self.paths.endpoint_id);
+        for entry in std::fs::read_dir(Self::socket_root_path())? {
+            let leaf = entry?.file_name();
+            let Some(leaf) = leaf.to_str() else {
+                continue;
+            };
+            let ticket = leaf
+                .strip_prefix(prefix.as_str())
+                .and_then(|rest| rest.strip_suffix(".sock"));
+            if ticket.is_some_and(|ticket| {
+                ticket.len() == 8 && ticket.bytes().all(|byte| byte.is_ascii_hexdigit())
+            }) && kept.as_deref() != Some(leaf)
+            {
+                self.remove_leaf(sockets, leaf)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Removes the socket of the Host in `slot` while no Terminal Host holds that slot's lock, for
+    /// the Session lifetime owner that freed the registered slot of a Host that ended: a Host
+    /// killed before its stop leaves its socket, which the next Host start in that slot would meet.
+    #[cfg(target_os = "macos")]
+    pub fn remove_host_endpoint(
+        &self,
+        lifetime: &ModeCheckedSessionLock,
+        slot: HostSlot,
+    ) -> std::io::Result<()> {
         self.require_lock(lifetime, LockKind::SessionLifetime)?;
         match &self.sockets {
-            Some(sockets) => self.remove_free_host_socket(sockets),
+            Some(sockets) => self.remove_free_slot_socket(sockets, slot),
             None => Ok(()),
         }
     }
 
-    /// A starting Host removes a stale endpoint itself while it holds the Host lock, so whoever
-    /// holds the lock owns that name; the socket goes only while the lock is free.
     fn remove_free_host_socket(&self, sockets: &OwnedFd) -> std::io::Result<()> {
-        let host = host_lock(&self.paths.runtime_directory, self.expected_uid)?;
+        HostSlot::ALL
+            .into_iter()
+            .try_for_each(|slot| self.remove_free_slot_socket(sockets, slot))
+    }
+
+    /// A starting Host removes a stale endpoint itself while it holds its slot's Host lock, so
+    /// whoever holds the lock owns that name; the socket goes only while the lock is free.
+    fn remove_free_slot_socket(&self, sockets: &OwnedFd, slot: HostSlot) -> std::io::Result<()> {
+        let host = host_lock(&self.paths.runtime_directory, slot, self.expected_uid)?;
         if matches!(host, HostLock::Free { .. }) {
-            self.remove_socket(sockets, SocketRole::Host)?;
+            let id = slot_endpoint_id(&self.paths.endpoint_id, slot);
+            self.remove_leaf(sockets, &socket_leaf(&id, SocketRole::Host))?;
         }
         drop(host);
         Ok(())
@@ -900,11 +986,16 @@ enum HostLock {
     Held,
 }
 
-/// Probes `<runtime>/host/<id>.l`, the `flock` a Terminal Host holds for its whole life and takes
-/// before it binds or removes its endpoint. A free lock is taken for the caller, so a Host that
-/// starts meanwhile fails to take it; callers therefore probe only while no Worker of this Session
-/// can start a Host: under the Session lifetime lock, or after the Session's Worker exited.
-fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<HostLock> {
+/// Probes `<runtime>/<slot folder>/<slot id>.l`, the `flock` the Terminal Host in `slot` holds for
+/// its whole life and takes before it binds or removes its endpoint. A free lock is taken for the
+/// caller, so a Host that starts meanwhile fails to take it; callers therefore probe only while no
+/// Worker of this Session can start a Host in that slot: under the Session lifetime lock, after the
+/// Session's Worker exited, or as the Worker that alone starts this Session's Hosts.
+fn host_lock(
+    runtime_directory: &Path,
+    slot: HostSlot,
+    expected_uid: u32,
+) -> std::io::Result<HostLock> {
     let absent = || Ok(HostLock::Free { _held: None });
     let runtime = match open(runtime_directory, DIRECTORY_OPEN_FLAGS, Mode::empty()) {
         Ok(descriptor) => descriptor,
@@ -913,7 +1004,7 @@ fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<Hos
     };
     let host = match openat(
         &runtime,
-        HOST_SCOPE_NAME,
+        crate::rendezvous_types::slot_scope_name(slot).as_str(),
         DIRECTORY_OPEN_FLAGS,
         Mode::empty(),
     ) {
@@ -921,7 +1012,10 @@ fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<Hos
         Err(Errno::ENOENT) => return absent(),
         Err(error) => return Err(error.into()),
     };
-    let name = format!("{}.l", runtime_endpoint_id(runtime_directory));
+    let name = format!(
+        "{}.l",
+        slot_endpoint_id(&runtime_endpoint_id(runtime_directory), slot)
+    );
     let descriptor = match openat(&host, name.as_str(), LOCK_OPEN_FLAGS, Mode::empty()) {
         Ok(descriptor) => descriptor,
         Err(Errno::ENOENT) => return absent(),
@@ -942,12 +1036,12 @@ fn host_lock(runtime_directory: &Path, expected_uid: u32) -> std::io::Result<Hos
     }
 }
 
-/// Whether a Terminal Host of this runtime directory still holds its lock. On POSIX this, not a
-/// socket path, is a Host's presence: a socket file outlives its listener. The probe follows the
-/// rule of [`host_lock`].
-pub fn host_lock_held(runtime_directory: &Path) -> std::io::Result<bool> {
+/// Whether the Terminal Host in `slot` of this runtime directory still holds its lock. On POSIX
+/// this, not a socket path, is a Host's presence: a socket file outlives its listener. The probe
+/// follows the rule of [`host_lock`].
+pub fn host_lock_held(runtime_directory: &Path, slot: HostSlot) -> std::io::Result<bool> {
     Ok(matches!(
-        host_lock(runtime_directory, effective_uid())?,
+        host_lock(runtime_directory, slot, effective_uid())?,
         HostLock::Held
     ))
 }

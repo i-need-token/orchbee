@@ -618,6 +618,7 @@ fn a_second_connection_adopts_the_real_host_and_imports_its_terminal() -> TestRe
     // The Host may still be releasing the dropped session; the adoption dials it again meanwhile.
     let found = crate::host_adoption::adopt_endpoint(
         &real.runtime,
+        orchbee_local_runtime::HostSlot::FIRST,
         &real.endpoint,
         Some(process),
         Some(identity.host_epoch()),

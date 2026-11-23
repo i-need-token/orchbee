@@ -104,6 +104,19 @@ pub(crate) fn role_absent(processes: &SessionProcesses, role: ProcessRole) -> bo
     }
 }
 
+/// The full path of the program `process`, an ID and start time, runs: none once it ended, when its
+/// ID names a later process, or when its program cannot be read. The start time is compared before
+/// and after the read, so the path is that process's.
+pub fn running_program(process: (u32, u64)) -> Option<std::path::PathBuf> {
+    let same =
+        || matches!(native::started(process.0), Ok(Started::At(start)) if start == process.1);
+    if !same() {
+        return None;
+    }
+    let path = native::program_path(process.0)?;
+    same().then_some(path)
+}
+
 /// The program a registered `role` starts from.
 fn program(role: ProcessRole) -> CohortArtifact {
     BlockerRole::of(role).program()

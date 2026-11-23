@@ -689,32 +689,58 @@ fn settle_without_worker(
 /// The longest a stop, or a POSIX `exit`, waits for an orphaned Host to end every terminal and exit.
 const ORPHANED_HOST_BUDGET: Duration = WORKER_STOP_BUDGET;
 
-/// Ends the Host a lost Worker left behind, the only way left to end its terminals: the Host's
+/// Ends the Hosts a lost Worker left behind, the only way left to end their terminals: each Host's
 /// `exit` control request ends every retained terminal through the Host's ordinary teardown and
-/// then the Host. It returns once [`host_absent`] observes the Host gone, its lock free on Linux and
-/// macOS and its registered identity gone on Windows, and fails at `deadline` or
+/// then the Host. It returns once [`host_absent`] observes every Host gone, the first slot's lock
+/// free on Linux and each registered identity gone on Windows and macOS, and fails at `deadline` or
 /// [`ORPHANED_HOST_BUDGET`], whichever comes first. A Host that is already gone, or that ends while
-/// the request is lost, counts as ended; the Host is never ended by force.
+/// the request is lost, counts as ended; a Host is never ended by force.
 fn end_orphaned_host(owners: &Owners, deadline: Instant) -> io::Result<()> {
     if host_absent(owners) {
         return Ok(());
     }
     let deadline = deadline.min(Instant::now() + ORPHANED_HOST_BUDGET);
-    let endpoint =
-        ModeCheckedLocalSessionRendezvous::host_endpoint_path(owners.session.runtime_directory());
     let environment = orchbee_connection_handshake::EnvironmentName::new(
         orchbee_local_runtime::environment_stem(),
     )
     .map_err(io::Error::other)?;
-    let reply =
-        orchbee_local_client_protocol::exchange_exit_before(&endpoint, environment, deadline, None);
-    let submitted = match reply {
-        Ok(orchbee_local_client_protocol::ExitReply::Ending) => true,
-        Ok(orchbee_local_client_protocol::ExitReply::Unsupported) => {
-            return Err(io::ErrorKind::Unsupported.into());
-        }
-        Err(error) => error.submitted,
-    };
+    // A record that cannot be read leaves the first slot, where every Session's Host starts.
+    let slots = owners.session_record.hosts().map_or_else(
+        |_| vec![orchbee_local_runtime::HostSlot::FIRST],
+        |hosts| {
+            hosts
+                .into_iter()
+                .filter(|host| {
+                    matches!(
+                        host.presence,
+                        orchbee_local_runtime::HostPresence::Running(_)
+                            | orchbee_local_runtime::HostPresence::Unknown
+                    )
+                })
+                .map(|host| host.slot)
+                .collect()
+        },
+    );
+    let mut submitted = true;
+    for slot in slots {
+        let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(
+            owners.session.runtime_directory(),
+            slot,
+        );
+        let reply = orchbee_local_client_protocol::exchange_exit_before(
+            &endpoint,
+            environment.clone(),
+            deadline,
+            None,
+        );
+        submitted &= match reply {
+            Ok(orchbee_local_client_protocol::ExitReply::Ending) => true,
+            Ok(orchbee_local_client_protocol::ExitReply::Unsupported) => {
+                return Err(io::ErrorKind::Unsupported.into());
+            }
+            Err(error) => error.submitted,
+        };
+    }
     loop {
         if host_absent(owners) {
             return Ok(());

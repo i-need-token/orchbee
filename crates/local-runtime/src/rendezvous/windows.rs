@@ -140,10 +140,7 @@ impl ModeCheckedLocalSessionRendezvous {
     /// The Session scope that names the runtime folder of the Host in `slot`, which holds its
     /// lifetime lock, fatal record and log: `host` for the first slot, `host-<n>` for the others.
     pub fn slot_scope_name(slot: HostSlot) -> String {
-        match slot.index() {
-            0 => HOST_SCOPE_NAME.to_owned(),
-            index => format!("{HOST_SCOPE_NAME}-{index}"),
-        }
+        crate::rendezvous_types::slot_scope_name(slot)
     }
     /// The endpoint id of the Host in `slot`: the first slot's is the runtime's own, the address
     /// every earlier Host served; the others hash the runtime under their own domain.

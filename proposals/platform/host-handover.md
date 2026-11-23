@@ -1749,7 +1749,7 @@ the new release.
 | ----- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
 | M1    | Process identities on macOS: registrations with start times, suspended registered starts, observation, and presence by registration                             | Built  |
 | M2    | Cold adoption at activation and `server restart` on macOS, with the Update click's restart and the required Host replacement; the restart acceptance on the Mac | Built  |
-| M3    | The Host set on macOS: new terminals on the Worker's own Host, and drained older Hosts                                                                          | Open   |
+| M3    | The Host set on macOS: new terminals on the Worker's own Host, and drained older Hosts                                                                          | Built  |
 | M4    | The Keeper on macOS: keep mode, admission, `spawn`, POSIX `hold`, `exited` and `reap`, the Host's side, and the Worker's start and adoption of it               | Open   |
 | M5    | Recovery on macOS                                                                                                                                               | Open   |
 | M6    | Moves across versions on macOS                                                                                                                                  | Open   |

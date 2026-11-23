@@ -67,7 +67,7 @@ pub(super) fn query_with_progress(
 ///
 /// Returns an error when the Host cannot be reached, refuses, answers with anything but a
 /// `drain-result`, or has not answered by `deadline`.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn drain(endpoint: &Path, deadline: Instant) -> Result<(), Box<dyn Error>> {
     let mut transport = Admission::connect(endpoint, deadline)?;
     let request = ControlRequest {

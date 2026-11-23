@@ -219,7 +219,15 @@ fn serve(
             } else {
                 (None, None)
             };
-            #[cfg(not(windows))]
+            // A macOS Worker runs no Keeper; its care drains older Hosts.
+            #[cfg(target_os = "macos")]
+            let (wake, cared) = if hosts.is_managed() {
+                let cared: Option<Instant> = hosts.care(&server);
+                (hosts.care_due(), cared)
+            } else {
+                (None, None)
+            };
+            #[cfg(not(any(windows, target_os = "macos")))]
             let (wake, cared) = (None, None::<Instant>);
             if let Some((request, readable)) = hosts.receive(&server, wake)? {
                 break (request, cared.map_or(readable, |began| readable.min(began)));

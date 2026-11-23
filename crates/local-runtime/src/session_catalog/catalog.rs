@@ -44,15 +44,15 @@ const HOST_FILES: &[&str] = &[
     "keeper-diagnostics.jsonl",
 ];
 
-/// The files a runtime folder's `host` folder may hold: [`HOST_FILES`], and on POSIX the lock file
-/// a Terminal Host holds for its whole life and leaves behind when it exits.
-fn host_files(runtime: &Path) -> Vec<String> {
+/// The files the runtime folder of the Host in `slot` may hold: [`HOST_FILES`], and on POSIX the
+/// lock file that Host holds for its whole life and leaves behind when it exits.
+fn host_files(runtime: &Path, slot: crate::HostSlot) -> Vec<String> {
     let records = HOST_FILES.iter().map(|name| (*name).to_owned());
     #[cfg(unix)]
-    let lock = Some(format!("{}.l", Rendezvous::host_endpoint_id(runtime)));
+    let lock = Some(format!("{}.l", Rendezvous::slot_endpoint_id(runtime, slot)));
     #[cfg(windows)]
     let lock = {
-        let _no_lock_file_on_windows = runtime;
+        let _no_lock_file_on_windows = (runtime, slot);
         None
     };
     records.chain(lock).collect()
@@ -1023,12 +1023,16 @@ fn no_endpoints(runtime: &Path) -> io::Result<()> {
     free_endpoints(runtime, &[])
 }
 
-/// [`no_endpoints`] beside the Host `kept` names, which a macOS generation that adopts it leaves
-/// holding its lock; a Linux generation keeps no Host.
+/// [`no_endpoints`] beside the Hosts `kept` names, which a macOS generation that adopts them
+/// leaves holding their slots' locks; a Linux generation keeps no Host.
 #[cfg(unix)]
 fn free_endpoints(runtime: &Path, kept: &[KeptHost]) -> io::Result<()> {
-    if kept.is_empty() && crate::rendezvous::host_lock_held(runtime)? {
-        return Err(io::ErrorKind::WouldBlock.into());
+    for slot in crate::HostSlot::ALL {
+        if !kept.iter().any(|host| host.slot == slot)
+            && crate::rendezvous::host_lock_held(runtime, slot)?
+        {
+            return Err(io::ErrorKind::WouldBlock.into());
+        }
     }
     Ok(())
 }
@@ -1279,9 +1283,11 @@ impl OwnedDirectory {
                 Kind::Runtime if RUNTIME_FILES.contains(&name) => {
                     permissions::open_file(&entry.path(), false, false)?;
                 }
-                Kind::Runtime if name == "host" => {
+                Kind::Runtime if crate::rendezvous_types::slot_of_scope(name).is_some() => {
+                    let slot = crate::rendezvous_types::slot_of_scope(name)
+                        .ok_or(io::ErrorKind::InvalidData)?;
                     let _pins = permissions::open_tree(&entry.path())?;
-                    let files = host_files(path);
+                    let files = host_files(path, slot);
                     for owned in fs::read_dir(entry.path())? {
                         let owned = owned?;
                         let leaf = owned.file_name();
@@ -1373,26 +1379,30 @@ impl OwnedDirectory {
             // The catalog removes its record and then the folder.
             return Ok(());
         }
-        let path = self.path.join("host");
-        match permissions::open_tree(&path) {
-            Ok(pins) => {
-                for name in host_files(&self.path) {
-                    check()?;
-                    let file = path.join(name);
-                    match permissions::open_file(&file, false, false) {
-                        Ok(handle) => {
-                            drop(handle);
-                            permissions::remove_file(&file)?;
+        for slot in crate::HostSlot::ALL {
+            let path = self
+                .path
+                .join(crate::rendezvous_types::slot_scope_name(slot));
+            match permissions::open_tree(&path) {
+                Ok(pins) => {
+                    for name in host_files(&self.path, slot) {
+                        check()?;
+                        let file = path.join(name);
+                        match permissions::open_file(&file, false, false) {
+                            Ok(handle) => {
+                                drop(handle);
+                                permissions::remove_file(&file)?;
+                            }
+                            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                            Err(error) => return Err(error),
                         }
-                        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-                        Err(error) => return Err(error),
                     }
+                    drop(pins);
+                    permissions::remove_dir(&path)?;
                 }
-                drop(pins);
-                permissions::remove_dir(&path)?;
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => return Err(error),
             }
-            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error),
         }
         check()?;
         self.pins.pop();

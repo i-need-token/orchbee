@@ -588,8 +588,8 @@ running Hosts the binding record names, which the next generation adopts
 outlives its listener until its owner removes it, unlike a Windows pipe, so on both socket files
 never count as a live process: the Server removes the Session's stale ones under its lifetime lock
 before it binds, and its own once its stop completes, and a held Host lock refuses recovery,
-activation and deletion. `host_lock_held`
-is that probe for other processes: a replacement Worker requires the lock held before it dials the
+activation and deletion; on macOS each slot's Host keeps its own lock, and only a kept Host's may be
+held. `host_lock_held` is that probe of one slot for other processes: a replacement Worker requires the lock held before it dials the
 Host it adopts, and waits for it to come free when it stops that Host. A free lock is taken for the
 instant of the probe, so only a caller that no Host of the Session can be starting beside may ask.
 
@@ -991,9 +991,9 @@ its connection even while a terminal it started lives on.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private
-`host` directory and binds its endpoint in the socket folder. On Windows a Host in a later slot
-keeps its records in `host-<n>` and serves its own pipe, whose name hashes the runtime folder with
-the slot.
+`host` directory and binds its endpoint in the socket folder. On Windows and macOS a Host in a later
+slot keeps its records, and on macOS its lock, in `host-<n>` and serves its own endpoint: on Windows
+a pipe whose name hashes the runtime folder with the slot, on macOS the socket of its slot id.
 Invalid authorization produces the existing typed result without a Host. The admitted dispatch
 and kernel survive Host startup; the Host handoff revalidates authorization. The absolute Host
 endpoint address is checked against the platform socket-address ABI before the `host` directory
@@ -1103,26 +1103,29 @@ identity. The environment's stem keeps release, development, and test Sessions a
 
 For one trusted, existing, exactly normalized absolute per-user runtime base, the derived paths are:
 
-| Role                       | Path                                                                 |
-| -------------------------- | -------------------------------------------------------------------- |
-| Scope directory            | `<runtime-base>/<session>`                                           |
-| Activation lock            | `<runtime-base>/<session>/activation.lock`                           |
-| Session lifetime lock      | `<runtime-base>/<session>/session-lifetime.lock`                     |
-| Host directory             | `<runtime-base>/<session>/host`, which holds the Host's lock         |
-| Socket folder              | `/tmp/<stem>-<euid>` on Linux, `/private/tmp/<stem>-<euid>` on macOS |
-| Client socket              | `<socket-folder>/<id>-client.sock`                                   |
-| Client pending name        | `<socket-folder>/<id>-pending.sock`                                  |
-| Worker socket              | `<socket-folder>/<id>-worker.sock`                                   |
-| Host endpoint              | `<socket-folder>/<id>-host.sock`                                     |
-| Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                    |
+| Role                       | Path                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------- |
+| Scope directory            | `<runtime-base>/<session>`                                                    |
+| Activation lock            | `<runtime-base>/<session>/activation.lock`                                    |
+| Session lifetime lock      | `<runtime-base>/<session>/session-lifetime.lock`                              |
+| Host directory             | `<runtime-base>/<session>/host`, which holds the Host's lock                  |
+| Socket folder              | `/tmp/<stem>-<euid>` on Linux, `/private/tmp/<stem>-<euid>` on macOS          |
+| Client socket              | `<socket-folder>/<id>-client.sock`                                            |
+| Client pending name        | `<socket-folder>/<id>-pending.sock`                                           |
+| Worker socket              | `<socket-folder>/<id>-worker.sock`                                            |
+| Host endpoint              | `<socket-folder>/<id>-host.sock`                                              |
+| Later Host slot (macOS)    | `<runtime-base>/<session>/host-<n>` and `<socket-folder>/<slot-id>-host.sock` |
+| Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                             |
 
 `<id>` is the first 32 hex digits of SHA-256 over `orchbee-posix-runtime-v1`, a NUL byte, the
 runtime base as activation names it, `/`, and the lowercase Session name. Every socket name thus
 has one length whatever the home folder, base, or Session name; the longest, with a 10-digit user
 ID, is 94 bytes, inside the 103 that macOS allows. The pending name is the transient pre-publish
 bind the Server renames onto the Client socket; the Host receives `<id>` and the socket folder as
-`--endpoint-id` and `--endpoint-directory`. The derived paths are pure joins that answer even when
-the folders cannot be inspected.
+`--endpoint-id` and `--endpoint-directory`; a macOS Host in a later slot receives `<slot-id>`, the
+first 32 hex digits of SHA-256 over `orchbee-posix-host-slot-v1`, a NUL byte, the slot index as one
+byte, and `<id>`. The derived paths are pure joins that answer even when the folders cannot be
+inspected.
 
 The socket folder's parent must belong to root and carry the sticky bit. Preparation creates the
 socket folder as 0700 when it is missing; every open requires a real folder of the effective user

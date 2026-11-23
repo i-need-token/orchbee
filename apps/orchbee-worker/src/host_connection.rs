@@ -438,14 +438,14 @@ impl HostBrokerConnection {
     }
 
     /// Whether this Host runs any program for the Worker, as far as its answers showed.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn runs_programs(&self) -> bool {
         !self.programs.borrow().is_empty()
     }
 
     /// Joins this connection's title projection to the one `primary` shares, so the Worker keeps one
     /// change sequence across its Hosts; the titles this connection read so far become changes there.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn share_titles(&mut self, primary: &Self) {
         if Rc::ptr_eq(&self.titles, &primary.titles) {
             return;
@@ -456,7 +456,7 @@ impl HostBrokerConnection {
 
     /// Sends this Host one `drain` control request on a new connection to its endpoint, so it takes
     /// no new terminal and ends once it holds none; `false` when it has not answered by `deadline`.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn drain_host(&self, deadline: Instant) -> bool {
         process_query::drain(&self.endpoint, deadline).is_ok()
     }

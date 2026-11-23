@@ -1,7 +1,7 @@
 //! The Terminal Hosts one Worker holds (`proposals/platform/versioning-and-upgrade.md`, Host
 //! lifetime): its own Host, from its own cohort, which takes every new terminal and program, and on
-//! Windows the older Hosts a replacement adopted from another installation, which keep serving
-//! their terminals. It routes a request to the Host that serves what the request names, starts the
+//! Windows and macOS the older Hosts a replacement adopted from another installation, which keep
+//! serving their terminals. It routes a request to the Host that serves what the request names, starts the
 //! Worker's own Host when a launch needs one, and, while the Worker holds its own Host, drains an
 //! older Host that runs neither a terminal nor a program, then frees its slot once it ends. It
 //! serves no request itself.
@@ -22,13 +22,13 @@ use crate::{
 };
 
 /// How often an older Host is checked for emptiness between requests.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const DRAIN_CHECK_PERIOD: std::time::Duration = std::time::Duration::from_secs(2);
 /// How long one emptiness check or `drain` request may take.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const DRAIN_BOUND: std::time::Duration = std::time::Duration::from_millis(500);
 /// How long a drained Host that closed its connection may take to exit.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const END_BOUND: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// One Host the Worker holds.
@@ -41,12 +41,12 @@ struct HeldHost {
     own: bool,
     #[cfg(windows)]
     watch: super::keeper_care::HostWatch,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     drain: Drain,
 }
 
 /// Where draining an older Host stands.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy)]
 enum Drain {
     /// It serves, and is next checked for emptiness at this instant.
@@ -56,12 +56,12 @@ enum Drain {
 }
 
 impl HeldHost {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     const fn drained(&self) -> bool {
         matches!(self.drain, Drain::Drained)
     }
 
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "macos")))]
     const fn drained(&self) -> bool {
         false
     }
@@ -85,7 +85,7 @@ pub(super) struct HostSet<'a> {
     hosts: Vec<HeldHost>,
     starter: Option<Starter<'a>>,
     /// The cohort's Terminal Host program, which an own Host runs and a Keeper starts from.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     host_program: Option<std::path::PathBuf>,
     /// Own Host starts that failed in a row, and whether another may begin.
     failed_starts: u32,
@@ -115,7 +115,7 @@ impl<'a> HostSet<'a> {
 
     fn new(starter: Option<Starter<'a>>) -> Self {
         Self {
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             host_program: starter.as_ref().map(|starter| {
                 starter
                     .cohort
@@ -133,8 +133,9 @@ impl<'a> HostSet<'a> {
     }
 
     /// Adds the Host in `slot` this Worker started or adopted, whose owner is `managed`. On Windows
-    /// an adopted Host is the Worker's own only when its image is the cohort's Terminal Host, and
-    /// `offered` says whether the Session's Keeper this Worker answers for was attached to it.
+    /// and macOS an adopted Host is the Worker's own only when its image is the cohort's Terminal
+    /// Host, and on Windows `offered` says whether the Session's Keeper this Worker answers for was
+    /// attached to it.
     pub(super) fn add(
         &mut self,
         slot: HostSlot,
@@ -142,17 +143,21 @@ impl<'a> HostSet<'a> {
         managed: ManagedHost,
         offered: bool,
     ) {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let own = self
             .host_program
             .as_deref()
             .is_none_or(|program| managed.runs(program));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let own = true;
         self.push(slot, connection, Some(managed), own, offered);
     }
 
-    #[cfg_attr(not(windows), expect(unused_mut, unused_variables))]
+    #[cfg_attr(target_os = "macos", expect(unused_variables))]
+    #[cfg_attr(
+        not(any(windows, target_os = "macos")),
+        expect(unused_mut, unused_variables)
+    )]
     fn push(
         &mut self,
         slot: HostSlot,
@@ -161,7 +166,7 @@ impl<'a> HostSet<'a> {
         own: bool,
         offered: bool,
     ) {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         if let Some(first) = self.hosts.first() {
             connection.share_titles(&first.connection);
         }
@@ -172,7 +177,7 @@ impl<'a> HostSet<'a> {
             own,
             #[cfg(windows)]
             watch: super::keeper_care::HostWatch::new(Instant::now(), offered),
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             drain: Drain::Serving(Instant::now()),
         });
     }
@@ -298,9 +303,9 @@ impl<'a> HostSet<'a> {
         let among = super::server_transport::receive_among(server, &watched, idle)?;
         for index in among.ended.into_iter().rev() {
             let held = self.hosts.remove(index);
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             self.end_drained(held);
-            #[cfg(not(windows))]
+            #[cfg(not(any(windows, target_os = "macos")))]
             drop(held);
         }
         Ok(among.received)
@@ -472,7 +477,35 @@ impl HostSet<'_> {
         };
         super::keeper_care::after_unanswered(&mut cared, &mut self.keeper);
     }
+}
 
+/// The care between requests on macOS, which runs no Keeper: it drains older Hosts.
+#[cfg(target_os = "macos")]
+impl HostSet<'_> {
+    /// Drains each older Host found empty. Returns when it began if a Server request became
+    /// readable while it ran.
+    pub(super) fn care(&mut self, server: &UnixStream) -> Option<Instant> {
+        let began = Instant::now();
+        (self.drain_empty() && super::server_transport::readable_now(server)).then_some(began)
+    }
+
+    /// When an older Host is next due for its emptiness check, so the wait for a request wakes for
+    /// it; none while the Worker holds no own Host or no older Host serves.
+    pub(super) fn care_due(&self) -> Option<Instant> {
+        self.own()?;
+        self.hosts
+            .iter()
+            .filter(|held| !held.own)
+            .filter_map(|held| match held.drain {
+                Drain::Serving(due) => Some(due),
+                Drain::Drained => None,
+            })
+            .min()
+    }
+}
+
+#[cfg(any(windows, target_os = "macos"))]
+impl HostSet<'_> {
     /// Drains each older Host that holds no terminal and runs no program, while the Worker holds its
     /// own Host: such a Host takes nothing new, so one check between requests at most every
     /// [`DRAIN_CHECK_PERIOD`] finds it empty for good. Returns whether any Host was checked.

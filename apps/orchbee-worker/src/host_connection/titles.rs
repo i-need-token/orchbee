@@ -60,7 +60,7 @@ impl Titles {
 
     /// Takes in each title another connection's projection holds, as a change of this one, when
     /// that connection joins this Worker's other Hosts; a title this projection refuses is left out.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn absorb(&mut self, other: Self) {
         for row in other.rows.into_values() {
             let _refused = self.observe_row(row.identity, row.revision, row.title);

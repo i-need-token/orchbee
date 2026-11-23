@@ -284,8 +284,8 @@ fn adopt_slot(
     let Some(host_slot) = HostSlot::new(slot.slot) else {
         return Err(refused("no such Host slot"));
     };
-    // A POSIX Session runs its one Host in the first slot.
-    #[cfg(not(windows))]
+    // A Linux Session runs its one Host in the first slot.
+    #[cfg(all(unix, not(target_os = "macos")))]
     if host_slot != HostSlot::FIRST {
         let _ = (cohort, channel);
         return Err(refused("a POSIX Session runs one Host"));

@@ -135,7 +135,7 @@ pub(super) const HOST_START_ATTEMPTS: u32 = 3;
 
 /// Which Host a start makes: a Host in a slot no Host holds, or a recovery Host in the slot of a
 /// Host that ended while the Keeper kept its programs, serving that Host's epoch when the bindings
-/// name one. A POSIX Worker starts only the first slot's Host.
+/// name one. A Linux Worker starts only the first slot's Host.
 #[derive(Clone, Copy)]
 pub(super) enum HostStart {
     Fresh(orchbee_local_runtime::HostSlot),
@@ -174,29 +174,23 @@ pub(super) fn start_host(
     // The Host binds `<id>-host.sock` relatively inside the socket folder while the Worker
     // connects through the derived absolute path; validate that address before the Host
     // directory or process can appear.
-    #[cfg(windows)]
     let endpoint = ModeCheckedLocalSessionRendezvous::slot_endpoint_path(runtime, start.slot());
-    #[cfg(unix)]
-    let endpoint = ModeCheckedLocalSessionRendezvous::host_endpoint_path(runtime);
     // A failure no later start could pass leaves no retry: the address is the same every time.
     let permanent = |stage, error: Box<dyn Error>| HostStartFailure {
         retryable: false,
         ..failed(stage, error)
     };
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     if start.slot() != orchbee_local_runtime::HostSlot::FIRST {
         return Err(permanent(
             HostStartStage::Endpoint,
-            "a POSIX Session runs its one Host in the first slot".into(),
+            "a Linux Session runs its one Host in the first slot".into(),
         ));
     }
     #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)
         .map_err(|error| permanent(HostStartStage::Endpoint, error.into()))?;
-    #[cfg(windows)]
     let scope_name = ModeCheckedLocalSessionRendezvous::slot_scope_name(start.slot());
-    #[cfg(unix)]
-    let scope_name = orchbee_local_runtime::HOST_SCOPE_NAME.to_owned();
     let directory = SessionScope::parse(&scope_name)
         .map_err(Box::<dyn Error>::from)
         .and_then(|scope| {
@@ -221,11 +215,8 @@ pub(super) fn start_host(
         Ok(true) => return Err(permanent(HostStartStage::Endpoint, recovery_required())),
         Err(error) => return Err(failed(HostStartStage::Endpoint, error.into())),
     }
-    #[cfg(windows)]
     let host_endpoint_id =
         ModeCheckedLocalSessionRendezvous::slot_endpoint_id(runtime, start.slot());
-    #[cfg(unix)]
-    let host_endpoint_id = ModeCheckedLocalSessionRendezvous::host_endpoint_id(runtime);
     let executable = cohort.executable(CohortArtifact::TerminalHost);
     let arguments = [
         std::ffi::OsStr::new("serve"),
