@@ -118,6 +118,38 @@ pub(super) fn exit_before_cancellable(
     })
 }
 
+/// One `handover` step under `expires_at`: the request is due within the candidate deadline, and
+/// the reply, which comes once the Server has done the step, within the caller's.
+#[cfg(target_os = "macos")]
+pub(super) fn handover_before_cancellable(
+    endpoint: &Path,
+    environment: EnvironmentName,
+    step: orchbee_connection_handshake::HandoverStep,
+    ticket: orchbee_connection_handshake::HandoverTicket,
+    expires_at: Instant,
+    wake: Option<BorrowedFd<'_>>,
+) -> Result<super::HandoverReply, super::SessionStopExchangeError> {
+    let mut submitted = false;
+    let result = (|| {
+        let (mut stream, deadline) = open(endpoint, expires_at, wake)?;
+        let mut transport = DeadlineIo {
+            stream: &mut stream,
+            deadline: Deadline {
+                expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
+                ..deadline
+            },
+        };
+        handshake::request_handover(&mut transport, environment, step, ticket)?;
+        submitted = true;
+        transport.deadline = deadline;
+        handshake::handover_reply(&mut transport, step, ticket)
+    })();
+    result.map_err(|failure| super::SessionStopExchangeError {
+        failure: translate_wake(failure),
+        submitted,
+    })
+}
+
 fn admit(
     endpoint: &Path,
     offer: &Offer,

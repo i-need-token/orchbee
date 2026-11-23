@@ -27,7 +27,7 @@ impl WorkerLoss {
     }
 
     /// The Worker ended because a restart released it to a successor, which fails nothing.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn released(&mut self) {
         self.seen = true;
     }

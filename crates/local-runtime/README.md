@@ -582,7 +582,9 @@ macOS registers processes as Windows does ([macOS process identity](#macos-proce
 Linux does not. On Linux a durable record's Server, Worker and Host registry stays `not-started`,
 no observation ever reports a role absent, and `spawn_server` and `spawn_session_child` return
 `io::ErrorKind::Unsupported`. Recovering an Active Session there rests on its free activation and
-lifetime locks and a free Host lock; macOS also requires its registered identities gone. A socket
+lifetime locks and a free Host lock; macOS also requires its registered identities gone, except
+running Hosts the binding record names, which the next generation adopts
+([cold adoption](docs/windows-crash-recovery.md#cold-adoption)). A socket
 outlives its listener until its owner removes it, unlike a Windows pipe, so on both socket files
 never count as a live process: the Server removes the Session's stale ones under its lifetime lock
 before it binds, and its own once its stop completes, and a held Host lock refuses recovery,

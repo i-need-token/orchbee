@@ -111,14 +111,15 @@ interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
 Linux has no Session stop, repair or deletion command. Windows and macOS support `server stop --confirm`, and `operation status <id>` reads the stop; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#release-destructive-confirmation) describes.
 
-### Restart the Server (Windows)
+### Restart the Server (Windows and macOS)
 
 `server restart` hands this Session to a new Server and Worker of this build while every terminal
-keeps running. It runs only on Windows; other platforms refuse it as unsupported. The declared
+keeps running. It runs on Windows and macOS; Linux refuses it as unsupported. The declared
 workflow, in phase order:
 
 1. Reserve: holding the Session's activation lock until it answers, so that no start runs beside
-   the restart, the command creates this build's Server suspended outside the caller's Job, records
+   the restart, the command creates this build's Server suspended (on Windows outside the caller's
+   Job), records
    it in the Session record as the restart's successor with a fresh ticket and activation
    identifier, then resumes it.
 2. The successor checks the running Server, its connected Clients and its Terminal Hosts; asks the
@@ -134,7 +135,8 @@ workflow, in phase order:
 - A refusal (exit 3, or 4 when no Server runs) leaves nothing changed: the command removes its
   successor entry and ends the processes it names.
 - No Server runs (`not-running`) only when the Session's Client endpoint is found gone twice in a
-  row. A Server that holds the endpoint without answering in time may still serve: before the
+  row. On macOS, where a socket file outlives its Server, a refused connection counts as gone only
+  while no Server holds the Session's lifetime lock. A Server that holds the endpoint without answering in time may still serve: before the
   restart the successor's Check asks it again, and after it the result names where the restart
   ended, never `not-running` or `open`.
 - A failure (exit 9) names where the restart ended once the command has cleared its entry: `start`

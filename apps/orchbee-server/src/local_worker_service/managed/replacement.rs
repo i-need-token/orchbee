@@ -50,14 +50,14 @@ const RECORD_WAIT: Duration = Duration::from_secs(2);
 
 const WORKER_LOST: &str = "worker-lost";
 const WORKER_REPLACED: &str = "worker-replaced";
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const HANDOVER_TAKE_BACK: &str = "handover-take-back";
 
 /// Why the serving Worker is gone: it was lost, or a restart that did not commit released it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Cause {
     Loss,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     TakeBack,
 }
 
@@ -99,7 +99,7 @@ impl Supervision {
     /// to the successor ended by its own Keep shutdown, so a replacement adopts its Host as after a
     /// loss. The first attempt counts against no cap, and it is recorded as `handover-take-back`,
     /// not as a loss. Returns whether the Server should begin its own stop.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn take_back(&mut self, owners: &mut Owners, shutdown: &SessionShutdown) -> bool {
         self.unreplaced = Some(owners.handle.generation());
         self.lost(owners, shutdown, Cause::TakeBack)
@@ -448,9 +448,9 @@ fn spawn(owners: &Owners, worker_id: WorkerId, deadline: Instant) -> io::Result<
         OsStr::new(&worker_id),
     ];
     // A Server a restart started serves the Worker endpoint its ticket names.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let ticket = owners.worker_ticket.map(|ticket| ticket.to_string());
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let arguments: Vec<&OsStr> = arguments
         .into_iter()
         .chain(
@@ -924,7 +924,7 @@ fn lost_record(
     }
     match cause {
         Cause::Loss => orchbee_local_runtime::log_event(LogLevel::Error, WORKER_LOST, &fields),
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         Cause::TakeBack => {
             orchbee_local_runtime::log_event(LogLevel::Warning, HANDOVER_TAKE_BACK, &fields);
         }

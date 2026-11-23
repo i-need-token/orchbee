@@ -57,7 +57,7 @@ const EXIT_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40
 
 /// How long a `handover` requester waits for the lifecycle owner's answer; a `prepare` settles
 /// in-flight work, captures the Session and releases the Worker within a shorter budget.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 const HANDOVER_REPLY_WINDOW: std::time::Duration = std::time::Duration::from_secs(40);
 
 /// What the Client endpoint states about this Server in the handshake, and the Worker it lists in
@@ -455,17 +455,17 @@ fn handle_candidate_control(
             }
             return;
         }
-        // A managed Windows Server hands its Session to a successor; any other answers as an older
-        // one does. An answer that does not come in time is not sent: the lease and the Session
+        // A managed Windows or macOS Server hands its Session to a successor; any other answers as
+        // an older one does. An answer that does not come in time is not sent: the lease and the Session
         // record decide the restart.
         Decision::Serve(kind @ RequestKind::Handover { step, ticket }) => {
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             let answered = control.handover(
                 step,
                 ticket,
                 std::time::Instant::now() + HANDOVER_REPLY_WINDOW,
             );
-            #[cfg(unix)]
+            #[cfg(all(unix, not(target_os = "macos")))]
             let answered = {
                 let _ = (step, ticket);
                 None

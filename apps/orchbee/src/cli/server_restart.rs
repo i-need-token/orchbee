@@ -1,14 +1,14 @@
 //! `server restart`: hands this Session to a new Server and Worker of this build while every
-//! terminal keeps running. Only Windows admits it; the workflow is its Windows adapter.
+//! terminal keeps running. Windows and macOS admit it; the workflow is their adapter.
 mod reply;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod workflow;
 
 use super::{Failure, FailureKind, Output, failure_output};
 use crate::cli::console_interrupt::{ArmedSignals, Finish};
 use crate::{invocation::OutputFormat, localization::Locale};
 use std::time::{Duration, Instant};
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use workflow::restart;
 
 /// How long one `server restart` waits for its outcome.
@@ -16,8 +16,11 @@ const DEADLINE: Duration = Duration::from_secs(150);
 
 /// How one `server restart` ended, before a cancelled wait is classified.
 #[cfg_attr(
-    not(windows),
-    expect(dead_code, reason = "only the Windows workflow restarts a Session")
+    not(any(windows, target_os = "macos")),
+    expect(
+        dead_code,
+        reason = "only the Windows and macOS workflow restarts a Session"
+    )
 )]
 pub(super) enum Restart {
     /// The new Server serves the Session; every terminal kept running.
@@ -35,8 +38,11 @@ pub(super) enum Restart {
 
 /// Why a restart was refused before it changed anything.
 #[cfg_attr(
-    not(windows),
-    expect(dead_code, reason = "only the Windows workflow refuses a restart")
+    not(any(windows, target_os = "macos")),
+    expect(
+        dead_code,
+        reason = "only the Windows and macOS workflow refuses a restart"
+    )
 )]
 pub(super) enum Refusal {
     NotRunning,
@@ -50,8 +56,11 @@ pub(super) enum Refusal {
 
 /// Where a restart failed.
 #[cfg_attr(
-    not(windows),
-    expect(dead_code, reason = "only the Windows workflow fails a restart")
+    not(any(windows, target_os = "macos")),
+    expect(
+        dead_code,
+        reason = "only the Windows and macOS workflow fails a restart"
+    )
 )]
 pub(super) enum FailedPhase {
     /// The new Server could not be started.
@@ -100,7 +109,7 @@ pub(crate) fn run(format: OutputFormat, locale: Locale) -> Output {
 
 /// No other platform admits the capability, and no other platform's Server hands its terminals
 /// over.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn restart(_deadline: Instant, _signals: &mut ArmedSignals) -> Restart {
     Restart::SessionTooOld
 }

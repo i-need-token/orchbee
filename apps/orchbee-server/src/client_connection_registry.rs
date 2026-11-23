@@ -86,7 +86,7 @@ impl ClientConnectionRegistry {
 
     /// Whether every connected Client offered `capability`; a connection without a kept offer
     /// counts as one that did not.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn all_offer(&self, capability: &str) -> bool {
         self.active_generations.iter().all(|generation| {
             self.offers

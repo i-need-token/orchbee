@@ -70,8 +70,8 @@ export type UpdateRestart =
  * Client `executable`: the newer side reads the tier with `status server` and restarts with
  * `server restart`. Once the Session runs that version, a `required` Host whose terminals move is
  * read every two seconds until those Hosts run no terminal or their count held for six seconds. Only
- * Windows restarts a Session while terminals run; elsewhere a Session the version cannot join waits
- * for the automatic move.
+ * Windows and macOS restart a Session while terminals run; elsewhere a Session the version cannot
+ * join waits for the automatic move.
  */
 export async function restartForUpdate(
 	executable: string,
@@ -80,7 +80,7 @@ export async function restartForUpdate(
 	joins: boolean,
 	platform: NodeJS.Platform,
 ): Promise<UpdateRestart> {
-	if (platform !== 'win32') return joins ? 'not-needed' : 'failed';
+	if (platform !== 'win32' && platform !== 'darwin') return joins ? 'not-needed' : 'failed';
 	const read = (): Promise<RestartTier | undefined> =>
 		readRestart(executable, sessionArguments, environment);
 	const restart = await read();

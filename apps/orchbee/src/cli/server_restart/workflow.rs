@@ -1,7 +1,7 @@
-//! The requester of a Server restart that keeps terminals, on Windows. It asks the running Server
-//! whether its restart keeps terminals, then, holding the Session's activation lock so that no
-//! activation starts a Server beside the restart, starts the successor Server suspended outside its
-//! own Job, names it in the Session record with a fresh ticket and the activation identifier it
+//! The requester of a Server restart that keeps terminals, on Windows and macOS. It asks the running
+//! Server whether its restart keeps terminals, then, holding the Session's activation lock so that no
+//! activation starts a Server beside the restart, starts the successor Server suspended (on Windows
+//! outside its own Job), names it in the Session record with a fresh ticket and the activation identifier it
 //! commits, and resumes it. It waits until the Session's Client endpoint answers from that
 //! successor. A successor that ended names a refusal in its exit code; otherwise, once what the
 //! attempt left in the record is cleared, the record and the Client endpoint tell where the restart
@@ -17,11 +17,13 @@ use crate::cli::console_interrupt::ArmedSignals;
 use orchbee_connection_handshake::{EnvironmentName, ProcessRole, ProcessState, QueryResult};
 use orchbee_local_client_protocol::ConnectClientError;
 use orchbee_local_runtime::{
-    Cohort, CohortArtifact, DataRoot, FallbackEvent, FallbackRecorder, JobPlacement, LockAttempt,
-    LogLevel, LogValue, ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock,
-    RendezvousError, RestartCleared, RestartRefusal, RestartReservation, SessionCatalog,
-    SessionScope, activation_text,
+    Cohort, CohortArtifact, DataRoot, FallbackEvent, FallbackRecorder, LockAttempt,
+    ModeCheckedLocalSessionRendezvous as Rendezvous, ModeCheckedSessionLock, RendezvousError,
+    RestartCleared, RestartRefusal, RestartReservation, SessionCatalog, SessionScope,
+    activation_text,
 };
+#[cfg(windows)]
+use orchbee_local_runtime::{JobPlacement, LogLevel, LogValue};
 use std::{
     ffi::OsStr,
     io,
@@ -84,7 +86,17 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         return Restart::TimedOut;
     }
     let arguments = start.arguments(&session);
+    #[cfg(windows)]
     let spawned = catalog.spawn_successor_outside_job(
+        &session,
+        &activation,
+        start.reservation,
+        &start.executable,
+        &arguments,
+        deadline,
+    );
+    #[cfg(target_os = "macos")]
+    let spawned = catalog.spawn_successor(
         &session,
         &activation,
         start.reservation,
@@ -94,6 +106,7 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
     );
     // Only the reservation needs the namespace; the activation lock stays until the end.
     drop(catalog);
+    #[cfg(windows)]
     let (mut successor, placement) = match spawned {
         Ok(spawned) => spawned,
         // Another restart's successor still runs.
@@ -113,6 +126,23 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         }
         Err(_) => return Restart::Failed(FailedPhase::Start),
     };
+    #[cfg(target_os = "macos")]
+    let mut successor = match spawned {
+        Ok(successor) => successor,
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            return Restart::Refused(Refusal::Busy);
+        }
+        Err(error) if error.kind() == io::ErrorKind::InvalidData => {
+            return match look(&session, &environment, deadline, Some(&mut *signals)) {
+                Endpoint::Gone => Restart::Refused(Refusal::NotRunning),
+                Endpoint::Cancelled => Restart::TimedOut,
+                Endpoint::Answered(answer) if ready(&answer) => Restart::Refused(Refusal::Records),
+                _ => Restart::Refused(Refusal::Busy),
+            };
+        }
+        Err(_) => return Restart::Failed(FailedPhase::Start),
+    };
+    #[cfg(windows)]
     record_server_job(placement);
     // The reserved generation is a start of this version, so its failure can count toward the
     // fallback after a move; see `counts_as_failure`.
@@ -291,9 +321,7 @@ fn look(
                 return Endpoint::Refused;
             }
             Err(ConnectClientError::PredatesHandshake) => return Endpoint::Predates,
-            Err(ConnectClientError::ConnectFailed(error))
-                if error.kind() == io::ErrorKind::NotFound =>
-            {
+            Err(ConnectClientError::ConnectFailed(error)) if no_server(session, &error) => {
                 gone += 1;
                 if gone == 2 {
                     return Endpoint::Gone;
@@ -308,6 +336,24 @@ fn look(
         gone = 0;
     }
     Endpoint::Silent
+}
+
+/// Whether a failed connect shows that no Server holds the Session: its endpoint is missing, or, on
+/// macOS, where a socket file outlives its Server, the connect was refused and a probe takes the
+/// Session lifetime lock, which every Server holds while it lives.
+fn no_server(session: &Rendezvous, error: &io::Error) -> bool {
+    match error.kind() {
+        io::ErrorKind::NotFound => true,
+        #[cfg(target_os = "macos")]
+        io::ErrorKind::ConnectionRefused => matches!(
+            session.try_acquire_session_lifetime_lock(),
+            Ok(LockAttempt::Acquired(_))
+        ),
+        _ => {
+            let _ = session;
+            false
+        }
+    }
 }
 
 /// Whether the answering Server accepts new work, neither draining nor ending.
@@ -444,6 +490,7 @@ fn entropy() -> Option<[u8; 16]> {
 /// Writes `server-job` as an activation does: `outside` for a successor created outside this
 /// process's Job, or `inside` with the refused request's error kind, when it shares that Job and
 /// ends with it.
+#[cfg(windows)]
 fn record_server_job(placement: JobPlacement) {
     let (level, fields) = match placement {
         JobPlacement::Outside => (

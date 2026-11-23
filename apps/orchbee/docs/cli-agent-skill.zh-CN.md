@@ -44,7 +44,7 @@ PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
 ## 选择并启动 Session
 
-用 `doctor` 检查 Orchbee 在本机能否正常工作：安装、设置、已保存数据、运行时目录和会话，每项为 `pass`、`warning`、`fail` 或 `not-applicable`，只有检查失败时退出码才为 `1`。用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程。`doctor` 与 `config check` 不启动 Session；`status` 需要正在运行的 Session。`server start` 执行无界面启动；在 Windows 上，`server restart` 可把正在运行的 Session 交给本构建的新 Server，终端保持运行；`workspace create`、`project create`、`worktree create` 和 `worktree open` 在所选 Session 未运行时会先自行启动它，并在标准错误输出 `本地会话已启动。`。
+用 `doctor` 检查 Orchbee 在本机能否正常工作：安装、设置、已保存数据、运行时目录和会话，每项为 `pass`、`warning`、`fail` 或 `not-applicable`，只有检查失败时退出码才为 `1`。用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程。`doctor` 与 `config check` 不启动 Session；`status` 需要正在运行的 Session。`server start` 执行无界面启动；在 Windows 和 macOS 上，`server restart` 可把正在运行的 Session 交给本构建的新 Server，终端保持运行；`workspace create`、`project create`、`worktree create` 和 `worktree open` 在所选 Session 未运行时会先自行启动它，并在标准错误输出 `本地会话已启动。`。
 
 `--session <name>` 选择本地命名 Session，可位于命令之前或之后，默认值为 `default`。后续操作与诊断应保持相同选择。`session list` 显示本地清单；`session attach <name>` 进入其 TUI。退出 TUI 不会停止 Session。
 

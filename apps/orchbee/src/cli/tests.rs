@@ -1656,10 +1656,10 @@ fn unsupported_commands_share_the_platform_failure_contract() {
                     locale,
                 )
             });
-            // `channel show` and `server restart` stay Windows only.
+            // `channel show` stays Windows only, and `server restart` Windows and macOS only.
             let channel = super::channel::show(format, locale);
-            let restart = super::server_restart(format, locale);
-            for output in control.into_iter().chain([channel, restart]) {
+            let restart = cfg!(target_os = "linux").then(|| super::server_restart(format, locale));
+            for output in control.into_iter().chain([channel]).chain(restart) {
                 assert_eq!(output.status, 4);
                 assert!(!output.stderr.is_empty());
                 if format == OutputFormat::Json {

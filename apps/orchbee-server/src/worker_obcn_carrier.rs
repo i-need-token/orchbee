@@ -477,7 +477,7 @@ impl WorkerRequestHandle {
     /// A plugin-job read whose reader waits only until its own deadline, such as the count of
     /// background programs a `query` reply or a restart's `prepare` reads; the wire owner still
     /// validates and consumes a later result. Admission never waits.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn admit_plugin_job(
         &self,
         request: orchbee_capability_node_protocol::PluginJobRequest,

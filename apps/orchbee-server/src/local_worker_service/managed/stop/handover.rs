@@ -1,11 +1,13 @@
-//! The old side of a Server restart that keeps terminals, on Windows. A `prepare` holds the Session
+//! The old side of a Server restart that keeps terminals, on Windows and macOS. A `prepare` holds the Session
 //! for the successor its record names: it settles intents, counts background programs, publishes an
 //! exact capture, releases the store and the Worker, and starts a lease. A `commit` ends this Server
 //! once the record names the successor; an `abort`, the lease, or the end of the successor or its
 //! Worker decides the restart under the record's writer lock, and takes the Session back while the
 //! record still names this generation. Whoever removes the successor entry first ends what it names
 //! by its recorded identity; holding nothing, this Server removes an entry its successor abandoned.
-use super::{Owners, Watch, checkpoint_worker, end_worker, own_stop_id};
+#[cfg(windows)]
+use super::own_stop_id;
+use super::{Owners, Watch, checkpoint_worker, end_worker};
 use crate::{
     local_client_service::ManagedClients,
     session_shutdown::{HoldRefusal, SessionShutdown},
@@ -59,6 +61,20 @@ pub(super) struct Restart {
     /// The ticket of an entry seen while holding nothing, and when it was first seen.
     seen: Option<([u8; 16], Instant)>,
     next_look: Option<Instant>,
+    /// The identity a POSIX Server's own stops use, its signals' and idle move's too.
+    #[cfg(unix)]
+    own: Option<orchbee_local_client_protocol::StopId>,
+}
+
+impl Restart {
+    /// The restarts of a Server whose own stops use `identity`.
+    #[cfg(unix)]
+    pub(super) fn under(identity: orchbee_local_client_protocol::StopId) -> Self {
+        Self {
+            own: Some(identity),
+            ..Self::default()
+        }
+    }
 }
 
 /// A restart this Server holds the Session for.
@@ -177,7 +193,7 @@ impl Restart {
                 record("committed");
                 Next::Leave
             }
-            Fence::Undecided => self.undecided(),
+            Fence::Undecided => self.undecided(owners),
         }
     }
 
@@ -192,19 +208,28 @@ impl Restart {
     ) -> Next {
         if self.held.is_none() {
             let deadline = Instant::now() + END;
+            let mut ended = None;
             if let Err(error) = owners.session_record.clear_successor(
                 deadline,
                 |_| true,
-                |entry| ExactProcess::end_successor(entry, deadline),
+                |entry| {
+                    ended = Some(entry.ticket());
+                    ExactProcess::end_successor(entry, deadline)
+                },
             ) {
                 diagnostic("clear", &error);
+            }
+            if let Some(ticket) = ended {
+                forget_endpoint(owners, ticket);
             }
             return Next::Serve;
         }
         loop {
             match self.fence(owners) {
                 Fence::Kept => {
-                    self.held = None;
+                    if let Some(held) = self.held.take() {
+                        forget_endpoint(owners, *held.ticket.as_bytes());
+                    }
                     record("taken-back");
                     if !retake(owners) {
                         return Next::Leave;
@@ -217,7 +242,7 @@ impl Restart {
                     return Next::Leave;
                 }
                 Fence::Undecided => {
-                    if self.undecided() == Next::Leave {
+                    if self.undecided(owners) == Next::Leave {
                         return Next::Leave;
                     }
                     thread::sleep(HELD_TICK);
@@ -259,6 +284,7 @@ impl Restart {
             Ok(cleared) => {
                 self.seen = None;
                 if cleared.is_some() {
+                    forget_endpoint(owners, ticket);
                     record("abandoned");
                 }
             }
@@ -296,7 +322,7 @@ impl Restart {
     /// A restart that stays undecided for [`UNDECIDED`] ends: this Server ends the successor and
     /// its Worker through the handles it holds and leaves without taking the Session back, so the
     /// next start recovers it, adopting the Host as after a crash.
-    fn undecided(&mut self) -> Next {
+    fn undecided(&mut self, owners: &Owners) -> Next {
         let Some(held) = &self.held else {
             return Next::Serve;
         };
@@ -309,6 +335,8 @@ impl Restart {
         let deadline = Instant::now() + END;
         let _ = held.worker.end_before(deadline);
         let _ = held.server.end_before(deadline);
+        let ticket = *held.ticket.as_bytes();
+        forget_endpoint(owners, ticket);
         record("undecided");
         Next::Leave
     }
@@ -321,18 +349,24 @@ impl Restart {
         shutdown: &SessionShutdown,
         watch: &mut Watch<'_>,
     ) -> Next {
-        self.held = None;
+        if let Some(held) = self.held.take() {
+            forget_endpoint(owners, *held.ticket.as_bytes());
+        }
         record("taken-back");
         if !retake(owners) {
             return Next::Leave;
         }
         restart_saver(owners);
         lift(owners, shutdown);
-        if watch.supervision.take_back(owners, shutdown)
-            && !shutdown.stopping()
-            && let Some(id) = own_stop_id()
-        {
-            shutdown.begin(id);
+        if watch.supervision.take_back(owners, shutdown) && !shutdown.stopping() {
+            #[cfg(windows)]
+            if let Some(id) = own_stop_id() {
+                shutdown.begin(id);
+            }
+            #[cfg(unix)]
+            if let Some(own) = self.own {
+                super::begin_own(shutdown, own);
+            }
         }
         Next::Serve
     }
@@ -391,7 +425,12 @@ fn prepare(
         .terminals
         .terminal_runtime()
         .set(TerminalRuntimeState::Reconnecting);
-    if let Err(error) = end_worker(owners, Instant::now() + RELEASE) {
+    // The Worker releases its Hosts, which keep every terminal for the successor's Worker.
+    if let Err(error) = end_worker(
+        owners,
+        orchbee_capability_node_protocol::ShutdownTerminals::Keep,
+        Instant::now() + RELEASE,
+    ) {
         // A Worker that does not release its Host in time is ended; the Host keeps every terminal.
         diagnostic("release", &error);
         let deadline = Instant::now() + END;
@@ -509,9 +548,13 @@ fn restart_saver(owners: &mut Owners) {
         .and_then(|()| checkpoint_worker(&owners.handle))
         .and_then(|worker| {
             kept.start_saver(&owners.terminals, worker.clone())?;
+            // Move turns run only on Windows, whose Worker can hold an older Host.
+            #[cfg(windows)]
             if kept.turns_started() {
                 kept.start_turns(&owners.terminals, &owners.handle, worker);
             }
+            #[cfg(unix)]
+            let _ = worker;
             Ok(())
         });
     if let Err(error) = started {
@@ -530,8 +573,28 @@ pub(super) fn leave(
     if let Err(error) = super::stop_background_jobs(&mut owners, deadline) {
         diagnostic("leave", &error);
     }
+    // A Server an earlier restart started also served the Worker endpoint its ticket names, which
+    // no later Server uses.
+    #[cfg(target_os = "macos")]
+    if let Some(ticket) = owners.worker_ticket {
+        forget_endpoint(&owners, *ticket.as_bytes());
+    }
     shutdown.end(deadline);
     clients.stop_before(deadline)
+}
+
+/// Removes the Worker endpoint the successor of `ticket` bound, once that successor was ended and
+/// so could not remove it: a socket file outlives its listener, while a Windows pipe ends with it.
+fn forget_endpoint(owners: &Owners, ticket: [u8; 16]) {
+    #[cfg(target_os = "macos")]
+    if let Err(error) = owners
+        .session
+        .remove_successor_worker_endpoint(&owners.lifetime, ticket)
+    {
+        diagnostic("endpoint", &error);
+    }
+    #[cfg(windows)]
+    let _ = (owners, ticket);
 }
 
 fn record(step: &'static str) {

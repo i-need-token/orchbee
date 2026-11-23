@@ -6,7 +6,7 @@
 //! and both admit a declared `terminal send` input source under its own signal watch.
 //! macOS and Linux admit release installation and uninstallation; only macOS admits the update
 //! download, `update` and the automatic helper. macOS admits `server stop`, Worktree operations
-//! and source queries, `project close-all`, the unified Agent projection with per-Client
+//! and source queries, `server restart`, `project close-all`, the unified Agent projection with per-Client
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
 //! Agent detection rule commands, the Panel, Workspace,
@@ -23,6 +23,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         // The release store and its PATH step need no download; the download runs on macOS.
         Capability::ReleaseInstall => Ok(()),
         Capability::ServerStop
+        | Capability::ServerRestart
         | Capability::WorktreeOperation
         | Capability::WorkspaceGroupClose
         | Capability::AgentProjection

@@ -1,4 +1,4 @@
-//! Starts a Windows Session generation that kept the Terminal Hosts its predecessor left running:
+//! Starts a Windows or macOS Session generation that kept the Terminal Hosts its predecessor left running:
 //! its Session record carries their registrations and the binding record names each, so the Worker
 //! this Server starts adopts them in the replacement adopt mode before any job is served, and each
 //! Presentation the record names shows its running terminal again. A start that cannot adopt the

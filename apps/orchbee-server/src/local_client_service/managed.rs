@@ -42,7 +42,7 @@ pub(crate) struct ManagedClients {
     control: Arc<Control>,
     thread: Option<thread::JoinHandle<io::Result<()>>>,
     /// The admitted Client connections and what each Client offered, which a restart weighs.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     registry: Arc<Mutex<ClientConnectionRegistry>>,
 }
 
@@ -71,7 +71,7 @@ impl ManagedClients {
 
     /// Whether every admitted Client connection copes with this Server being replaced: its Client
     /// offered `reconnect`.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn rejoin(&self) -> bool {
         self.registry
             .lock()
@@ -201,7 +201,7 @@ fn start_with(
     ));
     let control = Arc::new(Control::default());
     let owner = Arc::clone(&control);
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let admitted = Arc::clone(&registry);
     let thread = thread::Builder::new()
         .name("orchbee-managed-clients".into())
@@ -309,7 +309,7 @@ fn start_with(
     Ok(ManagedClients {
         control,
         thread: Some(thread),
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         registry: admitted,
     })
 }

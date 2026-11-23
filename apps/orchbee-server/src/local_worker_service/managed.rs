@@ -29,9 +29,9 @@ mod replacement;
 #[cfg(unix)]
 mod signals;
 mod stop;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod successor;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) use successor::{Refused, run as run_successor};
 
 /// Wakes the lifecycle owner when a Worker connection ends, so its loss is seen at once rather
@@ -43,6 +43,15 @@ fn wake_on_end(shutdown: &std::sync::Weak<SessionShutdown>) -> Box<dyn FnOnce() 
             shutdown.wake();
         }
     })
+}
+
+/// The one identity every stop a POSIX Server begins uses, on a signal, after losing its Worker, or
+/// for its idle move.
+#[cfg(unix)]
+fn own_stop_identity() -> io::Result<orchbee_local_client_protocol::StopId> {
+    let mut bytes = [0; 16];
+    getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
+    orchbee_local_client_protocol::StopId::new(bytes).map_err(io::Error::other)
 }
 
 pub(super) fn run(
@@ -89,11 +98,7 @@ pub(super) fn run(
     let shutdown = Arc::new(SessionShutdown::default());
     // Every stop this Server begins, on a signal or after losing its Worker, uses one identity.
     #[cfg(unix)]
-    let own = {
-        let mut bytes = [0; 16];
-        getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
-        orchbee_local_client_protocol::StopId::new(bytes).map_err(io::Error::other)?
-    };
+    let own = own_stop_identity()?;
     #[cfg(unix)]
     signals.forward(Arc::clone(&shutdown), own)?;
     // The observation endpoint binds and starts before the Worker socket
@@ -245,7 +250,7 @@ pub(super) fn run(
             automatic_updates: None,
             update_job: Arc::default(),
             session_record,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             worker_ticket: None,
         },
         shutdown,

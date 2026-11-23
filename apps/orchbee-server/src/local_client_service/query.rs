@@ -48,12 +48,12 @@ pub(super) fn respond(
         Vec::new()
     };
     // A count the Worker does not give in time is left out, which reads as not idle.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     let programs = identity
         .worker
         .get()
         .and_then(|_| terminals.background_programs(accepted + HOSTS_DUE));
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "macos")))]
     let programs = None;
     let built = extensions(clients, programs).and_then(|extensions| {
         result(

@@ -39,7 +39,7 @@ error's text.
 | `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                                                                                                                                                                           |
 | `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
 | `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
-| `host-adopted`            | A Windows Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                             | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
+| `host-adopted`            | A Windows or macOS Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                    | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                                                                                                                                                                             |
 | `state-poisoned`          | The Session coordinator lock is first observed poisoned                                                                                                                                                                                                                                       | `lock` (`coordinator`)                                                                                                                                                                                                                                                                                                                                              |
 | `agent-change-refused`    | The Agent state refused a change as `invalid-event`, keeping its previous state                                                                                                                                                                                                               | `transition` (the refused change's kind), `suppressed`                                                                                                                                                                                                                                                                                                              |
@@ -316,7 +316,7 @@ action that applies follows:
 
 On Windows and macOS the retained record observes each Host slot by its registered process ID and
 creation or start time, and `AdoptHost` names each running Host in its slot, with the epoch its
-Worker recorded on Windows; a Session that never started a Host is adopted as no Host. Linux
+Worker recorded; a Session that never started a Host is adopted as no Host. Linux
 registers no Host and runs one, in the first slot, so a Host lock no process holds reads as gone.
 On Linux and macOS, which run no Keeper, a gone first Host stops the Server only when the lost
 Worker held a settled binding; otherwise the Server replaces the Worker with no Host, on macOS after
@@ -381,11 +381,12 @@ them. The supervision never ends a Host or a Keeper.
 
 ## Cold adoption
 
-On Windows a Server can start for a generation that kept its predecessor's running Terminal Host:
+On Windows and macOS a Server can start for a generation that kept its predecessor's running
+Terminal Host:
 the Server and Worker ended, by a crash or an `exit`, while its Hosts kept their terminals. Crash
 recovery admits that generation only when the Session's
 [binding record](docs/workbench-checkpoint.md#binding-record) names each running Host, and
-publishes it with those Hosts' registrations, each Keeper slot's while its Keeper runs, and no
+publishes it with those Hosts' registrations, on Windows each Keeper slot's while its Keeper runs, and no
 Server or Worker
 ([cold recovery](../../crates/local-runtime/docs/windows-crash-recovery.md#cold-recovery-transitions)),
 so the adopting Worker adopts that Keeper instead of starting a second one.
@@ -408,7 +409,7 @@ shown and no Agent resume is typed, and its Agent reference stays for the next c
 terminal the Host no longer runs reads unavailable, one the adoption answers as moved is rebound to
 the Host terminal it runs as, a terminal the Host runs that the record does not name stays
 quarantined in the Host, and every other Presentation restores as at any start. The binding writer
-keeps the adopted record's `extensions`, and the Server's
+keeps the adopted record's `extensions`, and on Windows the Server's
 [move turns](#managed-worker-replacement) start once it serves.
 
 A start makes one attempt. A record that does not decode or misses a kept Host, or an `AdoptHost`
@@ -418,7 +419,7 @@ and the next activation tries again. `host-adopted` records the attempt.
 
 ## Server and Worker restart
 
-On Windows the managed lifecycle owner serves `handover`, the old side of a
+On Windows and macOS the managed lifecycle owner serves `handover`, the old side of a
 [Server and Worker restart](../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart),
 and its `query` answer reports `restartKeepsTerminals` true; every other Server reports false and
 answers `handover` `unsupported`. `orchbee server restart` requests a restart, and the
@@ -472,7 +473,7 @@ answered `busy`. The decisions the code does not state:
 
 `--runtime-directory <dir> --handover <ticket>`, with the configuration arguments an activation
 freezes, starts the successor of the restart whose `successor` entry names that ticket and this
-process; the requester names it there before it runs. Windows only, it:
+process; the requester names it there before it runs. On Windows and macOS it:
 
 1. Checks what `prepare` would refuse, and what only it can judge, such as a connected Client whose
    `client-server` range this build does not meet and a Host whose `worker-host` range it does not
@@ -488,6 +489,12 @@ process; the requester names it there before it runs. Windows only, it:
    the writer lock.
 4. Sends `commit`, waits for the replaced Server to exit, ending it through its handle after a
    bound, and opens the Client endpoint.
+
+On macOS the successor first catches stop signals and leaves the requester's session, as a start
+does. Its Worker endpoint is a socket in the Session's socket folder named by the ticket's first
+four bytes; it removes that socket when it fails before it serves, and its stop removes it later.
+Once the replaced Server has exited, it removes the socket files that Server left, under the
+lifetime lock, before it binds the Client endpoint. It binds no Agent observation endpoint.
 
 Before `prepared` its exit code names its refusal, `orchbee_local_runtime::RestartRefusal`, which
 the requester reads; any other failure exits 1. A failure before the commit sends `abort`, and the
@@ -1156,7 +1163,7 @@ No grant is inferred for another endpoint, remote identity, Worker peer, or rend
 | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Problem      | Connect admitted Client Create/Start intent to the existing Worker carrier without transferring placement authority, replaying effects, or losing retained bindings when a Client disconnects.                                                                                                                                                                                                                                                                                           |
 | Inputs       | Strict OBCS intent, the current admitted Worker identity/generation, and an adapter-supplied absolute lease expiry. No Client field becomes an operation, terminal, lease, generation, or fence.                                                                                                                                                                                                                                                                                         |
-| Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. A binding leaves the map only by retirement, below; there is no other eviction. Only a Windows Server that adopts its predecessor's Host restores bindings, from the binding record ([Cold adoption](#cold-adoption)).                               |
+| Data         | One Server-owned in-memory map of at most 1,024 create references for its single local subject; each retains exact placement, last authorization, launch mode, and pending, awaiting-start, started, unknown, or unavailable state. A binding leaves the map only by retirement, below; there is no other eviction. Only a Windows or macOS Server that adopts its predecessor's Host restores bindings, from the binding record ([Cold adoption](#cold-adoption)).                      |
 | Outputs      | A correlated OBCS result or one exact OBCN command. Missing Worker and unsatisfied constraints are effect-free. Start resolves a successful deferred Create across Connections; unknown/missing creates cannot dispatch.                                                                                                                                                                                                                                                                 |
 | Invariants   | A checked monotonic 128-bit allocator never reuses operation identity across terminals or Worker generations. Each dispatched Start advances its terminal fence and uses a fresh lease. One terminal has at most one pending operation. No synchronous lock spans Worker I/O or Client output.                                                                                                                                                                                           |
 | Decisions    | Known create-reference collisions reject; full retained capacity and concurrent operations return server-busy, and a Tab, Workspace launch or Panel creation refused at full capacity answers `terminal-limit-reached` to a Client that negotiated it. Same-geometry Start after confirmed deferred Start returns already-started without another command; different geometry rejects. Immediate creates reject Start. Worker replacement never retargets a retained binding.            |
@@ -1617,7 +1624,7 @@ connection leaves nothing to release.
 Server replaces a lost Worker, or `GivenUp` once it stops trying until the Session stops. It starts
 `Serving` at revision 1; `set` advances the revision by one only when the state changes and then
 wakes its watchers, held weakly and woken after its lock is released, so a change never waits on a
-Client connection. The Worker replacement is its writer, and on Windows a restart's `prepare` sets
+Client connection. The Worker replacement is its writer, and on Windows and macOS a restart's `prepare` sets
 `Reconnecting` once it releases its Worker ([Server and Worker restart](#server-and-worker-restart)).
 
 The read-only [`workbench.terminal-runtime`](../../schemas/workbench/README.md#session-terminal-runtime-reads)

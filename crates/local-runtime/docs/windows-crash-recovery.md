@@ -3,7 +3,9 @@
 This contract owns process registration and cold recovery for native Windows default and named
 Sessions. It covers cooperating current-user cohort processes and ordinary process interruption.
 The Client owns activation; Server and Worker register their directly created Worker and Terminal
-Host respectively. Workbench checkpoint interpretation remains owned by Server.
+Host respectively. Workbench checkpoint interpretation remains owned by Server. macOS follows the
+same registration, successor entry and cold adoption rules
+([macOS process identity](../README.md#macos-process-identity)); it runs no Keeper.
 
 ## State and inputs
 
@@ -121,10 +123,10 @@ process ID and creation time of the Worker that Server created suspended. Every 
 writer lock:
 
 - The requester, holding the namespace and activation locks, reserves the entry in
-  `SessionCatalog::spawn_successor_outside_job`: only an Active record that uses this runtime folder
+  `SessionCatalog::spawn_successor_outside_job`, or `spawn_successor` on macOS: only an Active record that uses this runtime folder
   and names an identified Server takes one. An earlier entry whose successor Server still runs is a
   restart in progress and refuses with `AlreadyExists`; otherwise its Worker is ended and the entry
-  cleared first. The successor is created suspended outside the requester's Job, named, published
+  cleared first. The successor is created suspended (on Windows outside the requester's Job), named, published
   and only then resumed, so no successor runs unnamed.
 - The successor adds `worker` before it resumes that Worker (`SuccessorRecord::spawn_worker`), and
   commits (`SuccessorRecord::commit`) only while the entry still names its ticket, itself and its

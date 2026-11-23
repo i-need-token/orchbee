@@ -118,7 +118,7 @@ impl Kept {
     /// Publishes a restart's exact capture: the checkpoint, then the binding record of the same
     /// moment, which the successor adopts the Host from, so a binding record that cannot be written
     /// fails it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn publish_exact(
         &self,
         terminals: &LocalTerminalService,
@@ -135,7 +135,7 @@ impl Kept {
 
     /// Writes the binding record a restart's successor describes once its Worker adopted the Host,
     /// before the commit; a write that is deferred or fails fails the restart.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn write_bindings_exact(
         &self,
         terminals: &LocalTerminalService,
@@ -148,7 +148,7 @@ impl Kept {
     }
 
     /// Moves the binding writer to `session`, the generation a restart's successor committed.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn committed(&self, session: RetainedSessionRecord) -> io::Result<()> {
         match self.bindings.as_ref().map(|bindings| bindings.lock()) {
             Some(Ok(mut bindings)) => {
@@ -161,7 +161,7 @@ impl Kept {
 
     /// Lets the successor of a restart open the store; every write refuses until
     /// [`Self::retake_store`].
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn release_store(&self) -> io::Result<()> {
         self.store
             .lock()
@@ -173,7 +173,7 @@ impl Kept {
     /// Holds the store again after a restart that did not commit, waiting until `deadline` for the
     /// ended successor's hold on it to go. The binding record is written again at the next change,
     /// since the successor may have replaced it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn retake_store(&self, deadline: Instant) -> io::Result<()> {
         loop {
             let retaken = self
@@ -270,7 +270,7 @@ pub(super) fn load(
 /// capture that Server published, which must be the newest checkpoint and readable by this build;
 /// the binding writer reads the replaced generation's record until [`Kept::committed`]. Nothing is
 /// restored after a fallback and no restore notice is published: no activation waits for one.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn take(
     root: &DataRoot,
     session: &ModeCheckedLocalSessionRendezvous,
@@ -295,6 +295,7 @@ pub(super) fn take(
         saver: None,
         suppress_initial_empty: false,
         bindings: Some(Arc::new(Mutex::new(bindings))),
+        #[cfg(windows)]
         turns: None,
     };
     Ok((record, kept, checkpoint))

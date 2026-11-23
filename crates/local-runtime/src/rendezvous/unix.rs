@@ -117,6 +117,33 @@ impl ModeCheckedLocalSessionRendezvous {
         &self.paths.worker_socket
     }
 
+    /// The Worker endpoint of a restart's successor Server, named by the restart's ticket: the
+    /// Server it replaces still serves the Session's own Worker endpoint, which the successor keeps
+    /// beside it for its whole life. Four bytes of the ticket keep the path inside a socket address;
+    /// one restart of a Session runs at a time.
+    #[cfg(target_os = "macos")]
+    pub fn successor_worker_socket_path(&self, ticket: [u8; 16]) -> PathBuf {
+        Self::socket_root_path().join(successor_worker_leaf(&self.paths.endpoint_id, ticket))
+    }
+
+    /// Removes the Worker endpoint the successor of the restart `ticket` names bound, as a stop
+    /// removes the Session's own endpoints.
+    #[cfg(target_os = "macos")]
+    pub fn remove_successor_worker_endpoint(
+        &self,
+        lifetime: &ModeCheckedSessionLock,
+        ticket: [u8; 16],
+    ) -> std::io::Result<()> {
+        self.require_lock(lifetime, LockKind::SessionLifetime)?;
+        match &self.sockets {
+            Some(sockets) => self.remove_leaf(
+                sockets,
+                &successor_worker_leaf(&self.paths.endpoint_id, ticket),
+            ),
+            None => Ok(()),
+        }
+    }
+
     /// This environment's socket folder for the effective user, `/tmp/<stem>-<uid>` on Linux and
     /// `/private/tmp/<stem>-<uid>` on macOS. Pure path math; the Host binds its endpoint here.
     pub fn socket_root_path() -> PathBuf {
@@ -482,15 +509,22 @@ impl ModeCheckedLocalSessionRendezvous {
         self.socket_exists(SocketRole::Worker)
     }
 
+    /// Whether the Worker endpoint the successor of the restart `ticket` names is bound.
+    #[cfg(target_os = "macos")]
+    pub fn successor_worker_socket_exists(&self, ticket: [u8; 16]) -> std::io::Result<bool> {
+        self.leaf_exists(&successor_worker_leaf(&self.paths.endpoint_id, ticket))
+    }
+
     fn socket_exists(&self, role: SocketRole) -> std::io::Result<bool> {
+        self.leaf_exists(&socket_leaf(&self.paths.endpoint_id, role))
+    }
+
+    /// Whether `leaf` in the socket folder is a socket only this user can open.
+    fn leaf_exists(&self, leaf: &str) -> std::io::Result<bool> {
         let Some(sockets) = &self.sockets else {
             return Ok(false);
         };
-        match fstatat(
-            sockets,
-            socket_leaf(&self.paths.endpoint_id, role).as_str(),
-            AtFlags::AT_SYMLINK_NOFOLLOW,
-        ) {
+        match fstatat(sockets, leaf, AtFlags::AT_SYMLINK_NOFOLLOW) {
             Ok(status)
                 if SFlag::from_bits_truncate(status.st_mode) == SFlag::S_IFSOCK
                     && status.st_uid == self.expected_uid
@@ -552,13 +586,17 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     fn remove_socket(&self, sockets: &OwnedFd, role: SocketRole) -> std::io::Result<()> {
-        let leaf = socket_leaf(&self.paths.endpoint_id, role);
-        match fstatat(sockets, leaf.as_str(), AtFlags::AT_SYMLINK_NOFOLLOW) {
+        self.remove_leaf(sockets, &socket_leaf(&self.paths.endpoint_id, role))
+    }
+
+    /// Removes the socket `leaf` names in the socket folder when it is this user's socket.
+    fn remove_leaf(&self, sockets: &OwnedFd, leaf: &str) -> std::io::Result<()> {
+        match fstatat(sockets, leaf, AtFlags::AT_SYMLINK_NOFOLLOW) {
             Ok(status)
                 if SFlag::from_bits_truncate(status.st_mode) == SFlag::S_IFSOCK
                     && status.st_uid == self.expected_uid =>
             {
-                match unlinkat(sockets, leaf.as_str(), UnlinkatFlags::NoRemoveDir) {
+                match unlinkat(sockets, leaf, UnlinkatFlags::NoRemoveDir) {
                     Ok(()) | Err(Errno::ENOENT) => Ok(()),
                     Err(error) => Err(error.into()),
                 }
@@ -924,6 +962,16 @@ fn runtime_endpoint_id(runtime_directory: &Path) -> String {
         .map(|name| name.to_string_lossy().into_owned())
         .unwrap_or_default();
     endpoint_id(base, &session)
+}
+
+/// The leaf of the Worker endpoint a restart's successor binds for `ticket`.
+#[cfg(target_os = "macos")]
+fn successor_worker_leaf(id: &str, ticket: [u8; 16]) -> String {
+    let ticket: String = ticket[..4]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    format!("{id}-worker-{ticket}.sock")
 }
 
 fn socket_path(runtime_directory: &Path, role: SocketRole) -> PathBuf {

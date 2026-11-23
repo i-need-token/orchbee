@@ -108,7 +108,7 @@ impl Writer {
 
     /// The write a restart's exact capture makes: the record on disk must describe the Session as
     /// captured, so a write that is deferred or fails fails the capture.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn write_exact(
         &mut self,
         terminals: &LocalTerminalService,
@@ -123,7 +123,7 @@ impl Writer {
 
     /// Reads `session`, the generation a restart's successor committed, from now on, and publishes
     /// at the next look: the record on disk names the replaced generation's activation.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn renew(&mut self, session: RetainedSessionRecord) {
         self.session = session;
         self.written = None;
@@ -133,7 +133,7 @@ impl Writer {
 
     /// Forgets what was last published, so the next write publishes even an unchanged record: a
     /// restart's successor may have replaced it while it held the store.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn forget_written(&mut self) {
         self.written = None;
         self.observed = None;

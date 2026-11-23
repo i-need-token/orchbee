@@ -28,7 +28,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod handover;
 #[cfg(any(windows, target_os = "macos"))]
 mod idle;
@@ -80,7 +80,7 @@ pub(super) struct Owners {
     pub(super) session_record: RetainedSessionRecord,
     /// The ticket of the restart that started this Server, which names its Worker endpoint for
     /// life; none for a Server an activation started.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     pub(super) worker_ticket: Option<orchbee_connection_handshake::HandoverTicket>,
 }
 
@@ -148,6 +148,8 @@ pub(super) fn run(
     // Every stop a POSIX Server begins uses its one identity, the idle move's too.
     #[cfg(target_os = "macos")]
     let mut idle = idle::IdleMove::under(own);
+    #[cfg(target_os = "macos")]
+    let mut restart = handover::Restart::under(own);
     loop {
         let watch = Watch {
             loss: &mut loss,
@@ -166,7 +168,17 @@ pub(super) fn run(
             return handover::leave(owners, clients, &shutdown);
         };
         #[cfg(target_os = "macos")]
-        let work = next_work(&mut owners, &shutdown, own, &mut idle, watch);
+        let Some(work) = next_work(
+            &mut owners,
+            &shutdown,
+            &clients,
+            own,
+            &mut idle,
+            watch,
+            &mut restart,
+        ) else {
+            return handover::leave(owners, clients, &shutdown);
+        };
         #[cfg(all(unix, not(target_os = "macos")))]
         let work = next_work(&mut owners, &shutdown, own, watch);
         let attempt = match work {
@@ -226,6 +238,13 @@ pub(super) fn run(
         // receipt; whatever a failed removal leaves, the next owner of the lifetime lock removes.
         #[cfg(unix)]
         owners.session.remove_endpoints(&owners.lifetime)?;
+        // A Server a restart started also removes the Worker endpoint its ticket names.
+        #[cfg(target_os = "macos")]
+        if let Some(ticket) = owners.worker_ticket {
+            owners
+                .session
+                .remove_successor_worker_endpoint(&owners.lifetime, *ticket.as_bytes())?;
+        }
         shutdown.phase(attempt, StopPhase::Completion);
         if Instant::now() >= deadline {
             return Err(io::ErrorKind::TimedOut.into());
@@ -549,14 +568,60 @@ fn next_work(
 }
 
 /// [`next_work`] as on Windows, except that a failed stop this Server began after losing its Worker
-/// and Host is tried again once that Worker and Host are gone. Every stop this Server begins uses
-/// `own`, the identity its signal handler uses too. On macOS each tick also feeds the idle move.
-#[cfg(unix)]
+/// and Host is tried again once that Worker and Host are gone, rather than becoming an `exit`.
+/// Every stop this Server begins uses `own`, the identity its signal handler uses too.
+#[cfg(target_os = "macos")]
+fn next_work(
+    owners: &mut Owners,
+    shutdown: &SessionShutdown,
+    clients: &local_client_service::ManagedClients,
+    own: StopId,
+    idle: &mut idle::IdleMove,
+    mut watch: Watch<'_>,
+    restart: &mut handover::Restart,
+) -> Option<Work> {
+    loop {
+        let tick = if restart.holding() {
+            handover::HELD_TICK
+        } else {
+            Duration::from_secs(1)
+        };
+        if let Some(work) = shutdown.take_within(tick) {
+            if restart.settle_before_ending(owners, shutdown) == handover::Next::Leave {
+                return None;
+            }
+            return Some(work);
+        }
+        if let Some((step, ticket)) = shutdown.take_handover() {
+            if restart.step(owners, shutdown, clients, &mut watch, step, ticket)
+                == handover::Next::Leave
+            {
+                return None;
+            }
+            continue;
+        }
+        if restart.holding() {
+            if restart.tick(owners, shutdown, &mut watch) == handover::Next::Leave {
+                return None;
+            }
+            continue;
+        }
+        restart.look(owners);
+        if watch.look(owners, shutdown) {
+            begin_own(shutdown, own);
+        }
+        idle.tick(owners, shutdown);
+    }
+}
+
+/// [`next_work`] on Linux, whose Server answers no restart: each tick looks at the Worker, and a
+/// failed stop this Server began after losing its Worker and Host is tried again once both are
+/// gone.
+#[cfg(all(unix, not(target_os = "macos")))]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     own: StopId,
-    #[cfg(target_os = "macos")] idle: &mut idle::IdleMove,
     mut watch: Watch<'_>,
 ) -> Work {
     loop {
@@ -566,8 +631,6 @@ fn next_work(
         if watch.look(owners, shutdown) {
             begin_own(shutdown, own);
         }
-        #[cfg(target_os = "macos")]
-        idle.tick(owners, shutdown);
     }
 }
 
@@ -796,7 +859,7 @@ fn settle_for_exit(
             let bytes = owners.terminals.checkpoint(&worker, deadline)?;
             kept.publish_final(&owners.terminals, &worker, &bytes)?;
         }
-        end_worker(owners, deadline)?;
+        end_worker(owners, EXIT_TERMINALS, deadline)?;
         owners
             .terminals
             .finish_process_observer_after_worker_exit(&owners.handle)?;
@@ -820,9 +883,13 @@ fn settle_for_exit(
     Ok(())
 }
 
-/// Ends the Worker as an `exit` does, its terminals kept on Windows and disposed on POSIX, and
-/// waits until it and its connection's thread are gone or `deadline` passes.
-fn end_worker(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
+/// Ends the Worker, its Hosts' terminals kept or disposed as `terminals` asks, and waits until it
+/// and its connection's thread are gone or `deadline` passes.
+fn end_worker(
+    owners: &mut Owners,
+    terminals: ShutdownTerminals,
+    deadline: Instant,
+) -> io::Result<()> {
     let mut operation = [0; 16];
     getrandom::fill(&mut operation).map_err(|error| io::Error::other(error.to_string()))?;
     let budget = deadline
@@ -835,23 +902,24 @@ fn end_worker(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
             .map_err(io::Error::other)?,
         worker_generation: WorkerGeneration::new(owners.handle.generation()),
         budget: ShutdownBudget::new(budget).map_err(|_| io::ErrorKind::TimedOut)?,
-        terminals: EXIT_TERMINALS,
+        terminals,
     };
     match owners
         .handle
         .request(WorkerOperationRequest::Shutdown(request))
     {
-        #[cfg(windows)]
         Ok(WorkerOperationResult::Shutdown(result))
             if matches!(
-                result.outcome,
-                WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Released { .. }
-            ) => {}
-        #[cfg(unix)]
-        Ok(WorkerOperationResult::Shutdown(result))
-            if matches!(
-                result.outcome,
-                WorkerShutdownOutcome::NoHost | WorkerShutdownOutcome::Stopped { .. }
+                (terminals, result.outcome),
+                (_, WorkerShutdownOutcome::NoHost)
+                    | (
+                        ShutdownTerminals::Keep,
+                        WorkerShutdownOutcome::Released { .. }
+                    )
+                    | (
+                        ShutdownTerminals::Dispose,
+                        WorkerShutdownOutcome::Stopped { .. }
+                    )
             ) => {}
         _ => return Err(io::Error::other("Worker exit unconfirmed")),
     }

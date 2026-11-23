@@ -142,11 +142,11 @@ pub struct Updater {
     /// A store reading arrived since the check last looked.
     store_read: bool,
     /// The restart a click started, with the version it leaves for.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     restart: Option<(String, restart::Job)>,
     /// The version a Host replacement leaves for while the person has not answered, and whether
     /// the Session already runs it.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "macos"))]
     replacing: Option<(String, bool)>,
 }
 
@@ -191,9 +191,9 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             restart: None,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             replacing: None,
         }
     }
@@ -214,9 +214,9 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             restart: None,
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "macos"))]
             replacing: None,
         };
         updater.observe(Some(ActiveRelease {
@@ -292,7 +292,7 @@ impl Updater {
             return UpdateSwitch::Unavailable;
         };
         let joins = joins(marker, negotiated, (self.generations)(active));
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
             if self.restart.is_some() || self.replacing.is_some() {
                 return UpdateSwitch::Started;
@@ -304,7 +304,7 @@ impl Updater {
                 return UpdateSwitch::Started;
             }
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let _ = session;
         if !joins {
             return UpdateSwitch::Waiting;
@@ -317,7 +317,7 @@ impl Updater {
     /// began, then [`UpdateSwitch::Leave`] with the version recorded, or [`UpdateSwitch::Waiting`]
     /// when nothing changed.
     pub(crate) fn take_restart(&mut self) -> Option<UpdateSwitch> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
             let progress = self.restart.as_ref()?.1.poll()?;
             Some(match progress {
@@ -338,7 +338,7 @@ impl Updater {
                 }
             })
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         None
     }
 
@@ -352,7 +352,7 @@ impl Updater {
         confirmed: bool,
         runtime: Option<&std::path::Path>,
     ) -> bool {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
             let Some((version, restarted)) = self.replacing.take() else {
                 return false;
@@ -373,7 +373,7 @@ impl Updater {
             self.restart = Some((version, job));
             true
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
             let _ = (confirmed, runtime);
             false
@@ -503,7 +503,7 @@ fn read_store() -> Option<Option<ActiveRelease>> {
 }
 
 mod check;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod restart;
 #[cfg(test)]
 mod tests;

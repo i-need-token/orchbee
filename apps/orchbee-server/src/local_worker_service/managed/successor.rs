@@ -1,4 +1,4 @@
-//! The new side of a Server restart that keeps terminals, on Windows: the successor Server the
+//! The new side of a Server restart that keeps terminals, on Windows and macOS: the successor Server the
 //! `orchbee` requesting the restart started suspended and named in the Session record's `successor`
 //! entry. It checks that the running Server and its Terminal Host can hand the Session over, starts
 //! its own Worker on the Worker endpoint the restart's ticket names, and asks the running Server to
@@ -6,7 +6,9 @@
 //! let its Worker adopt the Host, write the binding record and commit under the record's writer
 //! lock. After the commit it ends the replaced Server and opens the Session as any start does.
 //! Until `prepared` a refusal ends its Worker and names the reason in its exit code; afterwards a
-//! failure ends its Worker and asks the replaced Server to take the Session back. It records
+//! failure ends its Worker and asks the replaced Server to take the Session back. A macOS successor
+//! first catches stop signals and leaves the requester's session, as a macOS start does, and
+//! removes the socket files the replaced Server left before it opens the Session. It records
 //! `handover-successor`.
 
 use super::{Admitting, admit_worker, adoption, checkpoint, stop};
@@ -29,6 +31,8 @@ use orchbee_local_runtime::{
     RestartRefusal, RetainedChild, RetainedSessionRecord, SuccessorRecord,
 };
 use orchbee_local_worker_protocol::WorkerId;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     ffi::OsStr,
     fmt, io,
@@ -82,8 +86,18 @@ impl std::error::Error for Refused {}
 pub(in crate::local_worker_service) fn run(
     runtime: &Path,
     ticket: HandoverTicket,
-    configuration: orchbee_local_runtime::UserSettingsLoad,
+    #[cfg(windows)] configuration: orchbee_local_runtime::UserSettingsLoad,
+    #[cfg(unix)] configuration: super::super::startup_configuration::Location,
 ) -> io::Result<()> {
+    // First, so a stop signal that arrives during the restart waits for the signal thread.
+    #[cfg(unix)]
+    let signals = super::signals::catch()?;
+    // Out of the requester's session, so its terminal's signals no longer reach this Server.
+    #[cfg(unix)]
+    nix::unistd::setsid()?;
+    #[cfg(unix)]
+    let configuration =
+        super::super::read_configuration(configuration).map_err(io::Error::other)?;
     let started = Instant::now();
     let deadline = started + CHECK;
     let cohort = Cohort::current(deadline)?;
@@ -104,7 +118,14 @@ pub(in crate::local_worker_service) fn run(
 
     // The Worker connects to the endpoint the ticket names: the running Server still serves the
     // Session's own until it leaves.
-    let listener = LocalListener::bind(session.successor_worker_socket_path(*ticket.as_bytes()))?;
+    let endpoint = session.successor_worker_socket_path(*ticket.as_bytes());
+    let listener = LocalListener::bind(&endpoint)?;
+    #[cfg(unix)]
+    let mut bound = BoundEndpoint(Some(endpoint));
+    #[cfg(unix)]
+    if let Some(path) = &bound.0 {
+        std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    }
     listener.set_nonblocking(true)?;
     let agents = Arc::new(AgentService::open_observing(
         AgentPolicy {
@@ -114,6 +135,12 @@ pub(in crate::local_worker_service) fn run(
         None,
     )?);
     let shutdown = Arc::new(SessionShutdown::default());
+    #[cfg(unix)]
+    let own = super::own_stop_identity()?;
+    #[cfg(unix)]
+    signals.forward(Arc::clone(&shutdown), own)?;
+    #[cfg(unix)]
+    let socket_root = session.hold_socket_root()?;
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let executable = cohort.executable(CohortArtifact::Worker);
     let worker_argument = format!("{:032x}", u128::from_be_bytes(worker_id.as_bytes()));
@@ -219,6 +246,9 @@ pub(in crate::local_worker_service) fn run(
     leave(&replaced);
     let opened = (|| {
         let lifetime = lifetime_lock(&session)?;
+        // The replaced Server leaves its socket files, which no listener serves once it ended.
+        #[cfg(unix)]
+        session.remove_endpoints(&lifetime)?;
         let activation = session.retain_active_record()?;
         let session_record = RetainedSessionRecord::retain(&root, &session)?;
         kept.committed(RetainedSessionRecord::retain(&root, &session)?)?;
@@ -238,10 +268,15 @@ pub(in crate::local_worker_service) fn run(
             ("elapsedMs", LogValue::Count(milliseconds(started))),
         ],
     );
+    // The Session's stop removes the endpoint from here on.
+    #[cfg(unix)]
+    bound.0.take();
     stop::run(
         stop::Owners {
             session,
             lifetime,
+            #[cfg(unix)]
+            socket_root,
             record: activation,
             worker,
             carrier,
@@ -262,6 +297,8 @@ pub(in crate::local_worker_service) fn run(
             worker_ticket: Some(ticket),
         },
         shutdown,
+        #[cfg(unix)]
+        own,
         cohort.identity(),
         pending,
         Instant::now() + OPEN,
@@ -352,8 +389,17 @@ fn check(
     }
     let ours = ConnectionKind::WorkerHost.supported_generations();
     for (slot, host) in hosts {
+        #[cfg(windows)]
+        let endpoint = Rendezvous::slot_endpoint_path(session.runtime_directory(), slot);
+        // A macOS Session runs its one Host in the first slot.
+        #[cfg(unix)]
+        let endpoint = if slot == orchbee_local_runtime::HostSlot::FIRST {
+            Rendezvous::host_endpoint_path(session.runtime_directory())
+        } else {
+            return Err(RestartRefusal::Host);
+        };
         let answered = exchange_query_before(
-            &Rendezvous::slot_endpoint_path(session.runtime_directory(), slot),
+            &endpoint,
             environment.clone(),
             (Instant::now() + QUERY).min(deadline),
             None,
@@ -435,6 +481,20 @@ fn take_over(
     }
     record.commit(deadline).map_err(|error| ("commit", error))?;
     Ok((kept, handle, terminals, pending))
+}
+
+/// The socket file of the Worker endpoint a successor bound, which it removes when it fails before
+/// it serves the Session; a socket file outlives its listener.
+#[cfg(unix)]
+struct BoundEndpoint(Option<std::path::PathBuf>);
+
+#[cfg(unix)]
+impl Drop for BoundEndpoint {
+    fn drop(&mut self) {
+        if let Some(path) = self.0.take() {
+            let _ = std::fs::remove_file(path);
+        }
+    }
 }
 
 /// Ends the Worker this Server started; its connection's owner ends with it.

@@ -2,7 +2,7 @@
 //! the hold of a Server restart that keeps terminals, and the one `handover` step a Client delivers
 //! to the lifecycle owner at a time, independent of process adapters.
 use orchbee_connection_handshake::ProcessState;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 use orchbee_connection_handshake::{
     HandoverOutcome, HandoverRefusal, HandoverStep, HandoverTicket,
 };
@@ -66,7 +66,7 @@ struct State {
     /// Client connections being admitted whose Client did not offer `reconnect`.
     plain_clients: usize,
     /// The `handover` step a Client waits on, if any.
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     exchange: Option<Exchange>,
     /// `exit` requesters that have not yet written their reply.
     exit_replies: usize,
@@ -85,7 +85,7 @@ pub(crate) enum Work {
 }
 
 /// One `handover` step between the Client that delivered it and the lifecycle owner.
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 struct Exchange {
     step: HandoverStep,
     ticket: HandoverTicket,
@@ -285,7 +285,7 @@ impl SessionShutdown {
         }
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// Holds the Session for a restart's successor, under the lock that admits stops and Client
     /// connections. A stop is either recorded first, and the hold refused `busy`, or refused while
     /// held; so is a drain or an `exit`. A Client that did not offer `reconnect` is either seen
@@ -303,13 +303,13 @@ impl SessionShutdown {
         Ok(())
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// Lifts a restart's hold.
     pub(crate) fn lift_hold(&self) {
         self.state.lock().unwrap_or_else(|e| e.into_inner()).held = false;
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// Waits until no admitted intent record or connection is left, without renewing the deadline;
     /// reads go on.
     pub(crate) fn settle_intents(&self, deadline: Instant) -> bool {
@@ -328,7 +328,7 @@ impl SessionShutdown {
         true
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// Delivers one `handover` step to the lifecycle owner and waits for its answer until
     /// `deadline`. A step that arrives while another is waiting is refused `busy`. `None` means
     /// the owner did not answer in time: a step it never took is withdrawn, and the answer to one it
@@ -375,7 +375,7 @@ impl SessionShutdown {
         }
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// The waiting `handover` step, granting the lifecycle owner its answer exactly once.
     pub(crate) fn take_handover(&self) -> Option<(HandoverStep, HandoverTicket)> {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
@@ -384,7 +384,7 @@ impl SessionShutdown {
         Some((exchange.step, exchange.ticket))
     }
 
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "macos", test))]
     /// The lifecycle owner's answer to the step it took.
     pub(crate) fn answer_handover(&self, answer: HandoverOutcome) {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
@@ -629,7 +629,7 @@ impl Drop for RecordLease<'_> {
 }
 
 /// Why a restart's hold was not taken.
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "macos", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum HoldRefusal {
     /// A stop or an `exit` is recorded, or a `drain` arrived.
