@@ -1281,6 +1281,12 @@ evidence index.
 
 ### Risks H1 leaves open
 
+After H2 and P1c (2026-11-23) each risk below stays accepted for the reason it gives, with two
+changes. H2's Keeper care ends a Keeper that stops answering and starts another, which bounds the
+delay it causes. A recovery claims under a mark derived from the holding and the recovery Host, so
+after a lost answer it claims again under the same mark, which the Keeper answers without effect,
+and it never settles a claim. The risks that name H3 are its design's to take up.
+
 - The private HPCON layout and `ConptyPackPseudoConsole`: each conpty pin repeats prototype 1; a
   pin with a new layout needs its own entry in the table, and a pin with a new signal format also
   needs a writer for the old one.
@@ -1300,7 +1306,7 @@ evidence index.
   of history.
 - A Keeper that stops answering delays the ends of the terminals it holds until the Worker ends it.
 - Settling a claim whose answer was lost ends the Keeper, which would end a program that only the
-  Keeper holds, so from H2 the Worker settles it after pending recoveries.
+  Keeper holds, so the moves of H3 and H4 settle one only after pending recoveries.
 - Between a claim and its drop the old copy keeps OpenConsole open, so a program that ends on the
   new Host cannot settle until the drop. With the Worker the drop follows at once; after a lost
   Worker it waits for the replacement's adoption.
