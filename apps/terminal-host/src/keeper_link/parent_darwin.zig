@@ -71,7 +71,7 @@ pub fn spawn(self: *Link, call: *SpawnCall) parent_module.Outcome {
     holding[0] |= 1;
     const descriptors = [_]posix.fd_t{ plan.master, plan.slave, plan.input orelse -1 };
     const count: usize = if (plan.input != null) 3 else 2;
-    const outcome = self.call(.{ .spawn = .{
+    const outcome = self.callSending(.{ .spawn = .{
         .holding = holding,
         .input = plan.input != null,
         .launch = launch,
@@ -99,7 +99,7 @@ pub fn serveReaps(self: *Link) void {
     for (self.held.items) |entry| {
         const record = recordOf(entry.gate);
         if (!record.reapRequestedOf(self.serial)) continue;
-        switch (self.call(.{ .reap = entry.holding }, &.{})) {
+        switch (self.call(.{ .reap = entry.holding })) {
             .reply => record.reapedBy(self.serial),
             else => record.lostBy(self.serial),
         }

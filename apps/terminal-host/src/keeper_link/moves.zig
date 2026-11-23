@@ -15,6 +15,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
+const link_core = @import("link.zig");
 
 const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
@@ -278,8 +279,8 @@ fn make(link: *Link, body: Body) Result {
 }
 
 /// One request on the link thread; a macOS link's requests here carry no descriptor.
-fn callLink(link: *Link, body: message.Request.Body) Link.Outcome {
-    return if (comptime is_macos) link.call(body, &.{}) else link.call(body);
+fn callLink(link: *Link, body: message.Request.Body) link_core.Outcome {
+    return link.call(body);
 }
 
 /// `inspect` of a PTY holding on macOS: the reply's facts, and the master it carried.
@@ -340,7 +341,7 @@ fn claimedOutcome(result: Result) bool {
 }
 
 /// A `mark` or `claim` answer.
-fn applied(outcome: Link.Outcome) Result {
+fn applied(outcome: link_core.Outcome) Result {
     const reply = switch (outcome) {
         .reply => |reply| reply,
         else => |other| return unanswered(other),
@@ -353,7 +354,7 @@ fn applied(outcome: Link.Outcome) Result {
 }
 
 /// A `resume` or `decline` answer.
-fn answered(outcome: Link.Outcome) Result {
+fn answered(outcome: link_core.Outcome) Result {
     const reply = switch (outcome) {
         .reply => |reply| reply,
         else => |other| return unanswered(other),
@@ -365,7 +366,7 @@ fn answered(outcome: Link.Outcome) Result {
     };
 }
 
-fn unanswered(outcome: Link.Outcome) Result {
+fn unanswered(outcome: link_core.Outcome) Result {
     return switch (outcome) {
         .reply => unreachable,
         .unanswered => .unanswered,
