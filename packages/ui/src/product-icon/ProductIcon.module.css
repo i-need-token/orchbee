@@ -99,6 +99,10 @@
 	composes: codicon-link from global;
 }
 
+.machine {
+	composes: codicon-vm from global;
+}
+
 .moreVertical {
 	composes: codicon-kebab-vertical from global;
 }

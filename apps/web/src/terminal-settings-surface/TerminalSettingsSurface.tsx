@@ -18,6 +18,7 @@ import { AppearanceSettings } from './components/appearance-settings/AppearanceS
 import { ConfigFileRow } from './components/config-file-row/ConfigFileRow';
 import { GeneralSettings } from './components/general-settings/GeneralSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
+import { MachineSettings } from './components/machine-settings/MachineSettings';
 import { NotificationPermissionBanner } from './components/notification-permission-banner/NotificationPermissionBanner';
 import { NotificationSettings } from './components/notification-settings/NotificationSettings';
 import { SettingsBanner } from './components/settings-banner/SettingsBanner';
@@ -261,6 +262,10 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 					query={query}
 					takenByConfiguredCommands={props.keyboardShortcutsTakenByConfiguredCommands}
 				/>
+			);
+		case 'machines':
+			return props.machines === undefined ? null : (
+				<MachineSettings machines={props.machines} query={query} />
 			);
 		case 'agents':
 			return (

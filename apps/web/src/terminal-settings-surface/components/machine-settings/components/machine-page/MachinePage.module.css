@@ -1,0 +1,16 @@
+.value {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
+}
+
+.name {
+	inline-size: var(--ob-ref-container-3xs);
+	max-inline-size: 100%;
+}
+
+.confirm {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}

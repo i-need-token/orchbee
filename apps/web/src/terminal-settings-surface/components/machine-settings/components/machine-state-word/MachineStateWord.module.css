@@ -1,0 +1,20 @@
+.root {
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
+}
+
+.root[data-tone='positive'] {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.root[data-tone='pending'] {
+	color: var(--ob-sys-color-status-info-text);
+}
+
+.root[data-tone='warning'] {
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.root[data-tone='quiet'] {
+	color: var(--ob-sys-color-text-secondary);
+}

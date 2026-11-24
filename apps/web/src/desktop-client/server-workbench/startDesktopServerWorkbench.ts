@@ -60,6 +60,7 @@ import {
 	type ServerWorkbenchRuntime,
 } from '../../workbench-client';
 import { bindDesktopBackgroundStatus, DesktopBackgroundStatusClient } from '../background-status';
+import { DesktopMachinesClient } from '../machines';
 import { DesktopWindowUpdateClient } from '../window-update';
 import { DesktopWorkbench } from '../desktop-workbench';
 import { receiveDesktopFileDrops } from '../file-drop';
@@ -82,6 +83,7 @@ interface DesktopServerConnectionAnnouncement {
 	readonly backgroundStatusPort: MessagePort;
 	readonly bootstrap: DesktopServerConnectionBootstrap;
 	readonly connectionPort: MessagePort;
+	readonly machinesPort: MessagePort;
 	readonly projectFolderPort: MessagePort;
 	readonly windowUpdatePort: MessagePort;
 }
@@ -108,12 +110,11 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 				windowUpdatePort !== undefined &&
 				machinesPort !== undefined
 			) {
-				// The window's machines arrive with the page that shows them; until then the port is unused.
-				machinesPort.close();
 				resolve({
 					backgroundStatusPort,
 					bootstrap: message.data.bootstrap,
 					connectionPort,
+					machinesPort,
 					projectFolderPort,
 					windowUpdatePort,
 				});
@@ -217,8 +218,14 @@ async function run(
 	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
-	const { backgroundStatusPort, bootstrap, connectionPort, projectFolderPort, windowUpdatePort } =
-		await receiveConnection(targetWindow);
+	const {
+		backgroundStatusPort,
+		bootstrap,
+		connectionPort,
+		machinesPort,
+		projectFolderPort,
+		windowUpdatePort,
+	} = await receiveConnection(targetWindow);
 	const backgroundStatus = new DesktopBackgroundStatusClient(backgroundStatusPort);
 	targetWindow.addEventListener('unload', () => backgroundStatus.dispose(), { once: true });
 	let runtime: ServerWorkbenchRuntime | undefined;
@@ -294,6 +301,15 @@ async function run(
 		preferredLocales,
 		userSettings,
 	});
+	// Main closes its end where the window offers no saved machines; then no view ever arrives and
+	// Settings shows no Machines category.
+	const machines = new DesktopMachinesClient(
+		machinesPort,
+		applicationLocaleController.getSnapshot().effectiveLocale,
+	);
+	const stopMachinesLocale = applicationLocaleController.subscribe(() =>
+		machines.setLocale(applicationLocaleController.getSnapshot().effectiveLocale),
+	);
 	// Shortcut overrides are this device's own, so browser storage keeps them.
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
 		platform: shortcutPlatform,
@@ -353,6 +369,8 @@ async function run(
 					() => terminalInteractionSettingsController.dispose(),
 					() => terminalFeedbackSettingsController.dispose(),
 					() => macosTerminalInputSettingsController?.dispose(),
+					() => stopMachinesLocale(),
+					() => machines.dispose(),
 					() => applicationLocaleController.dispose(),
 					() => terminalLaunchProfileClient.dispose(),
 					() => terminalDefaultSettingsClient.dispose(),
@@ -425,6 +443,7 @@ async function run(
 			keyboardShortcutSettingsController,
 			layoutStorage: storage.preferences,
 			macosTerminalInputSettingsController,
+			machines,
 			openExternal: (target) => {
 				openExternalBrowserUrl(targetWindow, target);
 			},

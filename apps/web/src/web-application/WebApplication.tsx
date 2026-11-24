@@ -41,6 +41,7 @@ import {
 	ColorThemeQuickPick,
 	TerminalSettingsSurface,
 	type TerminalSettingsAbout,
+	type TerminalSettingsMachines,
 } from '../terminal-settings-surface';
 import { isSettingsFileReadOnly } from '../user-settings';
 import type { TerminalLaunchProfileControl } from '../terminal-launch-profile-control';
@@ -73,6 +74,8 @@ export interface WebApplicationProps {
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
+	/** Settings › Machines, where the window offers saved machines. */
+	readonly machines?: TerminalSettingsMachines | undefined;
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	/** Opens an external HTTPS link in the person's browser; absent where no external browser port is wired. */
 	readonly openExternal?: ((target: string) => void) | undefined;
@@ -112,6 +115,7 @@ export function WebApplication({
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
+	machines,
 	navigation,
 	openExternal,
 	projectWorkspaceRuntime,
@@ -260,6 +264,7 @@ export function WebApplication({
 				keyboardShortcutsTakenByConfiguredCommands={configuredCommandKeys.takenBy}
 				keyboardShortcutPlatform={shortcutPlatform}
 				macosTerminalInputSettingsController={macosTerminalInputSettingsController}
+				machines={machines}
 				onRequestClose={view.closeSettings}
 				terminalFeedbackSettingsController={terminalFeedbackSettingsController}
 				terminalLaunchProfileClient={terminalLaunchProfileClient}

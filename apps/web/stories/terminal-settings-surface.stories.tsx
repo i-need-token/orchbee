@@ -303,6 +303,14 @@ export const EnglishAbout: Story = {
 		},
 	},
 };
+export const EnglishMachines: Story = {
+	...englishLight('machines'),
+	args: {
+		...englishArgs,
+		initialCategory: 'machines',
+		machines: createMachinesStorySource('en-US'),
+	},
+};
 export const EnglishAboutChecking: Story = aboutStory(englishLight, { kind: 'checking' });
 export const EnglishAboutUpToDate: Story = aboutStory(englishLight, { kind: 'up-to-date' });
 export const EnglishAboutFailed: Story = aboutStory(englishLight, { kind: 'failed' });
@@ -329,6 +337,14 @@ export const ChineseTerminal: Story = chineseDark('terminal');
 export const ChineseNotifications: Story = chineseDark('notifications');
 export const ChineseKeyboard: Story = chineseDark('keyboard');
 export const ChineseAgents: Story = chineseDark('agents');
+export const ChineseMachines: Story = {
+	...chineseDark('machines'),
+	args: {
+		...chineseArgs,
+		initialCategory: 'machines',
+		machines: createMachinesStorySource('zh-CN'),
+	},
+};
 export const ChineseAbout: Story = chineseDark('about');
 export const ChineseAboutChecking: Story = aboutStory(chineseDark, { kind: 'checking' });
 export const ChineseAboutUpToDate: Story = aboutStory(chineseDark, { kind: 'up-to-date' });
@@ -527,5 +543,109 @@ function createTerminalLaunchProfileStoryControl(
 					candidate.id === profile.id ? profile : candidate,
 				),
 			}),
+	};
+}
+
+/**
+ * Saved machines as the machines process words them: one connected, one waiting for a login, and one
+ * whose terminals are being stopped. Requests change nothing.
+ */
+function createMachinesStorySource(
+	locale: 'en-US' | 'zh-CN',
+): React.ComponentProps<typeof TerminalSettingsSurface>['machines'] {
+	const english = locale === 'en-US';
+	const capacity = (summary: string, long: string) => ({
+		long,
+		parts: summary.split(' · ').map((text) => ({ low: false, text })),
+		summary,
+	});
+	const unread = { long: english ? 'Not read yet.' : '尚未读取。', parts: [], summary: '—' };
+	const machine = {
+		agents: 0,
+		lines: [],
+		terminals: 0,
+		version: '0.1.0-beta.23',
+		workspaces: 0,
+	};
+	const view = {
+		added: null,
+		catalog: 'read' as const,
+		hub: null,
+		local: capacity(
+			'62% · 9.4 GB · 120 GB',
+			english
+				? '62% of the processor, 9.4 GB of memory and 120 GB of disk are free.'
+				: '处理器空闲 62%，内存空闲 9.4 GB，磁盘空闲 120 GB。',
+		),
+		machines: [
+			{
+				...machine,
+				action: { act: 'disconnect' as const, label: english ? 'Disconnect' : '断开' },
+				address: 'dev@10.0.0.8',
+				agents: 2,
+				capacity: capacity(
+					'48% · 21 GB · 310 GB',
+					english
+						? '48% of the processor, 21 GB of memory and 310 GB of disk are free.'
+						: '处理器空闲 48%，内存空闲 21 GB，磁盘空闲 310 GB。',
+				),
+				color: 'cyan' as const,
+				label: 'devbox',
+				machine: '0123456789abcdef0123456789abcdef',
+				notConnected: english ? 'devbox is not connected.' : 'devbox 没有连接。',
+				removeDescription: english
+					? 'Its 3 Workspaces leave the sidebar; their terminals keep running.'
+					: '它的 3 个工作区会从侧边栏消失，上面的终端继续运行。',
+				state: 'online',
+				status: english ? 'Connected.' : '已连接。',
+				stopConfirmation: english
+					? 'Stops 5 terminals and 2 Agents on devbox.'
+					: '将停止 devbox 上的 5 个终端和 2 个智能体。',
+				stopping: false,
+				terminals: 5,
+				word: english ? 'Online' : '在线',
+				workspaces: 3,
+			},
+			{
+				...machine,
+				action: { act: 'log-in' as const, label: english ? 'Log in' : '登录' },
+				address: 'me@mac-mini',
+				capacity: unread,
+				color: 'purple' as const,
+				label: 'mac-mini',
+				machine: '11111111111111111111111111111111',
+				notConnected: english ? 'mac-mini is not connected.' : 'mac-mini 没有连接。',
+				removeDescription: english ? 'Nothing runs on it from here.' : '这里没有东西运行在它上面。',
+				state: 'needs-login',
+				status: english ? 'ssh needs your password.' : 'ssh 需要你的密码。',
+				stopConfirmation: '',
+				stopping: false,
+				word: english ? 'Needs login' : '需要登录',
+			},
+			{
+				...machine,
+				action: null,
+				address: 'admin@nas.local',
+				capacity: unread,
+				color: 'grey' as const,
+				label: 'nas',
+				machine: '22222222222222222222222222222222',
+				notConnected: english ? 'nas is not connected.' : 'nas 没有连接。',
+				removeDescription: english ? 'Nothing runs on it from here.' : '这里没有东西运行在它上面。',
+				state: 'online',
+				status: english ? 'Connected.' : '已连接。',
+				stopConfirmation: '',
+				stopping: true,
+				word: english ? 'Online' : '在线',
+			},
+		],
+		notice: null,
+		passwords: true,
+	};
+	return {
+		getSnapshot: () => view,
+		request: () => undefined,
+		showCapacity: () => () => undefined,
+		subscribe: () => () => undefined,
 	};
 }

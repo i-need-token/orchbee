@@ -5,7 +5,7 @@
 
 use crate::{
     localization::Locale,
-    machine_capacity::parts,
+    machine_capacity::{parts, summary},
     machine_settings::{Action, Facts, Machine, State},
 };
 use orchbee_machine_protocol::capacity::Capacity;
@@ -54,20 +54,22 @@ fn machine(locale: Locale, machine: &Machine) -> Value {
         "terminals": machine.terminals,
         "agents": machine.agents,
         "stopConfirmation": locale.machine_stop_confirmation(machine),
+        "notConnected": locale.machine_not_connected(&machine.label),
         "removeDescription": locale.machine_remove_description(machine.workspaces),
     })
 }
 
-/// The short form's three facts and the long sentence; `null` when nothing was read.
+/// The short form, its three facts (none when nothing was read) and the long sentence.
 fn capacity(locale: Locale, capacity: Option<&Capacity>) -> Value {
-    capacity.map_or(Value::Null, |capacity| {
-        json!({
-            "parts": parts(capacity)
+    json!({
+        "summary": summary(capacity),
+        "parts": capacity.map_or_else(Vec::new, |capacity| {
+            parts(capacity)
                 .iter()
                 .map(|part| json!({ "text": part.text, "low": part.low }))
-                .collect::<Vec<_>>(),
-            "long": locale.machine_capacity_long(Some(capacity)),
-        })
+                .collect::<Vec<_>>()
+        }),
+        "long": locale.machine_capacity_long(capacity),
     })
 }
 

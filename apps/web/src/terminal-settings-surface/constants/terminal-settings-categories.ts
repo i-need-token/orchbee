@@ -55,6 +55,12 @@ export const TERMINAL_SETTINGS_CATEGORIES: readonly TerminalSettingsCategoryDefi
 		id: 'agents',
 		label: terminalSettingsMessages.pageCategoryAgents,
 	},
+	{
+		configFile: false,
+		icon: 'machine',
+		id: 'machines',
+		label: terminalSettingsMessages.pageCategoryMachines,
+	},
 	// Last, after every setting, as Warp places it.
 	{
 		configFile: false,

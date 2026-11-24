@@ -1411,9 +1411,11 @@ request ended, worded once per number), and `machines` in catalog order. A machi
 `machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
 `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
 `local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
-TUI's words), `action` (`{act, label}` of its button, or null), `version`, `capacity` (`{parts:
-[{text, low}], long}` or null), `workspaces`, `terminals`, `agents`, `stopConfirmation` and
-`removeDescription`. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
+TUI's words), `action` (`{act, label}` of its button, or null), `version`, `capacity`,
+`workspaces`, `terminals`, `agents`, `stopConfirmation`, `notConnected` (what Stop says while the
+machine is not online) and `removeDescription`. A capacity, this computer's included, is
+`{summary, parts: [{text, low}], long}`: the short form, its three facts (none before the first
+read) and the sentence, all worded. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
 `retry`, `retry-now` and `log-in` as its button does, `rename` with `label`, `set-color` with
 `color`, `forget-password`, `stop` and `remove`, each carried out as Settings › Machines carries it.
 

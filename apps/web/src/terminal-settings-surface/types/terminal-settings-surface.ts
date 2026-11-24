@@ -16,6 +16,7 @@ export type TerminalSettingsCategory =
 	| 'appearance'
 	| 'general'
 	| 'keyboard'
+	| 'machines'
 	| 'notifications'
 	| 'terminal'
 	| 'themes';
@@ -62,6 +63,84 @@ export interface TerminalSettingsAbout {
 	readonly version: string | null;
 }
 
+/** What a machine has free: the short form, its three facts (none before the first read) and the sentence. */
+interface TerminalSettingsMachineCapacity {
+	readonly long: string;
+	readonly parts: readonly { readonly low: boolean; readonly text: string }[];
+	readonly summary: string;
+}
+
+/** A saved machine's color, the same names in every locale. */
+export type TerminalSettingsMachineColor = 'cyan' | 'grey' | 'pink' | 'purple';
+
+/** What a machine's Status button does. */
+type TerminalSettingsMachineAct =
+	| 'connect'
+	| 'disconnect'
+	| 'log-in'
+	| 'retry'
+	| 'retry-now';
+
+/** One saved machine as Settings › Machines shows it; every sentence is already in the page's language. */
+export interface TerminalSettingsMachine {
+	readonly action: { readonly act: TerminalSettingsMachineAct; readonly label: string } | null;
+	readonly address: string | null;
+	readonly agents: number | null;
+	readonly capacity: TerminalSettingsMachineCapacity;
+	readonly color: TerminalSettingsMachineColor;
+	readonly label: string;
+	readonly lines: readonly string[];
+	readonly machine: string;
+	readonly notConnected: string;
+	readonly removeDescription: string;
+	/** `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`, `local-needs-update`, or another word's key. */
+	readonly state: string;
+	readonly status: string;
+	readonly stopConfirmation: string;
+	readonly stopping: boolean;
+	readonly terminals: number | null;
+	readonly version: string | null;
+	readonly word: string;
+	readonly workspaces: number | null;
+}
+
+/** The saved machines, this computer's capacity, and how the last request ended. */
+export interface TerminalSettingsMachinesView {
+	readonly added: string | null;
+	readonly catalog: 'read' | 'unreadable';
+	/** Why no machine connection is reached, or null. */
+	readonly hub: string | null;
+	readonly local: TerminalSettingsMachineCapacity;
+	readonly machines: readonly TerminalSettingsMachine[];
+	/** How the last request ended; a new number is a new outcome even with the same words. */
+	readonly notice: { readonly number: number; readonly text: string } | null;
+	/** Whether saved passwords can be kept, so Saved password applies. */
+	readonly passwords: boolean;
+}
+
+/** One request about a saved machine, carried out as the TUI's Settings › Machines carries it. */
+export type TerminalSettingsMachineIntent =
+	| {
+			readonly act: 'forget-password' | 'remove' | 'stop' | TerminalSettingsMachineAct;
+			readonly machine: string;
+	  }
+	| { readonly act: 'rename'; readonly label: string; readonly machine: string }
+	| {
+			readonly act: 'set-color';
+			readonly color: TerminalSettingsMachineColor;
+			readonly machine: string;
+	  };
+
+/** Settings › Machines: the window's saved machines, which its Main's machines process reports. */
+export interface TerminalSettingsMachines {
+	/** Null until the first report; Settings has no Machines category until then. */
+	getSnapshot(): TerminalSettingsMachinesView | null;
+	request(intent: TerminalSettingsMachineIntent): void;
+	/** Has the machines' free capacity read while shown, until the returned call. */
+	showCapacity(): () => void;
+	subscribe(listener: () => void): () => void;
+}
+
 /** The device's installed font families; Desktop and capable browsers answer from Local Font Access. */
 export interface TerminalSettingsFontCatalog {
 	/** The families by name, or null when the listing was refused or failed. */
@@ -82,6 +161,8 @@ export interface TerminalSettingsSurfaceProps {
 	readonly controller: TerminalSettingsController;
 	/** The font row lists installed families from it; without it the row takes a typed family. */
 	readonly fontCatalog?: TerminalSettingsFontCatalog | undefined;
+	/** Settings › Machines; without it, or before its first report, Settings has no Machines category. */
+	readonly machines?: TerminalSettingsMachines | undefined;
 	/** Opens Settings on this category instead of General; stories and tests use it. */
 	readonly initialCategory?: TerminalSettingsCategory | undefined;
 	readonly keyboardShortcutController: KeyboardShortcutSettingsController;

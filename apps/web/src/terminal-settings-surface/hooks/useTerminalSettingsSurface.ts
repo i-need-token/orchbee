@@ -3,6 +3,7 @@ import * as React from 'react';
 
 import { useTerminalSettings } from '../../terminal-settings';
 import { TERMINAL_SETTINGS_CATEGORIES } from '../constants/terminal-settings-categories';
+import { useTerminalSettingsMachines } from './useTerminalSettingsMachines';
 import type {
 	SettingsChildPageEntry,
 	SettingsSurfaceSlots,
@@ -48,6 +49,7 @@ export function useTerminalSettingsSurface({
 	about,
 	controller,
 	initialCategory,
+	machines,
 	macosTerminalInputSettingsController,
 	onRequestClose,
 	terminalDefaultSettingsControl,
@@ -106,10 +108,12 @@ export function useTerminalSettingsSurface({
 		terminalDefaultSettingsControl !== undefined ||
 		terminalLaunchProfileClient !== undefined ||
 		macosTerminalInputSettingsController !== undefined;
+	const machinesReported = useTerminalSettingsMachines(machines) !== null;
 	const categories = TERMINAL_SETTINGS_CATEGORIES.filter(
 		(definition) =>
 			(definition.id !== 'terminal' || terminalAvailable) &&
 			(definition.id !== 'notifications' || terminalFeedbackSettingsController !== undefined) &&
+			(definition.id !== 'machines' || machinesReported) &&
 			(definition.id !== 'about' || about !== undefined),
 	);
 

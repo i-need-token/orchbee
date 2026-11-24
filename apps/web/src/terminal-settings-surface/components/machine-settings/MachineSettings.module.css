@@ -1,0 +1,10 @@
+.value {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.note {
+	color: var(--ob-sys-color-text-muted);
+}

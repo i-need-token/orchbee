@@ -385,9 +385,15 @@ The categories keep a stable product-outcome order instead of exposing implement
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
 | Agents        | Allow routine confirmations: one switch per Agent type                                 |
+| Machines      | This computer and the saved machines (unnamed card); a machine's page                  |
 | About         | Version; Updates; Automatic updates (unnamed card)                                     |
 
-Every category but Themes and About ends with a "More options in config.toml" row that shows the path of
+Machines appears only where the host reports saved machines, which today is the desktop window
+once its machines process sends a first view; its rows and every sentence about a machine are the
+TUI's Settings › Machines, worded by that process ([contract](../../orchbee/docs/machines.md#desktop-machines-process)),
+and Manage opens a machine's page.
+
+Every category but Themes, Machines and About ends with a "More options in config.toml" row that shows the path of
 the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has
 no port that opens a file, so the row copies the path instead; Copy is unavailable until the first
 snapshot arrives.

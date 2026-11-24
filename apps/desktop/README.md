@@ -48,7 +48,7 @@ All's Session stop, which the page sends through its Server connection because M
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The fifth is its machines port, which `src/main/remote-machines/` connects to
 the saved machines' process, `orchbee --desktop-machines` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
-while Desktop offers remote machines; until then Main starts no such process and closes the port at once. The process owns activation, peer validation and admission, and the page
+while Desktop offers remote machines; the page's Settings › Machines reads it. Until then Main starts no such process and closes the port at once, so no view arrives and Settings shows no Machines category. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's
