@@ -1,7 +1,8 @@
 //! `orchbee --desktop-machines`: the desktop window's saved machines, for its Main over pipes.
 //! Main writes one JSON object per line on standard input and reads the same on standard output;
 //! the page's records travel inside them, never opened by Main. The process holds the machine hub
-//! as the TUI does and ends when its standard input ends.
+//! as the TUI does and ends when its standard input ends. A login answer passes through its
+//! input: every buffer that held one is wiped once read, and no diagnostic prints a record.
 //! `apps/orchbee/docs/machines.md#desktop-machines-process` owns the contract.
 use crate::{
     cli::Output,
@@ -10,6 +11,7 @@ use crate::{
     tui_capabilities::Capability,
     workbench_client::UiWakeup,
 };
+use orchbee_machine_protocol::wipe;
 use serde_json::{Value, json};
 use std::{
     io::{self, BufRead, Write},
@@ -146,9 +148,13 @@ impl Page {
             }
             // A record of a document no longer attached is never carried out.
             Line::Page { document, record } => {
-                if self.document.as_deref() == Some(document.as_str()) {
-                    return self.record(&record, machines, out, now);
-                }
+                let carried = if self.document.as_deref() == Some(document.as_str()) {
+                    self.record(&record, machines, out, now)
+                } else {
+                    Ok(())
+                };
+                wipe_text(record);
+                return carried;
             }
         }
         Ok(())
@@ -161,7 +167,7 @@ impl Page {
         out: &mut impl Write,
         now: Instant,
     ) -> io::Result<()> {
-        let Some(record) = serde_json::from_str::<Value>(record)
+        let Some(mut record) = serde_json::from_str::<Value>(record)
             .ok()
             .filter(|record| record.get("version").and_then(Value::as_u64) == Some(1))
         else {
@@ -197,7 +203,7 @@ impl Page {
                     eprintln!("desktop-machines: dropped an intent without a request number");
                     return Ok(());
                 };
-                let outcome = match record.get("intent").and_then(parse_intent) {
+                let outcome = match record.get_mut("intent").and_then(parse_intent) {
                     Some(intent) => {
                         machines.carry(intent, now);
                         json!({ "result": "done" })
@@ -257,6 +263,7 @@ fn read(sender: &mpsc::Sender<Line>, wakeup: &UiWakeup) {
     let mut input = io::stdin().lock();
     let mut buffer = Vec::new();
     loop {
+        wipe(&mut buffer);
         buffer.clear();
         match read_line(&mut input, &mut buffer) {
             Ok(Some(true)) => match parse(&buffer) {
@@ -272,7 +279,13 @@ fn read(sender: &mpsc::Sender<Line>, wakeup: &UiWakeup) {
             Ok(None) | Err(_) => break,
         }
     }
+    wipe(&mut buffer);
     wakeup.signal();
+}
+
+/// Wipes `text`, which may hold a login answer, as it goes.
+fn wipe_text(text: String) {
+    wipe(&mut text.into_bytes());
 }
 
 /// One LF-ended line of at most [`MAIN_LINE`] bytes, `Some(false)` for a longer one, which is
@@ -290,6 +303,7 @@ fn read_line(input: &mut impl BufRead, buffer: &mut Vec<u8>) -> io::Result<Optio
             buffer.extend_from_slice(&available[..take]);
         } else {
             fits = false;
+            wipe(buffer);
             buffer.clear();
         }
         input.consume(end.map_or(take, |end| end + 1));
@@ -300,21 +314,27 @@ fn read_line(input: &mut impl BufRead, buffer: &mut Vec<u8>) -> io::Result<Optio
 }
 
 fn parse(bytes: &[u8]) -> Option<Line> {
-    let line: Value = serde_json::from_slice(bytes).ok()?;
+    let mut line: Value = serde_json::from_slice(bytes).ok()?;
     if line.get("version")?.as_u64()? != 1 {
         return None;
     }
+    let kind = line.get("kind")?.as_str()?.to_owned();
     let text = |name: &str| line.get(name)?.as_str().map(str::to_owned);
-    match line.get("kind")?.as_str()? {
+    match kind.as_str() {
         "window" => line.get("exists")?.as_bool().map(|_| Line::Window),
         "attach" => Some(Line::Attach(text("document")?)),
         "detach" => Some(Line::Detach(text("document")?)),
+        // The record is taken out of the line, so no second copy of an answer stays behind.
         "page" => {
-            let record = text("record").filter(|record| record.len() <= PAGE_RECORD)?;
-            Some(Line::Page {
-                document: text("document")?,
-                record,
-            })
+            let document = text("document")?;
+            let Value::String(record) = line.get_mut("record")?.take() else {
+                return None;
+            };
+            if record.len() > PAGE_RECORD {
+                wipe_text(record);
+                return None;
+            }
+            Some(Line::Page { document, record })
         }
         _ => None,
     }

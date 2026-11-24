@@ -6,13 +6,15 @@
 // module-layer: composition
 
 mod intent;
+mod login;
 mod view;
 
-pub use intent::{Intent, parse_intent, parse_locale};
+pub use intent::{Intent, LoginAct, parse_intent, parse_locale};
 
 use crate::{
     localization::Locale,
     machine_discovery::Discovery,
+    machine_login::Act,
     machine_settings_exchange::Exchange,
     machines::{Catalog, Error, Profile, Store},
     ui_wakeup::UiWakeup,
@@ -82,6 +84,8 @@ impl DesktopMachines {
         self.discovery.tick(now);
         self.settings
             .settle(&mut self.discovery, &self.profiles, now);
+        // Only the login the page asked for may ask the person; any other is dismissed.
+        self.discovery.wait_for(self.settings.login());
         if self.capacity {
             self.discovery.sample_capacity(now);
         }
@@ -92,6 +96,16 @@ impl DesktopMachines {
             let number = self.notice.as_ref().map_or(1, |(number, _)| number + 1);
             self.notice = Some((number, self.locale.machine_outcome(outcome)));
         }
+        let login = self.discovery.login_presented().map(|presented| {
+            let label = self
+                .profiles
+                .iter()
+                .find(|profile| profile.id.as_str() == presented.machine)
+                .map_or(presented.machine.as_str(), |profile| {
+                    profile.draft.label.as_str()
+                });
+            login::project(self.locale, &presented, label)
+        });
         self.discovery.finish_retirement();
         view::project(
             self.locale,
@@ -99,12 +113,20 @@ impl DesktopMachines {
             self.discovery.hub_message(),
             self.unreadable,
             self.notice.as_ref(),
+            login,
         )
     }
 
     /// Carries out the page's `intent`; a commit's catalog takes effect at once.
     pub fn carry(&mut self, intent: Intent, now: Instant) {
-        let Intent::Settings(request) = intent;
+        let request = match intent {
+            Intent::Settings(request) => request,
+            Intent::Login {
+                login,
+                question,
+                act,
+            } => return self.carry_login((login, question), act),
+        };
         let store = Store::configured().ok();
         let carried = self.settings.carry(
             request,
@@ -116,6 +138,40 @@ impl DesktopMachines {
         if let Some(catalog) = carried.catalog {
             self.refresh_catalog(Ok(catalog), now);
         }
+    }
+
+    /// The person's act on the question the view showed; one on a question no longer shown, or an
+    /// answer the field cannot take whole, changes nothing.
+    fn carry_login(&mut self, ids: (u32, u32), act: LoginAct) {
+        let Some(presented) = self
+            .discovery
+            .login_presented()
+            .filter(|presented| presented.token.ids() == ids)
+        else {
+            return;
+        };
+        let token = presented.token;
+        let act = match act {
+            LoginAct::Answer { answer, remember } => {
+                presented.field.clear();
+                if !answer
+                    .characters()
+                    .all(|character| presented.field.push(character))
+                {
+                    presented.field.clear();
+                    return;
+                }
+                // The episode learns the box before the answer leaves.
+                if let Some(ticked) = remember {
+                    self.discovery.login_remember(token, ticked);
+                }
+                Act::Submit
+            }
+            LoginAct::Trust => Act::Trust,
+            LoginAct::Cancel => Act::Cancel,
+            LoginAct::Close => Act::Close,
+        };
+        self.discovery.login_act(token, act);
     }
 
     fn refresh_catalog(&mut self, catalog: Result<Catalog, Error>, now: Instant) {

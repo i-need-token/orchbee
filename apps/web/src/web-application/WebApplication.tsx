@@ -39,6 +39,7 @@ import type { TerminalFeedbackSettingsController } from '../terminal-feedback-se
 import type { MacosTerminalInputSettingsController } from '../macos-terminal-input-settings';
 import {
 	ColorThemeQuickPick,
+	MachineLoginDialog,
 	TerminalSettingsSurface,
 	type TerminalSettingsAbout,
 	type TerminalSettingsMachines,
@@ -271,6 +272,7 @@ export function WebApplication({
 				terminalDefaultSettingsControl={terminalDefaultSettingsControl}
 			/>
 			<ColorThemeQuickPick controller={terminalSettingsController} />
+			{machines === undefined ? null : <MachineLoginDialog machines={machines} />}
 		</div>
 	);
 }

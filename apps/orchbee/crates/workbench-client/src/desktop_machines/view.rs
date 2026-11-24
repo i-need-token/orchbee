@@ -17,6 +17,7 @@ pub(super) fn project(
     hub: Option<&'static str>,
     unreadable: bool,
     notice: Option<&(u64, String)>,
+    login: Option<Value>,
 ) -> Value {
     json!({
         "catalog": if unreadable { "unreadable" } else { "read" },
@@ -25,6 +26,7 @@ pub(super) fn project(
         "passwords": facts.passwords,
         "added": facts.added,
         "notice": notice.map(|(number, text)| json!({ "number": number, "text": text })),
+        "login": login,
         "machines": facts
             .machines
             .iter()

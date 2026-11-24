@@ -639,6 +639,7 @@ function createMachinesStorySource(
 				word: english ? 'Online' : '在线',
 			},
 		],
+		login: null,
 		notice: null,
 		passwords: true,
 	};

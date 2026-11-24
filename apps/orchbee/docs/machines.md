@@ -1408,7 +1408,8 @@ of the last, and the changes meanwhile coalesce into it, so a slow page holds on
 The view is `catalog` (`read` or `unreadable`), `hub` (the sentence that says why no hub is reached,
 or null), `local` (this computer's capacity), `passwords` (whether answers can be remembered),
 `added` (the machine the last add saved, until listed), `notice` (`{number, text}`, how the last
-request ended, worded once per number), and `machines` in catalog order. A machine is its
+request ended, worded once per number), `login` (the question below, or null), and `machines` in
+catalog order. A machine is its
 `machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
 `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
 `local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
@@ -1419,6 +1420,22 @@ machine is not online) and `removeDescription`. A capacity, this computer's incl
 read) and the sentence, all worded. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
 `retry`, `retry-now` and `log-in` as its button does, `rename` with `label`, `set-color` with
 `color`, `forget-password`, `stop` and `remove`, each carried out as Settings › Machines carries it.
+
+A login asked for on the page asks the window as the TUI's [login questions](#login-questions) ask
+the TUI: only the machine whose Connect, Retry or Log in the page asked for may ask, and any other
+login is dismissed. `login` is the open question, or the last one of a login that ended without the
+person: its `login` and `question` ids, `machine` (`{name} · {target}`), `kind` (`password`,
+`passphrase`, `host-key` or `other`), `said` (`ssh`'s own last lines), `asked` (Orchbee's asking
+sentence; a new host's lead, whole fingerprint and what to type), `remember` (`{label, ticked}` of
+the box, or null), `rememberLine` (the line in its place when answers cannot be remembered),
+`notice` (why it asks again), `sending`, `ended` (`{text, succeeded}`, or null) and the overlay's
+worded `labels`; nothing typed is ever in it. The person's acts are intents naming `login` and
+`question`: `login-answer` with the `answer` and `remember` (the box, or null when none is offered),
+`login-trust`, which answers a new host `yes` itself, `login-cancel` and `login-close`. An act on a
+question no longer shown changes nothing, and an answer holding a control character or longer than
+1,024 bytes is refused `malformed`. The answer goes into the episode's fixed buffer as a typed one
+does and leaves only through its delivery; the process wipes every buffer of its input that held it
+once read, and no diagnostic prints a record.
 
 ## Desktop session relay
 

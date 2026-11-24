@@ -1,0 +1,86 @@
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	min-width: 0;
+}
+
+.body p {
+	margin: var(--ob-ref-space-0);
+}
+
+.machine {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+
+/* ssh's own lines, as ssh wrote them. */
+.said {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-code-sm);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.asked {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+}
+
+.askedLine {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+
+/* A new host's whole fingerprint, wrapped and never cut. */
+.fingerprint {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-code-sm);
+	overflow-wrap: anywhere;
+}
+
+.remember {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.help,
+.pending {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.success {
+	color: var(--ob-sys-color-status-success-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.error {
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

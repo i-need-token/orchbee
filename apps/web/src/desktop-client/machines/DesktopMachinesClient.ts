@@ -41,11 +41,36 @@ const MachineSchema = z.strictObject({
 	workspaces: CountSchema,
 });
 
+const LoginSchema = z.strictObject({
+	asked: z.array(z.string()),
+	ended: z.strictObject({ succeeded: z.boolean(), text: z.string() }).nullable(),
+	kind: z.enum(['host-key', 'other', 'passphrase', 'password']),
+	labels: z.strictObject({
+		cancel: z.string(),
+		close: z.string(),
+		privacy: z.string().nullable(),
+		rememberPrivacy: z.string(),
+		sending: z.string(),
+		submit: z.string(),
+		title: z.string(),
+		typeYes: z.string(),
+	}),
+	login: z.number().int().positive(),
+	machine: z.string(),
+	notice: z.string().nullable(),
+	question: z.number().int().positive(),
+	remember: z.strictObject({ label: z.string(), ticked: z.boolean() }).nullable(),
+	rememberLine: z.string().nullable(),
+	said: z.array(z.string()),
+	sending: z.boolean(),
+});
+
 const ViewSchema = z.strictObject({
 	added: z.string().nullable(),
 	catalog: z.enum(['read', 'unreadable']),
 	hub: z.string().nullable(),
 	local: CapacitySchema,
+	login: LoginSchema.nullable(),
 	machines: z.array(MachineSchema),
 	notice: z.strictObject({ number: z.number().int().nonnegative(), text: z.string() }).nullable(),
 	passwords: z.boolean(),

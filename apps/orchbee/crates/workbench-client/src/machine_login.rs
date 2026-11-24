@@ -36,6 +36,13 @@ pub struct Token {
     question: Id,
 }
 
+impl Token {
+    /// The episode's and the question's ids, as an interface in another process names them.
+    pub(crate) const fn ids(self) -> (u32, u32) {
+        (self.login.get(), self.question.get())
+    }
+}
+
 /// What the hub and the delivery report about the episodes this client claimed.
 #[derive(Debug)]
 pub(crate) enum Notice {

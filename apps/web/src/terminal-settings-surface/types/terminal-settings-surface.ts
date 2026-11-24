@@ -74,12 +74,7 @@ interface TerminalSettingsMachineCapacity {
 export type TerminalSettingsMachineColor = 'cyan' | 'grey' | 'pink' | 'purple';
 
 /** What a machine's Status button does. */
-type TerminalSettingsMachineAct =
-	| 'connect'
-	| 'disconnect'
-	| 'log-in'
-	| 'retry'
-	| 'retry-now';
+type TerminalSettingsMachineAct = 'connect' | 'disconnect' | 'log-in' | 'retry' | 'retry-now';
 
 /** One saved machine as Settings › Machines shows it; every sentence is already in the page's language. */
 export interface TerminalSettingsMachine {
@@ -111,12 +106,67 @@ export interface TerminalSettingsMachinesView {
 	/** Why no machine connection is reached, or null. */
 	readonly hub: string | null;
 	readonly local: TerminalSettingsMachineCapacity;
+	/** The login question the person waits on, or null. */
+	readonly login: TerminalSettingsMachineLogin | null;
 	readonly machines: readonly TerminalSettingsMachine[];
 	/** How the last request ended; a new number is a new outcome even with the same words. */
 	readonly notice: { readonly number: number; readonly text: string } | null;
 	/** Whether saved passwords can be kept, so Saved password applies. */
 	readonly passwords: boolean;
 }
+
+/**
+ * The login question the window shows, worded as the TUI's overlay words it; nothing typed is in
+ * it. A login that ended without the person keeps it, with `ended`, until Close.
+ */
+export interface TerminalSettingsMachineLogin {
+	/** Orchbee's asking sentence: one line, or a new host's lead, whole fingerprint and what to type. */
+	readonly asked: readonly string[];
+	readonly ended: { readonly succeeded: boolean; readonly text: string } | null;
+	readonly kind: 'host-key' | 'other' | 'passphrase' | 'password';
+	readonly labels: {
+		readonly cancel: string;
+		readonly close: string;
+		/** Where the answer goes while the remember box is clear; null for a new host. */
+		readonly privacy: string | null;
+		/** Where the answer goes while the remember box is ticked. */
+		readonly rememberPrivacy: string;
+		readonly sending: string;
+		readonly submit: string;
+		readonly title: string;
+		readonly typeYes: string;
+	};
+	readonly login: number;
+	/** `{name} · {target}`. */
+	readonly machine: string;
+	/** Why the question asks again, such as a refused password. */
+	readonly notice: string | null;
+	readonly question: number;
+	/** The remember box beside the field, ticked as the login's earlier answer left it. */
+	readonly remember: { readonly label: string; readonly ticked: boolean } | null;
+	/** The line in the box's place when answers cannot be remembered in this login. */
+	readonly rememberLine: string | null;
+	/** `ssh`'s own last lines, each marked as said by `ssh`. */
+	readonly said: readonly string[];
+	/** The answer is on its way; the next question or the end follows. */
+	readonly sending: boolean;
+}
+
+/** The person's act on the login question named by its `login` and `question`. */
+export type TerminalSettingsMachineLoginIntent =
+	| {
+			readonly act: 'login-answer';
+			readonly answer: string;
+			readonly login: number;
+			readonly question: number;
+			/** The remember box, when the question offers one. */
+			readonly remember: boolean | null;
+	  }
+	| {
+			readonly act: 'login-cancel' | 'login-close' | 'login-trust';
+			readonly login: number;
+			readonly question: number;
+	  };
 
 /** One request about a saved machine, carried out as the TUI's Settings › Machines carries it. */
 export type TerminalSettingsMachineIntent =
@@ -129,7 +179,8 @@ export type TerminalSettingsMachineIntent =
 			readonly act: 'set-color';
 			readonly color: TerminalSettingsMachineColor;
 			readonly machine: string;
-	  };
+	  }
+	| TerminalSettingsMachineLoginIntent;
 
 /** Settings › Machines: the window's saved machines, which its Main's machines process reports. */
 export interface TerminalSettingsMachines {
