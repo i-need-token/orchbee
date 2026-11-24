@@ -12,7 +12,7 @@ Sessions persist in the background and remain accessible from the terminal, the 
 
 [English](README.md) · [中文](README.zh-CN.md)
 
-[Features](#features) · [Install](#install) · [Tech Stack](#tech-stack) · [Community](#community)
+[Features](#features) · [Privacy](#privacy) · [Install](#install) · [Tech Stack](#tech-stack) · [Community](#community)
 
 <img src="resources/readme/hero.png" alt="The Orchbee terminal interface: a sidebar of Workspaces and agents, a shell, and two agents running in split Panels" width="880" />
 
@@ -76,6 +76,10 @@ Orchbee recognizes more than 30 agent CLIs without any setup and shows the state
 <!-- TODO: Add a visual showing the local machine connected to several remote machines -->
 
 When local resources are not enough, other computers can be added over SSH to extend the compute and execution environments available to agents. Remote machines act as an extension of the local machine, and agents use them without changing their workflow. This feature is in development and is planned for the first release.
+
+## Privacy
+
+The Orchbee terminal does not use telemetry and never will. We do not upload usage data for analytics, track user behavior, or send automatic crash reports. Anonymous and opt-in telemetry are also prohibited.
 
 ## Install
 

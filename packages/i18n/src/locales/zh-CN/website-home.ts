@@ -28,6 +28,9 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.sheet.platformValue': '目前支持 Windows（x86_64），macOS 和 Linux 版本正在开发中。',
 	'website.home.sheet.platformValueMacos':
 		'目前支持 Windows（x86_64）和 macOS 13 或更高版本，Linux 版本正在开发中。',
+	'website.home.sheet.privacy': '隐私',
+	'website.home.sheet.privacyValue':
+		'Orchbee 终端现在和以后都不做遥测。我们不上传使用数据做统计，不追踪用户行为，也不自动上传崩溃报告。匿名遥测和可选遥测也一样禁止。',
 	'website.home.sheet.license': '许可证',
 	'website.home.sheet.source': '源码',
 	'website.home.multiplexing.kicker': '多路复用',

@@ -86,6 +86,14 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.sheet.platformValueMacos',
 		'Value of the platform row of the data sheet once a release offers macOS downloads.',
 	),
+	sheetPrivacy: message(
+		'website.home.sheet.privacy',
+		'Label of the data sheet row about terminal privacy.',
+	),
+	sheetPrivacyValue: message(
+		'website.home.sheet.privacyValue',
+		'The Orchbee terminal’s commitment against telemetry in the home page data sheet.',
+	),
 	sheetLicense: message(
 		'website.home.sheet.license',
 		'Lowercase label of the data sheet row that names the license.',

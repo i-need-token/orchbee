@@ -30,6 +30,9 @@ export const enUSWebsiteHomeMessages = {
 		'Windows (x86_64) today. macOS and Linux builds are in progress.',
 	'website.home.sheet.platformValueMacos':
 		'Windows (x86_64) and macOS 13 or later today. Linux builds are in progress.',
+	'website.home.sheet.privacy': 'Privacy',
+	'website.home.sheet.privacyValue':
+		'The Orchbee terminal does not use telemetry and never will. We do not upload usage data for analytics, track user behavior, or send automatic crash reports. Anonymous and opt-in telemetry are also prohibited.',
 	'website.home.sheet.license': 'License',
 	'website.home.sheet.source': 'Source',
 	'website.home.multiplexing.kicker': 'multiplexing',

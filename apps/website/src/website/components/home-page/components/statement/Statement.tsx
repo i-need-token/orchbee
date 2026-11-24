@@ -18,6 +18,7 @@ export function Statement({ release }: { release: Release }): ReactElement {
 			t(messages.sheetPlatform),
 			t(offersMacos(release) ? messages.sheetPlatformValueMacos : messages.sheetPlatformValue),
 		],
+		[t(messages.sheetPrivacy), t(messages.sheetPrivacyValue)],
 		[t(messages.sheetLicense), LICENSE],
 		[
 			t(messages.sheetSource),
