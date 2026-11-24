@@ -81,6 +81,24 @@ const AddSchema = z.strictObject({
 	submit: z.string(),
 });
 
+const OfferSchema = z.strictObject({
+	accepted: z.boolean(),
+	consequence: z.string().nullable(),
+	count: z.string().nullable(),
+	ended: z
+		.strictObject({ text: z.string(), tone: z.enum(['error', 'success', 'warning']) })
+		.nullable(),
+	labels: z.strictObject({
+		close: z.string(),
+		decline: z.string(),
+		logIn: z.string(),
+		starting: z.string(),
+		title: z.string(),
+	}),
+	login: z.number().int().positive(),
+	machine: z.string(),
+});
+
 const ViewSchema = z.strictObject({
 	add: z.strictObject({
 		form: AddSchema.nullable(),
@@ -101,6 +119,7 @@ const ViewSchema = z.strictObject({
 	hub: z.string().nullable(),
 	local: CapacitySchema,
 	login: LoginSchema.nullable(),
+	offer: OfferSchema.nullable(),
 	machines: z.array(MachineSchema),
 	notice: z.strictObject({ number: z.number().int().nonnegative(), text: z.string() }).nullable(),
 	passwords: z.boolean(),

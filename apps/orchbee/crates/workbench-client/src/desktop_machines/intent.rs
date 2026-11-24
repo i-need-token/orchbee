@@ -30,6 +30,9 @@ pub enum Intent {
     },
     /// Closes Add Machine, giving up an add in progress.
     AddClose,
+    /// The person's choice on the notice of command login `login`: log in now, or not, which
+    /// fails its commands; either closes a notice whose login ended.
+    Offer { login: u32, accept: bool },
     /// The person's act on the login question `question` of episode `login`; a question no longer
     /// shown takes none.
     Login {
@@ -103,6 +106,16 @@ pub fn parse_intent(value: &mut Value) -> Option<Intent> {
     };
     match act.as_str() {
         "add-open" => return Some(Intent::AddOpen),
+        "offer-accept" | "offer-decline" => {
+            let login = value
+                .get("login")
+                .and_then(Value::as_u64)
+                .and_then(|id| u32::try_from(id).ok())?;
+            return Some(Intent::Offer {
+                login,
+                accept: act == "offer-accept",
+            });
+        }
         "add-close" => return Some(Intent::AddClose),
         "add" => {
             let color = match value.get("color") {

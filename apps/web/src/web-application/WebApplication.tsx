@@ -40,6 +40,7 @@ import type { MacosTerminalInputSettingsController } from '../macos-terminal-inp
 import {
 	ColorThemeQuickPick,
 	MachineLoginDialog,
+	MachineLoginOfferDialog,
 	TerminalSettingsSurface,
 	type TerminalSettingsAbout,
 	type TerminalSettingsMachines,
@@ -273,6 +274,7 @@ export function WebApplication({
 			/>
 			<ColorThemeQuickPick controller={terminalSettingsController} />
 			{machines === undefined ? null : <MachineLoginDialog machines={machines} />}
+			{machines === undefined ? null : <MachineLoginOfferDialog machines={machines} />}
 		</div>
 	);
 }

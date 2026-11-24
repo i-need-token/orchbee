@@ -53,6 +53,7 @@ function source(login: Login): TerminalSettingsMachines {
 		local: { long: '', parts: [], summary: '' },
 		login,
 		machines: [],
+		offer: null,
 		notice: null,
 		passwords: true,
 	};

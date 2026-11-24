@@ -16,13 +16,20 @@ use crate::{
 use orchbee_machine_protocol::capacity::Capacity;
 use serde_json::{Value, json};
 
+/// What asks the person over whatever holds the window: the login question, or the notice of a
+/// command login offered to it.
+pub(super) struct Asking {
+    pub(super) login: Option<Value>,
+    pub(super) offer: Option<Value>,
+}
+
 pub(super) fn project(
     locale: Locale,
     facts: &Facts,
     hub: Option<&'static str>,
     unreadable: bool,
     notice: Option<&(u64, String)>,
-    login: Option<Value>,
+    asking: Asking,
     add: Option<&Add>,
 ) -> Value {
     json!({
@@ -32,7 +39,8 @@ pub(super) fn project(
         "passwords": facts.passwords,
         "added": facts.added,
         "notice": notice.map(|(number, text)| json!({ "number": number, "text": text })),
-        "login": login,
+        "login": asking.login,
+        "offer": asking.offer,
         "add": json!({
             "labels": {
                 "addMachine": locale.machine_manage_text(ManageText::AddMachine),

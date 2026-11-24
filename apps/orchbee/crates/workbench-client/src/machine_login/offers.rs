@@ -136,6 +136,11 @@ impl Offers {
         self.unknown.clear();
     }
 
+    /// This client stopped asking: every offer goes without a trace.
+    pub(super) fn forget(&mut self) {
+        *self = Self::default();
+    }
+
     /// The person closed the ended notice of `login`.
     pub(super) fn close(&mut self, login: Id) {
         self.ended.take_if(|offer| offer.login == login);

@@ -39,6 +39,8 @@ export class DesktopMachinesProcess {
 	#attached: { readonly document: string; readonly port: MessagePortMain } | undefined;
 	#child: ChildProcessWithoutNullStreams | undefined;
 	readonly #options: DesktopMachinesProcessOptions;
+	/** Whether Desktop has a window, which a process started after the window learns at start. */
+	#window = false;
 
 	constructor(options: DesktopMachinesProcessOptions) {
 		this.#options = options;
@@ -53,6 +55,7 @@ export class DesktopMachinesProcess {
 		});
 		this.#child = child;
 		child.stdin.on('error', () => undefined);
+		if (this.#window) this.#write({ exists: true, kind: 'window' });
 		// Standard error carries the process's diagnostics, which name no fact Main records.
 		child.stderr.resume();
 		readLines(
@@ -75,6 +78,7 @@ export class DesktopMachinesProcess {
 
 	/** Whether Desktop has a window. */
 	setWindow(exists: boolean): void {
+		this.#window = exists;
 		this.#write({ exists, kind: 'window' });
 	}
 

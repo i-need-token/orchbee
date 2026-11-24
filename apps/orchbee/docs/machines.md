@@ -1391,7 +1391,7 @@ second to stop.
 | From    | `kind`    | Members              | Meaning                                                                                                     |
 | ------- | --------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
 | Process | `started` | `available`          | Its first line; `false` where the host lacks saved machines, and the process exits                          |
-| Main    | `window`  | `exists`             | Whether Desktop has a window                                                                                |
+| Main    | `window`  | `exists`             | Whether Desktop has a window; the hub attachment `asks` only while it has, and Main restates it at a start  |
 | Main    | `attach`  | `document`           | That document's page is listening; it replaces an attached one and is sent a whole view                     |
 | Main    | `detach`  | `document`           | That document ended; its unacknowledged view and capacity watch end with it                                 |
 | Main    | `page`    | `document`, `record` | A page record as text, at most 196,608 bytes; one from a document that is not attached is never carried out |
@@ -1408,8 +1408,8 @@ of the last, and the changes meanwhile coalesce into it, so a slow page holds on
 The view is `catalog` (`read` or `unreadable`), `hub` (the sentence that says why no hub is reached,
 or null), `local` (this computer's capacity), `passwords` (whether answers can be remembered),
 `added` (the machine the last add saved, until listed), `notice` (`{number, text}`, how the last
-request ended, worded once per number), `login` (the question below, or null), `add` (Add
-Machine below), and `machines` in catalog order. A machine is its
+request ended, worded once per number), `login` (the question below, or null), `offer` (the
+command login notice below, or null), `add` (Add Machine below), and `machines` in catalog order. A machine is its
 `machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
 `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
 `local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
@@ -1436,6 +1436,16 @@ question no longer shown changes nothing, and an answer holding a control charac
 1,024 bytes is refused `malformed`. The answer goes into the episode's fixed buffer as a typed one
 does and leaves only through its delivery; the process wipes every buffer of its input that held it
 once read, and no diagnostic prints a record.
+
+While Desktop has a window the process's hub attachment `asks`, so a command's login is offered
+to the window as to a TUI, and the offers it did not show go when the window does. `offer` is the
+TUI's notice: `login`, `machine` (`{name} · {target}`), `count` and `consequence` (how many
+commands wait and what Not now does to them, null once none waits), `accepted`, `ended`
+(`{text, tone}` of an accepted login that ended before its question, `success`, `warning` or
+`error`) and worded `labels`. `offer-accept` and `offer-decline` with its `login` choose Log in or
+Not now, and either closes an ended notice; a choice on a notice no longer shown changes nothing.
+Log in claims the login, whose question then asks as `login`. The page counts a choice only once
+the notice has shown for a second with no other key pressed on it.
 
 Add Machine on the page adds as the TUI's form adds: the same address and name rules, the eight
 checks on one draft connection, a failed check giving the add up, and the record saved once every

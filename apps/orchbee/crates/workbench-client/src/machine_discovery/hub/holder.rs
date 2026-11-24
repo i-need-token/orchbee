@@ -14,7 +14,7 @@ use crate::{
 use orchbee_machine_protocol::{
     Id, MachineId,
     hub::{
-        AnswerEndpoint, CapacityOutcome, ClaimOutcome, Claimant, Connect, ConnectFailure,
+        AnswerEndpoint, Attach, CapacityOutcome, ClaimOutcome, Claimant, Connect, ConnectFailure,
         ConnectOutcome, ConnectResult, Draft, Event, HubState, LoginEvent, LoginPhase,
         MachineStateName, Origin, Reply, Request,
     },
@@ -26,7 +26,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// What the TUI is to the hub: it answers the login questions of its own selections.
+/// What the TUI is to the hub: it answers the login questions of its own selections. `asks`
+/// follows the shared state: Desktop asks only while it has a window.
 const ATTACHMENT: Attachment = Attachment {
     presence: true,
     asks: true,
@@ -241,8 +242,12 @@ fn attach(
         Opening::Start | Opening::Restart => ATTACH,
         Opening::Join | Opening::Present => JOIN,
     };
+    let attachment = Attachment {
+        asks: shared.lock().asks,
+        ..ATTACHMENT
+    };
     let client =
-        match HubClient::open_with(ATTACHMENT, Instant::now() + bound, opening, &shared.cancel) {
+        match HubClient::open_with(attachment, Instant::now() + bound, opening, &shared.cancel) {
             Ok((client, _attached)) => Arc::new(client),
             Err(failure) => {
                 let next = failed(failure, opening);
@@ -266,6 +271,7 @@ fn attach(
             }
         };
     backoff.online(Instant::now());
+    let restated = shared.lock().asks != attachment.asks;
     shared.update(|state| {
         state.link = Some(client.clone());
         state.view.reach = Reach::Attached;
@@ -275,6 +281,10 @@ fn attach(
         state.attempts.asked = false;
         state.attempts.settled = state.attempts.begun;
     });
+    // The wish changed while this attachment was made.
+    if restated {
+        restate(shared);
+    }
     let left = follow(shared, &client);
     shared.update(|state| {
         state.link = None;
@@ -558,6 +568,35 @@ pub(super) fn disconnect(shared: &Arc<Shared>, machine: String) {
         .name("orchbee-machine-disconnect".into())
         .spawn(move || {
             let _reply = client.request(Request::Disconnect { machine }, Instant::now() + DISMISS);
+        });
+}
+
+/// Restates this client's attachment with its latest `asks`, on its own thread; without a link the
+/// next attachment states it.
+pub(super) fn restate(shared: &Arc<Shared>) {
+    if shared.lock().link.is_none() {
+        return;
+    }
+    let shared = shared.clone();
+    let _started = thread::Builder::new()
+        .name("orchbee-machine-attach".into())
+        .spawn(move || {
+            let _turn = shared
+                .asking
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            let (link, asks) = {
+                let state = shared.lock();
+                (state.link.clone(), state.asks)
+            };
+            if let Some(client) = link {
+                let attach = Attach {
+                    presence: ATTACHMENT.presence,
+                    asks,
+                    watch: ATTACHMENT.watch,
+                };
+                let _reply = client.request(Request::Attach(attach), Instant::now() + DISMISS);
+            }
         });
 }
 

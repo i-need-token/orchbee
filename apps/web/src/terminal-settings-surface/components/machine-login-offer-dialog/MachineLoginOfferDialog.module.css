@@ -1,0 +1,57 @@
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	min-width: 0;
+}
+
+.body p {
+	margin: var(--ob-ref-space-0);
+}
+
+.machine,
+.consequence,
+.pending {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+
+.count {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.success {
+	color: var(--ob-sys-color-status-success-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.warning {
+	color: var(--ob-sys-color-status-warning-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.error {
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

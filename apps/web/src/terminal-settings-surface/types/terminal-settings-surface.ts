@@ -120,6 +120,28 @@ interface TerminalSettingsMachineAdd {
 	readonly submit: string;
 }
 
+/** The notice of a command login the hub offers the window, worded as the TUI's notice. */
+interface TerminalSettingsMachineOffer {
+	/** The person chose Log in here; the login's question follows. */
+	readonly accepted: boolean;
+	/** What Not now does to the waiting commands; null once none waits. */
+	readonly consequence: string | null;
+	/** How many commands wait; null once none waits. */
+	readonly count: string | null;
+	/** Why an accepted login ended before its question; the notice only closes. */
+	readonly ended: { readonly text: string; readonly tone: 'error' | 'success' | 'warning' } | null;
+	readonly labels: {
+		readonly close: string;
+		readonly decline: string;
+		readonly logIn: string;
+		readonly starting: string;
+		readonly title: string;
+	};
+	readonly login: number;
+	/** `{name} · {target}`. */
+	readonly machine: string;
+}
+
 /** The saved machines, this computer's capacity, and how the last request ended. */
 export interface TerminalSettingsMachinesView {
 	/** Add Machine's words, and its form while the page shows it. */
@@ -144,6 +166,8 @@ export interface TerminalSettingsMachinesView {
 	readonly local: TerminalSettingsMachineCapacity;
 	/** The login question the person waits on, or null. */
 	readonly login: TerminalSettingsMachineLogin | null;
+	/** The notice of a command login offered to the window, or null. */
+	readonly offer: TerminalSettingsMachineOffer | null;
 	readonly machines: readonly TerminalSettingsMachine[];
 	/** How the last request ended; a new number is a new outcome even with the same words. */
 	readonly notice: { readonly number: number; readonly text: string } | null;
@@ -218,6 +242,7 @@ export type TerminalSettingsMachineIntent =
 	  }
 	| TerminalSettingsMachineLoginIntent
 	| { readonly act: 'add-close' | 'add-open' }
+	| { readonly act: 'offer-accept' | 'offer-decline'; readonly login: number }
 	| {
 			readonly act: 'add';
 			readonly address: string;

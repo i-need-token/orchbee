@@ -154,6 +154,8 @@ struct State {
     attempts: platform::Attempts,
     /// The machines whose `capacity` request is unanswered, this computer as `None`.
     sampling: HashSet<Option<String>>,
+    /// Whether this client shows command logins now, which every attachment states.
+    asks: bool,
 }
 
 /// The view and the owner, shared by the holder thread, discovery, observers, carriers, and
@@ -164,10 +166,13 @@ pub(super) struct Shared {
     /// Ends the holder's attachment in progress at the stop request.
     cancel: crate::machine_hub::OpenCancel,
     wakeup: Option<UiWakeup>,
+    /// Held by a thread restating the attachment, so restatements reach the hub one at a time
+    /// and the last carries the latest wish.
+    asking: Mutex<()>,
 }
 
 impl Shared {
-    fn new(wakeup: Option<UiWakeup>) -> Self {
+    fn new(wakeup: Option<UiWakeup>, asks: bool) -> Self {
         Self {
             state: Mutex::new(State {
                 version: 0,
@@ -180,7 +185,9 @@ impl Shared {
                 logins: Vec::new(),
                 attempts: platform::Attempts::default(),
                 sampling: HashSet::new(),
+                asks,
             }),
+            asking: Mutex::new(()),
             stop: AtomicBool::new(false),
             cancel: crate::machine_hub::OpenCancel::default(),
             wakeup,
@@ -300,8 +307,8 @@ pub(super) struct Holder {
 }
 
 impl Holder {
-    pub(super) fn start(wakeup: Option<UiWakeup>) -> io::Result<Self> {
-        let shared = Arc::new(Shared::new(wakeup));
+    pub(super) fn start(wakeup: Option<UiWakeup>, asks: bool) -> io::Result<Self> {
+        let shared = Arc::new(Shared::new(wakeup, asks));
         let task = platform::spawn(shared.clone())?;
         Ok(Self {
             shared,
@@ -317,6 +324,19 @@ impl Holder {
         Link {
             shared: self.shared.clone(),
             epoch,
+        }
+    }
+
+    /// Whether this client shows command logins; the hub is told at once when attached.
+    pub(super) fn set_asks(&self, asks: bool) {
+        let changed = {
+            let mut state = self.shared.lock();
+            let changed = state.asks != asks;
+            state.asks = asks;
+            changed
+        };
+        if changed {
+            platform::restate(&self.shared);
         }
     }
 

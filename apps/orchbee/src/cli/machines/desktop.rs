@@ -35,8 +35,8 @@ const STOP: Duration = Duration::from_secs(1);
 
 /// One line of Main's.
 enum Line {
-    /// Whether Desktop has a window. Every interface that asks answers logins in a later slice.
-    Window,
+    /// Whether Desktop has a window, which alone shows the command logins the hub offers.
+    Window(bool),
     Attach(String),
     Detach(String),
     Page {
@@ -130,7 +130,7 @@ impl Page {
         now: Instant,
     ) -> io::Result<()> {
         match line {
-            Line::Window => {}
+            Line::Window(exists) => machines.set_window(exists),
             // A new document replaces the attached one and is sent a whole view.
             Line::Attach(document) => {
                 self.document = Some(document);
@@ -321,7 +321,7 @@ fn parse(bytes: &[u8]) -> Option<Line> {
     let kind = line.get("kind")?.as_str()?.to_owned();
     let text = |name: &str| line.get(name)?.as_str().map(str::to_owned);
     match kind.as_str() {
-        "window" => line.get("exists")?.as_bool().map(|_| Line::Window),
+        "window" => line.get("exists")?.as_bool().map(Line::Window),
         "attach" => Some(Line::Attach(text("document")?)),
         "detach" => Some(Line::Detach(text("document")?)),
         // The record is taken out of the line, so no second copy of an answer stays behind.

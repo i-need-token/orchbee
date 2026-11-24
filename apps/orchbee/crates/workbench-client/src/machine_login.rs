@@ -563,6 +563,12 @@ impl Logins {
         }
     }
 
+    /// This client stopped asking: every offer goes, an accepted one too, since nobody here will
+    /// see it end.
+    pub(crate) fn forget_offers(&mut self) {
+        self.offers.forget();
+    }
+
     /// The person accepts the notice of `login`: this client claims it, and its question follows.
     /// Either choice on an ended notice closes it.
     pub(crate) fn accept(&mut self, login: Id) -> Vec<Effect> {

@@ -654,6 +654,7 @@ function createMachinesStorySource(
 			},
 		],
 		login: null,
+		offer: null,
 		notice: null,
 		passwords: true,
 	};

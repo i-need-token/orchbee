@@ -395,7 +395,9 @@ and Manage opens a machine's page. Add machine…, the card's last line, opens a
 Machine form: the address or a host from the SSH config, an optional name, the color, and the
 eight checks named as they run; editing the address or name after a failure hides it. A login that Connect, Retry or Log in starts asks in the
 window's login Dialog, which stays over whatever holds the window, Settings closed or not, until the
-question is answered, cancelled or, once its login ended, closed.
+question is answered, cancelled or, once its login ended, closed. A command's login offered to the
+window opens the TUI's notice the same way, Log in or Not now, and a choice counts only once the
+notice has shown for a second with no other key pressed on it.
 
 Every category but Themes, Machines and About ends with a "More options in config.toml" row that shows the path of
 the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has

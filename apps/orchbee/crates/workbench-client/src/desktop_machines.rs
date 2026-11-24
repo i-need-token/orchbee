@@ -8,6 +8,7 @@
 mod add;
 mod intent;
 mod login;
+mod offer;
 mod view;
 
 pub use intent::{Intent, LoginAct, parse_intent, parse_locale};
@@ -53,11 +54,14 @@ impl DesktopMachines {
     /// hub reports a change.
     #[must_use]
     pub fn new(wakeup: UiWakeup, locale: Locale) -> Self {
+        let mut discovery = Discovery::new(wakeup);
+        // Desktop shows command logins only while it has a window.
+        discovery.set_asks(false);
         Self {
             profiles: Vec::new(),
             unreadable: false,
             refresh: Instant::now(),
-            discovery: Discovery::new(wakeup),
+            discovery,
             settings: Exchange::default(),
             locale,
             capacity: false,
@@ -68,6 +72,11 @@ impl DesktopMachines {
 
     pub fn set_locale(&mut self, locale: Locale) {
         self.locale = locale;
+    }
+
+    /// Whether Desktop has a window, which alone shows the command logins the hub offers.
+    pub fn set_window(&mut self, exists: bool) {
+        self.discovery.set_asks(exists);
     }
 
     /// Whether the page shows what the machines have free, which is asked only meanwhile.
@@ -110,25 +119,12 @@ impl DesktopMachines {
             self.notice = Some((number, self.locale.machine_outcome(outcome)));
         }
         let login = self.discovery.login_presented().map(|presented| {
-            let label = self
-                .profiles
-                .iter()
-                .find(|profile| profile.id.as_str() == presented.machine)
-                .map(|profile| profile.draft.label.as_str())
-                // The machine being added is named as the person typed it, never by its id.
-                .or_else(|| {
-                    self.add
-                        .as_ref()
-                        .filter(|_| {
-                            self.discovery
-                                .proposal()
-                                .is_some_and(|proposal| proposal.id.as_str() == presented.machine)
-                        })
-                        .map(|add| add.label.as_str())
-                })
-                .unwrap_or(presented.machine.as_str());
-            login::project(self.locale, &presented, label)
+            login::project(self.locale, &presented, self.label(&presented.machine))
         });
+        let offer = self
+            .discovery
+            .login_offered()
+            .map(|offered| offer::project(self.locale, &offered, self.label(&offered.machine)));
         self.discovery.finish_retirement();
         view::project(
             self.locale,
@@ -136,7 +132,7 @@ impl DesktopMachines {
             self.discovery.hub_message(),
             self.unreadable,
             self.notice.as_ref(),
-            login,
+            view::Asking { login, offer },
             self.add.as_ref(),
         )
     }
@@ -173,6 +169,17 @@ impl DesktopMachines {
                 return;
             }
             Intent::AddClose => return self.close_add(),
+            Intent::Offer { login, accept } => {
+                // A choice on a notice no longer shown changes nothing.
+                if let Some(offered) = self
+                    .discovery
+                    .login_offered()
+                    .filter(|offered| offered.login.get() == login)
+                {
+                    self.discovery.login_offer_act(offered.login, accept);
+                }
+                return;
+            }
         };
         let store = Store::configured().ok();
         let carried = self.settings.carry(
@@ -190,6 +197,26 @@ impl DesktopMachines {
     /// The color a machine added now takes: the one the fewest saved machines use.
     fn default_color(&self) -> MachineColor {
         MachineColor::least_used(self.profiles.iter().map(|profile| profile.color))
+    }
+
+    /// The name `machine` is shown by: its record's, or, for the machine being added, the one the
+    /// person typed; never its id while either is known.
+    fn label<'a>(&'a self, machine: &'a str) -> &'a str {
+        self.profiles
+            .iter()
+            .find(|profile| profile.id.as_str() == machine)
+            .map(|profile| profile.draft.label.as_str())
+            .or_else(|| {
+                self.add
+                    .as_ref()
+                    .filter(|_| {
+                        self.discovery
+                            .proposal()
+                            .is_some_and(|proposal| proposal.id.as_str() == machine)
+                    })
+                    .map(|add| add.label.as_str())
+            })
+            .unwrap_or(machine)
     }
 
     /// Closes Add Machine; an add still checking is given up with its draft, link and login. The

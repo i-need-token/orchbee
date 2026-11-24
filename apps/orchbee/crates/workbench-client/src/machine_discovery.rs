@@ -203,6 +203,8 @@ pub struct Discovery {
     adding: Option<Proposal>,
     /// When Settings › Machines last asked what the machines have free.
     sampled: Option<Instant>,
+    /// The hub offers this client no command login: Desktop without a window.
+    quiet: bool,
 }
 impl Discovery {
     /// A discovery that holds the hub once the catalog holds a Machine it can observe, and wakes
@@ -221,6 +223,7 @@ impl Discovery {
             credentials: Credentials::new(),
             adding: None,
             sampled: None,
+            quiet: false,
         }
     }
     /// Reconciles the enabled profiles of the catalog of `revision`; `None` for an unreadable
@@ -267,7 +270,7 @@ impl Discovery {
     /// Starts the one holder unless it runs, or this discovery never holds a hub.
     fn hold(&mut self) {
         if self.holds && self.holder.is_none() {
-            match Holder::start(self.wakeup.clone()) {
+            match Holder::start(self.wakeup.clone(), !self.quiet) {
                 Ok(holder) => self.holder = Some(holder),
                 Err(_) => self.hub.reach = Reach::Unavailable,
             }
@@ -742,6 +745,17 @@ impl Discovery {
     /// The notice of a command login offered to this TUI, while no login question is shown.
     pub(crate) fn login_offered(&self) -> Option<Offered> {
         self.logins.offered()
+    }
+    /// Whether this client shows command logins: Desktop does only while it has a window. Offers
+    /// not shown go once it stops; the hub ends or offers elsewhere what it asked of this client.
+    pub(crate) fn set_asks(&mut self, asks: bool) {
+        self.quiet = !asks;
+        if !asks {
+            self.logins.forget_offers();
+        }
+        if let Some(holder) = &self.holder {
+            holder.set_asks(asks);
+        }
     }
     /// The person accepts the notice of `login` (`true`) or declines it.
     pub(crate) fn login_offer_act(&mut self, login: Id, accept: bool) {
