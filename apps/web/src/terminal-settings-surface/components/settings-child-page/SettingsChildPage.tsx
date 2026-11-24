@@ -3,11 +3,14 @@ import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 
+import type { TerminalSettingsMachineColor } from '../../types/terminal-settings-surface';
 import { useSettingsChildPageEntry } from './hooks/useSettingsChildPageEntry';
 import styles from './SettingsChildPage.module.css';
 
 interface SettingsChildPageProps {
 	readonly children: React.ReactNode;
+	/** A saved machine's color, which the title, its name, is written in. */
+	readonly machineColor?: TerminalSettingsMachineColor | undefined;
 	/** Leaves the page; a page that edits several values commits them first. */
 	readonly onBack: () => void;
 	readonly title: string;
@@ -20,6 +23,7 @@ interface SettingsChildPageProps {
  */
 export function SettingsChildPage({
 	children,
+	machineColor,
 	onBack,
 	title,
 }: SettingsChildPageProps): React.ReactNode {
@@ -33,7 +37,12 @@ export function SettingsChildPage({
 				<ProductIcon name='arrow-left' />
 				{intl.formatMessage(terminalSettingsMessages.pageBack)}
 			</Button>
-			<h1 ref={titleReference} className={styles['title']} tabIndex={-1}>
+			<h1
+				ref={titleReference}
+				className={styles['title']}
+				data-machine-color={machineColor}
+				tabIndex={-1}
+			>
 				{title}
 			</h1>
 			{children}

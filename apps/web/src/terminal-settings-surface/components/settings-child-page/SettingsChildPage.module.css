@@ -17,3 +17,20 @@
 	font: var(--ob-sys-typography-heading-sm);
 	outline: none;
 }
+
+/* A saved machine's name is written in its color: the color is that of the name and nothing else. */
+.title[data-machine-color='cyan'] {
+	color: var(--ob-sys-color-machine-cyan);
+}
+
+.title[data-machine-color='purple'] {
+	color: var(--ob-sys-color-machine-purple);
+}
+
+.title[data-machine-color='pink'] {
+	color: var(--ob-sys-color-machine-pink);
+}
+
+.title[data-machine-color='grey'] {
+	color: var(--ob-sys-color-machine-grey);
+}

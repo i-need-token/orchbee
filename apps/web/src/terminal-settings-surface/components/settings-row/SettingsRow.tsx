@@ -2,6 +2,7 @@ import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import type { TerminalSettingsMachineColor } from '../../types/terminal-settings-surface';
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
 import styles from './SettingsRow.module.css';
 
@@ -18,6 +19,8 @@ interface SettingsRowProps {
 	/** A mark before the name, such as an Agent's product mark; the description lines up after it. */
 	readonly icon?: React.ReactNode;
 	readonly label: string;
+	/** A saved machine's color, which its name is written in. */
+	readonly machineColor?: TerminalSettingsMachineColor | undefined;
 	readonly modified?: boolean | undefined;
 	readonly onRestore?: (() => void) | undefined;
 	/**
@@ -51,6 +54,7 @@ export function SettingsRow({
 	effect,
 	icon,
 	label,
+	machineColor,
 	modified = false,
 	onRestore,
 	preview,
@@ -101,7 +105,9 @@ export function SettingsRow({
 			<div className={styles['copy']}>
 				<div className={styles['nameLine']}>
 					{icon === undefined ? null : <span className={styles['icon']}>{icon}</span>}
-					<span className={styles['name']}>{label}</span>
+					<span className={styles['name']} data-machine-color={machineColor}>
+						{label}
+					</span>
 					{detail === null || detail === undefined ? null : (
 						<span className={styles['detail']}>{detail}</span>
 					)}

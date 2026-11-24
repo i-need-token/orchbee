@@ -4,24 +4,16 @@ import * as React from 'react';
 
 import type {
 	TerminalSettingsMachine,
-	TerminalSettingsMachineColor,
 	TerminalSettingsMachines,
 } from '../../../../types/terminal-settings-surface';
 import { SettingsGroup } from '../../../settings-group/SettingsGroup';
 import { SettingsRow } from '../../../settings-row/SettingsRow';
-import { SettingsSelect } from '../../../settings-select/SettingsSelect';
+import { MachineColorChooser } from '../machine-color-chooser/MachineColorChooser';
 import { MachineStateWord } from '../machine-state-word/MachineStateWord';
 import styles from './MachinePage.module.css';
 
 /** A machine's name holds at most this many UTF-8 bytes, as the catalog admits. */
 const LABEL_BYTES = 128;
-
-const COLORS = [
-	['cyan', messages.pageMachinesColorCyan],
-	['purple', messages.pageMachinesColorPurple],
-	['pink', messages.pageMachinesColorPink],
-	['grey', messages.pageMachinesColorGrey],
-] as const;
 
 interface MachinePageProps {
 	readonly machine: TerminalSettingsMachine;
@@ -47,12 +39,11 @@ export function MachinePage({ machine, machines, passwords }: MachinePageProps):
 					label={intl.formatMessage(messages.pageMachinesColorLabel)}
 					query=''
 				>
-					<SettingsSelect<TerminalSettingsMachineColor>
+					<MachineColorChooser
+						color={machine.color}
 						disabled={!idle}
 						label={intl.formatMessage(messages.pageMachinesColorLabel)}
-						options={COLORS.map(([value, label]) => ({ label: intl.formatMessage(label), value }))}
-						value={machine.color}
-						onValueChange={(color) => machines.request({ act: 'set-color', color, machine: id })}
+						onChoose={(color) => machines.request({ act: 'set-color', color, machine: id })}
 					/>
 				</SettingsRow>
 				<SettingsRow

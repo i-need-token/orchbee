@@ -168,3 +168,20 @@
 		margin-inline-start: auto;
 	}
 }
+
+/* A saved machine's name is written in its color: the color is that of the name and nothing else. */
+.name[data-machine-color='cyan'] {
+	color: var(--ob-sys-color-machine-cyan);
+}
+
+.name[data-machine-color='purple'] {
+	color: var(--ob-sys-color-machine-purple);
+}
+
+.name[data-machine-color='pink'] {
+	color: var(--ob-sys-color-machine-pink);
+}
+
+.name[data-machine-color='grey'] {
+	color: var(--ob-sys-color-machine-grey);
+}

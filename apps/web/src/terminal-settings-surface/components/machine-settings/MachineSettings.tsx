@@ -61,6 +61,7 @@ export function MachineSettings({ machines, query }: MachineSettingsProps): Reac
 						key={entry.machine}
 						description={entry.address ?? unknown}
 						label={entry.label}
+						machineColor={entry.color}
 						query={query}
 						settingId={`machines.${entry.machine}`}
 					>
@@ -78,7 +79,11 @@ export function MachineSettings({ machines, query }: MachineSettingsProps): Reac
 				))}
 			</SettingsGroup>
 			{machine === undefined ? null : (
-				<SettingsChildPage title={machine.label} onBack={() => setShown(null)}>
+				<SettingsChildPage
+					machineColor={machine.color}
+					title={machine.label}
+					onBack={() => setShown(null)}
+				>
 					<MachinePage machine={machine} machines={machines} passwords={view.passwords} />
 				</SettingsChildPage>
 			)}

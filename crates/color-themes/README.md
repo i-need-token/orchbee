@@ -157,7 +157,7 @@ themes and fails when either is stale:
 
 A block takes surfaces, text, frames, accents, and statuses from the resolver: canvas, chrome as
 `surface-raised`, overlay, the text steps, the frame steps as borders, `accent-action` and
-`accent-link`, and the four status roles. States follow the hand-authored mapping's proportions,
+`accent-link`, the four status roles, and the four machine colors from the Tab-group accents. States follow the hand-authored mapping's proportions,
 shifting text, link, and status foregrounds toward white on dark themes and black on light themes,
 and shifting primary-action fill states away from `text-inverse`. The brand honey, the scrim, the overlay
 scrollbar thumb, and every Agent status glyph color keep their polarity's hand-authored reference; `pnpm lint:styles` checks

@@ -753,6 +753,10 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-blue-600);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-600);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-600);
+	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-700);
+	--ob-sys-color-machine-purple: var(--ob-ref-color-purple-600);
+	--ob-sys-color-machine-pink: var(--ob-ref-color-pink-700);
+	--ob-sys-color-machine-grey: var(--ob-ref-color-gray-600);
 }
 
 :root {
@@ -1112,6 +1116,10 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-orange-400);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-400);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-400);
+	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-400);
+	--ob-sys-color-machine-purple: var(--ob-ref-color-purple-400);
+	--ob-sys-color-machine-pink: var(--ob-ref-color-pink-400);
+	--ob-sys-color-machine-grey: var(--ob-ref-color-gray-400);
 }
 
 /* The product website: its dark palette, type, shadows, motion, layers and lengths, and those of
