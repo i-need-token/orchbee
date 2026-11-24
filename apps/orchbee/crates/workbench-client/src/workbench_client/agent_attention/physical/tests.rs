@@ -56,10 +56,35 @@ fn physical_clients_observe_independent_paints_and_preserve_quiet_updates() {
 }
 
 #[test]
+fn only_a_change_that_hands_over_is_unseen_and_an_unread_turn_survives_resumed_work() {
+    let mut owner = PhysicalAttentionState::default();
+    let mut agent = state(1, 1, 1);
+    publish(&mut owner, 1, std::slice::from_ref(&agent));
+    let mut step = |owner: &mut PhysicalAttentionState, sequence: u64, next: PanelAgentState| {
+        agent.sequence = WorkbenchRevision::new(sequence);
+        agent.state = next;
+        publish(owner, sequence, std::slice::from_ref(&agent));
+        seen(owner, &agent).unwrap()
+    };
+    assert!(step(&mut owner, 2, PanelAgentState::Working));
+    assert!(!step(&mut owner, 3, PanelAgentState::Idle));
+    // A finished turn nobody has read stays unread while the Agent works again.
+    assert!(!step(&mut owner, 4, PanelAgentState::Working));
+    assert!(owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true));
+    assert!(!step(&mut owner, 5, PanelAgentState::Idle));
+    assert!(owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true));
+    // Resuming by itself after a read turn, as when a background command ends, is nothing new.
+    assert!(step(&mut owner, 6, PanelAgentState::Working));
+    assert!(step(&mut owner, 7, PanelAgentState::Unknown));
+    assert!(!step(&mut owner, 8, PanelAgentState::Blocked));
+}
+
+#[test]
 fn stale_hidden_unfocused_and_failed_reads_never_acknowledge_physical_changes() {
     let mut owner = PhysicalAttentionState::default();
     publish(&mut owner, 0, &[]);
-    let current = state(1, 1, 1);
+    let mut current = state(1, 1, 1);
+    current.state = PanelAgentState::Done;
     publish(&mut owner, 1, std::slice::from_ref(&current));
     let proof = owner.paint(|_| true).unwrap();
     assert!(!owner.acknowledge(&proof, Some(false), |_| true));
@@ -84,8 +109,11 @@ fn physical_replacement_removal_and_child_entries_do_not_inherit_seen() {
     let mut owner = PhysicalAttentionState::default();
     let initial = state(1, 1, 5);
     publish(&mut owner, 5, std::slice::from_ref(&initial));
-    let replacement = state(1, 2, 0);
-    let child = state(2, 3, 0);
+    let mut replacement = state(1, 2, 0);
+    let mut child = state(2, 3, 0);
+    // Only a state that hands the person something new starts unseen.
+    replacement.state = PanelAgentState::Done;
+    child.state = PanelAgentState::Done;
     publish(&mut owner, 6, &[replacement.clone(), child.clone()]);
     assert_eq!(seen(&owner, &initial), None);
     assert_eq!(seen(&owner, &replacement), Some(false));
@@ -105,14 +133,15 @@ fn ordinary_terminal_changes_do_not_create_agent_badges() {
     publish(&mut owner, 0, &[]);
     let mut terminal = state(1, 1, 0);
     terminal.agent = None;
-    terminal.state = PanelAgentState::Unknown;
+    terminal.state = PanelAgentState::Done;
     publish(&mut owner, 1, std::slice::from_ref(&terminal));
     assert_eq!(seen(&owner, &terminal), Some(false));
     assert_eq!(
         owner.unseen_in(terminal.binding.presentation_id.as_str()),
         0
     );
-    let agent = state(1, 1, 1);
+    let mut agent = state(1, 1, 1);
+    agent.state = PanelAgentState::Done;
     publish(&mut owner, 2, std::slice::from_ref(&agent));
     assert_eq!(owner.unseen_in(agent.binding.presentation_id.as_str()), 1);
 }

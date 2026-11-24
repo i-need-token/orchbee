@@ -54,7 +54,7 @@ describe('Workbench Agent attention', () => {
 		// Another frame with the same versions is the same state.
 		server.publish(snapshot(answered));
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
-		server.publish(snapshot({ ...answered, terminal: agent('working', 3n) }));
+		server.publish(snapshot({ ...answered, terminal: agent('error', 3n) }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		unsubscribe();
 	});
@@ -64,21 +64,44 @@ describe('Workbench Agent attention', () => {
 		const viewer = new WorkbenchAgentAttention(server);
 		const unsubscribe = viewer.subscribe(() => {});
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
-		server.publish(snapshot({ terminal: agent('working', 2n) }));
+		server.publish(snapshot({ terminal: agent('blocked', 2n) }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		unsubscribe();
 	});
 
-	it('marks a replacement terminal and a returning Agent unread', () => {
+	it('marks only a change that hands the person something new', () => {
 		const server = source(snapshot({ terminal: agent('idle', 1n) }));
 		const viewer = new WorkbenchAgentAttention(server);
 		const unsubscribe = viewer.subscribe(() => {});
-		server.publish(snapshot({ terminal: agent('idle', 1n, 'terminal:2') }));
+		server.publish(snapshot({ terminal: agent('working', 2n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		server.publish(snapshot({ terminal: agent('idle', 3n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
+		// A finished turn nobody has read stays unread while the Agent works again.
+		server.publish(snapshot({ terminal: agent('working', 4n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
+		viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		// Resuming by itself after a read turn, as when a background command ends, is nothing new.
+		server.publish(snapshot({ terminal: agent('working', 5n) }));
+		server.publish(snapshot({ terminal: agent('unknown', 6n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		// A new Agent that is only starting is nothing new either.
+		server.publish(snapshot({ terminal: agent('opening', 1n, 'terminal:2') }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		unsubscribe();
+	});
+
+	it('marks a replacement terminal and a returning Agent unread when they hand over', () => {
+		const server = source(snapshot({ terminal: agent('idle', 1n) }));
+		const viewer = new WorkbenchAgentAttention(server);
+		const unsubscribe = viewer.subscribe(() => {});
+		server.publish(snapshot({ terminal: agent('done', 1n, 'terminal:2') }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
 		server.publish(snapshot({}));
-		server.publish(snapshot({ terminal: agent('idle', 1n, 'terminal:2') }));
+		server.publish(snapshot({ terminal: agent('done', 1n, 'terminal:2') }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		unsubscribe();
 	});

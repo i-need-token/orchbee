@@ -135,7 +135,7 @@ fn physical_fixture() -> (
     let state:orchbee_workbench_protocol::TerminalAgentStateSnapshot=serde_json::from_value(json!({
         "binding":{"presentationId":presentation,"generation":"11111111111111111111111111111111",
         "hostEpoch":projection.epoch().to_text(),"hostTerminalId":"22222222222222222222222222222222"},
-        "sequence":"1","agent":"pi","state":"idle"
+        "sequence":"1","agent":"pi","state":"done"
     })).unwrap();
     *projection = crate::terminal_projection::TerminalProjection::new(
         *projection.attachment(),
@@ -636,7 +636,7 @@ fn ordinary_panel_focus_marks_only_the_focused_panel_current_version() {
     let mut states: Vec<TerminalAgentStateSnapshot> = (0..tab.panel_count()).map(|index| {
         serde_json::from_value(json!({"binding":{"presentationId":tab.panel(index).unwrap().presentation_id(),
             "generation":"1".repeat(32),"hostEpoch":"2".repeat(32),"hostTerminalId":format!("{:032x}",index+1)},
-            "sequence":"1","agent":"pi","state":"idle"})).unwrap()
+            "sequence":"1","agent":"pi","state":"done"})).unwrap()
     }).collect();
     let mut outside = states[0].clone();
     outside.binding.presentation_id = serde_json::from_value(json!("9".repeat(32))).unwrap();

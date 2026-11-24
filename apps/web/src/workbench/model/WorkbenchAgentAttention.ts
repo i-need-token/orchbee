@@ -4,14 +4,21 @@ import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
+	WorkbenchAgentState,
 } from '../types/workbench-agent-observation';
 
 export interface WorkbenchAgentAttentionSnapshot {
 	readonly observation: WorkbenchAgentSnapshot;
 	/** Display-only projection; notification inputs stay in observation. */
 	readonly presentation: WorkbenchAgentSnapshot;
-	/** Presentations whose current Agent state this Client has not shown its user. */
+	/** Presentations whose Agent has something new this Client has not shown its user. */
 	readonly unread: ReadonlySet<string>;
+}
+
+/** One Presentation's last folded Agent version and whether this Client has shown it. */
+interface Acknowledgement {
+	readonly observation: WorkbenchAgentObservation;
+	readonly seen: boolean;
 }
 
 /** One exact observed state: a newer sequence or a replacement terminal is another version. */
@@ -20,17 +27,39 @@ function version(observation: WorkbenchAgentObservation): string {
 }
 
 /**
+ * Whether a new Agent version starts seen, as the TUI decides it. A finished turn, a request or a
+ * failure hands the person something new, so it starts unseen. Entering work, starting, or an
+ * unrecognised screen shows nothing new and keeps the previous acknowledgement, so a finished turn
+ * nobody has read stays unread while the Agent works again. `previous` is the same Agent's older
+ * version in the same terminal, absent when this Client has none. An idle version after an idle
+ * one means versions went unread in between, which may hold a whole turn, so it counts as finished.
+ */
+function versionStartsSeen(
+	previous: Acknowledgement | undefined,
+	current: WorkbenchAgentState,
+): boolean {
+	const before = previous?.observation.state;
+	const handedOver =
+		current === 'done' ||
+		current === 'error' ||
+		current === 'blocked' ||
+		(current === 'idle' && (before === 'working' || before === 'idle'));
+	return !handedOver && (previous?.seen ?? true);
+}
+
+/**
  * Client-local acknowledgement of the Server's terminal Agent states, as the TUI keeps it: the
- * first complete observation is what the person already had in front of them, and every later
- * version stays unread until a focused window paints it. It never writes an Agent state.
+ * first complete observation is what the person already had in front of them, and a later version
+ * that hands them something new stays unread until a focused window paints it. It never writes an
+ * Agent state.
  */
 export class WorkbenchAgentAttention {
 	readonly #source: WorkbenchAgentSource | undefined;
 	readonly #listeners = new Set<() => void>();
 	#unsubscribe: (() => void) | undefined;
 	#snapshot: WorkbenchAgentAttentionSnapshot;
-	/** The version last shown in each Presentation; null until the first complete observation. */
-	#seen: Map<string, string> | null = null;
+	/** Each Presentation's last folded version; null until the first complete observation. */
+	#acknowledgements: Map<string, Acknowledgement> | null = null;
 
 	constructor(source: WorkbenchAgentSource | undefined) {
 		this.#source = source;
@@ -68,16 +97,35 @@ export class WorkbenchAgentAttention {
 	};
 
 	#advance(observation: WorkbenchAgentSnapshot): void {
-		if (this.#seen === null) {
+		const acknowledgements = this.#acknowledgements;
+		if (acknowledgements === null) {
 			if (observation.complete) {
-				this.#seen = new Map();
-				for (const [id, current] of observation.presentations) this.#seen.set(id, version(current));
+				this.#acknowledgements = new Map(
+					Array.from(observation.presentations, ([id, current]) => [
+						id,
+						{ observation: current, seen: true },
+					]),
+				);
 			}
-		} else {
-			// A Presentation that loses its Agent keeps no acknowledgement for a later one.
-			for (const id of this.#seen.keys()) {
-				if (!observation.presentations.has(id)) this.#seen.delete(id);
-			}
+			return;
+		}
+		// A Presentation that loses its Agent keeps no acknowledgement for a later one.
+		for (const id of acknowledgements.keys()) {
+			if (!observation.presentations.has(id)) acknowledgements.delete(id);
+		}
+		for (const [id, current] of observation.presentations) {
+			const previous = acknowledgements.get(id);
+			if (previous !== undefined && version(previous.observation) === version(current)) continue;
+			// A replacement terminal or another Agent starts without the earlier acknowledgement.
+			const sameAgent =
+				previous?.observation.binding === current.binding &&
+				previous.observation.agent === current.agent
+					? previous
+					: undefined;
+			acknowledgements.set(id, {
+				observation: current,
+				seen: versionStartsSeen(sameAgent, current.state),
+			});
 		}
 	}
 
@@ -87,10 +135,10 @@ export class WorkbenchAgentAttention {
 		visiblePresentations: ReadonlySet<string>,
 		focused: boolean,
 	): void {
-		const seen = this.#seen;
+		const acknowledgements = this.#acknowledgements;
 		if (
 			!focused ||
-			seen === null ||
+			acknowledgements === null ||
 			painted !== this.#snapshot ||
 			this.#source?.getSnapshot() !== painted.observation
 		)
@@ -98,8 +146,15 @@ export class WorkbenchAgentAttention {
 		let changed = false;
 		for (const id of visiblePresentations) {
 			const current = painted.observation.presentations.get(id);
-			if (current === undefined || seen.get(id) === version(current)) continue;
-			seen.set(id, version(current));
+			const acknowledgement = acknowledgements.get(id);
+			if (
+				current === undefined ||
+				acknowledgement === undefined ||
+				acknowledgement.seen ||
+				version(acknowledgement.observation) !== version(current)
+			)
+				continue;
+			acknowledgements.set(id, { observation: acknowledgement.observation, seen: true });
 			changed = true;
 		}
 		if (changed) this.#publish(painted.observation);
@@ -107,10 +162,8 @@ export class WorkbenchAgentAttention {
 
 	#publish(observation: WorkbenchAgentSnapshot): void {
 		const unread = new Set<string>();
-		if (this.#seen !== null) {
-			for (const [id, current] of observation.presentations) {
-				if (this.#seen.get(id) !== version(current)) unread.add(id);
-			}
+		for (const id of observation.presentations.keys()) {
+			if (this.#acknowledgements?.get(id)?.seen === false) unread.add(id);
 		}
 		const presentation = projectObservation(observation);
 		this.#snapshot = { observation, presentation, unread };

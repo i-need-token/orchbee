@@ -1,4 +1,5 @@
-//! Endpoint-qualified Client acknowledgements; complete reads never mark changed versions seen.
+//! Endpoint-qualified Client acknowledgements; a complete read never acknowledges a changed version
+//! that hands the person something new.
 
 // module-layer: state
 
@@ -66,8 +67,15 @@ impl Attention {
             }) {
                 return Err(());
             }
-            let seen =
-                previous.is_none() || old.is_some_and(|v| v.sequence == row.sequence && v.seen);
+            let seen = previous.is_none()
+                || match old {
+                    Some(v) if v.sequence == row.sequence => v.seen,
+                    _ => crate::agent_unread::version_starts_seen(
+                        old.filter(|v| v.agent == row.target.agent)
+                            .map(|v| (v.state, v.seen)),
+                        row.state,
+                    ),
+                };
             if versions
                 .insert(
                     row.target.member.clone(),

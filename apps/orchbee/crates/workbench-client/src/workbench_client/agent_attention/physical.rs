@@ -116,7 +116,15 @@ impl PhysicalAttentionState {
                 return Err(());
             }
             let seen = first
-                || previous.is_some_and(|old| old.seen && old.current.sequence == current.sequence);
+                || match previous {
+                    Some(old) if old.current.sequence == current.sequence => old.seen,
+                    _ => crate::agent_unread::version_starts_seen(
+                        previous
+                            .filter(|old| old.current.agent == current.agent)
+                            .map(|old| (old.current.state, old.seen)),
+                        current.state,
+                    ),
+                };
             if entries
                 .insert(
                     id.to_owned(),

@@ -10,6 +10,7 @@ mod agent_notifications;
 mod agent_provider;
 mod agent_runtime;
 mod agent_start;
+mod agent_unread;
 mod background_thread;
 mod client_actions;
 mod client_context;

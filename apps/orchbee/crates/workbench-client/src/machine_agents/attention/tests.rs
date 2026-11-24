@@ -105,6 +105,8 @@ fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
     rows[0].target.physical.generation =
         orchbee_agent_observation_protocol::AgentAttachmentGeneration::parse(&"9".repeat(32))
             .unwrap();
+    // A rebound Agent starts unseen only in a state that hands the person something new.
+    rows[0].state = PanelAgentState::Done;
     changed.rows = rows.into();
     assert!(
         !attention
@@ -123,7 +125,9 @@ fn endpoint_baseline_changed_new_rebound_and_restart_versions_are_distinct() {
 #[test]
 fn invalid_complete_checkpoint_preserves_prior_attention_and_missing_members_are_pruned() {
     let mut attention = Attention::default();
-    let round = super::super::test_support::checkpoint(vec![row()]);
+    let mut done = row();
+    done.state = PanelAgentState::Done;
+    let round = super::super::test_support::checkpoint(vec![done]);
     attention.project(&Choice::Local, &round).unwrap();
     let before = attention.clone();
     let invalid = super::super::test_support::checkpoint(vec![row(), row()]);
