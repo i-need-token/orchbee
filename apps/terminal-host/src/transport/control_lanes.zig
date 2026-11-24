@@ -9,6 +9,7 @@ const std = @import("std");
 
 const fatal_record = @import("terminal-host-platform").fatal_record;
 const monotonic = @import("terminal-host-platform").monotonic;
+const thread_stack = @import("terminal-host-platform").thread_stack;
 const service_boundary = @import("terminal-host-service");
 const candidate = @import("candidate.zig");
 
@@ -47,7 +48,7 @@ pub fn ControlLanes(comptime Endpoint: type) type {
             self.handoff.publish(facts);
             self.endpoint.armStop();
             for (&self.threads, 0..) |*thread, index| {
-                thread.* = std.Thread.spawn(.{}, run, .{ self, index }) catch |err| {
+                thread.* = std.Thread.spawn(thread_stack.default_budget, run, .{ self, index }) catch |err| {
                     std.log.warn("terminal Host control lane did not start: {s}", .{@errorName(err)});
                     continue;
                 };

@@ -125,7 +125,7 @@ pub fn quiesce(env: Env, slot: *?*Export, to: Pending, request: control.decode.h
         .holding = created.holding,
         .mark = created.mark,
     }, console);
-    created.worker = std.Thread.spawn(.{}, work, .{created}) catch {
+    created.worker = std.Thread.spawn(platform.thread_stack.default_budget, work, .{created}) catch {
         rollback(env, created);
         env.allocator.destroy(created);
         return env.answers.failure(to, refusal.exhausted);

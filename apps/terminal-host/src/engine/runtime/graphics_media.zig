@@ -373,7 +373,7 @@ fn startRead(self: *state.State, taken: Command) !StartedRead {
     };
     // The read's thread takes the second reference.
     read.references.store(2, .release);
-    const thread = std.Thread.spawn(.{}, readMedium, .{read}) catch |err| {
+    const thread = std.Thread.spawn(platform.thread_stack.default_budget, readMedium, .{read}) catch |err| {
         media_files.removeUnread(&read.command, read.limits);
         read.references.store(1, .release);
         read.release();

@@ -28,7 +28,7 @@ pub const SystemThreadSpawner = struct {
         comptime thread_function: anytype,
         runtime: anytype,
     ) !std.Thread {
-        return std.Thread.spawn(.{}, thread_function, .{runtime});
+        return std.Thread.spawn(platform.thread_stack.default_budget, thread_function, .{runtime});
     }
 };
 

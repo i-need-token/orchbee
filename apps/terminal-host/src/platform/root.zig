@@ -8,6 +8,7 @@ pub const program = @import("program.zig");
 pub const monotonic = @import("monotonic.zig");
 pub const output_wake = @import("output_wake.zig");
 pub const posix_compat = @import("posix_compat.zig");
+pub const thread_stack = @import("thread_stack.zig");
 pub const thread_sync = @import("thread_sync.zig");
 pub const temp_directory = @import("temp_directory.zig");
 pub const windows_path = @import("windows_path.zig");

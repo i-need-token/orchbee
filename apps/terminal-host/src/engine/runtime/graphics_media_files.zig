@@ -164,7 +164,7 @@ fn removeLater(path: []const u8, temporary_directory: []const u8) void {
     if (removal_threads.fetchAdd(1, .acq_rel) >= removal_thread_limit) return skipRemoval("removals busy");
     const removal = Removal.create(path, temporary_directory) catch |err|
         return skipRemoval(@errorName(err));
-    const thread = std.Thread.spawn(.{}, runRemoval, .{removal}) catch |err| {
+    const thread = std.Thread.spawn(platform.thread_stack.default_budget, runRemoval, .{removal}) catch |err| {
         removal.destroy();
         return skipRemoval(@errorName(err));
     };

@@ -355,7 +355,7 @@ pub const Pipeline = struct {
 
     fn launchCreator(self: *Pipeline, creation: *Creation) !void {
         if (comptime target_builtin.is_test) creation.build_gate = self.build_gate;
-        creation.creator = try std.Thread.spawn(.{}, runBuild, .{creation});
+        creation.creator = try std.Thread.spawn(platform.thread_stack.default_budget, runBuild, .{creation});
     }
 };
 
