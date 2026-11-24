@@ -172,6 +172,26 @@ fn observe(client: &Arc<HubClient>, deadline: Instant) -> Hub {
 
 /// Takes notices until the catalog and one state per Machine arrived, or `deadline`; a
 /// re-attachment starts over with the new hub.
+/// Every Machine's state from the hub serving the data root now, by Machine id; empty without a
+/// readable hub. Only an interrupt is an error.
+pub(super) fn read_states(context: &mut Context) -> Result<BTreeMap<String, MachineState>, Error> {
+    match connect::watch_present(context) {
+        Ok(Some(client)) => {
+            let observed = connect::wait(context, {
+                let client = Arc::clone(&client);
+                move |deadline| states(&client, deadline.min(Instant::now() + STATES))
+            });
+            connect::close(client);
+            match observed {
+                Err(Error::Cancelled) => Err(Error::Cancelled),
+                observed => Ok(observed.unwrap_or_default()),
+            }
+        }
+        Err(Error::Cancelled) => Err(Error::Cancelled),
+        Ok(None) | Err(_) => Ok(BTreeMap::new()),
+    }
+}
+
 fn states(client: &HubClient, deadline: Instant) -> BTreeMap<String, MachineState> {
     let mut catalog: Option<HubCatalog> = None;
     let mut states = BTreeMap::new();

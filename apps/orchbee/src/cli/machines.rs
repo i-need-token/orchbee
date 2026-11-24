@@ -7,6 +7,7 @@ mod connect;
 pub(crate) mod hub;
 pub(crate) mod link;
 mod list;
+pub(crate) mod other_lists;
 pub(crate) mod routing;
 mod shared_carrier;
 use super::{

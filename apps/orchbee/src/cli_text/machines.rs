@@ -88,6 +88,31 @@ impl super::CliText {
         }
     }
 
+    /// The line a list on this computer writes for a connected machine that did not answer.
+    pub(crate) fn cli_machine_unlisted(self, label: &str, agents: bool) -> String {
+        let label = super::escape::unquoted(label);
+        match (self.locale, agents) {
+            (Locale::EnUs, false) => {
+                format!(
+                    "{label} did not answer; its Workspaces are not listed.
+"
+                )
+            }
+            (Locale::EnUs, true) => format!(
+                "{label} did not answer; its Agents are not listed.
+"
+            ),
+            (Locale::ZhCn, false) => format!(
+                "{label} 没有应答，未列出它的工作区。
+"
+            ),
+            (Locale::ZhCn, true) => format!(
+                "{label} 没有应答，未列出它的智能体。
+"
+            ),
+        }
+    }
+
     pub(crate) fn cli_machine_route_failure(self, unknown: bool) -> &'static str {
         match (self.locale, unknown) {
             (Locale::EnUs, false) => "Remote command was not submitted.",

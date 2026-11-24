@@ -519,7 +519,13 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 | QueryCommand::PanelGet(_)
         )
     {
-        return workbench_query::run(&command, None, format, locale);
+        let output = workbench_query::run(&command, None, format, locale);
+        // A list this computer answers for itself also carries the connected machines' answers.
+        return if matches!(command, QueryCommand::WorkspaceList { .. }) {
+            machines::other_lists::carry(output, &command, format, locale)
+        } else {
+            output
+        };
     }
     match &command {
         QueryCommand::ApiSchema { schema_id } => schema::read(schema_id.as_deref(), format, locale),
@@ -540,7 +546,8 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
             cursor,
             client,
         } => {
-            if client.is_some() || execution::admit(execution::Capability::AgentProjection).is_ok()
+            let output = if client.is_some()
+                || execution::admit(execution::Capability::AgentProjection).is_ok()
             {
                 agent_list::run(&command, format, locale)
             } else {
@@ -557,7 +564,8 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                     ),
                     Err(failure) => parse_failure(failure, locale),
                 }
-            }
+            };
+            machines::other_lists::carry(output, &command, format, locale)
         }
         QueryCommand::AgentGet(session_id) => {
             if execution::admit(execution::Capability::AgentProjection).is_ok() {

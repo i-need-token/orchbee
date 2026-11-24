@@ -289,6 +289,17 @@ An unknown remote outcome keeps `cancelled` for an interrupt and `timeout` for a
 otherwise `outcome-unknown` with exit 8 whatever its reason, so no exit that states that nothing
 ran ever follows a dispatched command.
 
+`workspace list` and `agent list` that this computer answers for itself, without `--session`,
+`--client` or a page cursor, also route the same list to every Machine the serving hub reports
+`online`, in catalog order, one after another under one 20-second deadline, and start no hub and
+connect nothing. Each answer stays its Machine's own document under `result.machines`, or its own
+table after `@<name>` in text, because its IDs and compact handles belong to that Machine's
+Session; a merged list would print handles that select this computer's objects. A Machine that
+does not answer gets null `source` and `result` and one line on standard error, and the command
+still succeeds on this computer's list; an interrupt ends it with the interrupted route's failure
+and no document. A list another Machine routed here asks no Machine, so two Machines that
+list each other never ask in a circle.
+
 ## Remote Session stop
 
 `orchbee --machine <id-or-exact-label> server stop` stops the selected Machine's remote Session and

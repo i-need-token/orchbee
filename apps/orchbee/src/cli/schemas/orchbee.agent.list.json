@@ -860,6 +860,25 @@
 			},
 			"required": ["kind"],
 			"additionalProperties": false
+		},
+		"otherMachine": {
+			"type": "object",
+			"required": ["machine", "label", "source", "result"],
+			"additionalProperties": false,
+			"properties": {
+				"machine": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"source": {
+					"type": ["object", "null"]
+				},
+				"result": {
+					"type": ["object", "null"]
+				}
+			}
 		}
 	},
 	"type": "object",
@@ -929,6 +948,12 @@
 							"$ref": "#/$defs/unsupported"
 						}
 					]
+				},
+				"machines": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/otherMachine"
+					}
 				}
 			}
 		}

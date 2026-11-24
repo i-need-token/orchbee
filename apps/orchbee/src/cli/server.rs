@@ -176,7 +176,7 @@ fn run() -> Result<StartOutcome, Failure> {
 /// notice when this invocation started the Session, otherwise nothing. A command a machine runs
 /// for another machine's route never starts its Session; the route already made it ready.
 pub(super) fn activate_first(locale: Locale) -> Result<String, Failure> {
-    if std::env::var_os(ROUTED_COMMAND).is_some_and(|value| value == "1") {
+    if routed() {
         return Ok(String::new());
     }
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -208,6 +208,11 @@ pub(super) fn activate_first(locale: Locale) -> Result<String, Failure> {
 
 /// The private marker the machine link sets on the command it runs for a routed request.
 pub(crate) const ROUTED_COMMAND: &str = "ORCHBEE_ROUTED_COMMAND";
+
+/// This command runs for another machine's route.
+pub(crate) fn routed() -> bool {
+    std::env::var_os(ROUTED_COMMAND).is_some_and(|value| value == "1")
+}
 
 /// Activates like `server start` but keeps the admitted connection for `server connect`.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
