@@ -1262,8 +1262,11 @@
 	--ob-sys-color-website-scrim: var(--ob-ref-color-website-scrim);
 	--ob-sys-color-website-selection: var(--ob-ref-color-website-selection);
 	--ob-sys-color-website-state-attention: var(--ob-ref-color-traffic-light-yellow);
+	--ob-sys-color-website-state-attention-on-paper: var(--ob-ref-color-agent-attention-light);
 	--ob-sys-color-website-state-done: var(--ob-ref-color-traffic-light-green);
+	--ob-sys-color-website-state-done-on-paper: var(--ob-ref-color-agent-done-light);
 	--ob-sys-color-website-state-failed: var(--ob-ref-color-traffic-light-red);
+	--ob-sys-color-website-state-failed-on-paper: var(--ob-ref-color-agent-error-light);
 	--ob-sys-color-website-state-idle: var(--ob-ref-color-website-idle);
 	--ob-sys-color-website-state-working: var(--ob-ref-color-agent-working-dark);
 	--ob-sys-color-website-state-working-on-paper: var(--ob-ref-color-agent-working-light);

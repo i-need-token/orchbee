@@ -87,7 +87,8 @@
 	letter-spacing: var(--ob-sys-typography-website-ring-cell-title-tracking);
 	white-space: nowrap;
 }
-/* The state glyph on paper: working is dark and ready is the paper's muted ink. */
+/* The state glyph on paper: working is dark, ready is the paper's muted ink, and the outcomes take
+   the product's light-theme traffic light, which reads on paper. */
 .glyph {
 	display: flex;
 	flex: none;
@@ -103,13 +104,13 @@
 	color: var(--ob-sys-color-website-state-working-on-paper);
 }
 .glyph svg[data-state='attention'] {
-	color: var(--ob-sys-color-website-state-attention);
+	color: var(--ob-sys-color-website-state-attention-on-paper);
 }
 .glyph svg[data-state='done'] {
-	color: var(--ob-sys-color-website-state-done);
+	color: var(--ob-sys-color-website-state-done-on-paper);
 }
 .glyph svg[data-state='failed'] {
-	color: var(--ob-sys-color-website-state-failed);
+	color: var(--ob-sys-color-website-state-failed-on-paper);
 }
 .state {
 	margin-top: calc(-1 * var(--ob-ref-length-website-0-4cqw));
