@@ -107,14 +107,16 @@
 	font: var(--ob-sys-typography-label-sm);
 }
 
+/* A hint label is a key to press, not a status: an inverse chip that stands out over any terminal
+   content in every theme. */
 .terminalSurface [data-projected-terminal-hint='true'] {
 	position: absolute;
 	box-sizing: border-box;
 	display: grid;
 	place-items: center;
-	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-surface-inverse);
 	border-radius: var(--ob-ref-radius-xs);
-	background: var(--ob-sys-color-status-warning);
+	background: var(--ob-sys-color-surface-inverse);
 	color: var(--ob-sys-color-text-inverse);
 	font: var(--ob-sys-typography-label-sm);
 }
