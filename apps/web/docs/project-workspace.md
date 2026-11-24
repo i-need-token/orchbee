@@ -129,7 +129,9 @@ its menus, drags and Agents stay with the Session on screen. A machine that is n
 the Workspaces it listed when last read, each row two lines, the name muted and the machine's
 state word beneath. Choosing one chooses the machine as its state's action does, and the host's
 `card` stands over the terminal area, holding the pointer and taking the keyboard, until the choice
-lands, another is made, or Not now (Esc) gives it up.
+lands, another is made, or Not now (Esc) gives it up. When the machine on screen loses its
+connection, its surface stays beneath the same card and returns to the Workspace it showed once
+the connection opens again; Not now there keeps the terminals in view until the state changes.
 
 ## Workspace locations
 

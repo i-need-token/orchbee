@@ -58,8 +58,10 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	readonly #options: DesktopWorkbenchSurfacesOptions;
 	readonly #stops: (() => void)[] = [];
 	#key = '';
+	/** The surface on screen whose connection ended, once seen. */
+	#lost: DesktopWorkbenchSurface | undefined;
 	/** A choice of a machine that is not connected, which lands once its connection opens. */
-	#pending: { readonly machine: string; readonly workspaceId: string } | null = null;
+	#pending: Pending | null = null;
 	#snapshot: WorkbenchOtherMachinesSnapshot = { card: null, machines: [], onScreen: null };
 	#surface: DesktopWorkbenchSurface | undefined;
 
@@ -99,22 +101,8 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	 */
 	readonly open = (machine: string, workspaceId: string): void => {
 		this.#pending = null;
-		const { local, remoteSessions } = this.#options;
-		if (machine === LOCAL) {
-			this.#mount(null, local.runtime, local.session, workspaceHistory(workspaceId));
-			return;
-		}
-		const remote = remoteSessions.get(machine);
-		if (remote !== undefined) {
-			this.#mount(
-				machine,
-				this.#options.createRemoteRuntime(remote),
-				remote.session,
-				workspaceHistory(workspaceId),
-			);
-			return;
-		}
-		this.#pending = { machine, workspaceId };
+		if (this.#land(machine, workspaceId)) return;
+		this.#pending = { dismissed: null, machine, reattach: false, workspaceId };
 		this.act();
 		this.#refresh();
 	};
@@ -128,8 +116,16 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		this.#options.machines.request({ act: action.act, machine: pending.machine });
 	};
 
+	/**
+	 * Gives up the person's choice. A lost surface's return stays armed, as the TUI's does: its card
+	 * comes back when the machine's state changes, and the surface returns once it can.
+	 */
 	readonly dismiss = (): void => {
-		this.#pending = null;
+		const pending = this.#pending;
+		this.#pending =
+			pending?.reattach === true
+				? { ...pending, dismissed: this.#machine(pending.machine)?.state ?? null }
+				: null;
 		this.#refresh();
 	};
 
@@ -139,6 +135,24 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		this.#surface = undefined;
 		this.#options.remoteSessions.dispose();
 		this.#listeners.clear();
+	}
+
+	/** Shows `workspaceId`, or the Session's first location, of `machine` once its surface can. */
+	#land(machine: string, workspaceId: string | null): boolean {
+		const { local, remoteSessions } = this.#options;
+		if (machine === LOCAL) {
+			this.#mount(null, local.runtime, local.session, workspaceHistory(workspaceId));
+			return true;
+		}
+		const remote = remoteSessions.get(machine);
+		if (remote === undefined) return false;
+		this.#mount(
+			machine,
+			this.#options.createRemoteRuntime(remote),
+			remote.session,
+			workspaceHistory(workspaceId),
+		);
+		return true;
 	}
 
 	#mount(
@@ -180,19 +194,33 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 
 	#refresh(): void {
 		const { local, machines, remoteSessions } = this.#options;
-		const pending = this.#pending;
-		if (pending !== null && remoteSessions.get(pending.machine) !== undefined) {
-			this.open(pending.machine, pending.workspaceId);
-			return;
-		}
-		// The surface on screen whose connection ended returns to this computer.
 		const surface = this.#surface;
+		// The surface on screen whose connection ended stays beneath the card and returns to the
+		// Workspace it showed once its machine's connection opens again; a machine no longer saved
+		// returns the window to this computer.
 		if (
-			surface?.machine !== undefined &&
+			surface !== undefined &&
 			surface.machine !== null &&
 			remoteSessions.get(surface.machine)?.session !== surface.session
 		) {
-			this.#mount(null, local.runtime, local.session, createMemoryHistory());
+			if (this.#machine(surface.machine) === undefined) {
+				this.#mount(null, local.runtime, local.session, createMemoryHistory());
+				return;
+			}
+			if (surface !== this.#lost) {
+				this.#lost = surface;
+				this.#pending = {
+					dismissed: null,
+					machine: surface.machine,
+					reattach: true,
+					workspaceId: shownWorkspace(surface),
+				};
+			}
+		}
+		const pending = this.#pending;
+		if (pending !== null && remoteSessions.get(pending.machine) !== undefined) {
+			this.#pending = null;
+			this.#land(pending.machine, pending.workspaceId);
 			return;
 		}
 		const shown = surface?.machine ?? null;
@@ -235,7 +263,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 			pending === null ? undefined : rows.find((row) => row.machine === pending.machine);
 		if (pending !== null && chosen === undefined) this.#pending = null;
 		const card =
-			chosen === undefined
+			chosen === undefined || chosen.state === pending?.dismissed
 				? null
 				: {
 						action:
@@ -253,9 +281,32 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	}
 }
 
-/** A routing history that starts on `workspaceId`. */
-function workspaceHistory(workspaceId: string): RouterHistory {
-	return createMemoryHistory({
-		initialEntries: [`/workspaces/${encodeURIComponent(workspaceId)}`],
-	});
+/**
+ * A chosen machine's Workspace that waits for its connection. A lost surface's return is `reattach`;
+ * Not now on it records the state it was given at, and its card stays away while that state holds.
+ */
+interface Pending {
+	readonly dismissed: string | null;
+	readonly machine: string;
+	readonly reattach: boolean;
+	readonly workspaceId: string | null;
+}
+
+/** A routing history that starts on `workspaceId`, or on the Session's first location. */
+function workspaceHistory(workspaceId: string | null): RouterHistory {
+	return workspaceId === null
+		? createMemoryHistory()
+		: createMemoryHistory({ initialEntries: [`/workspaces/${encodeURIComponent(workspaceId)}`] });
+}
+
+/** The Workspace `surface` shows, or null on any other location. */
+function shownWorkspace(surface: DesktopWorkbenchSurface): string | null {
+	const match = /^\/workspaces\/([^/]+)/u.exec(surface.routing.router.state.location.pathname);
+	const encoded = match?.[1];
+	if (encoded === undefined) return null;
+	try {
+		return decodeURIComponent(encoded);
+	} catch {
+		return null;
+	}
 }
