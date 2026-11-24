@@ -135,7 +135,6 @@ const SHARED_THEME_COLORS: &str =
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct SharedThemeColors {
     contract_version: u8,
-    every_theme: std::collections::BTreeMap<String, SharedColor>,
     light: std::collections::BTreeMap<String, SharedColor>,
     dark: std::collections::BTreeMap<String, SharedColor>,
 }
@@ -356,7 +355,7 @@ fn named_roles_conform_to_the_shared_theme_colors() {
     ] {
         // The cell grid has no translucency, so a translucent color is composited over chrome.
         let chrome = rgb_channels(theme.color(Role::SurfaceChrome));
-        for (name, color) in shared.every_theme.iter().chain(colors) {
+        for (name, color) in colors {
             let rgb = parse_hex_rgb(&color.rgb);
             let expected = color
                 .opacity
@@ -1140,7 +1139,7 @@ fn terminal_native_quantize_is_identity_outside_fixed_agent_glyphs() {
 }
 
 #[test]
-fn agent_state_glyphs_use_one_traffic_light_in_every_theme() {
+fn agent_state_glyphs_keep_the_traffic_light_meanings_in_every_theme() {
     use orchbee_workbench_protocol::MetadataState::{Blocked, Done, Error};
     for theme in [
         Theme::terminal_native(),
@@ -1149,7 +1148,10 @@ fn agent_state_glyphs_use_one_traffic_light_in_every_theme() {
         Theme::rgb_test_dark(),
     ] {
         for (role, rgb, ansi16) in AGENT_ROLES {
-            assert_eq!(theme.style(role), Style::new().fg(rgb), "{}", theme.name);
+            // Light themes deepen the traffic light; the shared theme colors pin those values.
+            if theme.polarity != Some(Polarity::Light) {
+                assert_eq!(theme.style(role), Style::new().fg(rgb), "{}", theme.name);
+            }
             assert_eq!(theme.quantize(ColorLevel::Ansi16).color(role), ansi16);
             assert_eq!(
                 theme.quantize(ColorLevel::Monochrome).color(role),

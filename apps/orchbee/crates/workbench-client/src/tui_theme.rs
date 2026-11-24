@@ -457,8 +457,10 @@ impl RoleStyles {
     }
 }
 
-/// Agent state glyphs follow a traffic light with one value in every theme and host: Needs
-/// attention, Completed and Failed. Quantization maps them to Yellow, Green and Red at 16 colors.
+/// Agent state glyphs follow a traffic light: Needs attention, Completed and Failed. Named themes take
+/// their polarity's values from the theme resolver; terminal colors, whose polarity is unknown, and
+/// the dark test theme take the dark ones here. Quantization maps both to Yellow, Green and Red at
+/// 16 colors.
 const AGENT_ATTENTION: Color = Color::Rgb(254, 188, 46);
 const AGENT_DONE: Color = Color::Rgb(40, 200, 64);
 const AGENT_ERROR: Color = Color::Rgb(255, 95, 87);

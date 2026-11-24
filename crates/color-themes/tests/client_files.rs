@@ -324,20 +324,20 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
         ("action-disabled-border", guide),
         (
             "status-attention",
-            fixed("traffic-light-yellow", "traffic-light-yellow"),
+            fixed("agent-attention-light", "traffic-light-yellow"),
         ),
         (
             "status-working",
             fixed("agent-working-light", "agent-working-dark"),
         ),
-        ("status-agent-idle", fixed("gray-600", "groknight-gray")),
+        ("status-agent-idle", fixed("gray-500", "groknight-gray")),
         (
             "status-agent-done",
-            fixed("traffic-light-green", "traffic-light-green"),
+            fixed("agent-done-light", "traffic-light-green"),
         ),
         (
             "status-agent-error",
-            fixed("traffic-light-red", "traffic-light-red"),
+            fixed("agent-error-light", "traffic-light-red"),
         ),
         ("status-unread", roles.status_unread.to_string()),
     ]

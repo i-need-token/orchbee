@@ -190,22 +190,36 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
         }
     }
 
+    // Agent glyphs take their polarity's fixed colors, and no theme shows them fainter than Orchbee
+    // Light, the polarity where they are hardest to read.
+    let fixed = Roles::resolve(orchbee(theme.polarity()));
     let glyphs = [
         (
             "attention",
             roles.agent_attention,
+            fixed.agent_attention,
             reference.agent_attention,
         ),
-        ("done", roles.agent_done, reference.agent_done),
-        ("error", roles.agent_error, reference.agent_error),
+        (
+            "done",
+            roles.agent_done,
+            fixed.agent_done,
+            reference.agent_done,
+        ),
+        (
+            "error",
+            roles.agent_error,
+            fixed.agent_error,
+            reference.agent_error,
+        ),
     ];
     let surfaces = [
         ("canvas", roles.surface_canvas, reference.surface_canvas),
         ("chrome", roles.surface_chrome, reference.surface_chrome),
         ("current", roles.surface_current, reference.surface_current),
     ];
-    for (glyph, color, accepted) in glyphs {
-        if color != accepted {
+    for (glyph, color, polarity_color, accepted) in glyphs {
+        if color != polarity_color {
             findings.fail(format!("the fixed {glyph} glyph is themed as {color}"));
         }
         for (surface, fill, accepted_fill) in surfaces {
@@ -288,7 +302,7 @@ fn gate(theme: &Theme, reference: &Roles) -> Vec<String> {
         4.5,
     );
     gate_gui_derived_states(&mut findings, &roles, dark);
-    gate_selection_hues(&mut findings, &roles, reference);
+    gate_selection_hues(&mut findings, &roles, &fixed);
     findings.failures
 }
 
@@ -541,7 +555,7 @@ fn gate_gui_derived_states(findings: &mut Findings<'_>, roles: &Roles, dark: boo
     );
 }
 
-fn gate_selection_hues(findings: &mut Findings<'_>, roles: &Roles, reference: &Roles) {
+fn gate_selection_hues(findings: &mut Findings<'_>, roles: &Roles, fixed: &Roles) {
     let sel = roles.selection;
     let groups = sel.tab_groups;
     let selection_checks: [(&str, Rgb, f64); 18] = [
@@ -571,14 +585,10 @@ fn gate_selection_hues(findings: &mut Findings<'_>, roles: &Roles, reference: &R
             floor,
         );
     }
-    // Fixed traffic-light Agent glyphs keep their exact unshifted colors even on selection.
+    // Fixed Agent glyphs keep their polarity's exact unshifted colors even on selection.
     if (roles.agent_attention, roles.agent_done, roles.agent_error)
-        != (
-            reference.agent_attention,
-            reference.agent_done,
-            reference.agent_error,
-        )
+        != (fixed.agent_attention, fixed.agent_done, fixed.agent_error)
     {
-        findings.fail("fixed traffic-light Agent glyphs must never shift".to_owned());
+        findings.fail("fixed Agent glyphs must never shift".to_owned());
     }
 }

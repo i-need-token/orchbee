@@ -108,12 +108,18 @@ fn terminal_colors_emit_host_defaults_and_ansi_indexes_beside_the_fixed_agent_co
     assert_eq!(theme.color(Role::SurfaceCanvas), Color::Reset);
 }
 
-/// Agent state colors are a fixed traffic light: no theme, polarity or color source moves them.
+/// Agent state colors are fixed for each polarity: no theme or color source moves them, and the
+/// dark traffic light is also the one terminal colors use, whose polarity is unknown.
 #[test]
-fn agent_status_colors_are_identical_under_every_shipped_theme_and_terminal_colors() {
-    let reference = Theme::terminal_native();
+fn agent_status_colors_are_identical_under_every_shipped_theme_of_a_polarity() {
+    let terminal = Theme::terminal_native();
+    let light = Theme::orchbee_light();
     for named in orchbee_color_themes::shipped() {
         let theme = Theme::named(named);
+        let reference = match named.polarity() {
+            orchbee_color_themes::Polarity::Light => light,
+            orchbee_color_themes::Polarity::Dark => terminal,
+        };
         for role in [Role::AgentAttention, Role::AgentDone, Role::AgentError] {
             assert_eq!(
                 theme.color(role),

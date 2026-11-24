@@ -1612,8 +1612,8 @@ The GUI design follow-up has begun with the TUI's settled sidebar and status dec
 choices stand unless review changes them:
 
 - **Agent outcomes use the fixed traffic light.** Needs attention, Completed, and Failed glyphs take
-  the TUI's `#FEBC2E`, `#28C840`, and `#FF5F57` in both themes; state words keep the status text
-  roles.
+  the TUI's `#FEBC2E`, `#28C840`, and `#FF5F57` on dark themes and those hues deepened to 3:1 on
+  light themes; state words keep the status text roles.
 - **The sidebar groups Workspaces as the TUI does.** Projects come first, then the Workspaces
   outside any Project under a Recents heading, always last. The list has no heading, no group
   heading counts its members, and no heading is current, even folded around the active Workspace.

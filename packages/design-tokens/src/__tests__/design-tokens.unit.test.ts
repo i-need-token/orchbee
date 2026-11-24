@@ -317,7 +317,7 @@ describe('design tokens', () => {
 		];
 		for (const { colors, selector } of themes) {
 			const system = declaredValues(ruleBody(css, selector));
-			for (const [name, color] of Object.entries({ ...sharedThemeColors.everyTheme, ...colors })) {
+			for (const [name, color] of Object.entries(colors)) {
 				const token = SHARED_COLOR_TOKENS.get(name);
 				if (token === undefined) throw new Error(`${name} has no registry color.`);
 				const value = system.get(token);

@@ -33,7 +33,7 @@ Orchbee Dark then take the shared theme colors described below, as the GUI's Orc
 Terminal colors are the `terminal-native` mapping: host default foreground and background
 (`Color::Reset`), named ANSI accents and the paired and modifier fallbacks of the
 [visual foundations](../../../docs/tui/visual-foundations.md). The traffic-light Agent colors are
-the same under every theme and under Terminal colors.
+the same under every theme of a polarity; Terminal colors use the dark values.
 
 Terminal defaults decide the colors of default-marked cells. While a named theme paints, Theme
 takes that theme's canvas foreground and background, and Host does the same while Appearance is
@@ -134,8 +134,8 @@ the band's label pair is the same, so it sits at that reference rather than the 
 named theme keeps the destructive key hint in `text-secondary`. On named truecolor and 256-color
 `surface-selection`, the theme resolver supplies pre-adjusted semantic hues (action, destructive,
 focus, link, and status roles) directly on `surface-selection` without giving `accent-destructive` a
-separate black/white background box, while fixed traffic-light Agent glyphs (`#febc2e`, `#28c840`,
-`#ff5f57`) keep their values and relative contrast rule. Where reduced-color or native interaction
+separate black/white background box, while fixed traffic-light Agent glyphs keep their polarity's values
+and relative contrast rule. Where reduced-color or native interaction
 uses reverse video, or quantization drops a fill below 3:1, the theme resolver removes reversal from
 the destructive content band and supplies its own contrasting backing pair. Components neither
 construct colors nor add warning bold, underline or blink. Monochrome retains the localized Delete

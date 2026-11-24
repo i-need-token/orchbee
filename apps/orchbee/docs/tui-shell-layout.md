@@ -461,9 +461,10 @@ Sidebar, Tab and pane-title Working glyphs use a stationary filled hexagon `⬢`
 white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
 foreground and adopts the current Tab's paired foreground. Idle uses a gray hollow hexagon `⬡`
 (U+2B21); attention, done and
-error use the fixed traffic-light `agent-attention` `#FEBC2E`, `agent-done` `#28C840` and
-`agent-error` `#FF5F57` `⬢` in every theme and host, which 16-color hosts show as Yellow, Green
-and Red; their state words keep the status text roles. Opening, from the moment an Agent process is
+error use the fixed traffic-light `agent-attention`, `agent-done` and `agent-error` `⬢`, one value
+per polarity in every theme and host (`#FEBC2E`, `#28C840` and `#FF5F57` on dark themes and terminal
+colors, `#AD6F00`, `#009100` and `#E1423E` on light themes), which 16-color hosts show as Yellow,
+Green and Red; their state words keep the status text roles. Opening, from the moment an Agent process is
 seen until its screen is first recognised, draws exactly the Working glyph and breathing; only its
 state word, Starting, differs. Unknown and the default Workspace identity
 use secondary-gray `•`. Attention alternates full and half intensity every 500 ms. The Picker owns

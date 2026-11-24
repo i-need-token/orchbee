@@ -80,15 +80,15 @@ Agent attention, working, idle, completed, failed and unread are separate roles.
 
 A saved machine's name is written in `--ob-sys-color-machine-cyan`, `-purple`, `-pink` or `-grey`, its color by name. A named theme takes each from the Tab-group accent of the same name, as the TUI does; the Orchbee pair maps them to the reference scales at text contrast on chrome.
 
-The registry owns the Agent palette below, which the TUI shares. Attention, completed and failed are a fixed traffic light, the macOS window-control colors, with one value in both themes; the TUI's `agent-attention`, `agent-done` and `agent-error` glyph roles use the same values in every theme and host. They color status glyphs only, never words, because yellow and green fall below text contrast on light surfaces; a state's word keeps the status text roles. Working is neutral and Idle gray, each adapted per theme, and native Orchbee Dark projects the dark column. Working uses `--ob-sys-motion-duration-agent-breath` and `--ob-sys-motion-easing-agent-breath` for a two-second white-to-gray breathing solid circle; light themes use dark foreground for contrast. Attention alternates full and half intensity over `--ob-sys-motion-duration-agent-cycle` (one second). Reduced-motion consumers keep a static frame.
+The registry owns the Agent palette below, which the TUI shares. Attention, completed and failed are a fixed traffic light: dark themes take the macOS window-control colors, and light themes take the same hues deepened until each glyph reaches 3:1 on light canvas, chrome and selected rows, where the window-control colors read at 1.3–2.9:1. Every named theme of a polarity keeps that polarity's values, and the TUI's `agent-attention`, `agent-done` and `agent-error` glyph roles use them too. They color status glyphs only, never words; a state's word keeps the status text roles. Working is neutral and Idle gray, each adapted per theme: Idle is the quietest state, a hollow glyph at about the muted text tier, so it never outweighs the states that ask for the person. Native Orchbee Dark projects the dark column. Working uses `--ob-sys-motion-duration-agent-breath` and `--ob-sys-motion-easing-agent-breath` for a two-second white-to-gray breathing solid circle; light themes use dark foreground for contrast. Attention alternates full and half intensity over `--ob-sys-motion-duration-agent-cycle` (one second). Reduced-motion consumers keep a static frame.
 
 | State     | Light                     | Dark      |
 | --------- | ------------------------- | --------- |
 | Working   | `#383A42`                 | `#E5E5E5` |
-| Attention | `#FEBC2E`                 | `#FEBC2E` |
-| Completed | `#28C840`                 | `#28C840` |
-| Failed    | `#FF5F57`                 | `#FF5F57` |
-| Idle      | `--ob-ref-color-gray-600` | `#585858` |
+| Attention | `#AD6F00`                 | `#FEBC2E` |
+| Completed | `#009100`                 | `#28C840` |
+| Failed    | `#E1423E`                 | `#FF5F57` |
+| Idle      | `--ob-ref-color-gray-500` | `#585858` |
 
 ## Named theme maintenance
 

@@ -1,13 +1,28 @@
 //! Resolves a theme's palette into every semantic color role: OKLab surface steps and interaction
 //! mixes, frame and text steps, ANSI accents lightness-corrected to their contrast floors on
-//! their painted surfaces, and the Tab-group accents. Agent glyph colors are fixed for every theme. It does not
-//! quantize or choose modifiers; the README's resolver table is the authority for each rule.
+//! their painted surfaces, and the Tab-group accents. Agent glyph colors are fixed for each
+//! polarity. It does not quantize or choose modifiers; the README's resolver table is the authority
+//! for each rule.
 
 use crate::{Polarity, Rgb, Theme, contrast, oklab};
 
-const AGENT_ATTENTION: Rgb = Rgb::new(0xfe, 0xbc, 0x2e);
-const AGENT_DONE: Rgb = Rgb::new(0x28, 0xc8, 0x40);
-const AGENT_ERROR: Rgb = Rgb::new(0xff, 0x5f, 0x57);
+/// The needs-attention, completed and failed glyph colors of every theme of `polarity`. Dark themes
+/// take the macOS window-control traffic light; light themes take its hues deepened to 3:1 on
+/// light canvas, chrome and selected rows, where the traffic light reads at 1.3–2.9:1.
+const fn agent_colors(polarity: Polarity) -> [Rgb; 3] {
+    match polarity {
+        Polarity::Dark => [
+            Rgb::new(0xfe, 0xbc, 0x2e),
+            Rgb::new(0x28, 0xc8, 0x40),
+            Rgb::new(0xff, 0x5f, 0x57),
+        ],
+        Polarity::Light => [
+            Rgb::new(0xad, 0x6f, 0x00),
+            Rgb::new(0x00, 0x91, 0x00),
+            Rgb::new(0xe1, 0x42, 0x3e),
+        ],
+    }
+}
 
 const BODY_FLOOR: f64 = 4.5;
 const NON_TEXT_FLOOR: f64 = 3.0;
@@ -99,11 +114,11 @@ pub struct Roles {
     pub status_working: Rgb,
     /// An idle Agent; the same value as `text_muted`.
     pub status_idle: Rgb,
-    /// The fixed needs-attention glyph color.
+    /// The needs-attention glyph color fixed for the theme's polarity.
     pub agent_attention: Rgb,
-    /// The fixed completed glyph color.
+    /// The completed glyph color fixed for the theme's polarity.
     pub agent_done: Rgb,
-    /// The fixed failed glyph color.
+    /// The failed glyph color fixed for the theme's polarity.
     pub agent_error: Rgb,
     /// One accent per shared Tab-group color.
     pub tab_groups: TabGroups,
@@ -112,7 +127,7 @@ pub struct Roles {
 }
 
 /// Semantic accents and Tab-group accents lightness-corrected onto `surface_selection`. Fixed
-/// traffic-light Agent glyph colors stay unshifted.
+/// Agent glyph colors stay unshifted.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SelectionAccents {
     /// At least 3:1 on `surface_selection`.
@@ -303,6 +318,7 @@ impl Roles {
         let status_error = on_all_gui(status_error, BODY_FLOOR);
         let status_info = on_all_gui(status_info, BODY_FLOOR);
         let status_unread = accent_action;
+        let [agent_attention, agent_done, agent_error] = agent_colors(theme.polarity());
         let group = |color: Rgb| on_surfaces(color, BODY_FLOOR);
         let tab_groups = TabGroups {
             blue: group(blue),
@@ -397,9 +413,9 @@ impl Roles {
             status_pending: text_secondary,
             status_working: text_secondary,
             status_idle: on_surfaces(text_muted, NON_TEXT_FLOOR),
-            agent_attention: AGENT_ATTENTION,
-            agent_done: AGENT_DONE,
-            agent_error: AGENT_ERROR,
+            agent_attention,
+            agent_done,
+            agent_error,
             tab_groups,
             selection: selection_accents,
         }
