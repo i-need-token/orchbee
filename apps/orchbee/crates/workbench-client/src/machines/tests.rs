@@ -175,20 +175,6 @@ fn invalid_catalog_and_exhaustion_never_mutate_the_source() {
     value = full.json();
     value["revision"] = json!(MAX_REVISION + 1);
     assert!(Catalog::parse(&serde_json::to_vec(&value).unwrap()).is_none());
-    let full = Catalog {
-        revision: 10,
-        profiles: (1..=64).map(|n| Profile::new(id(n), draft())).collect(),
-        ..Catalog::default()
-    };
-    assert_eq!(
-        full.edit(&Edit::Add {
-            id: id(65),
-            draft: draft(),
-            color: None,
-        })
-        .unwrap_err(),
-        Error::Capacity
-    );
 }
 /// Colors stay apart for as long as there are colors and spread evenly afterwards; a record an
 /// earlier release saved, or one with a color outside the palette, takes the same default at load

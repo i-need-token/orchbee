@@ -15,7 +15,7 @@ use std::{
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        atomic::{AtomicBool, Ordering},
     },
     thread,
     time::{Duration, Instant},
@@ -24,8 +24,6 @@ use std::{
 /// The hub owner the carrier opens its channels on.
 pub(crate) type Hub = Arc<HubClient>;
 
-/// Connections one endpoint carries at once; a further one closes at once.
-const CONNECTIONS: usize = 16;
 /// How often the accept loop looks for a connection and for its stop flag.
 const ACCEPT_PAUSE: Duration = Duration::from_millis(10);
 /// How often a connection's threads look for the stop flag while they wait.
@@ -55,22 +53,21 @@ pub(super) fn start(hub: &Hub, machine: &ProfileId, online: Gate) -> io::Result<
             .spawn(move || {
                 // The folder stays held while the endpoint is served.
                 let _folder = folder;
-                let open = Arc::new(AtomicUsize::new(0));
                 while !stop.load(Ordering::Acquire) {
                     match listener.accept() {
                         Ok((stream, ())) => {
-                            // A Machine that is not online, or a full endpoint, closes only this
-                            // candidate; a Client that keeps reconnecting costs no hub request.
-                            if online() && open.load(Ordering::Acquire) < CONNECTIONS {
+                            // A Machine that is not online closes only this candidate; a Client
+                            // that keeps reconnecting costs no hub request. Any number of
+                            // connections are carried at once (owner, 2026-11-23).
+                            if online() {
                                 let lane = Lane {
                                     hub: hub.clone(),
                                     channel: Channel::Session {
                                         machine: machine.clone(),
                                     },
                                     stop: stop.clone(),
-                                    _counted: Counted::new(&open),
                                 };
-                                // A thread that cannot start drops the lane and its count.
+                                // A thread that cannot start drops the lane, closing the stream.
                                 let _started = thread::Builder::new()
                                     .name("orchbee-machine-lane".into())
                                     .spawn(move || lane.carry(stream));
@@ -90,27 +87,10 @@ pub(super) fn start(hub: &Hub, machine: &ProfileId, online: Gate) -> io::Result<
     })
 }
 
-/// One open connection's place among the endpoint's connections.
-struct Counted(Arc<AtomicUsize>);
-
-impl Counted {
-    fn new(open: &Arc<AtomicUsize>) -> Self {
-        open.fetch_add(1, Ordering::AcqRel);
-        Self(open.clone())
-    }
-}
-
-impl Drop for Counted {
-    fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::AcqRel);
-    }
-}
-
 struct Lane {
     hub: Hub,
     channel: Channel,
     stop: Arc<AtomicBool>,
-    _counted: Counted,
 }
 
 impl Lane {

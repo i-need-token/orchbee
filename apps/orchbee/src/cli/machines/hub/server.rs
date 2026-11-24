@@ -18,9 +18,9 @@ use super::{
     state::{CANDIDATES, CONTROLS, Hub, Line, PEERS, Shared, shows_offers},
 };
 use orchbee_connection_handshake::{
-    AcceptorLoad, AcceptorMessage, AcceptorProfile, CANDIDATE_DEADLINE, ConnectionKind, Decision,
-    DrainResult, ExitResult, Extensions, InitiatorMessage, ProcessRole, ProcessState, ReadError,
-    RejectionReason, RequestKind, Unsupported, read_initiator_message,
+    AcceptorLoad, AcceptorMessage, AcceptorProfile, CANDIDATE_DEADLINE, CATALOG_PARTS,
+    ConnectionKind, Decision, DrainResult, ExitResult, Extensions, InitiatorMessage, ProcessRole,
+    ProcessState, ReadError, RejectionReason, RequestKind, Unsupported, read_initiator_message,
 };
 use orchbee_local_runtime::{
     DataRoot, HeldLock, LogRole, create_private_directory, install_diagnostic_log, log_panicked,
@@ -371,7 +371,8 @@ fn decide(
                 InitiatorMessage::Offer(offer) => shows_offers(offer.product_version.as_str()),
                 InitiatorMessage::Request(_) | InitiatorMessage::UnknownRequest(_) => false,
             };
-            let (id, line) = hub.register(stream.clone(), shows_offers);
+            let catalog_parts = reply.capabilities.contains(CATALOG_PARTS);
+            let (id, line) = hub.register(stream.clone(), shows_offers, catalog_parts);
             drop(hub);
             if answer(&mut &*stream, &AcceptorMessage::Answer(reply))
                 && peer::start_writer(shared, &line, id, stream.clone())

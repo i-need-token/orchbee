@@ -101,16 +101,12 @@ impl Machines {
             .iter()
             .filter_map(|id| MachineId::new(id).ok())
             .collect();
-        let machines = Self {
+        Ok(Self {
             revision,
             entries,
             serials: Serials::default(),
             preferred,
-        };
-        machines
-            .catalog()
-            .map_err(|()| ReloadOutcome::InvalidCatalog)?;
-        Ok(machines)
+        })
     }
 
     pub(super) const fn revision(&self) -> Count {
@@ -216,19 +212,18 @@ impl Machines {
         outcome
     }
 
-    fn catalog(&self) -> Result<Catalog, ()> {
+    fn catalog(&self) -> Catalog {
         Catalog::new(
             self.revision,
             self.listed().map(|machine| machine.id().clone()).collect(),
         )
-        .map_err(drop)
     }
 
     /// `catalog`, then one `machine` per id in catalog order: what turning `watch` on sends. The
     /// connection `peer` then reads its own drafts.
     pub(super) fn events(&self, peer: u64) -> Vec<Event> {
         let mut events = Vec::with_capacity(self.entries.len() + 1);
-        events.extend(self.catalog().ok().map(Event::Catalog));
+        events.push(Event::Catalog(self.catalog()));
         events.extend(self.listed().map(Machine::event));
         events.extend(
             self.entries
@@ -406,8 +401,8 @@ impl Machines {
         self.revision = next.revision;
         self.preferred = next.preferred;
         self.admit(conditions, &mut outcome);
-        if catalog_changed && let Ok(catalog) = self.catalog() {
-            outcome.events.insert(0, Event::Catalog(catalog));
+        if catalog_changed {
+            outcome.events.insert(0, Event::Catalog(self.catalog()));
         }
         outcome
     }

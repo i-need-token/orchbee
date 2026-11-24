@@ -1,10 +1,7 @@
 //! Clients the picker stops presenting stay owned until process exit observes their threads.
 use super::super::*;
 use super::{dimensions, profile, setup};
-use crate::{
-    machines::{Draft, ProfileId},
-    terminal_input::UnavailableTerminalInputPort,
-};
+use crate::terminal_input::UnavailableTerminalInputPort;
 use std::{
     sync::atomic::{AtomicBool, Ordering},
     thread,
@@ -61,13 +58,6 @@ impl TerminalSurface for Busy {
     }
 }
 
-fn remote(n: u8) -> Profile {
-    Profile::new(
-        ProfileId::parse(&format!("{n:032x}")).unwrap(),
-        Draft::parse("remote", &format!("example{n}.invalid"), "default").unwrap(),
-    )
-}
-
 fn cached(profile: Option<Profile>, surface: Box<dyn TerminalSurface>) -> Cached {
     Cached {
         profile,
@@ -89,8 +79,6 @@ enum Removal {
     Superseded,
     /// A fresh connection to the active machine replaced it.
     Replaced,
-    /// A fifth inactive remote surface evicted it from the cache.
-    Evicted,
 }
 
 /// Puts `busy` in a Manager while it works, then removes it as `removal` says.
@@ -125,15 +113,6 @@ fn remove(
             drop(surface.replace(busy));
             (cached(Some(profile()), idle()), false)
         }
-        Removal::Evicted => {
-            manager.cached.push(cached(Some(remote(1)), busy));
-            for n in 2..=4 {
-                manager.cached.push(cached(Some(remote(n)), idle()));
-            }
-            // Returning to Local caches the active remote as the fifth.
-            manager.current = Some(remote(5));
-            (cached(None, idle()), true)
-        }
     };
     manager.install(
         next,
@@ -147,12 +126,11 @@ fn remove(
 }
 
 #[test]
-fn clients_replaced_or_evicted_while_working_finish_inside_exit_cleanup() {
+fn clients_removed_while_working_finish_inside_exit_cleanup() {
     for removal in [
         Removal::ProfileRemoved,
         Removal::Superseded,
         Removal::Replaced,
-        Removal::Evicted,
     ] {
         let (busy, ended) = Busy::start(Duration::from_millis(300));
         let (mut manager, _view, _surface) = remove(removal, busy);
@@ -168,7 +146,7 @@ fn clients_replaced_or_evicted_while_working_finish_inside_exit_cleanup() {
 #[test]
 fn a_removed_client_still_running_at_the_exit_deadline_is_reported_and_stays_owned() {
     let (busy, ended) = Busy::start(Duration::from_millis(500));
-    let (mut manager, mut view, mut surface) = remove(Removal::Evicted, busy);
+    let (mut manager, mut view, mut surface) = remove(Removal::Replaced, busy);
     let error = manager
         .stop_before(Instant::now() + Duration::from_millis(20))
         .unwrap_err();

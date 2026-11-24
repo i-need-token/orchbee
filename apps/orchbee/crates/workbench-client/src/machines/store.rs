@@ -7,7 +7,9 @@ use std::{io, sync::Mutex};
 /// is never rewritten, so the store starts empty and keeps changes here until the process ends.
 static MEMORY: Mutex<Option<Catalog>> = Mutex::new(None);
 
-const MAX_BYTES: usize = 128 * 1024;
+/// The largest `machines.json` read or written: a guard against a damaged file, about 150,000
+/// machines, so no person's machines reach it.
+const MAX_BYTES: usize = 64 * 1024 * 1024;
 
 pub struct Store {
     record: VersionedFile,

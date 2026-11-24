@@ -100,6 +100,11 @@ pub const RECOVERY: &str = "recovery";
 /// peer without it is never asked and reads every machine's capacity as unknown.
 pub const CAPACITY: &str = "capacity";
 
+/// The `machine-hub` capability before the hub sends a catalog of more than 64 Machines, as
+/// consecutive `catalog` parts of at most 64 each, every one but the last marked `more`. A client
+/// without it receives a catalog only whole, so never one that lists more than 64 Machines.
+pub const CATALOG_PARTS: &str = "catalog-parts";
+
 /// The `worker-host` capability before a Worker may ask a Host to run a program without a terminal,
 /// which outlives the Worker, and the Host reports its exit with `ProgramExited`.
 pub const BACKGROUND_PROGRAMS: &str = "background-programs";
@@ -200,7 +205,8 @@ impl ConnectionKind {
                 WORKSPACE_IDLE,
             ],
             Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
-            Self::MachineHub | Self::MachineLink => &[CAPACITY],
+            Self::MachineHub => &[CAPACITY, CATALOG_PARTS],
+            Self::MachineLink => &[CAPACITY],
             // The Worker reads the holdings its platform's Hosts make: program holdings everywhere,
             // and PTY holdings beside them elsewhere than Windows, where it updates the Keeper by
             // re-execution.

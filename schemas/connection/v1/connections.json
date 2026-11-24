@@ -52,7 +52,13 @@
 		"machine-hub": {
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
-			"capabilities": [{ "name": "capacity", "addedIn": "0.1.0-beta.23" }],
+			"capabilities": [
+				{ "name": "capacity", "addedIn": "0.1.0-beta.23" },
+				{
+					"name": "catalog-parts",
+					"addedIn": "0.1.0-beta.23"
+				}
+			],
 			"fingerprintInputs": [
 				"crates/connection-handshake/src",
 				"crates/machine-protocol/src",
@@ -175,6 +181,12 @@
 		},
 		{
 			"path": "schemas/machine/v1/fixtures/capacity.json"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/catalog-parts-invalid.json"
+		},
+		{
+			"path": "schemas/machine/v1/fixtures/catalog-parts.json"
 		},
 		{
 			"path": "schemas/machine/v1/fixtures/invalid.json",

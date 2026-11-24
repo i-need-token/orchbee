@@ -102,6 +102,8 @@ pub(super) struct Peer {
     pub(super) asks: bool,
     /// The client's version shows offered logins, so an `attach` with `asks` makes it ask.
     pub(super) shows_offers: bool,
+    /// The client reads a catalog in parts: its answer listed `catalog-parts`.
+    pub(super) catalog_parts: bool,
     pub(super) watch: bool,
     pub(super) writer_done: bool,
     /// The reader and the writer that still run.
@@ -114,6 +116,37 @@ pub(super) struct Wire {
     /// False once the connection is over at the hub: the client left, sent `bye`, or a write
     /// failed. A connection that committed a violation stays open until its `bye` is written.
     pub(super) open: bool,
+}
+
+impl Wire {
+    /// Queues `event`. A catalog goes in parts to a client that reads them, and whole to one that
+    /// does not, which never receives a catalog of more than 64 Machines, since it cannot read one.
+    pub(super) fn queue(&mut self, catalog_parts: bool, event: Event) {
+        match event {
+            Event::Catalog(catalog) if catalog_parts => {
+                for part in catalog.parts() {
+                    let _queued = self.connection.event(Event::Catalog(part));
+                }
+            }
+            Event::Catalog(catalog) if !catalog.whole_in_one_event() => {}
+            event => {
+                let _queued = self.connection.event(event);
+            }
+        }
+    }
+}
+
+impl Peer {
+    /// Queues `event` on this connection while it is open and wakes its writer. The caller holds
+    /// no connection's lock.
+    fn send(&self, event: Event) {
+        let mut wire = self.line.lock();
+        if wire.open {
+            wire.queue(self.catalog_parts, event);
+            drop(wire);
+            self.line.wake();
+        }
+    }
 }
 
 impl Hub {
@@ -152,8 +185,14 @@ impl Hub {
     }
 
     /// Registers an admitted connection whose reader and writer are about to run; `shows_offers`
-    /// tells whether its client's version shows offered logins.
-    pub(super) fn register(&mut self, stream: LocalStream, shows_offers: bool) -> (u64, Arc<Line>) {
+    /// tells whether its client's version shows offered logins, and `catalog_parts` whether it
+    /// reads a catalog in parts.
+    pub(super) fn register(
+        &mut self,
+        stream: LocalStream,
+        shows_offers: bool,
+        catalog_parts: bool,
+    ) -> (u64, Arc<Line>) {
         self.next_peer += 1;
         let line = Arc::new(Line::new(Wire {
             connection: Connection::<hub::Hub>::acceptor(),
@@ -167,6 +206,7 @@ impl Hub {
                 presence: false,
                 asks: false,
                 shows_offers,
+                catalog_parts,
                 watch: false,
                 writer_done: false,
                 threads: 2,
@@ -212,12 +252,7 @@ impl Hub {
     /// The caller holds no connection's lock.
     pub(super) fn broadcast(&self, event: &Event) {
         for peer in self.peers.values().filter(|peer| peer.watch) {
-            let mut wire = peer.line.lock();
-            if wire.open {
-                let _queued = wire.connection.event(event.clone());
-                drop(wire);
-                peer.line.wake();
-            }
+            peer.send(event.clone());
         }
     }
 
@@ -373,12 +408,7 @@ impl Hub {
         // A draft's events reach its owner alone, and only while it watches.
         for (owner, event) in outcome.owned {
             if let Some(peer) = self.peers.get(&owner).filter(|peer| peer.watch) {
-                let mut wire = peer.line.lock();
-                if wire.open {
-                    let _queued = wire.connection.event(event);
-                    drop(wire);
-                    peer.line.wake();
-                }
+                peer.send(event);
             }
         }
         for effect in outcome.effects {

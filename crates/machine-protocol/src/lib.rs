@@ -51,12 +51,12 @@ pub mod link {
 /// The records of `machine-hub` generation 1.
 pub mod hub {
     pub use crate::record::hub::{
-        AnswerEndpoint, Attach, AttachOutcome, CapacityOutcome, Catalog, Channel, ChannelKind,
-        ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome, ConnectResult,
-        ConnectWaiting, DisconnectOutcome, DismissOutcome, Draft, Event, Hub, HubState, LoginEnd,
-        LoginEvent, LoginFailedCause, LoginPhase, MAXIMUM_CATALOG_MACHINES, MachineEvent,
-        MachineState, MachineStateName, NeedsLoginCause, NeedsUpdateCause, OfflineCause, Origin,
-        Outcome, Question, QuestionKind, ReconnectCause, ReloadOutcome, Remote, Reply, Request,
-        Stage, StopSessionOutcome, Trigger, UnsupportedCause, WaitReason,
+        AnswerEndpoint, Attach, AttachOutcome, CapacityOutcome, Catalog, CatalogParts, Channel,
+        ChannelKind, ClaimOutcome, Claimant, Connect, ConnectFailure, ConnectOutcome,
+        ConnectResult, ConnectWaiting, DisconnectOutcome, DismissOutcome, Draft, Event, Hub,
+        HubState, LoginEnd, LoginEvent, LoginFailedCause, LoginPhase, MAXIMUM_CATALOG_MACHINES,
+        MachineEvent, MachineState, MachineStateName, NeedsLoginCause, NeedsUpdateCause,
+        OfflineCause, Origin, Outcome, Question, QuestionKind, ReconnectCause, ReloadOutcome,
+        Remote, Reply, Request, Stage, StopSessionOutcome, Trigger, UnsupportedCause, WaitReason,
     };
 }

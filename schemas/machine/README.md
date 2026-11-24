@@ -423,7 +423,13 @@ The event `hub` carries `state` and, exactly in `expiring`, `expiresAt`, a time.
 ### Machine state
 
 The event `catalog` carries `revision`, the count `revision` of `machines.json`, and `machines`,
-at most 64 machine ids in catalog order. A Machine absent from the newest `catalog` is gone. The
+its machine ids in catalog order, at most 64 in one event. A catalog holds as many Machines as
+`machines.json` saves. To a client whose answer lists `catalog-parts`, a longer one travels as
+consecutive `catalog` events of at most 64 ids with the same `revision`, each but the last carrying
+`more: true`; the client reads the catalog once its last part arrives. A client without
+`catalog-parts` receives a catalog only whole, and none that lists more than 64 Machines. A
+`catalog` event is never coalesced with another, so the parts of one catalog never mix with
+another's. A Machine absent from the newest `catalog` is gone. The
 request `reload` asks the hub to reread the catalog now; a client sends it after it commits an
 edit. `reload-result` has outcome `reloaded` with `revision`, or `invalid-catalog`, `storage`, or
 `stopping` without it; after a failed reload the hub keeps the catalog it had.
@@ -656,7 +662,7 @@ one-time code, or any other answer to a login question.
 | Route request packet; reply packet                | 2,097,152; 25,165,824 bytes             | `reset` with `too-large`; violation                       |
 | Path of one install record                        | 1,024 bytes                             | `close` with `verification-failed`                        |
 | Install: files, one file, all content             | 4,096; 536,870,912; 2,147,483,648 bytes | `reset` with `too-large` at `open`                        |
-| Machines in `catalog`                             | 64                                      | Violation                                                 |
+| Machine ids in one `catalog` event                | 64                                      | Violation                                                 |
 | `prompt`                                          | 4,096 bytes                             | The hub truncates before sending                          |
 | Hub connection slots; control slots               | 256; 4                                  | `OBHS` rejection `capacity`                               |
 | Hub: wait of a `command` request for a login      | 120,000 ms                              | `auth-required`                                           |
@@ -667,22 +673,23 @@ one-time code, or any other answer to a login question.
 
 ## Baseline and capabilities
 
-| Part                                                                                                                                                         | Baseline | Capability                   |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------- |
-| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes      | —                            |
-| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes      | —                            |
-| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes      | —                            |
-| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No       | `install` on `machine-link`  |
-| Link: `capacity` request                                                                                                                                     | No       | `capacity` on `machine-link` |
-| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes      | —                            |
-| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes      | —                            |
-| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes      | —                            |
-| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes      | —                            |
-| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No       | `install` on `machine-hub`   |
-| Hub: `capacity` request                                                                                                                                      | No       | `capacity` on `machine-hub`  |
+| Part                                                                                                                                                         | Baseline | Capability                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------- | -------------------------------- |
+| Frame, channels, flow control, `message` classes, `unsupported`, `bye`, `ping`, `pong`                                                                       | Yes      | —                                |
+| Link: `facts` with `platform`, `architecture`, `executable`, `storeRoot`                                                                                     | Yes      | —                                |
+| Link: `session`, `route`, `ensure-session`                                                                                                                   | Yes      | —                                |
+| Link: `install` channel; `facts` members `origin` and `install`                                                                                              | No       | `install` on `machine-link`      |
+| Link: `capacity` request                                                                                                                                     | No       | `capacity` on `machine-link`     |
+| Hub: `attach`, `hub`, `catalog`, `machine`, `reload`                                                                                                         | Yes      | —                                |
+| Hub: `connect` with `origin`, `answers`, `draft`; `connect-waiting`; `disconnect`                                                                            | Yes      | —                                |
+| Hub: `login`, `question`, `claim`, `dismiss`; the answer delivery record                                                                                     | Yes      | —                                |
+| Hub: `session`, `route`; `stop-session`                                                                                                                      | Yes      | —                                |
+| Hub: `install` request; `connect` member `install`; `machine` members `offer` and `transfer`; state `installing`; `connect-waiting` reason `install-consent` | No       | `install` on `machine-hub`       |
+| Hub: `capacity` request                                                                                                                                      | No       | `capacity` on `machine-hub`      |
+| Hub: a catalog in parts, `catalog` member `more`                                                                                                             | No       | `catalog-parts` on `machine-hub` |
 
 A baseline part is in every generation 1 peer and needs no capability name. Generation 1 lists
-`capacity`; `install` is listed once it ships. A later channel kind, request, event, or member arrives
+`capacity` and `catalog-parts`; `install` is listed once it ships. A later channel kind, request, event, or member arrives
 under its own capability name, and a peer without it answers `unsupported` or ignores the event.
 
 ## Fixtures and conformance
@@ -692,14 +699,16 @@ bytes; payload fixtures hold `kind`, the frame kind name, and `payload`, the exa
 on channel 0 for `message` and on channel 1 for every other kind. Each names its `connection` and
 its `direction`, `initiator` or `acceptor`.
 
-| File                                                         | Claim                                                                                                                                                                          |
-| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`valid.json`](v1/fixtures/valid.json)                       | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
-| [`boundary.json`](v1/fixtures/boundary.json)                 | Each value at its limit decodes                                                                                                                                                |
-| [`invalid.json`](v1/fixtures/invalid.json)                   | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
-| [`capacity.json`](v1/fixtures/capacity.json)                 | Cases of capability `capacity`, held to the claims of `valid.json` and `boundary.json`                                                                                         |
-| [`capacity-invalid.json`](v1/fixtures/capacity-invalid.json) | Cases of capability `capacity`, held to the claim of `invalid.json`                                                                                                            |
-| [`sequences.json`](v1/fixtures/sequences.json)               | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
+| File                                                                   | Claim                                                                                                                                                                          |
+| ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`valid.json`](v1/fixtures/valid.json)                                 | Each decodes in its connection and direction and re-encodes to an equal value                                                                                                  |
+| [`boundary.json`](v1/fixtures/boundary.json)                           | Each value at its limit decodes                                                                                                                                                |
+| [`invalid.json`](v1/fixtures/invalid.json)                             | Each fails to decode. `layer` names the first layer that refuses it: `frame`, `encoding`, or `record`                                                                          |
+| [`capacity.json`](v1/fixtures/capacity.json)                           | Cases of capability `capacity`, held to the claims of `valid.json` and `boundary.json`                                                                                         |
+| [`capacity-invalid.json`](v1/fixtures/capacity-invalid.json)           | Cases of capability `capacity`, held to the claim of `invalid.json`                                                                                                            |
+| [`catalog-parts.json`](v1/fixtures/catalog-parts.json)                 | Cases of capability `catalog-parts`, held to the claim of `valid.json`                                                                                                         |
+| [`catalog-parts-invalid.json`](v1/fixtures/catalog-parts-invalid.json) | Cases of capability `catalog-parts`, held to the claim of `invalid.json`                                                                                                       |
+| [`sequences.json`](v1/fixtures/sequences.json)                         | Each is an ordered list of frames with their senders and the verdict of the receiving state machine: accepted, discarded, a reply it must send, or a violation at a named step |
 
 A sequence case names its `connection`, the `machine` under test, `initiator` or `acceptor`, and
 its `steps` in order:

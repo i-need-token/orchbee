@@ -18,7 +18,7 @@ use orchbee_connection_handshake::{CAPACITY, CapabilitySet};
 use orchbee_local_runtime::{DataRoot, LogLevel, LogValue, log_event};
 use orchbee_machine_protocol::{
     ByeReason, Connection, Delivery, FrameDecoder, Id, Message, ResetReason, SendError, Violation,
-    hub::{self, AttachOutcome, Event, HubState, Outcome, Reply, Request},
+    hub::{self, AttachOutcome, CatalogParts, Event, HubState, Outcome, Reply, Request},
 };
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -208,6 +208,8 @@ struct Current {
     pending: BTreeMap<Id, (u64, Option<Attachment>)>,
     /// The capability names the hub's answer listed.
     capabilities: CapabilitySet,
+    /// The parts of a catalog that arrived so far; callers read only whole catalogs.
+    catalog: CatalogParts,
 }
 
 /// Where a protocol violation ended an attached connection.
@@ -1011,6 +1013,13 @@ impl State {
                 if matches!(event, Event::Hub(HubState::Closing)) {
                     self.stopping = true;
                 }
+                let event = match event {
+                    // A part that leaves the catalog incomplete gives no notice and loses nothing.
+                    Event::Catalog(part) => {
+                        Event::Catalog(self.current.as_mut()?.catalog.join(part)?)
+                    }
+                    event => event,
+                };
                 self.notices.push_back(Notice::Event(event));
                 None
             }
@@ -1130,6 +1139,7 @@ fn install(state: &mut State, link: Link) -> Option<Reading> {
         stream: Arc::new(writer),
         pending: BTreeMap::new(),
         capabilities: link.capabilities,
+        catalog: CatalogParts::default(),
     });
     Some(Reading {
         stream: link.stream,

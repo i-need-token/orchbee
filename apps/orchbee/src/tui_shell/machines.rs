@@ -1354,13 +1354,6 @@ impl Manager {
         } else {
             self.retire(old.surface);
         }
-        // Local is retained; at most four inactive remote surfaces remain cached.
-        while self.cached.iter().filter(|c| c.profile.is_some()).count() > 4 {
-            if let Some(index) = self.cached.iter().position(|c| c.profile.is_some()) {
-                let evicted = self.cached.remove(index);
-                self.retire(evicted.surface);
-            }
-        }
     }
 }
 

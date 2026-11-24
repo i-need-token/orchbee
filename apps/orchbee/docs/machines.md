@@ -33,7 +33,8 @@ A connection `kind` this build does not know is kept verbatim with every member 
 written back unchanged. That machine is listed as unsupported, the same word in every client,
 cannot be routed to, chosen, or discovered, and leaves every other machine usable. The record never stores a
 credential, password, port, key path, or the remote platform. Duplicate target/session pairs may
-have distinct IDs. At most 128 KiB is admitted.
+have distinct IDs. It holds as many machines as the person saves; a read admits at most 64 MiB, a
+guard against a damaged file that no person's machines reach.
 
 `internal/state/machine-spaces.json`, the last-seen list, keeps what each enabled saved machine
 last answered of its Workspaces: its Session ID, Projects by ID and label, and Workspaces by ID,
@@ -1449,9 +1450,9 @@ evidence.
 The current surface stays usable until the candidate reaches a drawable state;
 cancellation or failure keeps the current surface. Successful switching preserves
 per-machine views and invalidates pointer/input state before accepting new input.
-Local is retained; at most four inactive remote surfaces are cached. Eviction
-releases the Client connection, leaving the remote Session running. A Client the picker
-stops presenting — evicted, superseded or replaced by a fresh connection, removed with its
+Local is retained, and every inactive remote surface stays cached: no count of machines closes a
+connection, so returning to any of them never waits for one. A Client the picker
+stops presenting — superseded or replaced by a fresh connection, removed with its
 profile, or a cancelled or failed candidate — is asked to stop at once and stays owned until
 its background threads end. Process exit observes those threads under the same deadline as
 every other Client owner and reports any still running as unfinished cleanup. Cached inactive
@@ -1527,8 +1528,8 @@ Machine and copies bytes both ways on two threads of its own:
   product versions connect whenever their generations overlap. The carrier judges no byte, and
   neither end fabricates an accepted generation.
 - **Bounds.** Logical lanes share one admitted connection; the Client actor's reconnects after a
-  loss open new channels. An endpoint carries at most 16 connections and closes a 17th at once.
-  While the hub does not read the Machine `online`, the endpoint closes each new connection without
+  loss open new channels. An endpoint carries any number of connections at once, within the
+  channel capacity of the [hub contract](../../../schemas/machine/README.md). While the hub does not read the Machine `online`, the endpoint closes each new connection without
   opening a channel, so a Client that keeps reconnecting to a lost Machine costs no hub request.
 - **Ending.** A guard retained by every Client origin derived from the endpoint owns its stop flag
   and accept thread; the last release stops them. The accept thread ends within 10 ms, and each
@@ -1672,8 +1673,8 @@ Local sidebar checkpoints and remote summaries preserve those same Workspace ide
   mailbox coalesces observations without an unbounded history. An admitted observer retains its
   carrier through failure delivery; the UI clears its cached origin and both collectors retire
   their cached sources/subscriptions before acknowledging retirement. The observer clears its
-  mailbox and releases its last carrier guard on its own thread. The catalog's 64 records bound the
-  observers; shutdown cancels and joins every observer, and asks the holder to stop without
+  mailbox and releases its last carrier guard on its own thread. There is one observer per catalog
+  record; shutdown cancels and joins every observer, and asks the holder to stop without
   joining it.
 
 ### Selection

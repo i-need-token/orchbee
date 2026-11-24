@@ -30,7 +30,7 @@ pub enum Hub {}
 
 impl Protocol for Hub {}
 
-/// The most machine ids one `catalog` event lists.
+/// The most machine ids one `catalog` event lists; a longer catalog travels in parts.
 pub const MAXIMUM_CATALOG_MACHINES: usize = 64;
 
 name_enum!(
@@ -402,26 +402,59 @@ pub enum Reply {
     Capacity(CapacityOutcome),
 }
 
-/// The catalog the hub serves: at most 64 machine ids in catalog order. A Machine absent from the
-/// newest catalog is gone.
+/// The catalog the hub serves: its machine ids in catalog order, as many as `machines.json` holds.
+/// A Machine absent from the newest catalog is gone. One `catalog` event lists at most 64 ids: a
+/// longer catalog travels as consecutive parts, each but the last marked `more`, which
+/// [`CatalogParts`] joins.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct Catalog {
     revision: Count,
     machines: Vec<MachineId>,
+    more: bool,
 }
 
 impl Catalog {
-    /// The catalog of `revision` listing `machines`.
-    ///
-    /// # Errors
-    ///
-    /// Returns [`InvalidValue`] for more than 64 machine ids.
-    pub fn new(revision: Count, machines: Vec<MachineId>) -> Result<Self, InvalidValue> {
-        if machines.len() <= MAXIMUM_CATALOG_MACHINES {
-            Ok(Self { revision, machines })
-        } else {
-            Err(InvalidValue)
+    /// The whole catalog of `revision` listing `machines`.
+    #[must_use]
+    pub const fn new(revision: Count, machines: Vec<MachineId>) -> Self {
+        Self {
+            revision,
+            machines,
+            more: false,
         }
+    }
+
+    /// The `catalog` events that carry this catalog: parts of at most 64 ids in catalog order, each
+    /// but the last marked `more`. A catalog of at most 64 ids, an empty one included, is one part.
+    #[must_use]
+    pub fn parts(&self) -> Vec<Self> {
+        if self.whole_in_one_event() {
+            return vec![Self::new(self.revision, self.machines.clone())];
+        }
+        let chunks: Vec<&[MachineId]> = self.machines.chunks(MAXIMUM_CATALOG_MACHINES).collect();
+        let last = chunks.len() - 1;
+        chunks
+            .into_iter()
+            .enumerate()
+            .map(|(at, chunk)| Self {
+                revision: self.revision,
+                machines: chunk.to_vec(),
+                more: at < last,
+            })
+            .collect()
+    }
+
+    /// Whether one `catalog` event carries this catalog whole, as a client without
+    /// `catalog-parts` must receive it.
+    #[must_use]
+    pub fn whole_in_one_event(&self) -> bool {
+        self.machines.len() <= MAXIMUM_CATALOG_MACHINES
+    }
+
+    /// Whether this is a part that further parts of the same catalog follow.
+    #[must_use]
+    pub const fn more(&self) -> bool {
+        self.more
     }
 
     /// The `revision` of `machines.json`.
@@ -434,6 +467,33 @@ impl Catalog {
     #[must_use]
     pub fn machines(&self) -> &[MachineId] {
         &self.machines
+    }
+}
+
+/// Joins the parts of a catalog as its `catalog` events arrive on one connection.
+#[derive(Debug, Default)]
+pub struct CatalogParts {
+    pending: Option<Catalog>,
+}
+
+impl CatalogParts {
+    /// Takes one `catalog` event: the whole catalog once its last part arrives, `None` while parts
+    /// are still to come. A part of another revision than the parts before it starts over.
+    pub fn join(&mut self, part: Catalog) -> Option<Catalog> {
+        let joined = match self.pending.take() {
+            Some(mut pending) if pending.revision == part.revision => {
+                pending.machines.extend(part.machines);
+                pending.more = part.more;
+                pending
+            }
+            _ => part,
+        };
+        if joined.more {
+            self.pending = Some(joined);
+            None
+        } else {
+            Some(joined)
+        }
     }
 }
 
@@ -1037,6 +1097,9 @@ struct WireConnectResult {
 struct WireCatalog {
     revision: Count,
     machines: Vec<MachineId>,
+    /// With capability `catalog-parts`: `true` on every part but the last, absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    more: Option<bool>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -1767,7 +1830,14 @@ impl Codec for Hub {
             HUB => Event::Hub(HubState::decode(closed(members)?)?),
             CATALOG => {
                 let wire = closed::<WireCatalog>(members)?;
-                Event::Catalog(Catalog::new(wire.revision, wire.machines).map_err(|_| Refused)?)
+                if wire.machines.len() > MAXIMUM_CATALOG_MACHINES || wire.more == Some(false) {
+                    return Err(Refused);
+                }
+                Event::Catalog(Catalog {
+                    revision: wire.revision,
+                    machines: wire.machines,
+                    more: wire.more.is_some(),
+                })
             }
             MACHINE => Event::Machine(decode_machine(closed(members)?)?),
             CONNECT_WAITING => {
@@ -1801,6 +1871,7 @@ impl Codec for Hub {
             Event::Catalog(catalog) => members_of(&WireCatalog {
                 revision: catalog.revision,
                 machines: catalog.machines.clone(),
+                more: catalog.more.then_some(true),
             }),
             Event::Machine(machine) => members_of(&encode_machine(machine)),
             Event::ConnectWaiting(waiting) => members_of(&WireConnectWaiting {
@@ -1815,10 +1886,10 @@ impl Codec for Hub {
     fn event_subject(event: &Event) -> Option<String> {
         match event {
             Event::Hub(_) => Some(HUB.to_owned()),
-            Event::Catalog(_) => Some(CATALOG.to_owned()),
             Event::Machine(machine) => Some(format!("{MACHINE}:{}", machine.machine)),
             Event::Login(login) => Some(format!("{LOGIN}:{}", login.login.get())),
-            Event::ConnectWaiting(_) | Event::Question(_) => None,
+            // Every catalog arrives, so the parts of one are never mixed with another's.
+            Event::Catalog(_) | Event::ConnectWaiting(_) | Event::Question(_) => None,
         }
     }
 

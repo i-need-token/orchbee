@@ -329,9 +329,10 @@ fn answer(hub: &mut Hub, line: &Line, id: u64, request: Id, body: Request) {
             }
             if watching {
                 let events = hub.machines.events(id);
+                let catalog_parts = hub.peers.get(&id).is_some_and(|peer| peer.catalog_parts);
                 let mut wire = line.lock();
                 for event in events {
-                    let _queued = wire.connection.event(event);
+                    wire.queue(catalog_parts, event);
                 }
             }
             return;

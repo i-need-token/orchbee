@@ -1,0 +1,11 @@
+{
+	"cases": [
+		{
+			"name": "hub-catalog-part-with-more",
+			"connection": "machine-hub",
+			"direction": "acceptor",
+			"kind": "message",
+			"payload": "{\"type\":\"catalog\",\"revision\":4,\"machines\":[\"0f1e2d3c4b5a69788796a5b4c3d2e1f0\"],\"more\":true}"
+		}
+	]
+}

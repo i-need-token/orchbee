@@ -8,7 +8,6 @@ use orchbee_local_runtime::SessionName;
 use serde_json::{Value, json};
 pub use store::Store;
 
-pub(crate) const MAX_PROFILES: usize = 64;
 const MAX_REVISION: u64 = 9_007_199_254_740_991;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -369,6 +368,8 @@ pub enum Error {
     Ambiguous,
     /// The name means this computer: no saved machine takes it or is selected by it.
     Reserved,
+    /// The catalog would outgrow the file bound, which guards against a damaged file rather than
+    /// limiting how many machines are saved.
     Capacity,
     RevisionExhausted,
 }
@@ -384,9 +385,8 @@ impl Catalog {
             return None;
         }
         let revision = value["revision"].as_u64().filter(|v| *v <= MAX_REVISION)?;
-        let raw = value["profiles"]
-            .as_array()
-            .filter(|p| p.len() <= MAX_PROFILES)?;
+        // A catalog holds as many machines as the person saves.
+        let raw = value["profiles"].as_array()?;
         let mut profiles = Vec::<Profile>::new();
         for value in raw {
             // A machine saved without a color counts the colors of the ones before it.
@@ -430,9 +430,6 @@ impl Catalog {
         let mut next = self.clone();
         match edit {
             Edit::Add { id, draft, color } => {
-                if self.profiles.len() == MAX_PROFILES {
-                    return Err(Error::Capacity);
-                }
                 if self.profiles.iter().any(|p| p.id == *id) {
                     return Err(Error::InvalidCatalog);
                 }

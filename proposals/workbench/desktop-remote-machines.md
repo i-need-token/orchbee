@@ -33,8 +33,8 @@ installation is missing from every Client and stays out.
 - **Words.** `machine_status` chooses each row's word, tone, details and action, and its
   localization words them ([state words](../../apps/orchbee/docs/machines.md#state-words),
   [states and details](../../apps/orchbee/docs/machines.md#states-and-details)).
-- **Surfaces.** One Session's surface is on screen. Local stays connected and at most four inactive
-  remote surfaces are cached. A switch commits only a drawable candidate, and failure or Escape
+- **Surfaces.** One Session's surface is on screen. Local and every inactive remote surface stay
+  connected: no count of Machines closes a connection (owner, 2026-11-23). A switch commits only a drawable candidate, and failure or Escape
   keeps the current surface ([persistent connections](../../apps/orchbee/docs/machines.md#persistent-tui-connections),
   [selection](../../apps/orchbee/docs/machines.md#selection)).
 - **Sidebar.** The sidebar lists the Workspaces of every enabled Machine; while several are enabled,
@@ -64,7 +64,7 @@ installation is missing from every Client and stays out.
 | A remote Session's Client bytes for the page                                                                                                                                          | A **session relay** per connection, an internal entry of the bundled Client (`orchbee --machine-session <machine>`): it joins the running hub, opens one `session` channel to the Machine, performs the admission the TUI's Client performs through its carrier, announces the outcome on its first output line, then copies bytes as `server connect` does | The machines process multiplexing Session bytes on its own pipes: Main would split a Client protocol it never speaks, and one slow surface would share a pipe with the machine list. `orchbee --machine <m> server connect`: `--machine` routes bounded command packets, and a byte stream through it would change the public [routing contract](../../apps/orchbee/docs/machines.md#command-routing-contract). The machines process opening the TUI's local carrier endpoints for `server connect` to dial: two processes coupled through a private endpoint name, for nothing one channel per relay lacks |
 | Processes, ports and the window's presence                                                                                                                                            | **Desktop Main**: starts and restarts the machines process, relays the page's machine records to it in an envelope it never opens, tells it when a window exists, starts a session relay for each remote connection the page asks for, reads only that relay's first line, and relays the rest with the existing `ServerConnectionRelay` bounds             | Main reading machine records: it would become a third interpreter of the view, and of the secrets inside answers                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | Presentation: the Machines picker, login and notice Dialogs, the Add form, the Actions menu, confirmations, the sidebar's machine prefix, status notices; focus, highlight and scroll | **The page** (`apps/web`), with copy in a new `machines` domain of `@orchbee/i18n` whose en-US and zh-CN entries are the TUI's words, checked against shared examples                                                                                                                                                                                       | The machines process sending worded text: it would bypass `@orchbee/i18n`, the frontend's only product localization system, and tie a language switch to a native process                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| Holding more than one Session in the page                                                                                                                                             | **The Desktop composition** in `apps/web` (`desktop-client`): it keeps the local Session's runtime for the page's life and, in the first release, one remote runtime at a time; nothing below it knows that more than one Session exists                                                                                                                    | Switching by reloading the document onto another Session: failure could not keep the current surface; Quit All, the notification-area counts and Agent notifications would follow whichever Session is shown, so a Quit All in a remote document would stop the remote Session; every return to this computer would reload. One window per Machine: several windows are outside the [window lifecycle](../../apps/desktop/docs/window-lifecycle.md) contract                                                                                                                                                |
+| Holding more than one Session in the page                                                                                                                                             | **The Desktop composition** in `apps/web` (`desktop-client`): it keeps the local Session's runtime for the page's life and a remote runtime for every Machine it shows; nothing below it knows that more than one Session exists                                                                                                                            | Switching by reloading the document onto another Session: failure could not keep the current surface; Quit All, the notification-area counts and Agent notifications would follow whichever Session is shown, so a Quit All in a remote document would stop the remote Session; every return to this computer would reload. One window per Machine: several windows are outside the [window lifecycle](../../apps/desktop/docs/window-lifecycle.md) contract                                                                                                                                                |
 
 ```text
 page (sandboxed renderer)
@@ -78,7 +78,7 @@ page (sandboxed renderer)
 | Aspect             | TUI                                                                                    | Window, first release                                                                                                                             | Window, later                     |
 | ------------------ | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | On screen          | One Session's surface                                                                  | The same                                                                                                                                          | The same                          |
-| Kept connected     | Local, plus at most four inactive remote surfaces                                      | Local, plus the remote surface on screen                                                                                                          | Local, plus four inactive remote  |
+| Kept connected     | Local, plus every inactive remote surface                                              | Local, plus every Machine whose Workspaces the page shows                                                                                         | The same                          |
 | Sidebar            | Workspaces of every enabled Machine, prefixed `<machine> / ` while several are enabled | Workspaces of the Session on screen, with the same prefix rule                                                                                    | Every enabled Machine, as the TUI |
 | Picker modes       | Machines, Workspaces, Agents                                                           | Machines                                                                                                                                          | All three                         |
 | Switching          | A drawable candidate commits; failure, expiry or Escape keeps the current surface      | The same                                                                                                                                          | The same                          |
@@ -112,7 +112,6 @@ Later:
 - Workspaces and Agents modes, and other Machines' Workspaces and Agents in the sidebar. They need
   an observer per `online` Machine in the machines process and a bounded projection of their
   summaries to the page.
-- A cache of four inactive remote surfaces.
 
 Until the later slices land, the window states its limit honestly: the picker shows only the
 Machines mode, and the [Desktop guide](../../apps/desktop/README.md) records the missing counterpart,
@@ -401,10 +400,10 @@ question, the command-login notice and the add in the view; and asks that follow
 ### Remote Session connection
 
 - **Request.** The page posts an `orchbee.desktop.machine-session-request` message to its own
-  window with `request` and `machine`, a Machine the machines process just answered `chosen` for.
+  window with `request` and `machine`, a saved Machine whose Workspaces the page shows.
   The preload forwards a parsed request to Main on the IPC channel of the same name, adding its
   document's identity, which the page never sees. Main parses it again and refuses `unavailable`
-  while that document holds two relays.
+  while that document already holds a relay to that Machine.
 - **Relay.** Main starts `orchbee --machine-session <machine>` with pipes; the relay and its
   first line are built, and [`machines.md`](../../apps/orchbee/docs/machines.md#desktop-session-relay)
   owns them. Main reports a refused relay's `reason` to the page unchanged.
@@ -417,9 +416,10 @@ question, the command-login notice and the add in the view; and asks that follow
   of a remote Session's bootstrap: no first Workspace of its own, no Quit All, no folder picker and
   no window update.
 - **Bounds.** The relay's bytes use the existing relay bounds, 4 MiB unread and 64 MiB of pending
-  input. A document holds at most two relays in the first release, the surface on screen and one
-  candidate, and at most six once four inactive surfaces are cached. Closing the port, or the
-  document's end, ends the relay; ending a relay never stops the remote Session.
+  input. A document holds one relay per Machine whose Workspaces it shows, all of them at once,
+  with no cap on how many (owner, 2026-11-23): moving between Workspaces of different machines
+  never waits for a connection. Closing the port, or the document's end, ends the relay; ending a
+  relay never stops the remote Session.
 - **What only the far computer knows.** The page's runtime needs the home folder of the Session's
   computer, for terminals started without a directory and for `~` in paths. No contract carries a
   remote home today. The relay slice decides between the far link helper's answer and a
@@ -509,14 +509,14 @@ here.
 | 2   | The machines process: holder, view, intents, logins, Add checks and management from the existing modules; Windows and macOS; a Desktop window section in `machines.md`                                | Opus, xhigh                       |
 | 3   | The session relay: `join`, `session` channel, admission, first line, copying; the remote home decision; its part of that section                                                                      | Opus, xhigh                       |
 | 4   | Desktop Main: supervising the machines process, the fifth port and its envelope, window presence, remote connection requests and relays, the release gate; the Desktop guide and the protocol schemas | Opus, high                        |
-| 5   | The Desktop composition: the retained local runtime, one remote runtime, switching on a drawable candidate, window-wide duties kept local                                                             | Opus, high                        |
+| 5   | The Desktop composition: the retained local runtime, a remote runtime per Machine, switching on a drawable candidate, window-wide duties kept local                                                   | Opus, high                        |
 | 6   | The Machines picker, the Add form, the Actions menu, rename and the Remove and stop confirmation, from the wireframes and the view's types                                                            | Haiku, max                        |
 | 7   | The login Dialog and the command-login notice: secret handling, the one-second guard, the queue and deferral                                                                                          | Opus, high                        |
 | 8   | The `machines` copy domain in both languages and the shared examples                                                                                                                                  | Haiku, max                        |
 | 9   | The sidebar prefix, the status notices, and the `workbench.machines.open` Action with its binding                                                                                                     | Haiku, max                        |
 | 10  | A scripted real-window run on Windows and macOS against the hub's stand-in far end and one real Machine                                                                                               | Haiku, max; Opus checks each FAIL |
 | 11  | Later: observers in the machines process, Workspaces and Agents modes, other Machines in the sidebar                                                                                                  | Opus, xhigh                       |
-| 12  | Later: four cached inactive remote surfaces                                                                                                                                                           | Opus, high                        |
+| 12  | Dropped: every connection stays, with no cache to bound (owner, 2026-11-23)                                                                                                                           | Opus, high                        |
 
 Slices 2, 3 and 8 can start together after slice 1; 4 needs 2 and 3; 5 needs 4; 6, 7 and 9 need 5's
 types and 8's copy.
@@ -529,9 +529,9 @@ Each question names the recommended answer first.
    first release. With it, a person presses Add machine…, types `dev@devbox` and watches eight checks;
    without it, the window lists saved Machines only and adding one takes
    `orchbee machine add dev@devbox` in a terminal, or the TUI.
-2. **Switching between two remote Machines.** Recommended: accept a reconnect for now. In the first
-   release only Local and the remote on screen stay connected, so devbox → nas → devbox waits for each
-   remote connection, while a return to Local is instant; the TUI's four cached surfaces come later.
+2. **Switching between two remote Machines.** Decided by the owner on 2026-11-23: nothing limits how
+   many connections are held at once. Every Machine stays connected, so devbox → nas → devbox never
+   waits for a connection, and a person connects as many Machines as they need.
 3. **The sidebar in the first release.** Recommended: accept the Session on screen only. On Local the
    sidebar does not list devbox's Workspaces, and the person goes through `Ctrl+Shift+M`, devbox,
    Open; the TUI's sidebar already lists `devbox / Projects` beside Local's.

@@ -445,16 +445,19 @@ fn a_route_reply_may_reach_its_bound_and_not_one_byte_more() -> TestResult {
 
 #[test]
 fn a_state_event_replaces_the_newest_undelivered_event_of_its_subject_in_place() -> TestResult {
-    let catalog = |revision| -> Result<hub::Event, Box<dyn std::error::Error>> {
-        Ok(hub::Event::Catalog(hub::Catalog::new(
-            Count::new(revision)?,
-            Vec::new(),
-        )?))
+    let machine = |state| -> Result<hub::Event, Box<dyn std::error::Error>> {
+        Ok(hub::Event::Machine(hub::MachineEvent {
+            machine: MachineId::new(MACHINE)?,
+            state,
+            last_attempt: None,
+            remote: None,
+            draft: false,
+        }))
     };
     let mut hub = Connection::<Hub>::acceptor();
-    hub.event(catalog(1)?)?;
+    hub.event(machine(hub::MachineState::Disabled)?)?;
     hub.event(hub::Event::Hub(hub::HubState::Held))?;
-    hub.event(catalog(2)?)?;
+    hub.event(machine(hub::MachineState::Online)?)?;
     hub.event(hub::Event::Hub(hub::HubState::Closing))?;
     let mut sent = Vec::new();
     while let Some(frame) = hub.poll_transmit() {
@@ -465,15 +468,50 @@ fn a_state_event_replaces_the_newest_undelivered_event_of_its_subject_in_place()
     }
     assert_eq!(
         sent,
-        vec![catalog(2)?, hub::Event::Hub(hub::HubState::Closing)],
+        vec![
+            machine(hub::MachineState::Online)?,
+            hub::Event::Hub(hub::HubState::Closing)
+        ],
         "each subject keeps its first place and its newest value"
     );
-    hub.event(catalog(3)?)?;
-    hub.event(catalog(4)?)?;
-    let frame = hub.poll_transmit().ok_or("the newest catalog")?;
+    hub.event(machine(hub::MachineState::Disabled)?)?;
+    hub.event(machine(hub::MachineState::Online)?)?;
+    let frame = hub.poll_transmit().ok_or("the newest machine event")?;
     assert!(matches!(
         Record::<Hub>::decode(Role::Acceptor, &frame)?,
-        Record::Message(Message::Event { event, .. }) if event == catalog(4)?
+        Record::Message(Message::Event { event, .. }) if event == machine(hub::MachineState::Online)?
     ));
+    Ok(())
+}
+
+#[test]
+fn a_catalog_longer_than_one_event_arrives_whole_in_parts_and_no_catalog_is_coalesced() -> TestResult
+{
+    let ids = (0..130u32)
+        .map(|n| MachineId::new(format!("{n:032x}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    let older = hub::Catalog::new(Count::new(6)?, Vec::new());
+    let whole = hub::Catalog::new(Count::new(7)?, ids);
+    let mut hub = Connection::<Hub>::acceptor();
+    hub.event(hub::Event::Catalog(older.clone()))?;
+    for part in whole.parts() {
+        hub.event(hub::Event::Catalog(part))?;
+    }
+    let (mut parts, mut joined, mut events) = (hub::CatalogParts::default(), Vec::new(), 0);
+    while let Some(frame) = hub.poll_transmit() {
+        if let Record::Message(Message::Event {
+            event: hub::Event::Catalog(part),
+            ..
+        }) = Record::<Hub>::decode(Role::Acceptor, &frame)?
+        {
+            events += 1;
+            joined.extend(parts.join(part));
+        }
+    }
+    assert_eq!(
+        events, 4,
+        "the older catalog, then three parts of at most 64 ids"
+    );
+    assert_eq!(joined, vec![older, whole]);
     Ok(())
 }
