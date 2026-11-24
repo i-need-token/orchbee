@@ -604,6 +604,12 @@ const localRuntimeBoundaries = {
 			cfg: 'target_os = "macos"',
 			reason: 'reviewed Mach host statistics and sysctl reads are isolated here',
 		},
+		{
+			module: 'process_identity_native',
+			cfg: 'target_os = "macos"',
+			reason:
+				"reviewed libproc reads of a process's start time, program and children are isolated here",
+		},
 	],
 };
 
