@@ -72,7 +72,10 @@ export function WorkbenchTerminalViewport({
 				];
 
 	return (
-		<ContextMenu>
+		<ContextMenu
+			onOpenChange={terminalActions.onMenuOpenChange}
+			onOpenChangeComplete={terminalActions.onMenuOpenChangeComplete}
+		>
 			<ContextMenuTrigger
 				aria-label={getTerminalDisplayTitle(terminal)}
 				className={styles['viewport']}

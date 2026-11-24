@@ -113,6 +113,7 @@ describe('useWorkbenchTerminalActions', () => {
 		});
 		act(() => {
 			expect(rendered.result.current.captureContext(contextMenuEvent())).toBe(true);
+			rendered.result.current.onMenuOpenChange(true);
 		});
 
 		await waitFor(() =>

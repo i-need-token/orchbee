@@ -34,7 +34,11 @@ interface WorkbenchTerminalActions {
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
 	readonly captureContext: (event: React.MouseEvent<HTMLElement>) => boolean;
+	/** Empty while the context menu is closed. */
 	readonly entries: readonly WorkbenchActionMenuCommand[];
+	/** The context menu's open and close-complete events; entries are discovered only between them. */
+	readonly onMenuOpenChange: (open: boolean) => void;
+	readonly onMenuOpenChangeComplete: (open: boolean) => void;
 	readonly scope: ActionScope;
 	/** Offered only while another Client holds the terminal; the panel section places it. */
 	readonly takeControl: WorkbenchActionMenuCommand | undefined;
@@ -52,6 +56,11 @@ const terminalActionOrder = [
 type TerminalMenuActionId =
 	| (typeof terminalActionOrder)[number]
 	| typeof TERMINAL_ACTION_IDS.takeControl;
+
+const closedMenuCommands: Pick<WorkbenchTerminalActions, 'entries' | 'takeControl'> = {
+	entries: [],
+	takeControl: undefined,
+};
 
 const terminalActionIcons: Readonly<Record<TerminalMenuActionId, ProductIconName>> = {
 	[TERMINAL_ACTION_IDS.clear]: 'clear-all',
@@ -79,26 +88,46 @@ export function useWorkbenchTerminalActions({
 		(revision: number) => revision + 1,
 		0,
 	);
+	// Discovery reads the availability of every action from this scope to the root, and the runtime
+	// changes several times during each Tab or Workspace switch; every mounted terminal discovering
+	// on each change held the main thread for tens of milliseconds per switch. Only an open menu
+	// shows entries, so only an open menu discovers or follows the runtime.
+	const [menuShown, setMenuShown] = React.useState(false);
+	const menuShownRef = React.useRef(false);
 	const scope = React.useMemo(
 		() => runtime.createScope(`workbench.terminal:${presentationId}`, parentScope),
 		[parentScope, presentationId, runtime],
 	);
 
 	React.useEffect(() => {
-		const subscription = runtime.subscribe(incrementRuntimeRevision);
+		const subscription = runtime.subscribe(() => {
+			if (menuShownRef.current) incrementRuntimeRevision();
+		});
 		return () => subscription.dispose();
 	}, [runtime]);
+
+	const onMenuOpenChange = useMemoizedFn((open: boolean): void => {
+		if (!open) return;
+		menuShownRef.current = true;
+		setMenuShown(true);
+	});
+	// Entries stay until the close animation ends, so a closing menu keeps its items.
+	const onMenuOpenChangeComplete = useMemoizedFn((open: boolean): void => {
+		if (open) return;
+		menuShownRef.current = false;
+		setMenuShown(false);
+	});
 
 	const bindActionContextProvider = useMemoizedFn(
 		(nextProvider: WorkbenchTerminalActionContextProvider): ActionDisposable => {
 			provider.current = nextProvider;
-			incrementRuntimeRevision();
+			if (menuShownRef.current) incrementRuntimeRevision();
 			return {
 				dispose: () => {
 					if (provider.current !== nextProvider) return;
 					provider.current = null;
 					setPinnedContext(null);
-					incrementRuntimeRevision();
+					if (menuShownRef.current) incrementRuntimeRevision();
 				},
 			};
 		},
@@ -122,7 +151,7 @@ export function useWorkbenchTerminalActions({
 
 	const commands = React.useMemo<Pick<WorkbenchTerminalActions, 'entries' | 'takeControl'>>(() => {
 		void runtimeRevision;
-		if (provider.current === null) return { entries: [], takeControl: undefined };
+		if (!menuShown || provider.current === null) return closedMenuCommands;
 		const capture = pinnedContext?.capture;
 		const discovered = runtime.discover(
 			{
@@ -180,12 +209,23 @@ export function useWorkbenchTerminalActions({
 			};
 			return intl.formatMessage(descriptor, message.values);
 		}
-	}, [intl, onFindOpened, pinnedContext, runtime, runtimeRevision, scope, shortcutLabelForAction]);
+	}, [
+		intl,
+		menuShown,
+		onFindOpened,
+		pinnedContext,
+		runtime,
+		runtimeRevision,
+		scope,
+		shortcutLabelForAction,
+	]);
 
 	return {
 		bindActionContextProvider,
 		captureContext,
 		entries: commands.entries,
+		onMenuOpenChange,
+		onMenuOpenChangeComplete,
 		scope,
 		takeControl: commands.takeControl,
 	};
