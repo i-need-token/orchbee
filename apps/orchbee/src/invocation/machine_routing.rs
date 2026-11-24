@@ -42,6 +42,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         ("--machine-hub-v1", Request::MachineHub),
         ("--machine-hub-state-v1", Request::MachineHubState),
         ("--machine-hub-hold-v1", Request::MachineHubHold),
+        ("--desktop-machines-v1", Request::DesktopMachines),
     ] {
         if tokens == [token] {
             return Ok(SelectedRequest {

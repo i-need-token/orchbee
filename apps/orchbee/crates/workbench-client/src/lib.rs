@@ -14,6 +14,7 @@ mod background_thread;
 mod client_actions;
 mod client_context;
 mod client_view;
+mod desktop_machines;
 mod environment_marker;
 mod exchange_values;
 mod host_appearance;
@@ -271,6 +272,10 @@ pub mod application {
 
     pub mod machine_change {
         pub use crate::machine_change::{Facts, Name, Notice, Question, Request, Stops};
+    }
+
+    pub mod desktop_machines {
+        pub use crate::desktop_machines::{DesktopMachines, Intent, parse_intent, parse_locale};
     }
 
     pub mod machine_settings {

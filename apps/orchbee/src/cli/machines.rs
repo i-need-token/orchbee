@@ -4,6 +4,7 @@ pub(crate) mod askpass;
 mod capacity;
 pub(crate) mod change;
 mod connect;
+pub(crate) mod desktop;
 pub(crate) mod hub;
 pub(crate) mod link;
 mod list;

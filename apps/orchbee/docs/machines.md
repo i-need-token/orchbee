@@ -1374,6 +1374,49 @@ the local Session.
 - **Outcomes.** How a request ended shows on the page's status line until the next input; one that
   ends while Settings is closed shows when it opens again.
 
+## Desktop machines process
+
+The desktop window reaches the saved machines through `orchbee --desktop-machines-v1`, which its
+Main starts with pipes. It is an internal pairing of one build: a release may rename it, and an
+incompatible change renames its `-v1` suffix. Every line is one UTF-8 JSON object ended by LF with
+`"version": 1`; a line of another shape, version or kind is dropped with a diagnostic on standard
+error and never ends the process. Main's lines are at most 512 KiB, a longer one is discarded up to
+its LF, and the process's records for the page are at most 1 MiB. The process holds the hub as the
+TUI does, once the catalog holds an enabled machine of a known kind, reads the catalog each second,
+and words every fact the TUI words, in the page's locale, from the same messages, so the window
+says what the TUI says. Its standard input ending ends it: the observers and the holder get one
+second to stop.
+
+| From    | `kind`    | Members              | Meaning                                                                                                     |
+| ------- | --------- | -------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Process | `started` | `available`          | Its first line; `false` where the host lacks saved machines, and the process exits                          |
+| Main    | `window`  | `exists`             | Whether Desktop has a window                                                                                |
+| Main    | `attach`  | `document`           | That document's page is listening; it replaces an attached one and is sent a whole view                     |
+| Main    | `detach`  | `document`           | That document ended; its unacknowledged view and capacity watch end with it                                 |
+| Main    | `page`    | `document`, `record` | A page record as text, at most 196,608 bytes; one from a document that is not attached is never carried out |
+| Process | `page`    | `document`, `record` | A record text for that document's page                                                                      |
+
+The page's records are `ack` with the `sequence` of the view it took, `locale` with `en-US` or
+`zh-CN`, `watch` with `capacity` true while it shows what the machines have free, and `intent` with
+a `request` number from 1 to 2⁵³ − 1 and an `intent`. The process's records are `view`, with a
+`sequence` that grows by one with each view in the process's life and the whole `view`, and
+`outcome`, with the intent's `request` and `{"result": "done"}` or
+`{"result": "refused", "reason": "malformed"}`, sent at once. A view waits for the acknowledgment
+of the last, and the changes meanwhile coalesce into it, so a slow page holds one view.
+
+The view is `catalog` (`read` or `unreadable`), `hub` (the sentence that says why no hub is reached,
+or null), `local` (this computer's capacity), `passwords` (whether answers can be remembered),
+`added` (the machine the last add saved, until listed), `notice` (`{number, text}`, how the last
+request ended, worded once per number), and `machines` in catalog order. A machine is its
+`machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
+`online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
+`local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
+TUI's words), `action` (`{act, label}` of its button, or null), `version`, `capacity` (`{parts:
+[{text, low}], long}` or null), `workspaces`, `terminals`, `agents`, `stopConfirmation` and
+`removeDescription`. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
+`retry`, `retry-now` and `log-in` as its button does, `rename` with `label`, `set-color` with
+`color`, `forget-password`, `stop` and `remove`, each carried out as Settings › Machines carries it.
+
 ## Persistent TUI connections
 
 The Windows and macOS TUI discovers the saved catalog while open and lists every enabled

@@ -708,6 +708,8 @@ pub(crate) enum Request {
     MachineHubState,
     MachineHubHold,
     MachineLink,
+    /// The desktop window's saved machines, for its Main over pipes.
+    DesktopMachines,
     Machine {
         command: MachineCommand,
         format: OutputFormat,

@@ -25,6 +25,7 @@ use orchbee_workbench_client::application::agent_runtime;
 use orchbee_workbench_client::application::agent_start;
 use orchbee_workbench_client::application::background_thread;
 use orchbee_workbench_client::application::client_view;
+use orchbee_workbench_client::application::desktop_machines;
 use orchbee_workbench_client::application::local_activation;
 use orchbee_workbench_client::application::local_client;
 use orchbee_workbench_client::application::localization;
@@ -160,6 +161,7 @@ fn main() -> ExitCode {
             Ok(invocation::Request::MachineHubState) => cli::machines::hub::print_state(locale),
             Ok(invocation::Request::MachineHubHold) => cli::machines::hub::hold(locale),
             Ok(invocation::Request::MachineLink) => cli::machines::link::serve(locale),
+            Ok(invocation::Request::DesktopMachines) => cli::machines::desktop::serve(locale),
             Ok(invocation::Request::Machine { command, format }) => {
                 cli::machines::run(&command, format, locale)
             }
