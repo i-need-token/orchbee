@@ -192,9 +192,14 @@ const LOGIN_SHELL = UserLaunchProfileSchema.parse({
 	id: 'profile-2',
 	name: 'Login shell',
 });
+const NAMED_SHELL = UserLaunchProfileSchema.parse({
+	command: { kind: 'system-shell', login: false },
+	id: 'profile-3',
+	name: 'Shell',
+});
 const LAUNCH_PROFILES = UserLaunchProfileCatalogSchema.parse({
 	defaultProfileId: SYSTEM_SHELL.id,
-	profiles: [SYSTEM_SHELL, POWERSHELL, LOGIN_SHELL],
+	profiles: [SYSTEM_SHELL, POWERSHELL, LOGIN_SHELL, NAMED_SHELL],
 	version: 1,
 });
 
@@ -580,6 +585,8 @@ describe('createServerWorkbenchAuthority', () => {
 
 		await authority.createTab(executionContext().context, { ...creation, profile: POWERSHELL });
 		await authority.createTab(executionContext().context, { ...creation, profile: SYSTEM_SHELL });
+		// Another name for the shell the default starts, in the same login mode.
+		await authority.createTab(executionContext().context, { ...creation, profile: NAMED_SHELL });
 
 		expect(actions).toEqual([
 			expect.objectContaining({
@@ -587,11 +594,12 @@ describe('createServerWorkbenchAuthority', () => {
 				launch: { args: ['-NoLogo'], exec: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' },
 			}),
 			expect.not.objectContaining({ launch: expect.anything() }),
+			expect.not.objectContaining({ launch: expect.anything() }),
 		]);
 	});
 
 	it.each<[string, UserLaunchProfile]>([
-		['a system shell that is not the default', LOGIN_SHELL],
+		['a system shell in another login mode than the default', LOGIN_SHELL],
 		[
 			'a profile changed since it was shown',
 			UserLaunchProfileSchema.parse({

@@ -122,9 +122,10 @@ function sameLaunchProfile(left: UserLaunchProfile, right: UserLaunchProfile): b
 /**
  * How a Tab starts with a saved launch profile from this window: a custom program as its literal
  * executable and arguments. The window has no system-shell resolver of its own, so a system shell
- * starts only as the default, which the Worker resolves where it runs; a default changed in the same
- * moment is the one that starts. Null starts nothing in place of a profile that is no longer saved as
- * shown, or that no command can carry.
+ * starts as a default launch, which the Worker resolves where it runs, and only while the default
+ * profile starts that same shell in the same login mode, as a named copy of the built-in profile
+ * does; a default changed in the same moment is the one that starts. Null starts nothing in place of
+ * a profile that is no longer saved as shown, or that no command can carry.
  */
 export function serverProfileLaunch(
 	profile: UserLaunchProfile,
@@ -136,7 +137,12 @@ export function serverProfileLaunch(
 	}
 	const { command } = profile;
 	if (command.kind === 'system-shell') {
-		return catalog.defaultProfileId === profile.id ? { launch: undefined } : null;
+		const defaultCommand = catalog.profiles.find(
+			(candidate) => candidate.id === catalog.defaultProfileId,
+		)?.command;
+		return defaultCommand?.kind === 'system-shell' && defaultCommand.login === command.login
+			? { launch: undefined }
+			: null;
 	}
 	const launch = WorkbenchLaunchSelectionSchema.safeParse({
 		args: command.arguments,
