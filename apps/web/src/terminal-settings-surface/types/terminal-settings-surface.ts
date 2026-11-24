@@ -153,7 +153,7 @@ export interface TerminalSettingsMachineLogin {
 }
 
 /** The person's act on the login question named by its `login` and `question`. */
-export type TerminalSettingsMachineLoginIntent =
+type TerminalSettingsMachineLoginIntent =
 	| {
 			readonly act: 'login-answer';
 			readonly answer: string;
