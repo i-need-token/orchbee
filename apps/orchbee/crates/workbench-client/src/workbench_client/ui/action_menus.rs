@@ -1094,6 +1094,9 @@ impl WorkbenchClientUi {
             }
             _ => None,
         });
+        self.menus
+            .menu
+            .set_here_color(machines::here_color(self.machine_facts.as_ref()));
         if let Some(choices) = intent.machines() {
             self.menus.menu.set_machines(choices.rows.clone());
             // The machine the Workspace runs on carries the check.

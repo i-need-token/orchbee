@@ -48,6 +48,8 @@ pub struct Machine {
     pub explanation: Explanation,
     /// Its terminals are being stopped.
     pub stopping: bool,
+    /// The color its name is shown in.
+    pub color: crate::machine_color::MachineColor,
 }
 
 impl Machine {
@@ -139,6 +141,11 @@ pub enum Request {
         action: Action,
     },
     ForgetPassword(String),
+    /// Gives the machine another color.
+    SetColor {
+        machine: String,
+        color: crate::machine_color::MachineColor,
+    },
     /// Stops the machine's terminals; its record stays.
     Stop(String),
     /// Removes the record without stopping anything.

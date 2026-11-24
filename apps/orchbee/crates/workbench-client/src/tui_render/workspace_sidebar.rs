@@ -336,6 +336,7 @@ fn lines(
     // A Workspace on another machine names it after its own name, as `api @devbox`.
     let marker = (row.choice != crate::machine_picker::Choice::Local)
         .then(|| machine_label(view, row, locale));
+    let marker_color = view.machines.machine_color(&row.choice);
     // Metadata keeps one blank cell before it; the identity line also leaves the unread cells.
     let slot = |metadata: usize| match metadata {
         0 => 0,
@@ -347,7 +348,12 @@ fn lines(
     let mut slots = Vec::new();
     let mut names = Vec::new();
     let mut folder = None;
+    // The span of the identity line that holds the machine's name, painted in its color.
+    let mut marker_spans = None;
     for tokens in view.machines.space_settings().rows() {
+        if lines.is_empty() {
+            marker_spans = None;
+        }
         // A Workspace row has no state column, so a configured state icon paints nothing; Git
         // counts move to the trailing slot.
         let (git, resolved): (Vec<_>, Vec<_>) = tokens
@@ -474,11 +480,20 @@ fn lines(
             if kind == Kind::Workspace
                 && let Some(marker) = marker.as_ref()
             {
-                // Regular weight: the name alone reads bold on the current row.
-                spans.push(Span::styled(
-                    marker.clone(),
-                    text_style(Role::TextPrimary).remove_modifier(Modifier::BOLD),
-                ));
+                // Regular weight: the name alone reads bold on the current row. The machine's name
+                // takes its color; the blank cell and `@` before it stay plain.
+                let plain = text_style(Role::TextPrimary).remove_modifier(Modifier::BOLD);
+                match (marker_color, marker.split_at_checked(2)) {
+                    (Some(color), Some((lead, name))) => {
+                        spans.push(Span::styled(lead.to_owned(), plain));
+                        spans.push(Span::styled(
+                            name.to_owned(),
+                            theme.machine_name_style(color, None, plain),
+                        ));
+                        marker_spans = Some(spans.len() - 1);
+                    }
+                    _ => spans.push(Span::styled(marker.clone(), plain)),
+                }
             }
         }
         // Configured tracks keep their height while asynchronous metadata arrives.
@@ -516,8 +531,13 @@ fn lines(
         names.retain(|(line, _)| *line == 0);
         folder = folder.filter(|part| part.line == 0);
         let muted = theme.style(Role::TextMuted);
-        for span in &mut lines[0].spans {
-            span.style = span.style.patch(muted);
+        for (index, span) in lines[0].spans.iter_mut().enumerate() {
+            // The machine's name keeps its hue, at the row's reduced strength.
+            span.style = if marker_spans == Some(index) {
+                span.style.add_modifier(Modifier::DIM)
+            } else {
+                span.style.patch(muted)
+            };
         }
         trailing[0] = Line::default();
         lines.push(Line::from(Span::styled(

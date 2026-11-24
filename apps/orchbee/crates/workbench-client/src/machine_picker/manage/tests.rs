@@ -176,6 +176,8 @@ fn the_add_row_opens_the_form_whose_enter_starts_the_checks_and_esc_gives_them_u
         [Work::Add {
             label: default_label("devbox2"),
             target: "devbox2".into(),
+            // The one saved machine is cyan, so the form opens on purple.
+            color: crate::machine_color::MachineColor::Purple,
         }]
     );
     bench.manage_work_clear();

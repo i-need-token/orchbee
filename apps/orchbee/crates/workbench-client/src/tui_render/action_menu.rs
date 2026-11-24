@@ -1317,6 +1317,7 @@ fn render_row(
         usize::from(primary_right.min(content_right).saturating_sub(label_left)),
         theme.glyphs.ellipsis,
     );
+    let label_width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
     frame.render_widget(
         Paragraph::new(label).style(theme.style(primary_role)),
         primary,
@@ -1379,6 +1380,35 @@ fn render_row(
     )
     .expect("action-menu row geometry was resolved before painting");
     debug_assert_eq!(painted, row);
+    // A saved machine's name takes its color over the row's surface: a row of the list names one,
+    // and the Change machine row ends with the one the Workspace runs on.
+    let interaction = matches!(
+        navigation,
+        NavigationState::Provisional | NavigationState::Open
+    )
+    .then_some(Role::SurfaceSelection);
+    let named = match (action, menu.machines) {
+        (MenuAction::MoveToMachine(index), Some(rows)) => rows
+            .get(usize::from(*index))
+            .and_then(|row| row.machine.as_ref())
+            .map(|machine| {
+                (
+                    machine.color,
+                    Rect::new(primary.x, primary.y, label_width.min(primary.width), 1),
+                )
+            }),
+        // Only the machine's name ends the row: a shortcut would take its place.
+        (MenuAction::ChangeMachine, _) if matches!(trailing, [(_, Role::TextSecondary)]) => {
+            menu.here_color.zip(binding_rect)
+        }
+        _ => None,
+    };
+    if enabled && let Some((color, rect)) = named {
+        frame.buffer_mut().set_style(
+            rect,
+            theme.machine_name_style(color, interaction, Style::new()),
+        );
+    }
     if let (MenuAction::GroupColor(color), Some(rect)) = (action, swatch) {
         // The swatch shows the accent its group header uses, independently of the row's fill.
         let style = if enabled {

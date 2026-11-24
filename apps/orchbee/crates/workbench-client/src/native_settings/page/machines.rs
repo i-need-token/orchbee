@@ -2,10 +2,13 @@
 //! and the entries both give. The page never reaches a machine itself: the TUI takes the request
 //! and reports what came of it in the next facts.
 use super::{PageState, PageView, Pane};
+use crate::machine_color::MachineColor;
 use crate::machine_settings::{
     FILTER_THRESHOLD, Facts, Machine, Outcome, Request, State as MachineState,
 };
-use crate::native_settings::{Category, Editor, Entry, Group, Page, Row, State};
+use crate::native_settings::{
+    Category, Choice, ChoicePicker, Editor, Entry, Group, Page, Row, State,
+};
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor};
 
 /// What the TUI reported and what the person asked; kept while Settings is closed, as About's
@@ -64,9 +67,24 @@ pub(in crate::native_settings) fn entries(page: &PageState) -> Option<Vec<Entry>
             let mut entries = vec![
                 Entry::Heading(Group::Machine),
                 Entry::Setting(Row::MachineName),
+                Entry::Setting(Row::MachineColor),
+            ];
+            // The open color list sits under its row.
+            if page
+                .picker
+                .is_some_and(|picker| picker.row() == Row::MachineColor)
+            {
+                entries.extend(
+                    Choice::options(Row::MachineColor)
+                        .iter()
+                        .copied()
+                        .map(Entry::Option),
+                );
+            }
+            entries.extend([
                 Entry::Setting(Row::MachineAddress),
                 Entry::Setting(Row::MachineStatus),
-            ];
+            ]);
             if listing.online {
                 entries.push(Entry::Setting(Row::MachineFree));
             }
@@ -122,7 +140,7 @@ pub(in crate::native_settings) fn enabled(
         | Row::Machine(_)
         | Row::MachineAddress
         | Row::MachineFree => true,
-        Row::MachineName | Row::MachineRemove => idle,
+        Row::MachineName | Row::MachineColor | Row::MachineRemove => idle,
         Row::MachineStatus => shown.is_some_and(|machine| machine.action().is_some()),
         Row::MachinePassword => idle && machines.facts.passwords,
         Row::MachineStop => {
@@ -304,6 +322,13 @@ impl Editor {
                     );
                 }
             }
+            // The list opens on the machine's color; choosing another sets it at once.
+            Row::MachineColor => {
+                if let Some(machine) = shown {
+                    page.picker = ChoicePicker::open(row, Choice::MachineColor(machine.color));
+                    page.follow_selection = true;
+                }
+            }
             Row::MachineStatus => {
                 if let Some(machine) = shown
                     && let Some(action) = machine.action()
@@ -339,6 +364,22 @@ impl Editor {
         }
         self.redraw();
         true
+    }
+
+    /// Choosing `color` in the open machine's color list asks for it when it differs.
+    pub(in crate::native_settings) fn choose_machine_color(&mut self, color: MachineColor) {
+        let State::Open(page) = &self.state else {
+            return;
+        };
+        if let Some(machine) = self.machines.machine(page.machines.machine.as_deref())
+            && machine.color != color
+        {
+            self.machines.request = Some(Request::SetColor {
+                machine: machine.id.clone(),
+                color,
+            });
+        }
+        self.redraw();
     }
 
     /// `Enter` in the editor of a Machines row; `true` when it was one.

@@ -61,6 +61,7 @@ impl Exchange {
             Request::Rename { machine, .. }
             | Request::Act { machine, .. }
             | Request::ForgetPassword(machine)
+            | Request::SetColor { machine, .. }
             | Request::Stop(machine)
             | Request::Remove(machine) => machine,
         };
@@ -124,6 +125,9 @@ impl Exchange {
             } => {
                 discovery.retry(&id, now);
                 self.login = Some((id, now + LOGIN));
+            }
+            Request::SetColor { color, .. } => {
+                carried.catalog = self.commit(store, &Edit::SetColor { id, color });
             }
             Request::ForgetPassword(_) => {
                 if discovery.forget_password(&id) {
@@ -285,6 +289,7 @@ impl Exchange {
                     last_attempt: discovery.last_attempt(id),
                     explanation,
                     stopping: self.stopping.contains(id),
+                    color: profile.color,
                 }
             })
             .collect();

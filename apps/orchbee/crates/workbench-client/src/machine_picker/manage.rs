@@ -7,6 +7,7 @@
 use super::{Choice, Mode, Picker};
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::machine_add::Stage;
+use crate::machine_color::MachineColor;
 use crate::machine_discovery::Observation;
 use crate::machine_status::{Action, Explanation, Facts};
 use crate::machines::{
@@ -61,6 +62,7 @@ pub enum MenuItem {
 pub enum Field {
     Address,
     Name,
+    Color,
 }
 
 /// A painted control of the add form, the rename or the confirmation.
@@ -69,6 +71,8 @@ pub enum FormControl {
     Field(Field),
     /// The SSH config host at this position fills the address.
     Suggestion(usize),
+    /// One choice of the color.
+    Color(MachineColor),
     Cancel,
     Submit,
 }
@@ -109,6 +113,8 @@ pub(crate) enum PageKind {
 pub(crate) struct AddForm {
     pub(crate) address: LineEditor,
     pub(crate) name: LineEditor,
+    /// Opens on the color the fewest saved machines use.
+    pub(crate) color: MachineColor,
     pub(crate) field: Field,
     /// The highlighted SSH config host while the address field has focus.
     pub(crate) suggestion: Option<usize>,
@@ -177,10 +183,20 @@ pub(crate) struct Record {
 /// Something the person asked for that `exchange` carries out.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Work {
-    Add { label: String, target: String },
+    Add {
+        label: String,
+        target: String,
+        color: MachineColor,
+    },
     Discard,
-    Rename { machine: ProfileId, label: String },
-    Enable { machine: ProfileId, enabled: bool },
+    Rename {
+        machine: ProfileId,
+        label: String,
+    },
+    Enable {
+        machine: ProfileId,
+        enabled: bool,
+    },
     Disconnect(ProfileId),
     Remove(ProfileId),
     Stop(ProfileId),
@@ -457,6 +473,7 @@ impl Picker {
         self.manage.set_page(Page::Add(Box::new(AddForm {
             address: LineEditor::new(String::new(), LengthLimit::Scalars(FIELD_LIMIT)),
             name: LineEditor::new(String::new(), LengthLimit::Scalars(NAME_LIMIT)),
+            color: MachineColor::least_used(self.rows.iter().filter_map(|row| row.color)),
             field: Field::Address,
             suggestion: None,
             suggestions: Arc::from([]),
@@ -564,6 +581,15 @@ impl Picker {
                 Page::Add(form) if form.editable() => form.take_suggestion(index),
                 _ => false,
             },
+            FormControl::Color(color) => match &mut self.manage.page {
+                Page::Add(form) if form.editable() => {
+                    form.color = color;
+                    form.field = Field::Color;
+                    form.suggestion = None;
+                    true
+                }
+                _ => false,
+            },
         }
     }
 
@@ -617,8 +643,10 @@ impl Picker {
         match &mut self.manage.page {
             Page::List => Some(text),
             Page::Add(form) => {
-                if form.editable() {
-                    let _ = form.focused().insert(&single);
+                if form.editable()
+                    && let Some(editor) = form.focused()
+                {
+                    let _ = editor.insert(&single);
                     form.edited();
                 }
                 None
@@ -767,11 +795,25 @@ impl Picker {
             return;
         }
         if TAB.matches(key) || BACK_TAB.matches(key) {
-            form.field = match form.field {
-                Field::Address => Field::Name,
-                Field::Name => Field::Address,
+            let forward = TAB.matches(key);
+            form.field = match (form.field, forward) {
+                (Field::Address, true) | (Field::Color, false) => Field::Name,
+                (Field::Name, true) | (Field::Address, false) => Field::Color,
+                (Field::Color, true) | (Field::Name, false) => Field::Address,
             };
             form.suggestion = None;
+            return;
+        }
+        // The color is a single choice: the arrows move it, and it applies at once.
+        if form.field == Field::Color && (LEFT.matches(key) || RIGHT.matches(key)) {
+            let palette = MachineColor::PALETTE;
+            let count = palette.len();
+            let at = form.color as usize;
+            form.color = palette[if RIGHT.matches(key) {
+                (at + 1) % count
+            } else {
+                (at + count - 1) % count
+            }];
             return;
         }
         if UP.matches(key) {
@@ -782,6 +824,7 @@ impl Picker {
                     form.field = Field::Address;
                     form.suggestion = None;
                 }
+                (Field::Color, _) => form.field = Field::Name,
                 (Field::Address, None) => {}
             }
             return;
@@ -798,12 +841,15 @@ impl Picker {
                     form.field = Field::Name;
                     form.suggestion = None;
                 }
-                (Field::Name, _) => {}
+                (Field::Name, _) => form.field = Field::Color,
+                (Field::Color, _) => {}
             }
             return;
         }
         form.suggestion = None;
-        if edit(form.focused(), key) {
+        if let Some(editor) = form.focused()
+            && edit(editor, key)
+        {
             form.edited();
         }
     }
@@ -824,10 +870,12 @@ impl AddForm {
         }
     }
 
-    pub(crate) fn focused(&mut self) -> &mut LineEditor {
+    /// The text field with focus; none on the color.
+    pub(crate) fn focused(&mut self) -> Option<&mut LineEditor> {
         match self.field {
-            Field::Address => &mut self.address,
-            Field::Name => &mut self.name,
+            Field::Address => Some(&mut self.address),
+            Field::Name => Some(&mut self.name),
+            Field::Color => None,
         }
     }
 
@@ -873,7 +921,11 @@ impl AddForm {
         self.problem = None;
         self.suggestion = None;
         self.check = Some(Check::Starting);
-        Some(Work::Add { label, target })
+        Some(Work::Add {
+            label,
+            target,
+            color: self.color,
+        })
     }
 }
 

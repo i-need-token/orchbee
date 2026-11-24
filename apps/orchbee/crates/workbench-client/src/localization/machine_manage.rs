@@ -16,6 +16,7 @@ pub(crate) enum ManageText {
     Hosts,
     Name,
     NameHint,
+    Color,
     Cancel,
     Add,
     Actions,
@@ -29,6 +30,24 @@ pub(crate) enum ManageText {
 }
 
 impl Locale {
+    /// A saved machine's color by name.
+    pub(crate) const fn machine_color_name(
+        self,
+        color: crate::machine_color::MachineColor,
+    ) -> &'static str {
+        use crate::machine_color::MachineColor;
+        match (self, color) {
+            (Self::EnUs, MachineColor::Cyan) => "Cyan",
+            (Self::ZhCn, MachineColor::Cyan) => "青色",
+            (Self::EnUs, MachineColor::Purple) => "Purple",
+            (Self::ZhCn, MachineColor::Purple) => "紫色",
+            (Self::EnUs, MachineColor::Pink) => "Pink",
+            (Self::ZhCn, MachineColor::Pink) => "粉色",
+            (Self::EnUs, MachineColor::Grey) => "Grey",
+            (Self::ZhCn, MachineColor::Grey) => "灰色",
+        }
+    }
+
     pub(crate) const fn machine_manage_text(self, text: ManageText) -> &'static str {
         use ManageText::*;
         match (self, text) {
@@ -48,6 +67,8 @@ impl Locale {
             (Self::ZhCn, Name) => "名称",
             (Self::EnUs, NameHint) => "Leave blank to use the host name.",
             (Self::ZhCn, NameHint) => "留空则使用主机名。",
+            (Self::EnUs, Color) => "Color",
+            (Self::ZhCn, Color) => "颜色",
             (Self::EnUs, Cancel) => "Cancel",
             (Self::ZhCn, Cancel) => "取消",
             (Self::EnUs, Add) => "Add",

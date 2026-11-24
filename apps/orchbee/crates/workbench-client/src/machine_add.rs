@@ -5,7 +5,8 @@
 //! that never comes `online` is dropped with its connection, and nothing was saved.
 //!
 //! Drawing-free: an interface shows [`Stage`] and the hub's state in its own words.
-use crate::machines::{Catalog, Draft, Edit, Error, MachineColor, ProfileId, Store};
+use crate::machine_color::MachineColor;
+use crate::machines::{Catalog, Draft, Edit, Error, ProfileId, Store};
 use orchbee_machine_protocol::{
     MachineId, SessionName, Target,
     hub::{

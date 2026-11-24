@@ -104,6 +104,7 @@ impl Picker {
                 context: None,
                 agent: None,
                 fixed_status: Some(status),
+                color: None,
             }];
         }
         let candidates = self.rows.iter().filter(|m| m.enabled).flat_map(|machine| {
@@ -139,6 +140,7 @@ impl Picker {
                 context: None,
                 agent: Some(e.row.clone()),
                 fixed_status: None,
+                color: None,
             })
             .collect();
         for machine in self.rows.iter().filter(|m| m.enabled) {
@@ -164,6 +166,7 @@ impl Picker {
                 context: None,
                 agent: None,
                 fixed_status: Some(status),
+                color: None,
             });
         }
         rows

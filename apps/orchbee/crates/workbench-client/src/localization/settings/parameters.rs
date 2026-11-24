@@ -16,6 +16,8 @@ pub(crate) enum SettingsChoice {
     CompletionReminders(CompletionReminderMode),
     /// An installed shell Add profile lists, or its Custom… entry.
     NewProfile(Option<&'static orchbee_local_runtime::InstalledShell>),
+    /// A saved machine's color.
+    MachineColor(crate::machine_color::MachineColor),
 }
 
 /// A settings file the page cannot use, for its file line; the path is the Server's spelling.

@@ -440,6 +440,8 @@ pub(crate) struct MenuView<'a> {
     pub(crate) tabs: Option<&'a TabMenuPresentation>,
     /// A Change machine list's rows, one per `MoveToMachine` index.
     pub(crate) machines: Option<&'a [crate::machine_change::Row]>,
+    /// The color of the saved machine the Workspace runs on, which ends its Change machine row.
+    pub(crate) here_color: Option<crate::machine_color::MachineColor>,
     pub(crate) actions: &'a [MenuAction],
     pub(crate) unavailable: &'a [Option<MenuUnavailable>],
     #[cfg(test)]
@@ -661,6 +663,7 @@ struct Menu {
     notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
     machines: Option<Vec<crate::machine_change::Row>>,
+    here_color: Option<crate::machine_color::MachineColor>,
     title: String,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
@@ -692,6 +695,7 @@ pub(crate) struct RetainedMenu {
     notes: Vec<Option<MenuRowNote>>,
     tabs: Option<TabMenuPresentation>,
     machines: Option<Vec<crate::machine_change::Row>>,
+    here_color: Option<crate::machine_color::MachineColor>,
     actions: Vec<MenuAction>,
     unavailable: Vec<Option<MenuUnavailable>>,
     #[cfg(test)]
@@ -719,6 +723,7 @@ impl RetainedMenu {
             notes: &self.notes,
             tabs: self.tabs.as_ref(),
             machines: self.machines.as_deref(),
+            here_color: self.here_color,
             actions: &self.actions,
             unavailable: &self.unavailable,
             #[cfg(test)]
@@ -976,6 +981,7 @@ impl ActionMenu {
             notes: vec![None; actions.len()],
             tabs: None,
             machines: None,
+            here_color: None,
             unavailable: vec![None; actions.len()],
             result_actions,
             query: searchable.then(|| {
@@ -1037,6 +1043,7 @@ impl ActionMenu {
             notes: menu.notes.clone(),
             tabs: menu.tabs.clone(),
             machines: menu.machines.clone(),
+            here_color: menu.here_color,
             actions: menu.actions.clone(),
             unavailable: menu.unavailable.clone(),
             #[cfg(test)]
@@ -1177,6 +1184,16 @@ impl ActionMenu {
         menu.visible_rows = 0;
     }
 
+    /// The color of the machine the Workspace runs on; a change redraws the menu.
+    pub(crate) fn set_here_color(&mut self, color: Option<crate::machine_color::MachineColor>) {
+        if let Some(menu) = &mut self.menu
+            && menu.here_color != color
+        {
+            menu.here_color = color;
+            menu.drawn = None;
+        }
+    }
+
     /// The rows of a Change machine list. Their order is the list's own; a newer reading of the
     /// same machines changes their words and availability, never which machine a row names, so a
     /// row the person already chose keeps its meaning until its transfer ends.
@@ -1249,6 +1266,7 @@ impl ActionMenu {
             notes: &menu.notes,
             tabs: menu.tabs.as_ref(),
             machines: menu.machines.as_deref(),
+            here_color: menu.here_color,
             actions: &menu.actions,
             unavailable: &menu.unavailable,
             #[cfg(test)]

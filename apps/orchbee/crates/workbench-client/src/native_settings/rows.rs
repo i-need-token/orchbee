@@ -84,6 +84,8 @@ pub enum Row {
     /// page; its name is the machine's.
     Machine(u16),
     MachineName,
+    /// The color the machine's name is shown in, from a list.
+    MachineColor,
     MachineAddress,
     /// A machine's state, its sentence, and the one action it offers now.
     MachineStatus,
@@ -472,6 +474,8 @@ impl Row {
                 "Shown on its Workspaces and in commands.",
                 "显示在它的工作区上和命令里。",
             ),
+            Self::MachineColor => row("Color", "颜色")
+                .described("Its name is shown in this color.", "机器名称以该颜色显示。"),
             Self::MachineAddress => {
                 row("Address", "地址").described("What ssh connects to.", "ssh 连接的目标。")
             }

@@ -16,6 +16,7 @@ impl From<Choice> for SettingsChoice {
             Choice::AgentReminders(value) => Self::AgentReminders(value),
             Choice::CompletionReminders(value) => Self::CompletionReminders(value),
             Choice::NewProfile(entry) => Self::NewProfile(entry.shell()),
+            Choice::MachineColor(color) => Self::MachineColor(color),
         }
     }
 }

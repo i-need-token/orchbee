@@ -282,6 +282,7 @@ impl Group {
             Self::MachineList => vec![Row::AddMachine, Row::FindMachine, Row::ThisComputer],
             Self::Machine => vec![
                 Row::MachineName,
+                Row::MachineColor,
                 Row::MachineAddress,
                 Row::MachineStatus,
                 Row::MachineFree,

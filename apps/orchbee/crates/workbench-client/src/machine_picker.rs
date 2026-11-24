@@ -4,6 +4,7 @@
 
 use crate::client_view::{KeyCode, KeyEvent, KeyKind, Modifiers};
 use crate::localization::Locale;
+use crate::machine_color::MachineColor;
 use crate::machine_overview::{Context, Observation};
 use crate::machines::{Profile, ProfileId};
 use crate::startup_directory::ClientStartupTarget;
@@ -280,6 +281,8 @@ pub struct Row {
     /// A status key that replaces any observation: an Agent placeholder row, or a saved machine
     /// whose connection kind this build does not support.
     fixed_status: Option<&'static str>,
+    /// A saved machine's own row carries its color; this computer's and derived rows carry none.
+    color: Option<MachineColor>,
 }
 impl Row {
     pub(crate) fn context(&self) -> Option<&Context> {
@@ -402,6 +405,7 @@ impl Default for Picker {
                 context: None,
                 agent: None,
                 fixed_status: None,
+                color: None,
             }],
             busy: false,
             error: None,
@@ -461,6 +465,14 @@ impl Default for Picker {
     }
 }
 impl Picker {
+    /// The color of the saved machine `choice` names; none for this computer or a machine no
+    /// longer saved.
+    pub(crate) fn machine_color(&self, choice: &Choice) -> Option<MachineColor> {
+        self.rows
+            .iter()
+            .find(|row| row.choice == *choice)
+            .and_then(|row| row.color)
+    }
     /// Read access for the picker painter in `tui_render`; only this module writes these fields.
     pub(crate) const fn mode(&self) -> Mode {
         self.mode
@@ -603,6 +615,7 @@ impl Picker {
                 context: Some(context.clone()),
                 agent: None,
                 fixed_status: None,
+                color: None,
             }));
         }
         self.cancel_sidebar_scroll();
@@ -704,6 +717,7 @@ impl Picker {
             context: None,
             agent: None,
             fixed_status: None,
+            color: None,
         }];
         rows.extend(profiles.iter().map(|p| {
             // A machine this build cannot reach stays listed but never becomes a choice.
@@ -716,6 +730,7 @@ impl Picker {
                 context: None,
                 agent: None,
                 fixed_status: (!supported).then_some("unsupported"),
+                color: Some(p.color),
                 observation: enabled
                     .then(|| {
                         self.rows

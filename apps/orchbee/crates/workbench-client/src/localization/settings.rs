@@ -162,6 +162,7 @@ impl Locale {
             }
             Choice::NewProfile(Some(shell)) => self.installed_shell_name(shell),
             Choice::NewProfile(None) => self.setting("Custom…", "自定义…"),
+            Choice::MachineColor(color) => self.machine_color_name(color),
         }
     }
     /// An installed shell's name, as Windows Terminal names the Windows ones.

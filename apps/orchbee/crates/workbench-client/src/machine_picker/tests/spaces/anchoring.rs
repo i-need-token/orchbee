@@ -51,6 +51,7 @@ fn inserted_and_reordered_rows_retain_the_top_identity_and_removed_rows_use_old_
                     context: Some(context.clone()),
                     agent: None,
                     fixed_status: None,
+                    color: None,
                 }
                 .sidebar_target()
                 .as_ref()

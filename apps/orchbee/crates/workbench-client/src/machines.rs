@@ -3,6 +3,7 @@
 // module-layer: state
 
 mod store;
+use crate::machine_color::MachineColor;
 use orchbee_local_runtime::SessionName;
 use serde_json::{Value, json};
 pub use store::Store;
@@ -255,39 +256,6 @@ pub struct Profile {
     pub color: MachineColor,
     /// Fields a later release added to this machine, kept unread and written back unchanged.
     pub extensions: serde_json::Map<String, Value>,
-}
-/// The color of a saved machine's name wherever it is written: the Tab Group colors that no Agent
-/// state, warning or accent takes, in the order a default is chosen from. This computer has none.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum MachineColor {
-    Cyan,
-    Purple,
-    Pink,
-    Grey,
-}
-impl MachineColor {
-    pub const PALETTE: [Self; 4] = [Self::Cyan, Self::Purple, Self::Pink, Self::Grey];
-    /// The record's and every command's spellings, the same in every locale, in palette order.
-    pub const NAMES: [&'static str; 4] = ["cyan", "purple", "pink", "grey"];
-    pub const fn as_str(self) -> &'static str {
-        Self::NAMES[self as usize]
-    }
-    pub fn parse(value: &str) -> Option<Self> {
-        Self::PALETTE
-            .into_iter()
-            .find(|color| color.as_str() == value)
-    }
-    /// The color the fewest of `used` take; among equals, the earliest in the palette.
-    pub fn least_used(used: impl IntoIterator<Item = Self>) -> Self {
-        let mut counts = [0_usize; 4];
-        for color in used {
-            counts[color as usize] += 1;
-        }
-        Self::PALETTE
-            .into_iter()
-            .min_by_key(|color| counts[*color as usize])
-            .unwrap_or(Self::Cyan)
-    }
 }
 impl Profile {
     /// A newly added machine: enabled, with a remote copy someone else installed. Until Orchbee

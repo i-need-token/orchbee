@@ -82,6 +82,10 @@ impl Editor {
                 Edit::End => picker.cursor = Choice::options(picker.row).len() - 1,
                 Edit::Activate => {
                     page.picker = None;
+                    if let Choice::MachineColor(color) = picker.candidate() {
+                        self.choose_machine_color(color);
+                        return None;
+                    }
                     if let Choice::NewProfile(entry) = picker.candidate() {
                         values::add_profile(page, entry.shell());
                         self.redraw();

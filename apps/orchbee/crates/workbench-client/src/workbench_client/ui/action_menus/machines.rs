@@ -27,6 +27,17 @@ pub(super) fn row_label(row: &Row) -> String {
         .map_or_else(String::new, |machine| machine.label.clone())
 }
 
+/// The color of the machine this Client's Session runs on; none for this computer.
+pub(super) fn here_color(facts: Option<&Facts>) -> Option<crate::machine_color::MachineColor> {
+    let facts = facts?;
+    let here = facts.here.as_deref()?;
+    facts
+        .machines
+        .iter()
+        .find(|machine| machine.id == here)
+        .map(|machine| machine.color)
+}
+
 /// The name of the machine this Client's Session runs on; empty for this computer.
 pub(super) fn here_label(facts: Option<&Facts>) -> String {
     facts

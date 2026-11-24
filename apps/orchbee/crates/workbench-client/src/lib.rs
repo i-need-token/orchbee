@@ -28,6 +28,7 @@ mod machine_agents;
 mod machine_capacity;
 mod machine_carrier;
 mod machine_change;
+mod machine_color;
 mod machine_credentials;
 mod machine_discovery;
 mod machine_endpoint;
@@ -348,9 +349,10 @@ pub mod application {
     }
 
     pub mod machines {
+        pub use crate::machine_color::MachineColor;
         pub use crate::machines::{
-            Catalog, Connection, Draft, Edit, Error, LOCAL, MachineColor, Profile, ProfileId,
-            RemoteInstall, Store, default_label, names_this_computer, valid_label, valid_target,
+            Catalog, Connection, Draft, Edit, Error, LOCAL, Profile, ProfileId, RemoteInstall,
+            Store, default_label, names_this_computer, valid_label, valid_target,
         };
     }
 

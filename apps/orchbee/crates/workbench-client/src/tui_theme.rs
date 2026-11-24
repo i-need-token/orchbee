@@ -207,6 +207,9 @@ pub struct GlyphSet {
     pub(crate) checked_marker: &'static str,
     /// Reversible keyboard-navigation anchor within a collection.
     pub(crate) navigation_marker: &'static str,
+    /// A single choice's marker, not chosen and chosen.
+    pub(crate) choice_off: &'static str,
+    pub(crate) choice_on: &'static str,
     /// One-cell rule between strip regions, such as pinned and ordinary Tabs.
     pub(crate) vertical_rule: &'static str,
     /// One-cell scrollbar chrome, including host-safe ASCII alternatives.
@@ -242,6 +245,8 @@ impl GlyphSet {
         active_marker: "*",
         checked_marker: "✓",
         navigation_marker: "›",
+        choice_off: "○",
+        choice_on: "●",
         vertical_rule: "│",
         scrollbar_track: "│",
         scrollbar_thumb: "┃",
@@ -266,6 +271,8 @@ impl GlyphSet {
         active_marker: "*",
         checked_marker: "*",
         navigation_marker: ">",
+        choice_off: "( )",
+        choice_on: "(*)",
         vertical_rule: "|",
         scrollbar_track: "|",
         scrollbar_thumb: "#",
@@ -712,6 +719,37 @@ impl Theme {
         self.tab_groups
             .foreground(color)
             .map_or_else(Style::new, |foreground| Style::new().fg(foreground))
+    }
+
+    /// A saved machine's name in its color, from `base`. Truecolor and 256 colors take its Tab
+    /// Group accent, raised on a selection; 16 colors and `terminal-native` map by name, never by
+    /// nearest match, so a machine never reads as an Agent state; monochrome keeps `base`.
+    pub(crate) fn machine_name_style(
+        &self,
+        color: crate::machine_color::MachineColor,
+        interaction: Option<Role>,
+        base: Style,
+    ) -> Style {
+        use crate::machine_color::MachineColor;
+        use orchbee_workbench_protocol::TabGroupColor;
+        if self.no_color || self.color_level == ColorLevel::Monochrome {
+            return base;
+        }
+        if self.palette.is_none() || self.color_level == ColorLevel::Ansi16 {
+            return match color {
+                MachineColor::Cyan => base.fg(Color::Cyan),
+                MachineColor::Purple => base.fg(Color::Magenta),
+                MachineColor::Pink => base.fg(Color::LightMagenta),
+                MachineColor::Grey => base.fg(Color::Reset).add_modifier(Modifier::DIM),
+            };
+        }
+        let group = match color {
+            MachineColor::Cyan => TabGroupColor::Cyan,
+            MachineColor::Purple => TabGroupColor::Purple,
+            MachineColor::Pink => TabGroupColor::Pink,
+            MachineColor::Grey => TabGroupColor::Grey,
+        };
+        base.fg(self.tab_group_accent(group, interaction))
     }
 
     pub(crate) const fn tab_group_accent(

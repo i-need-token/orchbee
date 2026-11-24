@@ -84,7 +84,11 @@ impl Picker {
         for work in std::mem::take(&mut self.manage.work) {
             managed.redraw = true;
             match work {
-                Work::Add { label, target } => self.start_add(discovery, store, &label, &target),
+                Work::Add {
+                    label,
+                    target,
+                    color,
+                } => self.start_add(discovery, store, &label, &target, color),
                 Work::Discard => discovery.discard_add(),
                 Work::Rename { machine, label } => {
                     managed.catalog = self
@@ -160,6 +164,7 @@ impl Picker {
         store: Option<&Store>,
         label: &str,
         target: &str,
+        color: crate::machine_color::MachineColor,
     ) {
         let proposal = Draft::parse(label, target, super::SESSION)
             .ok_or(None)
@@ -169,6 +174,10 @@ impl Picker {
                     .read()
                     .map_err(|_| Some(Problem::Save))?;
                 Proposal::new(draft, &catalog).map_err(|_| Some(Problem::Save))
+            })
+            .map(|mut proposal| {
+                proposal.color = Some(color);
+                proposal
             });
         let Page::Add(form) = &mut self.manage.page else {
             return;

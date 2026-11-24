@@ -418,6 +418,23 @@ fn render_content(
             theme,
             hits,
         );
+        if page.page() == Page::Machine
+            && let Some(machine) = page.shown_machine()
+        {
+            let lead = u16::try_from(display_width(arrow(theme)) + 1).unwrap_or(u16::MAX);
+            let named = Rect::new(
+                x.saturating_add(lead),
+                y,
+                u16::try_from(display_width(&title))
+                    .unwrap_or(u16::MAX)
+                    .min(width.saturating_sub(lead)),
+                1,
+            );
+            frame.buffer_mut().set_style(
+                named,
+                theme.machine_name_style(machine.color, None, Style::new()),
+            );
+        }
     } else {
         put(frame, x, y, width, &title, theme.style(Role::TextPrimary));
     }
@@ -1382,13 +1399,20 @@ fn render_option(
             on(theme, base, interaction, Role::AccentAction),
         );
     }
+    let label_style = on(theme, base, interaction, Role::TextPrimary);
     put(
         frame,
         x + 2,
         y,
         area.right().saturating_sub(x + 4),
         locale.settings_choice(choice),
-        on(theme, base, interaction, Role::TextPrimary),
+        // A machine's color is named in that color.
+        match choice {
+            Choice::MachineColor(color) => {
+                theme.machine_name_style(color, interaction, label_style)
+            }
+            _ => label_style,
+        },
     );
     hits.record_interaction(HitLayer::Overlay, inner, inner, target, spec);
 }

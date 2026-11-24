@@ -132,6 +132,7 @@ fn primary_label(page: PageView<'_>, row: Row) -> SettingsHintLabel {
         Row::LaunchProfiles | Row::AgentLaunchProvider(_) | Row::AddMachine | Row::Machine(_) => {
             SettingsHintLabel::Open
         }
+        Row::MachineColor => SettingsHintLabel::Change,
         Row::Back => SettingsHintLabel::Back,
         Row::ThemeOption(_) => SettingsHintLabel::Select,
         Row::Updates if page.about().update().is_some() => SettingsHintLabel::Update,
@@ -191,6 +192,7 @@ pub(crate) fn footer_bindings(view: View<'_>) -> Vec<SettingsFooterBinding> {
         Row::AgentYolo(_) => page.enabled(selected),
         Row::Updates => page.about().actionable(),
         Row::MachineName
+        | Row::MachineColor
         | Row::MachineStatus
         | Row::MachinePassword
         | Row::MachineStop

@@ -22,6 +22,12 @@ reads the catalog and writes the color back unchanged. A machine added without a
 one the fewest saved machines use, the earliest in that order among equals; a record without a
 color, or with another value, takes the same default at load, counting only the machines before it
 in the catalog, and keeps it from the next save. Nothing recolors a saved machine by itself.
+The color is text color only, on the machine's name: its `@name` on Workspace rows, the Change
+machine list and the machine that list's entry ends with, Settings › Machines and a machine's page
+title, and the color choices. Add Machine opens on the default and Settings › Machines › Color
+changes it. At 16 colors and in `terminal-native` the TUI maps the color by name, cyan to Cyan,
+purple to Magenta, pink to bright Magenta and grey to the default foreground dimmed, so a machine
+never takes an Agent state's red, yellow or green; monochrome and `NO_COLOR` show the name alone.
 
 A connection `kind` this build does not know is kept verbatim with every member it carries and
 written back unchanged. That machine is listed as unsupported, the same word in every client,

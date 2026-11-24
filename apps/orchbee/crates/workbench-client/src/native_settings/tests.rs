@@ -701,6 +701,7 @@ fn stopping_a_machines_terminals_asks_first_and_escape_asks_nothing() {
             last_attempt: None,
             explanation: Default::default(),
             stopping: false,
+            color: crate::machine_color::MachineColor::Cyan,
         }],
         ..Facts::default()
     });

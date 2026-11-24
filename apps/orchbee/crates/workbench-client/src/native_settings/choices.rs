@@ -20,6 +20,8 @@ pub enum Choice {
     CompletionReminders(CompletionReminderMode),
     /// An entry of Add profile's list, which adds a profile rather than changing a setting.
     NewProfile(NewProfile),
+    /// A saved machine's color, which its page sets in the machine catalog, not in settings.
+    MachineColor(crate::machine_color::MachineColor),
 }
 
 /// What Add profile adds: a shell installed here, or a system-shell profile to fill in.
@@ -114,6 +116,12 @@ impl Choice {
             Row::LightTheme => &LIGHT_THEMES,
             Row::DarkTheme => &DARK_THEMES,
             Row::AddProfile => &NEW_PROFILE_CHOICES,
+            Row::MachineColor => &[
+                Self::MachineColor(crate::machine_color::MachineColor::Cyan),
+                Self::MachineColor(crate::machine_color::MachineColor::Purple),
+                Self::MachineColor(crate::machine_color::MachineColor::Pink),
+                Self::MachineColor(crate::machine_color::MachineColor::Grey),
+            ],
             Row::Language => &[
                 Self::Locale(SettingsLocale::System),
                 Self::Locale(SettingsLocale::EnUs),
@@ -186,7 +194,7 @@ impl Choice {
             Self::TerminalTheme(value) => values.terminal_display_theme = value,
             Self::AgentReminders(value) => values.agent_notification_mode = value,
             Self::CompletionReminders(value) => values.completion_reminder_mode = value,
-            Self::NewProfile(_) => {}
+            Self::NewProfile(_) | Self::MachineColor(_) => {}
         }
     }
 
@@ -210,7 +218,10 @@ impl Choice {
                 }
             }
             Self::TerminalTheme(value) => preview.terminal_display_theme = value,
-            Self::AgentReminders(_) | Self::CompletionReminders(_) | Self::NewProfile(_) => {}
+            Self::AgentReminders(_)
+            | Self::CompletionReminders(_)
+            | Self::NewProfile(_)
+            | Self::MachineColor(_) => {}
         }
     }
 }

@@ -9,8 +9,9 @@ use crate::{
     action_projection::ActionTone,
     localization::{Locale, MachineText},
     machine_capacity,
+    machine_color::MachineColor,
     machine_settings::{Machine, State},
-    native_settings::{PageView, Row},
+    native_settings::{Choice, PageView, Row},
     terminal_text::{display_width, sanitize_terminal_text, truncate_display},
     tui_hit_map::{HitLayer, HitMapBuilder, InteractionTarget, ProjectedPointer},
     tui_render::controls::{QueryField, action_rect, render_action, render_query_field},
@@ -30,6 +31,7 @@ pub(super) const fn draws(row: Row) -> bool {
             | Row::ThisComputer
             | Row::Machine(_)
             | Row::MachineName
+            | Row::MachineColor
             | Row::MachineAddress
             | Row::MachineStatus
             | Row::MachineFree
@@ -75,6 +77,11 @@ struct Parts {
     value: Option<(String, Role)>,
     /// Activating the row opens a page, which the marker after its value says.
     opens: bool,
+    /// Activating the row opens a list under it, which the marker after its value says.
+    lists: bool,
+    /// A saved machine's color: its name on a list row, or the value of its Color row.
+    name_color: Option<MachineColor>,
+    value_color: Option<MachineColor>,
     /// The row's one action, a labeled button at its end.
     button: Option<(&'static str, ActionTone)>,
     /// The line under the name.
@@ -89,6 +96,9 @@ impl Parts {
             tag: None,
             value: None,
             opens: false,
+            lists: false,
+            name_color: None,
+            value_color: None,
             button: None,
             description: (description.into(), Role::TextMuted),
         }
@@ -134,6 +144,7 @@ fn parts(row: Row, page: PageView<'_>, locale: Locale) -> Option<Parts> {
         parts.name_always = true;
         parts.value = Some(end);
         parts.opens = true;
+        parts.name_color = Some(machine.color);
         return Some(parts);
     }
     if row == Row::ThisComputer {
@@ -153,6 +164,16 @@ fn parts(row: Row, page: PageView<'_>, locale: Locale) -> Option<Parts> {
     let mut parts = Parts::new(row.name(locale), row.description(locale));
     match row {
         Row::MachineName => parts.value = Some((label(machine), Role::TextSecondary)),
+        Row::MachineColor => {
+            parts.value = Some((
+                locale
+                    .settings_choice(Choice::MachineColor(machine.color))
+                    .to_owned(),
+                Role::TextPrimary,
+            ));
+            parts.lists = true;
+            parts.value_color = Some(machine.color);
+        }
         Row::MachineAddress => parts.value = Some((address(machine), Role::TextSecondary)),
         Row::MachineStatus => {
             parts.name_always = true;
@@ -253,9 +274,16 @@ fn render_framed(
     }
     fill(frame, inner, BASE, interaction, theme);
     let style = |role| on(theme, BASE, interaction, role);
+    // The colored part of the value: all of it before its marker.
+    let value_width = parts
+        .value
+        .as_ref()
+        .map_or(0, |(text, _)| display_width(text));
     let value = parts.value.map(|(text, role)| {
         if parts.opens {
             (format!("{text} {}", theme.glyphs.navigation_marker), role)
+        } else if parts.lists {
+            (format!("{text} {}", theme.glyphs.disclosure_open), role)
         } else {
             (text, role)
         }
@@ -284,13 +312,19 @@ fn render_framed(
         } else {
             Role::TextDisabled
         };
+        let name_style = match parts.name_color {
+            Some(color) if name_role == Role::TextPrimary => {
+                theme.machine_name_style(color, interaction, style(name_role))
+            }
+            _ => style(name_role),
+        };
         put(
             frame,
             name_x,
             y,
             u16::try_from(name_budget).unwrap_or(0),
             &name,
-            style(name_role),
+            name_style,
         );
         if let Some((tag, role)) = parts.tag {
             let lead = display_width(&name) + TAG_GAP;
@@ -325,6 +359,13 @@ fn render_framed(
                 &text,
                 style(*role),
             );
+            if let Some(color) = parts.value_color.filter(|_| enabled) {
+                let width = value_width.min(display_width(&text));
+                frame.buffer_mut().set_style(
+                    Rect::new(x, y, u16::try_from(width).unwrap_or(0), 1),
+                    theme.machine_name_style(color, interaction, style(*role)),
+                );
+            }
         }
     }
     let second = if first_drawn { rect.y + 1 } else { rect.y };

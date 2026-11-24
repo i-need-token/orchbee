@@ -6,6 +6,7 @@ use super::{component_state, picker_interaction, pointer_presentation, render_pi
 use crate::action_projection::ActionTone;
 use crate::client_view::{Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs};
 use crate::localization::{Locale, ManageText};
+use crate::machine_color::MachineColor;
 use crate::machine_picker::{
     AddForm, Check, Field, FormControl, MENU_KEY, MenuItem, Page, Picker, PickerAction,
     PickerSource,
@@ -149,6 +150,90 @@ fn render_field(
     }
 }
 
+/// The color as a single choice, `○ Cyan  ● Purple  ○ Pink  ○ Grey`, each name in its color. A
+/// choice that does not fit whole is left out. With focus, the caret rests on the chosen marker.
+fn render_colors(
+    frame: &mut Frame<'_>,
+    row: Rect,
+    form: &AddForm,
+    source: &PickerSource,
+    locale: Locale,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) {
+    let editable = form.editable();
+    let mut x = row.x;
+    for color in MachineColor::PALETTE {
+        let chosen = form.color == color;
+        let marker = if chosen {
+            theme.glyphs.choice_on
+        } else {
+            theme.glyphs.choice_off
+        };
+        let name = locale.machine_color_name(color);
+        let marker_width = u16::try_from(display_width(marker)).unwrap_or(u16::MAX);
+        let width = marker_width
+            .saturating_add(1)
+            .saturating_add(u16::try_from(display_width(name)).unwrap_or(u16::MAX));
+        if x.saturating_add(width) > row.right() {
+            break;
+        }
+        let rect = Rect::new(x, row.y, width, 1);
+        let base = if editable {
+            Role::TextPrimary
+        } else {
+            Role::TextDisabled
+        };
+        let interaction = picker_interaction(source, PickerAction::Form(FormControl::Color(color)));
+        let pointer = interaction
+            .as_ref()
+            .map_or(PointerPresentation::Rest, |(target, spec)| {
+                pointer_presentation(hits.projected_pointer(
+                    HitLayer::Overlay,
+                    rect,
+                    rect,
+                    target,
+                    *spec,
+                ))
+            });
+        let surface = match pointer {
+            PointerPresentation::Rest => None,
+            PointerPresentation::Hovered => Some(Role::SurfaceHover),
+            PointerPresentation::Pressed => Some(Role::SurfacePressed),
+        }
+        .filter(|_| editable);
+        let style = |role| {
+            let style = theme.style(role);
+            surface.map_or(style, |surface| style.patch(theme.style(surface)))
+        };
+        let marker_role = if editable && chosen {
+            Role::AccentAction
+        } else {
+            base
+        };
+        frame.render_widget(
+            Paragraph::new(marker).style(style(marker_role)),
+            Rect::new(x, row.y, marker_width, 1),
+        );
+        let name_style = if editable {
+            theme.machine_name_style(color, None, style(base))
+        } else {
+            style(base)
+        };
+        frame.render_widget(
+            Paragraph::new(format!(" {name}")).style(name_style),
+            Rect::new(x + marker_width, row.y, width - marker_width, 1),
+        );
+        if chosen && editable && form.field == Field::Color {
+            frame.set_cursor_position((x, row.y));
+        }
+        if let Some((target, spec)) = interaction {
+            hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+        }
+        x = x.saturating_add(width).saturating_add(2);
+    }
+}
+
 fn text_line(
     frame: &mut Frame<'_>,
     area: Rect,
@@ -186,7 +271,7 @@ impl Picker {
         let (title, rows) = match self.manage().page() {
             Page::Add(form) => (
                 locale.machine_manage_text(ManageText::AddTitle),
-                16 + if form.suggestions.is_empty() {
+                19 + if form.suggestions.is_empty() {
                     0
                 } else {
                     1 + form.suggestions.len().min(SUGGESTION_ROWS) as u16
@@ -405,6 +490,14 @@ impl Picker {
         }
         let hint = locale.machine_manage_text(ManageText::NameHint);
         text_line(frame, body, &mut y, hint, Role::TextSecondary, theme);
+        y += 1;
+        let color = locale.machine_manage_text(ManageText::Color);
+        text_line(frame, body, &mut y, color, Role::TextSecondary, theme);
+        if y < body.bottom() {
+            let row = Rect::new(body.x, y, body.width, 1);
+            render_colors(frame, row, form, source, locale, theme, hits);
+            y += 1;
+        }
         y += 1;
         let label = {
             let name = form.name.text().trim();
