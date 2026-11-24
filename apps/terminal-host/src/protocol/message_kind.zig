@@ -75,6 +75,7 @@ pub const MessageKind = struct {
     pub const terminal_output_staged: u16 = 83;
     pub const prompt_line_input: u16 = 84;
     pub const screen_gated_key_input: u16 = 85;
+    pub const read_terminal_lifecycle: u16 = 86;
     pub const attach_keeper: u16 = 90;
     pub const detach_keeper: u16 = 91;
     pub const keeper_lost: u16 = 92;

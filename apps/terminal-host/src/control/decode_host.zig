@@ -27,6 +27,30 @@ pub const ListTerminals = struct {
     cursor: ?InventoryCursor,
     maximum_terminals: usize,
 };
+
+pub const ReadTerminalLifecycle = struct {
+    terminal_id: identifiers.TerminalId,
+    creation_id: ?identifiers.CreationId,
+};
+
+pub fn decodeReadTerminalLifecycle(
+    allocator: std.mem.Allocator,
+    payload: []const u8,
+) decode_common.Error!decode_common.Decoded(control_wire.ReadTerminalLifecycle, ReadTerminalLifecycle) {
+    const parsed = try control_wire.decode(control_wire.ReadTerminalLifecycle, allocator, payload);
+    errdefer parsed.deinit();
+    return .{
+        .parsed = parsed,
+        .value = .{
+            .terminal_id = try identifiers.parseLowerHex(identifiers.TerminalId, parsed.value.terminalId),
+            .creation_id = if (parsed.value.creationId) |id|
+                try identifiers.parseLowerHex(identifiers.CreationId, id)
+            else
+                null,
+        },
+    };
+}
+
 pub fn decodeHello(
     allocator: std.mem.Allocator,
     payload: []const u8,

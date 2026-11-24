@@ -1,6 +1,6 @@
 use super::*;
 use orchbee_capability_node_protocol::{
-    HostTerminalIdentity, LifecycleInventoryPage, LifecycleStepOrdinal, LifecycleTerminalPhase,
+    HostTerminalIdentity, LifecycleStepOrdinal, LifecycleTerminalPhase,
     TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalLifecycleAction, TerminalLifecycleAuthorization,
     TerminalLifecycleOutcome, TerminalLifecycleRequest, TerminalLifecycleResult,
     TerminalViewerAction, TerminalViewerOutcome, TerminalViewerRequest, ViewerRejection,
@@ -134,11 +134,12 @@ fn real_close_disposes_twenty_four_live_viewer_entries_and_preserves_sibling_and
             TerminalLifecycleAction::InventoryPage { cursor: None },
             ordinal,
         )?;
-        let TerminalLifecycleOutcome::InventoryPage(page) = step(&mut server, query)?.outcome()
+        let TerminalLifecycleOutcome::TargetObserved(observed) =
+            step(&mut server, query)?.outcome()
         else {
-            return Err("target lifecycle inventory".into());
+            return Err("target lifecycle observation".into());
         };
-        if page.target.is_some_and(|target| {
+        if observed.is_some_and(|target| {
             matches!(
                 target.phase,
                 LifecycleTerminalPhase::Exited { .. } | LifecycleTerminalPhase::Failed
@@ -167,15 +168,10 @@ fn real_close_disposes_twenty_four_live_viewer_entries_and_preserves_sibling_and
         TerminalLifecycleAction::InventoryPage { cursor: None },
         22,
     )?;
-    assert!(matches!(
+    assert_eq!(
         step(&mut server, query)?.outcome(),
-        TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
-            returned_count: 1,
-            target: None,
-            next_cursor: None,
-            ..
-        })
-    ));
+        TerminalLifecycleOutcome::TargetObserved(None)
+    );
     assert_eq!(step(&mut server, dispose)?, disposed);
     for id in 1..=24 {
         assert_eq!(
@@ -206,13 +202,13 @@ fn real_close_disposes_twenty_four_live_viewer_entries_and_preserves_sibling_and
         TerminalLifecycleAction::InventoryPage { cursor: None },
         1,
     )?;
-    let TerminalLifecycleOutcome::InventoryPage(page) = step(&mut server, sibling_query)?.outcome()
+    let TerminalLifecycleOutcome::TargetObserved(Some(sibling)) =
+        step(&mut server, sibling_query)?.outcome()
     else {
-        return Err("sibling inventory".into());
+        return Err("sibling lifecycle observation".into());
     };
-    assert_eq!(page.returned_count, 1);
     assert!(matches!(
-        page.target.ok_or("sibling retained")?.phase,
+        sibling.phase,
         LifecycleTerminalPhase::Running { .. }
     ));
     drop(server);

@@ -307,7 +307,7 @@ test "stale HostEpoch receives a correlated failure without state mutation" {
     const correlation = [_]u8{0x33} ** 16;
     const record = try protocol.encodeTransportEnvelope(
         std.testing.allocator,
-        MessageKind.list_terminals,
+        MessageKind.read_terminal_lifecycle,
         .control_json,
         "{}",
         correlation,
@@ -326,6 +326,57 @@ test "stale HostEpoch receives a correlated failure without state mutation" {
     try std.testing.expectEqual(@as(usize, 0), serviceCore(&service).terminalCount());
     service.disconnect(&connection);
 }
+
+test "terminal lifecycle lookup distinguishes retained exit, identity conflict, and disposal" {
+    var service = HostService.init(std.testing.allocator);
+    defer service.deinit();
+    var connection: ConnectionState = .awaiting_hello;
+    defer service.disconnect(&connection);
+    try testHandshake(&service, &connection, "22222222222222222222222222222222");
+    const active = try activeConnection(&connection);
+    const creation_id = core_module.CreationId{ .bytes = [_]u8{0x41} ** 16 };
+    const terminal_id = core_module.TerminalId{ .bytes = [_]u8{0x42} ** 16 };
+    const core = serviceCore(&service);
+    _ = try createModel(core, active.connection_id, creation_id, terminal_id, [_]u8{0x43} ** 32, 80, 24);
+    _ = try core.childExited(terminal_id, .{ .exit_code = 19 });
+    _ = try core.ptyDrained(terminal_id);
+    try publishPendingCoreOutcome(&service, terminal_id);
+    const revision = core.findTerminal(terminal_id).?.observedRevision();
+    const exact = "{\"terminalId\":\"42424242424242424242424242424242\",\"creationId\":\"41414141414141414141414141414141\"}";
+    var response = try testRequest(&service, &connection, MessageKind.read_terminal_lifecycle, .control_json, exact, [_]u8{0x51} ** 16);
+    defer response.deinit();
+    try std.testing.expectEqual(@as(usize, 1), response.records().len);
+    const envelope = try protocol.validateTransportEnvelope(response.records()[0]);
+    try std.testing.expectEqual(MessageKind.read_terminal_lifecycle, envelope.kind);
+    const parsed = try std.json.parseFromSlice(std.json.Value, std.testing.allocator, envelope.payload, .{});
+    defer parsed.deinit();
+    const snapshot = parsed.value.object;
+    const identity = snapshot.get("identity").?.object;
+    var epoch_buffer: [32]u8 = undefined;
+    try std.testing.expectEqualStrings(identifierText(core.epoch, &epoch_buffer), identity.get("hostEpoch").?.string);
+    try std.testing.expectEqualStrings("41414141414141414141414141414141", identity.get("creationId").?.string);
+    try std.testing.expectEqualStrings("42424242424242424242424242424242", identity.get("terminalId").?.string);
+    try std.testing.expectEqual(revision, try std.fmt.parseUnsigned(u64, snapshot.get("revision").?.string, 10));
+    const state = snapshot.get("state").?.object;
+    try std.testing.expectEqualStrings("exited", state.get("phase").?.string);
+    try std.testing.expectEqual(@as(i64, 19), state.get("exit").?.object.get("code").?.integer);
+    try std.testing.expect(std.mem.indexOf(u8, envelope.payload, "palette") == null);
+
+    for ([_][]const u8{
+        "{\"terminalId\":\"42424242424242424242424242424242\",\"creationId\":\"33333333333333333333333333333333\"}",
+        "{\"terminalId\":\"33333333333333333333333333333333\",\"creationId\":\"41414141414141414141414141414141\"}",
+    }) |conflict| {
+        var refused = try testRequest(&service, &connection, MessageKind.read_terminal_lifecycle, .control_json, conflict, [_]u8{0x52} ** 16);
+        defer refused.deinit();
+        try expectSingleFailureCode(&refused, "identity-conflict");
+    }
+
+    try std.testing.expectEqual(.applied, try core.disposeTerminal(active.connection_id, terminal_id));
+    var missing = try testRequest(&service, &connection, MessageKind.read_terminal_lifecycle, .control_json, exact, [_]u8{0x53} ** 16);
+    defer missing.deinit();
+    try expectSingleFailureCode(&missing, "missing-resource");
+}
+
 test "unknown optional request is skipped without state mutation" {
     var service = HostService.init(std.testing.allocator);
     defer service.deinit();

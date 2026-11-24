@@ -376,13 +376,7 @@ fn apply(
             if accepted.attachment_id != id || accepted.demand != ProjectionDemand::Active {
                 return Err(UnexpectedAnswer::of(&response).into());
             }
-            match lifecycle::snapshot(
-                host,
-                server,
-                orchbee_capability_node_protocol::HostTerminalId::from_bytes(
-                    *terminal_id.as_bytes(),
-                )?,
-            )? {
+            match lifecycle::snapshot(host, server, terminal_id)? {
                 Ok(Some(record)) => host.viewers.borrow_mut().receive(record, host.host_epoch()),
                 Ok(None) => {}
                 // A refused Attach grants nothing, so the new Host attachment goes first.

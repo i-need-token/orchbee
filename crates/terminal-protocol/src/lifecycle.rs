@@ -4,6 +4,13 @@
 
 use serde::{Deserialize, Serialize};
 
+mod observation;
+
+use observation::{
+    READ_TERMINAL_LIFECYCLE_KIND, ReadTerminalLifecycleWire, TerminalLifecycleSnapshotWire,
+};
+pub use observation::{ReadTerminalLifecycle, TerminalLifecycleSnapshot, TerminalLifecycleState};
+
 use crate::{
     MessageRole, ProtocolError, ProtocolErrorCode, TerminalId,
     control::{decode_wire, preflight_json, serialize_wire},
@@ -80,6 +87,8 @@ pub enum LifecycleControl {
     ForceTerminateTerminal(TerminalTarget),
     ForceTerminateTerminalAccepted(TerminalTarget),
     TerminalFailed(TerminalFailed),
+    ReadTerminalLifecycle(ReadTerminalLifecycle),
+    TerminalLifecycleSnapshot(TerminalLifecycleSnapshot),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -141,6 +150,16 @@ pub fn decode_lifecycle_control(
         (TERMINAL_FAILED_KIND, MessageRole::Event) => decode_wire::<TerminalFailedWire>(payload)
             .and_then(terminal_failed_from_wire)
             .map(LifecycleControl::TerminalFailed),
+        (READ_TERMINAL_LIFECYCLE_KIND, MessageRole::Request) => {
+            decode_wire::<ReadTerminalLifecycleWire>(payload)
+                .and_then(ReadTerminalLifecycle::try_from)
+                .map(LifecycleControl::ReadTerminalLifecycle)
+        }
+        (READ_TERMINAL_LIFECYCLE_KIND, MessageRole::Response) => {
+            decode_wire::<TerminalLifecycleSnapshotWire>(payload)
+                .and_then(TerminalLifecycleSnapshot::try_from)
+                .map(LifecycleControl::TerminalLifecycleSnapshot)
+        }
         // This codec accepts only its declared message family and request/response roles.
         _ => Err(invalid_field(
             "message kind and role do not select a terminal-lifecycle payload",
@@ -206,6 +225,16 @@ pub fn encode_lifecycle_control(
             TERMINAL_FAILED_KIND,
             MessageRole::Event,
             serialize_wire(&terminal_failed_to_wire(*failed)?)?,
+        ),
+        LifecycleControl::ReadTerminalLifecycle(target) => (
+            READ_TERMINAL_LIFECYCLE_KIND,
+            MessageRole::Request,
+            serialize_wire(&ReadTerminalLifecycleWire::from(*target))?,
+        ),
+        LifecycleControl::TerminalLifecycleSnapshot(snapshot) => (
+            READ_TERMINAL_LIFECYCLE_KIND,
+            MessageRole::Response,
+            serialize_wire(&TerminalLifecycleSnapshotWire::try_from(*snapshot)?)?,
         ),
     };
     Ok(EncodedLifecycleControl {

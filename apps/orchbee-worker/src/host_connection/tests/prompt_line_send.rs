@@ -41,6 +41,7 @@ fn host(prompt_gated_input: bool) -> TestResult<(HostBrokerConnection, UnixStrea
             endpoint: std::path::PathBuf::new(),
             host_epoch: HostEpoch::from_bytes(EPOCH)?,
             prompt_gated_input,
+            terminal_lifecycle_read: false,
             screen_gated_send: prompt_gated_input,
             screen_gated_prompt: false,
             #[cfg(any(windows, target_os = "macos"))]

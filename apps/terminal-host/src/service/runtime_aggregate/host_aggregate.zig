@@ -89,6 +89,7 @@ pub const HostRuntimeAggregate = struct {
     pub const inventoryGeneration = inventory.inventoryGeneration;
     pub const terminalCount = inventory.terminalCount;
     pub const terminalInventory = inventory.terminalInventory;
+    pub const readTerminalLifecycle = inventory.readTerminalLifecycle;
     pub const connect = inventory.connect;
     pub const commitOutcomePublications = inventory.commitOutcomePublications;
 

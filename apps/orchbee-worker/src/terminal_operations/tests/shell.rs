@@ -89,12 +89,22 @@ pub(super) fn reply(peer: &mut LocalStream, request: &[u8], kind: u16, payload: 
     .unwrap();
 }
 pub(super) fn connected_host() -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStream) {
+    connected_host_with_lifecycle(false)
+}
+
+pub(super) fn connected_host_with_lifecycle(
+    terminal_lifecycle_read: bool,
+) -> (HostBrokerConnection, Rc<RefCell<AgentDrain>>, LocalStream) {
     let endpoint = crate::tests::endpoint();
     let listener = LocalListener::bind(&endpoint).unwrap();
     let task = thread::spawn(move || {
         let (mut peer, _) = listener.accept().unwrap();
         timeout(&peer);
-        crate::host_connection::answer_test_offer(&mut peer).unwrap();
+        crate::host_connection::answer_test_offer_with_lifecycle(
+            &mut peer,
+            terminal_lifecycle_read,
+        )
+        .unwrap();
         let bytes = record(&mut peer);
         let envelope = decode_transport_envelope(&bytes).unwrap();
         let ConnectionControl::Hello(hello) =

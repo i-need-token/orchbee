@@ -213,6 +213,24 @@ changes do not. A generation mismatch returns `stale-inventory-cursor`, so one t
 combines two memberships. Every page remains within the 64 KiB control bound, and the protocol sets
 no total terminal count limit.
 
+### Terminal lifecycle lookup
+
+The Worker uses `ReadTerminalLifecycle` (kind 86, Control JSON request and response) when the
+Host's `worker-host` answer includes `terminal-lifecycle-read`. The request body is
+`{ terminalId, creationId }`; a null or omitted creation ID selects by terminal ID for a viewer
+the Host just attached. Exact binding reads include the creation ID. Both use the envelope's Host
+epoch. An absent terminal receives non-retryable `missing-resource`. If either retained identity
+names a different binding, the Host returns non-retryable `identity-conflict`.
+
+The Host synchronizes the addressed terminal and responds with `{ identity, revision, state }`.
+The identity echoes all three Host identifiers. The revision is a canonical decimal u64 string.
+`state.phase` is one of the inventory phases. Running, finishing and exited state include
+`terminateRequested`; exited state also includes `exit`, and failed state includes `failure` and
+`process` using the lifecycle event payloads' types. Awaiting-start and containing-failure state
+carry only their phase. Geometry, configuration and theme belong to the complete inventory.
+
+### Start, termination and disposal
+
 An `awaiting-start` inventory summary carries null `columns` and `rows`, no exit, failure,
 containment, or process observation, and `terminateRequested: false`. Started phases carry positive
 grid geometry. An exact `StartTerminal` replay after startup returns the original identity and
@@ -693,7 +711,7 @@ into the Host, and these kinds freeze with it.
 | `41-58`   | Projection and effects                     | `SnapshotFrame=41`, `DeltaFrame=42`, `FrameApplied=43`, `NeedSnapshot=44`, `ReadRows=45`, `RowsSnapshot=46`, `SetProjectionDemand=47`, `ProjectionDemandAccepted=48`, `ProjectionBlocked=49`, `RowsApplied=50`, `SetHistoryDemand=51`, `HistoryDemandAccepted=52`, `HistoryChanged=53`, `HistoryObserved=54`, `TerminalBell=55`, `TerminalClipboardWriteRequest=56`, `TerminalMetadataChanged=57`, `TerminalApplicationSignal=58` |
 | `60-68`   | Selection and export                       | `SelectionGesture=60`, `SelectionCommand=61`, `SelectionChanged=62`, `SelectionExport=63`, `SelectionExportStarted=64`, `SelectionExportChunk=65`, `SelectionExportChunkApplied=66`, `SelectionExportFinished=67`, `SelectionExportCancel=68`                                                                                                                                                                                     |
 | `70-78`   | Terminal configuration, control, and theme | `SetTerminalDefaults=70`, `TerminalDefaultsAccepted=71`, `UpdateTerminalConfiguration=72`, `TerminalConfigurationAccepted=73`, `ClearTerminal=74`, `ResetTerminal=75`, `TerminalControlAccepted=76`, `ApplyTerminalTheme=77`, `TerminalThemeResult=78`                                                                                                                                                                            |
-| `79-85`   | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`                                                                                                                                                                                                                                                        |
+| `79-86`   | Host services                              | `ReadProcessInfo=79`, `DecodeGraphicsPng=80`, `GraphicsPngDecoded=81`, `StageTerminalOutput=82`, `TerminalOutputStaged=83`, `PromptLineInput=84`, `ScreenGatedKeyInput=85`, `ReadTerminalLifecycle=86`                                                                                                                                                                                                                            |
 | `90-106`  | Host handover                              | `AttachKeeper=90`, `DetachKeeper=91`, `KeeperLost=92`, `KeeperUnresponsive=93`, `TerminalUnheld=94`, `QuiesceTerminal=95`, `ReadHandoverRecord=96`, `HandoverRecordChunk=97`, `ResumeTerminal=98`, `DropTerminal=99`, `ImportTerminal=100`, `WriteHandoverRecord=101`, `HandoverRecordWritten=102`, `RestoreTerminal=103`, `ClaimTerminal=104`, `DiscardImport=105`, `RecoverTerminal=106`                                        |
 | `110-116` | Background programs                        | `StartProgram=110`, `ProgramExited=111`, `CancelProgram=112`, `ReadProgramOutput=113`, `DisposeProgram=114`, `ListPrograms=115`, `RecoverProgram=116`                                                                                                                                                                                                                                                                             |
 

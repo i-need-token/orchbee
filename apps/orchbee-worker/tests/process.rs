@@ -20,10 +20,10 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, ConnectionKind, Decision,
+    AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CapabilitySet, ConnectionKind, Decision,
     EnvironmentName, InitiatorMessage, Offer, OfferFailure, ProcessState, ProductVersion,
-    RejectionReason as HandshakeRejection, conclude_offer, encode_acceptor_frame,
-    encode_initiator_frame, read_acceptor_message, read_initiator_message,
+    RejectionReason as HandshakeRejection, TERMINAL_LIFECYCLE_READ, conclude_offer,
+    encode_acceptor_frame, encode_initiator_frame, read_acceptor_message, read_initiator_message,
 };
 use orchbee_local_peer_credentials::require_same_effective_user;
 use orchbee_local_worker_protocol::{
@@ -310,16 +310,24 @@ fn worker_host_identity() -> io::Result<(ProductVersion, EnvironmentName)> {
     ))
 }
 
-/// Answers the Worker's `worker-host` offer as a Host of this build does before OBTP.
+/// Answers the Worker's `worker-host` offer for a scripted Host that serves inventory pages.
 fn answer_worker_offer(stream: &mut UnixStream) -> io::Result<()> {
     let offer = read_initiator_message(stream).map_err(protocol_io)?;
     let (product_version, environment) = worker_host_identity()?;
-    let profile = AcceptorProfile::local(
+    let mut profile = AcceptorProfile::local(
         ConnectionKind::WorkerHost,
         product_version,
         Build::default(),
         environment,
     );
+    profile.capabilities = CapabilitySet::new(
+        profile
+            .capabilities
+            .iter()
+            .filter(|capability| capability.as_str() != TERMINAL_LIFECYCLE_READ)
+            .cloned(),
+    )
+    .map_err(protocol_io)?;
     let load = AcceptorLoad {
         session_slot_free: true,
         control_slot_free: true,

@@ -87,6 +87,7 @@ fn windows_host() -> Result<
         endpoint: std::path::PathBuf::new(),
         host_epoch: HostEpoch::from_bytes([2; 16])?,
         prompt_gated_input: true,
+        terminal_lifecycle_read: false,
         screen_gated_send: true,
         screen_gated_prompt: false,
         #[cfg(any(windows, target_os = "macos"))]

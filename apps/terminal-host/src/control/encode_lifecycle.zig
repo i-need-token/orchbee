@@ -2,6 +2,50 @@
 const std = @import("std");
 const identifierText = @import("encode_common.zig").identifierText;
 
+pub fn terminalLifecycleSnapshot(
+    allocator: std.mem.Allocator,
+    host_epoch: anytype,
+    terminal: anytype,
+) ![]u8 {
+    var creation_buffer: [32]u8 = undefined;
+    var epoch_buffer: [32]u8 = undefined;
+    var terminal_buffer: [32]u8 = undefined;
+    var writer: std.Io.Writer.Allocating = .init(allocator);
+    defer writer.deinit();
+    const phase = terminal.phase();
+    try writer.writer.print(
+        "{{\"identity\":{{\"creationId\":\"{s}\",\"hostEpoch\":\"{s}\",\"terminalId\":\"{s}\"}},\"revision\":\"{d}\",\"state\":{{\"phase\":\"{s}\"",
+        .{
+            identifierText(terminal.creation_id, &creation_buffer),
+            identifierText(host_epoch, &epoch_buffer),
+            identifierText(terminal.terminal_id, &terminal_buffer),
+            terminal.observedRevision(),
+            terminalPhaseText(phase),
+        },
+    );
+    switch (phase) {
+        .running, .finishing, .exited => try writer.writer.print(",\"terminateRequested\":{}", .{terminal.terminateRequested()}),
+        .awaiting_start, .containing_failure, .failed => {},
+    }
+    switch (phase) {
+        .exited => {
+            const exit_json = try exitResultJson(allocator, terminal.exitResult().?);
+            defer allocator.free(exit_json);
+            try writer.writer.print(",\"exit\":{s}", .{exit_json});
+        },
+        .failed => {
+            const failure_json = try runtimeFailureJson(allocator, terminal.runtimeFailure().?);
+            defer allocator.free(failure_json);
+            const process_json = try processObservationJson(allocator, terminal.failedProcess().?);
+            defer allocator.free(process_json);
+            try writer.writer.print(",\"failure\":{s},\"process\":{s}", .{ failure_json, process_json });
+        },
+        .awaiting_start, .running, .finishing, .containing_failure => {},
+    }
+    try writer.writer.writeAll("}}");
+    return writer.toOwnedSlice();
+}
+
 pub fn terminalExited(
     allocator: std.mem.Allocator,
     host_epoch: anytype,

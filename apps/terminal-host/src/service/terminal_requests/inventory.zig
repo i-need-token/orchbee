@@ -112,3 +112,30 @@ pub fn handleList(
         host_response.responseDelivery(correlation_id, self.context.hostEpoch()),
     );
 }
+
+pub fn handleReadLifecycle(
+    self: anytype,
+    envelope: protocol.EnvelopeSummary,
+    correlation_id: WireIdentifier,
+    outgoing: *Outgoing,
+) !void {
+    if (!try self.context.requireControl(envelope, correlation_id, outgoing)) return;
+    var decoded = control_decode.decodeReadTerminalLifecycle(self.context.allocator, envelope.payload) catch |err|
+        return self.context.rejectControlDecode(outgoing, correlation_id, err, "ReadTerminalLifecycle payload is invalid");
+    defer decoded.deinit();
+    const target = decoded.value;
+    const terminal = self.context.runtime_aggregate.readTerminalLifecycle(target.terminal_id, target.creation_id) catch |err|
+        return switch (err) {
+            error.MissingResource => self.context.addFailure(outgoing, correlation_id, "missing-resource", "terminal is absent", false),
+            error.IdentityConflict => self.context.addFailure(outgoing, correlation_id, "identity-conflict", "terminal creation and terminal IDs disagree", false),
+        };
+    const epoch = self.context.hostEpoch();
+    const payload = try control_encode.terminalLifecycleSnapshot(self.context.allocator, epoch, terminal);
+    defer self.context.allocator.free(payload);
+    _ = try host_response.appendControlSuccess(
+        outgoing,
+        self.success,
+        payload,
+        host_response.responseDelivery(correlation_id, epoch),
+    );
+}

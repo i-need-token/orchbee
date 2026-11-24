@@ -154,6 +154,7 @@ pub enum TerminalLifecycleOutcome {
     Disposed,
     Retired,
     InventoryPage(LifecycleInventoryPage),
+    TargetObserved(Option<LifecycleTargetObservation>),
     Rejected(LifecycleRejection),
     HostFailure(LifecycleHostFailure),
     InventoryFailure(LifecycleInventoryFailure),
@@ -200,13 +201,19 @@ impl TerminalLifecycleResult {
             }
             Action::Retire => matches!(outcome, Outcome::Retired) || failed,
             Action::InventoryPage { cursor } | Action::InspectInventoryPage { cursor } => {
-                if let Outcome::InventoryPage(page) = outcome {
-                    validate_page(cursor, page)?;
+                match outcome {
+                    Outcome::InventoryPage(page) => {
+                        validate_page(cursor, page)?;
+                        true
+                    }
+                    Outcome::TargetObserved(_) => {
+                        cursor.is_none()
+                            && request.authorization.capability_version
+                                == TERMINAL_LIFECYCLE_CAPABILITY_VERSION
+                    }
+                    Outcome::InventoryFailure(_) => true,
+                    _ => failed,
                 }
-                matches!(
-                    outcome,
-                    Outcome::InventoryPage(_) | Outcome::InventoryFailure(_)
-                ) || failed
             }
         };
         if !compatible {

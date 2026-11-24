@@ -2,14 +2,16 @@ use super::*;
 use crate::terminal_authorization::{HostOperationAdmission, LifecycleAdmission};
 use orchbee_capability_node_protocol::{
     AuthorizedTerminalStart, HostCreationId, HostTerminalId, HostTerminalIdentity,
-    LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleStepOrdinal, OperationId,
-    TERMINAL_LAUNCH_CAPABILITY_VERSION, TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalFence,
-    TerminalId, TerminalLifecycleAuthorization, TerminalOperationAuthorization,
-    TerminalOperationLease, TerminalPixelGeometry, WorkerGeneration, WorkerId,
+    LeaseExpiresAtUnixMilliseconds, LeaseId, LifecycleStepOrdinal, LifecycleTargetObservation,
+    LifecycleTerminalPhase, OperationId, TERMINAL_LAUNCH_CAPABILITY_VERSION,
+    TERMINAL_LIFECYCLE_CAPABILITY_VERSION, TerminalFence, TerminalId,
+    TerminalLifecycleAuthorization, TerminalOperationAuthorization, TerminalOperationLease,
+    TerminalPixelGeometry, WorkerGeneration, WorkerId,
 };
 use orchbee_local_ipc::{LocalListener as UnixListener, LocalStream as UnixStream};
 use orchbee_terminal_protocol::{
-    HelloAccepted, HostEpoch, TRANSPORT_ENVELOPE_HEADER_BYTES, encode_connection_control,
+    HelloAccepted, HostEpoch, TRANSPORT_ENVELOPE_HEADER_BYTES, TerminalSummary,
+    encode_connection_control,
 };
 use std::{
     cell::RefCell,
@@ -316,14 +318,14 @@ fn host_ack_checks_envelope_action_and_terminal_without_invented_creation_echo()
     let request = request(TerminalLifecycleAction::Dispose)?;
     let valid = ack(request)?;
     assert_eq!(
-        response_outcome(request, &valid)?,
+        response_outcome(request, &valid, None)?,
         TerminalLifecycleOutcome::Disposed
     );
     for (offset, value) in [(12, 0_u8), (20, 12), (24, 99), (40, 99), (4, 99)] {
         let mut invalid = valid.clone();
         invalid[offset] = value;
         assert!(
-            response_outcome(request, &invalid).is_err(),
+            response_outcome(request, &invalid, None).is_err(),
             "offset {offset}"
         );
     }
@@ -335,7 +337,7 @@ fn host_ack_checks_envelope_action_and_terminal_without_invented_creation_echo()
         ),
         ..request
     };
-    assert!(response_outcome(wrong, &valid).is_err());
+    assert!(response_outcome(wrong, &valid, None).is_err());
     // Creation identity belongs to the retained authorization, not the Host ACK payload.
     assert!(std::str::from_utf8(&valid[64..])?.contains("terminalId"));
     assert!(!std::str::from_utf8(&valid[64..])?.contains("creationId"));
@@ -425,7 +427,7 @@ fn typed_failures_remain_known_and_never_imply_disposal() -> TestResult {
             HostEpoch::from_bytes([4; 16])?,
             CorrelationId::from_bytes(request.request_id.as_bytes())?,
         )?;
-        assert_eq!(response_outcome(request, &record)?, expected);
+        assert_eq!(response_outcome(request, &record, None)?, expected);
     }
     Ok(())
 }

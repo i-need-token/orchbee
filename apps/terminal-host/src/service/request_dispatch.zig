@@ -63,6 +63,7 @@ pub const Dispatcher = struct {
             .ping,
             .read_process_info,
             .list_terminals,
+            .read_terminal_lifecycle,
             .create_terminal,
             .start_terminal,
             .terminate_terminal,

@@ -119,16 +119,14 @@ establish it. A retained Started result or a Client's attached panes is not live
 
 For runtimes, the service drops registry/Session locks and then gathers the same evidence, and
 decides by the same rule, as a conditional [Tab or Panel Close](#tab-and-panel): each member's
-read-only `InspectInventoryPage` walk, then one on-demand read of every live member through the
+read-only lifecycle inspection, then one on-demand read of every live member through the
 process observer. Every target pins Worker generation, binding fence and full Host
 creation/epoch/terminal identity. Because a Workspace reads every Tab's terminals in turn, one
 four-second budget covers its whole scope; slow outstanding transport keeps its existing carrier
-response bound and cannot renew this budget. A walk reads page after page until its inventory ends,
-and every accepted page advances from its request's cursor, so the budget alone bounds it; a walk
-the budget ends leaves its member unproven, which asks. Every target requires complete
-generation-consistent inventory and exactly one match. The inventory reports only phase, so a scope
-whose terminals the Server cannot read asks. Final admission repeats ordinary guards and exact
-runtime matching under the Session gate.
+response bound and cannot renew this budget. Each target requires an exact lifecycle observation.
+On a Host that serves inventory pages, the walk reads to the end of one generation and needs
+exactly one match. An absent, failed or incomplete inspection leaves its member unproven, which
+asks. Final admission repeats ordinary guards and exact runtime matching under the Session gate.
 A same-base `confirmation-required` retains no Close credit, fence, publication or runtime effect;
 revision/structural conflicts retain their ordinary precise outcomes.
 
@@ -192,7 +190,7 @@ Workspace's terminals some other way, such as moving the Workspace to another ma
 - The answer is `idle` exactly when a conditional Workspace Close admitted at that moment would
   accept, and `busy` otherwise, because a move or a close must not end a program unasked where the
   other would ask. Members come from the same complete Presentation membership, each with the same
-  `Uncreated`, `QuietRuntime` or runtime evidence, the same read-only inventory walk and the same
+  `Uncreated`, `QuietRuntime` or runtime evidence, the same read-only lifecycle inspection and the same
   process-observer read, within one four-second budget.
 - `busy` names every member that keeps the Workspace from closing unasked, with `running` when its
   shell reported a running command or a program holds its console and `unknown` when the evidence
@@ -225,14 +223,14 @@ A conditional request for a Close the Server has given up on, parked resumable, 
 The Server, not a Client, decides whether such a Close asks first. Under the registry → Session
 gates the service captures the exact member runtimes and reserves nothing; a runtime it cannot
 resolve asks. It drops both gates, then one one-second budget covers each runtime's read-only
-`InspectInventoryPage` walk and the read of every live runtime through the process observer. One
+lifecycle inspection and the read of every live runtime through the process observer. One
 on-demand job carries every live target and reads each on a temporary observation viewer, a fresh
 frame first and then one process sample, and stops at the first terminal that asks. Final admission
 re-enters the gates, repeats every ordinary guard and counts each proof only for the exact runtime
 it was read from: Worker generation, binding fence and full Host identity. A changed runtime asks;
 revision drift keeps its ordinary `revision-mismatch`.
 
-A member closes unasked when its inventory shows it Exited or Failed, or its own read shows
+A member closes unasked when its lifecycle observation reports Exited or Failed, or its own read shows
 nothing beyond an idle shell. Two facts decide. The shell's report comes from the frame: the
 reader's correlated markers, else the OSC 133 prompt marks on a complete frame's rows; a
 full-screen view or a delta frame reports nothing. The process sample proves a shell only when its
@@ -243,7 +241,7 @@ program holding the console asks. A shell at its prompt closes even when its sam
 unavailable or late; a silent shell is judged by its sample alone. A fact the budget leaves unread
 counts as silence or as unknown, so at expiry an unread terminal closes only on its shell's prompt
 report. A busy or stopped sampler, a refused observation attach, an uncertain viewer cleanup, or a
-missing or failed inventory page asks. A program the sample cannot see and the shell does not report still closes unasked,
+missing or failed lifecycle read asks. A program the sample cannot see and the shell does not report still closes unasked,
 such as a cmdlet under the system ConHost whose output scrolled its own prompt off the screen. An
 Orchbee `cmd` marks its prompt but never its commands, so `pause` or `set /p` leaves the cursor
 below the marked prompt and asks.
@@ -474,10 +472,10 @@ The Worker lifecycle-step boundary carries product binding, Worker generation, f
 operation/step correlation and fresh authorization; a Viewer ID is not lifecycle authority. Reuse
 Host Terminate, Force and Dispose. Host ACK carries terminal ID, while its envelope supplies epoch
 and correlation; the prepared seal and full OBCN result retain creation/Worker-generation identity.
-Validate these actual fields rather than require nonexistent ACK echoes. Retain exact
-lifecycle observations or obtain them through inventory; validating and discarding events is insufficient.
+Validate these actual fields. Each observation uses the Host's exact terminal lookup where available.
+It establishes either the target's current lifecycle or its absence in the bound Host epoch.
 
-An inventory walk begins without a cursor and stays in one Host epoch/inventory generation.
+On older Hosts, an inventory walk begins without a cursor and stays in one Host epoch/inventory generation.
 Validate bounded page size and contiguous advancing cursor/generation; retain bounded target-match
 facts. Every page, stale-cursor response and restarted first page spends the same step/deadline/query
 budget. A stale cursor discards the incomplete walk and may restart only within remaining allowance.
@@ -823,7 +821,7 @@ under the same operation ID is a `conflict`.
 
 An `if-idle` Start decides like a conditional [Workspace Close](#conditional-idle-admission): the
 gates capture every member's runtimes and reserve nothing, then one four-second budget covers every
-member's inventory walk and the read of every live member, outside the gates. Final admission repeats every guard and counts each proof only for the exact runtime it was
+member's lifecycle inspection and the read of every live member, outside the gates. Final admission repeats every guard and counts each proof only for the exact runtime it was
 read from. When any member asks, the answer is `confirmation-required`: nothing is retained or
 closed, and the operation ID stays free. A `confirmed` Start is admitted at once.
 

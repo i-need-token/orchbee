@@ -166,8 +166,7 @@ impl LocalTerminalService {
         proof
     }
 
-    /// Walks the inventory page by page until it ends, or reports nothing once `deadline` passes.
-    /// A page is accepted only when it advances from its request's cursor, so the walk always ends.
+    /// Reads one target, following generation-scoped pages when the Host serves inventory.
     pub(super) fn inspect_close_target(
         &self,
         handle: &WorkerRequestHandle,
@@ -192,8 +191,10 @@ impl LocalTerminalService {
             if result.request() != request || Instant::now() >= deadline {
                 return None;
             }
-            let TerminalLifecycleOutcome::InventoryPage(page) = result.outcome() else {
-                return None;
+            let page = match result.outcome() {
+                TerminalLifecycleOutcome::TargetObserved(target) => return target,
+                TerminalLifecycleOutcome::InventoryPage(page) => page,
+                _ => return None,
             };
             if generation.is_some_and(|generation| generation != page.inventory_generation)
                 || (found.is_some() && page.target.is_some())

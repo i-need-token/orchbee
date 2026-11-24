@@ -35,14 +35,11 @@ pub(super) fn encode_result(result: TerminalLifecycleResult) -> Vec<u8> {
             bytes.extend(page.inventory_generation.get().to_be_bytes());
             encode_cursor(&mut bytes, page.next_cursor);
             bytes.extend(page.returned_count.to_be_bytes());
-            match page.target {
-                None => bytes.push(0),
-                Some(target) => {
-                    bytes.push(1);
-                    bytes.extend(target.revision.to_be_bytes());
-                    encode_phase(&mut bytes, target.phase);
-                }
-            }
+            encode_observation(&mut bytes, page.target);
+        }
+        TerminalLifecycleOutcome::TargetObserved(target) => {
+            bytes.push(11);
+            encode_observation(&mut bytes, target);
         }
         TerminalLifecycleOutcome::Rejected(reason) => bytes.extend([
             5,
@@ -101,18 +98,12 @@ pub(super) fn decode_result(bytes: &[u8]) -> Result<TerminalLifecycleResult, Pro
         2 => TerminalLifecycleOutcome::ForceAccepted,
         3 => TerminalLifecycleOutcome::Disposed,
         10 => TerminalLifecycleOutcome::Retired,
+        11 => TerminalLifecycleOutcome::TargetObserved(decode_observation(&mut reader)?),
         4 => {
             let inventory_generation = positive(reader.read_u64()?)?;
             let next_cursor = decode_cursor(&mut reader)?;
             let returned_count = reader.read_u16()?;
-            let target = match reader.read_u8()? {
-                0 => None,
-                1 => Some(LifecycleTargetObservation {
-                    revision: reader.read_u64()?,
-                    phase: decode_phase(&mut reader)?,
-                }),
-                _ => return Err(ProtocolError::InvalidPayload),
-            };
+            let target = decode_observation(&mut reader)?;
             TerminalLifecycleOutcome::InventoryPage(LifecycleInventoryPage {
                 inventory_generation,
                 next_cursor,
@@ -182,6 +173,29 @@ fn encode_request_body(bytes: &mut Vec<u8>, request: TerminalLifecycleRequest) {
             encode_cursor(bytes, cursor);
         }
         TerminalLifecycleAction::Retire => bytes.push(7),
+    }
+}
+
+fn encode_observation(bytes: &mut Vec<u8>, observation: Option<LifecycleTargetObservation>) {
+    if let Some(target) = observation {
+        bytes.push(1);
+        bytes.extend(target.revision.to_be_bytes());
+        encode_phase(bytes, target.phase);
+    } else {
+        bytes.push(0);
+    }
+}
+
+fn decode_observation(
+    reader: &mut PayloadReader<'_>,
+) -> Result<Option<LifecycleTargetObservation>, ProtocolError> {
+    match reader.read_u8()? {
+        0 => Ok(None),
+        1 => Ok(Some(LifecycleTargetObservation {
+            revision: reader.read_u64()?,
+            phase: decode_phase(reader)?,
+        })),
+        _ => Err(ProtocolError::InvalidPayload),
     }
 }
 

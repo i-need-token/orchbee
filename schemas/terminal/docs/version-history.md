@@ -78,4 +78,6 @@ fixtures, not a compatibility artifact.
   ended left there; this release freezes the Keeper's claimant, Worker, and recovery fixture
   groups. It declares the capability `background-programs` with the
   [background program](../references/protocol.md#background-programs) kinds 110 to 115, which a
-  Windows Terminal Host offers; no release Worker offers it yet. Generations stay at 1.
+  Windows Terminal Host offers; no release Worker offers it yet. `terminal-lifecycle-read` adds
+  [ReadTerminalLifecycle](../references/protocol.md#terminal-lifecycle-lookup) (86), a compact exchange
+  scoped to one retained terminal. Generations stay at 1.

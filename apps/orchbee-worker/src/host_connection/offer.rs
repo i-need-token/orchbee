@@ -13,7 +13,7 @@ use orchbee_connection_handshake::{
     BACKGROUND_PROGRAMS, Build, CapabilityName, CapabilitySet, ConnectionKind, EnvironmentName,
     HANDOVER, InitiatorMessage, KEEPER, Offer, OfferFailure, PROMPT_GATED_INPUT, ProductVersion,
     RECOVERY, ReadError, RejectionReason, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND, SourceCommit,
-    conclude_offer, encode_initiator_frame, read_acceptor_message,
+    TERMINAL_LIFECYCLE_READ, conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
 
 /// How long a Worker waits before it dials a busy Host again.
@@ -42,6 +42,7 @@ pub(super) struct Answer {
     pub(super) screen_gated_send: bool,
     /// The Host can queue a whole prompt with the screen gate (`screen-gated-prompt`).
     pub(super) screen_gated_prompt: bool,
+    pub(super) terminal_lifecycle_read: bool,
     /// Whether the Host holds its running terminals in a Keeper this Worker attaches
     /// (`keeper`) and recovers a program the Keeper kept after its Host ended (`recovery`).
     #[cfg(any(windows, target_os = "macos"))]
@@ -135,6 +136,7 @@ pub(super) fn exchange(
             prompt_gated_input: answer.capabilities.contains(PROMPT_GATED_INPUT),
             screen_gated_send: answer.capabilities.contains(SCREEN_GATED_SEND),
             screen_gated_prompt: answer.capabilities.contains(SCREEN_GATED_PROMPT),
+            terminal_lifecycle_read: answer.capabilities.contains(TERMINAL_LIFECYCLE_READ),
             #[cfg(any(windows, target_os = "macos"))]
             keeper: super::KeeperTerms {
                 keeper: answer.capabilities.contains(KEEPER),
@@ -201,6 +203,14 @@ fn refused(message: &str) -> Box<dyn Error> {
 /// handshake before its scripted OBTP records.
 #[cfg(test)]
 pub(crate) fn answer_test_offer(stream: &mut (impl Read + Write)) -> io::Result<()> {
+    answer_test_offer_with_lifecycle(stream, false)
+}
+
+#[cfg(test)]
+pub(crate) fn answer_test_offer_with_lifecycle(
+    stream: &mut (impl Read + Write),
+    terminal_lifecycle_read: bool,
+) -> io::Result<()> {
     use orchbee_connection_handshake::{
         AcceptorLoad, AcceptorMessage, AcceptorProfile, Decision, ProcessState,
         encode_acceptor_frame, read_initiator_message,
@@ -210,12 +220,22 @@ pub(crate) fn answer_test_offer(stream: &mut (impl Read + Write)) -> io::Result<
     let product_version = ProductVersion::new("0.1.0").map_err(io::Error::other)?;
     let environment = EnvironmentName::new(orchbee_local_runtime::environment_stem())
         .map_err(io::Error::other)?;
-    let profile = AcceptorProfile::local(
+    let mut profile = AcceptorProfile::local(
         ConnectionKind::WorkerHost,
         product_version,
         Build::default(),
         environment,
     );
+    if !terminal_lifecycle_read {
+        profile.capabilities = CapabilitySet::new(
+            profile
+                .capabilities
+                .iter()
+                .filter(|capability| capability.as_str() != TERMINAL_LIFECYCLE_READ)
+                .cloned(),
+        )
+        .map_err(io::Error::other)?;
+    }
     let load = AcceptorLoad {
         session_slot_free: true,
         control_slot_free: true,

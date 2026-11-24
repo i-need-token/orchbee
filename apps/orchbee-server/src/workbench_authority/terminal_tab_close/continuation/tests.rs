@@ -499,8 +499,11 @@ fn exact_settled_observation_ends_grace_early_without_force() {
         &mut close,
         now,
         NonZeroU64::MIN,
-        final_page(Some(LifecycleTerminalPhase::Exited {
-            terminate_requested: true,
+        TerminalLifecycleOutcome::TargetObserved(Some(LifecycleTargetObservation {
+            revision: 1,
+            phase: LifecycleTerminalPhase::Exited {
+                terminate_requested: true,
+            },
         })),
     );
     assert!(matches!(

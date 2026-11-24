@@ -313,6 +313,13 @@ pub fn messageContract(kind: u16) ?MessageContract {
         M.paste_auto_input => requestOnly("PasteAutoInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.prompt_line_input => requestOnly("PromptLineInput", .semantic_input, .raw_bytes, M.input_accepted),
         M.screen_gated_key_input => requestOnly("ScreenGatedKeyInput", .semantic_input, .raw_bytes, M.input_accepted),
+        M.read_terminal_lifecycle => requestAndResponse(
+            "ReadTerminalLifecycle",
+            .read_terminal_lifecycle,
+            .control_json,
+            M.read_terminal_lifecycle,
+            .control_json,
+        ),
         M.snapshot_frame => eventOnly("SnapshotFrame", .terminal_frame),
         M.delta_frame => eventOnly("DeltaFrame", .terminal_frame),
         M.frame_applied => requestAndResponse(

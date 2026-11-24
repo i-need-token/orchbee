@@ -77,22 +77,19 @@ admitting the new one; poll, close and remove release it exactly once. Pressure 
 affected viewer. The four-event FIFO remains independent, so a burst cannot bury settlement behind
 ordinary events or consume an additional unbounded queue.
 
-After Host attach and projection-demand admission, the Worker reads retained inventory page by
-page, asking for 128 entries each, until the inventory ends. The walk starts pages for two seconds;
-a page already sent is read to its end within the ten-second Host exchange bound, so the Host stream
-stays in step. A settled summary seeds the same lifecycle slot using the Host's identity, exit
-result and final revision. The read validates page generation, cursor progress, unique
-terminal/creation identities and Host epoch, so every page advances and the walk always ends. It
-never changes terminal state. This supplies reentry evidence even when the original exit
-notification preceded attachment. `ReadLifecycle` walks the same way.
+After Host attach and projection-demand admission, the Worker reads the addressed terminal's
+lifecycle. The Host's negotiated `terminal-lifecycle-read` enables one compact lookup. A settled
+snapshot seeds the lifecycle slot with the Host's identity, final revision and exit or failure.
+Reentry therefore recovers an outcome published before attachment. `ReadLifecycle` uses the same
+lookup with the exact creation ID and the admitted viewer's terminal ID.
 
-A walk that concerns only its own request refuses that request and the Worker serves the next one:
-an unfinished walk answers `CapacityExceeded`, and a page the Host refuses with a typed failure
-answers `HostRejected`. A refused Attach first detaches its new Host attachment and releases the
-admitted viewer, so it grants nothing. A page that breaks the paging or identity contract, or an
-Attach target missing from a complete inventory, also answers `HostRejected` and closes that
-viewer; a missing target is never presented as a running shell. A failed exchange, a sent page left
-unanswered past its bound or a broken envelope, still ends the connection.
+A Host without the capability serves the generation-scoped inventory walk. The Worker checks cursor
+progress, unique terminal/creation identities and Host epoch. It starts pages for up to two seconds
+and completes each sent exchange within the Host bound. An unfinished walk answers
+`CapacityExceeded`, and a typed refusal answers `HostRejected`. A missing Attach target refuses
+the Attach and detaches the new Host attachment before replying. A missing `ReadLifecycle` target
+answers `AttachmentUnavailable`. An invalid correlated response closes the affected viewer. A
+failed or incomplete exchange still ends the connection.
 
 ## Retired-target propagation
 

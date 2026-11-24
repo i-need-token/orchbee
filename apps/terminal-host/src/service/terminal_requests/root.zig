@@ -33,6 +33,7 @@ pub fn dispatch(
         .read_process_info => try handler.handleReadProcessInfo(connection_id, envelope, correlation_id, outgoing),
         .ping => try handler.handlePing(envelope, correlation_id, outgoing),
         .list_terminals => try handler.handleList(envelope, correlation_id, outgoing),
+        .read_terminal_lifecycle => try handler.handleReadLifecycle(envelope, correlation_id, outgoing),
         .create_terminal => try handler.handleCreate(connection_id, envelope, correlation_id, outgoing),
         .start_terminal => try handler.handleStart(connection_id, envelope, correlation_id, outgoing),
         .terminate_terminal => try handler.handleTerminate(connection_id, envelope, correlation_id, outgoing),
@@ -76,6 +77,7 @@ const Handler = struct {
 
     const handlePing = inventory_requests.handlePing;
     const handleList = inventory_requests.handleList;
+    const handleReadLifecycle = inventory_requests.handleReadLifecycle;
     const handleCreate = creation_requests.handleCreate;
     const handleStart = creation_requests.handleStart;
     const handleSetTerminalDefaults = configuration_requests.handleSetTerminalDefaults;

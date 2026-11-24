@@ -116,8 +116,9 @@ pub use inventory::{
     encode_inventory_control,
 };
 pub use lifecycle::{
-    EncodedLifecycleControl, LifecycleControl, StartTerminal, StartTransition, TerminalExited,
-    TerminalFailed, TerminalStartAccepted, TerminalTarget, decode_lifecycle_control,
+    EncodedLifecycleControl, LifecycleControl, ReadTerminalLifecycle, StartTerminal,
+    StartTransition, TerminalExited, TerminalFailed, TerminalLifecycleSnapshot,
+    TerminalLifecycleState, TerminalStartAccepted, TerminalTarget, decode_lifecycle_control,
     encode_lifecycle_control,
 };
 pub use limits::{

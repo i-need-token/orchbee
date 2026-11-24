@@ -1,14 +1,17 @@
-//! Read-only inventory behind an admitted viewer; never enters the exclusive lifecycle kernel.
+//! Read-only lifecycle observation behind an admitted viewer.
 use super::{
     CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, Error,
     HostBrokerConnection, HostExchange, MessageRole, PayloadEncoding, TerminalViewerOutcome,
     UnexpectedAnswer, UnixStream, ViewerRejection, decode_connection_control,
     encode_transport_envelope, fresh_identity, response_envelope,
 };
-use orchbee_capability_node_protocol::{HostTerminalIdentity, LifecycleTerminalPhase};
+use crate::terminal_lifecycle_operation::lookup::{self, LookupFailure};
+use orchbee_capability_node_protocol::HostTerminalIdentity;
 use orchbee_terminal_protocol::{
-    InventoryControl, ListTerminals, TerminalSummary, decode_inventory_control,
-    encode_inventory_control,
+    CreationId, HostEpoch, InventoryControl, LifecycleControl, ListTerminals,
+    MAXIMUM_CONTROL_JSON_BYTES, ReadTerminalLifecycle, TerminalExited, TerminalFailed, TerminalId,
+    TerminalLifecycleSnapshot, TerminalLifecycleState, TerminalList, decode_inventory_control,
+    encode_inventory_control, encode_lifecycle_control,
 };
 use std::{
     collections::BTreeSet,
@@ -20,9 +23,9 @@ use std::{
 /// runs out of budget leaves the Host stream in step for the next request.
 const INVENTORY_BUDGET: Duration = Duration::from_secs(2);
 
-/// A walk's answer: the inner refusal concerns only its own request, while the outer error is the
+/// The inner refusal concerns only its own request, while the outer error is the
 /// request's failure, as [`inventory`] describes.
-type Walked<T> = Result<Result<T, ViewerRejection>, Box<dyn Error>>;
+type Observed<T> = Result<Result<T, ViewerRejection>, Box<dyn Error>>;
 
 pub(super) fn read(
     host: &HostBrokerConnection,
@@ -39,68 +42,66 @@ pub(super) fn read(
     }
     host.pacing
         .set_site(crate::diagnostic_events::Site::Lifecycle);
-    let found = match inventory(
+    let found = match observe(
         host,
         server,
-        &target.terminal_id().as_bytes(),
-        Some(&target.creation_id().as_bytes()),
+        ReadTerminalLifecycle {
+            terminal_id: TerminalId::from_bytes(target.terminal_id().as_bytes())?,
+            creation_id: Some(CreationId::from_bytes(target.creation_id().as_bytes())?),
+        },
     )? {
         Ok(found) => found,
         Err(reason) => return Ok(TerminalViewerOutcome::Rejected(reason)),
     };
     Ok(match found {
-        Some(summary) => {
-            let (core, phase) = crate::terminal_lifecycle_operation::summary_observation(&summary);
-            TerminalViewerOutcome::LifecycleObserved {
-                target,
-                revision: core.revision,
-                settled: matches!(
-                    phase,
-                    LifecycleTerminalPhase::Exited { .. } | LifecycleTerminalPhase::Failed
-                ),
-            }
-        }
+        Some(snapshot) => TerminalViewerOutcome::LifecycleObserved {
+            target,
+            revision: snapshot.revision,
+            settled: matches!(
+                snapshot.state,
+                TerminalLifecycleState::Exited { .. } | TerminalLifecycleState::Failed { .. }
+            ),
+        },
         None => TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable),
     })
 }
 
-/// Seed newly attached viewers from retained inventory, including after a Client restart.
-/// No running process is inferred from a missing notification. A refusal is the walk's own, as in
-/// [`inventory`].
+/// Seed newly attached viewers from the retained Host outcome, including after a Client restart.
 pub(super) fn snapshot(
     host: &HostBrokerConnection,
     server: &UnixStream,
-    terminal: orchbee_capability_node_protocol::HostTerminalId,
-) -> Walked<Option<Vec<u8>>> {
-    use orchbee_terminal_protocol::{
-        LifecycleControl, TerminalExited, TerminalFailed, encode_lifecycle_control,
-    };
-    let found = match inventory(host, server, &terminal.as_bytes(), None)? {
-        Ok(found) => found,
+    terminal_id: TerminalId,
+) -> Observed<Option<Vec<u8>>> {
+    let snapshot = match observe(
+        host,
+        server,
+        ReadTerminalLifecycle {
+            terminal_id,
+            creation_id: None,
+        },
+    )? {
+        Ok(Some(snapshot)) => snapshot,
+        // The Host just accepted the Attach yet the terminal is absent.
+        Ok(None) => return Ok(Err(ViewerRejection::HostRejected)),
         Err(reason) => return Ok(Err(reason)),
     };
-    let event = match found {
-        Some(TerminalSummary::Exited { core, exit, .. }) => {
+    let event = match snapshot.state {
+        TerminalLifecycleState::Exited { exit, .. } => {
             LifecycleControl::TerminalExited(TerminalExited {
-                identity: core.identity,
-                final_revision: core.revision,
+                identity: snapshot.identity,
+                final_revision: snapshot.revision,
                 exit,
             })
         }
-        Some(TerminalSummary::Failed {
-            core,
-            failure,
-            process,
-            ..
-        }) => LifecycleControl::TerminalFailed(TerminalFailed {
-            identity: core.identity,
-            final_revision: core.revision,
-            failure,
-            process,
-        }),
-        Some(_) => return Ok(Ok(None)),
-        // The Host just accepted the Attach yet lists no such terminal: the Attach is refused.
-        None => return Ok(Err(ViewerRejection::HostRejected)),
+        TerminalLifecycleState::Failed { failure, process } => {
+            LifecycleControl::TerminalFailed(TerminalFailed {
+                identity: snapshot.identity,
+                final_revision: snapshot.revision,
+                failure,
+                process,
+            })
+        }
+        _ => return Ok(Ok(None)),
     };
     let event = encode_lifecycle_control(&event)?;
     Ok(Ok(Some(encode_transport_envelope(&Envelope {
@@ -115,6 +116,54 @@ pub(super) fn snapshot(
     })?)))
 }
 
+fn observe(
+    host: &HostBrokerConnection,
+    server: &UnixStream,
+    target: ReadTerminalLifecycle,
+) -> Observed<Option<TerminalLifecycleSnapshot>> {
+    if !host.terminal_lifecycle_read() {
+        return inventory(host, server, target);
+    }
+    let Ok(mut exchange) = HostExchange::open(host, server) else {
+        return Ok(Err(ViewerRejection::CapacityExceeded));
+    };
+    exchange.prepare().map_err(|class| exchange.error(class))?;
+    let command = encode_lifecycle_control(&LifecycleControl::ReadTerminalLifecycle(target))?;
+    let (response, correlation) =
+        read_control(host, &mut exchange, command.kind, &command.payload)?;
+    let envelope = response_envelope(&response, correlation, host.host_epoch())?;
+    match lookup::decode(target, &envelope) {
+        Ok(snapshot) => Ok(Ok(snapshot)),
+        Err(LookupFailure::Refused) => Ok(Err(ViewerRejection::HostRejected)),
+        Err(LookupFailure::IdentityConflict | LookupFailure::InvalidResponse) => {
+            Err(UnexpectedAnswer::of(&response).into())
+        }
+    }
+}
+
+fn read_control(
+    host: &HostBrokerConnection,
+    exchange: &mut HostExchange<'_>,
+    kind: u16,
+    payload: &[u8],
+) -> Result<(Vec<u8>, CorrelationId), Box<dyn Error>> {
+    let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
+    let record = encode_transport_envelope(&Envelope {
+        correlation_id: Some(correlation),
+        host_epoch: Some(host.host_epoch()),
+        kind,
+        optional_message: false,
+        payload,
+        payload_encoding: PayloadEncoding::ControlJson,
+        protocol: CURRENT_PROTOCOL_VERSION,
+        role: MessageRole::Request,
+    })?;
+    let response = exchange
+        .round_trip_bounded(&record, MAXIMUM_CONTROL_JSON_BYTES)
+        .map_err(|class| exchange.error(class))?;
+    Ok((response, correlation))
+}
+
 /// Walks the Host inventory page by page until it ends. Every accepted page advances the cursor
 /// ([`valid_page`]), so the walk ends with the inventory or with its budget.
 ///
@@ -127,9 +176,8 @@ pub(super) fn snapshot(
 fn inventory(
     host: &HostBrokerConnection,
     server: &UnixStream,
-    terminal: &[u8; 16],
-    creation: Option<&[u8; 16]>,
-) -> Walked<Option<TerminalSummary>> {
+    target: ReadTerminalLifecycle,
+) -> Observed<Option<TerminalLifecycleSnapshot>> {
     let deadline = Instant::now() + INVENTORY_BUDGET;
     // A page the request has no room for ends the walk like a spent budget.
     let Ok(preflight) = HostExchange::open(host, server) else {
@@ -149,27 +197,12 @@ fn inventory(
         let Ok(mut exchange) = HostExchange::open(host, server) else {
             return Ok(Err(ViewerRejection::CapacityExceeded));
         };
-        let correlation = CorrelationId::from_bytes(fresh_identity()?)?;
         let command = encode_inventory_control(&InventoryControl::ListTerminals(ListTerminals {
             cursor,
             maximum_terminals: 128,
         }))?;
-        let record = encode_transport_envelope(&Envelope {
-            correlation_id: Some(correlation),
-            host_epoch: Some(host.host_epoch()),
-            kind: command.kind,
-            optional_message: false,
-            payload: &command.payload,
-            payload_encoding: PayloadEncoding::ControlJson,
-            protocol: CURRENT_PROTOCOL_VERSION,
-            role: MessageRole::Request,
-        })?;
-        let response = exchange
-            .round_trip_bounded(
-                &record,
-                orchbee_terminal_protocol::MAXIMUM_CONTROL_JSON_BYTES,
-            )
-            .map_err(|class| exchange.error(class))?;
+        let (response, correlation) =
+            read_control(host, &mut exchange, command.kind, &command.payload)?;
         let envelope = response_envelope(&response, correlation, host.host_epoch())?;
         if matches!(
             decode_connection_control(envelope.kind, envelope.role, envelope.payload),
@@ -185,7 +218,8 @@ fn inventory(
         if !valid_page(
             &page,
             cursor,
-            (host.host_epoch(), terminal, creation),
+            host.host_epoch(),
+            target,
             &mut terminals,
             &mut creations,
             &mut found,
@@ -201,18 +235,14 @@ fn inventory(
 
 /// Whether a page continues the walk: its cursor advances it and its identities are new.
 fn valid_page(
-    page: &orchbee_terminal_protocol::TerminalList,
+    page: &TerminalList,
     cursor: Option<orchbee_terminal_protocol::TerminalInventoryCursor>,
-    target: (
-        orchbee_terminal_protocol::HostEpoch,
-        &[u8; 16],
-        Option<&[u8; 16]>,
-    ),
-    terminals: &mut BTreeSet<[u8; 16]>,
-    creations: &mut BTreeSet<[u8; 16]>,
-    found: &mut Option<TerminalSummary>,
+    epoch: HostEpoch,
+    target: ReadTerminalLifecycle,
+    terminals: &mut BTreeSet<TerminalId>,
+    creations: &mut BTreeSet<CreationId>,
+    found: &mut Option<TerminalLifecycleSnapshot>,
 ) -> bool {
-    let (epoch, target_terminal, target_creation) = target;
     let offset = cursor.map_or(0, |c| c.offset);
     if page.terminals.len() > 128
         || cursor.is_some_and(|c| c.inventory_generation != page.inventory_generation)
@@ -225,23 +255,25 @@ fn valid_page(
         return false;
     }
     for summary in &page.terminals {
-        let (core, _) = crate::terminal_lifecycle_operation::summary_observation(summary);
-        let terminal = *core.identity.terminal_id.as_bytes();
-        let creation = *core.identity.creation_id.as_bytes();
-        if core.identity.host_epoch != epoch
+        let snapshot = lookup::from_summary(summary);
+        let terminal = snapshot.identity.terminal_id;
+        let creation = snapshot.identity.creation_id;
+        if snapshot.identity.host_epoch != epoch
             || !terminals.insert(terminal)
             || !creations.insert(creation)
         {
             return false;
         }
-        if &terminal == target_terminal || target_creation == Some(&creation) {
-            if &terminal != target_terminal
-                || target_creation.is_some_and(|expected| expected != &creation)
+        if terminal == target.terminal_id || target.creation_id == Some(creation) {
+            if terminal != target.terminal_id
+                || target
+                    .creation_id
+                    .is_some_and(|expected| expected != creation)
                 || found.is_some()
             {
                 return false;
             }
-            *found = Some(summary.clone());
+            *found = Some(snapshot);
         }
     }
     true

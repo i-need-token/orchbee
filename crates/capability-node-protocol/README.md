@@ -135,10 +135,10 @@ step request IDs; codec validation alone does not establish authorization or rep
 
 Action tags 1 through 4 are Terminate, Force, Dispose, and InventoryPage. InventoryPage adds a
 cursor option tag (`0` absent, `1` present); a present cursor adds positive inventory generation
-and offset (`u64` each). Every Host query requests the fixed maximum of 128 terminals. A result
+and offset (`u64` each). A Host inventory page requests at most 128 terminals. A result
 echoes the complete request body, then an outcome tag: 1 TerminateAccepted, 2 ForceAccepted,
 3 Disposed, 4 InventoryPage, 5 Rejected, 6 HostFailure, 7 InventoryFailure, 8 OutcomeUnknown,
-or 9 HostUnavailableBeforeHandoff (no additional payload).
+9 HostUnavailableBeforeHandoff (no additional payload), or 11 TargetObserved.
 Constructors and decoding reject action/outcome contradictions. Host success validates the ACK's
 actual terminal ID plus envelope role, kind, epoch and correlation; its retained full request seal
 supplies the product, creation, Worker and attempt identities that the Host ACK does not echo.
@@ -155,6 +155,13 @@ creation-ID matches before projecting the exact target. Server owns cross-page c
 duplicate matches, complete exhaustion, absence and continuation. Finishing and ContainingFailure
 are not settled outcomes. No raw Host inventory, theme, configuration or unrelated identity enters
 this fixed-size projection.
+
+For an initial query (cursor absent) on a Host that negotiated `terminal-lifecycle-read`, the
+Worker sends one exact lifecycle read. TargetObserved uses the same target option and observation
+as InventoryPage. Its absent option means the exact binding is absent from that Host. The Worker
+validates correlation and Host epoch, terminal ID, and creation ID. Contradictory identities remain
+IdentityConflict. TargetObserved is legal only for an initial InventoryPage or InspectInventoryPage
+under the current lifecycle capability. A Host without the capability still serves paged reads.
 
 Rejected adds a reason tag 1 through 8: WrongWorker, StaleWorkerGeneration, UnsupportedCapability,
 LeaseExpired, BindingUnavailable, BindingFenceMismatch, HostIdentityMismatch, LifecycleConflict.
@@ -962,7 +969,7 @@ matched private cohort deploys or rolls back together with no persistent migrati
 
 ## Read-only viewer lifecycle observation
 
-Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and terminal ID (three 16-byte identities). Result tag 7 `LifecycleObserved` echoes that identity, a big-endian u64 revision and a closed 0/1 settled byte. Worker validates its admitted viewer target and walks Host inventory page by page under one bounded budget, answering `Rejected` when the walk cannot finish; only exact Exited/Failed summaries mean settled. Absence, paging/identity conflict and transport failure do not mean exit. The read never enters the exclusive lifecycle kernel or claims Close ownership. Server checks Worker generation, exact target and temporary-viewer cleanup before publishing settlement. Older tags keep their bytes; old cohorts reject these additive tags. Upgrade and roll back the matched cohort together.
+Private viewer action tag 15 `ReadLifecycle` pins Host creation ID, epoch and terminal ID (three 16-byte identities). Result tag 7 `LifecycleObserved` echoes that identity, a big-endian u64 revision and a closed 0/1 settled byte. Worker validates its admitted viewer target and issues one exact lookup when the Host negotiated `terminal-lifecycle-read`. Older Hosts serve the bounded inventory walk. Only exact Exited/Failed observations mean settled. Absence, paging/identity conflict and transport failure do not mean exit. The read never enters the exclusive lifecycle kernel or claims Close ownership. Server checks Worker generation, exact target and temporary-viewer cleanup before publishing settlement. Older tags keep their bytes; old cohorts reject these additive tags. Upgrade and roll back the matched cohort together.
 
 ## Viewer-scoped PNG requests
 

@@ -18,6 +18,7 @@ pub const InventoryCursor = host.InventoryCursor;
 pub const ListTerminals = host.ListTerminals;
 pub const decodeHello = host.decodeHello;
 pub const decodeListTerminals = host.decodeListTerminals;
+pub const decodeReadTerminalLifecycle = host.decodeReadTerminalLifecycle;
 pub const validHello = host.validHello;
 
 pub const KeeperProcess = keeper.KeeperProcess;

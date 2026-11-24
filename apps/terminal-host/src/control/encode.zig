@@ -23,6 +23,7 @@ pub const writeTerminalConfigurationAccepted = host.writeTerminalConfigurationAc
 pub const terminalList = host.terminalList;
 pub const terminalListHeld = host.terminalListHeld;
 pub const terminalSummary = host.terminalSummary;
+pub const terminalLifecycleSnapshot = @import("encode_lifecycle.zig").terminalLifecycleSnapshot;
 pub const terminalExited = host.terminalExited;
 pub const terminalFailed = host.terminalFailed;
 pub const terminalMetadataChanged = metadata.terminalMetadataChanged;

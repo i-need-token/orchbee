@@ -8,15 +8,16 @@ use std::{error::Error, io, time::Duration};
 use orchbee_capability_node_protocol::{
     HostEpoch as CapabilityHostEpoch, LIFECYCLE_INVENTORY_PAGE_TERMINALS, LifecycleHostFailure,
     LifecycleInventoryCursor, LifecycleInventoryFailure, LifecycleInventoryPage,
-    LifecycleTargetObservation, LifecycleTerminalPhase, LifecycleUnknownReason,
-    TerminalLifecycleAction, TerminalLifecycleOutcome, TerminalLifecycleRequest,
+    LifecycleUnknownReason, TerminalLifecycleAction, TerminalLifecycleOutcome,
+    TerminalLifecycleRequest,
 };
 use orchbee_terminal_protocol::{
-    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, Envelope, InventoryControl,
-    LifecycleControl, ListTerminals, MessageRole, PayloadEncoding, TerminalInventoryCursor,
-    TerminalSummary, TerminalTarget, decode_connection_control, decode_inventory_control,
-    decode_lifecycle_control, decode_transport_envelope, encode_inventory_control,
-    encode_lifecycle_control, encode_transport_envelope,
+    CURRENT_PROTOCOL_VERSION, ConnectionControl, CorrelationId, CreationId, Envelope,
+    InventoryControl, LifecycleControl, ListTerminals, MAXIMUM_CONTROL_JSON_BYTES, MessageRole,
+    PayloadEncoding, ReadTerminalLifecycle, TerminalInventoryCursor, TerminalTarget,
+    decode_connection_control, decode_inventory_control, decode_lifecycle_control,
+    decode_transport_envelope, encode_inventory_control, encode_lifecycle_control,
+    encode_transport_envelope,
 };
 
 use crate::{
@@ -29,10 +30,13 @@ use crate::{
     terminal_host_operation::HostOperationDisposition,
 };
 
+pub(crate) mod lookup;
+
 pub(crate) struct PreparedLifecycleOperation {
     dispatch: LifecycleDispatch,
     record: Vec<u8>,
     cleanup: Option<PreparedTargetCleanup>,
+    lookup: Option<ReadTerminalLifecycle>,
 }
 
 impl PreparedLifecycleOperation {
@@ -46,7 +50,23 @@ impl PreparedLifecycleOperation {
                 request.target.terminal_id().as_bytes(),
             )?,
         };
+        let mut lookup = None;
         let (kind, payload) = match request.action {
+            TerminalLifecycleAction::InventoryPage { cursor: None }
+            | TerminalLifecycleAction::InspectInventoryPage { cursor: None }
+                if host.terminal_lifecycle_read() =>
+            {
+                let read = ReadTerminalLifecycle {
+                    terminal_id: target.terminal_id,
+                    creation_id: Some(CreationId::from_bytes(
+                        request.target.creation_id().as_bytes(),
+                    )?),
+                };
+                lookup = Some(read);
+                let control =
+                    encode_lifecycle_control(&LifecycleControl::ReadTerminalLifecycle(read))?;
+                (control.kind, control.payload)
+            }
             TerminalLifecycleAction::InventoryPage { cursor }
             | TerminalLifecycleAction::InspectInventoryPage { cursor } => {
                 let control =
@@ -99,6 +119,7 @@ impl PreparedLifecycleOperation {
             dispatch,
             record,
             cleanup,
+            lookup,
         })
     }
 
@@ -133,8 +154,13 @@ impl PreparedLifecycleOperation {
         {
             return Ok(HostOperationDisposition::ResultReady);
         }
-        let (failure, reason) = match exchange.round_trip(&self.record) {
-            Ok(record) => match response_outcome(self.dispatch.request, &record) {
+        let response = if self.lookup.is_some() {
+            exchange.round_trip_bounded(&self.record, MAXIMUM_CONTROL_JSON_BYTES)
+        } else {
+            exchange.round_trip(&self.record)
+        };
+        let (failure, reason) = match response {
+            Ok(record) => match response_outcome(self.dispatch.request, &record, self.lookup) {
                 Ok(outcome) => {
                     // Retain exact known ACK before removing the prepared IDs. This
                     // synchronous boundary cannot admit/replay or deliver a result
@@ -188,6 +214,7 @@ impl PreparedLifecycleOperation {
 fn response_outcome(
     request: TerminalLifecycleRequest,
     record: &[u8],
+    lookup: Option<ReadTerminalLifecycle>,
 ) -> Result<TerminalLifecycleOutcome, Box<dyn Error>> {
     let envelope = decode_transport_envelope(record)?;
     if envelope.role != MessageRole::Response
@@ -199,6 +226,24 @@ fn response_outcome(
         || envelope.payload_encoding != PayloadEncoding::ControlJson
     {
         return Err(io::Error::other("unexpected lifecycle response envelope").into());
+    }
+    if let Some(target) = lookup {
+        return Ok(match lookup::decode(target, &envelope) {
+            Ok(snapshot) => {
+                TerminalLifecycleOutcome::TargetObserved(snapshot.map(lookup::observation))
+            }
+            Err(lookup::LookupFailure::Refused) => {
+                TerminalLifecycleOutcome::InventoryFailure(LifecycleInventoryFailure::PageRejected)
+            }
+            Err(lookup::LookupFailure::IdentityConflict) => {
+                TerminalLifecycleOutcome::InventoryFailure(
+                    LifecycleInventoryFailure::IdentityConflict,
+                )
+            }
+            Err(lookup::LookupFailure::InvalidResponse) => {
+                return Err(io::Error::other("invalid targeted lifecycle response").into());
+            }
+        });
     }
     if let Ok(ConnectionControl::TypedFailure(failure)) =
         decode_connection_control(envelope.kind, envelope.role, envelope.payload)
@@ -279,18 +324,18 @@ fn inventory_outcome(
     };
     let mut target = None;
     for (index, summary) in page.terminals.iter().enumerate() {
-        let (core, phase) = summary_observation(summary);
-        if *core.identity.host_epoch.as_bytes() != request.target.host_epoch().as_bytes() {
+        let snapshot = lookup::from_summary(summary);
+        if *snapshot.identity.host_epoch.as_bytes() != request.target.host_epoch().as_bytes() {
             return invalid;
         }
         let terminal_matches =
-            *core.identity.terminal_id.as_bytes() == request.target.terminal_id().as_bytes();
+            *snapshot.identity.terminal_id.as_bytes() == request.target.terminal_id().as_bytes();
         let creation_matches =
-            *core.identity.creation_id.as_bytes() == request.target.creation_id().as_bytes();
+            *snapshot.identity.creation_id.as_bytes() == request.target.creation_id().as_bytes();
         let duplicate = page.terminals.iter().take(index).any(|previous| {
-            let identity = summary_observation(previous).0.identity;
-            identity.terminal_id == core.identity.terminal_id
-                || identity.creation_id == core.identity.creation_id
+            let identity = lookup::from_summary(previous).identity;
+            identity.terminal_id == snapshot.identity.terminal_id
+                || identity.creation_id == snapshot.identity.creation_id
         });
         if duplicate && !terminal_matches && !creation_matches {
             return invalid;
@@ -301,10 +346,7 @@ fn inventory_outcome(
                     LifecycleInventoryFailure::IdentityConflict,
                 );
             }
-            target = Some(LifecycleTargetObservation {
-                revision: core.revision,
-                phase,
-            });
+            target = Some(lookup::observation(snapshot));
         }
     }
     let Ok(returned_count) = u16::try_from(page.terminals.len()) else {
@@ -323,51 +365,6 @@ fn inventory_outcome(
         invalid
     } else {
         outcome
-    }
-}
-
-pub(crate) fn summary_observation(
-    summary: &TerminalSummary,
-) -> (
-    &orchbee_terminal_protocol::TerminalSummaryCore,
-    LifecycleTerminalPhase,
-) {
-    match summary {
-        TerminalSummary::AwaitingStart { core } => (core, LifecycleTerminalPhase::AwaitingStart),
-        TerminalSummary::Running {
-            core,
-            terminate_requested,
-            ..
-        } => (
-            core,
-            LifecycleTerminalPhase::Running {
-                terminate_requested: *terminate_requested,
-            },
-        ),
-        TerminalSummary::Finishing {
-            core,
-            terminate_requested,
-            ..
-        } => (
-            core,
-            LifecycleTerminalPhase::Finishing {
-                terminate_requested: *terminate_requested,
-            },
-        ),
-        TerminalSummary::ContainingFailure { core, .. } => {
-            (core, LifecycleTerminalPhase::ContainingFailure)
-        }
-        TerminalSummary::Exited {
-            core,
-            terminate_requested,
-            ..
-        } => (
-            core,
-            LifecycleTerminalPhase::Exited {
-                terminate_requested: *terminate_requested,
-            },
-        ),
-        TerminalSummary::Failed { core, .. } => (core, LifecycleTerminalPhase::Failed),
     }
 }
 

@@ -38,6 +38,25 @@ pub fn terminalInventory(
     };
 }
 
+/// Look up one retained terminal. An exact read checks both indexes before synchronizing it.
+pub fn readTerminalLifecycle(
+    self: anytype,
+    terminal_id: core_module.TerminalId,
+    creation_id: ?core_module.CreationId,
+) error{ MissingResource, IdentityConflict }!*const core_module.TerminalSession {
+    const terminal = self.core_state.findTerminal(terminal_id) orelse {
+        if (creation_id) |id| {
+            if (self.core_state.terminalForCreation(id) != null) return error.IdentityConflict;
+        }
+        return error.MissingResource;
+    };
+    if (creation_id) |id| {
+        if (!terminal.creation_id.eql(id)) return error.IdentityConflict;
+    }
+    self.synchronizeTerminal(terminal_id);
+    return self.core_state.findTerminal(terminal_id) orelse error.MissingResource;
+}
+
 pub fn connect(
     self: anytype,
     connection_id: core_module.ConnectionId,

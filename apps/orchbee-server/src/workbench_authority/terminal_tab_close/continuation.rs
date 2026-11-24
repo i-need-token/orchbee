@@ -540,6 +540,7 @@ impl CloseContinuation {
                 self.unknown(now, action, LifecycleUnknownReason::InvalidResponse);
             }
             TerminalLifecycleOutcome::InventoryPage(page) => self.inventory_page(now, action, page),
+            TerminalLifecycleOutcome::TargetObserved(target) => self.finish_observation(target),
             TerminalLifecycleOutcome::Rejected(reason) => match reason {
                 LifecycleRejection::LeaseExpired | LifecycleRejection::BindingUnavailable => {
                     self.retry_step(now, BlockedReason::WorkerUnavailable);
@@ -600,8 +601,12 @@ impl CloseContinuation {
             self.inventory.cursor = Some(next);
             return;
         }
-        let found = self.inventory.found;
+        self.finish_observation(self.inventory.found);
+    }
+
+    fn finish_observation(&mut self, found: Option<LifecycleTargetObservation>) {
         self.inventory = InventoryWalk::default();
+        self.settled_observed |= found.is_some_and(|target| is_settled(target.phase));
         let stage = match found {
             None => LifecycleStage::Dispose,
             Some(observed)

@@ -631,6 +631,13 @@ pub const MESSAGE_CONTRACTS: &[MessageContract] = &[
         None
     ),
     contract!(
+        86,
+        "ReadTerminalLifecycle",
+        None,
+        Some(request(PayloadEncoding::ControlJson, 86)),
+        Some(PayloadEncoding::ControlJson)
+    ),
+    contract!(
         90,
         "AttachKeeper",
         None,

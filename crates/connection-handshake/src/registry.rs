@@ -22,6 +22,9 @@ pub const SCREEN_GATED_INPUT: &str = "screen-gated-input";
 /// button leaves no person's input. A Host without it gets no gated key and no ungated fallback.
 pub const SCREEN_GATED_SEND: &str = "screen-gated-send";
 
+/// The `worker-host` capability for reading one terminal's current lifecycle in one exchange.
+pub const TERMINAL_LIFECYCLE_READ: &str = "terminal-lifecycle-read";
+
 /// The additional `worker-host` capability for a screen-gated prompt line.
 pub const SCREEN_GATED_PROMPT: &str = "screen-gated-prompt";
 
@@ -204,7 +207,12 @@ impl ConnectionKind {
                 UPDATE_CHECK,
                 WORKSPACE_IDLE,
             ],
-            Self::WorkerHost => &[PROMPT_GATED_INPUT, SCREEN_GATED_PROMPT, SCREEN_GATED_SEND],
+            Self::WorkerHost => &[
+                PROMPT_GATED_INPUT,
+                SCREEN_GATED_PROMPT,
+                SCREEN_GATED_SEND,
+                TERMINAL_LIFECYCLE_READ,
+            ],
             Self::MachineHub => &[CAPACITY, CATALOG_PARTS],
             Self::MachineLink => &[CAPACITY],
             // The Worker reads the holdings its platform's Hosts make: program holdings everywhere,
@@ -246,6 +254,7 @@ impl ConnectionKind {
                 SCREEN_GATED_INPUT,
                 SCREEN_GATED_PROMPT,
                 SCREEN_GATED_SEND,
+                TERMINAL_LIFECYCLE_READ,
             ]),
             Self::Keeper => capability_set(&[PARENT, PROGRAMS, PTY, RECOVERY, REEXEC]),
             Self::MachineHub | Self::MachineLink => self.capabilities(),

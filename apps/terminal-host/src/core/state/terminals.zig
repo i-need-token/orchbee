@@ -9,6 +9,7 @@ const storage = @import("storage.zig");
 
 const ConnectionId = contracts.ConnectionId;
 const CoreError = contracts.CoreError;
+const CreationId = contracts.CreationId;
 const ExitResult = contracts.ExitResult;
 const OutcomePublicationToken = contracts.OutcomePublicationToken;
 const ProcessObservation = contracts.ProcessObservation;
@@ -392,6 +393,10 @@ pub fn markOutcomePublished(
 
 pub fn findTerminal(self: anytype, terminal_id: TerminalId) ?*const TerminalSession {
     return self.terminal_registry.get(terminal_id);
+}
+
+pub fn terminalForCreation(self: anytype, creation_id: CreationId) ?TerminalId {
+    return self.terminal_registry.terminalForCreation(creation_id);
 }
 
 pub fn terminalCount(self: anytype) usize {

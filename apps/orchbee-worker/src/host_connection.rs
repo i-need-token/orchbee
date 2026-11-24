@@ -60,6 +60,8 @@ pub(crate) use exchange::{
 pub(crate) use host_colors::HostColors;
 #[cfg(test)]
 pub(crate) use offer::answer_test_offer;
+#[cfg(all(test, windows))]
+pub(crate) use offer::answer_test_offer_with_lifecycle;
 pub(crate) use pacing::{HostFailure, NotStarted, Pacing};
 pub(crate) use target_cleanup::PreparedTargetCleanup;
 use viewers::HostViewers;
@@ -95,6 +97,7 @@ pub(crate) struct HostBrokerConnection {
     negotiated_limits: NegotiatedHostLimits,
     /// The Host's answer listed `prompt-gated-input`.
     prompt_gated_input: bool,
+    terminal_lifecycle_read: bool,
     /// The Host's answer listed `screen-gated-send`.
     screen_gated_send: bool,
     /// The Host's answer listed `screen-gated-prompt`.
@@ -255,6 +258,7 @@ impl HostBrokerConnection {
             host_epoch,
             negotiated_limits,
             prompt_gated_input: answer.prompt_gated_input,
+            terminal_lifecycle_read: answer.terminal_lifecycle_read,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
             #[cfg(any(windows, target_os = "macos"))]
@@ -311,6 +315,7 @@ impl HostBrokerConnection {
             host_epoch,
             negotiated_limits,
             prompt_gated_input: answer.prompt_gated_input,
+            terminal_lifecycle_read: answer.terminal_lifecycle_read,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
             #[cfg(any(windows, target_os = "macos"))]
@@ -362,6 +367,10 @@ impl HostBrokerConnection {
     /// Whether this Host types an idle-prompt line only at a confirmed fresh prompt.
     pub(crate) const fn prompt_gated_input(&self) -> bool {
         self.prompt_gated_input
+    }
+
+    pub(crate) const fn terminal_lifecycle_read(&self) -> bool {
+        self.terminal_lifecycle_read
     }
 
     /// Whether this Host types a screen-gated key only while the screen is still the frame its

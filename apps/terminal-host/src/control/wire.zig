@@ -258,6 +258,11 @@ pub const ListTerminals = struct {
 
 pub const TerminalTarget = struct { terminalId: []const u8 };
 
+pub const ReadTerminalLifecycle = struct {
+    terminalId: []const u8,
+    creationId: ?[]const u8 = null,
+};
+
 pub const Capabilities = struct {
     input: bool,
     read: bool,

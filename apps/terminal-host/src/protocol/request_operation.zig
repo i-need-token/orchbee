@@ -4,6 +4,7 @@ pub const RequestOperation = enum {
     decode_graphics_png,
     stage_terminal_output,
     read_process_info,
+    read_terminal_lifecycle,
     apply_terminal_theme,
     attach_terminal,
     claim_resize_lease,

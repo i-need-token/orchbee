@@ -319,6 +319,9 @@ The fair background synchronizer may process a bounded subset of retained termin
 `ListTerminals` request therefore synchronizes the exact bounded page it will serialize after cursor
 validation and before encoding it; one response never mixes an already observed page prefix with an
 unsynchronized suffix merely because the global registry is larger than one poll budget.
+`ReadTerminalLifecycle` resolves the exact terminal through the Core's identity indexes and
+synchronizes just that terminal before reporting its lifecycle. An unrelated membership change
+cannot invalidate this read.
 
 Outcome publication has no such window. Every event poll inspects every retained terminal for a
 pending outcome, so the next poll publishes the outcome of a terminal that a page read or

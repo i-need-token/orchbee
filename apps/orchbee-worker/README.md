@@ -1159,7 +1159,7 @@ stage, so the Launch fails before handoff with no effect. A stage that no creati
 inert: the Host keeps one staged seed, gives it only to a creation of the same identity on the same
 connection, and discards it at the next creation or stage on that connection or when the
 connection ends. Smaller budgets an operation keeps for itself, such as the input step of a send or
-the inventory walk of a viewer attachment, only decide whether it starts or continues; they never
+the fallback inventory walk of a viewer attachment, only decide whether it starts or continues; they never
 end the Worker. While it writes a request and waits for the answer, the Worker reads the Host's
 events, so a Host writing to a full stream is never stalled by a Worker waiting on it. Bytes that
 have already arrived are read before a bound is checked: a late Worker never refuses an answer that

@@ -715,6 +715,16 @@
 		},
 		{
 			"event_encoding": null,
+			"kind": 86,
+			"name": "ReadTerminalLifecycle",
+			"request": {
+				"payload_encoding": "control-json",
+				"success_kind": 86
+			},
+			"response_encoding": "control-json"
+		},
+		{
+			"event_encoding": null,
 			"kind": 90,
 			"name": "AttachKeeper",
 			"request": {

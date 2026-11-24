@@ -584,10 +584,15 @@ impl LocalTerminalService {
                         ),
                     ),
                 ) => Phase::Waiting,
-                // A walk continues until the inventory ends; the settlement window ends one that
-                // has not, and every accepted page advances from its request's cursor.
-                (Phase::Waiting, Some(node::TerminalLifecycleOutcome::InventoryPage(page))) => {
-                    match page.target {
+                (Phase::Waiting, Some(outcome)) => {
+                    let (target, next_cursor) = match outcome {
+                        node::TerminalLifecycleOutcome::TargetObserved(target) => (target, None),
+                        node::TerminalLifecycleOutcome::InventoryPage(page) => {
+                            (page.target, page.next_cursor)
+                        }
+                        _ => (None, None),
+                    };
+                    match target {
                         Some(observed)
                             if matches!(
                                 observed.phase,
@@ -602,8 +607,8 @@ impl LocalTerminalService {
                             popup.cursor = None;
                             Phase::Waiting
                         }
-                        None if page.next_cursor.is_some() => {
-                            popup.cursor = page.next_cursor;
+                        None if next_cursor.is_some() => {
+                            popup.cursor = next_cursor;
                             Phase::Waiting
                         }
                         None => Phase::Unknown,

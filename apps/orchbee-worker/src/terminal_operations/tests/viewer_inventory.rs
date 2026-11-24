@@ -1,7 +1,6 @@
-//! A viewer's Host inventory walk reads every page until the inventory ends, and a walk that cannot
-//! finish within its budget refuses only its own request while the Worker serves the next one.
+//! A viewer reads the exact Host lifecycle, through one lookup or the older bounded inventory walk.
 use super::super::*;
-use super::shell::{WORKER, connected_host, record, reply, timeout};
+use super::shell::{WORKER, connected_host, connected_host_with_lifecycle, record, reply, timeout};
 use orchbee_capability_node_protocol::{self as node, *};
 use orchbee_local_ipc::LocalStream;
 use orchbee_terminal_protocol::{self as terminal, decode_transport_envelope};
@@ -193,6 +192,134 @@ fn answer_detach(host: &mut LocalStream, request: &[u8]) -> bool {
     .unwrap();
     reply(host, request, accepted.kind, &accepted.payload);
     true
+}
+
+fn lookup_request(host: &mut LocalStream, creation_id: Option<terminal::CreationId>) -> Vec<u8> {
+    let request = record(host);
+    let envelope = decode_transport_envelope(&request).unwrap();
+    assert_eq!(
+        terminal::decode_lifecycle_control(envelope.kind, envelope.role, envelope.payload).unwrap(),
+        terminal::LifecycleControl::ReadTerminalLifecycle(terminal::ReadTerminalLifecycle {
+            terminal_id: terminal::TerminalId::from_bytes(TARGET).unwrap(),
+            creation_id,
+        })
+    );
+    request
+}
+
+#[test]
+fn negotiated_reads_take_one_lookup_and_seed_an_already_exited_viewer() {
+    let (host, drain, mut host_peer) = connected_host_with_lifecycle(true);
+    let (server, mut peer) = LocalStream::pair().unwrap();
+    timeout(&peer);
+    let driver = thread::spawn(move || {
+        let identity = terminal::TerminalIdentity {
+            host_epoch: terminal::HostEpoch::from_bytes(EPOCH).unwrap(),
+            terminal_id: terminal::TerminalId::from_bytes(TARGET).unwrap(),
+            creation_id: terminal::CreationId::from_bytes(TARGET_CREATION).unwrap(),
+        };
+        let exit = terminal::ExitResult::ExitCode(19);
+        let snapshot = terminal::encode_lifecycle_control(
+            &terminal::LifecycleControl::TerminalLifecycleSnapshot(
+                terminal::TerminalLifecycleSnapshot {
+                    identity,
+                    revision: TARGET_REVISION,
+                    state: terminal::TerminalLifecycleState::Exited {
+                        terminate_requested: false,
+                        exit,
+                    },
+                },
+            ),
+        )
+        .unwrap();
+
+        begin_attach(&mut peer, &mut host_peer);
+        let request = lookup_request(&mut host_peer, None);
+        reply(&mut host_peer, &request, snapshot.kind, &snapshot.payload);
+        assert_eq!(outcome(&mut peer), TerminalViewerOutcome::Attached);
+        let CapabilityNodeMessage::TerminalViewerRecordReady(ready) =
+            node::read_message(&mut peer).unwrap()
+        else {
+            panic!("missing readiness for retained exit");
+        };
+        assert_eq!(ready.attachment_id.as_bytes(), [90; 16]);
+        node::write_message(&mut peer, &viewer(2, TerminalViewerAction::Poll)).unwrap();
+        let TerminalViewerOutcome::Record(event) = outcome(&mut peer) else {
+            panic!("missing retained exit");
+        };
+        let event = decode_transport_envelope(&event).unwrap();
+        assert_eq!(
+            terminal::decode_lifecycle_control(event.kind, event.role, event.payload).unwrap(),
+            terminal::LifecycleControl::TerminalExited(terminal::TerminalExited {
+                identity,
+                final_revision: TARGET_REVISION,
+                exit,
+            }),
+        );
+
+        let stale = HostTerminalIdentity::new(
+            target().creation_id(),
+            node::HostEpoch::from_bytes([5; 16]).unwrap(),
+            target().terminal_id(),
+        );
+        node::write_message(
+            &mut peer,
+            &viewer(3, TerminalViewerAction::ReadLifecycle { target: stale }),
+        )
+        .unwrap();
+        assert_eq!(
+            outcome(&mut peer),
+            TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
+        );
+
+        node::write_message(
+            &mut peer,
+            &viewer(4, TerminalViewerAction::ReadLifecycle { target: target() }),
+        )
+        .unwrap();
+        let request = lookup_request(&mut host_peer, Some(identity.creation_id));
+        reply(&mut host_peer, &request, snapshot.kind, &snapshot.payload);
+        assert_eq!(
+            outcome(&mut peer),
+            TerminalViewerOutcome::LifecycleObserved {
+                target: target(),
+                revision: TARGET_REVISION,
+                settled: true,
+            }
+        );
+
+        node::write_message(
+            &mut peer,
+            &viewer(5, TerminalViewerAction::ReadLifecycle { target: target() }),
+        )
+        .unwrap();
+        let request = lookup_request(&mut host_peer, Some(identity.creation_id));
+        let missing = terminal::encode_connection_control(
+            &terminal::ConnectionControl::TypedFailure(terminal::TypedFailure {
+                code: "missing-resource".into(),
+                message: "terminal is absent".into(),
+                retryable: false,
+                reason: None,
+            }),
+        )
+        .unwrap();
+        reply(&mut host_peer, &request, missing.kind, &missing.payload);
+        assert_eq!(
+            outcome(&mut peer),
+            TerminalViewerOutcome::Rejected(ViewerRejection::AttachmentUnavailable)
+        );
+        peer.shutdown(Shutdown::Both).unwrap();
+    });
+    let result = run(
+        &server,
+        host,
+        WORKER,
+        NonZeroU64::MIN,
+        &drain,
+        &SystemShell::resolve(),
+    );
+    driver.join().unwrap();
+    assert!(result.is_err());
 }
 
 #[test]

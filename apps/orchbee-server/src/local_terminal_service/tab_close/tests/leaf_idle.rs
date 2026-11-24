@@ -102,7 +102,19 @@ fn a_tab_or_panel_closes_unasked_only_on_the_servers_own_evidence() {
             RUNNING
         };
         let peer_thread = thread::spawn(move || {
-            inventory(&mut peer, phase);
+            if matches!(case, Case::Ended) {
+                let request = lifecycle(&mut peer);
+                reply(
+                    &mut peer,
+                    request,
+                    TerminalLifecycleOutcome::TargetObserved(Some(LifecycleTargetObservation {
+                        revision: 1,
+                        phase,
+                    })),
+                );
+            } else {
+                inventory(&mut peer, phase);
+            }
             // An accepted close continues as an ordinary one; its first step is parked here.
             let step = (!matches!(case, Case::Asks)).then(|| {
                 let request = lifecycle(&mut peer);

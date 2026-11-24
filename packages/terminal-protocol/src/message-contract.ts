@@ -5,6 +5,7 @@ export const MessageKind = {
 	terminalOutputStaged: 83,
 	promptLineInput: 84,
 	screenGatedKeyInput: 85,
+	readTerminalLifecycle: 86,
 	attachKeeper: 90,
 	detachKeeper: 91,
 	keeperLost: 92,
@@ -176,6 +177,12 @@ export const MESSAGE_CONTRACTS = {
 		name: 'ScreenGatedKeyInput',
 		request: { payloadEncoding: raw, successKind: MessageKind.inputAccepted },
 		responseEncoding: null,
+	},
+	[MessageKind.readTerminalLifecycle]: {
+		eventEncoding: null,
+		name: 'ReadTerminalLifecycle',
+		request: { payloadEncoding: control, successKind: MessageKind.readTerminalLifecycle },
+		responseEncoding: control,
 	},
 	[MessageKind.attachKeeper]: {
 		eventEncoding: null,
@@ -748,9 +755,9 @@ type RequestKindForEncoding<Encoding extends PayloadEncoding> = {
 		: never;
 }[MessageKind];
 
-// Only the Worker sends the Host handover requests, under the `keeper`, `handover`, and
-// `recovery` capabilities; no TypeScript producer encodes them, so none is a client control request here.
+// These capability-gated Host requests are sent by the Worker.
 const WORKER_ONLY_CONTROL_REQUEST_KINDS = [
+	MessageKind.readTerminalLifecycle,
 	MessageKind.attachKeeper,
 	MessageKind.detachKeeper,
 	MessageKind.quiesceTerminal,

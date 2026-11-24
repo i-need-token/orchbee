@@ -67,6 +67,39 @@ fn read_only_inspection_is_current_only_and_round_trips() -> TestResult {
 }
 
 #[test]
+fn completed_target_reads_are_valid_only_on_the_first_query_step() -> TestResult {
+    let observed = [&[11, 1][..], &7_u64.to_be_bytes(), &[5, 0]].concat();
+    for action in [&[4, 0], &[6, 0]] {
+        for (tail, target) in [
+            (&[11, 0][..], None),
+            (
+                observed.as_slice(),
+                Some(LifecycleTargetObservation {
+                    revision: 7,
+                    phase: LifecycleTerminalPhase::Exited {
+                        terminate_requested: false,
+                    },
+                }),
+            ),
+        ] {
+            let bytes = result_frame(action, tail);
+            let decoded = decode_message(&bytes)?;
+            let CapabilityNodeMessage::TerminalLifecycleResult(result) = decoded else {
+                panic!("expected lifecycle result");
+            };
+            assert_eq!(
+                result.outcome(),
+                TerminalLifecycleOutcome::TargetObserved(target)
+            );
+            assert_eq!(encode_message(&decoded)?, bytes);
+        }
+    }
+    assert!(decode_message(&result_frame(&query_action(Some((7, 128))), &observed)).is_err());
+    assert!(decode_message(&result_frame(&[3], &[11, 0])).is_err());
+    Ok(())
+}
+
+#[test]
 fn hand_derived_lifecycle_request_and_acknowledgement_goldens_round_trip() -> TestResult {
     for action in 1..=3 {
         let mut payload = request_payload(&[action]);

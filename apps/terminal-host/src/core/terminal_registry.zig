@@ -65,6 +65,10 @@ pub const Registry = struct {
         return self.terminals.get(terminal_id);
     }
 
+    pub fn terminalForCreation(self: *const Registry, creation_id: CreationId) ?TerminalId {
+        return self.creations.get(creation_id);
+    }
+
     pub fn resolveCreation(
         self: *const Registry,
         creation_id: CreationId,

@@ -184,6 +184,7 @@ pub const HostCore = struct {
     pub const synchronizeGeometry = terminals.synchronizeGeometry;
     pub const markOutcomePublished = terminals.markOutcomePublished;
     pub const findTerminal = terminals.findTerminal;
+    pub const terminalForCreation = terminals.terminalForCreation;
     pub const terminalCount = terminals.terminalCount;
     pub const terminalKeys = terminals.terminalKeys;
     pub const terminalValues = terminals.terminalValues;
