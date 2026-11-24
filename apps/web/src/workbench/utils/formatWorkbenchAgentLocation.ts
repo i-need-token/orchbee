@@ -5,7 +5,7 @@ import type { WorkbenchAgentDestination } from '../model/project-workbench-agent
 /** The Tab, Panel and terminal that hold an Agent, within its Workspace. */
 export function formatWorkbenchAgentLocation(
 	intl: IntlShape,
-	destination: WorkbenchAgentDestination,
+	destination: Pick<WorkbenchAgentDestination, 'panelPosition' | 'tabTitle' | 'terminalPosition'>,
 ): string {
 	const terminal =
 		destination.terminalPosition.kind === 'primary'

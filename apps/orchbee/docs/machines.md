@@ -1443,10 +1443,14 @@ worded `labels`; nothing typed is ever in it. The person's acts are intents nami
 question no longer shown changes nothing, and an answer holding a control character or longer than
 1,024 bytes is refused `malformed`. The answer goes into the episode's fixed buffer as a typed one
 does and leaves only through its delivery; the process wipes every buffer of its input that held it
-once read, and no diagnostic prints a record.
+once read, and no diagnostic prints a record. The page clears its field on submission,
+cancellation, failure and unmount; JavaScript strings cannot be wiped, so the page's and Main's
+copies last until garbage collection, as with any Electron password field.
 
 While Desktop has a window the process's hub attachment `asks`, so a command's login is offered
-to the window as to a TUI, and the offers it did not show go when the window does. `offer` is the
+to the window as to a TUI, and the offers it did not show go when the window does. Without a
+window it asks for none, so unless another interface asks, a waiting command fails
+`auth-required` at once. `offer` is the
 TUI's notice: `login`, `machine` (`{name} · {target}`), `count` and `consequence` (how many
 commands wait and what Not now does to them, null once none waits), `accepted`, `ended`
 (`{text, tone}` of an accepted login that ended before its question, `success`, `warning` or

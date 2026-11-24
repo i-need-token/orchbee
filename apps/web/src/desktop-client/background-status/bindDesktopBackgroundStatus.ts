@@ -11,6 +11,16 @@ import type { DesktopBackgroundStatusClient } from './DesktopBackgroundStatusCli
 interface BindDesktopBackgroundStatusOptions {
 	readonly agentObservationSource: WorkbenchAgentSource;
 	readonly client: Pick<DesktopBackgroundStatusClient, 'report'>;
+	/** The other machines' connected Sessions, which the icon counts beside this computer's. */
+	readonly others?:
+		| {
+				readonly status: () => {
+					readonly observations: Iterable<Parameters<typeof resolveWorkbenchAgentDisplayState>[0]>;
+					readonly runningTerminals: number;
+				};
+				readonly subscribe: (listener: () => void) => () => void;
+		  }
+		| undefined;
 	readonly projectWorkspaceRuntime: Pick<
 		WorkbenchProjectWorkspaceRuntime,
 		'countRunningTerminals' | 'subscribe'
@@ -34,6 +44,7 @@ const ENDED_SUMMARY: DesktopBackgroundStatusSummary = {
 export function bindDesktopBackgroundStatus({
 	agentObservationSource,
 	client,
+	others,
 	projectWorkspaceRuntime,
 	session,
 }: BindDesktopBackgroundStatusOptions): () => void {
@@ -42,11 +53,12 @@ export function bindDesktopBackgroundStatus({
 	const report = (): void => {
 		scheduled = false;
 		if (stopped) return;
+		const other = others?.status();
 		client.report(
-			summarize(
-				projectWorkspaceRuntime.countRunningTerminals(),
-				agentObservationSource.getSnapshot().presentations.values(),
-			),
+			summarize(projectWorkspaceRuntime.countRunningTerminals() + (other?.runningTerminals ?? 0), [
+				...agentObservationSource.getSnapshot().presentations.values(),
+				...(other?.observations ?? []),
+			]),
 		);
 	};
 	const schedule = (): void => {
@@ -56,11 +68,13 @@ export function bindDesktopBackgroundStatus({
 	};
 	let stopPublication: (() => void) | undefined;
 	let stopAgents: (() => void) | undefined;
+	let stopOthers: (() => void) | undefined;
 	const stop = (): void => {
 		if (stopped) return;
 		stopped = true;
 		stopPublication?.();
 		stopAgents?.();
+		stopOthers?.();
 		stopEnd();
 	};
 	// A Session that has already ended reports it at once.
@@ -68,11 +82,13 @@ export function bindDesktopBackgroundStatus({
 		stopped = true;
 		stopPublication?.();
 		stopAgents?.();
+		stopOthers?.();
 		client.report(ENDED_SUMMARY);
 	});
 	if (stopped) return stopEnd;
 	stopPublication = projectWorkspaceRuntime.subscribe(schedule);
 	stopAgents = agentObservationSource.subscribe(schedule);
+	stopOthers = others?.subscribe(schedule);
 	schedule();
 	return stop;
 }

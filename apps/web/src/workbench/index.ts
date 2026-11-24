@@ -137,3 +137,10 @@ export type {
 export { hasWorkbenchExclusiveFocusSurface } from './utils/workbench-focus-dom';
 
 export { resolveWorkbenchAgentDisplayState } from './utils/resolveWorkbenchAgentDisplayState';
+export {
+	WorkbenchAgentNotificationScheduler,
+	type WorkbenchAgentNotificationCandidate,
+} from './model/WorkbenchAgentNotificationScheduler';
+export { projectWorkbenchAgentNotification } from './utils/projectWorkbenchAgentNotification';
+export { formatWorkbenchAgentLocation } from './utils/formatWorkbenchAgentLocation';
+export { formatWorkbenchAgentName } from './utils/workbench-agent-names';

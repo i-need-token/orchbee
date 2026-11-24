@@ -48,13 +48,15 @@ All's Session stop, which the page sends through its Server connection because M
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The fifth is its machines port, which `src/main/remote-machines/` connects to
 the saved machines' process, `orchbee --desktop-machines` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
-while Desktop offers remote machines; the page's Settings › Machines reads it. Until then Main starts no such process and closes the port at once, so no view arrives and Settings shows no Machines category.
+on Windows and macOS; the page's Settings › Machines, the sidebar's other machines and Change machine read it. On Linux Main starts no such process and closes the port at once, so no view arrives and Settings shows no Machines category.
 For each saved machine the hub reads online, the page asks for a connection to its Session, and
 Main starts that machine's session relay, `orchbee --machine-session` ([contract](../orchbee/docs/machines.md#desktop-session-relay)),
 reads only its first line within 30 seconds, and hands the page the relay's port under the
 connection relay's bounds, or the reason there is none (`desktop-machine-session-contract.ts`). A
 document holds one per machine, with no cap; closing the port or the document ends the relay, never
-the remote Session. While Desktop offers no remote machines Main refuses every such request. The process owns activation, peer validation and admission, and the page
+the remote Session. On Linux Main refuses every such request. No contract carries the far
+computer's home, so a remote surface starts New Workspace, with no Workspace focused, in the folder
+of that Session's first Workspace, and leaves the directories its terminals report to its Server. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's

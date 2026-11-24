@@ -68,7 +68,7 @@ import {
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
-import { DESKTOP_REMOTE_MACHINES, DesktopMachinesProcess } from '../remote-machines';
+import { DesktopMachinesProcess } from '../remote-machines';
 import { createDesktopFolder, DesktopFolderNotCreated } from './desktop-folder';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
@@ -647,7 +647,8 @@ async function start(): Promise<void> {
 	}
 	windowUpdate = createWindowUpdate(sessionArguments);
 	windowUpdate.start();
-	if (DESKTOP_REMOTE_MACHINES && (process.platform === 'win32' || process.platform === 'darwin')) {
+	// Desktop offers remote machines where the TUI reaches them: Windows and macOS.
+	if (process.platform === 'win32' || process.platform === 'darwin') {
 		machines = new DesktopMachinesProcess({
 			clientEnvironment: resolveClientEnvironment(),
 			clientExecutable: resolveClientExecutable(),

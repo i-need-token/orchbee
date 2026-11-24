@@ -14,6 +14,7 @@ export {
 	askServerUpdateCheck,
 	serverNavigationRows,
 	serverSessionServes,
+	ServerTerminalAgentSource,
 	stopServerSession,
 	workspaceLaunchAction,
 } from './server-workbench';

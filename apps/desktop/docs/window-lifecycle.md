@@ -106,14 +106,16 @@ icon on Windows and the menu-bar icon on macOS.
   shows, and no state while Quit All stops the Session. Its tooltip names the application and, while
   a page reports, repeats the menu's status line.
 - The menu's first, inert line counts the running terminals and the Agents that failed, need
-  attention, or finished a turn not yet seen, or says that Quit All is stopping them; it is absent
+  attention, or finished a turn not yet seen, on this computer and on every saved machine the page
+  holds a connection to, or says that Quit All is stopping them; it is absent
   while no window's page reports, as before the first document does. Open Orchbee follows, always,
   as Docker Desktop's and 1Password's icon menus keep their open entry. Quit Orchbee, Keep Terminals
   Running and Quit All… follow; Quit All is offered only while a page reports running terminals,
   the application is not ending, and no Quit All is under way, and an item that is not offered is
   left out rather than disabled.
 - When the last terminal ends while the window is hidden, Desktop quits, unless a Quit All is
-  stopping the Session, which ends every terminal before it completes, or has failed.
+  stopping the Session, which ends every terminal before it completes, or has failed. A connected
+  machine's terminals count too, since the icon and notifications follow them.
 - The first hide shows a notice from the icon, which Windows withholds during Do Not Disturb. Only a
   notice Windows reports as shown is recorded in `internal/state/desktop-tray.json`, so a withheld
   one is shown at a later hide. Each distribution profile records its own.
@@ -126,8 +128,10 @@ icon on Windows and the menu-bar icon on macOS.
 - Quit All… asks every time, in a native dialog that needs no window, with Cancel focused and on
   Esc; its body counts the terminals that stop and the Agents working in them. Cancel changes
   nothing. Only a confirmation stops the Session: Main chooses a stop identity and asks the page
-  over the background-status port, the page sends `workbench.session-stop` once through its Server
-  connection and answers, and Main then reads `operation status` every half second. Desktop quits
+  over the background-status port. The page first asks the hub to stop the Session of every saved
+  machine it reads online, as Settings › Machines' Stop its terminals does, and waits up to three
+  seconds for the hub to take each stop, which the hub then carries out on its own, unproven by
+  Desktop. It then sends `workbench.session-stop` once through its Server connection and answers, and Main then reads `operation status` every half second. Desktop quits
   only once a stopped receipt proves the stop, which also ends every Client, an attached TUI
   included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
   window with the reason in plain words, records the reason in the diagnostic log, and nothing

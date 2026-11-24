@@ -72,6 +72,7 @@ import { SessionUnavailable } from '../session-unavailable';
 import { WorkbenchFailure } from '../workbench-failure';
 import { followDesktopWindowCaption } from '../window-caption';
 import { forwardDesktopWindowFaults } from '../window-fault';
+import { DesktopBackgroundSessions } from './DesktopBackgroundSessions';
 import { DesktopRemoteSessions } from './DesktopRemoteSessions';
 import { DesktopWorkbenchSurfaces } from './DesktopWorkbenchSurfaces';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
@@ -275,9 +276,14 @@ async function run(
 		);
 		return;
 	}
+	// The Sessions of other machines the window holds but does not show, once the machines are read.
+	let background: DesktopBackgroundSessions | undefined;
 	// Quit All in the menu of Main's notification-area or menu-bar icon stops the Session through
-	// this connection.
-	backgroundStatus.serveSessionStop((stopId) => stopServerSession(session, stopId));
+	// this connection, once the hub has taken the stop of every connected machine's Session.
+	backgroundStatus.serveSessionStop(async (stopId) => {
+		await background?.stopMachines();
+		return stopServerSession(session, stopId);
+	});
 
 	// Check for updates asks this Session's Server to run its update job now; what it installs
 	// reaches the window as Main's offer, refreshed directly from disk once the check settles so a
@@ -379,6 +385,7 @@ async function run(
 				[
 					() => reactRoot.unmount(),
 					() => stopBackgroundStatus?.(),
+					() => background?.dispose(),
 					() => surfaces?.dispose(),
 					() => runtime?.dispose(),
 					() => projectFolderAcquisition.dispose(),
@@ -442,13 +449,6 @@ async function run(
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
 	});
-	// What Main's notification-area or menu-bar icon shows.
-	stopBackgroundStatus = bindDesktopBackgroundStatus({
-		agentObservationSource: runtime.agentObservationSource,
-		client: backgroundStatus,
-		projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
-		session,
-	});
 	const sharedRouting = {
 		applicationLocaleController,
 		clientBuild: { distribution: bootstrap.distribution, version: bootstrap.applicationVersion },
@@ -471,6 +471,29 @@ async function run(
 		terminalSurface: ProjectedTerminalSurface,
 	};
 	const localRuntime = runtime;
+	const remoteSessions = new DesktopRemoteSessions((machine) =>
+		requestMachineSession(targetWindow, machine),
+	);
+	background = new DesktopBackgroundSessions({
+		intl: () => createOrchbeeIntl(applicationLocaleController.current()),
+		local: {
+			agents: localRuntime.agentObservationSource,
+			runtime: localRuntime.projectWorkspaceRuntime,
+		},
+		machines,
+		observer: terminalFeedbackSettingsController,
+		open: (machine, workspaceId) => surfaces?.open(machine, workspaceId),
+		remoteSessions,
+		shown: () => surfaces?.shown() ?? null,
+	});
+	// What Main's notification-area or menu-bar icon shows: every connected machine's Session.
+	stopBackgroundStatus = bindDesktopBackgroundStatus({
+		agentObservationSource: localRuntime.agentObservationSource,
+		client: backgroundStatus,
+		others: background,
+		projectWorkspaceRuntime: localRuntime.projectWorkspaceRuntime,
+		session,
+	});
 	surfaces = new DesktopWorkbenchSurfaces({
 		// Another machine's surface carries only its Workspaces, Tabs and Panels: this computer's
 		// folder picker, launch profiles, Quit All and window title stay with this computer's.
@@ -521,9 +544,7 @@ async function run(
 			),
 		local: { runtime: localRuntime, session },
 		machines,
-		remoteSessions: new DesktopRemoteSessions((machine) =>
-			requestMachineSession(targetWindow, machine),
-		),
+		remoteSessions,
 		render: (surface) =>
 			reactRoot.render(
 				createElement(DesktopWorkbench, {

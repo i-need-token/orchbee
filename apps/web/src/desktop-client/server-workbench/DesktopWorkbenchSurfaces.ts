@@ -51,8 +51,8 @@ interface DesktopWorkbenchSurfacesOptions {
  * Which Session the window shows, and the other machines' Workspaces its sidebar lists beside it.
  * This computer's runtime lasts the document's life, so returning to it never waits; a saved
  * machine's runtime lasts while it is on screen, over the connection the window keeps to it. Window
- * duties, such as Settings, Update, Quit All and the notification-area counts, stay with this
- * computer's Session whatever is shown.
+ * duties, such as Settings, Update and the folder picker, stay with this computer's Session whatever
+ * is shown; the Sessions not shown keep their notifications and counts in DesktopBackgroundSessions.
  */
 export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	readonly #listeners = new Set<() => void>();
@@ -98,6 +98,11 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	}
 
 	readonly getSnapshot = (): WorkbenchOtherMachinesSnapshot => this.#snapshot;
+
+	/** The machine on screen, null for this computer. */
+	shown(): string | null {
+		return this.#surface?.machine ?? null;
+	}
 
 	readonly subscribe = (listener: () => void): (() => void) => {
 		this.#listeners.add(listener);

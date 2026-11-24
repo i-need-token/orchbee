@@ -508,6 +508,11 @@ and event kind; it never includes prompts, commands, tool content, output, paths
 Each semantic event identity is considered once. Activating the notification focuses the
 application and selects its exact Tab and Panel but cannot answer a question or grant approval.
 
+The desktop window keeps notifying for the Sessions it holds but does not show, under the same
+rules: this computer's while another machine is on screen, and every connected saved machine's.
+Such a notification names its Workspace with `@` and the machine's name, and activating it opens
+that Workspace on its machine.
+
 The current Workbench unmounts terminal Surfaces that belong entirely to inactive tabs. A mounted
 but unfocused terminal can remind immediately, and reattachment can consider a completion fact
 within the 60-second freshness window. This is not a claim of complete background monitoring:
