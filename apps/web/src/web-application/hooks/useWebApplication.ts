@@ -23,6 +23,7 @@ interface WebApplicationView {
 	readonly onSettings: WorkbenchHostActionCallback;
 	readonly onShortcuts: WorkbenchHostActionCallback;
 	readonly onTerminalFontSizeChange: WorkbenchTerminalFontSizeChangeCallback;
+	readonly openMachineSettings: () => void;
 	readonly settingsOpen: boolean;
 	readonly workbenchReference: RefObject<HTMLDivElement | null>;
 }
@@ -87,21 +88,31 @@ export function useWebApplication({
 		}
 	});
 
+	/** Whether Settings may open: not over itself, nor over a Color Theme list still up. */
+	const settingsOpenable = (): boolean => {
+		const snapshot = terminalSettingsController.getSnapshot();
+		return !snapshot.open && snapshot.colorThemePicker === null;
+	};
+	const showSettings = (landing: TerminalSettingsLanding | null): void => {
+		const activeElement = applicationReference.current?.ownerDocument.activeElement;
+		returnFocusReference.current =
+			activeElement instanceof HTMLElement && activeElement.isConnected ? activeElement : null;
+		terminalSettingsController.open(landing);
+	};
 	const openSettings = (
 		context: Parameters<WorkbenchHostActionCallback>[0],
 		landing: TerminalSettingsLanding | null,
 	): ReturnType<WorkbenchHostActionCallback> => {
 		if (context.signal.aborted) return { kind: 'cancelled' };
-		// Settings does not open over a Color Theme list that is still up; the list closes first.
-		const snapshot = terminalSettingsController.getSnapshot();
-		if (snapshot.open || snapshot.colorThemePicker !== null) return { kind: 'unchanged' };
-		const activeElement = applicationReference.current?.ownerDocument.activeElement;
-		returnFocusReference.current =
-			activeElement instanceof HTMLElement && activeElement.isConnected ? activeElement : null;
+		if (!settingsOpenable()) return { kind: 'unchanged' };
 		context.markCommitted();
-		terminalSettingsController.open(landing);
+		showSettings(landing);
 		return { kind: 'completed' };
 	};
+	// Change machine's Manage machines… opens Settings on Machines.
+	const openMachineSettings = useMemoizedFn((): void => {
+		if (settingsOpenable()) showSettings('machines');
+	});
 	const onSettings: WorkbenchHostActionCallback = useMemoizedFn((context) =>
 		openSettings(context, null),
 	);
@@ -137,6 +148,7 @@ export function useWebApplication({
 		onSettings,
 		onShortcuts,
 		onTerminalFontSizeChange,
+		openMachineSettings,
 		settingsOpen: settings.open,
 		workbenchReference,
 	};

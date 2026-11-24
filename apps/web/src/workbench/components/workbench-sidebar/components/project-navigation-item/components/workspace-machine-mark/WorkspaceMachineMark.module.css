@@ -2,7 +2,7 @@
    way only after it. Its text sits on the name's line as the name does (G19). */
 .mark {
 	min-width: 0;
-	max-width: 12ch;
+	max-width: var(--ob-comp-workbench-machine-mark-max-inline-size);
 	flex-shrink: 0;
 	padding-block: var(--ob-ref-space-1);
 	overflow: hidden;

@@ -6,6 +6,7 @@ import type {
 	WorkbenchWorktreeRemovalInput,
 	WorkbenchWorktreeResumeInput,
 } from '../../../actions/workbench-action-ids';
+import type { WorkbenchActionMenuEntry } from '../../../types/workbench-action-menu';
 import type { WorkbenchWorktreeDiscoveryResult } from '../../../types/workbench-worktrees';
 
 /** What a Workspace menu reads about Worktrees and the Actions it invokes on them. */
@@ -67,3 +68,13 @@ export type WorkbenchSidebarWorkspaceCreation =
 	| { readonly projectId: string; readonly selectDirectory: true }
 	| { readonly projectId: string }
 	| { readonly path: string; readonly projectId: string };
+
+/** Change machine in a Workspace's menu. */
+export interface WorkspaceMachineMenu {
+	/** The menu that offers it opened or closed: its order is taken on opening. */
+	readonly opened: (open: boolean) => void;
+	readonly submenu: (workspace: {
+		readonly id: string;
+		readonly name: string;
+	}) => WorkbenchActionMenuEntry;
+}

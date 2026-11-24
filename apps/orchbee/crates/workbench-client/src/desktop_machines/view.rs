@@ -5,9 +5,12 @@
 
 use super::add::{Add, Check};
 use crate::{
-    localization::{Locale, ManageText},
+    action_menu::MenuHeading,
+    client_actions::MenuAction,
+    localization::{Locale, MachineText, ManageText},
     machine_add::Stage,
     machine_capacity::{parts, summary},
+    machine_change::Band,
     machine_discovery::display_label,
     machine_picker::ManageProblem,
     machine_settings::{Action, Facts, Machine, State},
@@ -48,6 +51,7 @@ pub(super) fn project(
         "login": projected.login,
         "offer": projected.offer,
         "seen": projected.seen,
+        "change": change(locale, facts),
         "add": json!({
             "labels": {
                 "addMachine": locale.machine_manage_text(ManageText::AddMachine),
@@ -223,4 +227,35 @@ pub(super) fn seen(checkpoints: &[(ProfileId, Arc<Checkpoint>)]) -> Value {
             })
             .collect(),
     )
+}
+
+/// Change machine's words, and its list as the TUI orders it when it opens: This computer (null),
+/// then every saved machine by band and name.
+fn change(locale: Locale, facts: &Facts) -> Value {
+    let rows = crate::machine_change::rows(&crate::machine_change::Facts {
+        here: None,
+        local: facts.local.clone(),
+        machines: facts.machines.clone(),
+        moving: false,
+    });
+    json!({
+        "labels": {
+            "title": MenuAction::ChangeMachine.title(locale),
+            "heading": locale.menu_heading(MenuHeading::RunsOn),
+            "note": locale.machine_text(MachineText::ColumnNote),
+            "here": locale.machine_change_here(),
+            "find": locale.machine_change_find(),
+            "noMatch": locale.machine_change_no_match(),
+            "manage": MenuAction::ManageMachines.title(locale),
+        },
+        "rows": rows.iter().map(|row| json!({
+            "machine": row.id(),
+            "band": match row.band {
+                Band::Room => "room",
+                Band::Low => "low",
+                Band::Login => "login",
+                Band::Unusable => "unusable",
+            },
+        })).collect::<Vec<_>>(),
+    })
 }

@@ -167,6 +167,23 @@ export interface TerminalSettingsMachinesView {
 	};
 	readonly added: string | null;
 	readonly catalog: 'read' | 'unreadable';
+	/** Change machine's words, and its list in the order it takes when it opens. */
+	readonly change: {
+		readonly labels: {
+			readonly find: string;
+			readonly heading: string;
+			readonly here: string;
+			readonly manage: string;
+			readonly noMatch: string;
+			readonly note: string;
+			readonly title: string;
+		};
+		/** This computer (null), then every saved machine by band and name. */
+		readonly rows: readonly {
+			readonly band: 'login' | 'low' | 'room' | 'unusable';
+			readonly machine: string | null;
+		}[];
+	};
 	/** Why no machine connection is reached, or null. */
 	readonly hub: string | null;
 	readonly local: TerminalSettingsMachineCapacity;
@@ -175,12 +192,34 @@ export interface TerminalSettingsMachinesView {
 	/** The notice of a command login offered to the window, or null. */
 	readonly offer: TerminalSettingsMachineOffer | null;
 	readonly machines: readonly TerminalSettingsMachine[];
+	/** Change machine's move: the word while one runs, its question, how the last ended, where it landed. */
+	readonly move: {
+		readonly moved: {
+			readonly machine: string | null;
+			readonly number: number;
+			readonly workspace: string;
+		} | null;
+		readonly notice: { readonly number: number; readonly text: string } | null;
+		readonly pending: string | null;
+		readonly question: TerminalSettingsMachineMoveQuestion | null;
+	};
 	/** How the last request ended; a new number is a new outcome even with the same words. */
 	readonly notice: { readonly number: number; readonly text: string } | null;
 	/** Whether saved passwords can be kept, so Saved password applies. */
 	readonly passwords: boolean;
 	/** The Workspaces each enabled machine listed when last read, kept for one not connected. */
 	readonly seen: readonly TerminalSettingsMachineSeen[];
+}
+
+/** What a move asks before it stops a program, worded as the TUI's question. */
+export interface TerminalSettingsMachineMoveQuestion {
+	readonly cancel: string;
+	readonly files: string;
+	readonly move: string;
+	readonly question: number;
+	readonly sentence: string;
+	readonly title: string;
+	readonly workspace: string;
 }
 
 /** One machine's entry in the last-seen list, in its Session's order. */
@@ -262,6 +301,16 @@ export type TerminalSettingsMachineIntent =
 	| TerminalSettingsMachineLoginIntent
 	| { readonly act: 'add-close' | 'add-open' }
 	| { readonly act: 'offer-accept' | 'offer-decline'; readonly login: number }
+	| {
+			readonly act: 'move';
+			/** The machine whose Session holds the Workspace; null for this computer. */
+			readonly from: string | null;
+			readonly label: string;
+			/** Where it goes; null for this computer. */
+			readonly to: string | null;
+			readonly workspace: string;
+	  }
+	| { readonly act: 'move-answer'; readonly confirm: boolean; readonly question: number }
 	| {
 			readonly act: 'add';
 			readonly address: string;

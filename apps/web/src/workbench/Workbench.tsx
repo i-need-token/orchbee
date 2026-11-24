@@ -122,6 +122,8 @@ interface WorkbenchProps {
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 	/** Other machines' Workspaces, which the sidebar lists where the window holds several Sessions. */
 	readonly otherMachines?: WorkbenchOtherMachines | undefined;
+	/** Change machine's Manage machines…: Settings on Machines. */
+	readonly onManageMachines?: (() => void) | undefined;
 }
 
 export function Workbench({
@@ -152,6 +154,7 @@ export function Workbench({
 	terminalSurface,
 	workspaceLocationSource,
 	otherMachines,
+	onManageMachines,
 }: WorkbenchProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const tabStripMessages = useWorkbenchTabStripMessages();
@@ -242,6 +245,7 @@ export function Workbench({
 				onSettings={view.settings}
 				onShortcuts={view.shortcuts}
 				otherMachines={otherMachines}
+				onManageMachines={onManageMachines}
 				reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
 				returnToTerminal={view.returnToTerminal}
 				projectLabel={view.projectLabel}

@@ -21,6 +21,7 @@ export { WorkbenchUpdateCheckModel } from './model/WorkbenchUpdateCheckModel';
 export { invokeWorkbenchClientUpdate } from './actions/invokeWorkbenchClientUpdate';
 export type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 export type {
+	WorkbenchMachineChangeRow,
 	WorkbenchOtherMachines,
 	WorkbenchOtherMachinesSnapshot,
 	WorkbenchOtherMachineWorkspaces,

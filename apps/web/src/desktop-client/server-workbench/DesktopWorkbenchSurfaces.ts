@@ -6,6 +6,7 @@ import type {
 	TerminalSettingsMachinesView,
 } from '../../terminal-settings-surface';
 import type {
+	WorkbenchMachineChangeRow,
 	WorkbenchOtherMachines,
 	WorkbenchOtherMachinesSnapshot,
 	WorkbenchOtherMachineWorkspaces,
@@ -58,11 +59,20 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	readonly #options: DesktopWorkbenchSurfacesOptions;
 	readonly #stops: (() => void)[] = [];
 	#key = '';
+	/** The last landing of a move this window followed; undefined until the first view. */
+	#landed: number | null | undefined;
+	/** Ends the capacity reading a Change machine list holds open. */
+	#releaseCapacity: (() => void) | null = null;
 	/** The surface on screen whose connection ended, once seen. */
 	#lost: DesktopWorkbenchSurface | undefined;
 	/** A choice of a machine that is not connected, which lands once its connection opens. */
 	#pending: Pending | null = null;
-	#snapshot: WorkbenchOtherMachinesSnapshot = { card: null, machines: [], onScreen: null };
+	#snapshot: WorkbenchOtherMachinesSnapshot = {
+		card: null,
+		change: null,
+		machines: [],
+		onScreen: null,
+	};
 	#surface: DesktopWorkbenchSurface | undefined;
 
 	constructor(options: DesktopWorkbenchSurfacesOptions) {
@@ -77,6 +87,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		this.#stops.push(
 			machines.subscribe(() => {
 				this.#follow();
+				this.#followMove();
 				refresh();
 			}),
 			remoteSessions.subscribe(refresh),
@@ -129,7 +140,32 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		this.#refresh();
 	};
 
+	/**
+	 * Change machine: moves `workspaceId` of the Session on screen to `machine`. The machines process
+	 * runs it as the TUI does, asks this window before it stops a program, and the window follows
+	 * the Workspace to where it landed.
+	 */
+	readonly move = (workspaceId: string, workspaceName: string, machine: string): void => {
+		this.#options.machines.request({
+			act: 'move',
+			from: this.#surface?.machine ?? null,
+			label: workspaceName,
+			to: machine === LOCAL ? null : machine,
+			workspace: workspaceId,
+		});
+	};
+
+	readonly watchCapacity = (watching: boolean): void => {
+		if (watching) {
+			this.#releaseCapacity ??= this.#options.machines.showCapacity();
+		} else {
+			this.#releaseCapacity?.();
+			this.#releaseCapacity = null;
+		}
+	};
+
 	dispose(): void {
+		this.watchCapacity(false);
 		for (const stop of this.#stops.splice(0)) stop();
 		this.#unmount(this.#surface);
 		this.#surface = undefined;
@@ -186,6 +222,16 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 					.map((machine) => machine.machine),
 			),
 		);
+	}
+
+	/** Follows a Workspace a move landed, once; a landing from before this window's first view is not. */
+	#followMove(): void {
+		const moved = this.#options.machines.getSnapshot()?.move.moved;
+		if (moved === undefined) return;
+		const landed = this.#landed;
+		this.#landed = moved?.number ?? null;
+		if (landed === undefined || moved === null || moved.number === landed) return;
+		this.open(moved.machine ?? LOCAL, moved.workspace);
 	}
 
 	#machine(machine: string): TerminalSettingsMachinesView['machines'][number] | undefined {
@@ -272,11 +318,12 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 								: chosen.action.label,
 						...chosen.card,
 					};
+		const change = view === null ? null : changeOf(view, shown);
 		// Most publications change no name or membership, so the sidebar redraws only when one does.
-		const key = JSON.stringify({ card, list, onScreen });
+		const key = JSON.stringify({ card, change, list, onScreen });
 		if (key === this.#key) return;
 		this.#key = key;
-		this.#snapshot = { card, machines: list, onScreen };
+		this.#snapshot = { card, change, machines: list, onScreen };
 		for (const listener of this.#listeners) listener();
 	}
 }
@@ -309,4 +356,43 @@ function shownWorkspace(surface: DesktopWorkbenchSurface): string | null {
 	} catch {
 		return null;
 	}
+}
+
+/**
+ * Change machine for a Workspace of the Session on `shown`'s machine (null for this computer), as
+ * the TUI lists it: each machine's free capacity while it can take a Workspace, otherwise its state
+ * word; a machine that cannot take one now is offered disabled.
+ */
+function changeOf(
+	view: TerminalSettingsMachinesView,
+	shown: string | null,
+): NonNullable<WorkbenchOtherMachinesSnapshot['change']> {
+	const here = shown ?? LOCAL;
+	const rows: WorkbenchMachineChangeRow[] = [];
+	for (const { band, machine } of view.change.rows) {
+		const id = machine ?? LOCAL;
+		const saved =
+			machine === null ? undefined : view.machines.find((row) => row.machine === machine);
+		if (machine !== null && saved === undefined) continue;
+		rows.push({
+			address: saved?.address ?? null,
+			current: id === here,
+			disabled: band === 'unusable',
+			machine: id,
+			name: saved?.label ?? view.change.labels.here,
+			trailing: saved === undefined ? view.local.summary : trailingOf(saved),
+		});
+	}
+	const { find, heading, manage, noMatch, note, title } = view.change.labels;
+	return {
+		labels: { find, heading, manage, noMatch, note, title },
+		moving: view.move.pending !== null || view.move.question !== null,
+		rows,
+	};
+}
+
+/** What a saved machine's row ends with: its free capacity while it is online, else its state word. */
+function trailingOf(machine: TerminalSettingsMachinesView['machines'][number]): string {
+	if (machine.state !== 'online' || machine.stopping) return machine.word;
+	return machine.capacity.summary;
 }

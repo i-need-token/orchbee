@@ -74,6 +74,8 @@ interface WorkbenchSidebarProps {
 	readonly onShortcuts?: (() => void) | undefined;
 	/** Other machines' Workspaces, listed beside the Session on screen's where the window holds several. */
 	readonly otherMachines?: WorkbenchOtherMachines | undefined;
+	/** Change machine's Manage machines…: Settings on Machines; absent where the window has none. */
+	readonly onManageMachines?: (() => void) | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
@@ -134,6 +136,7 @@ export function WorkbenchSidebar({
 	onSettings,
 	onShortcuts,
 	otherMachines,
+	onManageMachines,
 	projectLabel,
 	projectNavigationMessages,
 	projectWorkspaceState,
@@ -203,6 +206,7 @@ export function WorkbenchSidebar({
 		otherMachines,
 		shownState.projects,
 		shownState.workspaces.some((workspace) => workspace.projectId === null),
+		onManageMachines,
 	);
 	const groupExpanded = (project: WorkbenchProject | null, foreign: boolean): boolean => {
 		if (project === null) return projectWorkspaceState.recentsExpanded;
@@ -343,6 +347,7 @@ export function WorkbenchSidebar({
 									toggleWorkspaceAgents={toggleWorkspaceAgents}
 									workspaceAgentOverviews={workspaceAgentOverviews}
 									agentMenu={agentMenu}
+									machineMenu={foreign ? undefined : others.machineMenu}
 									workspaceLocations={workspaceLocations}
 									worktreeMenu={workspaceWorktrees.menu}
 									state={shownState}

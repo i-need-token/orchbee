@@ -8,10 +8,12 @@
 mod add;
 mod intent;
 mod login;
+mod moving;
 mod offer;
 mod view;
 
 pub use intent::{Intent, LoginAct, parse_intent, parse_locale};
+pub use moving::{move_notice, move_pending, move_question};
 
 use add::Add;
 
@@ -141,6 +143,12 @@ impl DesktopMachines {
         self.locale = locale;
     }
 
+    /// The page's locale, in which every view is worded.
+    #[must_use]
+    pub const fn locale(&self) -> Locale {
+        self.locale
+    }
+
     /// Whether Desktop has a window, which alone shows the command logins the hub offers.
     pub fn set_window(&mut self, exists: bool) {
         self.discovery.set_asks(exists);
@@ -247,6 +255,8 @@ impl DesktopMachines {
                 return;
             }
             Intent::AddClose => return self.close_add(),
+            // The process's mover runs moves, as the TUI shell's does.
+            Intent::Move { .. } | Intent::MoveAnswer { .. } => return,
             Intent::Offer { login, accept } => {
                 // A choice on a notice no longer shown changes nothing.
                 if let Some(offered) = self
@@ -279,6 +289,12 @@ impl DesktopMachines {
 
     /// The name `machine` is shown by: its record's, or, for the machine being added, the one the
     /// person typed; never its id while either is known.
+    /// The name of the saved machine `machine`, or `machine` itself when none is saved by it.
+    #[must_use]
+    pub fn machine_label(&self, machine: &str) -> String {
+        self.label(machine).to_owned()
+    }
+
     fn label<'a>(&'a self, machine: &'a str) -> &'a str {
         self.profiles
             .iter()

@@ -1,14 +1,24 @@
 import * as React from 'react';
 
 import type { WorkbenchProject } from '../../../../project-workspace';
+import type { WorkbenchActionMenuCommand } from '../../../types/workbench-action-menu';
 import type {
+	WorkbenchMachineChangeRow,
 	WorkbenchMachineMark,
 	WorkbenchOtherMachines,
 	WorkbenchOtherMachinesSnapshot,
 } from '../../../types/workbench-other-machines';
 import type { SidebarOtherMachineRow } from '../components/project-navigation-item/ProjectNavigationItem';
+import type { WorkspaceMachineMenu } from '../types/workbench-sidebar-types';
 
-const NO_MACHINES: WorkbenchOtherMachinesSnapshot = { card: null, machines: [], onScreen: null };
+const NO_MACHINES: WorkbenchOtherMachinesSnapshot = {
+	card: null,
+	change: null,
+	machines: [],
+	onScreen: null,
+};
+/** Past this many saved machines, Change machine's list leads with a query. */
+const LISTED_MACHINES = 8;
 const NO_SUBSCRIPTION = (): (() => void) => () => undefined;
 const NO_SNAPSHOT = (): WorkbenchOtherMachinesSnapshot => NO_MACHINES;
 
@@ -21,6 +31,7 @@ interface SidebarGroup {
 
 interface SidebarOtherMachinesView {
 	readonly groups: readonly SidebarGroup[];
+	readonly machineMenu: WorkspaceMachineMenu | undefined;
 	readonly onScreenMark: WorkbenchMachineMark | null;
 	readonly open: (machine: string, workspaceId: string) => void;
 	readonly otherRows: (projectId: string | null) => {
@@ -41,6 +52,7 @@ export function useSidebarOtherMachines(
 	otherMachines: WorkbenchOtherMachines | undefined,
 	projects: readonly WorkbenchProject[],
 	hasUngrouped: boolean,
+	onManageMachines: (() => void) | undefined,
 ): SidebarOtherMachinesView {
 	const others = React.useSyncExternalStore(
 		otherMachines?.subscribe ?? NO_SUBSCRIPTION,
@@ -86,9 +98,80 @@ export function useSidebarOtherMachines(
 		},
 		[others],
 	);
+	// The list's order as it opened, so a row never moves under the pointer.
+	const listOrder = React.useRef<readonly string[]>([]);
+	const change = others.change;
+	const machineMenu: WorkspaceMachineMenu | undefined =
+		otherMachines === undefined || change === null
+			? undefined
+			: {
+					opened: (open) => {
+						if (open) listOrder.current = change.rows.map((row) => row.machine);
+						otherMachines.watchCapacity(open);
+					},
+					submenu: (workspace) => {
+						const place = (row: WorkbenchMachineChangeRow): number => {
+							const index = listOrder.current.indexOf(row.machine);
+							return index === -1 ? listOrder.current.length : index;
+						};
+						const rows = [...change.rows].sort((left, right) => place(left) - place(right));
+						const command = (row: WorkbenchMachineChangeRow): WorkbenchActionMenuCommand => ({
+							disabled: change.moving || row.disabled,
+							icon: row.current ? 'check' : 'machine',
+							id: `machine-${row.machine}`,
+							kind: 'command',
+							label: row.name,
+							onSelect: () => {
+								if (!row.current) otherMachines.move(workspace.id, workspace.name, row.machine);
+							},
+							shortcut: row.trailing,
+						});
+						const manage: WorkbenchActionMenuCommand[] =
+							onManageMachines === undefined
+								? []
+								: [
+										{
+											icon: 'settings',
+											id: 'manage-machines',
+											kind: 'command',
+											label: change.labels.manage,
+											onSelect: onManageMachines,
+										},
+									];
+						if (rows.length - 1 > LISTED_MACHINES) {
+							return {
+								commands: (query) => [
+									...rows.filter((row) => matches(row, query)).map(command),
+									...manage,
+								],
+								emptyLabel: () => change.labels.noMatch,
+								icon: 'machine',
+								id: 'workspace-machine',
+								kind: 'search-submenu',
+								label: change.labels.title,
+								searchLabel: change.labels.find,
+							};
+						}
+						return {
+							groups: [
+								{
+									commands: rows.map(command),
+									id: 'machines',
+									label: `${change.labels.heading} · ${change.labels.note}`,
+								},
+								...(manage.length === 0 ? [] : [{ commands: manage, id: 'manage' }]),
+							],
+							icon: 'machine',
+							id: 'workspace-machine',
+							kind: 'submenu',
+							label: change.labels.title,
+						};
+					},
+				};
 	return {
 		foreignExpanded: (projectId) => !collapsedForeign.has(projectId),
 		groups: merged,
+		machineMenu,
 		onScreenMark: others.onScreen,
 		open: (machine, workspaceId) => otherMachines?.open(machine, workspaceId),
 		otherRows,
@@ -99,4 +182,14 @@ export function useSidebarOtherMachines(
 				return next;
 			}),
 	};
+}
+
+/** Whether `query` names `row`: any part of its name or address, without regard to case. */
+function matches(row: WorkbenchMachineChangeRow, query: string): boolean {
+	const wanted = query.trim().toLowerCase();
+	return (
+		wanted === '' ||
+		row.name.toLowerCase().includes(wanted) ||
+		(row.address?.toLowerCase().includes(wanted) ?? false)
+	);
 }

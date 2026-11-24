@@ -36,6 +36,7 @@ import type {
 /** A Settings section that an opening asks to show first; a theme landing returns to that theme's control. */
 export type TerminalSettingsLanding =
 	| 'keyboard-shortcuts'
+	| 'machines'
 	| { readonly colorTheme: TerminalColorTheme['polarity'] };
 
 export interface TerminalSettingsSnapshot {

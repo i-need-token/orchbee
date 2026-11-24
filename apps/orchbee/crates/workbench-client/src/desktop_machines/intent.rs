@@ -7,8 +7,10 @@ use crate::{
     localization::Locale,
     machine_color::MachineColor,
     machine_settings::{Action, Request},
+    machines::ProfileId,
 };
 use orchbee_machine_protocol::{MAXIMUM_ANSWER_BYTES, wipe};
+use orchbee_workbench_protocol::WorkbenchWorkspaceId;
 use serde_json::Value;
 use std::fmt;
 
@@ -40,6 +42,16 @@ pub enum Intent {
         question: u32,
         act: LoginAct,
     },
+    /// Change machine: moves `workspace`, named `label`, from the machine whose Session holds it to
+    /// `to`; `None` names this computer. The process's mover carries it.
+    Move {
+        workspace: String,
+        label: String,
+        from: Option<String>,
+        to: Option<String>,
+    },
+    /// The person's answer to the move's question `question`: move, or give the move up.
+    MoveAnswer { question: u64, confirm: bool },
 }
 
 /// The person's act on the login question.
@@ -117,6 +129,28 @@ pub fn parse_intent(value: &mut Value) -> Option<Intent> {
             });
         }
         "add-close" => return Some(Intent::AddClose),
+        "move" => {
+            // A saved machine's identity, or null for this computer.
+            let machine = |name: &str| match value.get(name) {
+                None | Some(Value::Null) => Some(None),
+                Some(machine) => {
+                    ProfileId::parse(machine.as_str()?).map(|id| Some(id.as_str().to_owned()))
+                }
+            };
+            let workspace = WorkbenchWorkspaceId::parse(value.get("workspace")?.as_str()?).ok()?;
+            return Some(Intent::Move {
+                workspace: workspace.as_str().to_owned(),
+                label: text("label")?,
+                from: machine("from")?,
+                to: machine("to")?,
+            });
+        }
+        "move-answer" => {
+            return Some(Intent::MoveAnswer {
+                question: value.get("question")?.as_u64()?,
+                confirm: value.get("confirm")?.as_bool()?,
+            });
+        }
         "add" => {
             let color = match value.get("color") {
                 None | Some(Value::Null) => None,

@@ -4,9 +4,11 @@
 //! as the TUI does and ends when its standard input ends. A login answer passes through its
 //! input: every buffer that held one is wiped once read, and no diagnostic prints a record.
 //! `apps/orchbee/docs/machines.md#desktop-machines-process` owns the contract.
+mod moving;
+
 use crate::{
     cli::Output,
-    desktop_machines::{DesktopMachines, parse_intent, parse_locale},
+    desktop_machines::{DesktopMachines, Intent, parse_intent, parse_locale},
     localization::Locale,
     tui_capabilities::Capability,
     workbench_client::UiWakeup,
@@ -66,13 +68,17 @@ pub(crate) fn serve(locale: Locale) -> Output {
         return finished(1);
     }
     let mut machines = DesktopMachines::new(wakeup.clone(), locale);
+    let mut mover = moving::DesktopMover::new(wakeup.clone());
     let mut page = Page::default();
     'serve: loop {
         let now = Instant::now();
         loop {
             match lines.try_recv() {
                 Ok(line) => {
-                    if page.receive(line, &mut machines, &mut out, now).is_err() {
+                    if page
+                        .receive(line, &mut machines, &mut mover, &mut out, now)
+                        .is_err()
+                    {
                         break 'serve;
                     }
                 }
@@ -81,7 +87,9 @@ pub(crate) fn serve(locale: Locale) -> Output {
                 Err(mpsc::TryRecvError::Disconnected) => break 'serve,
             }
         }
-        let view = machines.tick(now);
+        let mut view = machines.tick(now);
+        mover.tick(&machines);
+        view["move"] = mover.project(machines.locale());
         if page.offer(view, &mut out).is_err() {
             break;
         }
@@ -96,7 +104,10 @@ pub(crate) fn serve(locale: Locale) -> Output {
             );
         }
     }
-    let _ = machines.stop_before(Instant::now() + STOP);
+    mover.request_stop();
+    let deadline = Instant::now() + STOP;
+    let _ = machines.stop_before(deadline);
+    let _ = mover.stop_before(deadline);
     finished(0)
 }
 
@@ -126,6 +137,7 @@ impl Page {
         &mut self,
         line: Line,
         machines: &mut DesktopMachines,
+        mover: &mut moving::DesktopMover,
         out: &mut impl Write,
         now: Instant,
     ) -> io::Result<()> {
@@ -149,7 +161,7 @@ impl Page {
             // A record of a document no longer attached is never carried out.
             Line::Page { document, record } => {
                 let carried = if self.document.as_deref() == Some(document.as_str()) {
-                    self.record(&record, machines, out, now)
+                    self.record(&record, machines, mover, out, now)
                 } else {
                     Ok(())
                 };
@@ -164,6 +176,7 @@ impl Page {
         &mut self,
         record: &str,
         machines: &mut DesktopMachines,
+        mover: &mut moving::DesktopMover,
         out: &mut impl Write,
         now: Instant,
     ) -> io::Result<()> {
@@ -205,7 +218,26 @@ impl Page {
                 };
                 let outcome = match record.get_mut("intent").and_then(parse_intent) {
                     Some(intent) => {
-                        machines.carry(intent, now);
+                        match intent {
+                            Intent::Move {
+                                workspace,
+                                label,
+                                from,
+                                to,
+                            } => mover.start(
+                                moving::Request {
+                                    workspace,
+                                    label,
+                                    from,
+                                    to,
+                                },
+                                machines,
+                            ),
+                            Intent::MoveAnswer { question, confirm } => {
+                                mover.answer(question, confirm);
+                            }
+                            intent => machines.carry(intent, now),
+                        }
                         json!({ "result": "done" })
                     }
                     None => json!({ "result": "refused", "reason": "malformed" }),

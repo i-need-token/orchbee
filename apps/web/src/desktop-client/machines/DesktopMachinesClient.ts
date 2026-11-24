@@ -117,11 +117,50 @@ const ViewSchema = z.strictObject({
 	}),
 	added: z.string().nullable(),
 	catalog: z.enum(['read', 'unreadable']),
+	change: z.strictObject({
+		labels: z.strictObject({
+			find: z.string(),
+			heading: z.string(),
+			here: z.string(),
+			manage: z.string(),
+			noMatch: z.string(),
+			note: z.string(),
+			title: z.string(),
+		}),
+		rows: z.array(
+			z.strictObject({
+				band: z.enum(['login', 'low', 'room', 'unusable']),
+				machine: z.string().nullable(),
+			}),
+		),
+	}),
 	hub: z.string().nullable(),
 	local: CapacitySchema,
 	login: LoginSchema.nullable(),
 	offer: OfferSchema.nullable(),
 	machines: z.array(MachineSchema),
+	move: z.strictObject({
+		moved: z
+			.strictObject({
+				machine: z.string().nullable(),
+				number: z.number().int().nonnegative(),
+				workspace: z.string(),
+			})
+			.nullable(),
+		notice: z.strictObject({ number: z.number().int().nonnegative(), text: z.string() }).nullable(),
+		pending: z.string().nullable(),
+		question: z
+			.strictObject({
+				cancel: z.string(),
+				files: z.string(),
+				move: z.string(),
+				question: z.number().int().nonnegative(),
+				sentence: z.string(),
+				title: z.string(),
+				workspace: z.string(),
+			})
+			.nullable(),
+	}),
 	notice: z.strictObject({ number: z.number().int().nonnegative(), text: z.string() }).nullable(),
 	passwords: z.boolean(),
 	seen: z.array(

@@ -365,6 +365,8 @@ The TUI's Change machine, on Windows and macOS where the TUI reaches saved machi
 - **Landing.** A move that succeeded opens the new Workspace on its machine, as choosing its sidebar row does, and adds no notice: the new shell's prompt shows where it started. When the folder relative to home is not on that machine and the shell started in home, the status line names the folder that was not found, as that machine spells it.
 - **Failures.** The status line says what a move that did not succeed left: the machine that is not connected, a worktree, a new Workspace beside an old one that could not close, nothing changed, or an outcome Orchbee could not tell.
 
+The desktop window's Change machine keeps these rules: its [machines process](#desktop-machines-process) runs the move as the TUI does, and the sidebar's Workspace menu offers it for the Session on screen, its question as a Dialog and its status at the bottom of the window. The window does not read the worktree marker, so there the command refuses a worktree.
+
 ## Link helper
 
 `orchbee --machine-link-v1`, with no other argument, is the remote end of the
@@ -1463,6 +1465,19 @@ failed check's action), `blocked` (a failure with no way on until the address ch
 (the machine it saved). The intents are `add-open`, `add` with `address`, `name` (blank for the
 host name) and `color`, and `add-close`, which gives an add in progress up with its login. The
 proposal's login asks as a page-asked one does, named as the person typed the machine.
+
+[Change machine](#change-machine) on the page moves as the TUI's does, through the same child and
+the same checks. `change` is its worded `labels` (`title`, `heading`, `note`, `here`, `find`,
+`noMatch`, `manage`) and `rows`, the order the TUI's list takes when it opens: `{machine, band}`,
+`machine` null for this computer, `band` `room`, `low`, `login` or `unusable`. `move` is `pending`
+(the word while a move runs, or null), `question` (`{question, title, workspace, sentence, files,
+move, cancel}` while it asks, or null), `notice` (`{number, text}`, how the last move that did not
+just land ended) and `moved` (`{number, machine, workspace}`, where the last one landed, `machine`
+null for this computer); each number is new once. `move` with `workspace`, its `label`, `from` and
+`to` (saved identities, null for this computer) starts a move, and a request while one runs changes
+nothing; `move-answer` with `question` and `confirm` answers the question, and an answer to any
+other changes nothing. The page counts Move only once the question has shown for a second with no
+other key pressed on it.
 
 ## Desktop session relay
 

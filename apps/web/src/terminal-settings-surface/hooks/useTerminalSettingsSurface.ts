@@ -121,7 +121,7 @@ export function useTerminalSettingsSurface({
 		if (!snapshot.open) return;
 		// A theme list returns to the Themes button that opened it, keeping the category and search.
 		const landing = snapshot.landing;
-		if (landing !== null && landing !== 'keyboard-shortcuts') {
+		if (landing !== null && typeof landing === 'object') {
 			const control = contentReference.current?.querySelector<HTMLElement>(
 				`[data-color-theme-trigger='${landing.colorTheme}']`,
 			);
@@ -133,6 +133,7 @@ export function useTerminalSettingsSurface({
 			}
 		}
 		if (snapshot.landing === 'keyboard-shortcuts') setCategory('keyboard');
+		if (snapshot.landing === 'machines') setCategory('machines');
 		setQuery('');
 		searchReference.current?.focus();
 	}, [snapshot.landing, snapshot.open]);

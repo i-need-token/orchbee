@@ -6,57 +6,22 @@
 //! holds the shell's tick. `apps/orchbee/docs/machines.md#change-machine` owns the rules.
 
 use super::{Manager, SurfaceSlot};
-use crate::background_thread::BackgroundThread;
-use crate::invocation::grammar::schemas::{
-    WORKSPACE_SET_MACHINE_FAILURE_ID as FAILURE, WORKSPACE_SET_MACHINE_RESULT_ID as RESULT,
-};
+use crate::machine_move::{self, CHECK, MOVE, Refusal, Run};
 use crate::{
     client_view::ClientView,
-    machine_change::{Facts, Name, Notice, Question, Request, Stops},
+    machine_change::{Facts, Notice, Question, Request, Stops},
     machine_picker::Choice,
-    machines::{LOCAL, ProfileId},
-    workbench_client::{ClientContextLocation, ClientContextTarget, ClientStartupTarget},
+    machines::ProfileId,
+    workbench_client::ClientStartupTarget,
 };
-use orchbee_local_runtime::{CommandFailure, CommandOutput};
-use orchbee_workbench_protocol::{SessionId, WorkbenchTerminalContextId, WorkbenchWorkspaceId};
-use serde_json::Value;
+use orchbee_local_runtime::CommandOutput;
 use std::{
     io,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-        mpsc,
-    },
     time::{Duration, Instant},
 };
 
-/// The bound on reading what the move would stop, a login it waits for included; it changes
-/// nothing.
-const CHECK: Duration = Duration::from_secs(180);
-/// The bound on the move, past each of its steps' own.
-const MOVE: Duration = Duration::from_secs(600);
 /// How often the list's facts refresh while no menu offers Change machine.
 const FACTS: Duration = Duration::from_secs(1);
-
-/// One run of the child.
-struct Run {
-    task: BackgroundThread,
-    /// Its output; `None` when the thread ended without one.
-    result: mpsc::Receiver<CommandOutput>,
-    /// Asks the child to end. Only a check is asked: a move, once started, is let finish.
-    stop: Arc<AtomicBool>,
-}
-
-impl Run {
-    /// The child's output once the thread delivered it; `Some(None)` when it ended without one.
-    fn settled(&self) -> Option<Option<CommandOutput>> {
-        match self.result.try_recv() {
-            Ok(output) => Some(Some(output)),
-            Err(mpsc::TryRecvError::Empty) => None,
-            Err(mpsc::TryRecvError::Disconnected) => Some(None),
-        }
-    }
-}
 
 enum Stage {
     /// The child reads what the move would stop.
@@ -104,7 +69,7 @@ impl Mover {
             ..
         }) = &self.under_way
         {
-            run.stop.store(true, Ordering::Relaxed);
+            run.stop();
         }
     }
 
@@ -114,7 +79,7 @@ impl Mover {
             Some(Move {
                 stage: Stage::Checking(run) | Stage::Moving(run),
                 ..
-            }) => run.task.join_before(deadline),
+            }) => run.join_before(deadline),
             _ => Ok(()),
         }
     }
@@ -209,7 +174,7 @@ impl Manager {
         let next = match &moving.stage {
             Stage::Checking(run) => match run.settled() {
                 None => Next::Wait,
-                Some(output) => match checked(output.as_ref()) {
+                Some(output) => match machine_move::checked(output.as_ref()) {
                     Err(()) => Next::End(Some(self.refusal(output.as_ref(), &moving, false))),
                     Ok((folder, stops)) => {
                         moving.folder = folder;
@@ -277,53 +242,32 @@ impl Manager {
         output: Option<&CommandOutput>,
         view: &mut ClientView,
     ) -> Option<Notice> {
-        let Some((0, document)) =
-            document(output).filter(|(_, document)| document["schema"] == RESULT)
-        else {
+        let Ok(landing) = machine_move::landed(output) else {
             return Some(self.refusal(output, moving, true));
         };
-        let result = &document["result"];
         // It moved; a landing that cannot be read leaves the view where it is.
-        let (target, folder, path) = landing(result)?;
-        let _selected = view
-            .machines
-            .select_moved(moving.to.clone(), ClientStartupTarget::Context(target));
-        // The folder reads as that machine spells its paths.
-        moving
-            .folder
-            .as_deref()
-            .filter(|asked| *asked != "~" && folder == "~")
-            .map(|asked| Notice::FolderMissing {
+        let landing = landing?;
+        let _selected = view.machines.select_moved(
+            moving.to.clone(),
+            ClientStartupTarget::Context(landing.target.clone()),
+        );
+        machine_move::missing_folder(moving.folder.as_deref(), &landing).map(|folder| {
+            Notice::FolderMissing {
                 machine: moving.request.to_label.clone(),
-                folder: crate::invocation::user_path::spelled(asked, &path),
-            })
+                folder,
+            }
+        })
     }
 
-    /// What a run that did not succeed leaves the person with. A check changes nothing; a move that
-    /// ended without saying how, or with the new Workspace created and the old one still open,
-    /// says so.
+    /// What a run that did not succeed leaves the person with, worded with the saved machines'
+    /// names.
     fn refusal(&self, output: Option<&CommandOutput>, moving: &Move, moved: bool) -> Notice {
-        let unknown = if moved {
-            Notice::Unknown
-        } else {
-            Notice::Failed
-        };
-        let Some((_, document)) =
-            document(output).filter(|(_, document)| document["schema"] == FAILURE)
-        else {
-            return unknown;
-        };
-        let failure = &document["failure"];
-        let details = &failure["details"];
-        if details["created"].is_object() {
-            return Notice::CloseFailed {
+        match machine_move::refusal(output, moved) {
+            Refusal::CloseFailed => Notice::CloseFailed {
                 machine: moving.request.to_label.clone(),
-            };
-        }
-        match details["reason"].as_str() {
-            Some("not-connected") => Notice::NotConnected {
-                machine: details["machine"]
-                    .as_str()
+            },
+            Refusal::NotConnected(id) => Notice::NotConnected {
+                machine: id
                     .and_then(|id| {
                         self.profiles
                             .iter()
@@ -334,34 +278,14 @@ impl Manager {
                         |profile| profile.draft.label.clone(),
                     ),
             },
-            Some("worktree") => Notice::Worktree,
-            _ if matches!(
-                failure["kind"].as_str(),
-                Some("outcome-unknown" | "timeout" | "cancelled")
-            ) =>
-            {
-                unknown
-            }
-            _ => Notice::Failed,
+            Refusal::Worktree => Notice::Worktree,
+            Refusal::Failed => Notice::Failed,
+            Refusal::Unknown => Notice::Unknown,
         }
     }
 
     fn spawn(&self, arguments: Vec<String>, bound: Duration) -> io::Result<Run> {
-        let command = crate::self_command::command(arguments)?;
-        let deadline = Instant::now() + bound;
-        let stop = Arc::new(AtomicBool::new(false));
-        let asked = Arc::clone(&stop);
-        let (sender, result) = mpsc::sync_channel(1);
-        let wakeup = self.wakeup.clone();
-        let task = BackgroundThread::spawn("orchbee-machine-move", move || {
-            let output = crate::self_command::exchange(command, deadline, || {
-                Ok(asked.load(Ordering::Relaxed))
-            });
-            // The owner may have let go of the receiver at exit.
-            let _delivered = sender.send(output);
-            wakeup.signal();
-        })?;
-        Ok(Run { task, result, stop })
+        Run::spawn(arguments, bound, self.wakeup.clone())
     }
 }
 
@@ -375,102 +299,10 @@ fn finish(view: &mut ClientView, notice: Option<Notice>) {
 
 /// The command a run starts: `from` names the machine that holds the Workspace.
 fn arguments(request: &Request, from: Option<&ProfileId>, confirm: bool) -> Vec<String> {
-    let mut words = Vec::new();
-    if let Some(from) = from {
-        words.extend(["--machine".to_owned(), from.as_str().to_owned()]);
-    }
-    words.extend(
-        [
-            "workspace",
-            "set-machine",
-            request.workspace.as_str(),
-            "--to",
-            request.to.as_deref().unwrap_or(LOCAL),
-            if confirm { "--confirm" } else { "--dry-run" },
-            "--format",
-            "json",
-        ]
-        .map(str::to_owned),
-    );
-    words
-}
-
-/// The child's JSON document, with its exit status; `None` when it ended without one.
-fn document(output: Option<&CommandOutput>) -> Option<(i32, Value)> {
-    let output = output?;
-    if output.stdout_truncated
-        || !matches!(output.failure, None | Some(CommandFailure::ExitFailure))
-    {
-        return None;
-    }
-    Some((
-        output.exit_code?,
-        serde_json::from_slice(&output.stdout).ok()?,
-    ))
-}
-
-/// What a check read: the folder the move asks for first, and what the move would stop, `None`
-/// when nothing runs. `Err` when the check did not answer with its document.
-fn checked(output: Option<&CommandOutput>) -> Result<(Option<String>, Option<Stops>), ()> {
-    let Some((0, document)) = document(output).filter(|(_, document)| document["schema"] == RESULT)
-    else {
-        return Err(());
-    };
-    let result = &document["result"];
-    let folder = result["folder"].as_str().map(str::to_owned);
-    if result["idle"].as_bool() == Some(true) {
-        return Ok((folder, None));
-    }
-    let busy: Vec<&Value> = result["terminals"]
-        .as_array()
-        .map(|terminals| {
-            terminals
-                .iter()
-                .filter(|terminal| terminal["activity"] != "idle")
-                .collect()
-        })
-        .unwrap_or_default();
-    let stops = if result["evidence"] == "read" && !busy.is_empty() {
-        Stops::Busy {
-            count: busy.len(),
-            names: busy.iter().filter_map(|terminal| name(terminal)).collect(),
-        }
-    } else {
-        Stops::Unread
-    };
-    Ok((folder, Some(stops)))
-}
-
-/// A terminal's name as the command names it: the Agent it runs, else its title.
-fn name(terminal: &Value) -> Option<Name> {
-    let observation = &terminal["observation"];
-    observation["agent"]
-        .as_str()
-        .map(|agent| Name::Agent(agent.to_owned()))
-        .or_else(|| {
-            observation["title"]
-                .as_str()
-                .map(|title| Name::Title(title.to_owned()))
-        })
-}
-
-/// Where the moved Workspace is, the folder it started in, and its path there.
-fn landing(result: &Value) -> Option<(ClientContextTarget, String, String)> {
-    let created = &result["created"];
-    let session_id = SessionId::parse(created["sessionId"].as_str()?).ok()?;
-    let workspace_id = WorkbenchWorkspaceId::parse(created["workspaceId"].as_str()?).ok()?;
-    let terminal_context_id =
-        WorkbenchTerminalContextId::parse(created["terminalContextId"].as_str()?).ok()?;
-    let target = ClientContextTarget {
-        session_id,
-        location: ClientContextLocation::Workspace {
-            workspace_id,
-            terminal_context_id,
-        },
-    };
-    Some((
-        target,
-        result["folder"].as_str()?.to_owned(),
-        created["path"].as_str()?.to_owned(),
-    ))
+    machine_move::arguments(
+        &request.workspace,
+        from.map(ProfileId::as_str),
+        request.to.as_deref(),
+        confirm,
+    )
 }

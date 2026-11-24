@@ -27,6 +27,7 @@ import type { ProjectWorktreeRows, WorkspaceWorktreeMenu } from '../../hooks/use
 import type {
 	WorkbenchProjectNavigationMessages,
 	WorkbenchSidebarWorkspaceCreation,
+	WorkspaceMachineMenu,
 } from '../../types/workbench-sidebar-types';
 import { SidebarTruncationTooltip } from '../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
@@ -94,6 +95,8 @@ interface ProjectNavigationItemProps {
 	readonly toggleWorkspaceAgents: (workspaceId: string) => void;
 	readonly workspaceAgentOverviews: readonly WorkbenchWorkspaceAgentOverviewView[];
 	readonly agentMenu?: WorkspaceAgentMenu | undefined;
+	/** Change machine in each Workspace's menu, where the window holds other machines' Sessions. */
+	readonly machineMenu?: WorkspaceMachineMenu | undefined;
 	readonly workspaceLocations: ReadonlyMap<string, WorkbenchSidebarWorkspaceLocation>;
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
@@ -151,6 +154,7 @@ export function ProjectNavigationItem({
 	toggleWorkspaceAgents,
 	workspaceAgentOverviews,
 	agentMenu,
+	machineMenu,
 	workspaceLocations,
 	worktreeMenu,
 }: ProjectNavigationItemProps): ReactNode {
@@ -361,6 +365,7 @@ export function ProjectNavigationItem({
 								(overview) => overview.workspaceId === workspace.id,
 							)}
 							agentMenu={agentMenu}
+							machineMenu={machineMenu}
 							deleteWorkspace={deleteWorkspace}
 							dragging={workspace.id === heldWorkspaceId}
 							location={workspaceLocations.get(workspace.id)}

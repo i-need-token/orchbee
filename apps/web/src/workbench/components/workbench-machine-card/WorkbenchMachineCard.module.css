@@ -13,7 +13,7 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--ob-ref-space-1);
-	max-inline-size: 48ch;
+	max-inline-size: var(--ob-ref-layout-prose-width);
 	min-inline-size: 0;
 	font: var(--ob-sys-typography-body-sm);
 }

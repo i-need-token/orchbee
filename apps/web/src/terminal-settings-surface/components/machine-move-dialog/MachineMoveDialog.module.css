@@ -1,0 +1,40 @@
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	min-width: 0;
+}
+
+.body p {
+	margin: var(--ob-ref-space-0);
+}
+
+.workspace {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+
+.line {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

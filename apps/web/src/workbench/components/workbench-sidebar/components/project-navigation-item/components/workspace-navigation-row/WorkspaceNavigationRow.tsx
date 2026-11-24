@@ -24,7 +24,10 @@ import { WorkbenchActionContextMenuContent } from '../../../../../workbench-acti
 import type { WorkbenchSidebarWorkspaceLocation } from '../../../../hooks/useWorkbenchSidebarWorkspaceLocations';
 import type { WorkspaceAgentMenu } from '../../../../hooks/useWorkspaceAgentMenu';
 import type { WorkspaceWorktreeMenu } from '../../../../hooks/useWorkspaceWorktrees';
-import type { WorkbenchProjectNavigationMessages } from '../../../../types/workbench-sidebar-types';
+import type {
+	WorkbenchProjectNavigationMessages,
+	WorkspaceMachineMenu,
+} from '../../../../types/workbench-sidebar-types';
 import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import { WorkbenchSidebarDropdownMenu } from '../../../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import type { ProjectNavigationMenuFocus } from '../../hooks/useProjectNavigationMenuFocus';
@@ -67,6 +70,8 @@ interface WorkspaceNavigationRowProps {
 	) => void;
 	readonly agentOverview: WorkbenchWorkspaceAgentOverviewView | undefined;
 	readonly agentMenu?: WorkspaceAgentMenu | undefined;
+	/** Change machine, where the window holds other machines' Sessions. */
+	readonly machineMenu?: WorkspaceMachineMenu | undefined;
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	/** Held by a drag: it stands where it would land, its disclosure and Agent rows tucked away. */
 	readonly dragging: boolean;
@@ -100,6 +105,7 @@ export function WorkspaceNavigationRow({
 	activateWorkspace,
 	agentOverview,
 	agentMenu,
+	machineMenu,
 	deleteWorkspace,
 	dragging,
 	location,
@@ -145,6 +151,7 @@ export function WorkspaceNavigationRow({
 			state,
 			workspace,
 		}),
+		...(machineMenu === undefined ? [] : [machineMenu.submenu(startTarget)]),
 		{
 			icon: 'edit',
 			id: 'rename-workspace',
@@ -183,6 +190,7 @@ export function WorkspaceNavigationRow({
 		>
 			<ContextMenu
 				onOpenChange={(open, details) => {
+					machineMenu?.opened(open);
 					if (open) {
 						refreshWorktrees(workspace.id);
 						agentMenu?.refresh();
@@ -309,6 +317,7 @@ export function WorkspaceNavigationRow({
 						<Tooltip>
 							<WorkbenchSidebarDropdownMenu
 								onOpenChange={(open) => {
+									machineMenu?.opened(open);
 									if (!open) return;
 									refreshWorktrees(workspace.id);
 									agentMenu?.refresh();

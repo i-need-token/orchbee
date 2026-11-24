@@ -42,6 +42,8 @@ import {
 	ColorThemeQuickPick,
 	MachineLoginDialog,
 	MachineLoginOfferDialog,
+	MachineMoveDialog,
+	MachineMoveStatus,
 	TerminalSettingsSurface,
 	type TerminalSettingsAbout,
 	type TerminalSettingsMachines,
@@ -257,6 +259,7 @@ export function WebApplication({
 					terminalSurface={terminalSurface}
 					workspaceLocationSource={workspaceLocationSource}
 					otherMachines={otherMachines}
+					onManageMachines={machines === undefined ? undefined : view.openMachineSettings}
 				/>
 			</div>
 			<TerminalSettingsSurface
@@ -280,6 +283,8 @@ export function WebApplication({
 			<ColorThemeQuickPick controller={terminalSettingsController} />
 			{machines === undefined ? null : <MachineLoginDialog machines={machines} />}
 			{machines === undefined ? null : <MachineLoginOfferDialog machines={machines} />}
+			{machines === undefined ? null : <MachineMoveDialog machines={machines} />}
+			{machines === undefined ? null : <MachineMoveStatus machines={machines} />}
 		</div>
 	);
 }

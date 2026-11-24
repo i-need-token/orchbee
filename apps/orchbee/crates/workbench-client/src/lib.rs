@@ -279,7 +279,10 @@ pub mod application {
     }
 
     pub mod desktop_machines {
-        pub use crate::desktop_machines::{DesktopMachines, Intent, parse_intent, parse_locale};
+        pub use crate::desktop_machines::{
+            DesktopMachines, Intent, move_notice, move_pending, move_question, parse_intent,
+            parse_locale,
+        };
     }
 
     pub mod machine_settings {

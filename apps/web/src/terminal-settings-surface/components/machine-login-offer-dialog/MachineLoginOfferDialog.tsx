@@ -9,6 +9,7 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { useArmedChoice } from '../../hooks/useArmedChoice';
 import { useTerminalSettingsMachines } from '../../hooks/useTerminalSettingsMachines';
 import type {
 	TerminalSettingsMachines,
@@ -17,9 +18,6 @@ import type {
 import styles from './MachineLoginOfferDialog.module.css';
 
 type Offer = NonNullable<TerminalSettingsMachinesView['offer']>;
-
-/** How long the notice shows, with no key pressed on it, before a choice counts. */
-const ARMING_MILLISECONDS = 1000;
 
 interface MachineLoginOfferDialogProps {
 	readonly machines: TerminalSettingsMachines;
@@ -47,7 +45,7 @@ function MachineLoginOffer({
 	readonly machines: TerminalSettingsMachines;
 	readonly offer: Offer;
 }): React.ReactNode {
-	const armed = useArmed(offer.ended === null ? 'open' : 'ended');
+	const armed = useArmedChoice(offer.ended === null ? 'open' : 'ended');
 	// Enter's button holds the focus first, so the ring and the key name the same choice.
 	const primary = React.useRef<HTMLButtonElement>(null);
 	const ended = offer.ended !== null;
@@ -145,26 +143,4 @@ function MachineLoginOffer({
 			</DialogContent>
 		</Dialog>
 	);
-}
-
-/**
- * Whether the notice has shown for a second since `phase` began, the window last came into view,
- * or `restart` last ran.
- */
-function useArmed(phase: string): { readonly now: boolean; readonly restart: () => void } {
-	const [round, setRound] = React.useState(0);
-	const [armedAt, setArmedAt] = React.useState<string | null>(null);
-	const key = `${phase}:${round}`;
-	React.useEffect(() => {
-		const timer = window.setTimeout(() => setArmedAt(key), ARMING_MILLISECONDS);
-		return () => window.clearTimeout(timer);
-	}, [key]);
-	React.useEffect(() => {
-		const shown = (): void => {
-			if (document.visibilityState === 'visible') setRound((value) => value + 1);
-		};
-		document.addEventListener('visibilitychange', shown);
-		return () => document.removeEventListener('visibilitychange', shown);
-	}, []);
-	return { now: armedAt === key, restart: () => setRound((value) => value + 1) };
 }

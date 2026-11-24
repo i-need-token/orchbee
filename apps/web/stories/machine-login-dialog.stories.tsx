@@ -57,6 +57,19 @@ function source(login: Login): TerminalSettingsMachines {
 		notice: null,
 		passwords: true,
 		seen: [],
+		change: {
+			labels: {
+				find: 'Find a machine',
+				heading: 'Runs on',
+				here: 'This computer',
+				manage: 'Manage machines…',
+				noMatch: 'No machine matches',
+				note: 'free CPU · memory · disk',
+				title: 'Change machine',
+			},
+			rows: [],
+		},
+		move: { moved: null, notice: null, pending: null, question: null },
 	};
 	return {
 		getSnapshot: () => view,

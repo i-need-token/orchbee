@@ -1,0 +1,22 @@
+/* Bottom center, as the window's connection status sits, since Workbench notices and a terminal's
+   control status hold the bottom end. */
+.root {
+	box-sizing: border-box;
+	position: fixed;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-end: var(--ob-ref-space-2);
+	inset-inline: 0;
+	inline-size: fit-content;
+	max-inline-size: calc(100% - var(--ob-ref-space-4));
+	margin-inline: auto;
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-raised);
+	box-shadow: var(--ob-sys-shadow-raised);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

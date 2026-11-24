@@ -15,6 +15,7 @@ mod native_path;
 mod presentation;
 mod relaunch;
 mod release_store;
+mod machine_move;
 mod self_command;
 mod startup_wait;
 mod tui_backend;
