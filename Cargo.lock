@@ -932,7 +932,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "orchbee"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "base64",
  "crossterm",
@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-desktop-launcher"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "orchbee-release-records",
  "winsafe",
@@ -1047,7 +1047,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-launcher"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "ctrlc",
  "orchbee-local-runtime",
@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-local-runtime"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "exacl",
  "nix",
@@ -1148,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-server"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "base64",
  "getrandom",
@@ -1195,7 +1195,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-workbench-client"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "apple-native-keyring-store",
  "base64",
@@ -1246,7 +1246,7 @@ dependencies = [
 
 [[package]]
 name = "orchbee-worker"
-version = "0.1.0-beta.23"
+version = "0.1.0-beta.24"
 dependencies = [
  "getrandom",
  "nix",
