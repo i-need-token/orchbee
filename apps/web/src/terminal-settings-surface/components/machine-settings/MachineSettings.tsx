@@ -1,5 +1,6 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { terminalSettingsMessages as messages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Button } from '@orchbee/ui/components';
+import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import { useTerminalSettingsMachines } from '../../hooks/useTerminalSettingsMachines';
@@ -11,6 +12,7 @@ import { SettingFailure } from '../setting-failure/SettingFailure';
 import { SettingsChildPage } from '../settings-child-page/SettingsChildPage';
 import { SettingsGroup } from '../settings-group/SettingsGroup';
 import { SettingsRow } from '../settings-row/SettingsRow';
+import { MachineAddDialog } from './components/machine-add-dialog/MachineAddDialog';
 import { MachinePage } from './components/machine-page/MachinePage';
 import { MachineStateWord } from './components/machine-state-word/MachineStateWord';
 import styles from './MachineSettings.module.css';
@@ -29,6 +31,8 @@ export function MachineSettings({ machines, query }: MachineSettingsProps): Reac
 	const intl = useOrchbeeIntl();
 	const view = useTerminalSettingsMachines(machines);
 	const [shown, setShown] = React.useState<string | null>(null);
+	const [adding, setAdding] = React.useState(false);
+	const closeAdd = useMemoizedFn(() => setAdding(false));
 	// The machines' free capacity is read only while the list or a machine's page shows it.
 	React.useEffect(() => machines.showCapacity(), [machines]);
 	if (view === null) return null;
@@ -77,6 +81,18 @@ export function MachineSettings({ machines, query }: MachineSettingsProps): Reac
 						</Button>
 					</SettingsRow>
 				))}
+				{searching ? null : (
+					// The card's last line, as Add profile is on Profiles.
+					<button
+						className={styles['addRow']}
+						data-settings-row
+						type='button'
+						onClick={() => setAdding(true)}
+					>
+						<ProductIcon name='add' />
+						{view.add.labels.addMachine}
+					</button>
+				)}
 			</SettingsGroup>
 			{machine === undefined ? null : (
 				<SettingsChildPage
@@ -87,6 +103,7 @@ export function MachineSettings({ machines, query }: MachineSettingsProps): Reac
 					<MachinePage machine={machine} machines={machines} passwords={view.passwords} />
 				</SettingsChildPage>
 			)}
+			{adding ? <MachineAddDialog add={view.add} machines={machines} onClose={closeAdd} /> : null}
 		</>
 	);
 }

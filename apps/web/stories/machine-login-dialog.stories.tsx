@@ -33,6 +33,20 @@ const CHINESE_LABELS: Login['labels'] = {
 /** The machines process with one login question and nothing else. */
 function source(login: Login): TerminalSettingsMachines {
 	const view: TerminalSettingsMachinesView = {
+		add: {
+			form: null,
+			labels: {
+				add: 'Add',
+				addMachine: 'Add machine…',
+				address: 'Address',
+				cancel: 'Cancel',
+				color: 'Color',
+				hosts: 'Hosts in SSH config',
+				name: 'Name (optional)',
+				nameHint: 'Leave blank to use the host name.',
+				title: 'Add machine',
+			},
+		},
 		added: null,
 		catalog: 'read',
 		hub: null,

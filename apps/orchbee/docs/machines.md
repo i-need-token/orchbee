@@ -1408,8 +1408,8 @@ of the last, and the changes meanwhile coalesce into it, so a slow page holds on
 The view is `catalog` (`read` or `unreadable`), `hub` (the sentence that says why no hub is reached,
 or null), `local` (this computer's capacity), `passwords` (whether answers can be remembered),
 `added` (the machine the last add saved, until listed), `notice` (`{number, text}`, how the last
-request ended, worded once per number), `login` (the question below, or null), and `machines` in
-catalog order. A machine is its
+request ended, worded once per number), `login` (the question below, or null), `add` (Add
+Machine below), and `machines` in catalog order. A machine is its
 `machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
 `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
 `local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
@@ -1436,6 +1436,17 @@ question no longer shown changes nothing, and an answer holding a control charac
 1,024 bytes is refused `malformed`. The answer goes into the episode's fixed buffer as a typed one
 does and leaves only through its delivery; the process wipes every buffer of its input that held it
 once read, and no diagnostic prints a record.
+
+Add Machine on the page adds as the TUI's form adds: the same address and name rules, the eight
+checks on one draft connection, a failed check giving the add up, and the record saved once every
+check passed. `add` is the form's worded `labels` and its `form` while the page shows it, or null:
+`hosts` (the SSH config hosts, each `{host, label}`), `color` (the least-used color it offers
+first), `running`, `status` (`{text, tone}`, `pending` or `error`), `lines` (a failed check's),
+`problem` (`{field, text}`, `address`, `name` or null for a save that failed), `submit` (Add, or the
+failed check's action), `blocked` (a failure with no way on until the address changes) and `saved`
+(the machine it saved). The intents are `add-open`, `add` with `address`, `name` (blank for the
+host name) and `color`, and `add-close`, which gives an add in progress up with its login. The
+proposal's login asks as a page-asked one does, named as the person typed the machine.
 
 ## Desktop session relay
 

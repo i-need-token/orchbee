@@ -394,8 +394,8 @@ is attached at a time.
 
 The machines process and its lines are built: [`machines.md`](../../apps/orchbee/docs/machines.md#desktop-machines-process)
 owns them, and Main's supervision and the fifth `machines` port are built behind a closed gate
-([Desktop README](../../apps/desktop/README.md)). Still to build: the sidebar's spaces, the
-command-login notice and the add in the view; and asks that follow the window.
+([Desktop README](../../apps/desktop/README.md)). Still to build: the sidebar's spaces and the
+command-login notice; and asks that follow the window.
 
 ### Remote Session connection
 

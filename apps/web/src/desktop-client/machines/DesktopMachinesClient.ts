@@ -13,6 +13,8 @@ const CapacitySchema = z.strictObject({
 	summary: z.string(),
 });
 
+const ColorSchema = z.enum(['cyan', 'grey', 'pink', 'purple']);
+
 const CountSchema = z.number().int().nonnegative().nullable();
 
 const MachineSchema = z.strictObject({
@@ -25,7 +27,7 @@ const MachineSchema = z.strictObject({
 	address: z.string().nullable(),
 	agents: CountSchema,
 	capacity: CapacitySchema,
-	color: z.enum(['cyan', 'grey', 'pink', 'purple']),
+	color: ColorSchema,
 	label: z.string(),
 	lines: z.array(z.string()),
 	machine: z.string(),
@@ -65,7 +67,35 @@ const LoginSchema = z.strictObject({
 	sending: z.boolean(),
 });
 
+const AddSchema = z.strictObject({
+	blocked: z.boolean(),
+	color: ColorSchema,
+	hosts: z.array(z.strictObject({ host: z.string(), label: z.string() })),
+	lines: z.array(z.string()),
+	problem: z
+		.strictObject({ field: z.enum(['address', 'name']).nullable(), text: z.string() })
+		.nullable(),
+	running: z.boolean(),
+	saved: z.string().nullable(),
+	status: z.strictObject({ text: z.string(), tone: z.enum(['error', 'pending']) }).nullable(),
+	submit: z.string(),
+});
+
 const ViewSchema = z.strictObject({
+	add: z.strictObject({
+		form: AddSchema.nullable(),
+		labels: z.strictObject({
+			add: z.string(),
+			addMachine: z.string(),
+			address: z.string(),
+			cancel: z.string(),
+			color: z.string(),
+			hosts: z.string(),
+			name: z.string(),
+			nameHint: z.string(),
+			title: z.string(),
+		}),
+	}),
 	added: z.string().nullable(),
 	catalog: z.enum(['read', 'unreadable']),
 	hub: z.string().nullable(),

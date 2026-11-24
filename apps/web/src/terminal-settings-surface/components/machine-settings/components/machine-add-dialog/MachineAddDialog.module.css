@@ -1,0 +1,79 @@
+.header {
+	padding-inline-end: var(--ob-ref-space-6);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+}
+
+.body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-4);
+	min-width: 0;
+}
+
+.body p {
+	margin: var(--ob-ref-space-0);
+}
+
+.field {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1-5);
+}
+
+.label {
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+/* The SSH config hosts, a click away from the address. */
+.hosts {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+.hostsLabel {
+	margin-inline-end: var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.color {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ob-ref-space-3);
+}
+
+.status {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+	overflow-wrap: anywhere;
+}
+
+.help,
+.pending {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.error {
+	color: var(--ob-sys-color-status-danger-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.action {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

@@ -5,14 +5,18 @@
 //
 // module-layer: composition
 
+mod add;
 mod intent;
 mod login;
 mod view;
 
 pub use intent::{Intent, LoginAct, parse_intent, parse_locale};
 
+use add::Add;
+
 use crate::{
     localization::Locale,
+    machine_color::MachineColor,
     machine_discovery::Discovery,
     machine_login::Act,
     machine_settings_exchange::Exchange,
@@ -40,6 +44,8 @@ pub struct DesktopMachines {
     capacity: bool,
     /// How the last request ended, worded, and its number; the page says each number once.
     notice: Option<(u64, String)>,
+    /// Add Machine, while the page shows it.
+    add: Option<Add>,
 }
 
 impl DesktopMachines {
@@ -56,6 +62,7 @@ impl DesktopMachines {
             locale,
             capacity: false,
             notice: None,
+            add: None,
         }
     }
 
@@ -82,6 +89,12 @@ impl DesktopMachines {
             self.refresh_catalog(Store::configured().and_then(|store| store.read()), now);
         }
         self.discovery.tick(now);
+        if let Some(add) = &mut self.add {
+            let store = add.running().then(|| Store::configured().ok()).flatten();
+            if let Some(catalog) = add.follow(&mut self.discovery, store.as_ref(), now) {
+                self.refresh_catalog(Ok(catalog), now);
+            }
+        }
         self.settings
             .settle(&mut self.discovery, &self.profiles, now);
         // Only the login the page asked for may ask the person; any other is dismissed.
@@ -101,9 +114,19 @@ impl DesktopMachines {
                 .profiles
                 .iter()
                 .find(|profile| profile.id.as_str() == presented.machine)
-                .map_or(presented.machine.as_str(), |profile| {
-                    profile.draft.label.as_str()
-                });
+                .map(|profile| profile.draft.label.as_str())
+                // The machine being added is named as the person typed it, never by its id.
+                .or_else(|| {
+                    self.add
+                        .as_ref()
+                        .filter(|_| {
+                            self.discovery
+                                .proposal()
+                                .is_some_and(|proposal| proposal.id.as_str() == presented.machine)
+                        })
+                        .map(|add| add.label.as_str())
+                })
+                .unwrap_or(presented.machine.as_str());
             login::project(self.locale, &presented, label)
         });
         self.discovery.finish_retirement();
@@ -114,6 +137,7 @@ impl DesktopMachines {
             self.unreadable,
             self.notice.as_ref(),
             login,
+            self.add.as_ref(),
         )
     }
 
@@ -126,6 +150,29 @@ impl DesktopMachines {
                 question,
                 act,
             } => return self.carry_login((login, question), act),
+            Intent::AddOpen => {
+                self.close_add();
+                self.add = Some(Add::open(
+                    now,
+                    self.discovery.wakeup(),
+                    self.default_color(),
+                ));
+                return;
+            }
+            Intent::Add {
+                address,
+                name,
+                color,
+            } => {
+                let store = Store::configured().ok();
+                let wakeup = self.discovery.wakeup().cloned();
+                let first = self.default_color();
+                self.add
+                    .get_or_insert_with(|| Add::open(now, wakeup.as_ref(), first))
+                    .start(&mut self.discovery, store.as_ref(), &address, &name, color);
+                return;
+            }
+            Intent::AddClose => return self.close_add(),
         };
         let store = Store::configured().ok();
         let carried = self.settings.carry(
@@ -137,6 +184,35 @@ impl DesktopMachines {
         );
         if let Some(catalog) = carried.catalog {
             self.refresh_catalog(Ok(catalog), now);
+        }
+    }
+
+    /// The color a machine added now takes: the one the fewest saved machines use.
+    fn default_color(&self) -> MachineColor {
+        MachineColor::least_used(self.profiles.iter().map(|profile| profile.color))
+    }
+
+    /// Closes Add Machine; an add still checking is given up with its draft, link and login. The
+    /// person gave it up, so its login closes too instead of asking to be closed.
+    fn close_add(&mut self) {
+        if !self
+            .add
+            .take()
+            .is_some_and(|add| add.running() && add.saved.is_none())
+        {
+            return;
+        }
+        let machine = self
+            .discovery
+            .proposal()
+            .map(|proposal| proposal.id.as_str().to_owned());
+        self.discovery.discard_add();
+        if let Some(presented) = self
+            .discovery
+            .login_presented()
+            .filter(|presented| machine.as_deref() == Some(presented.machine.as_str()))
+        {
+            self.discovery.login_act(presented.token, Act::Close);
         }
     }
 

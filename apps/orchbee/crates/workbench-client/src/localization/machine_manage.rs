@@ -63,8 +63,9 @@ impl Locale {
             (Self::ZhCn, Address) => "地址",
             (Self::EnUs, Hosts) => "Hosts in SSH config",
             (Self::ZhCn, Hosts) => "SSH 配置里的主机",
-            (Self::EnUs, Name) => "Name",
-            (Self::ZhCn, Name) => "名称",
+            // The field may stay blank, which every Client's label says.
+            (Self::EnUs, Name) => "Name (optional)",
+            (Self::ZhCn, Name) => "名称（可选）",
             (Self::EnUs, NameHint) => "Leave blank to use the host name.",
             (Self::ZhCn, NameHint) => "留空则使用主机名。",
             (Self::EnUs, Color) => "Color",

@@ -391,7 +391,9 @@ The categories keep a stable product-outcome order instead of exposing implement
 Machines appears only where the host reports saved machines, which today is the desktop window
 once its machines process sends a first view; its rows and every sentence about a machine are the
 TUI's Settings › Machines, worded by that process ([contract](../../orchbee/docs/machines.md#desktop-machines-process)),
-and Manage opens a machine's page. A login that Connect, Retry or Log in starts asks in the
+and Manage opens a machine's page. Add machine…, the card's last line, opens a Dialog with the TUI's Add
+Machine form: the address or a host from the SSH config, an optional name, the color, and the
+eight checks named as they run; editing the address or name after a failure hides it. A login that Connect, Retry or Log in starts asks in the
 window's login Dialog, which stays over whatever holds the window, Settings closed or not, until the
 question is answered, cancelled or, once its login ended, closed.
 

@@ -99,8 +99,44 @@ export interface TerminalSettingsMachine {
 	readonly workspaces: number | null;
 }
 
+/** How the add in progress stands, as the TUI's Add Machine form shows it; the page keeps what is typed. */
+interface TerminalSettingsMachineAdd {
+	/** A failed check offers no way on until the address changes. */
+	readonly blocked: boolean;
+	/** The color the form offers first. */
+	readonly color: TerminalSettingsMachineColor;
+	/** The SSH config hosts the address can be chosen from: the alias and how it reads. */
+	readonly hosts: readonly { readonly host: string; readonly label: string }[];
+	/** The failed check's lines. */
+	readonly lines: readonly string[];
+	/** Why the add did not start; `field` names the field it is about. */
+	readonly problem: { readonly field: 'address' | 'name' | null; readonly text: string } | null;
+	/** The checks run: the fields wait, and Cancel gives the add up. */
+	readonly running: boolean;
+	/** The machine the add saved; the form closes. */
+	readonly saved: string | null;
+	readonly status: { readonly text: string; readonly tone: 'error' | 'pending' } | null;
+	/** The primary button: Add, or the failed check's action. */
+	readonly submit: string;
+}
+
 /** The saved machines, this computer's capacity, and how the last request ended. */
 export interface TerminalSettingsMachinesView {
+	/** Add Machine's words, and its form while the page shows it. */
+	readonly add: {
+		readonly form: TerminalSettingsMachineAdd | null;
+		readonly labels: {
+			readonly add: string;
+			readonly addMachine: string;
+			readonly address: string;
+			readonly cancel: string;
+			readonly color: string;
+			readonly hosts: string;
+			readonly name: string;
+			readonly nameHint: string;
+			readonly title: string;
+		};
+	};
 	readonly added: string | null;
 	readonly catalog: 'read' | 'unreadable';
 	/** Why no machine connection is reached, or null. */
@@ -180,7 +216,15 @@ export type TerminalSettingsMachineIntent =
 			readonly color: TerminalSettingsMachineColor;
 			readonly machine: string;
 	  }
-	| TerminalSettingsMachineLoginIntent;
+	| TerminalSettingsMachineLoginIntent
+	| { readonly act: 'add-close' | 'add-open' }
+	| {
+			readonly act: 'add';
+			readonly address: string;
+			readonly color: TerminalSettingsMachineColor;
+			/** Blank takes the host name. */
+			readonly name: string;
+	  };
 
 /** Settings › Machines: the window's saved machines, which its Main's machines process reports. */
 export interface TerminalSettingsMachines {

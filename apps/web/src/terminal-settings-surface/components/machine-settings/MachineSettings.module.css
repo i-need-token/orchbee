@@ -8,3 +8,28 @@
 .note {
 	color: var(--ob-sys-color-text-muted);
 }
+
+/* Add machine…, the card's last line, drawn as Profiles draws Add profile. */
+.addRow {
+	display: flex;
+	width: 100%;
+	min-height: calc(var(--ob-ref-space-10) + var(--ob-ref-space-1));
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-0) var(--ob-ref-space-3);
+	border: none;
+	outline: none;
+	background: transparent;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: start;
+}
+
+.addRow:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.addRow:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

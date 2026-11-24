@@ -20,6 +20,16 @@ const LONGEST: usize = 1_024;
 pub enum Intent {
     /// A Settings › Machines request other than Add.
     Settings(Request),
+    /// Opens Add Machine, giving up an add in progress.
+    AddOpen,
+    /// Adds `address` as `name`, blank for the host name, in `color`, the default when absent.
+    Add {
+        address: String,
+        name: String,
+        color: Option<MachineColor>,
+    },
+    /// Closes Add Machine, giving up an add in progress.
+    AddClose,
     /// The person's act on the login question `question` of episode `login`; a question no longer
     /// shown takes none.
     Login {
@@ -91,6 +101,22 @@ pub fn parse_intent(value: &mut Value) -> Option<Intent> {
             .filter(|text| text.len() <= LONGEST)
             .map(str::to_owned)
     };
+    match act.as_str() {
+        "add-open" => return Some(Intent::AddOpen),
+        "add-close" => return Some(Intent::AddClose),
+        "add" => {
+            let color = match value.get("color") {
+                None | Some(Value::Null) => None,
+                Some(color) => Some(MachineColor::parse(color.as_str()?)?),
+            };
+            return Some(Intent::Add {
+                address: text("address")?,
+                name: text("name")?,
+                color,
+            });
+        }
+        _ => {}
+    }
     let machine = text("machine")?;
     let act_on = |action| Request::Act {
         machine: machine.clone(),
