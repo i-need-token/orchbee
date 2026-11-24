@@ -38,11 +38,12 @@ guard against a damaged file that no person's machines reach.
 
 `internal/state/machine-spaces.json`, the last-seen list, keeps what each enabled saved machine
 last answered of its Workspaces: its Session ID, Projects by ID and label, and Workspaces by ID,
-terminal context, label and Project. The TUI reads it once when it starts, lists an entry for an
-enabled machine that has not answered yet, writes the whole list two seconds after an answer
-changes it, and drops the entries of machines no longer saved, so a machine that is not connected
-still lists its Workspaces after a restart. The last writer wins; a change in the two seconds
-before the TUI exits is not kept. A list this build cannot use reads as empty and is never
+terminal context, label and Project. The TUI and the [desktop machines
+process](#desktop-machines-process) read it once when they start, list an entry for an enabled
+machine that has not answered yet, write the whole list two seconds after an answer changes it,
+and drop the entries of machines no longer saved, so a machine that is not connected still lists
+its Workspaces after a restart. The last writer wins; a change in the two seconds before either
+exits is not kept, and a catalog that could not be read drops nothing. A list this build cannot use reads as empty and is never
 rewritten; at most 1 MiB is admitted.
 
 Every command that names a saved machine takes `<id|label>` and resolves it with the one rule
@@ -1409,13 +1410,18 @@ The view is `catalog` (`read` or `unreadable`), `hub` (the sentence that says wh
 or null), `local` (this computer's capacity), `passwords` (whether answers can be remembered),
 `added` (the machine the last add saved, until listed), `notice` (`{number, text}`, how the last
 request ended, worded once per number), `login` (the question below, or null), `offer` (the
-command login notice below, or null), `add` (Add Machine below), and `machines` in catalog order. A machine is its
+command login notice below, or null), `add` (Add Machine below), `seen` (each enabled machine's
+entry in the last-seen list: `machine`, `projects` as `{id, name}` and `workspaces` as
+`{id, name, projectId}`, in its Session's order), and
+`machines` in catalog order. The process reads each online machine's Workspaces as the TUI's
+sidebar reads them, to keep that list. A machine is its
 `machine` id, `label`, `address`, `color`, `state` (the [Settings](#machines-in-settings) state:
 `online`, `connecting`, `reconnecting`, `offline`, `disabled`, `needs-login`, `needs-update`,
 `local-needs-update`, or the picker word of another), `stopping`, `word`, `status` and `lines` (the
 TUI's words), `action` (`{act, label}` of its button, or null), `version`, `capacity`,
 `workspaces`, `terminals`, `agents`, `stopConfirmation`, `notConnected` (what Stop says while the
-machine is not online) and `removeDescription`. A capacity, this computer's included, is
+machine is not online), `removeDescription` and `card` (`{title, lines, notNow}`, the TUI's
+[machine card](#persistent-tui-connections) for its state). A capacity, this computer's included, is
 `{summary, parts: [{text, low}], long}`: the short form, its three facts (none before the first
 read) and the sentence, all worded. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
 `retry`, `retry-now` and `log-in` as its button does, `rename` with `label`, `set-color` with

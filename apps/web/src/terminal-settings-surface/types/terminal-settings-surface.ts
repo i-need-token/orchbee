@@ -82,6 +82,12 @@ export interface TerminalSettingsMachine {
 	readonly address: string | null;
 	readonly agents: number | null;
 	readonly capacity: TerminalSettingsMachineCapacity;
+	/** The card a window shows over the terminals while the machine is chosen but not connected. */
+	readonly card: {
+		readonly lines: readonly string[];
+		readonly notNow: string;
+		readonly title: string;
+	};
 	readonly color: TerminalSettingsMachineColor;
 	readonly label: string;
 	readonly lines: readonly string[];
@@ -173,6 +179,19 @@ export interface TerminalSettingsMachinesView {
 	readonly notice: { readonly number: number; readonly text: string } | null;
 	/** Whether saved passwords can be kept, so Saved password applies. */
 	readonly passwords: boolean;
+	/** The Workspaces each enabled machine listed when last read, kept for one not connected. */
+	readonly seen: readonly TerminalSettingsMachineSeen[];
+}
+
+/** One machine's entry in the last-seen list, in its Session's order. */
+interface TerminalSettingsMachineSeen {
+	readonly machine: string;
+	readonly projects: readonly { readonly id: string; readonly name: string }[];
+	readonly workspaces: readonly {
+		readonly id: string;
+		readonly name: string;
+		readonly projectId: string | null;
+	}[];
 }
 
 /**

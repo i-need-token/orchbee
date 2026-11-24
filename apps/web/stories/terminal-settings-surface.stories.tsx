@@ -607,6 +607,7 @@ function createMachinesStorySource(
 				label: 'devbox',
 				machine: '0123456789abcdef0123456789abcdef',
 				notConnected: english ? 'devbox is not connected.' : 'devbox 没有连接。',
+				card: { lines: [], notNow: english ? 'Not now' : '暂不', title: '' },
 				removeDescription: english
 					? 'Its 3 Workspaces leave the sidebar; their terminals keep running.'
 					: '它的 3 个工作区会从侧边栏消失，上面的终端继续运行。',
@@ -629,6 +630,7 @@ function createMachinesStorySource(
 				label: 'mac-mini',
 				machine: '11111111111111111111111111111111',
 				notConnected: english ? 'mac-mini is not connected.' : 'mac-mini 没有连接。',
+				card: { lines: [], notNow: english ? 'Not now' : '暂不', title: '' },
 				removeDescription: english ? 'Nothing runs on it from here.' : '这里没有东西运行在它上面。',
 				state: 'needs-login',
 				status: english ? 'ssh needs your password.' : 'ssh 需要你的密码。',
@@ -645,6 +647,7 @@ function createMachinesStorySource(
 				label: 'nas',
 				machine: '22222222222222222222222222222222',
 				notConnected: english ? 'nas is not connected.' : 'nas 没有连接。',
+				card: { lines: [], notNow: english ? 'Not now' : '暂不', title: '' },
 				removeDescription: english ? 'Nothing runs on it from here.' : '这里没有东西运行在它上面。',
 				state: 'online',
 				status: english ? 'Connected.' : '已连接。',
@@ -657,6 +660,7 @@ function createMachinesStorySource(
 		offer: null,
 		notice: null,
 		passwords: true,
+		seen: [],
 	};
 	return {
 		getSnapshot: () => view,

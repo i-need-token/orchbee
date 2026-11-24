@@ -27,6 +27,7 @@ const MachineSchema = z.strictObject({
 	address: z.string().nullable(),
 	agents: CountSchema,
 	capacity: CapacitySchema,
+	card: z.strictObject({ lines: z.array(z.string()), notNow: z.string(), title: z.string() }),
 	color: ColorSchema,
 	label: z.string(),
 	lines: z.array(z.string()),
@@ -123,6 +124,15 @@ const ViewSchema = z.strictObject({
 	machines: z.array(MachineSchema),
 	notice: z.strictObject({ number: z.number().int().nonnegative(), text: z.string() }).nullable(),
 	passwords: z.boolean(),
+	seen: z.array(
+		z.strictObject({
+			machine: z.string(),
+			projects: z.array(z.strictObject({ id: z.string(), name: z.string() })),
+			workspaces: z.array(
+				z.strictObject({ id: z.string(), name: z.string(), projectId: z.string().nullable() }),
+			),
+		}),
+	),
 });
 
 const ProcessRecordSchema = z.discriminatedUnion('kind', [

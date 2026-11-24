@@ -56,6 +56,7 @@ function source(login: Login): TerminalSettingsMachines {
 		offer: null,
 		notice: null,
 		passwords: true,
+		seen: [],
 	};
 	return {
 		getSnapshot: () => view,

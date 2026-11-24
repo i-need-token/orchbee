@@ -8,7 +8,7 @@ import type {
 } from '../../../types/workbench-other-machines';
 import type { SidebarOtherMachineRow } from '../components/project-navigation-item/ProjectNavigationItem';
 
-const NO_MACHINES: WorkbenchOtherMachinesSnapshot = { machines: [], onScreen: null };
+const NO_MACHINES: WorkbenchOtherMachinesSnapshot = { card: null, machines: [], onScreen: null };
 const NO_SUBSCRIPTION = (): (() => void) => () => undefined;
 const NO_SNAPSHOT = (): WorkbenchOtherMachinesSnapshot => NO_MACHINES;
 
@@ -78,6 +78,7 @@ export function useSidebarOtherMachines(
 								machine: machine.machine,
 								mark: machine.mark,
 								name: workspace.name,
+								word: machine.word,
 								workspaceId: workspace.id,
 							})),
 					);

@@ -125,7 +125,11 @@ folding in this sidebar alone, with no menu, tools or drag. In each group this c
 come first, then each saved machine's in saved order, and a Workspace on another computer, the one
 on screen included, carries `@` and the machine's name in its color, which shortens before the
 Workspace's name. Another machine's row only chooses: it opens that Workspace on its machine, and
-its menus, drags and Agents stay with the Session on screen.
+its menus, drags and Agents stay with the Session on screen. A machine that is not connected keeps
+the Workspaces it listed when last read, each row two lines, the name muted and the machine's
+state word beneath. Choosing one chooses the machine as its state's action does, and the host's
+`card` stands over the terminal area, holding the pointer and taking the keyboard, until the choice
+lands, another is made, or Not now (Esc) gives it up.
 
 ## Workspace locations
 

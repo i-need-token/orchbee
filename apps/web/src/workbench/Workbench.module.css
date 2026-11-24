@@ -209,6 +209,7 @@ button.statusNoticeText {
 }
 
 .tabContent {
+	position: relative;
 	min-height: 0;
 	min-width: 0;
 	flex: 1;

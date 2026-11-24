@@ -103,6 +103,8 @@ export interface SidebarOtherMachineRow {
 	readonly machine: string;
 	readonly mark: WorkbenchMachineMark | null;
 	readonly name: string;
+	/** The state word of a machine that is not connected; null while connected. */
+	readonly word: string | null;
 	readonly workspaceId: string;
 }
 
@@ -172,6 +174,7 @@ export function ProjectNavigationItem({
 			mark={row.mark}
 			name={row.name}
 			onOpen={() => openOtherWorkspace(row.machine, row.workspaceId)}
+			word={row.word}
 		/>
 	);
 	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.

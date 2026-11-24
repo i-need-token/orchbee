@@ -1,4 +1,4 @@
-/* The geometry of a Workspace row's first line, without its second line, tools or Agents. */
+/* The geometry of a Workspace row's lines, without its tools or Agents. */
 .workspace {
 	position: relative;
 	display: grid;
@@ -9,6 +9,7 @@
 	position: relative;
 	display: flex;
 	min-width: 0;
+	flex-direction: column;
 	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
@@ -63,5 +64,22 @@
 	text-box: trim-both cap alphabetic;
 	text-overflow: ellipsis;
 	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}
+
+/* A machine that is not connected: the name line muted, its state word beneath it on a Workspace
+   row's second line. */
+.row[data-not-connected] .line {
+	color: var(--ob-sys-color-text-muted);
+}
+
+.word {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	height: var(--ob-ref-space-3);
+	overflow: hidden;
+	color: var(--ob-sys-color-text-muted);
+	font: var(--ob-sys-typography-label-xs);
+	text-overflow: ellipsis;
 	white-space: nowrap;
 }

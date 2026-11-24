@@ -11,16 +11,22 @@ use crate::{
     machine_discovery::display_label,
     machine_picker::ManageProblem,
     machine_settings::{Action, Facts, Machine, State},
+    machine_spaces::Checkpoint,
     machine_status,
+    machines::ProfileId,
+    workbench_projection::ClientContextLocation,
 };
 use orchbee_machine_protocol::capacity::Capacity;
 use serde_json::{Value, json};
+use std::sync::Arc;
 
-/// What asks the person over whatever holds the window: the login question, or the notice of a
-/// command login offered to it.
-pub(super) struct Asking {
+/// The members other modules project: what asks the person over whatever holds the window, the
+/// login question or the notice of a command login offered to it, and the Workspaces each machine
+/// listed when last read.
+pub(super) struct Projected {
     pub(super) login: Option<Value>,
     pub(super) offer: Option<Value>,
+    pub(super) seen: Value,
 }
 
 pub(super) fn project(
@@ -29,7 +35,7 @@ pub(super) fn project(
     hub: Option<&'static str>,
     unreadable: bool,
     notice: Option<&(u64, String)>,
-    asking: Asking,
+    projected: Projected,
     add: Option<&Add>,
 ) -> Value {
     json!({
@@ -39,8 +45,9 @@ pub(super) fn project(
         "passwords": facts.passwords,
         "added": facts.added,
         "notice": notice.map(|(number, text)| json!({ "number": number, "text": text })),
-        "login": asking.login,
-        "offer": asking.offer,
+        "login": projected.login,
+        "offer": projected.offer,
+        "seen": projected.seen,
         "add": json!({
             "labels": {
                 "addMachine": locale.machine_manage_text(ManageText::AddMachine),
@@ -86,6 +93,11 @@ fn machine(locale: Locale, machine: &Machine) -> Value {
         "stopConfirmation": locale.machine_stop_confirmation(machine),
         "notConnected": locale.machine_not_connected(&machine.label),
         "removeDescription": locale.machine_remove_description(machine.workspaces),
+        "card": json!({
+            "title": locale.machine_card_title(machine),
+            "lines": locale.machine_card_lines(machine),
+            "notNow": locale.machine_card_not_now(),
+        }),
     })
 }
 
@@ -180,4 +192,35 @@ const fn action(action: Action) -> &'static str {
         Action::RetryNow => "retry-now",
         Action::LogIn => "log-in",
     }
+}
+
+/// The Workspaces each enabled saved machine listed when last read, this run or an earlier one,
+/// which a sidebar keeps for a machine that is not connected: Projects and Workspaces in that
+/// Session's order, by ID and name.
+pub(super) fn seen(checkpoints: &[(ProfileId, Arc<Checkpoint>)]) -> Value {
+    Value::Array(
+        checkpoints
+            .iter()
+            .map(|(machine, checkpoint)| {
+                json!({
+                    "machine": machine.as_str(),
+                    "projects": checkpoint.projects.iter().map(|project| json!({
+                        "id": project.project_id.as_str(),
+                        "name": project.label,
+                    })).collect::<Vec<_>>(),
+                    "workspaces": checkpoint.rows.iter().filter_map(|row| {
+                        let ClientContextLocation::Workspace { workspace_id, .. } = &row.target.location
+                        else {
+                            return None;
+                        };
+                        Some(json!({
+                            "id": workspace_id.as_str(),
+                            "name": row.label.as_deref()?,
+                            "projectId": row.project_id.as_ref().map(|id| id.as_str()),
+                        }))
+                    }).collect::<Vec<_>>(),
+                })
+            })
+            .collect(),
+    )
 }

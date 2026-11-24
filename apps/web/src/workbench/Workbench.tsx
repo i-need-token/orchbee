@@ -26,6 +26,7 @@ import { WorkbenchAgentConfirmationOffer } from './components/workbench-agent-co
 import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
+import { WorkbenchMachineCard } from './components/workbench-machine-card/WorkbenchMachineCard';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
 import type { WorkbenchOtherMachines } from './types/workbench-other-machines';
 import { WorkbenchProjectCreation } from './components/workbench-project-creation/WorkbenchProjectCreation';
@@ -628,6 +629,9 @@ export function Workbench({
 											/>
 										)}
 									</div>
+								)}
+								{otherMachines === undefined ? null : (
+									<WorkbenchMachineCard otherMachines={otherMachines} />
 								)}
 							</div>
 						</div>

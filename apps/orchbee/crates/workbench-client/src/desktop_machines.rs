@@ -20,13 +20,16 @@ use crate::{
     machine_color::MachineColor,
     machine_discovery::Discovery,
     machine_login::Act,
+    machine_observation::{Source, outcome::Observation},
     machine_settings_exchange::Exchange,
-    machines::{Catalog, Error, Profile, Store},
+    machine_spaces::{Checkpoint, last_seen::LastSeen},
+    machines::{Catalog, Choice, Error, Profile, ProfileId, Store},
     ui_wakeup::UiWakeup,
 };
 use serde_json::Value;
 use std::{
     io,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -47,6 +50,13 @@ pub struct DesktopMachines {
     notice: Option<(u64, String)>,
     /// Add Machine, while the page shows it.
     add: Option<Add>,
+    /// Each online machine's Workspaces as its Session answers, read as the TUI's sidebar reads
+    /// them, and each one's last answer this run.
+    spaces: crate::machine_spaces::Collector,
+    fresh: Vec<(ProfileId, Arc<Checkpoint>)>,
+    /// What this computer last read of every machine's Workspaces, kept across runs and shared
+    /// with the TUI.
+    last_seen: LastSeen,
 }
 
 impl DesktopMachines {
@@ -54,6 +64,7 @@ impl DesktopMachines {
     /// hub reports a change.
     #[must_use]
     pub fn new(wakeup: UiWakeup, locale: Locale) -> Self {
+        let spaces = crate::machine_spaces::Collector::new(wakeup.clone(), false);
         let mut discovery = Discovery::new(wakeup);
         // Desktop shows command logins only while it has a window.
         discovery.set_asks(false);
@@ -67,6 +78,62 @@ impl DesktopMachines {
             capacity: false,
             notice: None,
             add: None,
+            spaces,
+            fresh: Vec::new(),
+            last_seen: LastSeen::configured(),
+        }
+    }
+
+    /// Reads each online machine's Workspaces and keeps the last-seen list current, as the TUI
+    /// does, so a machine that is not connected still lists them in any Client.
+    fn observe_spaces(&mut self, now: Instant) {
+        let sources = self
+            .profiles
+            .iter()
+            .filter_map(|profile| {
+                Some(Source {
+                    choice: Choice::Remote(profile.id.clone()),
+                    connection: self.discovery.connection(profile, now)?,
+                })
+            })
+            .collect();
+        let observed = self
+            .spaces
+            .tick(sources, now, crate::machine_spaces::read_metadata);
+        let mut fresh = Vec::new();
+        for (choice, observation) in observed {
+            let Choice::Remote(id) = choice else {
+                continue;
+            };
+            let checkpoint = match observation {
+                Observation::Ready(checkpoint) => Some(checkpoint),
+                // A read in flight keeps the answer before it.
+                Observation::Loading => self
+                    .fresh
+                    .iter()
+                    .find(|(known, _)| known == &id)
+                    .map(|(_, checkpoint)| checkpoint.clone()),
+                Observation::Unavailable => None,
+            };
+            if let Some(checkpoint) = checkpoint {
+                fresh.push((id, checkpoint));
+            }
+        }
+        self.fresh = fresh;
+        // A catalog that could not be read names no machine, and would empty the list.
+        if !self.unreadable {
+            let saved: Vec<_> = self
+                .profiles
+                .iter()
+                .map(|profile| profile.id.clone())
+                .collect();
+            self.last_seen.observe(
+                self.fresh
+                    .iter()
+                    .map(|(id, checkpoint)| (id, checkpoint.as_ref())),
+                &saved,
+                now,
+            );
         }
     }
 
@@ -125,6 +192,13 @@ impl DesktopMachines {
             .discovery
             .login_offered()
             .map(|offered| offer::project(self.locale, &offered, self.label(&offered.machine)));
+        self.observe_spaces(now);
+        let enabled: Vec<_> = self
+            .profiles
+            .iter()
+            .filter(|profile| profile.enabled)
+            .map(|profile| profile.id.clone())
+            .collect();
         self.discovery.finish_retirement();
         view::project(
             self.locale,
@@ -132,7 +206,11 @@ impl DesktopMachines {
             self.discovery.hub_message(),
             self.unreadable,
             self.notice.as_ref(),
-            view::Asking { login, offer },
+            view::Projected {
+                login,
+                offer,
+                seen: view::seen(&self.last_seen.checkpoints(&enabled)),
+            },
             self.add.as_ref(),
         )
     }
@@ -292,8 +370,11 @@ impl DesktopMachines {
         }
     }
 
-    /// Asks every machine observer and the holder to stop, and waits for them until `deadline`.
+    /// Asks every machine observer, every Workspace read and the holder to stop, and waits for them
+    /// until `deadline`.
     pub fn stop_before(&mut self, deadline: Instant) -> io::Result<()> {
-        self.discovery.stop_before(deadline)
+        self.spaces.request_stop();
+        let spaces = self.spaces.stop_before(deadline);
+        self.discovery.stop_before(deadline).and(spaces)
     }
 }
