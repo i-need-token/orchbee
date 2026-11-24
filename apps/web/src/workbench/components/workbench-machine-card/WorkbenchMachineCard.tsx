@@ -15,10 +15,8 @@ export function WorkbenchMachineCard({
 	readonly otherMachines: WorkbenchOtherMachines;
 }): ReactNode {
 	const titleId = useId();
-	const card = useSyncExternalStore(
-		otherMachines.subscribe,
-		() => otherMachines.getSnapshot().card,
-	);
+	const read = () => otherMachines.getSnapshot().card;
+	const card = useSyncExternalStore(otherMachines.subscribe, read, read);
 	if (card === null) return null;
 	const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
 		if (event.key !== 'Escape') return;

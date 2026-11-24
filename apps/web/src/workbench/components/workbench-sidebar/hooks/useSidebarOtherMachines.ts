@@ -54,9 +54,11 @@ export function useSidebarOtherMachines(
 	hasUngrouped: boolean,
 	onManageMachines: (() => void) | undefined,
 ): SidebarOtherMachinesView {
+	const read = otherMachines?.getSnapshot ?? NO_SNAPSHOT;
 	const others = React.useSyncExternalStore(
 		otherMachines?.subscribe ?? NO_SUBSCRIPTION,
-		otherMachines?.getSnapshot ?? NO_SNAPSHOT,
+		read,
+		read,
 	);
 	const [collapsedForeign, setCollapsedForeign] = React.useState<ReadonlySet<string>>(new Set());
 	const merged = React.useMemo(() => {
