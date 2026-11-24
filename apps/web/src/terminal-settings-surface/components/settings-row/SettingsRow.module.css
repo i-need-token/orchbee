@@ -29,14 +29,15 @@
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
-/* The changed dot follows the title, effect included, centered on the name's line. */
+/* The changed dot follows the title, effect included, centered on the name's line. It takes the
+   theme's accent, as the TUI's changed marker does, quieter than the row's text. */
 .modified {
 	width: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-space-1-5);
 	flex: none;
 	align-self: center;
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-brand-accent);
+	background: var(--ob-sys-color-border-selected);
 }
 
 .copy {

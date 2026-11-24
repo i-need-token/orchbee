@@ -27,13 +27,13 @@
 	padding-inline: var(--ob-ref-space-2);
 }
 
-/* The changed dot follows the heading, centered on its line. */
+/* The changed dot follows the heading, centered on its line, in the row dot's accent. */
 .modified {
 	width: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-space-1-5);
 	flex: none;
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-brand-accent);
+	background: var(--ob-sys-color-border-selected);
 }
 
 .label {
