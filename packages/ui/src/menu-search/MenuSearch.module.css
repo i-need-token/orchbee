@@ -25,8 +25,11 @@
 	color: var(--ob-sys-color-text-muted);
 }
 
+/* Edge to edge in the menu's padding, its rows where they were, so the scrollbar meets the menu's edge. */
 .results {
 	min-height: 0;
+	margin-inline: calc(var(--ob-ref-space-1) * -1);
+	padding-inline: var(--ob-ref-space-1);
 	/* A separator reaches past the rows into the menu's padding; that is no reason to scroll. */
 	overflow-x: hidden;
 	overflow-y: auto;
