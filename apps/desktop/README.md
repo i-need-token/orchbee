@@ -32,7 +32,7 @@ first.
 
 ## Server connection
 
-Each document gets one `orchbee server connect` process and four transferred ports, in the order
+Each document gets one `orchbee server connect` process and five transferred ports, in the order
 `DESKTOP_SERVER_CONNECTION_PORT_ROLES` fixes. `ServerConnectionRelay` moves bytes between the
 process and the first port without reading any, bounded both ways: the page reports each chunk
 it has read, and Main pauses the process's output while 4 MiB it relayed are unread, until half is
@@ -46,7 +46,9 @@ notification is clicked. Main parses each report and counts nothing itself; wher
 notification-area or menu-bar icon, on Linux and for a window started hidden, it closes that port. Over the same port Main asks the page for Quit
 All's Session stop, which the page sends through its Server connection because Main never speaks
 the Client protocol. The fourth is its window-update port, described under
-[Window Update](#window-update). The process owns activation, peer validation and admission, and the page
+[Window Update](#window-update). The fifth is its machines port, which `src/main/remote-machines/` connects to
+the saved machines' process, `orchbee --desktop-machines-v1` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
+while Desktop offers remote machines; until then Main starts no such process and closes the port at once. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the
 last one, and a load event cannot tell them apart. Its asking ends the previous document's

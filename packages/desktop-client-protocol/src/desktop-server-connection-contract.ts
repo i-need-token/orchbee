@@ -203,6 +203,7 @@ export const DESKTOP_SERVER_CONNECTION_PORT_ROLES = [
 	'project-folder-acquisition',
 	'background-status',
 	'window-update',
+	'machines',
 ] as const;
 
 export type DesktopServerConnectionPortRole = (typeof DESKTOP_SERVER_CONNECTION_PORT_ROLES)[number];

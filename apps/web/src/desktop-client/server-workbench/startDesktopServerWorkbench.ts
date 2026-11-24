@@ -97,6 +97,7 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 			const projectFolderPort = portFor('project-folder-acquisition');
 			const backgroundStatusPort = portFor('background-status');
 			const windowUpdatePort = portFor('window-update');
+			const machinesPort = portFor('machines');
 			const message = DesktopServerConnectionWindowMessageSchema.safeParse(event.data);
 			if (
 				message.success &&
@@ -104,8 +105,11 @@ function receiveConnection(targetWindow: Window): Promise<DesktopServerConnectio
 				connectionPort !== undefined &&
 				projectFolderPort !== undefined &&
 				backgroundStatusPort !== undefined &&
-				windowUpdatePort !== undefined
+				windowUpdatePort !== undefined &&
+				machinesPort !== undefined
 			) {
+				// The window's machines arrive with the page that shows them; until then the port is unused.
+				machinesPort.close();
 				resolve({
 					backgroundStatusPort,
 					bootstrap: message.data.bootstrap,

@@ -68,6 +68,7 @@ import {
 	watchWindowPointer,
 	windowVersionResources,
 } from '../window-update';
+import { DESKTOP_REMOTE_MACHINES, DesktopMachinesProcess } from '../remote-machines';
 import { createDesktopFolder, DesktopFolderNotCreated } from './desktop-folder';
 import { DesktopDataRootRefusal } from './data-root-version-record';
 import { DesktopServerClientApplication } from './DesktopServerClientApplication';
@@ -566,6 +567,8 @@ let application: DesktopServerClientApplication | undefined;
 let background: DesktopBackgroundRuntime | undefined;
 let removePlatformActions: (() => void) | undefined;
 let windowUpdate: DesktopWindowUpdate | undefined;
+/** The saved machines' process, started once Desktop runs where it offers remote machines. */
+let machines: DesktopMachinesProcess | undefined;
 let saveDiagnosticBundle: (() => boolean) | undefined;
 let windowStoreTendTimer: ReturnType<typeof setTimeout> | undefined;
 /** A Save Diagnostic Bundle task that started Orchbee waits for the Action to be installed. */
@@ -644,6 +647,14 @@ async function start(): Promise<void> {
 	}
 	windowUpdate = createWindowUpdate(sessionArguments);
 	windowUpdate.start();
+	if (DESKTOP_REMOTE_MACHINES && (process.platform === 'win32' || process.platform === 'darwin')) {
+		machines = new DesktopMachinesProcess({
+			clientEnvironment: resolveClientEnvironment(),
+			clientExecutable: resolveClientExecutable(),
+			recordEvent,
+		});
+		machines.start();
+	}
 	const started = new DesktopServerClientApplication({
 		applicationVersion: app.getVersion(),
 		background,
@@ -668,6 +679,7 @@ async function start(): Promise<void> {
 			app.exit(1);
 			return true;
 		},
+		machines,
 		platform: process.platform,
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
 		recordEvent,
@@ -757,6 +769,8 @@ app.once('will-quit', () => {
 	removePlatformActions = undefined;
 	background?.dispose();
 	windowUpdate?.dispose();
+	// The process leaves the hub once its standard input closes, whether or not Main is still there.
+	void machines?.stop();
 	recordEvent('info', 'exited');
 });
 

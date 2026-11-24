@@ -49,6 +49,7 @@ import {
 	readServerStartAnswer,
 	readServerState,
 } from '../server-connection';
+import type { DesktopMachinesAttachment, DesktopMachinesProcess } from '../remote-machines';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
 import type { DesktopWindowUpdateFocus, DesktopWindowUpdatePort } from '../window-update';
 import { followRendererCrashes } from './followRendererCrashes';
@@ -72,6 +73,11 @@ export interface DesktopServerClientApplicationOptions {
 	 * unknown; true when Desktop exits instead, and that document is never connected.
 	 */
 	readonly exitsOnFirstStartAnswer: (refusal: DesktopSessionRefusal | null) => boolean;
+	/**
+	 * The saved machines' process, which each document's machines port reaches; absent while Desktop
+	 * offers no remote machines, when Main closes that port at once.
+	 */
+	readonly machines: Pick<DesktopMachinesProcess, 'attach' | 'setWindow'> | undefined;
 	/** Appends one record to the daily diagnostic log; text values must be tokens. */
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly platform: NodeJS.Platform;
@@ -201,6 +207,7 @@ function hideWindow(window: BrowserWindow, platform: NodeJS.Platform): void {
 interface DocumentConnection {
 	readonly backgroundStatus: DesktopBackgroundStatusPort;
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
+	readonly machines: DesktopMachinesAttachment;
 	readonly relay: ServerConnectionRelay;
 	readonly windowUpdate: { close(): void };
 }
@@ -378,6 +385,7 @@ export class DesktopServerClientApplication {
 			if (!isSameDesktopRendererOrigin(navigationUrl, options.rendererUrl)) event.preventDefault();
 		});
 		const endDocumentConnection = this.#serveDocuments(window);
+		options.machines?.setWindow(true);
 		followRendererCrashes(window, options.recordEvent, endDocumentConnection);
 		const background = options.background;
 		if (background !== undefined) {
@@ -394,6 +402,7 @@ export class DesktopServerClientApplication {
 			window.on('session-end', () => background.sessionEnding());
 		}
 		window.once('closed', () => {
+			options.machines?.setWindow(false);
 			background?.windowClosed();
 			endDocumentConnection();
 			endPageFaults();
@@ -427,6 +436,7 @@ export class DesktopServerClientApplication {
 			current?.relay.close();
 			current?.backgroundStatus.close();
 			current?.windowUpdate.close();
+			current?.machines.close();
 			if (this.#document === current) this.#document = undefined;
 			// A folder made for a Project the document never confirmed is reported to the person here.
 			current?.folderAcquisition.dispose();
@@ -543,6 +553,7 @@ export class DesktopServerClientApplication {
 		const folders = new MessageChannelMain();
 		const backgroundStatus = new MessageChannelMain();
 		const windowUpdate = new MessageChannelMain();
+		const machines = new MessageChannelMain();
 		let lost = (): void => undefined;
 		const relay = new ServerConnectionRelay(
 			relayProcess,
@@ -556,6 +567,7 @@ export class DesktopServerClientApplication {
 		);
 		let backgroundStatusPort: DesktopBackgroundStatusPort | undefined;
 		let windowUpdatePort: { close(): void } | undefined;
+		let machinesAttachment: DesktopMachinesAttachment | undefined;
 		try {
 			folderAcquisition.start();
 			backgroundStatusPort = serveDesktopBackgroundStatus(
@@ -564,8 +576,15 @@ export class DesktopServerClientApplication {
 				options.recordEvent,
 			);
 			windowUpdatePort = options.windowUpdate.serve(windowUpdate.port1, windowFocus(window));
+			if (options.machines === undefined) {
+				machines.port1.close();
+				machinesAttachment = { close: () => undefined };
+			} else {
+				machinesAttachment = options.machines.attach(reply.document, machines.port1);
+			}
 			const pagePorts: Readonly<Record<DesktopServerConnectionPortRole, MessagePortMain>> = {
 				'background-status': backgroundStatus.port2,
+				machines: machines.port2,
 				'project-folder-acquisition': folders.port2,
 				'server-connection': connection.port2,
 				'window-update': windowUpdate.port2,
@@ -579,12 +598,14 @@ export class DesktopServerClientApplication {
 			relay.close();
 			backgroundStatusPort?.close();
 			windowUpdatePort?.close();
+			machinesAttachment?.close();
 			folderAcquisition.dispose();
 			throw error;
 		}
 		const document: DocumentConnection = {
 			backgroundStatus: backgroundStatusPort,
 			folderAcquisition,
+			machines: machinesAttachment,
 			relay,
 			windowUpdate: windowUpdatePort,
 		};
