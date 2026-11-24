@@ -352,6 +352,12 @@
 		transparent 100%
 	);
 }
+.ct-tab__unread {
+	flex: none;
+	pointer-events: auto;
+	color: var(--ob-sys-color-status-unread);
+	font: var(--ob-sys-typography-label-sm);
+}
 .ct-tab__alert {
 	border: none;
 	padding: 0;

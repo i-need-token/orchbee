@@ -10,6 +10,7 @@ import {
 import {
 	tokenDeclarations,
 	validateCssSource,
+	validatePublishedStyleEntry,
 	validateShadcnCompatibilitySource,
 	validateScriptSource,
 	validateTailwindCompatibilitySource,
@@ -564,21 +565,10 @@ describe('Tailwind token compatibility', () => {
 describe('shadcn token compatibility', () => {
 	it('keeps the complete shadcn alias and Tailwind theme maps on Orchbee tokens', async () => {
 		const repositoryRoot = resolve(import.meta.dirname, '../../..');
-		const [registrySource, compatibilitySource, styleEntrySource] = await Promise.all([
+		const [registrySource, compatibilitySource] = await Promise.all([
 			readFile(resolve(repositoryRoot, 'packages/design-tokens/src/tokens.css'), 'utf8'),
 			readFile(resolve(repositoryRoot, 'packages/ui/src/styles.css'), 'utf8'),
-			readFile(resolve(repositoryRoot, 'packages/ui/src/styles.ts'), 'utf8'),
 		]);
-		expect(styleEntrySource).toBe(
-			[
-				"import * as designTokenStyles from '@orchbee/design-tokens/tokens.css';",
-				"import * as shadcnCompatibilityStyles from './styles.css';",
-				'',
-				'void designTokenStyles;',
-				'void shadcnCompatibilityStyles;',
-				'',
-			].join('\n'),
-		);
 		const actualRegisteredTokens = new Set(tokenDeclarations(registrySource));
 		const validationInput = {
 			path: 'packages/ui/src/styles.css',
@@ -642,5 +632,30 @@ describe('shadcn token compatibility', () => {
 		).toContain(
 			'Shadcn compatibility requires exactly one "@source \'./components\'" registration.',
 		);
+	});
+
+	it('requires a package style entry to import every CSS Module with rules of its own', () => {
+		const diagnostics = validatePublishedStyleEntry({
+			entryPath: 'packages/example/src/styles.ts',
+			entrySource:
+				"import * as panelStyles from './panel/Panel.module.css';\n\nvoid panelStyles;\n",
+			modules: [
+				{ path: 'packages/example/src/panel/Panel.module.css', source: '.root {\n\tgap: 0;\n}\n' },
+				{
+					path: 'packages/example/src/row/Row.module.css',
+					source: ".root {\n\tcomposes: root from '../panel/Panel.module.css';\n}\n",
+				},
+				{ path: 'packages/example/src/menu/Menu.module.css', source: '.root {\n\tgap: 0;\n}\n' },
+			],
+		});
+
+		expect(diagnostics).toEqual([
+			{
+				line: 2,
+				message:
+					'Import this CSS Module from packages/example/src/styles.ts, or compose its rules from one it imports, so the published stylesheet carries them.',
+				path: 'packages/example/src/menu/Menu.module.css',
+			},
+		]);
 	});
 });

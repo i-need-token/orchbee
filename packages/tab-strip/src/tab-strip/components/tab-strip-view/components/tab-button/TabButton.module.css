@@ -38,9 +38,6 @@
 	composes: ct-tab__title from '../../TabStripView.module.css';
 }
 
-.unread {
-	flex: none;
-	pointer-events: auto;
-	color: var(--ob-sys-color-status-unread);
-	font: var(--ob-sys-typography-label-sm);
+.ct-tab__unread {
+	composes: ct-tab__unread from '../../TabStripView.module.css';
 }

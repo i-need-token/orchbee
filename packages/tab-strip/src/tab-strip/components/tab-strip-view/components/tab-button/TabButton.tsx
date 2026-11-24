@@ -208,7 +208,7 @@ export function TabButton({
 				<Tooltip disabled={tooltipDisabled}>
 					<TooltipTrigger
 						render={
-							<span aria-hidden='true' className={styles['unread']} data-tab-unread=''>
+							<span aria-hidden='true' className={styles['ct-tab__unread']} data-tab-unread=''>
 								●
 							</span>
 						}

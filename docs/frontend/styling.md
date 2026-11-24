@@ -65,6 +65,8 @@ An icon change updates the allowlist, mapping, focused test, affected package do
 
 Do not import the token registry twice. Storybook scaffolding never restyles components or acts as an implicit theme; follow [`storybook.md`](storybook.md).
 
+A built consumer loads a package's published stylesheet and nothing else; only a development build reads package source. A package that publishes `./styles.css` from `src/styles.ts` therefore imports there every CSS Module under its `src` that declares rules of its own. A module whose rules only compose from an imported module or a global class needs no import.
+
 ## Shadcn component intake
 
 Use the UI package's `component:add` script to refresh explicit admitted component names. Adding a primitive that no consumer needs yet is a product decision under [experience components](experience-components.md); a Story alone is insufficient. Do not import the complete official registry.

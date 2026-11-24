@@ -1,5 +1,5 @@
 import { readFile, readdir } from 'node:fs/promises';
-import { extname, join, relative, resolve, sep } from 'node:path';
+import { extname, join, posix, relative, resolve, sep } from 'node:path';
 import { parseSync, visitorKeys } from 'oxc-parser';
 import { parse as parseCss } from 'postcss';
 import { renderDesignTokenInventory } from './design-token-inventory.mjs';
@@ -1375,6 +1375,63 @@ export function validateScriptSource({
 	return diagnostics;
 }
 
+/**
+ * A built consumer loads a package's published stylesheet and nothing else, so a CSS Module that the
+ * package's style entry does not import ships only in a component chunk no export names, while a
+ * development build reads source and never shows the loss. Every module with a declaration of its
+ * own must be imported by the entry; one that only composes rests on what it composes.
+ */
+export function validatePublishedStyleEntry({ entryPath, entrySource, modules }) {
+	const { program } = parseSync(entryPath, entrySource, {
+		lang: scriptLanguage(entryPath),
+		sourceType: 'module',
+	});
+	const imported = new Set(
+		program.body
+			.filter((node) => node.type === 'ImportDeclaration' && node.source.value.startsWith('.'))
+			.map((node) => posix.join(posix.dirname(entryPath), node.source.value)),
+	);
+	const diagnostics = [];
+	for (const { path, source } of modules) {
+		if (imported.has(path)) continue;
+		const declaration = cssDeclarations(path, source).find(
+			({ property }) => property !== 'composes',
+		);
+		if (declaration === undefined) continue;
+		diagnostics.push(
+			diagnostic(
+				path,
+				source,
+				declaration.index,
+				`Import this CSS Module from ${entryPath}, or compose its rules from one it imports, so the published stylesheet carries them.`,
+			),
+		);
+	}
+	return diagnostics;
+}
+
+/** Each package's `src/styles.ts`, checked against the CSS Modules under its `src`. */
+async function publishedStyleEntryDiagnostics(repositoryRoot, sourcePaths) {
+	const entries = sourcePaths.filter((path) => /^packages\/[^/]+\/src\/styles\.ts$/u.test(path));
+	const checked = await Promise.all(
+		entries.map(async (entryPath) => {
+			const sourceRoot = `${posix.dirname(entryPath)}/`;
+			const modulePaths = sourcePaths.filter(
+				(path) => path.startsWith(sourceRoot) && path.endsWith('.module.css'),
+			);
+			const [entrySource, ...moduleSources] = await Promise.all(
+				[entryPath, ...modulePaths].map((path) => readFile(join(repositoryRoot, path), 'utf8')),
+			);
+			return validatePublishedStyleEntry({
+				entryPath,
+				entrySource,
+				modules: modulePaths.map((path, index) => ({ path, source: moduleSources[index] })),
+			});
+		}),
+	);
+	return checked.flat();
+}
+
 async function collectSourceFiles(directory) {
 	const entries = await readdir(directory, { withFileTypes: true });
 	const files = await Promise.all(
@@ -1510,6 +1567,12 @@ export async function checkStyleContract(repositoryRoot) {
 		}),
 	);
 	diagnostics.push(...sourceDiagnostics.flat());
+	diagnostics.push(
+		...(await publishedStyleEntryDiagnostics(
+			repositoryRoot,
+			sourceFiles.map((sourcePath) => normalizedRelative(repositoryRoot, sourcePath)),
+		)),
+	);
 
 	return diagnostics;
 }
