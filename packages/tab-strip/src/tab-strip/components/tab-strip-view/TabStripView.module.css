@@ -826,11 +826,18 @@
 	width: var(--ob-comp-tab-strip-length-36);
 }
 /* The menu button sits right after +, narrower, as a split button's arrow part does. */
-.ct-new-tab-menu {
+.ct-new-tab-menu,
+.ct-new-tab-menu .ct-tab-strip-control-button__target {
 	width: var(--ob-comp-tab-strip-length-20);
 }
+/* The two parts meet with square inner corners, so either one lit reads as half of one button. */
+.ct-new-tab:has(+ .ct-new-tab-menu) .ct-tab-strip-control-button__target {
+	border-start-end-radius: 0;
+	border-end-end-radius: 0;
+}
 .ct-new-tab-menu .ct-tab-strip-control-button__target {
-	width: var(--ob-comp-tab-strip-length-16);
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
 }
 .ct-new-tab[data-frame-condensed],
 .ct-new-tab-menu[data-frame-condensed] {
