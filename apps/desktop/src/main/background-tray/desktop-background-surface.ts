@@ -4,8 +4,9 @@ import type { DesktopBackgroundState } from './desktop-background-lifecycle';
 export interface DesktopBackgroundSurfaceActions {
 	/** The one-time notice reached the person, so later runs need not show it again. */
 	readonly onNoticeShown: () => void;
-	/** Quit Orchbee, Keep Terminals Running. */
+	/** Quit Orchbee, which keeps the terminals running. */
 	readonly onQuit: () => void;
+	/** Stop Session…, which the code calls Quit All. */
 	readonly onQuitAll: () => void;
 	/** Open Orchbee: shows and focuses the window, or opens one. */
 	readonly onReopen: () => void;

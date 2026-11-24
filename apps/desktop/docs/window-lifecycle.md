@@ -94,7 +94,7 @@ icon on Windows and the menu-bar icon on macOS.
   terminal, the close proceeds and Desktop quits, as it always has.
 - A close while the window is hidden cannot come from the window's own controls; it comes from
   another program, such as a graceful `taskkill` or an installer. It proceeds: Desktop quits and
-  leaves the Session running, as Quit Orchbee, Keep Terminals Running does.
+  leaves the Session running, as Quit Orchbee does.
 - No close is turned into a hide once the application is quitting, which every quit passes through
   in `before-quit`, the development runtime's restart included, or once the window has reported
   `query-session-end` or `session-end`. Desktop never delays logoff or shutdown.
@@ -109,10 +109,11 @@ icon on Windows and the menu-bar icon on macOS.
   attention, or finished a turn not yet seen, on this computer and on every saved machine the page
   holds a connection to, or says that Quit All is stopping them; it is absent
   while no window's page reports, as before the first document does. Open Orchbee follows, always,
-  as Docker Desktop's and 1Password's icon menus keep their open entry. Quit Orchbee, Keep Terminals
-  Running and Quit All… follow; Quit All is offered only while a page reports running terminals,
-  the application is not ending, and no Quit All is under way, and an item that is not offered is
-  left out rather than disabled.
+  as Docker Desktop's and 1Password's icon menus keep their open entry. Stop Session… and Quit
+  Orchbee follow, in that order, so the menu ends with the quit. Stop Session… is the item this
+  record and the code call Quit All, and its name matches `orchbee session stop`; it is offered only
+  while a page reports running terminals, the application is not ending, and no Quit All is under
+  way, and an item that is not offered is left out rather than disabled.
 - When the last terminal ends while the window is hidden, Desktop quits, unless a Quit All is
   stopping the Session, which ends every terminal before it completes, or has failed. A connected
   machine's terminals count too, since the icon and notifications follow them.
@@ -122,10 +123,10 @@ icon on Windows and the menu-bar icon on macOS.
 - Clicking or double-clicking the icon or its notice, Open Orchbee, starting Orchbee again, and a
   notification clicked while the window is hidden all show and focus the window: a hidden window
   shows, a minimized one is restored, and a shown one comes forward. The page asks Main for it,
-  because a page cannot show a window Main hid. Quit Orchbee, Keep Terminals Running quits Desktop
+  because a page cannot show a window Main hid. Quit Orchbee quits Desktop
   and leaves the Session running. A switch through Update quits the same way once the window entry
   has started ([Window Update](../README.md#window-update)).
-- Quit All… asks every time, in a native dialog that needs no window, with Cancel focused and on
+- Stop Session… asks every time, in a native dialog that needs no window, with Cancel focused and on
   Esc; its body counts the terminals that stop and the Agents working in them. Cancel changes
   nothing. Only a confirmation stops the Session: Main chooses a stop identity and asks the page
   over the background-status port. The page first asks the hub to stop the Session of every saved
@@ -136,7 +137,7 @@ icon on Windows and the menu-bar icon on macOS.
   included. A stop that was refused, never sent, failed, or not proven within 75 seconds shows the
   window with the reason in plain words, records the reason in the diagnostic log, and nothing
   quits.
-  Once the Server gave up reconnecting a lost Worker's terminals, each terminal's Quit All… button
+  Once the Server gave up reconnecting a lost Worker's terminals, each terminal's Stop Session… button
   opens the same confirmation: the page asks for it over the background-status port, and the
   bootstrap's `quitAllAvailable` offers the button only to a window whose Main keeps Quit All.
   While the stop runs, the menu holds only its status line and Open Orchbee.
@@ -160,22 +161,24 @@ whether or not terminals run, and never quits by itself.
   none running, Main closes the hidden window and Desktop stays in the Dock.
 - The menu-bar icon shows from start until quit, as the Windows icon does, with the same menu.
   Clicking it opens that menu, as menu-bar icons do, rather than the window. Its image is a
-  template image, which macOS draws in the menu bar's own color: the hive ring, a hexagon
-  in its lower-right corner while an Agent failed, needs attention, or finished a turn not yet seen,
-  and outside a release the environment's circle or square in its upper-left corner. The status
-  line names which states; the fixed status colors stay with the Windows icon and the window.
+  template image, which macOS draws in the menu bar's own color: the hive ring and, outside a
+  release, the environment's circle or square in its upper-left corner. One color cannot tell the
+  states apart, so the image marks none; the item's title beside it counts, in monospaced digits,
+  the Agents that failed, need attention, or finished a turn not yet seen, and is empty while there
+  are none or Quit All stops the Session. The status line names which states; the fixed status
+  colors stay with the Windows icon and the window.
 - The Dock keeps what macOS gives every application: clicking its icon reopens the window, and its
   menu is the system's, with the window list, Options, Hide, and Quit, which keeps the terminals
   running. Orchbee adds no Dock menu items, because they would repeat the menu-bar icon's menu.
-- The application menu names `Command+Q` Quit Orchbee, Keep Terminals Running; it stays the native
-  quit and asks nothing, because nothing ends with it. Quit All… follows it and is enabled as in the
+- The application menu ends with `Command+Q`, Quit Orchbee, which stays the native quit and asks
+  nothing, because nothing ends with it. Stop Session… comes just above it and is enabled as in the
   icon's menu. The Window menu holds Open Orchbee while no window shows.
 - Clicking the Dock icon, starting Orchbee again, Open Orchbee, and a notification clicked while
   the window is hidden show and focus the window. Open Orchbee also makes Orchbee the active
   application, because a menu-bar menu leaves the application that was active before it.
 - Quit All asks, stops the Session, reports a failure, and quits exactly as on Windows.
 - The first hide shows a notification, the macOS counterpart of the icon's notice, that names the
-  running terminals and says how to reopen Orchbee from the Dock and reach Quit All from the
+  running terminals and says how to reopen Orchbee from the Dock and reach Stop Session from the
   menu-bar icon. Only a notification macOS reports as shown is recorded, in the same
   `internal/state/desktop-tray.json`; one that is never delivered is shown at a later hide, and
   clicking it reopens the window.

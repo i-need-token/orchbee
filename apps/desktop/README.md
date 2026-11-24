@@ -26,9 +26,9 @@ icon, or the last terminal ends, as
 [Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
 terminal running, closing it quits as before. On macOS the same close hides the window, and Desktop
 stays in the Dock whatever runs, as
-[Running in the menu bar](docs/window-lifecycle.md#running-in-the-menu-bar) describes. Quit All, in
-the icon's menu and the macOS application menu, is the one quit that stops the Session, and it asks
-first.
+[Running in the menu bar](docs/window-lifecycle.md#running-in-the-menu-bar) describes. Stop
+Session… (Quit All in the code), in the icon's menu and the macOS application menu, is the one quit
+that stops the Session, and it asks first.
 
 ## Server connection
 
@@ -245,16 +245,16 @@ Test build.
   attention, green for a finished turn not yet seen, and outside a release the Dev circle or Test
   square; its tooltip and its menu's first line count the running terminals and those Agents. Left
   click and double-click show and focus the window, hidden, minimized or behind others; the menu
-  holds Open Orchbee, Quit Orchbee, Keep Terminals Running, and, while terminals run, Quit All…,
-  which asks in a native dialog before it stops every terminal and quits. The icons are generated
+  holds Open Orchbee, then, while terminals run, Stop Session…, which asks in a native dialog before
+  it stops every terminal and quits, and last Quit Orchbee. The icons are generated
   into `resources/brand/ico/tray/`, which a Windows package carries as `resources/tray`.
 - On macOS, the menu-bar icon, from start until quit, with the same menu, which a click opens. Its
-  image is a template image that follows the menu bar's color: the hive ring, a hexagon while an
-  Agent state needs the person, and outside a release the Dev circle or Test square. The icons are
-  generated into `resources/brand/png/tray/`, which a macOS package carries as `resources/tray`.
-  The Dock keeps the system's own menu. The application menu names `Command+Q` Quit Orchbee, Keep
-  Terminals Running and adds Quit All… after it, and the Window menu holds Open Orchbee while no
-  window shows.
+  image is a template image that follows the menu bar's color: the hive ring and, outside a
+  release, the Dev circle or Test square; beside it the item's title counts the Agents that need the
+  person. The icons are generated into `resources/brand/png/tray/`, which a macOS package carries as
+  `resources/tray`. The Dock keeps the system's own menu. The application menu ends with Stop
+  Session… and then `Command+Q` Quit Orchbee, and the Window menu holds Open Orchbee while no window
+  shows.
 - On Windows and macOS, Save Diagnostic Bundle… in the Help menu, and on Windows also in the
   taskbar's Jump List of a packaged build, since the title bar overlay hides the menu bar. It asks
   where to save, starting in the
@@ -560,7 +560,7 @@ A build whose window updates are still switched off stops instead while any prog
 below `desktop\` is loaded, and exits with code 7, saying which program to quit. When the bundled cohort's Server,
 Worker or Terminal Host is among them, a Session runs from there, started by an earlier version's
 window or by a start that found no usable store version: Setup asks the person to close those
-terminals or choose Quit All, which is needed only once, because a later window starts its Session
+terminals or choose Stop Session…, which is needed only once, because a later window starts its Session
 from the store. Otherwise only the window runs from there, and Setup asks the person to quit it
 while keeping its terminals running. Sessions that run from the store keep running, because
 installing only adds a version directory and replaces `desktop\`; the new window joins them while

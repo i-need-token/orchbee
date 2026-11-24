@@ -319,7 +319,7 @@ function startDetached(
  * that runs from the store's window layout (`windowDesktopRoot`) and never to a development build.
  * The join check runs that version's bundled Client with this window's Session arguments and
  * environment; a version that joins starts through the window launcher at the place the asking
- * document shows, and this window then quits as Quit Orchbee, Keep Terminals Running does.
+ * document shows, and this window then quits as Quit Orchbee does.
  */
 function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowUpdate {
 	const desktopRoot = windowDesktopRoot;

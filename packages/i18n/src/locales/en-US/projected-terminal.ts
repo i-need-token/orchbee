@@ -33,7 +33,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.connectionRetry': 'Retry',
 	'terminal.projected.runtime.givenUp': "Can't reconnect",
 	'terminal.projected.runtime.givenUpDescription':
-		"Programs keep running, but Orchbee can't reach them. Quit All stops them; the next start reopens your layout.",
+		"Programs keep running, but Orchbee can't reach them. Stop Session stops them; the next start reopens your layout.",
 	'terminal.projected.runtime.reconnectingDescription':
 		"Orchbee lost contact with its terminals and is reconnecting. Programs keep running; anything you type until then isn't sent.",
 	'terminal.projected.control.outcomeUnknown': 'Not sure it finished. Check, then try again.',

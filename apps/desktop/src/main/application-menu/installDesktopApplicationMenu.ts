@@ -52,8 +52,8 @@ interface DesktopApplicationMenuDiagnostics {
 }
 
 /**
- * The macOS background items: Command-Q named for what it does, Quit All… after it in the
- * application menu, and Open Orchbee in the Window menu while no window shows.
+ * The macOS background items: Stop Session…, which the code calls Quit All, just above Command-Q in
+ * the application menu, and Open Orchbee in the Window menu while no window shows.
  */
 interface DesktopApplicationMenuBackground {
 	getQuitAllAvailability(): ActionAvailability;
@@ -136,18 +136,18 @@ export function installDesktopApplicationMenu(
 				...(background === undefined
 					? [{ label: formatNamed(desktopMenuMessages.quit), role: 'quit' as const }]
 					: [
-							// Command-Q stays the native quit, which leaves the Session running; only its
-							// name says so.
-							{
-								accelerator: 'Command+Q',
-								id: DESKTOP_APPLICATION_MENU_ITEM_IDS.quitKeepRunning,
-								label: format(desktopTrayMessages.quitKeepRunning),
-								role: 'quit' as const,
-							},
 							{
 								click: () => background.invokeQuitAll(),
 								id: DESKTOP_APPLICATION_MENU_ITEM_IDS.quitAll,
 								label: format(desktopTrayMessages.quitAll),
+							},
+							// Command-Q stays the native quit and the menu's last item; it leaves the Session
+							// running, which Stop Session… just above it does not.
+							{
+								accelerator: 'Command+Q',
+								id: DESKTOP_APPLICATION_MENU_ITEM_IDS.quitKeepRunning,
+								label: formatNamed(desktopMenuMessages.quit),
+								role: 'quit' as const,
 							},
 						]),
 			]

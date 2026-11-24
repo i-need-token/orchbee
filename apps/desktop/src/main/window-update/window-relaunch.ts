@@ -103,7 +103,7 @@ export interface WindowRelaunchOptions {
 	readonly place: DesktopRelaunchPlace | null;
 	readonly platform: NodeJS.Platform;
 	readonly processId: number;
-	/** Quits as Quit Orchbee, Keep Terminals Running does. */
+	/** Quits as Quit Orchbee does, leaving the terminals running. */
 	readonly quit: () => void;
 	/** Starts `program` detached, so it outlives this process; resolves whether it started. */
 	readonly start: (

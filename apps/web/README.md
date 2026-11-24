@@ -110,9 +110,9 @@ a description saying that programs keep running and that nothing typed is sent: 
 as on an attachment loss, so typed input is dropped, and pauses its own retries. Serving again
 attaches each shown terminal at once without announcing it, and the Agent and title streams that
 closed meanwhile reopen. Once the Server gave up, each terminal reads Can't reconnect with the
-explanation as its description, and Quit All… replaces Retry and asks Desktop to open its existing
-[Quit All confirmation](../desktop/docs/window-lifecycle.md); where Desktop offers no Quit All, the
-button is absent. A closed or refused stream counts as serving and opens again after two seconds.
+explanation as its description, and Stop Session… replaces Retry and asks Desktop to open its
+existing [Quit All confirmation](../desktop/docs/window-lifecycle.md); where Desktop offers no Quit
+All, the button is absent. A closed or refused stream counts as serving and opens again after two seconds.
 
 The recovery controller reserves each opening attempt before notifying observers or acquiring its
 request. Synchronous retention, resumption, or disposal cannot overwrite a replacement attempt, leak

@@ -80,8 +80,8 @@ export function DesktopBackground({ release }: { release: Release }): ReactEleme
 						<i className={styles['rule']} />
 						<span className={styles['current']}>{t(desktopTrayMessages.open)}</span>
 						<i className={styles['rule']} />
-						<span>{t(desktopTrayMessages.quitKeepRunning)}</span>
 						<span>{t(desktopTrayMessages.quitAll)}</span>
+						<span>{t(desktopTrayMessages.quitKeepRunning)}</span>
 					</div>
 					<div className={styles['taskbar']}>
 						<i className={styles['chevron']} />

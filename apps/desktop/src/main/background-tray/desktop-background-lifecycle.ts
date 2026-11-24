@@ -9,7 +9,8 @@
  * operating system ends the person's session, so Desktop never holds up a quit, a restart, logoff,
  * or shutdown.
  *
- * Quit All, from the icon's menu or the macOS application menu, stops the Session and then quits,
+ * Quit All, the Stop Session… item of the icon's menu and the macOS application menu, stops the
+ * Session and then quits,
  * but only once the person confirms it and the stop has completed; a stop that fails shows the
  * window with the reason and nothing quits.
  *
@@ -125,7 +126,7 @@ export type DesktopBackgroundStatusLine =
  * menu's Quit All… and Open Orchbee follow it.
  */
 export interface DesktopBackgroundMenuView {
-	/** Whether Quit Orchbee, Keep Terminals Running is offered; not while Quit All stops the Session. */
+	/** Whether Quit Orchbee is offered; not while Quit All stops the Session. */
 	readonly quit: boolean;
 	/**
 	 * Whether Quit All can be asked for: a window's page reports running terminals, the application
@@ -138,6 +139,11 @@ export interface DesktopBackgroundMenuView {
 }
 
 export interface DesktopTrayView {
+	/**
+	 * How many Agents need the person: failed, needing attention, or finished a turn not yet seen;
+	 * none while Quit All stops the Session. The macOS menu-bar item shows it beside the image.
+	 */
+	readonly agents: number;
 	readonly menu: DesktopBackgroundMenuView;
 	/** The Agent state the image marks; none while Quit All stops the Session. */
 	readonly status: DesktopTrayStatus;
@@ -265,9 +271,12 @@ export function transitionDesktopBackground(
  */
 export function projectDesktopTray(state: DesktopBackgroundState): DesktopTrayView | null {
 	if (state.ending === 'quitting') return null;
+	const stopping = state.quitAll.kind === 'stopping';
+	const { attention, doneUnseen, failed } = state.summary;
 	return {
+		agents: stopping ? 0 : failed + attention + doneUnseen,
 		menu: projectDesktopBackgroundMenu(state),
-		status: state.quitAll.kind === 'stopping' ? 'none' : agentStatus(state.summary),
+		status: stopping ? 'none' : agentStatus(state.summary),
 	};
 }
 

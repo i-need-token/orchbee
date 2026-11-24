@@ -62,10 +62,11 @@ export interface DesktopBackgroundTrayOptions extends DesktopBackgroundSurfaceAc
 
 /**
  * The icon Desktop shows from start until quit: in the notification area on Windows, and in the menu
- * bar on macOS. Its image marks the most urgent Agent state and, outside a release, the environment;
- * its tooltip and its menu's first line say how many terminals run, or that Quit All is stopping
- * them. On Windows a click or double-click shows and focuses the window; on macOS a click opens the
- * menu, as menu-bar icons do.
+ * bar on macOS. Its image marks the environment outside a release; on Windows it also marks the most
+ * urgent Agent state, and on macOS the item shows beside it how many Agents need the person. Its
+ * tooltip and its menu's first line say how many terminals run, or that Quit All is stopping them.
+ * On Windows a click or double-click shows and focuses the window; on macOS a click opens the menu,
+ * as menu-bar icons do.
  */
 export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 	#image: string | undefined;
@@ -73,6 +74,7 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 	/** Held so that its click and show events reach Main for as long as the notice is listed. */
 	#notice: Notification | undefined;
 	readonly #options: DesktopBackgroundTrayOptions;
+	#title: string | undefined;
 	#toolTip: string | undefined;
 	#tray: Tray | undefined;
 
@@ -127,6 +129,7 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 		this.#tray = undefined;
 		this.#image = undefined;
 		this.#menuKey = undefined;
+		this.#title = undefined;
 		this.#toolTip = undefined;
 		if (tray !== undefined && !tray.isDestroyed()) tray.destroy();
 	}
@@ -143,12 +146,21 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 			this.#tray = tray;
 			this.#image = image;
 			this.#menuKey = undefined;
+			this.#title = undefined;
 			this.#toolTip = undefined;
 		} else if (image !== this.#image) {
 			tray.setImage(this.#trayImage(image));
 			this.#image = image;
 		}
-		const { applicationName, intl } = this.#options;
+		const { applicationName, intl, platform } = this.#options;
+		if (platform === 'darwin') {
+			// A count rather than a mark: the template image has one color, and the menu names the states.
+			const title = view.agents > 0 ? intl.formatNumber(view.agents) : '';
+			if (title !== this.#title) {
+				tray.setTitle(title, { fontType: 'monospacedDigit' });
+				this.#title = title;
+			}
+		}
 		const status = this.#statusLine(view.menu.status);
 		const toolTip =
 			status === undefined
@@ -166,7 +178,10 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 		}
 	}
 
-	/** The status line, open, then the quits that are offered; one left out is not disabled. */
+	/**
+	 * The status line, open, then the quits that are offered, Stop Session… before Quit Orchbee so the
+	 * menu ends with the quit; one left out is not disabled.
+	 */
 	#template(
 		menu: DesktopBackgroundMenuView,
 		status: string | undefined,
@@ -181,16 +196,16 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 			},
 		]);
 		const quits: MenuItemConstructorOptions[] = [];
-		if (menu.quit) {
-			quits.push({
-				click: () => this.#options.onQuit(),
-				label: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
-			});
-		}
 		if (menu.quitAll) {
 			quits.push({
 				click: () => this.#options.onQuitAll(),
 				label: intl.formatMessage(desktopTrayMessages.quitAll),
+			});
+		}
+		if (menu.quit) {
+			quits.push({
+				click: () => this.#options.onQuit(),
+				label: intl.formatMessage(desktopTrayMessages.quitKeepRunning),
 			});
 		}
 		if (quits.length > 0) sections.push(quits);
@@ -251,15 +266,14 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 
 	/**
 	 * The Windows icon marks each Agent state in its color. The macOS icon is a template image, which
-	 * macOS draws in the menu bar's own color, so one mark stands for every state and the status line
-	 * names it.
+	 * macOS draws in the menu bar's own color, so it marks no state; the item's title counts the
+	 * Agents instead.
 	 */
 	#iconPath(status: DesktopTrayStatus): string {
 		const { distribution, iconDirectory, platform } = this.#options;
 		const environment = ENVIRONMENT_FILE_SUFFIXES[distribution];
 		if (platform === 'darwin') {
-			const state = status === 'none' ? '' : '-state';
-			return path.join(iconDirectory, `orchbee${environment}${state}Template.png`);
+			return path.join(iconDirectory, `orchbee${environment}Template.png`);
 		}
 		return path.join(iconDirectory, `orchbee${environment}${STATUS_FILE_SUFFIXES[status]}.ico`);
 	}

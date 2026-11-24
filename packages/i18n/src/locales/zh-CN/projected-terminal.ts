@@ -34,7 +34,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.connectionRetry': '重试',
 	'terminal.projected.runtime.givenUp': '无法重新连接',
 	'terminal.projected.runtime.givenUpDescription':
-		'程序仍在运行，但 Orchbee 无法连接它们。“全部退出”会停止这些程序，下次启动时恢复布局。',
+		'程序仍在运行，但 Orchbee 无法连接它们。“停止会话”会停止这些程序，下次启动时恢复布局。',
 	'terminal.projected.runtime.reconnectingDescription':
 		'Orchbee 与终端失去联系，正在重新连接。程序会继续运行；在此之前输入的内容不会发送。',
 	'terminal.projected.control.outcomeUnknown': '不确定是否完成，请先看一下再重试。',
