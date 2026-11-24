@@ -394,36 +394,24 @@ is attached at a time.
 
 The machines process and its lines are built: [`machines.md`](../../apps/orchbee/docs/machines.md#desktop-machines-process)
 owns them, and Main's supervision and the fifth `machines` port are built behind a closed gate
-([Desktop README](../../apps/desktop/README.md)). Still to build: the sidebar's spaces.
+([Desktop README](../../apps/desktop/README.md)). The window reads the sidebar's spaces from the
+Sessions themselves over the connections below, rather than from this channel.
 
 ### Remote Session connection
 
-- **Request.** The page posts an `orchbee.desktop.machine-session-request` message to its own
-  window with `request` and `machine`, a saved Machine whose Workspaces the page shows.
-  The preload forwards a parsed request to Main on the IPC channel of the same name, adding its
-  document's identity, which the page never sees. Main parses it again and refuses `unavailable`
-  while that document already holds a relay to that Machine.
-- **Relay.** Main starts `orchbee --machine-session <machine>` with pipes; the relay and its
-  first line are built, and [`machines.md`](../../apps/orchbee/docs/machines.md#desktop-session-relay)
-  owns them. Main reports a refused relay's `reason` to the page unchanged.
-- **Reply.** Main reads the first line within 30 seconds; a relay that writes nothing in time,
-  exits first or writes anything else is ended and refused `timeout` or `protocol`. Main answers on
-  `orchbee.desktop.machine-session` with `document`, `request` and `outcome`: `admitted` with one
-  transferred port and `bootstrap` `{"machine", "negotiatedCapabilities"}`, or `refused` with
-  `reason`, Main's own being `unavailable`. The preload drops an answer for another document and
-  posts the rest to the window as `orchbee.desktop.machine-session-ready`. The page derives the rest
-  of a remote Session's bootstrap: no first Workspace of its own, no Quit All, no folder picker and
-  no window update.
-- **Bounds.** The relay's bytes use the existing relay bounds, 4 MiB unread and 64 MiB of pending
-  input. A document holds one relay per Machine whose Workspaces it shows, all of them at once,
-  with no cap on how many (owner, 2026-11-23): moving between Workspaces of different machines
-  never waits for a connection. Closing the port, or the document's end, ends the relay; ending a
-  relay never stops the remote Session.
+Built: [`desktop-machine-session-contract.ts`](../../packages/desktop-client-protocol/src/desktop-machine-session-contract.ts),
+Main's `DesktopMachineSessions` and the preload's bridge own the request, the relay's first line
+and the answer, and the [Desktop README](../../apps/desktop/README.md) states them. The page keeps
+one connection per machine the hub reads online and builds a machine's runtime on it only while
+that machine is on screen.
+
 - **What only the far computer knows.** The page's runtime needs the home folder of the Session's
   computer, for terminals started without a directory and for `~` in paths. No contract carries a
   remote home today. The relay slice decides between the far link helper's answer and a
   `client-server` capability labelled `addedIn` its first release; until one is negotiated, the
-  remote surface leaves the directory to its Server and shows full paths.
+  remote surface leaves the directory to its Server and shows full paths. Until then the window's
+  remote surface starts New Workspace, with no Workspace focused, in the folder of that Session's
+  first Workspace, and leaves the directories its terminals report to its Server.
 
 ### Release gate
 

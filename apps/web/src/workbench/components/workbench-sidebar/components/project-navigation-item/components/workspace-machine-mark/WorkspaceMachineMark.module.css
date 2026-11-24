@@ -1,0 +1,29 @@
+/* The mark keeps its own width up to twelve characters, then shortens; the Workspace's name gives
+   way only after it. Its text sits on the name's line as the name does (G19). */
+.mark {
+	min-width: 0;
+	max-width: 12ch;
+	flex-shrink: 0;
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}
+
+.mark[data-machine-color='cyan'] {
+	color: var(--ob-sys-color-machine-cyan);
+}
+
+.mark[data-machine-color='purple'] {
+	color: var(--ob-sys-color-machine-purple);
+}
+
+.mark[data-machine-color='pink'] {
+	color: var(--ob-sys-color-machine-pink);
+}
+
+.mark[data-machine-color='grey'] {
+	color: var(--ob-sys-color-machine-grey);
+}

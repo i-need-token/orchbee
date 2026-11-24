@@ -9,6 +9,7 @@ import {
 import type { PointerEvent, ReactNode } from 'react';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
+import type { WorkbenchMachineMark } from '../../../../types/workbench-other-machines';
 import type { WorkbenchAgentNavigationInput } from '../../../../model/project-workbench-agent-overview';
 import type {
 	WorkbenchAgentConfirmationChooseInput,
@@ -30,6 +31,7 @@ import type {
 import { SidebarTruncationTooltip } from '../sidebar-truncation-tooltip/SidebarTruncationTooltip';
 import { WorkbenchSidebarDropdownMenu } from '../workbench-sidebar-dropdown-menu/WorkbenchSidebarDropdownMenu';
 import { WorkspaceNavigationRow } from './components/workspace-navigation-row/WorkspaceNavigationRow';
+import { OtherMachineWorkspaceRow } from './components/other-machine-workspace-row/OtherMachineWorkspaceRow';
 import { useProjectNavigationMenuFocus } from './hooks/useProjectNavigationMenuFocus';
 import {
 	navigationMenuAriaKeyShortcuts,
@@ -56,6 +58,19 @@ interface ProjectNavigationItemProps {
 	/** Held by a drag: a Project keeps its look and moves with its Workspaces. */
 	readonly dragging: boolean;
 	readonly expanded: boolean;
+	/**
+	 * A Project only other machines hold: its heading names it and folds, with no menu, tools or
+	 * drag, which act on the Session on screen.
+	 */
+	readonly foreign: boolean;
+	/** The machine on screen while it is another computer, whose mark its Workspaces carry. */
+	readonly onScreenMark: WorkbenchMachineMark | null;
+	readonly openOtherWorkspace: (machine: string, workspaceId: string) => void;
+	/** Other machines' Workspaces in this group, before and after the Session on screen's. */
+	readonly otherRows: {
+		readonly leading: readonly SidebarOtherMachineRow[];
+		readonly trailing: readonly SidebarOtherMachineRow[];
+	};
 	/** The Workspace a drag holds; a folded group shows it alone while it stands there. */
 	readonly heldWorkspaceId: string | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
@@ -83,6 +98,16 @@ interface ProjectNavigationItemProps {
 	readonly worktreeMenu: (workspaceId: string) => WorkspaceWorktreeMenu;
 }
 
+/** One other machine's Workspace in a group. */
+export interface SidebarOtherMachineRow {
+	readonly machine: string;
+	readonly mark: WorkbenchMachineMark | null;
+	readonly name: string;
+	readonly workspaceId: string;
+}
+
+const NO_OTHER_ROWS: ProjectNavigationItemProps['otherRows'] = { leading: [], trailing: [] };
+
 /** The + menu: New Workspace's rows as one menu, one click shorter, its groups kept apart. */
 function flattenSubmenu(entry: WorkbenchActionMenuEntry): readonly WorkbenchActionMenuEntry[] {
 	if (entry.kind !== 'submenu') return [entry];
@@ -102,6 +127,10 @@ export function ProjectNavigationItem({
 	deleteWorkspace,
 	dragging,
 	expanded,
+	foreign,
+	onScreenMark,
+	openOtherWorkspace,
+	otherRows,
 	heldWorkspaceId,
 	chooseAgentConfirmation,
 	closeAgentPanel,
@@ -124,9 +153,9 @@ export function ProjectNavigationItem({
 	worktreeMenu,
 }: ProjectNavigationItemProps): ReactNode {
 	const menuFocus = useProjectNavigationMenuFocus();
-	const workspaces = state.workspaces.filter(
-		(workspace) => workspace.projectId === (project?.id ?? null),
-	);
+	const workspaces = foreign
+		? []
+		: state.workspaces.filter((workspace) => workspace.projectId === (project?.id ?? null));
 	// A folded heading is never current, but sidebar focus lands on the one hiding the active Workspace.
 	const holdsHiddenActiveWorkspace =
 		!expanded &&
@@ -136,6 +165,15 @@ export function ProjectNavigationItem({
 	const shownWorkspaces = expanded
 		? workspaces
 		: workspaces.filter((workspace) => workspace.id === heldWorkspaceId);
+	const shownOtherRows = expanded ? otherRows : NO_OTHER_ROWS;
+	const otherRow = (row: SidebarOtherMachineRow): ReactNode => (
+		<OtherMachineWorkspaceRow
+			key={`${row.machine}/${row.workspaceId}`}
+			mark={row.mark}
+			name={row.name}
+			onOpen={() => openOtherWorkspace(row.machine, row.workspaceId)}
+		/>
+	);
 	// A Project's Worktree rows read the repository of its first Workspace, as the TUI's do.
 	const worktreeSourceId = workspaces[0]?.id ?? null;
 	const refreshProjectWorktrees = (open: boolean) => {
@@ -219,9 +257,9 @@ export function ProjectNavigationItem({
 		<li
 			className={styles['project']}
 			data-dragging={dragging || undefined}
-			data-project-id={project?.id}
+			data-project-id={foreign ? undefined : project?.id}
 		>
-			{project === null || newWorkspaceMenu === null ? (
+			{project === null || newWorkspaceMenu === null || foreign ? (
 				// Recents only folds: it has no menu and is neither held nor a destination.
 				<div className={styles['heading']} data-recents-row='true'>
 					{headingContent}
@@ -305,8 +343,10 @@ export function ProjectNavigationItem({
 					/>
 				</ContextMenu>
 			)}
-			{shownWorkspaces.length > 0 && (
+			{shownWorkspaces.length + shownOtherRows.leading.length + shownOtherRows.trailing.length >
+				0 && (
 				<ul className={styles['workspaceList']}>
+					{shownOtherRows.leading.map(otherRow)}
 					{shownWorkspaces.map((workspace) => (
 						<WorkspaceNavigationRow
 							key={workspace.id}
@@ -338,8 +378,10 @@ export function ProjectNavigationItem({
 							toggleWorkspaceAgents={toggleWorkspaceAgents}
 							workspace={workspace}
 							worktrees={worktreeMenu(workspace.id)}
+							machineMark={onScreenMark}
 						/>
 					))}
+					{shownOtherRows.trailing.map(otherRow)}
 				</ul>
 			)}
 		</li>

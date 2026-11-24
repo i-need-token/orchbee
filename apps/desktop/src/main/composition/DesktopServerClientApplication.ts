@@ -2,12 +2,15 @@ import { spawn } from 'node:child_process';
 import { hostname } from 'node:os';
 
 import {
+	DESKTOP_MACHINE_SESSION_IPC_CHANNEL,
+	DESKTOP_MACHINE_SESSION_REQUEST_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_IPC_CHANNEL,
 	DESKTOP_SERVER_CONNECTION_PORT_ROLES,
 	DESKTOP_SERVER_CONNECTION_REQUEST_IPC_CHANNEL,
 	DESKTOP_SESSION_REJOIN_MILLISECONDS,
 	DESKTOP_WINDOW_CAPTION_IPC_CHANNEL,
 	DESKTOP_WINDOW_FAULT_IPC_CHANNEL,
+	DesktopMachineSessionRequestSchema,
 	DesktopServerConnectionDocumentSchema,
 	DesktopWindowCaptionColorSchema,
 	DesktopWindowFaultSiteSchema,
@@ -49,7 +52,12 @@ import {
 	readServerStartAnswer,
 	readServerState,
 } from '../server-connection';
-import type { DesktopMachinesAttachment, DesktopMachinesProcess } from '../remote-machines';
+import {
+	DesktopMachineSessions,
+	type DesktopMachineSessionAnswer,
+	type DesktopMachinesAttachment,
+	type DesktopMachinesProcess,
+} from '../remote-machines';
 import type { DesktopWindowStateAttachment, DesktopWindowStateOwner } from '../window-state';
 import type { DesktopWindowUpdateFocus, DesktopWindowUpdatePort } from '../window-update';
 import { followRendererCrashes } from './followRendererCrashes';
@@ -202,11 +210,14 @@ function hideWindow(window: BrowserWindow, platform: NodeJS.Platform): void {
 
 /**
  * What Main holds for one document: its Client connection, the folder picker it may open, its
- * background-status port, and its window-update port.
+ * background-status port, its window-update port, its machines port and its remote Session
+ * connections, which exist only while Desktop offers remote machines.
  */
 interface DocumentConnection {
 	readonly backgroundStatus: DesktopBackgroundStatusPort;
+	readonly document: string;
 	readonly folderAcquisition: DesktopProjectFolderAcquisitionBroker;
+	readonly machineSessions: DesktopMachineSessions | undefined;
 	readonly machines: DesktopMachinesAttachment;
 	readonly relay: ServerConnectionRelay;
 	readonly windowUpdate: { close(): void };
@@ -437,6 +448,7 @@ export class DesktopServerClientApplication {
 			current?.backgroundStatus.close();
 			current?.windowUpdate.close();
 			current?.machines.close();
+			current?.machineSessions?.close();
 			if (this.#document === current) this.#document = undefined;
 			// A folder made for a Project the document never confirmed is reported to the person here.
 			current?.folderAcquisition.dispose();
@@ -505,6 +517,40 @@ export class DesktopServerClientApplication {
 				undefined,
 			),
 		);
+		// A remote Session connection for the current document; a request naming an earlier one is
+		// dropped, since its page is gone.
+		const onMachineSessionRequest = (_event: unknown, value: unknown): void => {
+			const parsed = DesktopMachineSessionRequestSchema.safeParse(value);
+			const document = current;
+			if (!parsed.success || document?.document !== parsed.data.document) return;
+			const { machine, request } = parsed.data;
+			const reply: DesktopMachineSessionAnswer = (outcome, port) => {
+				if (window.isDestroyed() || current !== document) {
+					port?.close();
+					return;
+				}
+				window.webContents.postMessage(
+					DESKTOP_MACHINE_SESSION_IPC_CHANNEL,
+					{ ...outcome, document: document.document, request },
+					port === undefined ? [] : [port],
+				);
+			};
+			// While Desktop offers no remote machines every request is refused.
+			if (document.machineSessions === undefined) {
+				reply({ outcome: 'refused', reason: 'unavailable' });
+				return;
+			}
+			document.machineSessions.open(machine, reply);
+		};
+		window.webContents.ipc.on(
+			DESKTOP_MACHINE_SESSION_REQUEST_IPC_CHANNEL,
+			containListenerFault(
+				options.recordEvent,
+				'ipc-machine-session-request',
+				onMachineSessionRequest,
+				undefined,
+			),
+		);
 		return end;
 	}
 
@@ -568,6 +614,14 @@ export class DesktopServerClientApplication {
 		let backgroundStatusPort: DesktopBackgroundStatusPort | undefined;
 		let windowUpdatePort: { close(): void } | undefined;
 		let machinesAttachment: DesktopMachinesAttachment | undefined;
+		const machineSessions =
+			options.machines === undefined
+				? undefined
+				: new DesktopMachineSessions({
+						clientEnvironment: options.clientEnvironment,
+						clientExecutable: options.clientExecutable,
+						recordEvent: options.recordEvent,
+					});
 		try {
 			folderAcquisition.start();
 			backgroundStatusPort = serveDesktopBackgroundStatus(
@@ -599,12 +653,15 @@ export class DesktopServerClientApplication {
 			backgroundStatusPort?.close();
 			windowUpdatePort?.close();
 			machinesAttachment?.close();
+			machineSessions?.close();
 			folderAcquisition.dispose();
 			throw error;
 		}
 		const document: DocumentConnection = {
 			backgroundStatus: backgroundStatusPort,
+			document: reply.document,
 			folderAcquisition,
+			machineSessions,
 			machines: machinesAttachment,
 			relay,
 			windowUpdate: windowUpdatePort,

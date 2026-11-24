@@ -9,6 +9,7 @@ import {
 	type WorkbenchClientUpdate,
 	type WorkbenchEnvironmentMarker,
 	type WorkbenchNavigationPort,
+	type WorkbenchOtherMachines,
 	type WorkbenchProjectWorkspaceRuntime,
 	type WorkbenchProjectFolderAcquisition,
 	type WorkbenchShortcutPlatform,
@@ -81,6 +82,8 @@ export interface WebApplicationProps {
 	readonly navigation?: WorkbenchNavigationPort | undefined;
 	/** Opens an external HTTPS link in the person's browser; absent where no external browser port is wired. */
 	readonly openExternal?: ((target: string) => void) | undefined;
+	/** Other machines' Workspaces, which the sidebar lists where the window holds several Sessions. */
+	readonly otherMachines?: WorkbenchOtherMachines | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	/** Whether the window offers Search, which the Workbench follows. Search defaults to withheld. */
@@ -120,6 +123,7 @@ export function WebApplication({
 	machines,
 	navigation,
 	openExternal,
+	otherMachines,
 	projectWorkspaceRuntime,
 	projectFolderAcquisition,
 	searchOffered,
@@ -252,6 +256,7 @@ export function WebApplication({
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
 					workspaceLocationSource={workspaceLocationSource}
+					otherMachines={otherMachines}
 				/>
 			</div>
 			<TerminalSettingsSurface

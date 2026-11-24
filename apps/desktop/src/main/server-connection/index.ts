@@ -1,4 +1,4 @@
-export { ServerConnectionRelay } from './ServerConnectionRelay';
+export { ServerConnectionRelay, type ServerConnectProcess } from './ServerConnectionRelay';
 export { readServerStartAnswer } from './readServerStartAnswer';
 export { interpretPathRefusal } from './interpretPathRefusal';
 export type { DesktopPathRefusal } from './interpretPathRefusal';

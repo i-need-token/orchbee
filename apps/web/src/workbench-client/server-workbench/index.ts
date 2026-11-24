@@ -28,6 +28,7 @@ export type { ServerLaunchProfileSource } from './createServerWorkbenchAuthority
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
 export { findServerPresentation } from './findServerPresentation';
 export { projectServerSnapshot } from './projectServerSnapshot';
+export { serverNavigationRows } from './serverNavigationRows';
 export {
 	findServerTerminalBinding,
 	listServerTerminalBindings,

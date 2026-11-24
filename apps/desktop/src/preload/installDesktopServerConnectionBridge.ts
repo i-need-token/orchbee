@@ -22,16 +22,17 @@ export interface DesktopServerConnectionWindow {
 
 /**
  * Carries the page's request to Main and Main's ports back; each document asks once and receives
- * exactly one set, one port for each role in order.
+ * exactly one set, one port for each role in order. Answers the document Main connected, once it has.
  */
 export function installDesktopServerConnectionBridge(
 	ipc: DesktopServerConnectionIpc,
 	targetWindow: DesktopServerConnectionWindow,
 	security: { readonly contextIsolated: boolean; readonly sandboxed: boolean },
 	createDocumentId: () => string = () => crypto.randomUUID(),
-): void {
+): () => string | undefined {
 	let asked = false;
 	let awaitedDocument: string | undefined;
+	let connectedDocument: string | undefined;
 	targetWindow.addEventListener('message', (event) => {
 		if (asked || event.source !== targetWindow) return;
 		if (!DesktopServerConnectionWindowRequestSchema.safeParse(event.data).success) return;
@@ -54,6 +55,7 @@ export function installDesktopServerConnectionBridge(
 			for (const unused of event.ports) unused.close();
 			return;
 		}
+		connectedDocument = awaitedDocument;
 		awaitedDocument = undefined;
 		targetWindow.postMessage(
 			message.data,
@@ -61,4 +63,5 @@ export function installDesktopServerConnectionBridge(
 			[...event.ports],
 		);
 	});
+	return () => connectedDocument;
 }

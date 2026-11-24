@@ -8,7 +8,7 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { ProjectWorkspaceState } from '../../../project-workspace';
+import type { ProjectWorkspaceState, WorkbenchProject } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
 import type {
 	WorkbenchAgentConfirmationChooseInput,
@@ -20,6 +20,7 @@ import { NameDialog } from '../name-dialog/NameDialog';
 import { ProjectNavigationItem } from './components/project-navigation-item/ProjectNavigationItem';
 import { useWorkbenchSidebar } from './hooks/useWorkbenchSidebar';
 import { useSidebarDrag } from './hooks/useSidebarDrag';
+import { useSidebarOtherMachines } from './hooks/useSidebarOtherMachines';
 import { useSidebarScrollbar } from './hooks/useSidebarScrollbar';
 import { useWorkbenchSidebarFocusRequest } from './hooks/useWorkbenchSidebarFocusRequest';
 import { useWorkbenchSidebarKeyboard } from './hooks/useWorkbenchSidebarKeyboard';
@@ -35,6 +36,7 @@ import type {
 import type { WorkbenchWorkspaceAgentOverviewView } from '../../types/workbench-agent-overview';
 import type { WorkbenchWorkspaceAgentLaunch } from '../../types/workbench-agent-start';
 import type { WorkbenchWorkspaceLocationSource } from '../../types/workbench-workspace-location';
+import type { WorkbenchOtherMachines } from '../../types/workbench-other-machines';
 import styles from './WorkbenchSidebar.module.css';
 
 interface WorkbenchSidebarProps {
@@ -70,6 +72,8 @@ interface WorkbenchSidebarProps {
 	readonly onSearch?: ((returnFocus: HTMLElement) => void) | undefined;
 	readonly onSettings?: (() => void) | undefined;
 	readonly onShortcuts?: (() => void) | undefined;
+	/** Other machines' Workspaces, listed beside the Session on screen's where the window holds several. */
+	readonly otherMachines?: WorkbenchOtherMachines | undefined;
 	readonly projectLabel: string;
 	readonly projectNavigationMessages: WorkbenchProjectNavigationMessages;
 	readonly projectWorkspaceState: ProjectWorkspaceState;
@@ -129,6 +133,7 @@ export function WorkbenchSidebar({
 	onSearch,
 	onSettings,
 	onShortcuts,
+	otherMachines,
 	projectLabel,
 	projectNavigationMessages,
 	projectWorkspaceState,
@@ -194,9 +199,16 @@ export function WorkbenchSidebar({
 	);
 	const heldWorkspaceId = drag.held?.kind === 'workspace' ? drag.held.id : null;
 	// Recents, the Workspaces outside any Project, is the last group, listed only while it has one.
-	const navigationGroups = shownState.workspaces.some((workspace) => workspace.projectId === null)
-		? [...shownState.projects, null]
-		: shownState.projects;
+	const others = useSidebarOtherMachines(
+		otherMachines,
+		shownState.projects,
+		shownState.workspaces.some((workspace) => workspace.projectId === null),
+	);
+	const groupExpanded = (project: WorkbenchProject | null, foreign: boolean): boolean => {
+		if (project === null) return projectWorkspaceState.recentsExpanded;
+		if (foreign) return others.foreignExpanded(project.id);
+		return projectWorkspaceState.expandedProjectIds.includes(project.id);
+	};
 	const projectRename = view.projectRename;
 	const workspaceProjectCreation = view.workspaceProjectCreation;
 	const workspaceRename = view.workspaceRename;
@@ -289,9 +301,16 @@ export function WorkbenchSidebar({
 							className={styles['projectList']}
 							data-sidebar-dragging={drag.held === null ? undefined : drag.held.kind}
 						>
-							{navigationGroups.map((project) => (
+							{others.groups.map(({ foreign, project }) => (
 								<ProjectNavigationItem
 									key={project?.id ?? 'ungrouped'}
+									foreign={foreign}
+									onScreenMark={others.onScreenMark}
+									openOtherWorkspace={(machine, workspaceId) => {
+										workspaceActivation.cancel();
+										others.open(machine, workspaceId);
+									}}
+									otherRows={others.otherRows(project?.id ?? null)}
 									activateWorkspace={(workspaceId, origin) => {
 										workspaceActivation.cancel();
 										activateWorkspace(workspaceId, origin);
@@ -299,11 +318,7 @@ export function WorkbenchSidebar({
 									activeLocation={projectWorkspaceState.activeLocation}
 									createWorkspace={createWorkspace}
 									deleteWorkspace={deleteWorkspace}
-									expanded={
-										project === null
-											? projectWorkspaceState.recentsExpanded
-											: projectWorkspaceState.expandedProjectIds.includes(project.id)
-									}
+									expanded={groupExpanded(project, foreign)}
 									dragging={
 										project !== null && drag.held?.kind === 'project' && drag.held.id === project.id
 									}
@@ -323,7 +338,7 @@ export function WorkbenchSidebar({
 									removeProject={removeProject}
 									showProjectRename={view.showProjectRename}
 									showWorkspaceRename={view.showWorkspaceRename}
-									toggleProjectExpansion={toggleProjectExpansion}
+									toggleProjectExpansion={foreign ? others.toggleForeign : toggleProjectExpansion}
 									toggleRecentsExpansion={toggleRecentsExpansion}
 									toggleWorkspaceAgents={toggleWorkspaceAgents}
 									workspaceAgentOverviews={workspaceAgentOverviews}

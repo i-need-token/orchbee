@@ -12,6 +12,7 @@ export {
 	ServerUserSettingsClient,
 	ServerWorkbenchSession,
 	askServerUpdateCheck,
+	serverNavigationRows,
 	serverSessionServes,
 	stopServerSession,
 	workspaceLaunchAction,

@@ -40,6 +40,8 @@ import { workspaceMoveToProjectMenu } from '../../utils/workspaceMoveToProjectMe
 import { WorkspaceAgentLaunchMenu } from '../workspace-agent-launch-menu/WorkspaceAgentLaunchMenu';
 import { WorkspaceAgentList } from '../workspace-agent-list/WorkspaceAgentList';
 import { WorkspaceAgentStatusLine } from '../workspace-agent-status-line/WorkspaceAgentStatusLine';
+import type { WorkbenchMachineMark } from '../../../../../../types/workbench-other-machines';
+import { WorkspaceMachineMark } from '../workspace-machine-mark/WorkspaceMachineMark';
 import styles from './WorkspaceNavigationRow.module.css';
 
 /** Clears the second line, so a cut name's tooltip opens below the whole row. */
@@ -68,6 +70,8 @@ interface WorkspaceNavigationRowProps {
 	readonly deleteWorkspace: (workspaceId: string) => void;
 	/** Held by a drag: it stands where it would land, its disclosure and Agent rows tucked away. */
 	readonly dragging: boolean;
+	/** The machine on screen while it is another computer, whose mark follows the name. */
+	readonly machineMark: WorkbenchMachineMark | null;
 	readonly location: WorkbenchSidebarWorkspaceLocation | undefined;
 	readonly menuFocus: ProjectNavigationMenuFocus;
 	readonly messages: WorkbenchProjectNavigationMessages;
@@ -114,6 +118,7 @@ export function WorkspaceNavigationRow({
 	toggleWorkspaceAgents,
 	workspace,
 	worktrees,
+	machineMark,
 }: WorkspaceNavigationRowProps): ReactNode {
 	const expanded = agentOverview?.expanded ?? false;
 	// A folded Workspace's second line lists its Agents' states in place of its location, and its
@@ -226,6 +231,7 @@ export function WorkspaceNavigationRow({
 						>
 							{name}
 						</SidebarTruncationTooltip>
+						{machineMark === null ? null : <WorkspaceMachineMark mark={machineMark} />}
 						{agentOverview === undefined || dragging ? null : (
 							<Tooltip>
 								<TooltipTrigger

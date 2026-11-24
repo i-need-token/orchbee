@@ -76,3 +76,17 @@ export type {
 	DesktopProjectFolderAcquisitionRequestId,
 	DesktopProjectFolderAcquisitionResult,
 } from './desktop-project-folder-acquisition-contract';
+
+export {
+	DESKTOP_MACHINE_SESSION_IPC_CHANNEL,
+	DESKTOP_MACHINE_SESSION_REQUEST_IPC_CHANNEL,
+	DESKTOP_MACHINE_SESSION_WINDOW_MESSAGE,
+	DESKTOP_MACHINE_SESSION_WINDOW_REQUEST,
+	DesktopMachineSessionReplySchema,
+	DesktopMachineSessionRequestSchema,
+	DesktopMachineSessionWindowMessageSchema,
+	DesktopMachineSessionWindowRequestSchema,
+	type DesktopMachineSessionRefusal,
+	type DesktopMachineSessionReply,
+	type DesktopMachineSessionWindowMessage,
+} from './desktop-machine-session-contract';

@@ -46,6 +46,7 @@ function codeOf(error: unknown): ErrorCode {
  */
 type DesktopListenerSite =
 	| 'application-menu'
+	| 'ipc-machine-session-request'
 	| 'ipc-server-connection-request'
 	| 'ipc-window-caption'
 	| 'ipc-window-fault'

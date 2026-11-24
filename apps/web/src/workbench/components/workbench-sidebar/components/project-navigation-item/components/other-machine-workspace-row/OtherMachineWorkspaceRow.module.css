@@ -1,0 +1,67 @@
+/* The geometry of a Workspace row's first line, without its second line, tools or Agents. */
+.workspace {
+	position: relative;
+	display: grid;
+	min-width: 0;
+}
+
+.row {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+	cursor: default;
+}
+
+.row:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row:has(> .rowMain:active) {
+	background: var(--ob-sys-color-surface-pressed);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row:has(> .rowMain:focus-visible) {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.rowMain {
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: inherit;
+	background: none;
+	cursor: inherit;
+}
+
+.rowMain:focus-visible {
+	outline: none;
+}
+
+.line {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	height: var(--ob-ref-size-control-2xs);
+	min-width: 0;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+/* Text beside icons sits on the icons' center line (G19), as a Workspace row's name does. */
+.name {
+	min-width: 0;
+	padding-block: var(--ob-ref-space-1);
+	overflow: hidden;
+	text-box: trim-both cap alphabetic;
+	text-overflow: ellipsis;
+	translate: 0 var(--ob-ref-text-icon-center-shift);
+	white-space: nowrap;
+}

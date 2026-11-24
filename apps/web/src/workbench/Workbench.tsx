@@ -27,6 +27,7 @@ import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-di
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
+import type { WorkbenchOtherMachines } from './types/workbench-other-machines';
 import { WorkbenchProjectCreation } from './components/workbench-project-creation/WorkbenchProjectCreation';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
@@ -118,6 +119,8 @@ interface WorkbenchProps {
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
+	/** Other machines' Workspaces, which the sidebar lists where the window holds several Sessions. */
+	readonly otherMachines?: WorkbenchOtherMachines | undefined;
 }
 
 export function Workbench({
@@ -147,6 +150,7 @@ export function Workbench({
 	terminalActionShortcutLabels,
 	terminalSurface,
 	workspaceLocationSource,
+	otherMachines,
 }: WorkbenchProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const tabStripMessages = useWorkbenchTabStripMessages();
@@ -236,6 +240,7 @@ export function Workbench({
 				onSearch={view.search}
 				onSettings={view.settings}
 				onShortcuts={view.shortcuts}
+				otherMachines={otherMachines}
 				reorderModifier={shortcutPlatform === 'apple' ? 'meta' : 'ctrl'}
 				returnToTerminal={view.returnToTerminal}
 				projectLabel={view.projectLabel}

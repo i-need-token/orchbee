@@ -118,6 +118,15 @@ through `recentsExpanded`, which this client's view keeps beside `expandedProjec
 default; it has no menu and is neither held nor a destination of a drag. Activating a Workspace, or creating one
 here, opens its Project or Recents.
 
+A host that holds several machines' Sessions supplies `otherMachines` (`WorkbenchOtherMachines`):
+the other machines' Workspaces, which the sidebar merges into these groups as the TUI's does.
+Projects merge by ID; a Project only other machines hold follows the Session's own, its heading
+folding in this sidebar alone, with no menu, tools or drag. In each group this computer's Workspaces
+come first, then each saved machine's in saved order, and a Workspace on another computer, the one
+on screen included, carries `@` and the machine's name in its color, which shortens before the
+Workspace's name. Another machine's row only chooses: it opens that Workspace on its machine, and
+its menus, drags and Agents stay with the Session on screen.
+
 ## Workspace locations
 
 A host may supply a `WorkbenchWorkspaceLocationSource`: where each Workspace stands, keyed by

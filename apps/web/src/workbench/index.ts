@@ -21,6 +21,11 @@ export { WorkbenchUpdateCheckModel } from './model/WorkbenchUpdateCheckModel';
 export { invokeWorkbenchClientUpdate } from './actions/invokeWorkbenchClientUpdate';
 export type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 export type {
+	WorkbenchOtherMachines,
+	WorkbenchOtherMachinesSnapshot,
+	WorkbenchOtherMachineWorkspaces,
+} from './types/workbench-other-machines';
+export type {
 	WorkbenchConfiguredCommandOutcome,
 	WorkbenchConfiguredCommands,
 } from './types/workbench-configured-commands';

@@ -18,7 +18,10 @@ import {
 	workbenchMessages,
 } from '@orchbee/i18n';
 import { normalizePermittedExternalTerminalUrl } from '@orchbee/terminal';
-import { WorkbenchWorkspaceIdSchema } from '@orchbee/workbench-client-protocol';
+import {
+	WorkbenchWorkspaceIdSchema,
+	type WorkbenchSnapshot,
+} from '@orchbee/workbench-client-protocol';
 import {
 	matchesWorkbenchProjectCreation,
 	resolveActiveTerminalPresentationId,
@@ -27,12 +30,11 @@ import {
 	type WorkbenchShortcutPlatform,
 	type WorkbenchUpdateCheckUnavailableReason,
 } from '../../workbench';
-import { createMemoryHistory } from '@tanstack/react-router';
 import { createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 
 import { ApplicationLocaleController } from '../../application-locale';
-import { createWebApplicationRouting, type WebApplicationRouting } from '../../application-routing';
+import { createWebApplicationRouting } from '../../application-routing';
 import { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
 import { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import { runApplicationCleanup } from '../../runApplicationCleanup';
@@ -70,7 +72,10 @@ import { SessionUnavailable } from '../session-unavailable';
 import { WorkbenchFailure } from '../workbench-failure';
 import { followDesktopWindowCaption } from '../window-caption';
 import { forwardDesktopWindowFaults } from '../window-fault';
+import { DesktopRemoteSessions } from './DesktopRemoteSessions';
+import { DesktopWorkbenchSurfaces } from './DesktopWorkbenchSurfaces';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
+import { requestMachineSession } from './requestMachineSession';
 
 type DocumentElement = Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>;
 
@@ -142,6 +147,20 @@ function updateCheckUnavailable(
 	if (!bootstrap.windowUpdatesOffered) return 'installation';
 	if (!serverSessionServes(bootstrap.negotiatedCapabilities, 'check-for-updates')) return 'session';
 	return null;
+}
+
+/**
+ * Where New Workspace starts on another machine while no Workspace there is focused: the folder of
+ * its first Workspace, since no contract names that computer's home yet.
+ */
+function remoteDefaultDirectory(snapshot: WorkbenchSnapshot): string {
+	const { directories, workspaces } = snapshot.navigation;
+	const [first] = workspaces;
+	return (
+		first?.terminalDirectory ??
+		directories.find((directory) => directory.directoryId === first?.primaryDirectoryId)?.path ??
+		'/'
+	);
 }
 
 /** Main hands a window's address to the person's browser, as the TUI opens a link itself. */
@@ -340,7 +359,7 @@ async function run(
 		userSettings,
 	});
 
-	let routing: WebApplicationRouting | undefined;
+	let surfaces: DesktopWorkbenchSurfaces | undefined;
 	let stopBackgroundStatus: (() => void) | undefined;
 	const projectFolderAcquisition = new DesktopProjectFolderAcquisitionClient(
 		projectFolderPort,
@@ -360,7 +379,7 @@ async function run(
 				[
 					() => reactRoot.unmount(),
 					() => stopBackgroundStatus?.(),
-					() => routing?.dispose(),
+					() => surfaces?.dispose(),
 					() => runtime?.dispose(),
 					() => projectFolderAcquisition.dispose(),
 					() => updateCheck.dispose(),
@@ -430,58 +449,105 @@ async function run(
 		projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
 		session,
 	});
-	routing = createWebApplicationRouting(
-		{
-			actionRuntime: runtime.actionRuntime,
-			agentNameSource: runtime.agentNameSource,
-			agentObservationSource: runtime.agentObservationSource,
-			applicationLocaleController,
-			authority: runtime.authority,
-			clientBuild: { distribution: bootstrap.distribution, version: bootstrap.applicationVersion },
-			clientUpdate,
-			environmentMarker,
-			keyboardShortcutSettingsController,
-			layoutStorage: storage.preferences,
-			macosTerminalInputSettingsController,
-			machines,
-			openExternal: (target) => {
-				openExternalBrowserUrl(targetWindow, target);
-			},
-			projectFolderAcquisition,
-			projectWorkspaceRuntime: runtime.projectWorkspaceRuntime,
-			searchOffered,
-			shortcutPlatform,
-			terminalDefaultSettingsControl: terminalDefaultSettingsClient,
-			terminalFeedbackSettingsController,
-			terminalInteractionSettingsController,
-			terminalLaunchProfileClient,
-			terminalSettingsController,
-			terminalSurface: ProjectedTerminalSurface,
-			workspaceLocationSource: runtime.workspaceLocationSource,
+	const sharedRouting = {
+		applicationLocaleController,
+		clientBuild: { distribution: bootstrap.distribution, version: bootstrap.applicationVersion },
+		clientUpdate,
+		environmentMarker,
+		keyboardShortcutSettingsController,
+		layoutStorage: storage.preferences,
+		macosTerminalInputSettingsController,
+		machines,
+		openExternal: (target: string) => {
+			openExternalBrowserUrl(targetWindow, target);
 		},
-		// A window has no address bar, and a reload needs the URL Main loaded it with. Focus recovery
-		// returns it to where it was.
-		createMemoryHistory(),
-	);
-	reactRoot.render(
-		createElement(DesktopWorkbench, {
-			applicationLocaleSource: applicationLocaleController,
-			// Main reloads the window once a Server serves the Session again; the person's Reconnect is a
-			// reload too, which starts the Session again when it stopped, then connects.
-			connectionStatus: createElement(SessionDisconnectedStatus, {
-				ended: {
-					getSnapshot: () => session.ended !== null,
-					subscribe: (listener) => session.onEnded(listener),
-				},
-				onReconnect: () => targetWindow.location.reload(),
+		searchOffered,
+		shortcutPlatform,
+		terminalDefaultSettingsControl: terminalDefaultSettingsClient,
+		terminalFeedbackSettingsController,
+		terminalInteractionSettingsController,
+		terminalLaunchProfileClient,
+		terminalSettingsController,
+		terminalSurface: ProjectedTerminalSurface,
+	};
+	const localRuntime = runtime;
+	surfaces = new DesktopWorkbenchSurfaces({
+		// Another machine's surface carries only its Workspaces, Tabs and Panels: this computer's
+		// folder picker, launch profiles, Quit All and window title stay with this computer's.
+		createRemoteRuntime: (remote) =>
+			createServerWorkbenchRuntime({
+				agentConfirmations: serverSessionServes(remote.capabilities, 'follow-agent-confirmations'),
+				applicationLocaleSource: applicationLocaleController,
+				connection: remote.connection,
+				ctrlCCopiesSelection,
+				defaultDirectory: remoteDefaultDirectory(remote.session.snapshot),
+				documentElement,
+				// A publication this document cannot apply ends that connection, and the window returns home.
+				onPublicationFailure: () => remote.session.dispose(),
+				preferredLocales,
+				session: remote.session,
+				shortcutBindingSource: keyboardShortcutSettingsController,
+				shortcutPlatform,
+				terminalCompletionReminderObserver: terminalFeedbackSettingsController,
+				terminalColorsSource: createServerTerminalColorsSource(
+					terminalSettingsController,
+					systemTheme,
+				),
+				// The far computer's name is unknown, so the directories its terminals report are left to
+				// its Server's answer.
+				terminalHostName: '',
+				terminalInputConfigurationSource: macosTerminalInputSettingsController,
+				terminalInteractionConfigurationSource: terminalInteractionSettingsController,
+				terminalPlatformEffects: browserPlatformEffects(targetWindow),
+				terminalPresentationConfigurationSource: terminalSettingsController,
+				terminalRuntime: serverSessionServes(remote.capabilities, 'follow-terminal-runtime'),
 			}),
-			// A Workbench that failed to render recovers as a lost connection does, by a reload.
-			failure: createElement(WorkbenchFailure, { onReload: () => targetWindow.location.reload() }),
-			router: routing.router,
-			terminalSurfaceCapability: runtime.terminalSurfaceCapability,
-			windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
-		}),
-	);
+		createRouting: (shown, local, otherMachines, history) =>
+			createWebApplicationRouting(
+				{
+					...sharedRouting,
+					actionRuntime: shown.actionRuntime,
+					agentNameSource: shown.agentNameSource,
+					agentObservationSource: shown.agentObservationSource,
+					authority: shown.authority,
+					otherMachines,
+					projectFolderAcquisition: local ? projectFolderAcquisition : undefined,
+					projectWorkspaceRuntime: shown.projectWorkspaceRuntime,
+					workspaceLocationSource: shown.workspaceLocationSource,
+				},
+				// A window has no address bar, and a reload needs the URL Main loaded it with. Focus
+				// recovery returns it to where it was.
+				history,
+			),
+		local: { runtime: localRuntime, session },
+		machines,
+		remoteSessions: new DesktopRemoteSessions((machine) =>
+			requestMachineSession(targetWindow, machine),
+		),
+		render: (surface) =>
+			reactRoot.render(
+				createElement(DesktopWorkbench, {
+					applicationLocaleSource: applicationLocaleController,
+					// Main reloads the window once a Server serves the Session again; the person's Reconnect
+					// is a reload too, which starts the Session again when it stopped, then connects.
+					connectionStatus: createElement(SessionDisconnectedStatus, {
+						ended: {
+							getSnapshot: () => session.ended !== null,
+							subscribe: (listener) => session.onEnded(listener),
+						},
+						onReconnect: () => targetWindow.location.reload(),
+					}),
+					// A Workbench that failed to render recovers as a lost connection does, by a reload.
+					failure: createElement(WorkbenchFailure, {
+						onReload: () => targetWindow.location.reload(),
+					}),
+					router: surface.routing.router,
+					terminalSurfaceCapability: surface.runtime.terminalSurfaceCapability,
+					windowControls: shortcutPlatform === 'apple' ? 'leading' : 'trailing',
+				}),
+			),
+	});
+	surfaces.start();
 
 	if (bootstrap.automaticWorkspaceAllowed) {
 		// A refusal leaves the Session as it is and the empty state offers the same creation; a lost
