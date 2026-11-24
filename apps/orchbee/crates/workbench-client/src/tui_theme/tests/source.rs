@@ -108,6 +108,35 @@ fn terminal_colors_emit_host_defaults_and_ansi_indexes_beside_the_fixed_agent_co
     assert_eq!(theme.color(Role::SurfaceCanvas), Color::Reset);
 }
 
+/// Terminal colors of a known appearance color Agent glyphs for that polarity, so a light host
+/// never shows the dark traffic light; an unknown appearance keeps the dark one.
+#[test]
+fn terminal_colors_color_agent_glyphs_for_the_known_appearance() {
+    let light = Theme::orchbee_light();
+    let dark = Theme::orchbee_dark();
+    let mut cases = vec![(App::System, None, ColorLevel::Truecolor, dark)];
+    for level in [ColorLevel::Ansi256, ColorLevel::Ansi16] {
+        cases.extend([
+            (App::Light, None, level, light),
+            (App::System, Some(Polarity::Light), level, light),
+            (App::Dark, None, level, dark),
+            (App::System, None, level, dark),
+        ]);
+    }
+    for (application, host, level, expected) in cases {
+        let theme = Theme::resolve(preferences(application), host, level);
+        assert_eq!(theme.name, "terminal-native");
+        let expected = expected.quantize(level);
+        for role in [Role::AgentAttention, Role::AgentDone, Role::AgentError] {
+            assert_eq!(
+                theme.color(role),
+                expected.color(role),
+                "{application:?} {host:?} {level:?} {role:?}"
+            );
+        }
+    }
+}
+
 /// Agent state colors are fixed for each polarity: no theme or color source moves them, and the
 /// dark traffic light is also the one terminal colors use, whose polarity is unknown.
 #[test]

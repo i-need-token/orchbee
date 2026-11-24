@@ -457,13 +457,13 @@ impl RoleStyles {
     }
 }
 
-/// Agent state glyphs follow a traffic light: Needs attention, Completed and Failed. Named themes take
-/// their polarity's values from the theme resolver; terminal colors, whose polarity is unknown, and
-/// the dark test theme take the dark ones here. Quantization maps both to Yellow, Green and Red at
-/// 16 colors.
-const AGENT_ATTENTION: Color = Color::Rgb(254, 188, 46);
-const AGENT_DONE: Color = Color::Rgb(40, 200, 64);
-const AGENT_ERROR: Color = Color::Rgb(255, 95, 87);
+/// The Agent traffic-light glyph styles of one polarity: Needs attention, Completed and Failed.
+/// Named themes take theirs through the theme resolver; Terminal colors and the dark test theme take
+/// them here. Quantization maps both polarities to Yellow, Green and Red at 16 colors.
+fn agent_styles(polarity: orchbee_color_themes::Polarity) -> [Style; 3] {
+    orchbee_color_themes::agent_colors(polarity)
+        .map(|color| Style::new().fg(Color::Rgb(color.red, color.green, color.blue)))
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TerminalColorSource {
@@ -766,6 +766,21 @@ impl Theme {
         }
     }
 
+    /// Terminal colors keep the host's palette, but once the appearance is known, from the person's
+    /// Light or Dark choice or the settled host polarity, Agent glyphs take that polarity's traffic
+    /// light, which reads on its background at every color level.
+    #[must_use]
+    pub(crate) fn with_agent_polarity(mut self, polarity: Polarity) -> Self {
+        let [attention, done, error] = agent_styles(match polarity {
+            Polarity::Light => orchbee_color_themes::Polarity::Light,
+            Polarity::Dark => orchbee_color_themes::Polarity::Dark,
+        });
+        self.styles.agent_attention = attention;
+        self.styles.agent_done = done;
+        self.styles.agent_error = error;
+        self
+    }
+
     /// The default theme for an unknown host appearance or color level.
     /// Text and surface roles sit on `Color::Reset`; accent, status, and frame
     /// roles use named ANSI-16 colors; `text-secondary` uses `DIM`, not a gray.
@@ -773,6 +788,8 @@ impl Theme {
     pub fn terminal_native() -> Self {
         let reset = Style::new().fg(Color::Reset);
         let dim = Style::new().fg(Color::Reset).add_modifier(Modifier::DIM);
+        // Unknown appearance keeps the dark traffic light; `with_agent_polarity` adopts a known one.
+        let [attention, done, error] = agent_styles(orchbee_color_themes::Polarity::Dark);
         Self {
             #[cfg(any(test, feature = "test-support"))]
             name: "terminal-native",
@@ -811,9 +828,9 @@ impl Theme {
                 status_working: reset,
                 status_idle: dim,
                 status_unread: Style::new().fg(Color::LightBlue),
-                agent_attention: Style::new().fg(AGENT_ATTENTION),
-                agent_done: Style::new().fg(AGENT_DONE),
-                agent_error: Style::new().fg(AGENT_ERROR),
+                agent_attention: attention,
+                agent_done: done,
+                agent_error: error,
                 frame_focused: Style::new().fg(Color::Cyan),
                 frame_unfocused: Style::new().fg(Color::DarkGray),
                 frame_divider: Style::new().fg(Color::DarkGray),
@@ -857,6 +874,7 @@ impl Theme {
     #[cfg(any(test, feature = "test-support"))]
     #[must_use]
     pub(crate) fn rgb_test_dark() -> Self {
+        let [attention, done, error] = agent_styles(orchbee_color_themes::Polarity::Dark);
         Self {
             name: "rgb-test-dark",
             polarity: Some(Polarity::Dark),
@@ -892,9 +910,9 @@ impl Theme {
                 status_working: Style::new().fg(Color::Rgb(229, 229, 229)),
                 status_idle: Style::new().fg(Color::Rgb(88, 88, 88)),
                 status_unread: Style::new().fg(Color::Rgb(96, 165, 250)),
-                agent_attention: Style::new().fg(AGENT_ATTENTION),
-                agent_done: Style::new().fg(AGENT_DONE),
-                agent_error: Style::new().fg(AGENT_ERROR),
+                agent_attention: attention,
+                agent_done: done,
+                agent_error: error,
                 status_pending: Style::new()
                     .fg(Color::Rgb(133, 146, 171))
                     .add_modifier(Modifier::DIM),

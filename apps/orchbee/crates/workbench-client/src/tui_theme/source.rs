@@ -58,13 +58,8 @@ impl Resolution {
         if !named_themes_available(level) {
             return Self::Terminal(TerminalReason::ReducedColor);
         }
-        let polarity = match preferences.application_theme {
-            ApplicationAppearance::Light => Polarity::Light,
-            ApplicationAppearance::Dark => Polarity::Dark,
-            ApplicationAppearance::System => match host {
-                Some(polarity) => polarity,
-                None => return Self::Terminal(TerminalReason::UnknownAppearance),
-            },
+        let Some(polarity) = appearance(preferences, host) else {
+            return Self::Terminal(TerminalReason::UnknownAppearance);
         };
         Self::Theme(match polarity {
             Polarity::Light => orchbee_color_themes::select(
@@ -76,6 +71,15 @@ impl Resolution {
                 preferences.dark_theme,
             ),
         })
+    }
+}
+
+/// The polarity the person chose, or under System the settled host polarity.
+fn appearance(preferences: ColorPreferences<'_>, host: Option<Polarity>) -> Option<Polarity> {
+    match preferences.application_theme {
+        ApplicationAppearance::Light => Some(Polarity::Light),
+        ApplicationAppearance::Dark => Some(Polarity::Dark),
+        ApplicationAppearance::System => host,
     }
 }
 
@@ -95,7 +99,10 @@ impl Theme {
         let resolution = Resolution::of(preferences, host, level);
         match resolution {
             Resolution::Theme(theme) => Self::named(theme),
-            Resolution::Terminal(_) => Self::terminal_native(),
+            Resolution::Terminal(_) => match appearance(preferences, host) {
+                Some(polarity) => Self::terminal_native().with_agent_polarity(polarity),
+                None => Self::terminal_native(),
+            },
         }
         .quantize(level)
         .with_terminal_appearance(preferences)

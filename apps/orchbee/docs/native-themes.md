@@ -33,7 +33,8 @@ Orchbee Dark then take the shared theme colors described below, as the GUI's Orc
 Terminal colors are the `terminal-native` mapping: host default foreground and background
 (`Color::Reset`), named ANSI accents and the paired and modifier fallbacks of the
 [visual foundations](../../../docs/tui/visual-foundations.md). The traffic-light Agent colors are
-the same under every theme of a polarity; Terminal colors use the dark values.
+the same under every theme of a polarity; Terminal colors use the values of the known appearance,
+and the dark values while it is unknown.
 
 Terminal defaults decide the colors of default-marked cells. While a named theme paints, Theme
 takes that theme's canvas foreground and background, and Host does the same while Appearance is

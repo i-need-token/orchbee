@@ -9,7 +9,8 @@ use crate::{Polarity, Rgb, Theme, contrast, oklab};
 /// The needs-attention, completed and failed glyph colors of every theme of `polarity`. Dark themes
 /// take the macOS window-control traffic light; light themes take its hues deepened to 3:1 on
 /// light canvas, chrome and selected rows, where the traffic light reads at 1.3–2.9:1.
-const fn agent_colors(polarity: Polarity) -> [Rgb; 3] {
+#[must_use]
+pub const fn agent_colors(polarity: Polarity) -> [Rgb; 3] {
     match polarity {
         Polarity::Dark => [
             Rgb::new(0xfe, 0xbc, 0x2e),

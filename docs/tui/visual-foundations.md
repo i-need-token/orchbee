@@ -92,9 +92,10 @@ Theme rules:
   cannot remove: a stable marker, or an underline across a row whose owner documents the fill as its
   only current cue.
 - `agent-attention`, `agent-done`, and `agent-error` each have one fixed value per polarity,
-  shared by every theme of that polarity: the traffic light on dark themes and on
-  `terminal-native`, whose polarity is unknown, and its hues deepened to at least 3:1 on light
-  canvas, chrome, and selected rows on light themes. Quantization maps them to the
+  shared by every theme of that polarity: the traffic light on dark themes, and its hues deepened
+  to at least 3:1 on light canvas, chrome, and selected rows on light themes. `terminal-native`
+  takes the values of the known appearance, the person's Light or Dark choice or the settled host
+  polarity, and the dark values while the appearance is unknown. Quantization maps them to the
   nearest color at each level, which is `Yellow`, `Green`, and `Red` at 16 colors, and to the host
   default in monochrome, where shape fallbacks keep outcomes distinct. The state's word, wherever it
   appears, keeps its `status-*` text role.
