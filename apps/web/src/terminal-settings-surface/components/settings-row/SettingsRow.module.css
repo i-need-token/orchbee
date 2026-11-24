@@ -30,14 +30,14 @@
 }
 
 /* The changed dot follows the title, effect included, centered on the name's line. It takes the
-   theme's accent, as the TUI's changed marker does, quieter than the row's text. */
+   page's accent, which checked controls also use, as the TUI's changed marker does. */
 .modified {
 	width: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-space-1-5);
 	flex: none;
 	align-self: center;
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-border-selected);
+	background: var(--ob-sys-color-action-primary);
 }
 
 .copy {

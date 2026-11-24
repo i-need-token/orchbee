@@ -33,7 +33,7 @@
 	height: var(--ob-ref-space-1-5);
 	flex: none;
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-border-selected);
+	background: var(--ob-sys-color-action-primary);
 }
 
 .label {
