@@ -1,4 +1,4 @@
-//! `orchbee --desktop-machines-v1`: the desktop window's saved machines, for its Main over pipes.
+//! `orchbee --desktop-machines`: the desktop window's saved machines, for its Main over pipes.
 //! Main writes one JSON object per line on standard input and reads the same on standard output;
 //! the page's records travel inside them, never opened by Main. The process holds the machine hub
 //! as the TUI does and ends when its standard input ends.

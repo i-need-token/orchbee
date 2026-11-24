@@ -274,6 +274,10 @@ pub mod application {
         pub use crate::machine_change::{Facts, Name, Notice, Question, Request, Stops};
     }
 
+    pub mod machine_carrier {
+        pub use crate::machine_carrier::{RelayedSession, relay_session};
+    }
+
     pub mod desktop_machines {
         pub use crate::desktop_machines::{DesktopMachines, Intent, parse_intent, parse_locale};
     }

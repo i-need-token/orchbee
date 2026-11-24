@@ -28,6 +28,16 @@ const REMOTE_STOP: UsageContext = UsageContext::Literal("orchbee --machine <sele
 
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     // This helper grammar is permanent; a change adds a new helper name instead.
+    if let [entry, machine] = tokens.as_slice()
+        && entry == "--machine-session"
+    {
+        return Ok(SelectedRequest {
+            availability: super::grammar::Availability::WindowsAndMacos,
+            format: None,
+            request: Request::DesktopSession(machine.clone()),
+            session: None,
+        });
+    }
     if tokens == ["--machine-link-v1"] {
         return Ok(SelectedRequest {
             availability: super::grammar::Availability::WindowsAndMacos,
@@ -42,7 +52,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         ("--machine-hub-v1", Request::MachineHub),
         ("--machine-hub-state-v1", Request::MachineHubState),
         ("--machine-hub-hold-v1", Request::MachineHubHold),
-        ("--desktop-machines-v1", Request::DesktopMachines),
+        ("--desktop-machines", Request::DesktopMachines),
     ] {
         if tokens == [token] {
             return Ok(SelectedRequest {

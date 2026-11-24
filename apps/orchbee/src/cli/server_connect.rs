@@ -80,7 +80,7 @@ fn internal() -> Failure {
 
 /// Copies until end of input, flushing each chunk so a small record is never held back.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn pump(reader: &mut impl Read, writer: &mut impl Write) -> io::Result<()> {
+pub(super) fn pump(reader: &mut impl Read, writer: &mut impl Write) -> io::Result<()> {
     let mut chunk = vec![0_u8; RELAY_CHUNK_BYTES];
     loop {
         let read = match reader.read(&mut chunk) {

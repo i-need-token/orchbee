@@ -710,6 +710,8 @@ pub(crate) enum Request {
     MachineLink,
     /// The desktop window's saved machines, for its Main over pipes.
     DesktopMachines,
+    /// One admitted Client connection to a saved machine's Session, relayed for the desktop window.
+    DesktopSession(String),
     Machine {
         command: MachineCommand,
         format: OutputFormat,

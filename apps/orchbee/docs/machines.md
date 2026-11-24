@@ -1376,9 +1376,9 @@ the local Session.
 
 ## Desktop machines process
 
-The desktop window reaches the saved machines through `orchbee --desktop-machines-v1`, which its
-Main starts with pipes. It is an internal pairing of one build: a release may rename it, and an
-incompatible change renames its `-v1` suffix. Every line is one UTF-8 JSON object ended by LF with
+The desktop window reaches the saved machines through `orchbee --desktop-machines`, which its
+Main starts with pipes. It is an internal pairing of one build, which Main and the bundled Client
+ship together, so its name carries no version and a release may change it. Every line is one UTF-8 JSON object ended by LF with
 `"version": 1`; a line of another shape, version or kind is dropped with a diagnostic on standard
 error and never ends the process. Main's lines are at most 512 KiB, a longer one is discarded up to
 its LF, and the process's records for the page are at most 1 MiB. The process holds the hub as the
@@ -1416,6 +1416,23 @@ TUI's words), `action` (`{act, label}` of its button, or null), `version`, `capa
 `removeDescription`. An intent names a saved `machine` and an `act`: `connect`, `disconnect`,
 `retry`, `retry-now` and `log-in` as its button does, `rename` with `label`, `set-color` with
 `color`, `forget-password`, `stop` and `remove`, each carried out as Settings › Machines carries it.
+
+## Desktop session relay
+
+`orchbee --machine-session <machine>`, which Main starts with pipes for one remote surface of the
+desktop window, is the window's `server connect` for a saved machine: an internal pairing of one
+build, like the [machines process](#desktop-machines-process). It attaches to the hub serving the
+data root only when one already runs, never starting one, with neither `presence`, `asks` nor
+`watch`, so it holds no hub and is offered no login; the machines process keeps the hub. It admits this build's own Client offer
+through the machine's [carrier](#session-carrier) as the TUI does, within 25 seconds, and writes one
+LF-ended line: `{"version": 1, "outcome": "admitted", "capabilities"}` with every capability the
+Session's handshake answer listed, or `{"version": 1, "outcome": "refused", "reason"}`. A reason is
+`not-found` for a malformed machine id, `hub-unavailable` when no hub could be joined, the handshake
+refusal `other-environment`, `client-too-old`, `session-too-old` or `development-build-mismatch`,
+`transient` for a Session at capacity, stopping or out of time, `protocol` for an answer outside its
+contract, or `link-lost` when the channel ended before admission. After `admitted` it copies every
+byte both ways without reading any, until either side ends; ending it never stops the remote
+Session.
 
 ## Persistent TUI connections
 

@@ -47,7 +47,7 @@ notification-area or menu-bar icon, on Linux and for a window started hidden, it
 All's Session stop, which the page sends through its Server connection because Main never speaks
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The fifth is its machines port, which `src/main/remote-machines/` connects to
-the saved machines' process, `orchbee --desktop-machines-v1` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
+the saved machines' process, `orchbee --desktop-machines` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
 while Desktop offers remote machines; until then Main starts no such process and closes the port at once. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
 under an identity the reply must repeat: a reload can hand the next document what Main meant for the

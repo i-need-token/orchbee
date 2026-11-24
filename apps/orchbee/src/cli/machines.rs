@@ -5,6 +5,7 @@ mod capacity;
 pub(crate) mod change;
 mod connect;
 pub(crate) mod desktop;
+pub(crate) mod desktop_session;
 pub(crate) mod hub;
 pub(crate) mod link;
 mod list;

@@ -31,7 +31,7 @@ export interface DesktopMachinesProcessOptions {
 }
 
 /**
- * Supervises `orchbee --desktop-machines-v1` for Desktop's life and carries the page's records to
+ * Supervises `orchbee --desktop-machines` for Desktop's life and carries the page's records to
  * it and its records to the attached document's port, reading only the envelope. One that says the
  * host lacks saved machines, or exits, is not started again.
  */
@@ -46,7 +46,7 @@ export class DesktopMachinesProcess {
 
 	start(): void {
 		const options = this.#options;
-		const child = spawn(options.clientExecutable, ['--desktop-machines-v1'], {
+		const child = spawn(options.clientExecutable, ['--desktop-machines'], {
 			env: options.clientEnvironment,
 			stdio: ['pipe', 'pipe', 'pipe'],
 			windowsHide: true,
