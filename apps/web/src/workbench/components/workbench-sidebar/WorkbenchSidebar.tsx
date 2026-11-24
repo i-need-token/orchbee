@@ -116,7 +116,9 @@ interface WorkbenchSidebarProps {
 	readonly worktreeCommands?: WorkbenchWorktreeCommands | undefined;
 }
 
-export function WorkbenchSidebar({
+// The Workbench renders on every Tab switch and focus move; the sidebar, its largest region, renders
+// only when one of its inputs changes.
+export const WorkbenchSidebar = React.memo(function WorkbenchSidebar({
 	activateWorkspace,
 	createWorkspace,
 	setWorkspaceProject,
@@ -498,4 +500,4 @@ export function WorkbenchSidebar({
 			)}
 		</>
 	);
-}
+});

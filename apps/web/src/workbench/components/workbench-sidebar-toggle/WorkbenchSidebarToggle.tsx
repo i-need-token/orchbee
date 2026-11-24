@@ -21,7 +21,7 @@ interface WorkbenchSidebarToggleProps {
 	readonly touch?: boolean | undefined;
 }
 
-export function WorkbenchSidebarToggle({
+export const WorkbenchSidebarToggle = React.memo(function WorkbenchSidebarToggle({
 	isSidebarVisible,
 	label,
 	onToggle,
@@ -54,4 +54,4 @@ export function WorkbenchSidebarToggle({
 			</TooltipContent>
 		</Tooltip>
 	);
-}
+});

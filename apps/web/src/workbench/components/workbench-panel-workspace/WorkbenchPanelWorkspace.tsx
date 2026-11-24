@@ -37,7 +37,7 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
-export function WorkbenchPanelWorkspace({
+export const WorkbenchPanelWorkspace = React.memo(function WorkbenchPanelWorkspace({
 	onTerminalEdit,
 	actionRuntime,
 	authority,
@@ -141,4 +141,4 @@ export function WorkbenchPanelWorkspace({
 			<WorkbenchPanelCloseDialog view={view} />
 		</div>
 	);
-}
+});

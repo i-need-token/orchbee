@@ -31,8 +31,12 @@ export function useWorkbenchFocusRouting({
 	readonly isTabStripVisible?: boolean | undefined;
 	readonly resolveTerminalTarget: () => string | null;
 }): WorkbenchFocusRouting {
-	const initialOwner: WorkbenchFocusOwner = resolveTerminalTarget() === null ? null : 'terminal';
-	const [owner, setOwner] = React.useState<WorkbenchFocusOwner>(initialOwner);
+	// Only whether the owner lets the terminal take focus by itself reaches the render; focus moving
+	// between the sidebar, the Tab Strip and nowhere leaves it unchanged and renders nothing.
+	const ownerReference = React.useRef<WorkbenchFocusOwner>(
+		resolveTerminalTarget() === null ? null : 'terminal',
+	);
+	const [ownerAllowsTerminalAutoFocus, setOwnerAllowsTerminalAutoFocus] = React.useState(true);
 	const [sidebarFocusRequest, setSidebarFocusRequest] = React.useState(0);
 	const [tabStripFocusRequest, setTabStripFocusRequest] = React.useState(0);
 	const [exclusiveSurfaceMounted, setExclusiveSurfaceMounted] = React.useState(false);
@@ -46,7 +50,8 @@ export function useWorkbenchFocusRouting({
 	const focusReturnRegionReference = React.useRef<WorkbenchFocusRegion | null>(null);
 
 	const updateOwner = useMemoizedFn((nextOwner: WorkbenchFocusOwner): void => {
-		setOwner(nextOwner);
+		ownerReference.current = nextOwner;
+		setOwnerAllowsTerminalAutoFocus(nextOwner === 'terminal' || nextOwner === null);
 	});
 	const availableRegions = useMemoizedFn((): readonly WorkbenchFocusRegion[] => [
 		...(resolveTerminalTarget() === null ? [] : (['terminal'] as const)),
@@ -184,14 +189,17 @@ export function useWorkbenchFocusRouting({
 		return () => observer.disconnect();
 	}, []);
 	React.useEffect(() => {
-		setOwner((currentOwner) => {
-			if (exclusiveSurfaceMounted) return 'exclusive';
-			if (currentOwner !== 'exclusive') return currentOwner;
-			return typeof document === 'undefined'
+		if (exclusiveSurfaceMounted) {
+			updateOwner('exclusive');
+			return;
+		}
+		if (ownerReference.current !== 'exclusive') return;
+		updateOwner(
+			typeof document === 'undefined'
 				? null
-				: resolveWorkbenchFocusRegionFromTarget(document.activeElement);
-		});
-	}, [exclusiveSurfaceMounted]);
+				: resolveWorkbenchFocusRegionFromTarget(document.activeElement),
+		);
+	}, [exclusiveSurfaceMounted, updateOwner]);
 	React.useEffect(() => {
 		const region = pendingFocusRegionReference.current;
 		if (exclusiveSurfaceMounted || region === null) return;
@@ -220,7 +228,7 @@ export function useWorkbenchFocusRouting({
 		onFocusCapture,
 		sidebarFocusRequest,
 		tabStripFocusRequest,
-		terminalAutoFocusAllowed: !exclusiveSurfaceMounted && (owner === 'terminal' || owner === null),
+		terminalAutoFocusAllowed: !exclusiveSurfaceMounted && ownerAllowsTerminalAutoFocus,
 		terminalFocusRequest,
 		requestTerminalFocus,
 	};

@@ -110,7 +110,9 @@ interface WebApplicationClientBuild {
 	readonly version: string | null;
 }
 
-export function WebApplication({
+// Every route change renders the router's matches again while the application's inputs keep
+// their identity, so a Tab or Workspace switch stops here instead of rendering the whole window.
+export const WebApplication = React.memo(function WebApplication({
 	actionRuntime,
 	applicationLocaleController,
 	agentNameSource,
@@ -287,4 +289,4 @@ export function WebApplication({
 			{machines === undefined ? null : <MachineMoveStatus machines={machines} />}
 		</div>
 	);
-}
+});

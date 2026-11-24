@@ -12,6 +12,7 @@ import {
 	ResizablePanel,
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
@@ -37,7 +38,10 @@ import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchM
 import { WorkbenchTabList } from './components/workbench-tab-list/WorkbenchTabList';
 import { NameDialog } from './components/name-dialog/NameDialog';
 import { WorkbenchWorktreeFormDialog } from './components/workbench-worktree-form-dialog/WorkbenchWorktreeFormDialog';
-import { WORKBENCH_ACTION_IDS } from './actions/workbench-action-ids';
+import {
+	WORKBENCH_ACTION_IDS,
+	type WorkbenchAgentConfirmationChooseInput,
+} from './actions/workbench-action-ids';
 import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
@@ -201,6 +205,16 @@ export function Workbench({
 		terminalContext,
 	});
 	const confirmationOffer = agentPresentation.confirmationOffer;
+	const environmentMarkerView = React.useMemo(
+		() =>
+			environmentMarker === undefined
+				? undefined
+				: workbenchEnvironmentMarkerView(environmentMarker, intl),
+		[environmentMarker, intl],
+	);
+	const chooseAgentConfirmationFromMenu = useMemoizedFn(
+		(input: WorkbenchAgentConfirmationChooseInput) => view.chooseAgentConfirmation(input, 'menu'),
+	);
 	const sidebarToggle = (
 		<WorkbenchSidebarToggle
 			isSidebarVisible={view.isSidebarVisible}
@@ -231,13 +245,9 @@ export function Workbench({
 				setWorkspaceProject={view.setWorkspaceProject}
 				createWorkspaceProject={view.createWorkspaceProject}
 				deleteWorkspace={view.deleteWorkspace}
-				environmentMarker={
-					environmentMarker === undefined
-						? undefined
-						: workbenchEnvironmentMarkerView(environmentMarker, intl)
-				}
+				environmentMarker={environmentMarkerView}
 				navigateAgent={view.navigateAgent}
-				chooseAgentConfirmation={(input) => view.chooseAgentConfirmation(input, 'menu')}
+				chooseAgentConfirmation={chooseAgentConfirmationFromMenu}
 				closeAgentPanel={view.closeAgentPanel}
 				renameAgentPanel={view.renameAgentPanel}
 				label={view.sidebarLabel}

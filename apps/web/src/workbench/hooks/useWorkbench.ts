@@ -991,34 +991,29 @@ export function useWorkbench({
 		invokeConfiguredCommandKey,
 	);
 
-	return {
-		agentStart: agentDialogs.start,
-		workspaceAgentLaunch:
-			authorityNotice.authority.agentCatalog === undefined
+	// The sidebar, the Tab bar and the panels skip renders whose inputs keep their identity, so the
+	// callbacks and message sets handed to them stay the same object from render to render.
+	const workspaceAgentCatalog = authorityNotice.authority.agentCatalog;
+	const workspaceAgentLaunch = React.useMemo(
+		() =>
+			workspaceAgentCatalog === undefined
 				? undefined
-				: {
-						catalog: authorityNotice.authority.agentCatalog,
-						start: startWorkspaceAgent,
-					},
-		closeAgentStart: agentDialogs.closeStart,
-		reportActionOutcome: authorityNotice.reportActionOutcome,
-		startAgent,
-		worktreeForm: worktreeForm.form,
-		authority: authorityNotice.authority,
-		authorityNotice: authorityNotice.notice,
-		navigateAgent: (input) => {
-			closeSidebarOverlay();
-			navigateAgent(input);
-		},
-		actionScope: actions.scope,
-		// Choosing a row closes the overlay; a drag making its Workspace current does not.
-		activateWorkspace: (workspaceId, origin) => {
+				: { catalog: workspaceAgentCatalog, start: startWorkspaceAgent },
+		[startWorkspaceAgent, workspaceAgentCatalog],
+	);
+	const navigateAgentClosingOverlay = useMemoizedFn((input: WorkbenchAgentNavigationInput) => {
+		closeSidebarOverlay();
+		navigateAgent(input);
+	});
+	// Choosing a row closes the overlay; a drag making its Workspace current does not.
+	const activateWorkspaceClosingOverlay = useMemoizedFn(
+		(workspaceId: string, origin: WorkbenchTerminalLocationActivationOrigin) => {
 			if (origin !== 'other') closeSidebarOverlay();
 			activateWorkspace(workspaceId, origin);
 		},
-		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
-		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
-		chooseAgentConfirmation: (input, source) => {
+	);
+	const chooseAgentConfirmation = useMemoizedFn(
+		(input: WorkbenchAgentConfirmationChooseInput, source: 'button' | 'menu') => {
 			// An answered offer leaves; a key that pressed its button goes back to the terminal.
 			if (
 				source === 'button' &&
@@ -1029,30 +1024,141 @@ export function useWorkbench({
 			}
 			actions.invoke(WORKBENCH_ACTION_IDS.chooseAgentConfirmation, input, source);
 		},
-		closeAgentPanel: (input) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.closePanelTarget, input, 'menu');
-		},
-		renameAgentPanel: (input) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.renamePanel, { kind: 'open', ...input }, 'menu');
-		},
-		setWorkspaceProject: (workspaceId, projectId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.setWorkspaceProject, { workspaceId, projectId }, 'menu');
-		},
-		createWorkspaceProject: (workspaceId, name) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.createWorkspaceProject, { workspaceId, name }, 'button');
-		},
-		createWorkspace: (input) => {
-			closeSidebarOverlay();
-			if (input !== undefined && 'selectDirectory' in input) {
-				projectCreation.requestWorkspaceDirectory(
-					input.projectId,
-					intl.formatMessage(workbenchMessages.projectCreateWorkspaceAtDirectory),
-				);
-			} else actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
-		},
-		deleteWorkspace: (workspaceId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
-		},
+	);
+	const closeAgentPanel = useMemoizedFn((input: WorkbenchPanelTargetInput) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.closePanelTarget, input, 'menu');
+	});
+	const renameAgentPanel = useMemoizedFn((input: WorkbenchPanelTargetInput) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.renamePanel, { kind: 'open', ...input }, 'menu');
+	});
+	const setWorkspaceProject = useMemoizedFn((workspaceId: string, projectId: string | null) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.setWorkspaceProject, { workspaceId, projectId }, 'menu');
+	});
+	const createWorkspaceProject = useMemoizedFn((workspaceId: string, name: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.createWorkspaceProject, { workspaceId, name }, 'button');
+	});
+	const createWorkspace = useMemoizedFn((input?: WorkbenchSidebarWorkspaceCreation) => {
+		closeSidebarOverlay();
+		if (input !== undefined && 'selectDirectory' in input) {
+			projectCreation.requestWorkspaceDirectory(
+				input.projectId,
+				intl.formatMessage(workbenchMessages.projectCreateWorkspaceAtDirectory),
+			);
+		} else actions.invoke(WORKBENCH_ACTION_IDS.createWorkspace, input, 'menu');
+	});
+	const deleteWorkspace = useMemoizedFn((workspaceId: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.deleteWorkspace, { workspaceId }, 'menu');
+	});
+	const newTab = useMemoizedFn((request: TabStripNewTabRequest) =>
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.createTerminal,
+			{
+				groupId: request.groupId,
+				...(request.index === undefined ? {} : { index: request.index }),
+			},
+			request.source,
+		),
+	);
+	const returnToTerminal = useMemoizedFn(() => {
+		closeSidebarOverlay();
+		sidebar.dismissTabList();
+		focusRouting.requestTerminalFocus();
+	});
+	const projectNavigationMessages = React.useMemo(
+		() => projectWorkbenchNavigationMessages(intl),
+		[intl],
+	);
+	const removeProject = useMemoizedFn((projectId: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu');
+	});
+	const reorderProject = useMemoizedFn(
+		(projectId: string, beforeProjectId: string | null) =>
+			actions.invoke(WORKBENCH_ACTION_IDS.reorderProject, { beforeProjectId, projectId }, 'pointer')
+				.completion,
+	);
+	const moveWorkspace = useMemoizedFn(
+		(workspaceId: string, projectId: string | null, beforeWorkspaceId: string | null) =>
+			actions.invoke(
+				WORKBENCH_ACTION_IDS.reorderWorkspace,
+				{ beforeWorkspaceId, projectId, workspaceId },
+				'pointer',
+			).completion,
+	);
+	const renameProject = useMemoizedFn((projectId: string, name: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.renameProject, { name, projectId }, 'button');
+	});
+	const openSearchReturningFocus = useMemoizedFn((returnFocus: HTMLElement) => {
+		closeSidebarOverlay();
+		searchReturnFocus.current = returnFocus;
+		actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
+	});
+	const openSettings = useMemoizedFn(() => {
+		closeSidebarOverlay();
+		actions.invoke(WORKBENCH_ACTION_IDS.openSettings, undefined, 'button');
+	});
+	const openShortcuts = useMemoizedFn(() => {
+		closeSidebarOverlay();
+		actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
+	});
+	const setTabTitle = useMemoizedFn((tabId: string) => {
+		const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
+		if (activeTerminalContext === null) return;
+		actions.invoke(
+			WORKBENCH_ACTION_IDS.setTabTitle,
+			{ kind: 'open', tabId, terminalContextId: activeTerminalContext.terminalContextId },
+			'context-menu',
+		);
+	});
+	const invokeToggleSidebar = useMemoizedFn(() => {
+		actions.invoke(WORKBENCH_ACTION_IDS.toggleSidebar, undefined, 'button');
+	});
+	const toggleProjectExpansion = useMemoizedFn((projectId: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.toggleProjectExpansion, { projectId }, 'button');
+	});
+	const toggleRecentsExpansion = useMemoizedFn(() => {
+		actions.invoke(WORKBENCH_ACTION_IDS.toggleRecentsExpansion, undefined, 'button');
+	});
+	const updateWorkspace = useMemoizedFn((workspaceId: string, name: string) => {
+		actions.invoke(WORKBENCH_ACTION_IDS.updateWorkspace, { name, workspaceId }, 'button');
+	});
+	const invokeAction = actions.invoke;
+	const worktreeCommands = React.useMemo<WorkbenchWorktreeCommands | undefined>(
+		() =>
+			worktrees === undefined
+				? undefined
+				: {
+						create: (workspaceId) =>
+							invokeAction(WORKBENCH_ACTION_IDS.createWorktree, { workspaceId }, 'menu'),
+						discover: (workspaceId) => worktrees.discover(workspaceId),
+						open: (input) => invokeAction(WORKBENCH_ACTION_IDS.openWorktree, input, 'menu'),
+						remove: (input) => invokeAction(WORKBENCH_ACTION_IDS.removeWorktree, input, 'menu'),
+						resume: (input) =>
+							invokeAction(WORKBENCH_ACTION_IDS.resumeWorktreeRemoval, input, 'menu'),
+					},
+		[invokeAction, worktrees],
+	);
+
+	return {
+		agentStart: agentDialogs.start,
+		workspaceAgentLaunch,
+		closeAgentStart: agentDialogs.closeStart,
+		reportActionOutcome: authorityNotice.reportActionOutcome,
+		startAgent,
+		worktreeForm: worktreeForm.form,
+		authority: authorityNotice.authority,
+		authorityNotice: authorityNotice.notice,
+		navigateAgent: navigateAgentClosingOverlay,
+		actionScope: actions.scope,
+		activateWorkspace: activateWorkspaceClosingOverlay,
+		cancelProjectWorkspaceConfirmation: () => pendingProjectWorkspaceConfirmation.current?.(false),
+		confirmProjectWorkspaceAction: () => pendingProjectWorkspaceConfirmation.current?.(true),
+		chooseAgentConfirmation,
+		closeAgentPanel,
+		renameAgentPanel,
+		setWorkspaceProject,
+		createWorkspaceProject,
+		createWorkspace,
+		deleteWorkspace,
 		isSidebarVisible,
 		sidebarPresentation,
 		mobileLayout: sidebar.mobile,
@@ -1089,15 +1195,7 @@ export function useWorkbench({
 		},
 		leftPanelReference,
 		leftPanelSize: `${leftPanelWidth.current}px`,
-		newTab: (request) =>
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.createTerminal,
-				{
-					groupId: request.groupId,
-					...(request.index === undefined ? {} : { index: request.index }),
-				},
-				request.source,
-			),
+		newTab,
 		newTabSections,
 		onCloseTabs: closeTabs,
 		createPanelTerminal,
@@ -1112,11 +1210,7 @@ export function useWorkbench({
 			leftPanelWidth.current = size.inPixels;
 		},
 		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
-		returnToTerminal: () => {
-			closeSidebarOverlay();
-			sidebar.dismissTabList();
-			focusRouting.requestTerminalFocus();
-		},
+		returnToTerminal,
 		onRootBlurCapture: focusRouting.onBlurCapture,
 		onRootFocusCapture: focusRouting.onFocusCapture,
 		shortcutScopeReference,
@@ -1134,44 +1228,7 @@ export function useWorkbench({
 		newWorkspaceShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('newWorkspace', shortcutPlatform, shortcutBindings),
 		),
-		projectNavigationMessages: {
-			agentMenuClose: intl.formatMessage(workbenchMessages.panelClose),
-			agentMenuConfirmations: intl.formatMessage(workbenchMessages.agentConfirmationMenu),
-			agentMenuConfirmationsOff: intl.formatMessage(workbenchMessages.agentConfirmationOff),
-			agentMenuConfirmationsRun: intl.formatMessage(workbenchMessages.agentConfirmationRun),
-			agentMenuRename: intl.formatMessage(workbenchMessages.panelRenameMenu),
-			workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
-			workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
-			workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
-			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
-			close: intl.formatMessage(workbenchMessages.resourceClose),
-			closeWorkspace: intl.formatMessage(workbenchMessages.workspaceDelete),
-			collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
-			collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
-			create: intl.formatMessage(workbenchMessages.resourceCreate),
-			createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
-			createWorkspaceAtDirectory: intl.formatMessage(
-				workbenchMessages.projectCreateWorkspaceAtDirectory,
-			),
-			dropEndOfProjects: intl.formatMessage(workbenchMessages.sidebarDropEndOfProjects),
-			expandProject: intl.formatMessage(workbenchMessages.projectExpand),
-			expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
-			nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
-			nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
-			renameSubmit: intl.formatMessage(workbenchMessages.renameSubmit),
-			projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
-			projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
-			projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
-			projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
-			projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
-			projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
-			recents: intl.formatMessage(workbenchMessages.recents),
-			workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
-			workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
-			workspaceMenuRename: intl.formatMessage(workbenchMessages.workspaceMenuRename),
-			workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
-			workspaceRenameTitle: intl.formatMessage(workbenchMessages.workspaceRenameTitle),
-		},
+		projectNavigationMessages,
 		projectCreationMessages: {
 			cancel: intl.formatMessage(workbenchMessages.resourceCancel),
 			close: intl.formatMessage(workbenchMessages.resourceClose),
@@ -1239,28 +1296,11 @@ export function useWorkbench({
 		projectWorkspaceConfirmationFocusRef,
 		projectWorkspaceConfirmation,
 		projectWorkspaceState,
-		removeProject: (projectId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.removeProject, { projectId }, 'menu');
-		},
-		reorderProject: (projectId, beforeProjectId) =>
-			actions.invoke(WORKBENCH_ACTION_IDS.reorderProject, { beforeProjectId, projectId }, 'pointer')
-				.completion,
-		moveWorkspace: (workspaceId, projectId, beforeWorkspaceId) =>
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.reorderWorkspace,
-				{ beforeWorkspaceId, projectId, workspaceId },
-				'pointer',
-			).completion,
-		renameProject: (projectId, name) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.renameProject, { name, projectId }, 'button');
-		},
-		search: searchOffered
-			? (returnFocus) => {
-					closeSidebarOverlay();
-					searchReturnFocus.current = returnFocus;
-					actions.invoke(WORKBENCH_ACTION_IDS.openSearch, { filter: 'all' }, 'button');
-				}
-			: undefined,
+		removeProject,
+		reorderProject,
+		moveWorkspace,
+		renameProject,
+		search: searchOffered ? openSearchReturningFocus : undefined,
 		searchArgumentPickerForAction,
 		searchFilters,
 		searchState,
@@ -1269,21 +1309,9 @@ export function useWorkbench({
 		searchShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('search', shortcutPlatform, shortcutBindings),
 		),
-		settings:
-			onSettings === undefined
-				? undefined
-				: () => {
-						closeSidebarOverlay();
-						actions.invoke(WORKBENCH_ACTION_IDS.openSettings, undefined, 'button');
-					},
+		settings: onSettings === undefined ? undefined : openSettings,
 		settingsLabel: intl.formatMessage(workbenchMessages.settings),
-		shortcuts:
-			onShortcuts === undefined
-				? undefined
-				: () => {
-						closeSidebarOverlay();
-						actions.invoke(WORKBENCH_ACTION_IDS.openShortcuts, undefined, 'button');
-					},
+		shortcuts: onShortcuts === undefined ? undefined : openShortcuts,
 		update,
 		hostReplacement,
 		settingsShortcutId: WORKBENCH_SHORTCUTS.settings.id,
@@ -1292,15 +1320,7 @@ export function useWorkbench({
 		),
 		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
 		selectTab,
-		setTabTitle: (tabId) => {
-			const activeTerminalContext = projectWorkspaceRuntime.getActiveTerminalContext();
-			if (activeTerminalContext === null) return;
-			actions.invoke(
-				WORKBENCH_ACTION_IDS.setTabTitle,
-				{ kind: 'open', tabId, terminalContextId: activeTerminalContext.terminalContextId },
-				'context-menu',
-			);
-		},
+		setTabTitle,
 		nameEditor,
 		nameEditorFinalFocus,
 		nameEditorMessages: {
@@ -1370,31 +1390,12 @@ export function useWorkbench({
 			actions.invoke(WORKBENCH_ACTION_IDS.createTerminal, { groupId: null }, 'pointer');
 		},
 		tabStripFocusRequest: focusRouting.tabStripFocusRequest,
-		toggleSidebar: () => {
-			actions.invoke(WORKBENCH_ACTION_IDS.toggleSidebar, undefined, 'button');
-		},
-		toggleProjectExpansion: (projectId) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.toggleProjectExpansion, { projectId }, 'button');
-		},
-		toggleRecentsExpansion: () => {
-			actions.invoke(WORKBENCH_ACTION_IDS.toggleRecentsExpansion, undefined, 'button');
-		},
-		updateWorkspace: (workspaceId, name) => {
-			actions.invoke(WORKBENCH_ACTION_IDS.updateWorkspace, { name, workspaceId }, 'button');
-		},
+		toggleSidebar: invokeToggleSidebar,
+		toggleProjectExpansion,
+		toggleRecentsExpansion,
+		updateWorkspace,
 		updateSearch,
-		worktreeCommands:
-			worktrees === undefined
-				? undefined
-				: {
-						create: (workspaceId) =>
-							actions.invoke(WORKBENCH_ACTION_IDS.createWorktree, { workspaceId }, 'menu'),
-						discover: (workspaceId) => worktrees.discover(workspaceId),
-						open: (input) => actions.invoke(WORKBENCH_ACTION_IDS.openWorktree, input, 'menu'),
-						remove: (input) => actions.invoke(WORKBENCH_ACTION_IDS.removeWorktree, input, 'menu'),
-						resume: (input) =>
-							actions.invoke(WORKBENCH_ACTION_IDS.resumeWorktreeRemoval, input, 'menu'),
-					},
+		worktreeCommands,
 	};
 }
 
@@ -1418,4 +1419,47 @@ function findActiveWorkspaceName(state: ProjectWorkspaceState): string | null {
 	const location = state.activeLocation;
 	if (location.kind !== 'workspace') return null;
 	return state.workspaces.find((workspace) => workspace.id === location.workspaceId)?.name ?? null;
+}
+
+function projectWorkbenchNavigationMessages(
+	intl: ReturnType<typeof useOrchbeeIntl>,
+): WorkbenchProjectNavigationMessages {
+	return {
+		agentMenuClose: intl.formatMessage(workbenchMessages.panelClose),
+		agentMenuConfirmations: intl.formatMessage(workbenchMessages.agentConfirmationMenu),
+		agentMenuConfirmationsOff: intl.formatMessage(workbenchMessages.agentConfirmationOff),
+		agentMenuConfirmationsRun: intl.formatMessage(workbenchMessages.agentConfirmationRun),
+		agentMenuRename: intl.formatMessage(workbenchMessages.panelRenameMenu),
+		workspaceMoveToProject: intl.formatMessage(workbenchMessages.workspaceMoveToProject),
+		workspaceCreateProject: intl.formatMessage(workbenchMessages.workspaceCreateProject),
+		workspaceUngroup: intl.formatMessage(workbenchMessages.workspaceUngroup),
+		cancel: intl.formatMessage(workbenchMessages.resourceCancel),
+		close: intl.formatMessage(workbenchMessages.resourceClose),
+		closeWorkspace: intl.formatMessage(workbenchMessages.workspaceDelete),
+		collapseProject: intl.formatMessage(workbenchMessages.projectCollapse),
+		collapseRecents: intl.formatMessage(workbenchMessages.recentsCollapse),
+		create: intl.formatMessage(workbenchMessages.resourceCreate),
+		createWorkspace: intl.formatMessage(workbenchMessages.projectCreateWorkspace),
+		createWorkspaceAtDirectory: intl.formatMessage(
+			workbenchMessages.projectCreateWorkspaceAtDirectory,
+		),
+		dropEndOfProjects: intl.formatMessage(workbenchMessages.sidebarDropEndOfProjects),
+		expandProject: intl.formatMessage(workbenchMessages.projectExpand),
+		expandRecents: intl.formatMessage(workbenchMessages.recentsExpand),
+		nameRequired: intl.formatMessage(workbenchMessages.nameRequired),
+		nameTooLong: intl.formatMessage(workbenchMessages.nameTooLong),
+		renameSubmit: intl.formatMessage(workbenchMessages.renameSubmit),
+		projectFolders: intl.formatMessage(workbenchMessages.projectFolders),
+		projectMenuDissolve: intl.formatMessage(workbenchMessages.projectMenuDissolve),
+		projectMenuRename: intl.formatMessage(workbenchMessages.projectMenuRename),
+		projectOptions: intl.formatMessage(workbenchMessages.projectOptions),
+		projectRenameTitle: intl.formatMessage(workbenchMessages.projectRenameTitle),
+		projectWorktrees: intl.formatMessage(workbenchMessages.projectWorktrees),
+		recents: intl.formatMessage(workbenchMessages.recents),
+		workspaceMenuClose: intl.formatMessage(workbenchMessages.workspaceMenuClose),
+		workspaceMenuNewProject: intl.formatMessage(workbenchMessages.workspaceMenuNewProject),
+		workspaceMenuRename: intl.formatMessage(workbenchMessages.workspaceMenuRename),
+		workspaceOptions: intl.formatMessage(workbenchMessages.workspaceOptions),
+		workspaceRenameTitle: intl.formatMessage(workbenchMessages.workspaceRenameTitle),
+	};
 }

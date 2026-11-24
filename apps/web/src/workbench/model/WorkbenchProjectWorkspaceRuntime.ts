@@ -292,6 +292,23 @@ export class WorkbenchProjectWorkspaceRuntime {
 	public readonly getTerminalTopologyRevision = (): string =>
 		JSON.stringify(this.runtimeSnapshot());
 
+	/**
+	 * The terminal topology without the Tab selection. Its Tabs, Panels and terminals stay the same
+	 * through a Tab switch, so an observer of the layout alone, such as the sidebar's Agent rows,
+	 * keeps its value and skips the render.
+	 */
+	public readonly getTerminalLayoutRevision = (): string => {
+		const { projectWorkspace, terminalContexts } = this.runtimeSnapshot();
+		return JSON.stringify({
+			projectWorkspace,
+			terminalContexts: terminalContexts.map(({ tabCollection, ...context }) => ({
+				...context,
+				groups: tabCollection.groups,
+				tabs: tabCollection.tabs,
+			})),
+		});
+	};
+
 	public readonly subscribeTerminalTopology = (listener: Listener): (() => void) => {
 		if (this.terminalTopologyListeners.size === 0) {
 			this.terminalTopologyFingerprint = this.getTerminalTopologyRevision();

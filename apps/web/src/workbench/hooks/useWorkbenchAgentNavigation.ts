@@ -34,13 +34,19 @@ export function useWorkbenchAgentNavigation({
 	source,
 }: UseWorkbenchAgentNavigationOptions): (input: WorkbenchAgentNavigationInput) => void {
 	const snapshot = useAgentSnapshot(source);
-	const terminalTopologyRevision = React.useSyncExternalStore(
-		projectWorkspaceRuntime.subscribeTerminalTopology,
-		projectWorkspaceRuntime.getTerminalTopologyRevision,
-		projectWorkspaceRuntime.getTerminalTopologyRevision,
-	);
 	const modelReference = React.useRef<WorkbenchAgentNavigationState>(
 		INITIAL_WORKBENCH_AGENT_NAVIGATION_STATE,
+	);
+	// Only a navigation that waits for its terminal to show watches the topology, so a Tab switch
+	// with none waiting does not render the Workbench again.
+	const readWaitingTopologyRevision = (): string | null =>
+		modelReference.current.kind === 'waiting'
+			? projectWorkspaceRuntime.getTerminalTopologyRevision()
+			: null;
+	const terminalTopologyRevision = React.useSyncExternalStore(
+		projectWorkspaceRuntime.subscribeTerminalTopology,
+		readWaitingTopologyRevision,
+		readWaitingTopologyRevision,
 	);
 	const requestSequenceReference = React.useRef(0);
 	const applyEventReference = React.useRef<(event: WorkbenchAgentNavigationEvent) => void>(

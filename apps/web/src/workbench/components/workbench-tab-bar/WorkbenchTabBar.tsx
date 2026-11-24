@@ -17,7 +17,7 @@ import {
 	type TabStatusAdornment,
 	type TabStripTabCreationIntent,
 } from '@orchbee/tab-strip';
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 import { NameDialog } from '../name-dialog/NameDialog';
 import { useTabGroupNameDialog } from './hooks/useTabGroupNameDialog';
@@ -52,7 +52,7 @@ interface WorkbenchTabBarProps {
 	readonly touchUi?: boolean | undefined;
 }
 
-export function WorkbenchTabBar({
+export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 	actionRuntime,
 	fill = false,
 	newTabSections,
@@ -138,4 +138,4 @@ export function WorkbenchTabBar({
 			)}
 		</>
 	);
-}
+});

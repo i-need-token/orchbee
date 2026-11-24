@@ -82,6 +82,7 @@ interface WorkbenchAgentPresentationView {
 const NO_PANEL_TABS: readonly [] = [];
 const NO_AGENT_NAMES: ReadonlyMap<string, WorkbenchAgentNames> = new Map();
 const NO_CONFIRMATIONS: ReadonlyMap<string, WorkbenchAgentConfirmation> = new Map();
+const NO_WORKSPACE_AGENT_OVERVIEWS: readonly WorkbenchWorkspaceAgentOverviewView[] = [];
 
 /** The active Tab's focused Panel's terminal: the open Workspace's current Agent, if it is one. */
 function focusedPresentationId(
@@ -179,10 +180,10 @@ export function useWorkbenchAgentPresentation({
 		}
 		return null;
 	}, [activeTabId, confirmationRows, currentPresentationId, intl, panelTabs]);
-	const terminalTopologyRevision = React.useSyncExternalStore(
+	const terminalLayoutRevision = React.useSyncExternalStore(
 		projectWorkspaceRuntime.subscribeTerminalTopology,
-		projectWorkspaceRuntime.getTerminalTopologyRevision,
-		projectWorkspaceRuntime.getTerminalTopologyRevision,
+		projectWorkspaceRuntime.getTerminalLayoutRevision,
+		projectWorkspaceRuntime.getTerminalLayoutRevision,
 	);
 	// As in the TUI, every Workspace shows its Agents until this Client folds them, and a fold lasts
 	// while its Workspace does, through a hidden sidebar and Agents that come and go.
@@ -240,110 +241,111 @@ export function useWorkbenchAgentPresentation({
 		return statuses;
 	}, [intl, snapshot]);
 	const workspaceAgentOverviews = React.useMemo(() => {
-		if (terminalTopologyRevision !== projectWorkspaceRuntime.getTerminalTopologyRevision()) {
-			return [];
+		if (terminalLayoutRevision !== projectWorkspaceRuntime.getTerminalLayoutRevision()) {
+			return NO_WORKSPACE_AGENT_OVERVIEWS;
 		}
+		const overview = projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime);
+		// No Agents keeps one empty list, so the sidebar sees no change from a Tab switch.
+		if (overview.length === 0) return NO_WORKSPACE_AGENT_OVERVIEWS;
 		const unreadLabel = intl.formatMessage(agentObservationMessages.statusUnread);
-		return projectWorkbenchAgentOverview(snapshot, projectWorkspaceRuntime).map(
-			(workspace): WorkbenchWorkspaceAgentOverviewView => {
-				const count = workspace.rows.length;
-				const states = workspace.rowsByUrgency.map(({ observation }) => observation.state);
-				// A row's name as its expanded row shows it: its title, then its provider.
-				const rowNames = ({ destination, observation }: (typeof workspace.rows)[number]) => {
-					const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
-					const names = agentNames.get(destination.presentationId);
-					const titleLabel =
-						resolveWorkbenchAgentTitle(
-							destination.terminalNames,
-							// What the Server read for another incarnation names nothing in this one.
-							names?.binding === observation.binding ? names : undefined,
-							listWorkbenchAgentProviderNames(intl, observation.agent),
-							workbenchAgentTitleNamesAgent(observation.agent),
-						) ?? '';
-					return { agentLabel, titleLabel };
-				};
-				return {
-					agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
-					collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
-						count,
-						workspace: workspace.workspaceName,
-					}),
-					countLabel: intl.formatMessage(workbenchMessages.workspaceAgentCount, { count }),
-					expandLabel: intl.formatMessage(workbenchMessages.workspaceAgentExpand, {
-						count,
-						workspace: workspace.workspaceName,
-					}),
-					expanded: !foldedWorkspaceIds.has(workspace.workspaceId),
-					foldedStatus: {
-						glyphs: workspace.rowsByUrgency.map(({ destination, observation }) => {
-							const { agentLabel, titleLabel } = rowNames({ destination, observation });
-							const status = formatWorkbenchAgentStatus(intl, observation.state);
-							return {
-								identity: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
-								presentationId: destination.presentationId,
-								shape: status.shape,
-								status: status.status,
-								tone: status.tone,
-							};
-						}),
-						label: intl.formatList(
-							[...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state).status),
-							{ style: 'narrow', type: 'conjunction' },
-						),
-						legend: [...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state)),
-					},
-					projectId: workspace.projectId,
-					rows: workspace.rows.map(({ destination, observation }) => {
+		return overview.map((workspace): WorkbenchWorkspaceAgentOverviewView => {
+			const count = workspace.rows.length;
+			const states = workspace.rowsByUrgency.map(({ observation }) => observation.state);
+			// A row's name as its expanded row shows it: its title, then its provider.
+			const rowNames = ({ destination, observation }: (typeof workspace.rows)[number]) => {
+				const agentLabel = formatWorkbenchAgentName(intl, observation.agent);
+				const names = agentNames.get(destination.presentationId);
+				const titleLabel =
+					resolveWorkbenchAgentTitle(
+						destination.terminalNames,
+						// What the Server read for another incarnation names nothing in this one.
+						names?.binding === observation.binding ? names : undefined,
+						listWorkbenchAgentProviderNames(intl, observation.agent),
+						workbenchAgentTitleNamesAgent(observation.agent),
+					) ?? '';
+				return { agentLabel, titleLabel };
+			};
+			return {
+				agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
+				collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
+					count,
+					workspace: workspace.workspaceName,
+				}),
+				countLabel: intl.formatMessage(workbenchMessages.workspaceAgentCount, { count }),
+				expandLabel: intl.formatMessage(workbenchMessages.workspaceAgentExpand, {
+					count,
+					workspace: workspace.workspaceName,
+				}),
+				expanded: !foldedWorkspaceIds.has(workspace.workspaceId),
+				foldedStatus: {
+					glyphs: workspace.rowsByUrgency.map(({ destination, observation }) => {
 						const { agentLabel, titleLabel } = rowNames({ destination, observation });
-						const locationLabel = formatWorkbenchAgentLocation(intl, destination);
 						const status = formatWorkbenchAgentStatus(intl, observation.state);
-						const confirmation = confirmationRows.get(destination.presentationId);
 						return {
-							confirmation:
-								confirmation === undefined
-									? undefined
-									: {
-											agentTypeLabel: intl.formatMessage(
-												workbenchMessages.agentConfirmationAgentType,
-												{ agent: formatWorkbenchAgentName(intl, confirmation.agent) },
-											),
-											choice: confirmation.choice,
-										},
-							statusReason:
-								confirmation === undefined || confirmation.wait === null
-									? undefined
-									: intl.formatMessage(workbenchMessages.agentConfirmationWaitStatus, {
-											reason: intl.formatMessage(
-												WORKBENCH_AGENT_CONFIRMATION_WAITS[confirmation.wait],
-											),
-											status: status.status,
-										}),
-							accessibleLabel: intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
-								location: locationLabel,
-								provider: agentLabel,
-								status: status.status,
-							}),
-							agentLabel,
-							current: destination.presentationId === currentPresentationId,
-							panelId: destination.panelId,
+							identity: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
 							presentationId: destination.presentationId,
-							primary: destination.terminalPosition.kind === 'primary',
-							providerId: observation.agent,
-							status,
-							tabId: destination.tabId,
-							terminalContextId: destination.terminalContextId,
-							titleLabel,
-							unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
+							shape: status.shape,
+							status: status.status,
+							tone: status.tone,
 						};
 					}),
-					status: formatWorkbenchAgentStatus(intl, workspace.state),
-					unreadLabel: workspace.rows.some((row) => unread.has(row.destination.presentationId))
-						? unreadLabel
-						: undefined,
-					workspaceId: workspace.workspaceId,
-				};
-			},
-		);
+					label: intl.formatList(
+						[...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state).status),
+						{ style: 'narrow', type: 'conjunction' },
+					),
+					legend: [...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state)),
+				},
+				projectId: workspace.projectId,
+				rows: workspace.rows.map(({ destination, observation }) => {
+					const { agentLabel, titleLabel } = rowNames({ destination, observation });
+					const locationLabel = formatWorkbenchAgentLocation(intl, destination);
+					const status = formatWorkbenchAgentStatus(intl, observation.state);
+					const confirmation = confirmationRows.get(destination.presentationId);
+					return {
+						confirmation:
+							confirmation === undefined
+								? undefined
+								: {
+										agentTypeLabel: intl.formatMessage(
+											workbenchMessages.agentConfirmationAgentType,
+											{ agent: formatWorkbenchAgentName(intl, confirmation.agent) },
+										),
+										choice: confirmation.choice,
+									},
+						statusReason:
+							confirmation === undefined || confirmation.wait === null
+								? undefined
+								: intl.formatMessage(workbenchMessages.agentConfirmationWaitStatus, {
+										reason: intl.formatMessage(
+											WORKBENCH_AGENT_CONFIRMATION_WAITS[confirmation.wait],
+										),
+										status: status.status,
+									}),
+						accessibleLabel: intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
+							location: locationLabel,
+							provider: agentLabel,
+							status: status.status,
+						}),
+						agentLabel,
+						current: destination.presentationId === currentPresentationId,
+						panelId: destination.panelId,
+						presentationId: destination.presentationId,
+						primary: destination.terminalPosition.kind === 'primary',
+						providerId: observation.agent,
+						status,
+						tabId: destination.tabId,
+						terminalContextId: destination.terminalContextId,
+						titleLabel,
+						unreadLabel: unread.has(destination.presentationId) ? unreadLabel : undefined,
+					};
+				}),
+				status: formatWorkbenchAgentStatus(intl, workspace.state),
+				unreadLabel: workspace.rows.some((row) => unread.has(row.destination.presentationId))
+					? unreadLabel
+					: undefined,
+				workspaceId: workspace.workspaceId,
+			};
+		});
 	}, [
 		agentNames,
 		confirmationRows,
@@ -352,7 +354,7 @@ export function useWorkbenchAgentPresentation({
 		intl,
 		projectWorkspaceRuntime,
 		snapshot,
-		terminalTopologyRevision,
+		terminalLayoutRevision,
 		unread,
 	]);
 	return React.useMemo(
