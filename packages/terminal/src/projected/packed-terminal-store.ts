@@ -364,7 +364,37 @@ function decodeRowString(
 	if (offset === undefined || length === undefined || offset === NO_STRING_OFFSET || length === 0) {
 		return '';
 	}
+	if (length === 1) {
+		// Most cells hold one ASCII byte; skip the decoder for them.
+		const byte = backing.stringBytes[offset];
+		if (byte !== undefined && byte < 0x80) return String.fromCharCode(byte);
+	}
 	return textDecoder.decode(backing.stringBytes.subarray(offset, offset + length));
+}
+
+/** The byte length `TextEncoder` would produce for `value`, without encoding it. */
+function utf8ByteLength(value: string): number {
+	let bytes = 0;
+	for (let index = 0; index < value.length; index += 1) {
+		const unit = value.charCodeAt(index);
+		if (unit < 0x80) {
+			bytes += 1;
+		} else if (unit < 0x800) {
+			bytes += 2;
+		} else if (unit >= 0xd800 && unit <= 0xdbff) {
+			const next = value.charCodeAt(index + 1);
+			if (next >= 0xdc00 && next <= 0xdfff) {
+				bytes += 4;
+				index += 1;
+			} else {
+				bytes += 3;
+			}
+		} else {
+			// Includes a lone low surrogate, which TextEncoder writes as U+FFFD.
+			bytes += 3;
+		}
+	}
+	return bytes;
 }
 
 interface PackedFrameBuildContext {
@@ -756,23 +786,45 @@ function addBudgetMetadata(
 }
 
 function addBudgetRow(budget: RetainedPresentationBudget, row: PackedTerminalRowBacking): void {
+	let styleKey = '';
 	for (let column = 0; column < row.widths.length; column += 1) {
 		const grapheme = decodeRowString(row, row.graphemeOffsets, row.graphemeLengths, column);
 		addBudgetString(budget, grapheme);
 		const hyperlink = budgetRowHyperlink(row, column);
 		addBudgetOptionalString(budget, hyperlink);
-		addBudgetStyle(budget, budgetRowStyleKey(row, column, hyperlink));
+		if (column === 0 || !budgetRowStyleRepeats(row, column)) {
+			styleKey = budgetRowStyleKey(row, column, hyperlink);
+		}
+		addBudgetStyle(budget, styleKey);
 	}
 }
 
 function removeBudgetRow(budget: RetainedPresentationBudget, row: PackedTerminalRowBacking): void {
+	let styleKey = '';
 	for (let column = 0; column < row.widths.length; column += 1) {
 		const grapheme = decodeRowString(row, row.graphemeOffsets, row.graphemeLengths, column);
 		removeBudgetString(budget, grapheme);
 		const hyperlink = budgetRowHyperlink(row, column);
 		removeBudgetOptionalString(budget, hyperlink);
-		removeBudgetStyle(budget, budgetRowStyleKey(row, column, hyperlink));
+		if (column === 0 || !budgetRowStyleRepeats(row, column)) {
+			styleKey = budgetRowStyleKey(row, column, hyperlink);
+		}
+		removeBudgetStyle(budget, styleKey);
 	}
+}
+
+/** Whether `column` has the previous column's style key; runs of one style are the common case. */
+function budgetRowStyleRepeats(row: PackedTerminalRowBacking, column: number): boolean {
+	const previous = column - 1;
+	return (
+		row.foregroundColors[column] === row.foregroundColors[previous] &&
+		row.backgroundColors[column] === row.backgroundColors[previous] &&
+		row.underlineColors[column] === row.underlineColors[previous] &&
+		row.styleFlags[column] === row.styleFlags[previous] &&
+		row.underlineKinds[column] === row.underlineKinds[previous] &&
+		row.hyperlinkOffsets[column] === row.hyperlinkOffsets[previous] &&
+		row.hyperlinkLengths[column] === row.hyperlinkLengths[previous]
+	);
 }
 
 function budgetRowHyperlink(row: PackedTerminalRowBacking, column: number): string | null {
@@ -809,7 +861,7 @@ function removeBudgetOptionalString(
 }
 
 function addBudgetString(budget: RetainedPresentationBudget, value: string): void {
-	const occurrenceBytes = 4 + textEncoder.encode(value).byteLength;
+	const occurrenceBytes = 4 + utf8ByteLength(value);
 	budget.aggregateBytes += occurrenceBytes;
 	const count = budget.strings.get(value) ?? 0;
 	if (count === 0) budget.encodedBytes += occurrenceBytes;
@@ -819,7 +871,7 @@ function addBudgetString(budget: RetainedPresentationBudget, value: string): voi
 function removeBudgetString(budget: RetainedPresentationBudget, value: string): void {
 	const count = budget.strings.get(value);
 	if (count === undefined || count < 1) throw new Error('Retained string budget is inconsistent');
-	const occurrenceBytes = 4 + textEncoder.encode(value).byteLength;
+	const occurrenceBytes = 4 + utf8ByteLength(value);
 	budget.aggregateBytes -= occurrenceBytes;
 	if (count === 1) {
 		budget.strings.delete(value);
