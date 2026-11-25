@@ -23,6 +23,7 @@ mod script_operands;
 mod tests;
 #[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
+#[cfg(any(windows, target_os = "macos", test))]
 pub(crate) use run_processes::RunAnchor;
 #[cfg(any(windows, target_os = "macos"))]
 pub(crate) use run_processes::RunProcesses;

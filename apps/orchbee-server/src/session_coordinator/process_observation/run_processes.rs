@@ -9,6 +9,7 @@ use orchbee_terminal_protocol::{TerminalProcess, TerminalProcessInfo};
 const MAXIMUM_RUN_PROCESSES: usize = 32;
 
 /// One process: its pid and its creation time in sample row units, which defeats pid reuse.
+#[cfg(any(windows, target_os = "macos", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RunAnchor {
     pub(crate) pid: u32,
