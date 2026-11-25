@@ -24,7 +24,7 @@ import { hostReleasePlatform, releaseFiles } from './package-native-release.mjs'
 const security = '/usr/bin/security';
 const codesign = '/usr/bin/codesign';
 const xcrun = '/usr/bin/xcrun';
-const profile = 'orchbee-release';
+const uuid = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu;
 const submissionFile = 'notary-submission-id';
 const peers = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
 const programs = [...peers, 'orchbee-desktop-launcher'];
@@ -226,70 +226,29 @@ async function signDesktop(root, version, platform) {
 	});
 }
 
-// notarytool prompts for these credentials in a TTY. Expect supplies them without echoing or using
-// arguments. Its child receives neither the credential variables nor a transcript of the prompts.
-const notaryCredentials = String.raw`
-set timeout 120
-log_user 0
-set appleId $env(APPLE_ID)
-set team $env(APPLE_TEAM_ID)
-set password $env(APPLE_APP_SPECIFIC_PASSWORD)
-unset env(APPLE_ID) env(APPLE_TEAM_ID) env(APPLE_APP_SPECIFIC_PASSWORD)
-proc answer {prompt value} {
-    expect {
-        -re $prompt { send -- "$value\r" }
-        timeout { exit 10 }
-        eof { exit 11 }
-    }
-}
-spawn -noecho /usr/bin/xcrun notarytool store-credentials $env(ORCHBEE_NOTARY_PROFILE) --keychain $env(ORCHBEE_NOTARY_KEYCHAIN)
-answer {Path to App Store Connect API private key:} ""
-answer {Developer Apple ID:} $appleId
-answer {App-specific password[^:]*:} $password
-answer {Developer Team ID:} $team
-set httpStatus ""
-expect {
-    -re {HTTP status code: ([0-9]{3})} {
-        set httpStatus $expect_out(1,string)
-        exp_continue -continue_timer
-    }
-    eof {
-        if {$httpStatus ne ""} { puts stderr $httpStatus }
-        exit [lindex [wait] 3]
-    }
-    timeout { exit 12 }
-}
-`;
-
-async function withNotaryCredentials(action) {
-	const credentials = Object.fromEntries(
-		['APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD'].map((name) => [
-			name,
-			takeCredential(name),
-		]),
-	);
-	return withKeychain(({ keychain }) => {
-		const stored = spawnSync('/usr/bin/expect', [], {
-			input: notaryCredentials,
-			env: {
-				...process.env,
-				...credentials,
-				ORCHBEE_NOTARY_PROFILE: profile,
-				ORCHBEE_NOTARY_KEYCHAIN: keychain,
-			},
-			timeout: 180000,
-		});
-		if (stored.status !== 0) {
-			const httpStatus = stored.stderr?.toString().trim() ?? '';
-			const reason = /^\d{3}$/u.test(httpStatus) ? `HTTP ${httpStatus}` : `exit ${stored.status}`;
-			throw new Error(`notarytool could not validate and store the Apple credentials (${reason})`);
-		}
-		return action(['--keychain-profile', profile, '--keychain', keychain]);
-	});
+// An App Store Connect team key authenticates notarytool. Its private key reaches this process
+// only by environment and notarytool only as a file that this user alone may read, removed after
+// the call; the key ID and the issuer ID name the key and are not secret.
+async function withNotaryKey(action) {
+	const key = Buffer.from(takeCredential('APPLE_API_KEY_BASE64'), 'base64');
+	const keyId = takeCredential('APPLE_API_KEY_ID');
+	const issuer = takeCredential('APPLE_API_ISSUER_ID');
+	if (!/^[A-Z0-9]{10}$/u.test(keyId)) throw new Error('Invalid APPLE_API_KEY_ID');
+	if (!uuid.test(issuer)) throw new Error('Invalid APPLE_API_ISSUER_ID');
+	if (!key.toString('latin1').includes('-----BEGIN PRIVATE KEY-----'))
+		throw new Error('APPLE_API_KEY_BASE64 holds no App Store Connect private key');
+	const workspace = mkdtempSync(path.join(tmpdir(), 'orchbee-notary-'));
+	try {
+		const keyFile = path.join(workspace, `AuthKey_${keyId}.p8`);
+		writeFileSync(keyFile, key, { mode: 0o600 });
+		return await action(['--key', keyFile, '--key-id', keyId, '--issuer', issuer]);
+	} finally {
+		rmSync(workspace, { force: true, recursive: true });
+	}
 }
 
 function notarizationId(value) {
-	if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value))
+	if (typeof value !== 'string' || !uuid.test(value))
 		throw new Error('Expected an Apple notarization submission identifier');
 	return value;
 }
@@ -299,7 +258,7 @@ async function submitDesktop(root, version, platform) {
 	const receipt = path.join(root, submissionFile);
 	if (existsSync(receipt))
 		throw new Error(`The desktop already has a submission in ${submissionFile}`);
-	await withNotaryCredentials((authentication) => {
+	await withNotaryKey((authentication) => {
 		const response = execFileSync(
 			xcrun,
 			['notarytool', 'submit', image, ...authentication, '--no-wait', '--output-format', 'json'],
@@ -315,7 +274,7 @@ async function notarizeDesktop(root, version, platform) {
 	const { application, applicationDirectory, image } = desktopPaths(root, version, platform);
 	const receipt = path.join(root, submissionFile);
 	const id = notarizationId(readFileSync(receipt, 'utf8').trim());
-	await withNotaryCredentials((authentication) => {
+	await withNotaryKey((authentication) => {
 		console.info(`Waiting for Apple notarization submission ${id}`);
 		const result = spawnSync(
 			xcrun,

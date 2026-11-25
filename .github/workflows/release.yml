@@ -729,9 +729,9 @@ jobs:
 
       - name: Submit the disk image for notarization
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: node scripts/sign-macos-release.mjs submit "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
 
       # Keep the exact signed bytes and Apple's submission ID together for a later wait.
@@ -788,9 +788,9 @@ jobs:
 
       - name: Wait for Apple and staple the disk image and application
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_API_KEY_BASE64: ${{ secrets.APPLE_API_KEY_BASE64 }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER_ID: ${{ secrets.APPLE_API_ISSUER_ID }}
         run: node scripts/sign-macos-release.mjs notarize "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
 
       - name: Archive the notarized desktop package

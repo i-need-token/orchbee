@@ -47,8 +47,14 @@ repository>`. Print each public half with the command in
    private key as a password-protected PKCS #12 file. In the GitHub `release` environment, set
    `MACOS_SIGNING_CERTIFICATE_BASE64` to the base64-encoded file as one line and
    `MACOS_SIGNING_CERTIFICATE_PASSWORD` to its export password. Set `APPLE_TEAM_ID` to the Team ID
-   from the Apple Developer membership that issued the certificate. Set `APPLE_ID` and
-   `APPLE_APP_SPECIFIC_PASSWORD` to the Apple Account and its app-specific password for notarization.
+   from the Apple Developer membership that issued the certificate.
+
+   For notarization, create a Team key under App Store Connect › Users and Access › Integrations ›
+   App Store Connect API with the Developer role, and download its `AuthKey_<key ID>.p8` file, which
+   Apple offers only once. Set `APPLE_API_KEY_BASE64` to that file base64-encoded as one line,
+   `APPLE_API_KEY_ID` to its key ID and `APPLE_API_ISSUER_ID` to the issuer ID shown above the key
+   list. The key can notarize and manage the team's apps but reaches no personal Apple Account data,
+   and revoking it on that page stops it at once.
 
    Run a release rehearsal after adding or rotating these credentials. Keep a protected copy of
    the certificate and private key outside the repository.
