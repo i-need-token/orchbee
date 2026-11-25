@@ -75,5 +75,4 @@ pub const handover = @import("encode_handover.zig");
 /// The `background-programs` capability's answers and events.
 pub const program = @import("encode_program.zig");
 pub const processInfo = @import("encode_process.zig").processInfo;
-pub const writeProcessInfo = @import("encode_process.zig").writeProcessInfo;
 pub const processInfoWithLaunchKind = @import("encode_process.zig").processInfoWithLaunchKind;
