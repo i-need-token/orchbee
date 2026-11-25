@@ -298,7 +298,11 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
 - Ambiguity: while the anchor lives, a sibling candidate or an unresolved row outside the anchor's
   subtree yields `unknown` with its reason and keeps the run; rows inside the subtree never hold an
   outer Agent, and neither does an ancestor that launched the anchor under an unverified name for
-  its provider, such as a version manager's shim. Before a run exists, they prevent settling.
+  its provider, such as a version manager's shim. Before a run exists, they prevent settling. A
+  sibling proven detached from the Terminal's console cannot draw its screen, so it does not
+  compete with an attached candidate: an Agent in a terminal of a program started here, such as a
+  development Orchbee, stays in this sample after its launcher exits and would otherwise leave the
+  screen unread and the state frozen.
 - Staleness: failed samples never end a run; they keep the last result for at most two seconds and
   then yield `unknown` with `sample-failed`. The screen goes unread meanwhile, so the published run's
   [screen fallback](agent-report-model.md#periodic-windows-sampling-owner) turns Unknown at that point.

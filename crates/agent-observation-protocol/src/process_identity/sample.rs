@@ -122,10 +122,30 @@ impl AgentProcessRow {
     }
 }
 
+type Candidate<'a> = (
+    &'a AgentProcessRow,
+    (AgentReportProvider, AgentAnchorEvidence),
+);
+
+/// The candidate every other candidate descends from, if one does.
+fn outermost<'a>(rows: &[AgentProcessRow], candidates: &[Candidate<'a>]) -> Option<Candidate<'a>> {
+    candidates
+        .iter()
+        .find(|(candidate, _)| {
+            candidates
+                .iter()
+                .all(|(other, _)| descends_from(rows, other.pid, candidate.pid).unwrap_or(false))
+        })
+        .copied()
+}
+
 /// Evaluates one complete sample; `at_limit` means the Host may have omitted members.
 /// The anchor is the candidate every other candidate descends from; rows inside its subtree
 /// never hold an outer Agent, and neither does an ancestor whose only doubt is an unproven name
 /// for the anchor's provider, while unresolved rows elsewhere leave the sample unresolved.
+/// Candidates proven detached from the Terminal's console cannot draw its screen, so when only
+/// they leave no outermost candidate the attached ones decide: an Agent in a terminal of a program
+/// started here stays in this sample after its launcher exits.
 pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentSampleVerdict {
     let unresolved = |anchor, reason| AgentSampleVerdict::Unresolved { anchor, reason };
     if rows.iter().enumerate().any(|(i, p)| {
@@ -137,10 +157,15 @@ pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentS
         .iter()
         .filter_map(|row| row.candidate().map(|c| (row, c)))
         .collect();
-    let outermost = candidates.iter().find(|(candidate, _)| {
-        candidates
+    let outermost = outermost(rows, &candidates).or_else(|| {
+        let attached: Vec<_> = candidates
             .iter()
-            .all(|(other, _)| descends_from(rows, other.pid, candidate.pid).unwrap_or(false))
+            .copied()
+            .filter(|(row, _)| !row.detached)
+            .collect();
+        (attached.len() < candidates.len())
+            .then(|| outermost(rows, &attached))
+            .flatten()
     });
     let anchor = match (candidates.is_empty(), outermost) {
         (true, _) => None,
@@ -150,8 +175,8 @@ pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentS
         (false, Some((row, (provider, evidence)))) => Some(AgentAnchor {
             pid: row.pid,
             creation_time: row.creation_time,
-            provider: *provider,
-            evidence: *evidence,
+            provider,
+            evidence,
         }),
     };
     let outside = |row: &&AgentProcessRow| {

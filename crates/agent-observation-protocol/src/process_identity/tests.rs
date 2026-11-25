@@ -67,6 +67,23 @@ fn sample_verdict_requires_one_outer_chain_and_no_unresolved_row_outside_it() {
         with(&|r| r[1].detached = true),
         anchor(2, P::Codex, E::DetachedConsole)
     );
+    // A sibling in another console, such as an Agent in a program started here, never draws this
+    // screen, so it leaves the attached Agent the anchor; detached siblings alone stay ambiguous.
+    assert_eq!(
+        with(&|r| {
+            r[2].parent_pid = Some(9);
+            r[2].detached = true;
+        }),
+        anchor(2, P::Codex, E::Interactive)
+    );
+    assert_eq!(
+        with(&|r| {
+            r[2].parent_pid = Some(1);
+            r[1].detached = true;
+            r[2].detached = true;
+        }),
+        ambiguous
+    );
     // Opaque or unresolved rows inside the anchor's subtree never hold an outer Agent.
     assert_eq!(
         with(&|r| r[2].opaque = true),
