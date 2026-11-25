@@ -18,6 +18,9 @@ const MAXIMUM_LINE: usize = 64 * 1024;
 const MAXIMUM_ROWS: usize = 65_536;
 struct Row {
     text: String,
+    /// Blank cells trimmed from the end of a styled row. A row that wraps onto the next keeps
+    /// them, because they sit between its text and the continuation on screen.
+    blank: usize,
     from_previous: bool,
 }
 
@@ -115,13 +118,16 @@ fn frame_lines(
         rows.pop();
     }
     let mut lines: Vec<String> = Vec::new();
+    let mut blank = 0;
     for row in rows {
         if read.source == Source::RecentUnwrapped && row.from_previous {
             let prior = lines.last_mut().ok_or(Failure::SourceUnavailable)?;
+            append(prior, &" ".repeat(blank))?;
             append(prior, &row.text)?;
         } else {
             lines.push(row.text);
         }
+        blank = row.blank;
     }
     if lines.len() > usize::from(read.lines) {
         lines.drain(..lines.len() - usize::from(read.lines));
@@ -280,6 +286,7 @@ fn read_rows(
                 }
                 rows.push(Row {
                     text,
+                    blank: 0,
                     from_previous: row.wrap_continuation,
                 });
             }
@@ -293,27 +300,34 @@ fn read_rows(
                 return Err(Failure::SourceChanged);
             }
             for row in window.projection().rows() {
-                let cells: Vec<_> = row.cells().collect();
+                // The second cell of a wide character and the padding left where one wrapped
+                // hold no text of their own; an empty cell is a space, as a text read gives it.
+                let cells: Vec<_> = row
+                    .cells()
+                    .filter(|cell| cell.width != 2 && cell.width != 3)
+                    .collect();
                 let kept = cells
                     .iter()
-                    .rposition(|cell| {
-                        cell.width != 2 && (!cell.text.trim().is_empty() || !unstyled(cell.style))
-                    })
+                    .rposition(|cell| !cell.text.trim().is_empty() || !unstyled(cell.style))
                     .map_or(0, |index| index + 1);
                 let mut text = String::new();
                 let mut last = None;
-                for cell in cells.into_iter().take(kept).filter(|cell| cell.width != 2) {
+                for cell in &cells[..kept] {
                     if last != Some(cell.style) {
                         append(&mut text, &terminal_sgr_style(cell.style).to_string())?;
                         last = Some(cell.style);
                     }
-                    append(&mut text, cell.text)?;
+                    append(
+                        &mut text,
+                        if cell.text.is_empty() { " " } else { cell.text },
+                    )?;
                 }
                 if !text.is_empty() {
                     append(&mut text, "\x1b[0m")?;
                 }
                 rows.push(Row {
                     text,
+                    blank: cells.len() - kept,
                     from_previous: row.flags() & 2 != 0,
                 });
             }

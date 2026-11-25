@@ -25,7 +25,8 @@ test "Output seed admits only text, line breaks and SGR" {
     for (refused) |bytes| try std.testing.expect(!output_seed.admit(bytes));
 }
 
-test "Applied output seed sits in scrollback above a blank screen with the cursor home" {
+// A console started at the cursor writes there, so the child's first output lands below the seed.
+test "Output seed applied in view leaves the cursor at the start of the line below it" {
     var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
         .cols = 20,
         .rows = 3,
@@ -35,7 +36,26 @@ test "Applied output seed sits in scrollback above a blank screen with the curso
     var stream: terminal_stream.Stream = .init(.{ .handler = .init(&terminal) });
     defer stream.deinit();
 
-    output_seed.apply(&stream, "one\r\ntwo\x1b[2m\r\ndivider");
+    output_seed.apply(&stream, "one\r\ntwo\x1b[2m\r\ndivider", .in_view);
+    try std.testing.expectEqual(@as(u16, 0), terminal.screens.active.cursor.x);
+    stream.nextSlice("PS>");
+    const all = try terminal.screens.active.dumpStringAlloc(std.testing.allocator, .{ .screen = .{} });
+    defer std.testing.allocator.free(all);
+    try std.testing.expectEqualStrings("one\ntwo\ndivider\nPS>", all);
+}
+
+// A console that assumes a blank screen with the cursor home must find exactly that.
+test "Output seed applied to history sits above a blank screen with the cursor home" {
+    var terminal: ghostty_vt.Terminal = try .init(std.testing.io, std.testing.allocator, .{
+        .cols = 20,
+        .rows = 3,
+        .max_scrollback_bytes = null,
+    });
+    defer terminal.deinit(std.testing.allocator);
+    var stream: terminal_stream.Stream = .init(.{ .handler = .init(&terminal) });
+    defer stream.deinit();
+
+    output_seed.apply(&stream, "one\r\ntwo\x1b[2m\r\ndivider", .history);
     try std.testing.expectEqual(@as(u16, 0), terminal.screens.active.cursor.x);
     try std.testing.expectEqual(@as(u16, 0), terminal.screens.active.cursor.y);
     {

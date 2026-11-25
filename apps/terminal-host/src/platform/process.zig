@@ -18,6 +18,16 @@ pub const environmentVariableOwned = process_common.environmentVariableOwned;
 /// Windows Host startup clears inherited signal suppression before any child launch.
 pub const prepareWindowsTerminalChildren = windows_process.prepareTerminalChildren;
 
+/// Whether a child can start below output already on the screen (`Launch.inherit_cursor`) and
+/// keep writing where the screen has it. A POSIX PTY keeps no screen of its own; a Windows console
+/// does so only on the bundled ConPTY.
+pub fn startsBelowOutput() bool {
+    return switch (builtin.os.tag) {
+        .windows => @import("conpty_windows.zig").bundled(),
+        else => true,
+    };
+}
+
 pub fn sampleProcesses(process: *Process, allocator: @import("std").mem.Allocator) @import("process_sample.zig").Error!ProcessSample {
     return switch (builtin.os.tag) {
         .windows => if (process.inert)

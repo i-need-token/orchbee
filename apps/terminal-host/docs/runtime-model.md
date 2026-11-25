@@ -25,12 +25,16 @@ connection's Host aggregate, admitted by `engine/output_seed.zig` (UTF-8 text, C
 only). The next `CreateTerminal` on that connection takes the slot under the same aggregate lock
 whether or not its creation id matches, so staged bytes never outlive one creation attempt; a
 replayed creation frees them unused. A matching creation applies them to the canonical stream
-before the child or its worker exists, then resets style, scrolls the drawn rows into history with
-`ESC [ 22 J` and homes the cursor. The console host assumes a blank screen at the origin, so its
-first output lands below the history. A later width change reflows the screen and can pull the
-newest history rows, including the restart divider, back into it. The system ConHost repaints its
-whole screen from the top after a resize and overwrites those rows; the pinned OpenConsole did not
-in the Windows integration witness. Nothing reaches the PTY. The slot is freed with the aggregate.
+before the child or its worker exists, then resets style and ends the last line. Where the child
+can start below output already on the screen (`process.startsBelowOutput`), the seed stays in view
+with the cursor at the start of the next line: a POSIX PTY keeps no screen of its own, and the
+bundled ConPTY starts with `PSEUDOCONSOLE_INHERIT_CURSOR`, asks the screen for the cursor with a
+cursor position report that the Host answers, and writes below the seed. The system ConHost
+reflows its own blank buffer after a resize and then writes where the screen has moved on, so
+without the bundle the drawn rows scroll into history with `ESC [ 22 J`, the cursor homes, and the
+console's first output lands at the top of a blank screen; a later width change can pull the
+newest history rows back into it, where that ConHost's repaint overwrites them. Nothing reaches the
+PTY. The slot is freed with the aggregate.
 
 ## Status and authority
 

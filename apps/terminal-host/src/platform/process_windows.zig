@@ -85,12 +85,12 @@ pub const Process = if (builtin.os.tag != .windows) void else struct {
         const stop_event = windows_api.CreateEventW(null, .TRUE, .FALSE, null) orelse
             return windows.unexpectedError(windows.GetLastError());
         errdefer windows.CloseHandle(stop_event);
-        var pty = try pty_module.Pty.open(allocator, .{
+        var pty = try pty_module.Pty.openAt(allocator, .{
             .columns = launch.columns,
             .pixel_height = try process_common.pixelExtent(launch.rows, launch.cell_pixel_height),
             .pixel_width = try process_common.pixelExtent(launch.columns, launch.cell_pixel_width),
             .rows = launch.rows,
-        });
+        }, if (launch.inherit_cursor) .cursor else .origin);
         errdefer pty.deinit();
         const job_handle = windows_api.ob_windows_terminal_job_create() orelse
             return windows.unexpectedError(windows.GetLastError());

@@ -1,7 +1,8 @@
 //! Terminal output replay across real managed restarts: the CLI, Server, Worker and Zig Host under
 //! test, and a default Session whose default program is cmd. With the preference on, each live
 //! terminal's recent output is kept beside the checkpoint and shown again above the new prompt,
-//! followed by the divider; a closed terminal's file goes at the next save; a file that belongs to
+//! followed by the divider, in view on the product's ConPTY (`ORCHBEE_TEST_CONPTY_DIR`); a closed
+//! terminal's file goes at the next save; a file that belongs to
 //! another Presentation is deleted and never replayed; turning the preference off removes every
 //! kept file at the next save. The oracle is the Client text read and the files the runtime wrote;
 //! nothing imports Server internals.
@@ -90,6 +91,14 @@ fn kept_output_replays_only_into_its_own_terminal_and_never_outlives_its_reason(
         let marker = screen.find(own).unwrap_or_else(|| panic!("{screen}"));
         assert!(marker < divider, "{screen}");
         assert!(!screen.contains(other), "{screen}");
+        // The product's ConPTY starts below the replay, so the person sees it without scrolling.
+        if std::env::var_os("ORCHBEE_TEST_CONPTY_DIR").is_some() {
+            let visible = witness.visible(terminal);
+            assert!(
+                visible.contains(own) && visible.contains(DIVIDER),
+                "{visible}"
+            );
+        }
     }
 
     // A file holding another Presentation's output is deleted at restore and never replayed.
@@ -255,6 +264,17 @@ impl Witness {
         let read =
             self.fixture
                 .run(&["terminal", "read", terminal, "--source", "recent-unwrapped"]);
+        read.document["result"]["content"]["text"]
+            .as_str()
+            .unwrap_or_else(|| panic!("{read}"))
+            .to_owned()
+    }
+
+    /// The rows `terminal` shows now, without scrollback.
+    fn visible(&self, terminal: &str) -> String {
+        let read = self
+            .fixture
+            .run(&["terminal", "read", terminal, "--source", "visible"]);
         read.document["result"]["content"]["text"]
             .as_str()
             .unwrap_or_else(|| panic!("{read}"))

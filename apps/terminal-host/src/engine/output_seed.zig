@@ -3,9 +3,10 @@
 //! A seed is admitted only when it is UTF-8 text, CR, LF and SGR sequences (`ESC [` digits,
 //! `;` and `:`, then `m`). That grammar has no query, reply, mode, clipboard, title, directory
 //! or application-signal effect, so applying it can never write to the PTY. The runtime feeds
-//! it to the canonical screen before any worker or child exists, then moves everything it drew
-//! into scrollback and homes the cursor: the pseudoconsole assumes it starts on a blank screen
-//! at the origin, so the child's first output lands directly below the seed.
+//! it to the canonical screen before any worker or child exists. Where the child can start below
+//! output already on the screen (`process.startsBelowOutput`), the seed stays in view with the
+//! child's first output directly below it. Elsewhere the child's console assumes a blank screen
+//! with the cursor home, so the seed moves into history above one.
 const std = @import("std");
 
 /// The largest seed, including the caller's divider line.
@@ -46,11 +47,24 @@ pub fn admit(bytes: []const u8) bool {
     return true;
 }
 
-/// Draws an admitted seed on a fresh stream, then leaves a blank screen with the cursor home.
-pub fn apply(stream: anytype, seed: []const u8) void {
+/// Where an applied seed leaves the child's first output.
+pub const Placement = enum {
+    /// Directly below the seed, which stays in view; rows past the bottom scroll into history as
+    /// ordinary output does.
+    in_view,
+    /// At the top of a blank screen, with the whole seed in history above it.
+    history,
+};
+
+/// Draws an admitted seed on a fresh stream and places the cursor for the child.
+pub fn apply(stream: anytype, seed: []const u8, placement: Placement) void {
     std.debug.assert(admit(seed));
     stream.nextSlice(seed);
-    // Reset attributes, end any partial line, push every drawn row into scrollback (ED 22)
-    // and home the cursor for the child.
-    stream.nextSlice("\x1b[0m\r\n\x1b[22J\x1b[H");
+    // Reset attributes and end the seed's last line.
+    stream.nextSlice("\x1b[0m\r\n");
+    switch (placement) {
+        .in_view => {},
+        // Push every drawn row into scrollback (ED 22) and home the cursor.
+        .history => stream.nextSlice("\x1b[22J\x1b[H"),
+    }
 }

@@ -14,6 +14,10 @@ pub const Launch = struct {
     environment: []const EnvironmentDelta,
     executable: []const u8,
     rows: u16,
+    /// The screen already shows output above the cursor (`process.startsBelowOutput`). Windows
+    /// starts the pseudoconsole at the cursor, which it asks the screen for, instead of at a blank
+    /// origin; a POSIX child already writes wherever the cursor is.
+    inherit_cursor: bool = false,
     // POSIX-only borrowed descriptor used as the child's stdin. The benchmark
     // opens and validates its fixture before launch, then the child inherits it.
     stdin_fd: ?isize = null,

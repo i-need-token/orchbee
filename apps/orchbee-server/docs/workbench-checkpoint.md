@@ -389,7 +389,11 @@ save.
   configured language with the time the output was kept. A host whose local runtime offers no
   local clock, such as one without a readable system time zone, shows the line without the time. It travels with the launch to the Worker,
   which stages it in the Host before the creation; the Host draws it into the new screen as output
-  before the program's first byte and pushes it into history, so it is never typed into the PTY.
+  before the program's first byte, so it is never typed into the PTY, and the program starts below
+  it. On Windows without the bundled ConPTY it is pushed into history above a blank screen instead
+  ([Host runtime model](../../terminal-host/docs/runtime-model.md#earlier-output-before-a-restored-child)).
+  The capture keeps a soft-wrapped row's trailing blank cells and gives an empty cell as a space, so
+  a replayed line wraps and aligns as it did on screen.
   The same preference turns on [Agent resume](agent-session-resume.md): a Presentation whose
   retained Agent reference resumes, at startup or on a held restore in its saved directory, replays
   no output, because the resumed Agent shows its own conversation.

@@ -123,7 +123,8 @@ pub fn createWithOptionsUsingSpawner(
     adoptTestingHooks(self, spawner);
     errdefer cleanupFailedThreadStartup(self);
     wireStream(self);
-    if (resolved_options.output_seed) |seed| output_seed.apply(&self.stream, seed);
+    if (resolved_options.output_seed) |seed|
+        output_seed.apply(&self.stream, seed, if (resolved_launch.inherit_cursor) .in_view else .history);
     try startWorkers(self, resolved_launch, spawner);
     return self;
 }

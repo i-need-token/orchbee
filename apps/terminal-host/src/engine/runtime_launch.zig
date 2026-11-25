@@ -92,6 +92,7 @@ pub fn prepare(
             .environment = launch.environment,
             .executable = launch.executable,
             .rows = geometry.rows,
+            .inherit_cursor = options.output_seed != null and pty_process.startsBelowOutput(),
             .stdin_fd = launch.stdin_fd,
             .keeper = launch.keeper,
         },

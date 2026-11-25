@@ -89,22 +89,35 @@ pub const Api = struct {
     }
 };
 
-/// 0 before the first answer, then 1 for a bundle without the pack and 2 for one with it.
-var packs_state: std.atomic.Value(u8) = .init(0);
+const Found = enum(u8) { unknown, system, bundle, bundle_with_pack };
 
-/// Whether the bundled ConPTY exports its pack, so this Host can take a moved terminal. The first
-/// answer loads the bundle once; a bundle that fails to load answers false and is tried again.
-pub fn packs() bool {
-    switch (packs_state.load(.acquire)) {
-        1 => return false,
-        2 => return true,
-        else => {},
-    }
-    var api = Api.init() catch return false;
+var found_state: std.atomic.Value(Found) = .init(.unknown);
+
+/// What this Host's consoles run on. The first answer loads the bundle once; a bundle that fails
+/// to load answers `unknown` and is tried again.
+fn found() Found {
+    const known = found_state.load(.acquire);
+    if (known != .unknown) return known;
+    var api = Api.init() catch return .unknown;
     defer api.deinit();
-    const found = api.pack != null;
-    packs_state.store(if (found) 2 else 1, .release);
-    return found;
+    const answer: Found = if (api.module == null) .system else if (api.pack == null) .bundle else .bundle_with_pack;
+    found_state.store(answer, .release);
+    return answer;
+}
+
+/// Whether the bundled ConPTY exports its pack, so this Host can take a moved terminal.
+pub fn packs() bool {
+    return found() == .bundle_with_pack;
+}
+
+/// Whether this Host's consoles run on its bundled ConPTY. A console started at the cursor of a
+/// screen that already shows output stays in step with that screen across a resize only there:
+/// the system ConHost reflows its own blank buffer and then writes where the screen has moved on.
+pub fn bundled() bool {
+    return switch (found()) {
+        .bundle, .bundle_with_pack => true,
+        .unknown, .system => false,
+    };
 }
 
 fn childPath(buffer: []u16, parent: []const u16, comptime suffix: []const u8) ![:0]const u16 {

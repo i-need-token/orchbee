@@ -38,6 +38,20 @@ pub const WindowsPty = if (builtin.os.tag != .windows) void else struct {
     signals: *conpty_signals.Signals,
 
     pub fn open(allocator: std.mem.Allocator, size: Size) !WindowsPty {
+        return openAt(allocator, size, .origin);
+    }
+
+    /// Where the console's first output goes.
+    pub const Start = enum {
+        /// A blank screen's top-left corner.
+        origin,
+        /// The cursor of a screen that already shows output. The console asks the screen for
+        /// the position with a cursor position report before it draws, so the reader must be
+        /// answering reports by then.
+        cursor,
+    };
+
+    pub fn openAt(allocator: std.mem.Allocator, size: Size, start: Start) !WindowsPty {
         const columns = try checkedCoordinate(size.columns);
         const rows = try checkedCoordinate(size.rows);
         var conpty = try windows_conpty.Api.init();
@@ -72,7 +86,10 @@ pub const WindowsPty = if (builtin.os.tag != .windows) void else struct {
             .{ .X = columns, .Y = rows },
             input_console,
             output_console,
-            0,
+            switch (start) {
+                .origin => 0,
+                .cursor => windows_api.PSEUDOCONSOLE_INHERIT_CURSOR,
+            },
             &pseudo_console,
         );
         if (result != windows_api.S_OK) return error.OpenPtyFailed;
