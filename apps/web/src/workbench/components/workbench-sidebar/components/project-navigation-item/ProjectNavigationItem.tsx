@@ -221,8 +221,8 @@ export function ProjectNavigationItem({
 	const projectFoldLabel = expanded ? messages.collapseProject : messages.expandProject;
 	const recentsFoldLabel = expanded ? messages.collapseRecents : messages.expandRecents;
 	const chevronLabel = project === null ? recentsFoldLabel : `${projectFoldLabel}: ${project.name}`;
-	// Headings are never current and never filled; only the chevron folds the group, and it always
-	// shows, as the TUI's does (ORC-285).
+	// Headings are never current and never filled; only the chevron folds the group. It shows while
+	// the group is folded, and while open only under the pointer or focus, as the TUI's does.
 	const headingContent = (
 		<>
 			<SidebarTruncationTooltip content={name} render={<span className={styles['headingName']} />}>

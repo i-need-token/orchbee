@@ -16,8 +16,9 @@ export interface DesktopSidebarWorkspace extends TuiSidebarWorkspace {
 /**
  * The sidebar of the desktop application: the sidebar button, New workspace, one Project with its
  * Workspaces and their Agents, and the Settings gear alone in the footer, as a release build shows
- * it while no update is offered. The New workspace label is product chrome and follows the page
- * language. It works alone or as a DesktopWindow's `sidebar`.
+ * it while no update is offered and the pointer is elsewhere: an open Project shows no chevron, and
+ * each Workspace leads with its folder, open while its Agents show. The New workspace label is
+ * product chrome and follows the page language. It works alone or as a DesktopWindow's `sidebar`.
  */
 export function DesktopSidebar({
 	project,
@@ -43,7 +44,6 @@ export function DesktopSidebar({
 			<div className={styles['tree']}>
 				<div className={styles['project']}>
 					<span className={styles['projectName']}>{project}</span>
-					<Disclosure />
 				</div>
 				<div className={styles['list']}>
 					{workspaces.map((workspace) => (
@@ -60,25 +60,16 @@ export function DesktopSidebar({
 	);
 }
 
-/** An open group's chevron: the product turns › a quarter about its ink's center. */
-function Disclosure(): ReactElement {
-	return (
-		<span className={styles['chevron']}>
-			<span className={styles['chevronIcon']}>
-				<Codicon name='chevron-right' size='disclosure' />
-			</span>
-		</span>
-	);
-}
-
 function WorkspaceRows({ workspace }: { workspace: DesktopSidebarWorkspace }): ReactElement {
 	const { ahead = 0, behind = 0 } = workspace;
 	return (
 		<div className={styles['workspace']}>
 			<div className={workspace.selected ? styles['selectedRow'] : styles['row']}>
 				<span className={styles['line1']}>
+					<span className={styles['folder']}>
+						<Codicon name={workspace.agents.length > 0 ? 'folder-opened' : 'folder'} />
+					</span>
 					<span className={styles['name']}>{workspace.name}</span>
-					{workspace.agents.length > 0 ? <Disclosure /> : null}
 				</span>
 				<span className={styles['line2']}>
 					<span className={styles['lineText']}>{workspace.branch}</span>

@@ -233,12 +233,15 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             20,
                             pointer.projection(),
                         );
+                        // A pointed Agent takes no hover fill; a press still fills it.
                         let surface = if pressed {
                             Role::SurfacePressed
                         } else if navigate {
                             Role::SurfaceSelection
-                        } else {
+                        } else if owner {
                             Role::SurfaceHover
+                        } else {
+                            Role::SurfaceChrome
                         };
                         let expected = theme.style(surface);
                         // A Workspace keeps its branch line; a default Agent occupies one line.
@@ -274,7 +277,7 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                                 let cell = &buffer[(x, *y)];
                                 // The guide and its gap stay on chrome; keyboard focus is inside
                                 // the surface, between the state and identity.
-                                if x < first {
+                                if x < first || surface == Role::SurfaceChrome {
                                     assert_eq!(
                                         cell.bg,
                                         theme.color(Role::SurfaceChrome),

@@ -27,8 +27,18 @@
 }
 
 .glyph[data-fill='hollow'] .shape path {
-	fill: none;
+	fill-opacity: 0;
 	stroke-width: 1.5;
+}
+
+/* A row that opens its Agent declares `data-agent-glyph-preview`. Under the pointer its hollow glyph
+   fills faintly, ahead of the solid one a click gives, and the fill eases in and on to solid. */
+:global([data-agent-glyph-preview]) .shape path {
+	transition: fill-opacity var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+:global([data-agent-glyph-preview]:hover) .glyph[data-fill='hollow'] .shape path {
+	fill-opacity: var(--ob-sys-opacity-preview);
 }
 
 /* The hollow dot is a thinner ring, so its center stays open at 12 px. */

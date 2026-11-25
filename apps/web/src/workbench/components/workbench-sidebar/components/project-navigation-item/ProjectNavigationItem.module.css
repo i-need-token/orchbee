@@ -10,10 +10,12 @@
 	margin-block-start: var(--ob-ref-space-3);
 }
 
-/* Group headings: Projects and Recents. Never current, never filled; the pointer lights the
-   chevron, which alone folds the group. + and ⋯ end 4 px from the row end, in the columns of a
-   Workspace's ⋯ and ×. A heading is 24 px, 3 px around its 18 px tools, so it sits closer to its
-   first Workspace than Workspaces sit to each other and reads as that group's heading. */
+/* Group headings: Projects and Recents. Never current, never filled. The chevron alone folds the
+   group; it shows while the group is folded, and an open group shows it only under the pointer or
+   focus, so the heading reads as plain text above its Workspaces' folders. + and ⋯ end 4 px from
+   the row end, in the columns of a Workspace's ⋯ and ×. A heading is 24 px, 3 px around its 18 px
+   tools, so it sits closer to its first Workspace than Workspaces sit to each other and reads as
+   that group's heading. */
 .heading {
 	position: relative;
 	display: flex;
@@ -145,6 +147,16 @@
 	transform: rotate(90deg);
 }
 
+/* The icon hides, not the chevron, which stays focusable for keyboard navigation. */
+.heading .chevronIcon[data-open] {
+	visibility: hidden;
+}
+
+.heading:is(:hover, [data-popup-open], :has(:focus-visible), :has(.tool[aria-expanded='true']))
+	.chevronIcon {
+	visibility: visible;
+}
+
 .workspaceList {
 	display: grid;
 	min-width: 0;
@@ -158,6 +170,11 @@
 	.chevronIcon {
 		transition: none;
 	}
+}
+
+/* Touch has no pointer presence, so an open group's chevron always shows. */
+:global([data-workbench-touch]) .heading .chevronIcon {
+	visibility: visible;
 }
 
 /* Touch sizes (D18): a heading is a 44 px row. */

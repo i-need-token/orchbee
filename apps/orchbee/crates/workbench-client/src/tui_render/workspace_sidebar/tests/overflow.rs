@@ -350,19 +350,16 @@ fn project_group_gap_stays_inert_while_hover_raises_only_the_inline_disclosure_g
                                         Some(HitTarget::CreateMenu(_))
                                     )
                             }));
-                            assert_eq!(
-                                candidate[(disclosure_x, project_y)].fg,
-                                theme.color(if on_row {
-                                    Role::TextPrimary
-                                } else {
-                                    Role::TextSecondary
-                                })
-                            );
-                            // The expanded Project's disclosure shows with or without the pointer.
-                            assert_eq!(
-                                candidate[(disclosure_x, project_y)].symbol(),
-                                theme.glyphs.disclosure_open
-                            );
+                            if on_row {
+                                assert_eq!(
+                                    candidate[(disclosure_x, project_y)].fg,
+                                    theme.color(Role::TextPrimary)
+                                );
+                                assert_eq!(
+                                    candidate[(disclosure_x, project_y)].symbol(),
+                                    theme.glyphs.disclosure_open
+                                );
+                            }
                             for gap_y in last_workspace_y + 1..project_y {
                                 for gap_x in 0..width {
                                     assert_eq!(candidate[(gap_x, gap_y)].symbol(), " ");

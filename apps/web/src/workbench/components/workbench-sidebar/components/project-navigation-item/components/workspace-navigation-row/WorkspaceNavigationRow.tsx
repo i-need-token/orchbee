@@ -96,9 +96,11 @@ interface WorkspaceNavigationRowProps {
 }
 
 /**
- * One Workspace: the name and its fold chevron, then the branch or folder, or the folded Agents'
- * states. The end area is reserved at all times, so the name truncates at one width; it holds ↑↓
- * and the unread dot at rest, and ⋯ and × under the pointer or focus.
+ * One Workspace: a folder, open while its Agent rows show, then the name, and beneath it the branch
+ * or folder, or the folded Agents' states. Under the pointer or focus a Workspace with Agents shows
+ * its fold chevron in the folder's place. The end area is reserved at all times, so the name
+ * truncates at one width; it holds ↑↓ and the unread dot at rest, and ⋯ and × under the pointer or
+ * focus.
  */
 export function WorkspaceNavigationRow({
 	active,
@@ -232,6 +234,37 @@ export function WorkspaceNavigationRow({
 						type='button'
 					/>
 					<span className={styles['line1']}>
+						<span className={styles['lead']}>
+							<span className={styles['folder']}>
+								<ProductIcon name={expanded ? 'folder-opened' : 'folder'} />
+							</span>
+							{agentOverview === undefined || dragging ? null : (
+								<Tooltip>
+									<TooltipTrigger
+										render={
+											<button
+												aria-expanded={expanded}
+												aria-label={
+													expanded ? agentOverview.collapseLabel : agentOverview.expandLabel
+												}
+												className={styles['chevron']}
+												data-navigation-reorder-excluded='true'
+												tabIndex={-1}
+												type='button'
+												onClick={() => toggleWorkspaceAgents(workspace.id)}
+											/>
+										}
+									>
+										<span className={styles['chevronIcon']} data-open={expanded || undefined}>
+											<ProductIcon name='chevron-right' size='disclosure' />
+										</span>
+									</TooltipTrigger>
+									<TooltipContent side='bottom'>
+										{expanded ? agentOverview.collapseLabel : agentOverview.expandLabel}
+									</TooltipContent>
+								</Tooltip>
+							)}
+						</span>
 						<SidebarTruncationTooltip
 							content={name}
 							render={<span className={styles['name']} />}
@@ -240,32 +273,6 @@ export function WorkspaceNavigationRow({
 							{name}
 						</SidebarTruncationTooltip>
 						{machineMark === null ? null : <WorkspaceMachineMark mark={machineMark} />}
-						{agentOverview === undefined || dragging ? null : (
-							<Tooltip>
-								<TooltipTrigger
-									render={
-										<button
-											aria-expanded={expanded}
-											aria-label={
-												expanded ? agentOverview.collapseLabel : agentOverview.expandLabel
-											}
-											className={styles['chevron']}
-											data-navigation-reorder-excluded='true'
-											tabIndex={-1}
-											type='button'
-											onClick={() => toggleWorkspaceAgents(workspace.id)}
-										/>
-									}
-								>
-									<span className={styles['chevronIcon']} data-open={expanded || undefined}>
-										<ProductIcon name='chevron-right' size='disclosure' />
-									</span>
-								</TooltipTrigger>
-								<TooltipContent side='bottom'>
-									{expanded ? agentOverview.collapseLabel : agentOverview.expandLabel}
-								</TooltipContent>
-							</Tooltip>
-						)}
 					</span>
 					<span className={styles['line2']} data-agent-status={folded ? '' : undefined}>
 						{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}

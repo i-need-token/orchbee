@@ -268,7 +268,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         hits.hit_target_at(0, y) == Some(&HitTarget::NewWorkspaceButton)
                     })
                 );
-                // An expanded Project at rest keeps its muted label and shows its disclosure.
+                // An expanded Project at rest keeps its muted label.
                 let project_y = (0..height).find(|y| {
                     matches!(
                         hits.hit_target_at(0, *y),
@@ -276,10 +276,6 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     )
                 });
                 if let Some(project_y) = project_y {
-                    assert!((0..sidebar_width).any(|x| matches!(
-                        hits.hit_target_at(x, project_y),
-                        Some(HitTarget::SidebarDisclosure(target)) if target == &project
-                    )));
                     let project_tracks = layout::Tracks::resolve_for_width(
                         Rect::new(0, project_y, sidebar_width - 2, 1),
                         0,
@@ -288,7 +284,6 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                         layout::RowKind::for_target(&project),
                     )
                     .unwrap();
-                    assert_eq!(project_tracks.primary.x, 1);
                     assert_eq!(buffer[(project_tracks.primary.x, project_y)].symbol(), "R");
                     assert_eq!(
                         buffer[(project_tracks.primary.x, project_y)].fg,
@@ -325,7 +320,6 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     buffer[(agent_tracks.navigation.x, agent_y)].symbol(),
                     theme.glyphs.navigation_marker
                 );
-                assert_eq!(agent_tracks.guide.x, 1);
                 assert_eq!(
                     buffer[(agent_tracks.guide.x, agent_y)].symbol(),
                     theme.glyphs.tree_guide
@@ -334,9 +328,13 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                     buffer[(agent_tracks.state.x, agent_y)].symbol(),
                     theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
                 );
-                assert_eq!(agent_tracks.state.x, 4);
-                assert_eq!(buffer[(3, agent_y)].symbol(), " ");
-                assert_eq!(buffer[(3, agent_y)].bg, theme.color(Role::SurfaceSelection));
+                // The navigated Agent's surface opens with one blank cell before its state.
+                let padding = agent_tracks.state.x - 1;
+                assert_eq!(buffer[(padding, agent_y)].symbol(), " ");
+                assert_eq!(
+                    buffer[(padding, agent_y)].bg,
+                    theme.color(Role::SurfaceSelection)
+                );
                 assert_eq!(buffer[(agent_tracks.primary.x, agent_y)].symbol(), "I");
                 for x in 0..28 {
                     assert!(matches!(
@@ -407,7 +405,7 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 let exact = sidebar_target_rows(&hits, 30, 40, target);
                 assert_eq!(exact.len(), 3, "{target:?}: {text}");
                 assert!(
-                    rows[usize::from(exact[0])].starts_with(" same"),
+                    rows[usize::from(exact[0])].trim_start().starts_with("same"),
                     "a configured state icon paints nothing before a Workspace name: {text}"
                 );
                 assert!(exact.windows(2).all(|pair| pair[1] == pair[0] + 1));
@@ -1350,18 +1348,13 @@ fn project_context_and_auxiliary_tracks_cover_every_multirow_cell_without_overla
                 assert!(view.machines.focus_sidebar_target(&focused));
                 let (candidate, sink, hits) =
                     paint_navigation_buffers(&view, locale, &theme, width, 10);
-                // Unfocused, the Project keeps only its disclosure; Create is hidden again.
+                // Unfocused, the hidden controls publish no targets of their own.
                 for y in sidebar_target_rows(&hits, width, 10, &project) {
                     for x in 0..width {
-                        let hit = hits.hit_target_at(x, y);
-                        if project_tracks.disclosure.contains((x, y).into()) {
-                            assert_eq!(hit, Some(&HitTarget::SidebarDisclosure(project.clone())));
-                        } else {
-                            assert!(matches!(
-                                hit,
-                                Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
-                            ));
-                        }
+                        assert!(matches!(
+                            hits.hit_target_at(x, y),
+                            Some(HitTarget::MachineGroupRow { target, .. }) if target == &project
+                        ));
                     }
                 }
                 let focused_rows = sidebar_target_rows(&hits, width, 10, &focused);
@@ -1662,15 +1655,10 @@ fn projects_precede_recents_and_create_has_no_overflow_slot() {
         let heading = (0..40)
             .map(|x| buffer[(x, first_workspace - 1)].symbol())
             .collect::<String>();
-        // Wide glyphs leave blank continuation cells; the heading carries no member count, only
-        // its disclosure.
+        // Wide glyphs leave blank continuation cells; the heading carries no member count.
         assert_eq!(
             heading.replace(' ', ""),
-            format!(
-                "{}{}",
-                locale.machine_picker_text("sidebar-recents"),
-                Theme::terminal_native().glyphs.disclosure_open
-            ),
+            locale.machine_picker_text("sidebar-recents"),
             "{heading:?}"
         );
         for x in 0..40 {

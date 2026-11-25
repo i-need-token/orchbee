@@ -120,7 +120,11 @@ such as an inactive tab, an auxiliary button, or an icon action, rises to `text-
 keep their content hierarchy, including secondary headings and metadata. A group heading whose body
 is inert and that folds only through its disclosure glyph is the exception: its row paints no hover
 or press surface, so the feedback names the one control that acts and never merges with the rows
-beneath it. A disclosure glyph never takes a fill of its own; any row with one raises the glyph to
+beneath it. An open group shows that glyph only under pointer presence or keyboard focus, and a
+folded one always shows it. A row whose current state takes no fill, such as an Agent under its
+current Workspace, takes no hover surface either and previews its current cues faintly instead, as
+[`INTERFACE-DESIGN.md`](../INTERFACE-DESIGN.md#visual-roles-and-themes) describes; a press still
+fills it. A disclosure glyph never takes a fill of its own; any row with one raises the glyph to
 `text-primary` while the pointer is on the row or the glyph, so a row that activates as a whole
 still shows where it folds. `BOLD` marks press and any current identity whose owner documents
 bold. An open action menu updates its provisional

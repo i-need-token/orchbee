@@ -83,21 +83,6 @@
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-sm);
 }
-.chevron {
-	display: inline-flex;
-	flex: none;
-	justify-content: center;
-	align-items: center;
-	width: var(--ob-ref-size-control-2xs);
-	height: var(--ob-ref-size-control-2xs);
-	color: var(--ob-sys-color-icon-muted);
-}
-/* Codicon draws › right of center, at 8.75 of its 16 units; the open chevron turns about that. */
-.chevronIcon {
-	display: inline-flex;
-	transform: rotate(90deg);
-	transform-origin: calc(100% * 8.75 / 16) 50%;
-}
 .list,
 .workspace,
 .agents {
@@ -132,8 +117,21 @@
 }
 .line2 {
 	height: var(--ob-ref-space-3);
+	padding-left: calc(var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1-5));
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
+}
+/* The folder stands in the Agents' state column, so the name and branch align with their titles. */
+.folder {
+	display: inline-flex;
+	flex: none;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-sm);
+	margin-right: calc(var(--ob-ref-space-1-5) - var(--ob-ref-space-0-5));
+	color: var(--ob-sys-color-icon-secondary);
+}
+.selectedRow .folder {
+	color: var(--ob-sys-color-icon-primary);
 }
 .endInfo {
 	position: absolute;
@@ -152,15 +150,16 @@
 .behind {
 	color: var(--ob-sys-color-status-warning-text);
 }
-/* An Agent row stands under a 1 px guide at the Workspace name's start and takes no current fill;
-   the current Agent has a 2 px stretch of the guide, a solid glyph and a heavier title. */
+/* An Agent row's glyph stands in its Workspace's folder column and its title aligns with the name;
+   a 1 px guide runs down the gutter before the glyphs. No Agent takes a current fill: the current
+   Agent has a 2 px stretch of the guide in the selection accent, a solid glyph and a heavier
+   title. */
 .agent {
 	position: relative;
 	display: grid;
 	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
 	column-gap: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-size-control-sm);
-	margin-left: var(--ob-ref-space-3);
 	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-muted);
@@ -171,19 +170,16 @@
 .agent[data-current]::after {
 	position: absolute;
 	inset-block: var(--ob-ref-space-1);
-	inset-inline-start: calc(
-		var(--ob-ref-space-1) * -1 -
-			(var(--ob-ref-border-width-strong) - var(--ob-ref-border-width-default)) / 2
-	);
+	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-strong) / 2);
 	width: var(--ob-ref-border-width-strong);
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-icon-primary);
+	background: var(--ob-sys-color-border-selected);
 	content: '';
 }
 .agent::before {
 	position: absolute;
 	inset-block: calc(var(--ob-ref-space-0-5) / -2);
-	inset-inline-start: calc(var(--ob-ref-space-1) * -1);
+	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-default) / 2);
 	width: var(--ob-ref-border-width-default);
 	background: var(--ob-sys-color-border-subtle);
 	content: '';

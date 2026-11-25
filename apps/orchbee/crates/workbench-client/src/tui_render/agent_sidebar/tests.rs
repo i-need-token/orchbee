@@ -769,13 +769,12 @@ fn compact_sidebar_visual_rows_and_mouse_bounds_match_the_painted_window() {
     let row_of = |text: &str| rows.iter().position(|row| row.contains(text)).unwrap();
     let search = row_of(" Search ");
     assert!(row_of(" New workspace ") < search, "{rows:?}");
-    // The heading over ungrouped Workspaces names the group without a member count; its
-    // disclosure always shows.
+    // The heading over ungrouped Workspaces names the group without a member count.
     let heading = Locale::EnUs.machine_picker_text("sidebar-recents");
     let recents = row_of(heading);
     assert_eq!(
         rows[recents].split_whitespace().collect::<Vec<_>>(),
-        [heading, theme.glyphs.disclosure_open, "│"],
+        [heading, "│"],
         "{rows:?}"
     );
     let workspace = recents
@@ -841,13 +840,12 @@ fn sidebar_shares_source_order_and_never_lists_unavailable_rows() {
     ]);
     let (rows, hits) = paint(&view, Locale::EnUs, &Theme::rgb_test_dark(), 120, 40);
     let joined = rows.join("\n");
-    let glyphs = Theme::rgb_test_dark().glyphs;
     assert_eq!(
-        rows.iter()
-            .filter(|line| line
-                .chars()
-                .nth(1)
-                .is_some_and(|ch| glyphs.tree_guide.starts_with(ch)))
+        (0..40)
+            .filter(|y| matches!(
+                hits.hit_target_at(2, *y),
+                Some(HitTarget::MachineAgentRow { .. })
+            ))
             .count(),
         2,
         "{joined}"

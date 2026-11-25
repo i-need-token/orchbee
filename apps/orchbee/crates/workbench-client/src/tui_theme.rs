@@ -27,6 +27,10 @@ pub(crate) use tab_groups::TabGroupPalette;
 /// One semantic color role. Rendering code references roles only;
 /// `Color::Rgb`, `Color::Indexed`, and named ANSI variants appear only here
 /// and in shipped theme values.
+/// The share of full color a pointer's preview takes: the solid glyph and the guide stretch a click
+/// would give, drawn faintly on the pointed row.
+pub(crate) const PREVIEW_STRENGTH: f64 = 0.5;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Role {
     TextPrimary,
@@ -632,12 +636,23 @@ impl Theme {
         state: orchbee_workbench_protocol::MetadataState,
         frame: usize,
     ) -> Style {
+        self.agent_style_at(state, frame, 1.0)
+    }
+
+    /// The state's style at `strength` of its full color, its motion included. A pointer's preview
+    /// of the solid glyph a click would give takes [`PREVIEW_STRENGTH`].
+    pub(crate) fn agent_style_at(
+        &self,
+        state: orchbee_workbench_protocol::MetadataState,
+        frame: usize,
+        strength: f64,
+    ) -> Style {
         let style = self.style(Self::agent_role(state));
         use orchbee_workbench_protocol::MetadataState::{Blocked, Working};
         if self.no_color || self.color_level == ColorLevel::Monochrome {
             return style;
         }
-        let intensity = match state {
+        let motion = match state {
             Working => {
                 let phase = (frame % 20) as f64 / 20.0 * std::f64::consts::TAU;
                 0.5 + 0.5 * (1.0 + phase.cos()) / 2.0
@@ -647,15 +662,29 @@ impl Theme {
             | orchbee_workbench_protocol::MetadataState::Idle
             | orchbee_workbench_protocol::MetadataState::Done
             | orchbee_workbench_protocol::MetadataState::Error
-            | orchbee_workbench_protocol::MetadataState::Unknown => return style,
+            | orchbee_workbench_protocol::MetadataState::Unknown => 1.0,
         };
+        self.faded(style, motion * strength, state == Working || strength < 1.0)
+    }
+
+    /// A pointer's faint foretaste of `style`, such as the current Agent's guide stretch on the row
+    /// a click would make current.
+    pub(crate) fn preview_style(&self, style: Style) -> Style {
+        self.faded(style, PREVIEW_STRENGTH, true)
+    }
+
+    /// Blends `style`'s foreground toward the canvas to `intensity` of its strength. Without RGB
+    /// for both, a truecolor host may assume a black or white canvas when `assume_canvas` allows;
+    /// otherwise a faint enough intensity falls back to DIM.
+    fn faded(&self, style: Style, intensity: f64, assume_canvas: bool) -> Style {
+        if intensity >= 1.0 {
+            return style;
+        }
         let colors = match (style.fg, self.styles.surface_canvas.bg) {
             (Some(Color::Rgb(r, g, b)), Some(Color::Rgb(br, bg, bb))) => {
                 Some(((r, g, b), (br, bg, bb)))
             }
-            (Some(foreground), _)
-                if state == Working && self.color_level == ColorLevel::Truecolor =>
-            {
+            (Some(foreground), _) if assume_canvas && self.color_level == ColorLevel::Truecolor => {
                 // System surfaces keep Reset even when the outer host's RGB is known. Child
                 // terminal preferences must not replace the background used by authored chrome.
                 let background = (self.terminal_color_source == TerminalColorSource::OuterHost)

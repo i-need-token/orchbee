@@ -266,8 +266,8 @@ combinations and control behavior.
   with `*` as its ASCII fallback.
 - One glyph has one meaning across the Client. Document glyph meanings with the owning surface.
   ASCII fallbacks may share a character only when their tracks never coincide: the collapsed
-  disclosure `>` follows an identity or label, while the navigation `>` occupies the leading
-  navigation track.
+  disclosure `>` follows a heading's label or leads a Workspace's name in its Agents' state column,
+  while the navigation `>` occupies its own navigation track.
 
 ## Display width and text safety
 

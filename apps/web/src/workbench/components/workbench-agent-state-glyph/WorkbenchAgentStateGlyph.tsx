@@ -36,7 +36,9 @@ const FIGURE_PATHS: Readonly<
 
 /**
  * One Agent state's glyph in its tone, always at the status-glyph size (`icon-xs`). Its tone says
- * the state; solid or hollow says whether it is current. The state's words come from its owner.
+ * the state; solid or hollow says whether it is current. The state's words come from its owner. An
+ * ancestor marked `data-agent-glyph-preview`, a row that opens the Agent, fills a hollow glyph
+ * faintly under the pointer.
  */
 export function WorkbenchAgentStateGlyph({
 	alignment = 'center',

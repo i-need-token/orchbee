@@ -2,6 +2,8 @@ import add from '@vscode/codicons/src/icons/add.svg?raw';
 import chevronRight from '@vscode/codicons/src/icons/chevron-right.svg?raw';
 import close from '@vscode/codicons/src/icons/close.svg?raw';
 import ellipsis from '@vscode/codicons/src/icons/ellipsis.svg?raw';
+import folderOpened from '@vscode/codicons/src/icons/folder-opened.svg?raw';
+import folder from '@vscode/codicons/src/icons/folder.svg?raw';
 import layoutSidebarLeft from '@vscode/codicons/src/icons/layout-sidebar-left.svg?raw';
 import settingsGear from '@vscode/codicons/src/icons/settings-gear.svg?raw';
 import terminal from '@vscode/codicons/src/icons/terminal.svg?raw';
@@ -16,6 +18,8 @@ const SOURCES = {
 	'chevron-right': chevronRight,
 	close,
 	ellipsis,
+	folder,
+	'folder-opened': folderOpened,
 	'layout-sidebar-left': layoutSidebarLeft,
 	'settings-gear': settingsGear,
 	terminal,

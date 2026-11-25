@@ -151,22 +151,26 @@ fn disclosure_packet(rect: Rect, twice: bool) -> Vec<u8> {
     .into_bytes()
 }
 
+fn published_disclosure_cell(
+    map: &crate::tui_hit_map::FrameHitMap,
+    target: &crate::machine_picker::SidebarTarget,
+) -> Option<Rect> {
+    let expected = HitTarget::SidebarDisclosure(target.clone());
+    (0..40)
+        .flat_map(|y| (0..30).map(move |x| (x, y)))
+        .find(|&(x, y)| map.hit_target_at(x, y) == Some(&expected))
+        .map(|(x, y)| Rect::new(x, y, 1, 1))
+}
+
 fn disclosure_cell(
     map: &crate::tui_hit_map::FrameHitMap,
     target: &crate::machine_picker::SidebarTarget,
 ) -> Rect {
-    let expected = HitTarget::SidebarDisclosure(target.clone());
-    for y in 0..40 {
-        for x in 0..30 {
-            if map.hit_target_at(x, y) == Some(&expected) {
-                return Rect::new(x, y, 1, 1);
-            }
-        }
-    }
-    panic!("rendered disclosure cell");
+    published_disclosure_cell(map, target).expect("rendered disclosure cell")
 }
 
-/// Disclosure shows at rest: hover the row, then publish the frame that keeps the same cell.
+/// Hover the row, then publish the frame that shows its disclosure; a disclosure shown at rest
+/// keeps its cell.
 fn revealed_disclosure(
     dispatcher: &mut InputDispatcher,
     view: &mut ClientView,
@@ -181,14 +185,16 @@ fn revealed_disclosure(
         )
     };
     let map = paint(dispatcher, view);
-    let resting = disclosure_cell(&map, target);
+    let resting = published_disclosure_cell(&map, target);
     let (x, y) = sidebar_primary_cell(&map, target);
     dispatcher.publish_hit_map(map);
     let motion = format!("\x1b[<35;{};{}M", x + 1, y + 1);
     dispatch_all(dispatcher, view, port, motion.as_bytes());
     let map = paint(dispatcher, view);
     let disclosure = disclosure_cell(&map, target);
-    assert_eq!(disclosure, resting, "hover never moves the disclosure");
+    if let Some(resting) = resting {
+        assert_eq!(disclosure, resting, "hover never moves the disclosure");
+    }
     dispatcher.publish_hit_map(map);
     disclosure
 }

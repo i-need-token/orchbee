@@ -117,11 +117,22 @@ to common roles as follows; the mapping does not require identical token names o
 
 A current item listed directly beneath its current parent, such as the current Agent under the
 current Workspace, takes no current fill of its own: two fills meeting read as one block. It shows
-itself by a stronger stretch of its guide, stronger primary text and a solid state glyph. An Agent
-state glyph's color names the state in both Clients and its fill names selection: solid for the
-current Agent, the active Tab and the focused Panel, and hollow everywhere else, legends included.
-Where a TUI host shows no color, each state keeps a shape of its own instead, and selection rests on
-the guide and the title.
+itself by a stretch of its guide in the selection accent, the GUI's `--ob-sys-color-border-selected`
+and the TUI's `accent-focus`, stronger primary text and a solid state glyph. Such a row takes no
+hover fill either: under the pointer it previews those cues faintly, a faint stretch and a faintly
+filled glyph, and its title rises to primary text. An Agent state glyph's color names the state in
+both Clients and its fill names selection: solid for the current Agent, the active Tab and the
+focused Panel, and hollow everywhere else, legends included; a pointed row's faint fill only
+foretells the selection a click would give. Where a TUI host shows no color, each state keeps a
+shape of its own instead, selection rests on the guide and the title, and the pointer previews
+nothing.
+
+In the sidebar a Workspace's fold control leads its name, in the column of its Agents' state
+glyphs, so the name and its supporting line align with the Agent titles and a Workspace never reads
+as the Project heading above it. The GUI rests that column on a folder, open while the Agent rows
+show, which becomes the fold control under the pointer or focus; the TUI always shows its disclosure
+glyph, since it cannot draw a folder in one cell. A Project or Recents heading shows its fold
+control while folded, and while open only under the pointer or focus.
 
 Focus, hover, press, current context, provisional selection, checked value, availability, and
 operation status are independent facts. Define their combined appearance at the owning surface;

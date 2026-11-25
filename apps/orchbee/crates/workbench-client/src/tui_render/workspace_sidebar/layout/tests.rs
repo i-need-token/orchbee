@@ -15,23 +15,23 @@ fn group_owner_and_agent_tracks_align_the_tree_across_width_modes() {
         assert_eq!(owner.density(), density);
         assert_eq!(owner.auxiliary.width, auxiliary);
         assert_eq!(owner.content_y, 5);
-        // Headings and Workspaces share the edge marker cell and the identity column.
+        // Headings and Workspaces share the edge marker cell and fill the whole band.
         for tracks in [group, owner] {
             assert_eq!(tracks.navigation, Rect::new(band.x, 4, 1, 3));
-            assert_eq!(tracks.primary.x, band.x + NAVIGATION_WIDTH);
             assert!(tracks.state.is_empty() && tracks.guide.is_empty());
             assert_eq!(tracks.surface(), band);
         }
-        // The guide sits under the Workspace name; the padded Agent surface leaves a chrome gap.
-        assert_eq!(agent.guide, Rect::new(owner.primary.x, 4, GUIDE_WIDTH, 3));
-        assert_eq!(agent.surface().x, agent.guide.right() + GUIDE_GAP);
-        assert_eq!(agent.state.x, agent.surface().x + ROW_LEADING_PADDING);
-        assert_eq!(agent.navigation.x, agent.state.right());
-        assert_eq!(agent.primary.x, band.x + 6);
+        // A Workspace's disclosure stands in its Agents' state column and its name in their title
+        // column; the guide stays on chrome, before the padded Agent surface.
+        assert_eq!(owner.disclosure, Rect::new(agent.state.x, 5, 1, 1));
+        assert_eq!(owner.primary.x, agent.primary.x);
+        assert!(agent.guide.right() <= agent.surface().x);
+        assert!(agent.surface().x < agent.state.x);
         assert_eq!(agent.surface().right(), band.right());
+        assert_eq!(group.navigation.right(), group.primary.x);
+        assert_eq!(agent.navigation.right(), agent.primary.x);
+        assert!(group.disclosure.is_empty() && agent.disclosure.is_empty());
         for tracks in [group, owner, agent] {
-            assert_eq!(tracks.navigation.right(), tracks.primary.x);
-            assert!(tracks.disclosure.is_empty());
             assert_eq!(
                 tracks.unread,
                 Rect::new(tracks.primary.right() - 1, 4, 1, 3)
@@ -42,31 +42,29 @@ fn group_owner_and_agent_tracks_align_the_tree_across_width_modes() {
 }
 
 #[test]
-fn disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
+fn heading_disclosure_follows_displayed_identity_and_only_owns_its_first_line_cell() {
     for width in [24, 30, 60] {
-        for kind in [RowKind::Group, RowKind::Owner] {
-            let tracks = Tracks::resolve(
-                Rect::new(3, 4, width, 4),
-                1,
-                AuxiliaryActions::new(true),
-                kind,
-            )
-            .unwrap();
-            for displayed_width in [0, 3, 8, usize::MAX] {
-                let inline = tracks.with_disclosure_after(displayed_width);
-                assert_eq!(inline.primary, tracks.primary);
-                assert_eq!(inline.auxiliary, tracks.auxiliary);
-                assert_eq!(inline.disclosure.y, 5);
-                assert_eq!(inline.disclosure.height, 1);
-                assert_eq!(inline.disclosure.width, 1);
-                assert_eq!(
-                    inline.disclosure.x,
-                    tracks.primary.x
-                        + displayed_width.min(usize::from(tracks.text_width(true))) as u16
-                        + 1
-                );
-                assert!(inline.disclosure.right() <= tracks.primary.right());
-            }
+        let tracks = Tracks::resolve(
+            Rect::new(3, 4, width, 4),
+            1,
+            AuxiliaryActions::new(true),
+            RowKind::Group,
+        )
+        .unwrap();
+        for displayed_width in [0, 3, 8, usize::MAX] {
+            let inline = tracks.with_disclosure_after(displayed_width);
+            assert_eq!(inline.primary, tracks.primary);
+            assert_eq!(inline.auxiliary, tracks.auxiliary);
+            assert_eq!(inline.disclosure.y, 5);
+            assert_eq!(inline.disclosure.height, 1);
+            assert_eq!(inline.disclosure.width, 1);
+            assert_eq!(
+                inline.disclosure.x,
+                tracks.primary.x
+                    + displayed_width.min(usize::from(tracks.text_width(true))) as u16
+                    + 1
+            );
+            assert!(inline.disclosure.right() <= tracks.primary.right());
         }
     }
 }
@@ -78,7 +76,7 @@ fn insufficient_identity_width_omits_disclosure_instead_of_publishing_a_phantom_
             Rect::new(0, 0, width, 1),
             0,
             AuxiliaryActions::default(),
-            RowKind::Owner,
+            RowKind::Group,
         )
         .unwrap();
         assert_eq!(tracks.text_width(true), tracks.primary.width);

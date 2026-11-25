@@ -30,7 +30,9 @@ export interface TuiSidebarWorkspace {
 
 /**
  * The sidebar of the terminal interface: New workspace, one Project with its Workspaces and their
- * Agents, and Settings. The two actions are product chrome and follow the page language.
+ * Agents, and Settings. The two actions are product chrome and follow the page language. An open
+ * Project shows no disclosure at rest; a Workspace's disclosure leads its name in its Agents' state
+ * column, so the name aligns with their titles, and the guide runs down the list edge.
  */
 export function TuiSidebar({
 	project,
@@ -47,7 +49,7 @@ export function TuiSidebar({
 				<span className={styles['dim']}>[«]</span>
 			</div>
 			<div className={styles['tree']}>
-				<div className={styles['project']}>{project} ▾</div>
+				<div className={styles['project']}>{project}</div>
 				{workspaces.map((workspace) => (
 					<WorkspaceRows key={workspace.name} workspace={workspace} />
 				))}
@@ -64,11 +66,11 @@ function WorkspaceRows({ workspace }: { workspace: TuiSidebarWorkspace }): React
 	return (
 		<>
 			<div className={workspace.selected ? styles['selectedWorkspace'] : styles['workspace']}>
-				<div>
-					{workspace.name}
-					{workspace.agents.length > 0 ? ' ▾' : ''}
+				<div className={styles['identity']}>
+					<span className={styles['disclosure']}>{workspace.agents.length > 0 ? '▾' : ''}</span>
+					<span>{workspace.name}</span>
 				</div>
-				<div className={styles['dim']}>{workspace.branch}</div>
+				<div className={styles['branch']}>{workspace.branch}</div>
 			</div>
 			{workspace.agents.map((agent) => (
 				<div
@@ -78,6 +80,7 @@ function WorkspaceRows({ workspace }: { workspace: TuiSidebarWorkspace }): React
 					data-current={agent.current === true ? '' : undefined}
 					data-scene-show={agent.bind?.shown}
 				>
+					<span className={styles['guide']}>{agent.current === true ? '┃' : '│'}</span>
 					<StateGlyph
 						state={agent.state}
 						selected={agent.current === true}

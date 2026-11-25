@@ -10,6 +10,7 @@ use super::{
     Theme, display_width, sidebar_text, tooltip, truncate_display,
 };
 use crate::terminal_text::{line_display_width, sanitize_terminal_text};
+use crate::tui_theme::PREVIEW_STRENGTH;
 use crate::{
     client_view::ClientAction,
     localization::TooltipLabel,
@@ -21,7 +22,7 @@ use crate::{
     },
 };
 use orchbee_local_runtime::{SidebarTokenStyle, SpaceSidebarToken, SpaceSidebarTokenKind as Kind};
-use ratatui::style::Modifier;
+use ratatui::style::{Modifier, Style};
 use sidebar_text::{fit, machine_label, marker_cells, state_role, truncate_machine_name};
 pub(super) mod agent_tokens;
 mod layout;
@@ -1181,27 +1182,36 @@ fn gap_before(view: &ClientView, rows: &[SidebarRow<'_>], index: usize, space_ga
 
 /// The muted guide spans every child line and intervening gap without horizontal branches. Beside
 /// the current Agent's `current` content lines it turns heavy and primary.
+/// `stretch` gives the lines and style of the guide's heavier stretch: the current Agent's in the
+/// selection accent, `accent-focus`, which the GUI's `border-selected` matches, or a pointed
+/// Agent's faint preview of it.
 fn paint_tree_guide(
     frame: &mut Frame<'_>,
     band: Rect,
     tracks: layout::Tracks,
     follows_sibling: bool,
-    current: Option<u16>,
+    stretch: Option<(u16, Style)>,
     theme: &Theme,
 ) {
-    let style =
-        |role| theme.content_on_surface(Role::SurfaceChrome, None, Some(role), theme.style(role));
-    let current_lines =
-        tracks.content_y..tracks.content_y.saturating_add(current.unwrap_or_default());
+    let on_chrome =
+        |role, content| theme.content_on_surface(Role::SurfaceChrome, None, Some(role), content);
+    let (stretch_height, stretch_style) = stretch.unwrap_or_default();
+    let stretch_lines = tracks.content_y..tracks.content_y.saturating_add(stretch_height);
     for y in band.y..band.bottom() {
         if y >= tracks.content_y || follows_sibling {
-            let (glyph, role) = if current_lines.contains(&y) {
-                (theme.glyphs.tree_guide_current, Role::TextPrimary)
+            let (glyph, style) = if stretch_lines.contains(&y) {
+                (
+                    theme.glyphs.tree_guide_current,
+                    on_chrome(Role::AccentFocus, stretch_style),
+                )
             } else {
-                (theme.glyphs.tree_guide, Role::FrameGuide)
+                (
+                    theme.glyphs.tree_guide,
+                    on_chrome(Role::FrameGuide, theme.style(Role::FrameGuide)),
+                )
             };
             frame.render_widget(
-                Paragraph::new(glyph).style(style(role)),
+                Paragraph::new(glyph).style(style),
                 Rect::new(tracks.guide.x, y, tracks.guide.width, 1),
             );
         }
@@ -1670,10 +1680,16 @@ pub(super) fn render(
                 let rect = icon_action_rect(frame.area(), offered)?;
                 (rect.x >= tracks.primary.x).then_some((rect, InteractionTarget::Sidebar(drawn)))
             });
+        // Only a Project or Recents heading's disclosure folds it. The heading takes no fill that
+        // would join the Workspace surfaces directly beneath it, and an open group shows its
+        // disclosure only under pointer presence or keyboard focus, so the heading reads as plain
+        // text above its Workspaces' leading disclosures.
+        let heading = matches!(row, SidebarRow::Project { .. } | SidebarRow::Recents { .. });
+        let disclosure_rests = !heading || expanded == Some(false);
         // Disclosure, Create and close are revealed children recorded in this order before the
         // row. A frame publishes a child only when it also paints it, so every pointer is
         // projected against the exposure its reveal frame published: the pointer-revealed set,
-        // then the set shown without a pointer (keyboard focus, or the always-shown disclosure).
+        // then the set shown without a pointer (keyboard focus, or a disclosure that rests shown).
         // Projecting without them would orphan hover or press after a reveal.
         let revealed_children: Vec<_> = [
             disclosure_target
@@ -1694,7 +1710,7 @@ pub(super) fn render(
         let resting = if focused {
             revealed_children.len() - usize::from(close_target.is_some())
         } else {
-            usize::from(disclosure_target.is_some())
+            usize::from(disclosure_target.is_some() && disclosure_rests)
         };
         let project =
             |hits: &mut HitMapBuilder,
@@ -1751,13 +1767,14 @@ pub(super) fn render(
         } else {
             row_pointer
         };
-        // Only a Project or Recents heading's disclosure folds it. The heading takes no fill that
-        // would join the Workspace surfaces directly beneath it.
-        let heading = matches!(row, SidebarRow::Project { .. } | SidebarRow::Recents { .. });
-        let surface_pointer = if heading {
-            PointerPresentation::Rest
-        } else {
-            row_paint_pointer
+        // A pointed Agent takes no hover fill, as its current state takes none: the guide, glyph
+        // and title preview the current Agent's cues instead. A press still fills it.
+        let surface_pointer = match row {
+            SidebarRow::Project { .. } | SidebarRow::Recents { .. } => PointerPresentation::Rest,
+            SidebarRow::Agent { .. } if row_paint_pointer == PointerPresentation::Hovered => {
+                PointerPresentation::Rest
+            }
+            SidebarRow::Agent { .. } | SidebarRow::Context { .. } => row_paint_pointer,
         };
         // Pointer presence anywhere on a foldable row, the glyph included, lights its disclosure
         // glyph, which never takes a fill of its own.
@@ -1776,10 +1793,11 @@ pub(super) fn render(
                 theme.glyphs.disclosure_closed
             }
         };
-        // Pointer presence or keyboard focus reveals Create; disclosure always shows, so every
-        // foldable row reads as one at rest.
+        // Pointer presence or keyboard focus reveals Create, and an open group's disclosure; a
+        // Workspace's disclosure always shows, so every foldable Workspace reads as one at rest.
         let revealed = row_paint_pointer != PointerPresentation::Rest || focused;
         let create_target = create_target.filter(|_| revealed);
+        let disclosure_target = disclosure_target.filter(|_| disclosure_rests || revealed);
         // Only Agent rows carry a state glyph. All Agent Working glyphs share the Client's
         // animation phase with the Tab strip and pane titles.
         let agent_state = match row {
@@ -1823,15 +1841,18 @@ pub(super) fn render(
                 theme,
             );
         }
-        // A pointed Agent's muted title rises to primary.
-        if let SidebarRow::Agent { row, .. } = row
-            && !current
-            && row_paint_pointer != PointerPresentation::Rest
-            && row.sidebar_agent().is_some()
-            && view.machines.unconnected_state(&row.choice).is_none()
-        {
+        // A pointed noncurrent Agent previews the current Agent's cues: its muted title rises to
+        // primary, and where glyphs show selection, its glyph turns solid and its guide stretch
+        // appears, both faint.
+        let pointed_agent = matches!(row, SidebarRow::Agent { row, .. }
+            if !current
+                && row_paint_pointer != PointerPresentation::Rest
+                && row.sidebar_agent().is_some()
+                && view.machines.unconnected_state(&row.choice).is_none());
+        if pointed_agent {
             agent_tokens::raise_title(&mut row_lines, theme);
         }
+        let preview = pointed_agent && theme.agent_glyphs_show_selection();
         sidebar_text::compose_lines(
             &mut row_lines,
             interaction,
@@ -1897,7 +1918,9 @@ pub(super) fn render(
             );
         }
 
-        let disclosure = expanded.map(disclosure_glyph);
+        let disclosure = expanded
+            .filter(|_| disclosure_rests || revealed)
+            .map(disclosure_glyph);
         if let Some(disclosure) = disclosure {
             frame.render_widget(
                 Paragraph::new(disclosure).style(theme.content_on_surface(
@@ -1914,7 +1937,7 @@ pub(super) fn render(
             frame.render_widget(
                 Paragraph::new(super::sidebar_text::state_glyph(
                     state,
-                    current,
+                    current || preview,
                     theme,
                     view.machines.working_frame(),
                 ))
@@ -1922,7 +1945,11 @@ pub(super) fn render(
                     Role::SurfaceChrome,
                     interaction,
                     Some(Theme::agent_role(state)),
-                    theme.agent_style(state, view.machines.working_frame()),
+                    theme.agent_style_at(
+                        state,
+                        view.machines.working_frame(),
+                        if preview { PREVIEW_STRENGTH } else { 1.0 },
+                    ),
                 )),
                 tracks.first_line(tracks.state),
             );
@@ -1971,6 +1998,9 @@ pub(super) fn render(
             }
         }
         if matches!(row, SidebarRow::Agent { .. }) && !tracks.guide.is_empty() {
+            // The accent's color alone: a host-relative theme marks focus with emphasis that a
+            // guide glyph never takes.
+            let guide_accent = Style::new().fg(theme.color(Role::AccentFocus));
             paint_tree_guide(
                 frame,
                 band,
@@ -1978,7 +2008,13 @@ pub(super) fn render(
                 row_index
                     .checked_sub(1)
                     .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
-                current.then_some(content_height),
+                if current {
+                    Some((content_height, guide_accent))
+                } else if preview {
+                    Some((content_height, theme.preview_style(guide_accent)))
+                } else {
+                    None
+                },
                 theme,
             );
             // The guide runs on through the blank line before a sibling Agent.

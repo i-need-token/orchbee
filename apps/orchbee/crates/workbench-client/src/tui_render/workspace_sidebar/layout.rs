@@ -6,10 +6,10 @@ use ratatui::layout::Rect;
 const NAVIGATION_WIDTH: u16 = 1;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-/// A single vertical guide sits under the first cell of the Workspace name, then one blank cell.
+/// A single vertical guide runs down the list edge, before the Agents' state column.
 const GUIDE_WIDTH: u16 = 1;
-const GUIDE_GAP: u16 = 1;
-/// A filled blank cell separates each Agent surface edge from its state.
+/// A filled blank cell separates each Agent surface edge from its state, and a Workspace's list
+/// edge from its disclosure.
 const ROW_LEADING_PADDING: u16 = 1;
 const STATE_WIDTH: u16 = 1;
 const UNREAD_WIDTH: u16 = 1;
@@ -20,11 +20,13 @@ const COMPACT_MINIMUM: u16 = 28;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum RowKind {
-    /// A Project or Recents heading: the navigation cell at the list edge, then the label.
+    /// A Project or Recents heading: the navigation cell at the list edge, then the label, and the
+    /// disclosure after it.
     Group,
-    /// A Workspace: aligned with the headings, without a state column.
+    /// A Workspace: the navigation cell at the list edge, then a padded disclosure in the Agents'
+    /// state column, a blank cell, and the name in their title column.
     Owner,
-    /// An Agent: vertical guide, a chrome gap, then padded state, navigation and title.
+    /// An Agent: vertical guide at the list edge, then padded state, navigation and title.
     Agent,
 }
 
@@ -98,6 +100,7 @@ impl AuxiliaryActions {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) struct Tracks {
     density: Density,
+    kind: RowKind,
     pub(super) band: Rect,
     pub(super) content_y: u16,
     pub(super) navigation: Rect,
@@ -146,13 +149,11 @@ impl Tracks {
         );
         let content_y = band.y.saturating_add(leading_gap);
         let (guide, state, navigation) = if kind == RowKind::Agent {
-            // The guide sits under the Workspace name's first cell; the padded state follows.
-            let guide = clipped_track(band, band.x.saturating_add(NAVIGATION_WIDTH), GUIDE_WIDTH);
+            // The guide takes the list edge; the padded state follows.
+            let guide = clipped_track(band, band.x, GUIDE_WIDTH);
             let state = clipped_track(
                 band,
-                guide
-                    .right()
-                    .saturating_add(GUIDE_GAP + ROW_LEADING_PADDING),
+                guide.right().saturating_add(ROW_LEADING_PADDING),
                 STATE_WIDTH,
             );
             (
@@ -166,7 +167,19 @@ impl Tracks {
             let empty = Rect::new(navigation.right(), band.y, 0, band.height);
             (empty, empty, navigation)
         };
-        let primary_x = navigation.right();
+        // A Workspace's disclosure leads its name in the Agents' state column, so the name aligns
+        // with their titles.
+        let leading_disclosure = (kind == RowKind::Owner).then(|| {
+            clipped_track(
+                band,
+                navigation.right().saturating_add(ROW_LEADING_PADDING),
+                DISCLOSURE_WIDTH,
+            )
+        });
+        let primary_x = match leading_disclosure {
+            Some(disclosure) => disclosure.right().saturating_add(DISCLOSURE_GAP),
+            None => navigation.right(),
+        };
         let primary_right = if auxiliary_width == 0 {
             auxiliary.x
         } else {
@@ -177,10 +190,14 @@ impl Tracks {
         }
         let primary = Rect::new(primary_x, band.y, primary_right - primary_x, band.height);
         let unread = clipped_track(band, primary.right() - UNREAD_WIDTH, UNREAD_WIDTH);
-        let disclosure = Rect::new(primary.right(), content_y, 0, 0);
+        let disclosure = leading_disclosure.map_or_else(
+            || Rect::new(primary.right(), content_y, 0, 0),
+            |disclosure| Rect::new(disclosure.x, content_y, disclosure.width, 1),
+        );
         let create = actions.create(density, auxiliary);
         Some(Self {
             density,
+            kind,
             band,
             content_y,
             navigation,
@@ -208,8 +225,12 @@ impl Tracks {
         Rect::new(x, self.band.y, self.band.right() - x, self.band.height)
     }
 
+    /// Only a heading's disclosure follows its label and takes cells from its first line.
     pub(super) fn text_width(self, has_disclosure: bool) -> u16 {
-        if has_disclosure && self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH {
+        if has_disclosure
+            && self.kind == RowKind::Group
+            && self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH
+        {
             self.primary.width - DISCLOSURE_GAP - DISCLOSURE_WIDTH
         } else {
             self.primary.width
@@ -217,7 +238,7 @@ impl Tracks {
     }
 
     pub(super) fn with_disclosure_after(mut self, first_line_width: usize) -> Self {
-        if self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH {
+        if self.kind == RowKind::Group && self.primary.width > DISCLOSURE_GAP + DISCLOSURE_WIDTH {
             let identity_width = first_line_width.min(usize::from(self.text_width(true))) as u16;
             self.disclosure = Rect::new(
                 self.primary.x + identity_width + DISCLOSURE_GAP,

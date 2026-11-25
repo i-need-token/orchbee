@@ -5,10 +5,12 @@
 	gap: var(--ob-ref-space-0-5);
 }
 
-/* No leading column: the name aligns with the heading's text. 38 px = 4 + 18 + 12 + 4: the name
-   line takes its type's full line height and holds the 18 px tools, 4 px from the top and the end;
-   line 2 runs 4 px under its type's line height, and its text, centered optically, overflows the
-   box but is never clipped. The end area keeps 58 px for ↑NN ↓N and the dot, and ⋯ and × use 42. */
+/* A leading column, the Agent rows' state column, starts where the heading's text does, so the name
+   and line 2 align with the Agent titles beneath, and a Workspace no longer reads as its Project.
+   38 px = 4 + 18 + 12 + 4: the name line takes its type's full line height and holds the 18 px
+   tools, 4 px from the top and the end; line 2 runs 4 px under its type's line height, and its
+   text, centered optically, overflows the box but is never clipped. The end area keeps 58 px for
+   ↑NN ↓N and the dot, and ⋯ and × use 42. */
 .row {
 	position: relative;
 	display: flex;
@@ -18,6 +20,9 @@
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-secondary);
 	cursor: default;
+	transition:
+		background-color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard),
+		color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
 }
 
 .row:hover,
@@ -116,9 +121,53 @@
 
 .line2 {
 	height: var(--ob-ref-space-3);
+	padding-inline-start: calc(var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1-5));
 	color: var(--ob-sys-color-text-muted);
 	font: var(--ob-sys-typography-label-xs);
 	white-space: nowrap;
+}
+
+/* The folder, open while the Agent rows show, leads the name by the Agent rows' 6 px column gap.
+   Under the pointer or focus a Workspace with Agents puts its fold chevron in the folder's place;
+   touch, which has no pointer presence, always shows the chevron. */
+.lead {
+	position: relative;
+	display: inline-flex;
+	width: var(--ob-ref-size-icon-sm);
+	height: 100%;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin-inline-end: calc(var(--ob-ref-space-1-5) - var(--ob-ref-space-0-5));
+}
+
+.folder {
+	display: inline-flex;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.row[data-current] .folder {
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.lead .chevron {
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-start: 50%;
+	translate: -50% -50%;
+	visibility: hidden;
+}
+
+.row:is(:hover, [data-popup-open], :has(:focus-visible), :has(.tool[aria-expanded='true']))
+	.lead
+	.chevron {
+	visibility: visible;
+}
+
+.row:is(:hover, [data-popup-open], :has(:focus-visible), :has(.tool[aria-expanded='true']))
+	.lead:has(.chevron)
+	.folder {
+	visibility: hidden;
 }
 
 /* Text beside icons sits on the icons' center line (G19): trimmed to its cap height and baseline,
@@ -224,15 +273,6 @@
 	cursor: default;
 }
 
-.chevron {
-	color: var(--ob-sys-color-icon-muted);
-}
-
-/* The chevron always shows (ORC-285); the pointer on its row raises it. */
-.row:hover .chevron {
-	color: var(--ob-sys-color-icon-primary);
-}
-
 .chevron:hover,
 .tool:hover,
 .tool[aria-expanded='true'] {
@@ -272,6 +312,14 @@
 	.chevronIcon {
 		transition: none;
 	}
+}
+
+:global([data-workbench-touch]) .lead .chevron {
+	visibility: visible;
+}
+
+:global([data-workbench-touch]) .lead:has(.chevron) .folder {
+	visibility: hidden;
 }
 
 /* Touch sizes (D18): a Workspace grows by the same 16 px as a one-line row, to 54 px = 12 + 18 + 12

@@ -1,4 +1,5 @@
 .list {
+	position: relative;
 	display: grid;
 	min-width: 0;
 	gap: var(--ob-ref-space-0-5);
@@ -7,27 +8,30 @@
 	list-style: none;
 }
 
-/* Under a 1 px guide at the Workspace name's start; each cell spans the row's height, so its
+/* The state glyphs stand in the Workspace's leading column and the titles align with its name; a
+   1 px guide runs down the 8 px gutter before the glyphs. Each cell spans the row's height, so its
    tooltip opens 4 px below the row. Rows take no current fill: the current Workspace above already
-   has one, and two fills meeting read as one block. A stronger stretch of the guide, a solid glyph,
-   a heavier title and a full-strength product mark mark the current Agent instead. */
+   has one, and two fills meeting read as one block. A selection-accent stretch of the guide, a solid
+   glyph, a heavier title and a full-strength product mark mark the current Agent instead. Hover
+   takes no fill either: a faint stretch grows on the guide, the hollow glyph fills faintly, and the
+   title and mark reach the current Agent's strength. */
 .row {
 	position: relative;
 	display: grid;
 	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
 	column-gap: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-size-control-sm);
-	margin-inline-start: var(--ob-ref-space-3);
 	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-muted);
 	cursor: default;
+	transition: color var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
 }
 
 .row::before {
 	position: absolute;
 	inset-block: calc(var(--ob-ref-space-0-5) / -2);
-	inset-inline-start: calc(var(--ob-ref-space-1) * -1);
+	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-default) / 2);
 	width: var(--ob-ref-border-width-default);
 	background: var(--ob-sys-color-border-subtle);
 	content: '';
@@ -42,25 +46,49 @@
 }
 
 /* The current Agent's stretch of the guide: 2 px over the 1 px guide, centered on it, inset 4 px
-   from the row's ends. */
-.row[data-current]::after {
+   from its row's ends. The list draws one stretch and slides it to the row that becomes current;
+   rows share one height, so the row's index places it. */
+.list[data-current-row]::after {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-strong) / 2);
+	width: var(--ob-ref-border-width-strong);
+	height: calc(var(--ob-ref-size-control-sm) - var(--ob-ref-space-1) * 2);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-border-selected);
+	content: '';
+	pointer-events: none;
+	translate: 0
+		calc(
+			var(--ob-comp-workbench-agent-list-current-row) *
+				(var(--ob-ref-size-control-sm) + var(--ob-ref-space-0-5)) + var(--ob-ref-space-1)
+		);
+	transition: translate var(--ob-sys-motion-duration-normal) var(--ob-sys-motion-easing-standard);
+}
+
+/* Under the pointer another Agent's stretch grows faintly from its middle, where a click would move
+   the current one. */
+.row:not([data-current])::after {
 	position: absolute;
 	inset-block: var(--ob-ref-space-1);
-	inset-inline-start: calc(
-		var(--ob-ref-space-1) * -1 -
-			(var(--ob-ref-border-width-strong) - var(--ob-ref-border-width-default)) / 2
-	);
+	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-strong) / 2);
 	width: var(--ob-ref-border-width-strong);
 	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-icon-primary);
+	background: var(--ob-sys-color-border-selected);
 	content: '';
+	opacity: 0;
+	scale: 1 0;
+	transition:
+		opacity var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard),
+		scale var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
 }
 
-.row:hover {
-	background: var(--ob-sys-color-surface-hovered);
-	color: var(--ob-sys-color-text-secondary);
+.row:not([data-current]):hover::after {
+	opacity: var(--ob-sys-opacity-preview);
+	scale: none;
 }
 
+.row:hover,
 .row[data-current] {
 	color: var(--ob-sys-color-text-primary);
 }
@@ -104,6 +132,24 @@
 .glyph {
 	grid-column: 1;
 	justify-content: center;
+	transition: scale var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+/* Under the pointer another Agent's glyph grows a little as it fills faintly; the glyph of the Agent
+   a click makes current pops as it turns solid. */
+.row:not([data-current]):hover .glyph {
+	scale: 1.12;
+}
+
+.glyph[data-pop] {
+	animation: agent-row-glyph-pop var(--ob-sys-motion-duration-normal)
+		var(--ob-sys-motion-easing-standard);
+}
+
+@keyframes agent-row-glyph-pop {
+	40% {
+		scale: 1.3;
+	}
 }
 
 .text {
@@ -154,8 +200,12 @@
 }
 
 /* The title leads the row; the product is a quieter cue beside it, at full strength on the current
-   Agent. */
-.row:not([data-current]) .mark {
+   Agent and under the pointer. */
+.mark {
+	transition: opacity var(--ob-sys-motion-duration-fast) var(--ob-sys-motion-easing-standard);
+}
+
+.row:not([data-current], :hover) .mark {
 	opacity: var(--ob-sys-opacity-muted);
 }
 
@@ -176,4 +226,14 @@
 /* Touch sizes (D18): an Agent row is a 44 px row. */
 :global([data-workbench-touch]) .row {
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .list[data-current-row]::after {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2) - var(--ob-ref-space-1) * 2);
+	translate: 0
+		calc(
+			var(--ob-comp-workbench-agent-list-current-row) *
+				(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2) + var(--ob-ref-space-0-5)) +
+				var(--ob-ref-space-1)
+		);
 }
