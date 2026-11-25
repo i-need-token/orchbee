@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Cross-runtime contract: resources/brand/png/dmg/ draws its arrow for this window, these icon
 // centres and this icon size, centred between the two icons' visible art (scripts/brand-assets.mjs);
@@ -17,14 +18,21 @@ const APPLICATION_CENTRE = { x: 180, y: 180 };
 const APPLICATIONS_LINK_CENTRE = { x: 480, y: 180 };
 // The picture's name at the volume root, hidden from Finder by its dot, as dmgbuild names it.
 const BACKGROUND_FILE_NAME = '.background.tiff';
+const backgrounds = new URL('../../../resources/brand/png/dmg/', import.meta.url);
+
+/** The image name uses the platform of the bundled release manifest. */
+export function macDiskImageName(artifactName, version, platform) {
+	if (!/^macos-(?:aarch64|x86_64)$/u.test(platform))
+		throw new Error(`A disk image is built for a macOS release platform, not ${platform}.`);
+	return `${artifactName}-${version}-${platform}.dmg`;
+}
 
 /**
  * Writes `image`, a compressed read-only HFS+ disk image named `volumeName` that holds `application`
- * on the left and a link to `/Applications` on the right, over the background joined from
- * `background.standard` and `background.retina` (twice its size). `workspace` is an empty folder
- * the caller owns and removes.
+ * on the left and a link to `/Applications` on the right, over the brand background.
+ * `workspace` is an empty folder the caller owns and removes.
  */
-export async function writeMacDiskImage({ application, volumeName, image, workspace, background }) {
+export async function writeMacDiskImage({ application, volumeName, image, workspace }) {
 	const volume = path.join(workspace, 'volume');
 	await mkdir(volume);
 	// ditto keeps the bundle's links, modes and signature.
@@ -37,8 +45,8 @@ export async function writeMacDiskImage({ application, volumeName, image, worksp
 		'/usr/bin/tiffutil',
 		[
 			'-cathidpicheck',
-			background.standard,
-			background.retina,
+			fileURLToPath(new URL('orchbee-dmg-background.png', backgrounds)),
+			fileURLToPath(new URL('orchbee-dmg-background@2x.png', backgrounds)),
 			'-out',
 			path.join(volume, BACKGROUND_FILE_NAME),
 		],

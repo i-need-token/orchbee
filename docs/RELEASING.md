@@ -43,7 +43,17 @@ repository>`. Print each public half with the command in
    - On Cloudflare, keep Bot Fight Mode, Browser Integrity Check, and challenge rules off for
      `/update/*` and `/install.sh`, because CLI clients and `install.sh` fetch them anonymously with
      `curl` and fail closed on any 403 or HTML challenge page.
-4. **Tag rule.** Settings › Rules › Rulesets › New tag ruleset, target `v*`, active, restricting
+4. **Apple Developer ID.** Create a Developer ID Application certificate and export it with its
+   private key as a password-protected PKCS #12 file. In the GitHub `release` environment, set
+   `MACOS_SIGNING_CERTIFICATE_BASE64` to the base64-encoded file as one line and
+   `MACOS_SIGNING_CERTIFICATE_PASSWORD` to its export password. Set `APPLE_TEAM_ID` to the Team ID
+   from the Apple Developer membership that issued the certificate. Set `APPLE_ID` and
+   `APPLE_APP_SPECIFIC_PASSWORD` to the Apple Account and its app-specific password for notarization.
+
+   Run a release rehearsal after adding or rotating these credentials. Keep a protected copy of
+   the certificate and private key outside the repository.
+
+5. **Tag rule.** Settings › Rules › Rulesets › New tag ruleset, target `v*`, active, restricting
    creations, updates and deletions, with the repository administrator role on the bypass list, so
    only the owner can create or move a release tag.
 
@@ -205,6 +215,9 @@ then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflo
 
 - The Windows installer and its programs carry no Authenticode signature; the release manifest's
   Ed25519 signature is the only one.
+- macOS release programs carry Developer ID Application signatures. The workflow notarizes the
+  disk image and staples Apple's tickets to the disk image and to the application in the window
+  archive.
 - A published archive stays at its address for as long as a channel's feed names it. A feed is
   signed with a key every client still in use trusts; while rotating keys, sign with the old and
   the new one, and keep `RELEASE_KEYS` in `apps/orchbee/src/cli/update/signature.rs` and

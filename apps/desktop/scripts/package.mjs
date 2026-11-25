@@ -29,11 +29,10 @@ import {
 	createDesktopTestArtifactStem,
 	encodeDesktopDistributionDescriptor,
 	parseDesktopPackagingArguments,
-	resolveDesktopMacDiskImageBaseName,
 	resolveDesktopTestApplicationName,
 	resolveDesktopWindowsInstallerIdentity,
 } from '../src/distribution/tooling/index.ts';
-import { writeMacDiskImage } from './mac-disk-image.mjs';
+import { macDiskImageName, writeMacDiskImage } from './mac-disk-image.mjs';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
 if (typeof electronPackage?.version !== 'string') {
@@ -417,8 +416,8 @@ async function createMacDiskImage(application) {
 			'utf8',
 		),
 	);
-	const baseName = resolveDesktopMacDiskImageBaseName(
-		distributionProfile,
+	const filename = macDiskImageName(
+		profileId === 'release' ? 'Orchbee' : distributionProfile.artifactStem,
 		productVersion,
 		releaseManifest?.platform,
 	);
@@ -432,17 +431,12 @@ async function createMacDiskImage(application) {
 	await mkdir(outputDirectory, { recursive: true });
 	const workspace = path.join(packageWorkspace, 'disk-image');
 	await mkdir(workspace);
-	const image = path.join(outputDirectory, `${baseName}.dmg`);
-	const backgrounds = path.join(repositoryRoot, 'resources', 'brand', 'png', 'dmg');
+	const image = path.join(outputDirectory, filename);
 	await writeMacDiskImage({
 		application,
 		volumeName: distributionProfile.applicationName,
 		image,
 		workspace,
-		background: {
-			standard: path.join(backgrounds, 'orchbee-dmg-background.png'),
-			retina: path.join(backgrounds, 'orchbee-dmg-background@2x.png'),
-		},
 	});
 	console.info(`Created the macOS disk image (${profileId}): ${image}`);
 }

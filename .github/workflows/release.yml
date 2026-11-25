@@ -454,21 +454,61 @@ jobs:
       - name: Stage the release cohort
         run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee
 
-      - name: Describe the release cohort
+      - name: Upload the staged cohort
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-cohort-unsigned-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+  # The manifest and each delivery route must bind the same Developer ID-signed programs.
+  release-sign-native-macos:
+    name: Developer ID sign native ${{ matrix.platform }}
+    needs: [release-plan, release-build-macos]
+    if: needs.release-plan.outputs.macos == 'true'
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the staged cohort
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-cohort-unsigned-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+
+      - name: Sign the programs with Developer ID
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: node scripts/sign-macos-release.mjs native "$RUNNER_TEMP/cohort" "$PLATFORM"
+
+      - name: Describe the signed release cohort
         env:
           RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
           BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
         run: node scripts/package-native-release.mjs "$RUNNER_TEMP/cohort" stable "$RELEASE_VERSION" "$BUILD_ID"
 
-      # The manifest's platform is the runner's own; an Intel row built on Apple silicon would fail here.
-      - name: Check the platform token
-        env:
-          PLATFORM: ${{ matrix.platform }}
-        run: |
-          token="$(jq -r .platform "$RUNNER_TEMP/cohort/release.json")"
-          if [ "$token" != "$PLATFORM" ]; then echo "The cohort is for $token, not $PLATFORM" >&2; exit 1; fi
-
-      - name: Upload the unsigned cohort
+      - name: Upload the cohort for packaging
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-cohort-${{ matrix.platform }}
@@ -485,14 +525,14 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # Every row's manifest. A family's build counts only when the plan has its rows: a job the plan
-  # leaves out is skipped, and a skipped build of a planned family stops the run here.
+  # Every row's manifest. A job the plan leaves out is skipped, and a skipped job of a planned
+  # family stops the run here.
   release-sign:
     name: Release sign ${{ matrix.platform }}
-    needs: [release-plan, release-build, release-build-macos]
+    needs: [release-plan, release-build, release-sign-native-macos]
     if: >-
       ${{ !cancelled() && needs.release-build.result == 'success' &&
-      (needs.release-build-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
+      (needs.release-sign-native-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
@@ -619,10 +659,9 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
-  # The macOS rows' `release-package`, in bash: the Desktop's ad hoc signed application and disk
-  # image from the signed cohort, then the collected artifacts with the `.tar.gz`.
-  release-package-macos:
-    name: Release package ${{ matrix.platform }}
+  # Dependency installation and Electron assembly run in a job without signing credentials.
+  release-assemble-macos:
+    name: Release assemble ${{ matrix.platform }}
     needs: [release-plan, release-sign]
     if: ${{ !cancelled() && needs.release-plan.outputs.macos == 'true' && needs.release-sign.result == 'success' }}
     strategy:
@@ -662,8 +701,7 @@ jobs:
           name: release-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/cohort
 
-      # Artifacts keep no file modes; the packaging and the manifest's programs need these four, and
-      # the application runs the window launcher when its window relaunches.
+      # Artifacts keep no file modes. The window launcher also runs from the bundled cohort.
       - name: Restore the programs' executable bit
         run: |
           for program in orchbee orchbee-server orchbee-worker orchbee-terminal-host orchbee-desktop-launcher; do
@@ -673,8 +711,118 @@ jobs:
       - name: Build the package inputs
         run: pnpm --filter @orchbee/desktop build:package-inputs
 
-      - name: Build the application and disk image from the signed cohort
-        run: node apps/desktop/scripts/package.mjs --profile release --installer --cohort "$RUNNER_TEMP/cohort"
+      - name: Build the application from the signed cohort
+        run: node apps/desktop/scripts/package.mjs --profile release --cohort "$RUNNER_TEMP/cohort"
+
+      - name: Archive the application with its links and modes
+        working-directory: apps/desktop/out/release
+        run: tar -cf "$RUNNER_TEMP/macos-application.tar" -- *-darwin-*/Orchbee.app
+
+      - name: Upload the application for signing
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-application-unsigned-${{ matrix.platform }}
+          path: ${{ runner.temp }}/macos-application.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  # Only these steps receive the Apple credentials. Neither builds code nor installs dependencies.
+  release-sign-desktop-macos:
+    name: Developer ID sign and notarize desktop ${{ matrix.platform }}
+    needs: [release-plan, release-assemble-macos]
+    if: ${{ !cancelled() && needs.release-assemble-macos.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the application
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-application-unsigned-${{ matrix.platform }}
+          path: ${{ runner.temp }}
+
+      - name: Unpack the application
+        run: |
+          mkdir "$RUNNER_TEMP/desktop"
+          tar -xpf "$RUNNER_TEMP/macos-application.tar" -C "$RUNNER_TEMP/desktop"
+
+      - name: Sign the application and disk image with Developer ID
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MACOS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.MACOS_SIGNING_CERTIFICATE_BASE64 }}
+          MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: node scripts/sign-macos-release.mjs desktop "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
+
+      - name: Notarize and staple the disk image and application
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: node scripts/sign-macos-release.mjs notarize "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
+
+      - name: Archive the notarized desktop package
+        run: tar -cf "$RUNNER_TEMP/macos-desktop.tar" -C "$RUNNER_TEMP/desktop" .
+
+      - name: Upload the notarized desktop package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-desktop-${{ matrix.platform }}
+          path: ${{ runner.temp }}/macos-desktop.tar
+          if-no-files-found: error
+          retention-days: 1
+
+  release-package-macos:
+    name: Release package ${{ matrix.platform }}
+    needs: [release-plan, release-sign-desktop-macos]
+    if: ${{ !cancelled() && needs.release-sign-desktop-macos.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the notarized desktop package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-desktop-${{ matrix.platform }}
+          path: ${{ runner.temp }}
+
+      - name: Unpack the notarized desktop package
+        run: |
+          mkdir -p apps/desktop/out/release
+          tar -xpf "$RUNNER_TEMP/macos-desktop.tar" -C apps/desktop/out/release
 
       - name: Collect the release artifacts
         run: node scripts/release-artifacts.mjs collect --profile release --output "$RUNNER_TEMP/release-artifacts"
@@ -878,6 +1026,14 @@ jobs:
 
       - name: Check the release artifacts
         run: node scripts/release-artifacts.mjs check "$RUNNER_TEMP/release-artifacts"
+
+      - name: Validate notarization tickets in the shipped files
+        run: |
+          artifacts="$RUNNER_TEMP/release-artifacts"
+          xcrun stapler validate "$artifacts"/Orchbee-*.dmg
+          mkdir "$RUNNER_TEMP/notarized-window"
+          tar -xpf "$artifacts"/orchbee-desktop-*.zip -C "$RUNNER_TEMP/notarized-window"
+          xcrun stapler validate "$RUNNER_TEMP/notarized-window"/*/Orchbee.app
 
       - name: Mount, verify and run the disk image
         run: node scripts/release-smoke-macos.mjs disk-image "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-disk-image"

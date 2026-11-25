@@ -477,11 +477,11 @@ bundle's root would break its seal; it lists only the bundle, with its links and
 the window archive carries the list and the bundle
 ([macOS window versions](../../proposals/platform/automatic-updates.md#macos-window-versions)).
 
-On macOS every package command then signs the packaged application ad hoc
+On macOS the package command then signs the packaged application ad hoc
 (`codesign --force --deep --sign -`) and checks it with `codesign --verify --deep --strict`: Apple
-silicon runs no unsigned code, and the packager's renames break Electron's own signatures. The one
-function `signMacApplication` holds the identity, so a Developer ID identity later replaces only it.
-Signing never rewrites the cohort, which `Contents/Resources/cohort` seals as resources: the command
+silicon runs no unsigned code, and the packager's renames break Electron's own signatures. The
+[release workflow](../../docs/RELEASING.md) seals the assembled release bundle with Developer ID
+before notarization. Application signing keeps the cohort sealed as resources: the package command
 compares every bundled cohort file with the staged cohort by SHA-256 after signing, checks the four
 programs against `cohort.json`, and checks a signed release directory against its `release.json`,
 and stops on any difference.
