@@ -221,7 +221,7 @@ results remain unchanged.
   slowest host: with the moves between Hosts and their black-box run, seven runs took 10.9 to 16.8
   minutes, so the bound leaves over eight minutes above the slowest run. It stays inside
   the CI job limits (30 minutes for `terminal-host-native`, whose earlier steps take about 2
-  minutes, and 60 for the macOS `client-commands` job, which runs the tests after its Rust part) so
+  minutes, and 60 for the macOS `client-commands` job, which runs the tests after its Rust parts) so
   the gate reports before CI cancels the job. Measurements: `windows-latest` and that workstation,
   Zig 0.16.0, 2026-11-21. On expiry the runner lists the test binaries still running and the process
   tree that run started, terminates only that tree, and fails with exit 124. Either timeout fails
@@ -243,9 +243,11 @@ results remain unchanged.
   `--part <name>` runs one test part instead of the whole test task, for CI's parallel jobs:
   `workspace` is the lint task, the tests of every package except the terminal client `orchbee`,
   and every documentation test; `client` is that package's unit tests and its `integration`
-  target; `client-commands` is its other test targets. The parts together run every target once.
-  The runner lists the client's test targets at run time, so a new one joins `client-commands` by
-  itself, and it fails on a client target kind that no part names.
+  target; `client-long-commands` is its three longest Windows command targets; `client-commands` is
+  its other test targets. `scripts/rust-test-parts.mjs` names them. The parts together run every
+  target once. The runner lists the client's test targets at run time, so a new one joins
+  `client-commands` by itself, and it fails on a client target kind that no part names or a named
+  target the client no longer has.
 
 ## TLA+ models
 
@@ -299,19 +301,23 @@ complete clean search that took every required action, followed by its mutation 
   temporary runner is removed; a local temporary-log path alone is not durable CI evidence.
 - The `rust-windows` job runs `pnpm verify:rust-native` on `windows-latest`, so every Rust
   member gets Clippy and its Cargo test suites under the Windows platform configuration that the
-  Linux `verify` job never compiles. It runs as three parallel jobs, one per test part of
+  Linux `verify` job never compiles. It runs as four parallel jobs, one per test part of
   [Required tasks](#required-tasks): as one job it ran for about an hour, 41 minutes of that in
   tests and most of those in the terminal client's process tests, and a run ends with its slowest
   job. They and `rust-macos` are the only jobs that run the Cargo test suites. Formatting, documentation
   and TypeScript checks are platform-independent and stay in `verify`. The Windows TUI process
   tests that share `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test
   binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
-  echo typed input seconds late.
-- The `rust-macos` job runs the same three parts of `pnpm verify:rust-native` on `macos-15`
-  (Apple Silicon), and its `client-commands` job also runs the native Terminal Host tests and
+  echo typed input seconds late. Cargo runs one test binary after another, so the client's command
+  targets, 20 minutes of tests in one job, are two parts instead. A runner that starts every test as
+  a process of its own, such as cargo-nextest, would end that turn-taking and the staging that each
+  test process shares among its tests.
+- The `rust-macos` job runs the same parts of `pnpm verify:rust-native` on `macos-15` (Apple
+  Silicon) in three jobs. Its `client-commands` job also runs `client-long-commands`, whose targets
+  are Windows process tests and hold no test on macOS, and the native Terminal Host tests and
   formatting check, which `terminal-host-native` runs on `windows-latest`. macOS runners are the
   account's scarcest, so the Terminal Host tests (about 8 minutes) share the shortest part's job
-  (about 7 minutes) instead of taking a fourth runner; that job still ends before the slowest
+  (about 7 minutes) instead of taking another runner; that job still ends before the slowest
   Windows part (26 to 33 minutes; measured on `main`, 2026-11-16). A red macOS job counts like any
   other. GitHub cancels a macOS job that no runner took within 15 minutes and reports the run as
   failed although nothing ran; when every other job passed, the `macos-runner-shortage` job ends

@@ -3,6 +3,12 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
+import {
+	clientPackage,
+	heavyClientTests,
+	longCommandTests,
+	testParts,
+} from './rust-test-parts.mjs';
 
 const repositoryRoot = resolve(import.meta.dirname, '..');
 // The gate compiles this checkout's test environment; an inherited stem, such as a release staging
@@ -73,13 +79,6 @@ const unsafeBoundaries = Object.freeze([
 	},
 ]);
 const task = process.argv[2];
-// CI runs the test task as parts in parallel jobs, because one job ran for an hour. Together the
-// parts run every target of the unsplit task, each once. The terminal client's process tests take
-// most of that hour, so its package is two parts: its unit tests with its heaviest test targets,
-// and its other test targets.
-const clientPackage = 'orchbee';
-const heavyClientTests = ['integration'];
-const testParts = ['workspace', 'client', 'client-commands'];
 const selectedPackages = [];
 const presentationArguments = [];
 let part;
@@ -264,8 +263,8 @@ function testPartCommand(name) {
 	);
 	if (client === undefined)
 		throw new Error(`Test part ${name} needs the workspace package ${clientPackage}`);
-	// The client parts name the targets they run. A target kind that neither part names would run
-	// in no part and nobody would notice, so a new kind fails here until a part takes it.
+	// The client parts name the targets they run. A target kind that no part names would run in no
+	// part and nobody would notice, so a new kind fails here until a part takes it.
 	const unassigned = client.targets
 		.flatMap((target) => target.kind)
 		.find((kind) => !['bin', 'test', 'custom-build'].includes(kind));
@@ -273,14 +272,24 @@ function testPartCommand(name) {
 		throw new Error(
 			`No test part runs the ${unassigned} targets of ${clientPackage}; assign them in scripts/run-rust-workspace.mjs`,
 		);
-	const selected =
-		name === 'client'
-			? ['--bins', ...heavyClientTests.flatMap((test) => ['--test', test])]
-			: client.targets
-					.filter((target) => target.kind.includes('test'))
-					.map((target) => target.name)
-					.filter((test) => !heavyClientTests.includes(test))
-					.flatMap((test) => ['--test', test]);
+	const testTargets = client.targets
+		.filter((target) => target.kind.includes('test'))
+		.map((target) => target.name);
+	const named = [...heavyClientTests, ...longCommandTests];
+	const missing = named.find((test) => !testTargets.includes(test));
+	if (missing !== undefined)
+		throw new Error(
+			`scripts/rust-test-parts.mjs names ${missing}, which is no test target of ${clientPackage}`,
+		);
+	const targets = {
+		client: heavyClientTests,
+		'client-long-commands': longCommandTests,
+		'client-commands': testTargets.filter((test) => !named.includes(test)),
+	}[name];
+	const selected = [
+		...(name === 'client' ? ['--bins'] : []),
+		...targets.flatMap((test) => ['--test', test]),
+	];
 	// Cargo runs every target of the package when none is named.
 	if (selected.length === 0)
 		throw new Error(`Test part ${name} selects no target of ${clientPackage}`);

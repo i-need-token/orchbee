@@ -3,6 +3,7 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
+import { testParts as rustTestParts } from './rust-test-parts.mjs';
 import {
 	resolveVerificationScope,
 	toolingSuiteNames,
@@ -71,10 +72,7 @@ function nativeTestPreparation(scope, platform) {
 	];
 }
 
-// The Rust runner owns the test parts. This copy only rejects a typo before the long preparation
-// steps would run for it.
-const rustTestParts = ['workspace', 'client', 'client-commands'];
-
+// A part name is checked here too, so a typo fails before the long preparation steps run for it.
 function rustNativeSteps(part, platform) {
 	if (part !== undefined && !rustTestParts.includes(part))
 		throw new Error(`--part expects one of: ${rustTestParts.join(', ')}`);

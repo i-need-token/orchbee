@@ -162,10 +162,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # `pnpm verify:rust-native` as its three test parts, side by side: one job ran for an hour,
-        # most of it in the terminal client's process tests. scripts/run-rust-workspace.mjs defines
+        # `pnpm verify:rust-native` as its four test parts, side by side: one job ran for an hour,
+        # most of it in the terminal client's process tests. scripts/rust-test-parts.mjs defines
         # the parts; together they run every target once.
-        part: [workspace, client, client-commands]
+        part: [workspace, client, client-commands, client-long-commands]
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
@@ -188,14 +188,14 @@ jobs:
           rustc --version
           cargo --version
 
-      # Third-party crates only. The two client parts build one package and share an entry, which
-      # the client part saves; see docs/VERIFICATION.md#ci-contract.
+      # Third-party crates only. The client parts build one package and share an entry, which the
+      # client part saves; see docs/VERIFICATION.md#ci-contract.
       - name: Restore the Rust dependency cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: rust-native-${{ matrix.part == 'workspace' && 'workspace' || 'client' }}
           cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.part != 'client-commands' }}
+          save-if: ${{ github.ref == 'refs/heads/main' && (matrix.part == 'workspace' || matrix.part == 'client') }}
 
       - name: Set up Zig
         uses: ./.github/actions/zig
@@ -226,15 +226,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The same test parts as `rust-windows`. The native Terminal Host tests share the shortest
-        # part's job, so a run needs three macOS runners rather than four (docs/VERIFICATION.md).
+        # The same test parts as `rust-windows`. The long command targets are Windows process
+        # tests, empty on macOS, and they and the native Terminal Host tests share the shortest
+        # part's job, so a run needs three macOS runners rather than five (docs/VERIFICATION.md).
         include:
           - part: workspace
             label: workspace
           - part: client
             label: client
           - part: client-commands
-            label: client-commands, Terminal Host
+            also: client-long-commands
+            label: client-commands, client-long-commands, Terminal Host
             host: true
     runs-on: macos-15
     timeout-minutes: 60
@@ -258,14 +260,14 @@ jobs:
           rustc --version
           cargo --version
 
-      # Third-party crates only. The two client parts build one package and share an entry, which
-      # the client part saves; see docs/VERIFICATION.md#ci-contract.
+      # Third-party crates only. The client parts build one package and share an entry, which the
+      # client part saves; see docs/VERIFICATION.md#ci-contract.
       - name: Restore the Rust dependency cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: rust-native-${{ matrix.part == 'workspace' && 'workspace' || 'client' }}
           cache-on-failure: true
-          save-if: ${{ github.ref == 'refs/heads/main' && matrix.part != 'client-commands' }}
+          save-if: ${{ github.ref == 'refs/heads/main' && (matrix.part == 'workspace' || matrix.part == 'client') }}
 
       - name: Set up Zig
         uses: ./.github/actions/zig
@@ -281,6 +283,11 @@ jobs:
 
       - name: Verify the Rust workspace natively
         run: pnpm verify:rust-native --part ${{ matrix.part }} --verbose
+
+      # Runs after a red Rust part too, so a run reports both.
+      - name: Verify the shared Rust test part natively
+        if: ${{ matrix.also && !cancelled() }}
+        run: pnpm verify:rust-native --part ${{ matrix.also }} --verbose
 
       # Every part builds the same Host; the workspace part keeps it for later runs on main.
       - name: Save the Terminal Host build cache

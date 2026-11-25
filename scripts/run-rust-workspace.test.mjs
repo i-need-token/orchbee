@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
+import { heavyClientTests, longCommandTests, testParts } from './rust-test-parts.mjs';
 import { readCargoVerificationGraph, selectVerificationScope } from './verification-scope.mjs';
 
 const repositoryRoot = new URL('../', import.meta.url);
@@ -62,6 +63,7 @@ function withFixture(inspect) {
 		}
 		for (const file of [
 			'scripts/run-rust-workspace.mjs',
+			'scripts/rust-test-parts.mjs',
 			'scripts/check-output.mjs',
 			'rust-toolchain.toml',
 		]) {
@@ -943,7 +945,8 @@ test('package selection lints the named members and still applies the workspace 
 
 test('the test parts together run every test exactly once', () => {
 	withFixture((root) => {
-		// The shape of the real client package: one binary, its heavy test target and another one.
+		// The shape of the real client package: one binary, a test target for each one a part names
+		// and another one.
 		const manifest = join(root, 'Cargo.toml');
 		writeFileSync(
 			manifest,
@@ -962,8 +965,9 @@ test('the test parts together run every test exactly once', () => {
 			join(root, 'client/src/main.rs'),
 			'fn main() {}\n#[cfg(test)]\nmod tests {\n\t#[test]\n\tfn client_unit() {}\n}\n',
 		);
-		writeFileSync(join(root, 'client/tests/integration.rs'), '#[test]\nfn client_heavy() {}\n');
-		writeFileSync(join(root, 'client/tests/commands.rs'), '#[test]\nfn client_command() {}\n');
+		const clientTargets = [...heavyClientTests, ...longCommandTests, 'commands'];
+		for (const target of clientTargets)
+			writeFileSync(join(root, `client/tests/${target}.rs`), `#[test]\nfn client_${target}() {}\n`);
 		const lock = run(root, 'cargo', ['generate-lockfile', '--offline']);
 		assert.equal(lock.status, 0, lock.output);
 		const tests = [
@@ -971,11 +975,10 @@ test('the test parts together run every test exactly once', () => {
 			'integration_contract',
 			'lib.rs - value',
 			'client_unit',
-			'client_heavy',
-			'client_command',
+			...clientTargets.map((target) => `client_${target}`),
 		];
 		const ranIn = new Map(tests.map((name) => [name, []]));
-		for (const part of ['workspace', 'client', 'client-commands']) {
+		for (const part of testParts) {
 			const result = run(root, process.execPath, [
 				'scripts/run-rust-workspace.mjs',
 				'test',
