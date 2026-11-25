@@ -127,6 +127,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.machines.color.purple': 'Purple',
 	'terminal.settings.page.machines.color.pink': 'Pink',
 	'terminal.settings.page.machines.color.grey': 'Grey',
+	'terminal.settings.page.machines.color.chosen': 'Color: {color}',
 	'terminal.settings.page.machines.address.label': 'Address',
 	'terminal.settings.page.machines.address.description': 'What ssh connects to.',
 	'terminal.settings.page.machines.status.label': 'Status',

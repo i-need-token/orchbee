@@ -115,8 +115,8 @@ interface TerminalSettingsMachineAdd {
 	readonly hosts: readonly { readonly host: string; readonly label: string }[];
 	/** The failed check's lines. */
 	readonly lines: readonly string[];
-	/** Why the add did not start; `field` names the field it is about. */
-	readonly problem: { readonly field: 'address' | 'name' | null; readonly text: string } | null;
+	/** Why the add did not start: about the address, or null for a save that failed. */
+	readonly problem: { readonly field: 'address' | null; readonly text: string } | null;
 	/** The checks run: the fields wait, and Cancel gives the add up. */
 	readonly running: boolean;
 	/** The machine the add saved; the form closes. */
@@ -158,10 +158,7 @@ export interface TerminalSettingsMachinesView {
 			readonly addMachine: string;
 			readonly address: string;
 			readonly cancel: string;
-			readonly color: string;
 			readonly hosts: string;
-			readonly name: string;
-			readonly nameHint: string;
 			readonly title: string;
 		};
 	};
@@ -312,11 +309,10 @@ export type TerminalSettingsMachineIntent =
 	  }
 	| { readonly act: 'move-answer'; readonly confirm: boolean; readonly question: number }
 	| {
+			/** The machine takes its host's name; its page renames it once saved. */
 			readonly act: 'add';
 			readonly address: string;
 			readonly color: TerminalSettingsMachineColor;
-			/** Blank takes the host name. */
-			readonly name: string;
 	  };
 
 /** Settings › Machines: the window's saved machines, which its Main's machines process reports. */

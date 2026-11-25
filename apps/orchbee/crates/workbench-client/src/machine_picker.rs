@@ -216,6 +216,7 @@ impl PickerSource {
                 (manage::PageKind::Add, FormControl::Suggestion(index)) => {
                     index < self.0.manage.suggestions
                 }
+                (manage::PageKind::Add, FormControl::Color(_)) => self.0.manage.palette,
                 (manage::PageKind::Add, _) => true,
                 (
                     manage::PageKind::Rename | manage::PageKind::Confirm,

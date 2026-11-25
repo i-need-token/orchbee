@@ -241,17 +241,13 @@ impl DesktopMachines {
                 ));
                 return;
             }
-            Intent::Add {
-                address,
-                name,
-                color,
-            } => {
+            Intent::Add { address, color } => {
                 let store = Store::configured().ok();
                 let wakeup = self.discovery.wakeup().cloned();
                 let first = self.default_color();
                 self.add
                     .get_or_insert_with(|| Add::open(now, wakeup.as_ref(), first))
-                    .start(&mut self.discovery, store.as_ref(), &address, &name, color);
+                    .start(&mut self.discovery, store.as_ref(), &address, color);
                 return;
             }
             Intent::AddClose => return self.close_add(),

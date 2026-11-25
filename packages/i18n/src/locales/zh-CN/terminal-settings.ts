@@ -122,6 +122,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.machines.color.purple': '紫色',
 	'terminal.settings.page.machines.color.pink': '粉色',
 	'terminal.settings.page.machines.color.grey': '灰色',
+	'terminal.settings.page.machines.color.chosen': '颜色：{color}',
 	'terminal.settings.page.machines.address.label': '地址',
 	'terminal.settings.page.machines.address.description': 'ssh 连接的目标。',
 	'terminal.settings.page.machines.status.label': '状态',

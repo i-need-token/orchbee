@@ -16,10 +16,7 @@ const LABELS: TerminalSettingsMachinesView['add']['labels'] = {
 	addMachine: 'Add machine…',
 	address: 'Address',
 	cancel: 'Cancel',
-	color: 'Color',
 	hosts: 'Hosts in SSH config',
-	name: 'Name (optional)',
-	nameHint: 'Leave blank to use the host name.',
 	title: 'Add machine',
 };
 

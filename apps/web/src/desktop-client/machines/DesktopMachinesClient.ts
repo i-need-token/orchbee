@@ -73,9 +73,7 @@ const AddSchema = z.strictObject({
 	color: ColorSchema,
 	hosts: z.array(z.strictObject({ host: z.string(), label: z.string() })),
 	lines: z.array(z.string()),
-	problem: z
-		.strictObject({ field: z.enum(['address', 'name']).nullable(), text: z.string() })
-		.nullable(),
+	problem: z.strictObject({ field: z.literal('address').nullable(), text: z.string() }).nullable(),
 	running: z.boolean(),
 	saved: z.string().nullable(),
 	status: z.strictObject({ text: z.string(), tone: z.enum(['error', 'pending']) }).nullable(),
@@ -108,10 +106,7 @@ const ViewSchema = z.strictObject({
 			addMachine: z.string(),
 			address: z.string(),
 			cancel: z.string(),
-			color: z.string(),
 			hosts: z.string(),
-			name: z.string(),
-			nameHint: z.string(),
 			title: z.string(),
 		}),
 	}),

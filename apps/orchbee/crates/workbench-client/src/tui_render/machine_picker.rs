@@ -162,37 +162,28 @@ impl Picker {
             glyphs,
         );
         let choose = join_key_labels(&[up, down], style, "/");
-        let sideways = join_key_labels(
-            &[
-                format_binding_with_glyphs(
-                    &Binding::new(KeyCode::Left, Modifiers::NONE),
-                    style,
-                    glyphs,
-                ),
-                format_binding_with_glyphs(
-                    &Binding::new(KeyCode::Right, Modifiers::NONE),
-                    style,
-                    glyphs,
-                ),
-            ],
-            style,
-            "/",
-        );
         let menu_key = format_binding_with_glyphs(&crate::machine_picker::MENU_KEY, style, glyphs);
         let text = |text| locale.machine_manage_text(text);
         // Editing keys such as Ctrl+U are conventions, not advertised hints.
         let hints = match self.manage().page() {
-            Page::Add(form) => {
-                let mut hints = vec![
-                    KeyHint::new(&close, text(ManageText::Cancel)),
-                    KeyHint::new(&enter, text(ManageText::Add)),
-                    KeyHint::new(&tab, text(ManageText::NextField)),
-                ];
-                if form.field == crate::machine_picker::Field::Color {
-                    hints.push(KeyHint::new(&sideways, text(ManageText::Color)));
-                }
-                hints
-            }
+            // The open color list takes the menu's keys; on the color, Enter opens the list.
+            Page::Add(form) if form.palette.is_some() => vec![
+                KeyHint::new(&close, text(ManageText::Back)),
+                KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),
+                KeyHint::new(&enter, text(ManageText::Choose)),
+            ],
+            Page::Add(form) => vec![
+                KeyHint::new(&close, text(ManageText::Cancel)),
+                KeyHint::new(
+                    &enter,
+                    text(if form.field == crate::machine_picker::Field::Color {
+                        ManageText::ChooseColor
+                    } else {
+                        ManageText::Add
+                    }),
+                ),
+                KeyHint::new(&tab, text(ManageText::NextField)),
+            ],
             Page::Menu { .. } => vec![
                 KeyHint::new(&close, text(ManageText::Back)),
                 KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),

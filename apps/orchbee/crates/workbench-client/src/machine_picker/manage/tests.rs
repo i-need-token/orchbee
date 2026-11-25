@@ -6,7 +6,7 @@ use super::*;
 use crate::client_view::{ClientActionDisposition, ClientView};
 use crate::localization::ManageText;
 use crate::machine_discovery::{Discovery, Observation};
-use crate::machines::{Draft, Profile};
+use crate::machines::{Draft, Profile, default_label};
 use crate::terminal_input::{
     InputDispatcher, PaneAdmission, PaneInput, SurfaceAction, SurfaceInput, TerminalInputPort,
     TerminalInputUnavailable,
@@ -170,7 +170,7 @@ fn the_add_row_opens_the_form_whose_enter_starts_the_checks_and_esc_gives_them_u
         panic!("the form stays open while the checks run");
     };
     assert_eq!(form.check, Some(Check::Starting));
-    // A blank name falls back to the host name.
+    // The machine takes the host name; it is renamed once saved.
     assert_eq!(
         bench.manage().work,
         [Work::Add {
@@ -233,9 +233,9 @@ fn after_a_failed_add_and_esc_a_selections_login_asks() {
 
 /// Evidence gap: the first real ssh login titled an add's login overlay with the draft's 32-hex
 /// id, which the person never saw, because the machine has no row until it is saved. Rule: while a
-/// machine is being added, its login names it as the form will save it.
+/// machine is being added, its login names it as the form will save it: by its host.
 #[test]
-fn an_adds_login_names_the_machine_as_typed_never_by_its_draft_id() {
+fn an_adds_login_names_the_machine_by_its_host_never_by_its_draft_id() {
     use crate::machine_login::Notice as Login;
     use orchbee_machine_protocol::{AnswerToken, Id, PathText, Prompt, hub};
     const PROMPT: &str = "user@devbox2's password: ";
@@ -243,7 +243,8 @@ fn an_adds_login_names_the_machine_as_typed_never_by_its_draft_id() {
     bench.send(DOWN);
     bench.send(DOWN);
     bench.send(b"\r");
-    bench.send(b"user@devbox2\tlabbox\r");
+    // The host differs from the prompt's, so only the saved name can put it on screen.
+    bench.send(b"user@labbox\r");
     // The store is only read, so its folder is never made. Private storage refuses a link on the
     // way, and the macOS temporary folder lies behind the `/var` link.
     #[cfg(unix)]
@@ -458,6 +459,6 @@ fn each_page_names_what_it_acts_on_in_both_locales() {
     online.send(b"\r");
     for locale in [Locale::EnUs, Locale::ZhCn] {
         let text = online.paint(locale);
-        assert!(text.contains(&squeezed(locale.machine_manage_text(ManageText::NameHint))));
+        assert!(text.contains(&squeezed(locale.machine_manage_text(ManageText::Address))));
     }
 }

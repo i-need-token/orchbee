@@ -1,16 +1,10 @@
-import { terminalSettingsMessages as messages, useOrchbeeIntl } from '@orchbee/i18n';
+import { useOrchbeeIntl } from '@orchbee/i18n';
 import { ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { TerminalSettingsMachineColor } from '../../../../types/terminal-settings-surface';
+import { MACHINE_COLORS } from '../../constants/machine-colors';
 import styles from './MachineColorChooser.module.css';
-
-const COLORS = [
-	['cyan', messages.pageMachinesColorCyan],
-	['purple', messages.pageMachinesColorPurple],
-	['pink', messages.pageMachinesColorPink],
-	['grey', messages.pageMachinesColorGrey],
-] as const;
 
 /** How far each arrow key moves the choice along the swatches, wrapping at either end. */
 const STEPS: Readonly<Partial<Record<string, number>>> = {
@@ -40,17 +34,17 @@ export function MachineColorChooser({
 }: MachineColorChooserProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const swatches = React.useRef<(HTMLButtonElement | null)[]>([]);
-	const [, chosen] = COLORS.find(([value]) => value === color) ?? COLORS[0];
+	const [, chosen] = MACHINE_COLORS.find(([value]) => value === color) ?? MACHINE_COLORS[0];
 	const move = (from: number, step: number): void => {
-		const at = (from + step + COLORS.length) % COLORS.length;
-		const entry = COLORS[at];
+		const at = (from + step + MACHINE_COLORS.length) % MACHINE_COLORS.length;
+		const entry = MACHINE_COLORS[at];
 		if (entry === undefined) return;
 		swatches.current[at]?.focus();
 		onChoose(entry[0]);
 	};
 	return (
 		<div aria-label={label} className={styles['root']} role='radiogroup'>
-			{COLORS.map(([value, name], index) => {
+			{MACHINE_COLORS.map(([value, name], index) => {
 				const checked = value === color;
 				return (
 					<button

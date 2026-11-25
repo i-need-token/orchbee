@@ -12,7 +12,7 @@ use crate::machine_picker::{
     PickerSource,
 };
 use crate::machine_status::Action;
-use crate::machines::default_label;
+use crate::machines::added_label;
 use crate::terminal_text::{display_width, line_editor::LineEditor, truncate_display};
 use crate::tui_hit_map::{HitLayer, HitMapBuilder};
 use crate::tui_render::controls::{
@@ -26,8 +26,8 @@ use crate::workbench_state::field_window;
 use ratatui::{
     Frame,
     layout::{Margin, Rect},
-    style::Modifier,
-    widgets::{Clear, Padding, Paragraph},
+    style::{Modifier, Style},
+    widgets::{Block, Clear, Padding, Paragraph},
 };
 
 /// The SSH config hosts the form lists at once; the list scrolls to the highlighted one.
@@ -150,87 +150,245 @@ fn render_field(
     }
 }
 
-/// The color as a single choice, `○ Cyan  ● Purple  ○ Pink  ○ Grey`, each name in its color. A
-/// choice that does not fit whole is left out. With focus, the caret rests on the chosen marker.
-fn render_colors(
+/// The color before the address, `●▾`: the marker in the machine's color and the disclosure of
+/// its list. A click opens or closes the list, which keeps the marker pressed while it is open;
+/// with focus, the caret rests on the marker. Returns the painted extent.
+fn render_color_marker(
     frame: &mut Frame<'_>,
     row: Rect,
     form: &AddForm,
+    source: &PickerSource,
+    theme: &Theme,
+    hits: &mut HitMapBuilder,
+) -> Rect {
+    let editable = form.editable();
+    let marker = theme.glyphs.choice_on;
+    let disclosure = theme.glyphs.disclosure_open;
+    let marker_width = u16::try_from(display_width(marker)).unwrap_or(u16::MAX);
+    let width = marker_width
+        .saturating_add(u16::try_from(display_width(disclosure)).unwrap_or(u16::MAX))
+        .min(row.width);
+    let rect = Rect::new(row.x, row.y, width, 1);
+    let interaction = picker_interaction(source, PickerAction::Form(FormControl::Palette));
+    let pointer = interaction
+        .as_ref()
+        .map_or(PointerPresentation::Rest, |(target, spec)| {
+            pointer_presentation(hits.projected_pointer(
+                HitLayer::Overlay,
+                rect,
+                rect,
+                target,
+                *spec,
+            ))
+        });
+    let surface = if form.palette.is_some() {
+        Some(Role::SurfacePressed)
+    } else {
+        match pointer {
+            PointerPresentation::Rest => None,
+            PointerPresentation::Hovered => Some(Role::SurfaceHover),
+            PointerPresentation::Pressed => Some(Role::SurfacePressed),
+        }
+    }
+    .filter(|_| editable);
+    let style = |role| {
+        let style = theme.style(role);
+        surface.map_or(style, |surface| style.patch(theme.style(surface)))
+    };
+    let (marker_style, disclosure_role) = if editable {
+        (
+            theme.machine_name_style(form.color, None, style(Role::TextPrimary)),
+            Role::TextSecondary,
+        )
+    } else {
+        (style(Role::TextDisabled), Role::TextDisabled)
+    };
+    frame.render_widget(
+        Paragraph::new(marker).style(marker_style),
+        Rect::new(rect.x, rect.y, marker_width.min(rect.width), 1),
+    );
+    frame.render_widget(
+        Paragraph::new(disclosure).style(style(disclosure_role)),
+        Rect::new(
+            rect.x.saturating_add(marker_width),
+            rect.y,
+            rect.width.saturating_sub(marker_width),
+            1,
+        ),
+    );
+    if editable && form.field == Field::Color && form.palette.is_none() {
+        frame.set_cursor_position((rect.x, rect.y));
+    }
+    if let Some((target, spec)) = interaction {
+        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+    }
+    rect
+}
+
+/// The open color list below the color, as a select's list over the form: each color's marker
+/// and name in that color, the chosen one checked and the highlighted one marked. A click on a
+/// color chooses it; a click anywhere else closes the list.
+#[expect(clippy::too_many_arguments, reason = "one painter of one list's parts")]
+fn render_palette(
+    frame: &mut Frame<'_>,
+    body: Rect,
+    anchor: Rect,
+    form: &AddForm,
+    highlighted: MachineColor,
     source: &PickerSource,
     locale: Locale,
     theme: &Theme,
     hits: &mut HitMapBuilder,
 ) {
-    let editable = form.editable();
-    let mut x = row.x;
-    for color in MachineColor::PALETTE {
-        let chosen = form.color == color;
-        let marker = if chosen {
-            theme.glyphs.choice_on
-        } else {
-            theme.glyphs.choice_off
-        };
-        let name = locale.machine_color_name(color);
-        let marker_width = u16::try_from(display_width(marker)).unwrap_or(u16::MAX);
-        let width = marker_width
-            .saturating_add(1)
-            .saturating_add(u16::try_from(display_width(name)).unwrap_or(u16::MAX));
-        if x.saturating_add(width) > row.right() {
+    hits.start_modal();
+    let bounds = frame.area();
+    let heading = locale.machine_manage_text(ManageText::Color);
+    let glyph_width = |glyph: &str| u16::try_from(display_width(glyph)).unwrap_or(u16::MAX);
+    let navigation_width = glyph_width(theme.glyphs.navigation_marker).max(1);
+    let check_width = glyph_width(theme.glyphs.checked_marker);
+    let marker_width = glyph_width(theme.glyphs.choice_on);
+    let widest = MachineColor::PALETTE
+        .iter()
+        .map(|color| glyph_width(locale.machine_color_name(*color)))
+        .max()
+        .unwrap_or(0);
+    // The navigation and checked tracks, the marker between two gaps, the name; two border cells
+    // and two padding cells around them.
+    let content = navigation_width + check_width + 1 + marker_width + 1 + widest;
+    let width = content
+        .max(glyph_width(heading) + 2)
+        .saturating_add(4)
+        .min(bounds.width.saturating_sub(2));
+    let height = u16::try_from(MachineColor::PALETTE.len() + 2).unwrap_or(u16::MAX);
+    if height > bounds.height {
+        return;
+    }
+    let x = anchor.x.min(bounds.right().saturating_sub(width));
+    let y = if anchor.bottom().saturating_add(height) <= bounds.bottom() {
+        anchor.bottom()
+    } else {
+        anchor.y.saturating_sub(height)
+    };
+    let area = Rect::new(x, y, width, height);
+    // The form's lines under the list are blanked across its width, so no cut-off text shows
+    // beside the list.
+    let covered = Rect::new(body.x, area.y, body.width, area.height).intersection(body);
+    frame.render_widget(Clear, covered);
+    frame.render_widget(
+        Block::new().style(theme.style(Role::SurfaceOverlay)),
+        covered,
+    );
+    frame.render_widget(Clear, area);
+    let surface = crate::tui_render::overlay_surface(theme, Padding::horizontal(1));
+    let inner = surface.inner(area);
+    frame.render_widget(
+        crate::tui_render::OverlayFrame::new(surface).heading(crate::tui_render::overlay_heading(
+            heading,
+            usize::from(width).saturating_sub(6),
+            theme,
+        )),
+        area,
+    );
+    for (index, color) in MachineColor::PALETTE.into_iter().enumerate() {
+        let rect = Rect::new(
+            inner.x,
+            inner.y + u16::try_from(index).unwrap_or(u16::MAX),
+            inner.width,
+            1,
+        );
+        if rect.y >= inner.bottom() {
             break;
         }
-        let rect = Rect::new(x, row.y, width, 1);
-        let base = if editable {
-            Role::TextPrimary
-        } else {
-            Role::TextDisabled
+        let Some((target, spec)) =
+            picker_interaction(source, PickerAction::Form(FormControl::Color(color)))
+        else {
+            continue;
         };
-        let interaction = picker_interaction(source, PickerAction::Form(FormControl::Color(color)));
-        let pointer = interaction
-            .as_ref()
-            .map_or(PointerPresentation::Rest, |(target, spec)| {
-                pointer_presentation(hits.projected_pointer(
-                    HitLayer::Overlay,
-                    rect,
-                    rect,
-                    target,
-                    *spec,
-                ))
-            });
-        let surface = match pointer {
-            PointerPresentation::Rest => None,
-            PointerPresentation::Hovered => Some(Role::SurfaceHover),
-            PointerPresentation::Pressed => Some(Role::SurfacePressed),
-        }
-        .filter(|_| editable);
-        let style = |role| {
-            let style = theme.style(role);
-            surface.map_or(style, |surface| style.patch(theme.style(surface)))
-        };
-        let marker_role = if editable && chosen {
-            Role::AccentAction
-        } else {
-            base
-        };
-        frame.render_widget(
-            Paragraph::new(marker).style(style(marker_role)),
-            Rect::new(x, row.y, marker_width, 1),
+        let pointer = pointer_presentation(hits.projected_pointer(
+            HitLayer::Overlay,
+            rect,
+            rect,
+            &target,
+            spec,
+        ));
+        let navigation = Rect::new(rect.x, rect.y, navigation_width, 1);
+        let checked = Rect::new(navigation.right(), rect.y, check_width, 1);
+        let dot = Rect::new(checked.right() + 1, rect.y, marker_width, 1);
+        let primary = Rect::new(
+            dot.right() + 1,
+            rect.y,
+            rect.right().saturating_sub(dot.right() + 1),
+            1,
         );
-        let name_style = if editable {
-            theme.machine_name_style(color, None, style(base))
-        } else {
-            style(base)
-        };
-        frame.render_widget(
-            Paragraph::new(format!(" {name}")).style(name_style),
-            Rect::new(x + marker_width, row.y, width - marker_width, 1),
+        let name = truncate_display(
+            locale.machine_color_name(color),
+            usize::from(primary.width),
+            theme.glyphs.ellipsis,
         );
-        if chosen && editable && form.field == Field::Color {
-            frame.set_cursor_position((x, row.y));
+        let name_width = glyph_width(&name).min(primary.width);
+        frame.render_widget(
+            Paragraph::new(name).style(theme.style(Role::TextPrimary)),
+            primary,
+        );
+        let provisional = highlighted == color;
+        let state = component_state(
+            pointer,
+            if provisional {
+                NavigationState::Provisional
+            } else {
+                NavigationState::None
+            },
+            CurrentState::NotCurrent,
+            if form.color == color {
+                CheckedState::Checked
+            } else {
+                CheckedState::Unchecked
+            },
+            Availability::Enabled,
+            OperationState::Idle,
+        );
+        let tracks = RowTracks::new(RowFocusCue::EnclosingFrame, primary)
+            .with_primary_role(Role::TextPrimary)
+            .with_provisional(navigation)
+            .with_checked(checked, theme.glyphs.checked_marker);
+        let bands = [RowContentBand::explicit(dot)];
+        if paint_row_interaction(
+            frame,
+            rect,
+            tracks,
+            &bands,
+            ControlSurface::Overlay,
+            state,
+            theme,
+        )
+        .is_none()
+        {
+            continue;
         }
-        if let Some((target, spec)) = interaction {
-            hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
-        }
-        x = x.saturating_add(width).saturating_add(2);
+        // Over the row's fill, the marker and the name take the color, raised on the highlight.
+        let colored = theme.machine_name_style(
+            color,
+            provisional.then_some(Role::SurfaceSelection),
+            Style::new(),
+        );
+        frame.render_widget(Paragraph::new(theme.glyphs.choice_on).style(colored), dot);
+        frame
+            .buffer_mut()
+            .set_style(Rect::new(primary.x, primary.y, name_width, 1), colored);
+        hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
+    }
+    if let Some((target, _)) = picker_interaction(source, PickerAction::Form(FormControl::Palette))
+    {
+        hits.record_overlay_dismissal(&target);
+    }
+}
+
+/// The lines the SSH config hosts take under the address: their label and the hosts listed at once.
+fn hosts_lines(form: &AddForm) -> u16 {
+    if form.suggestions.is_empty() {
+        0
+    } else {
+        1 + u16::try_from(form.suggestions.len().min(SUGGESTION_ROWS)).unwrap_or(u16::MAX)
     }
 }
 
@@ -271,11 +429,9 @@ impl Picker {
         let (title, rows) = match self.manage().page() {
             Page::Add(form) => (
                 locale.machine_manage_text(ManageText::AddTitle),
-                19 + if form.suggestions.is_empty() {
-                    0
-                } else {
-                    1 + form.suggestions.len().min(SUGGESTION_ROWS) as u16
-                },
+                // Five lines for a check's outcome, which also leave the color list room below
+                // the address when no host is listed.
+                11 + hosts_lines(form),
             ),
             Page::Confirm { .. } => (locale.machine_manage_text(ManageText::ConfirmTitle), 8),
             Page::List | Page::Menu { .. } | Page::Rename { .. } => return false,
@@ -370,21 +526,35 @@ impl Picker {
         let mut y = body.y;
         let address = locale.machine_manage_text(ManageText::Address);
         text_line(frame, body, &mut y, address, Role::TextSecondary, theme);
+        // The color, then the address on the same row; the name is the host's.
+        let mut marker = None;
         if y < body.bottom() {
             let row = Rect::new(body.x, y, body.width, 1);
+            let painted = render_color_marker(frame, row, form, source, theme, hits);
+            marker = Some(painted);
+            let gap = painted.width.saturating_add(1);
+            let field = Rect::new(
+                row.x.saturating_add(gap),
+                y,
+                row.width.saturating_sub(gap),
+                1,
+            );
             render_field(
                 frame,
-                row,
+                field,
                 &form.address,
                 Some("user@10.0.0.8"),
-                editable && form.field == Field::Address && form.suggestion.is_none(),
+                editable
+                    && form.field == Field::Address
+                    && form.suggestion.is_none()
+                    && form.palette.is_none(),
                 theme,
             );
             if let Some((target, spec)) = picker_interaction(
                 source,
                 PickerAction::Form(FormControl::Field(Field::Address)),
             ) {
-                hits.record_interaction(HitLayer::Overlay, row, row, target, spec);
+                hits.record_interaction(HitLayer::Overlay, field, field, target, spec);
             }
             y += 1;
         }
@@ -468,45 +638,8 @@ impl Picker {
             }
         }
         y += 1;
-        let name = locale.machine_manage_text(ManageText::Name);
-        text_line(frame, body, &mut y, name, Role::TextSecondary, theme);
-        if y < body.bottom() {
-            let row = Rect::new(body.x, y, body.width, 1);
-            let placeholder = default_label(form.address.text().trim());
-            render_field(
-                frame,
-                row,
-                &form.name,
-                (!placeholder.is_empty()).then_some(placeholder.as_str()),
-                editable && form.field == Field::Name,
-                theme,
-            );
-            if let Some((target, spec)) =
-                picker_interaction(source, PickerAction::Form(FormControl::Field(Field::Name)))
-            {
-                hits.record_interaction(HitLayer::Overlay, row, row, target, spec);
-            }
-            y += 1;
-        }
-        let hint = locale.machine_manage_text(ManageText::NameHint);
-        text_line(frame, body, &mut y, hint, Role::TextSecondary, theme);
-        y += 1;
-        let color = locale.machine_manage_text(ManageText::Color);
-        text_line(frame, body, &mut y, color, Role::TextSecondary, theme);
-        if y < body.bottom() {
-            let row = Rect::new(body.x, y, body.width, 1);
-            render_colors(frame, row, form, source, locale, theme, hits);
-            y += 1;
-        }
-        y += 1;
-        let label = {
-            let name = form.name.text().trim();
-            if name.is_empty() {
-                default_label(form.address.text().trim())
-            } else {
-                name.to_owned()
-            }
-        };
+        let typed = form.address.text().trim();
+        let label = added_label(typed).unwrap_or_else(|| typed.to_owned());
         if let Some(problem) = form.problem {
             let text = locale.machine_manage_problem(problem);
             text_line(frame, body, &mut y, text, Role::StatusWarning, theme);
@@ -566,6 +699,22 @@ impl Picker {
             theme,
             hits,
         );
+        // The open list paints last, over the form, and alone takes clicks.
+        if let (Some(highlighted), Some(marker)) = (form.palette, marker)
+            && editable
+        {
+            render_palette(
+                frame,
+                body,
+                marker,
+                form,
+                highlighted,
+                source,
+                locale,
+                theme,
+                hits,
+            );
+        }
     }
 
     /// The selected Machine's detail actions: its one helpful action on Enter, and the menu.

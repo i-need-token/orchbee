@@ -24,10 +24,9 @@ pub enum Intent {
     Settings(Request),
     /// Opens Add Machine, giving up an add in progress.
     AddOpen,
-    /// Adds `address` as `name`, blank for the host name, in `color`, the default when absent.
+    /// Adds `address`, named by its host, in `color`, the default when absent.
     Add {
         address: String,
-        name: String,
         color: Option<MachineColor>,
     },
     /// Closes Add Machine, giving up an add in progress.
@@ -158,7 +157,6 @@ pub fn parse_intent(value: &mut Value) -> Option<Intent> {
             };
             return Some(Intent::Add {
                 address: text("address")?,
-                name: text("name")?,
                 color,
             });
         }

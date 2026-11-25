@@ -1,5 +1,5 @@
-//! Add Machine for the desktop page, as the TUI's form adds: the address and name read as a
-//! machine, the eight checks run on one draft connection through the hub, a failed check names
+//! Add Machine for the desktop page, as the TUI's form adds: the address reads as a machine named
+//! by its host, the eight checks run on one draft connection through the hub, a failed check names
 //! itself and gives the add up, and the record is saved once every check passed. The page keeps
 //! what is typed; this keeps how the add stands and the SSH config hosts offered for the address.
 //
@@ -12,10 +12,7 @@ use crate::{
     machine_picker::ManageProblem,
     machine_ssh_config::HostRead,
     machine_status::Explanation,
-    machines::{
-        Catalog, Draft, ProfileId, Store, default_label, names_this_computer, valid_label,
-        valid_target,
-    },
+    machines::{Catalog, Draft, ProfileId, Store, added_label, valid_target},
     ui_wakeup::UiWakeup,
 };
 use std::{sync::Arc, time::Instant};
@@ -47,7 +44,7 @@ pub(super) struct Add {
     reading: Option<HostRead>,
     pub(super) check: Option<Check>,
     pub(super) problem: Option<ManageProblem>,
-    /// The name the add in progress will be saved with, which its login and lines name.
+    /// The host name the add in progress will be saved with, which its login and lines name.
     pub(super) label: String,
     /// The machine the add saved, until the page closes the form.
     pub(super) saved: Option<ProfileId>,
@@ -82,14 +79,14 @@ impl Add {
         )
     }
 
-    /// Starts adding `target` as `name` in `color` once both read as a machine; a fresh id each
-    /// time, so a retry never reuses the id of the add it replaces.
+    /// Starts adding `target` in `color`, named by its host, once it reads as a machine; a fresh
+    /// id each time, so a retry never reuses the id of the add it replaces. The name is changed on
+    /// the machine's page once it is saved.
     pub(super) fn start(
         &mut self,
         discovery: &mut Discovery,
         store: Option<&Store>,
         target: &str,
-        name: &str,
         color: Option<MachineColor>,
     ) {
         if self.running() || self.saved.is_some() {
@@ -102,16 +99,10 @@ impl Add {
             self.problem = Some(ManageProblem::Address);
             return;
         }
-        let name = name.trim();
-        let label = if name.is_empty() {
-            default_label(target)
-        } else {
-            name.to_owned()
-        };
-        if !valid_label(&label) || names_this_computer(&label) {
+        let Some(label) = added_label(target) else {
             self.problem = Some(ManageProblem::Name);
             return;
-        }
+        };
         let proposal = Draft::parse(&label, target, SESSION)
             .ok_or(ManageProblem::Address)
             .and_then(|draft| {

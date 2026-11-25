@@ -28,25 +28,57 @@
 	font: var(--ob-sys-typography-control-sm);
 }
 
-/* The SSH config hosts, a click away from the address. */
+/* The color, then the address taking the rest of the line. */
+.target {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	min-width: 0;
+}
+
+/* The SSH config hosts, one a line; about five show and the rest scroll, so a long config never
+   stretches the dialog. */
 .hosts {
 	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: var(--ob-ref-space-1);
+	flex-direction: column;
+	max-block-size: calc(5 * var(--ob-ref-size-control-sm) + 2 * var(--ob-ref-space-1));
+	padding: var(--ob-ref-space-1);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
 }
 
-.hostsLabel {
-	margin-inline-end: var(--ob-ref-space-1);
-	color: var(--ob-sys-color-text-secondary);
+.host {
+	flex: none;
+	min-block-size: var(--ob-ref-size-control-sm);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-primary);
+	cursor: default;
 	font: var(--ob-sys-typography-body-sm);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.color {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: var(--ob-ref-space-3);
+.host:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.host[data-highlighted='true'] {
+	background: var(--ob-sys-color-surface-selected);
+}
+
+.host[data-highlighted='true']:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+/* While the checks run the hosts wait with the fields. */
+.host[aria-disabled='true'] {
+	background: transparent;
+	opacity: var(--ob-sys-opacity-disabled);
 }
 
 .status {

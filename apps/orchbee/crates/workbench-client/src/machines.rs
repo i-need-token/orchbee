@@ -170,6 +170,14 @@ pub fn default_label(target: &str) -> String {
     };
     host.to_owned()
 }
+/// The name the add forms, which ask for none, save a machine under: its host name, or the whole
+/// target when the host name is no name a machine takes; `None` when neither is, as for `local`.
+/// The name is changed once the machine is saved.
+pub fn added_label(target: &str) -> Option<String> {
+    [default_label(target), target.to_owned()]
+        .into_iter()
+        .find(|label| valid_label(label) && !names_this_computer(label))
+}
 /// The name `known_hosts` keeps the host of `target` under, which `ssh-keygen -R` forgets: the
 /// host alone on port 22, `[host]:port` on any other port.
 pub fn known_hosts_name(target: &str) -> String {

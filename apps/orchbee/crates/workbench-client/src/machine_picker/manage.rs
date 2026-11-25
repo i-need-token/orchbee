@@ -11,7 +11,7 @@ use crate::machine_color::MachineColor;
 use crate::machine_discovery::Observation;
 use crate::machine_status::{Action, Explanation, Facts};
 use crate::machines::{
-    Profile, ProfileId, default_label, names_this_computer, valid_label, valid_target,
+    Profile, ProfileId, added_label, names_this_computer, valid_label, valid_target,
 };
 use crate::terminal_events::keys::Binding;
 use crate::terminal_text::line_editor::{LengthLimit, LineEditor, LineKey};
@@ -24,6 +24,7 @@ mod exchange;
 pub(crate) const MENU_KEY: Binding = Binding::new(KeyCode::F(2), Modifiers::NONE);
 const ENTER: Binding = Binding::new(KeyCode::Enter, Modifiers::NONE);
 const ESC: Binding = Binding::new(KeyCode::Esc, Modifiers::NONE);
+const SPACE: Binding = Binding::new(KeyCode::Char(' '), Modifiers::NONE);
 const TAB: Binding = Binding::new(KeyCode::Tab, Modifiers::NONE);
 const BACK_TAB: Binding = Binding::new(KeyCode::Tab, Modifiers::NONE.with_shift());
 const UP: Binding = Binding::new(KeyCode::Up, Modifiers::NONE);
@@ -41,7 +42,7 @@ const LINE_END: Binding = Binding::new(KeyCode::Char('e'), Modifiers::CTRL);
 
 /// The session name a new Machine's record carries, as `machine add` saves it.
 const SESSION: &str = "default";
-/// The longest address and name a field takes, in Unicode scalars.
+/// The longest address the field takes, and the longest name the rename takes, in Unicode scalars.
 const FIELD_LIMIT: usize = 1024;
 const NAME_LIMIT: usize = 128;
 
@@ -57,12 +58,12 @@ pub enum MenuItem {
     RemoveAndStop,
 }
 
-/// A field of the add form.
+/// A field of the add form: the color before the address on one row. The name is the host's, and
+/// is changed once the machine is saved.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Field {
-    Address,
-    Name,
     Color,
+    Address,
 }
 
 /// A painted control of the add form, the rename or the confirmation.
@@ -71,7 +72,9 @@ pub enum FormControl {
     Field(Field),
     /// The SSH config host at this position fills the address.
     Suggestion(usize),
-    /// One choice of the color.
+    /// The color before the address: opens its list, or closes the open list.
+    Palette,
+    /// One color of the open list: chooses it and closes the list.
     Color(MachineColor),
     Cancel,
     Submit,
@@ -112,9 +115,11 @@ pub(crate) enum PageKind {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct AddForm {
     pub(crate) address: LineEditor,
-    pub(crate) name: LineEditor,
     /// Opens on the color the fewest saved machines use.
     pub(crate) color: MachineColor,
+    /// The highlighted color while the color list is open below the color; `None` while it is
+    /// closed.
+    pub(crate) palette: Option<MachineColor>,
     pub(crate) field: Field,
     /// The highlighted SSH config host while the address field has focus.
     pub(crate) suggestion: Option<usize>,
@@ -126,7 +131,7 @@ pub(crate) struct AddForm {
     pub(crate) check: Option<Check>,
     pub(crate) problem: Option<Problem>,
     /// The id the add in progress is checked under and the name it will be saved with, so its
-    /// login names the machine as the person typed it, never by that id.
+    /// login names the machine by its host, never by that id.
     pub(crate) adding: Option<(ProfileId, String)>,
 }
 
@@ -209,6 +214,8 @@ pub(crate) struct Basis {
     pub(crate) page: PageKind,
     pub(crate) menu: Box<[(MenuItem, bool)]>,
     pub(crate) suggestions: usize,
+    /// The add form's color list is open, so its colors take clicks.
+    pub(crate) palette: bool,
     pub(crate) submit: bool,
 }
 
@@ -396,6 +403,7 @@ impl Picker {
             page,
             menu,
             suggestions,
+            palette: matches!(&self.manage.page, Page::Add(form) if form.palette.is_some()),
             submit,
         }
     }
@@ -472,8 +480,8 @@ impl Picker {
         self.manage.add_focused = true;
         self.manage.set_page(Page::Add(Box::new(AddForm {
             address: LineEditor::new(String::new(), LengthLimit::Scalars(FIELD_LIMIT)),
-            name: LineEditor::new(String::new(), LengthLimit::Scalars(NAME_LIMIT)),
             color: MachineColor::least_used(self.rows.iter().filter_map(|row| row.color)),
+            palette: None,
             field: Field::Address,
             suggestion: None,
             suggestions: Arc::from([]),
@@ -573,6 +581,7 @@ impl Picker {
                 Page::Add(form) if form.editable() => {
                     form.field = field;
                     form.suggestion = None;
+                    form.palette = None;
                     true
                 }
                 _ => false,
@@ -581,11 +590,21 @@ impl Picker {
                 Page::Add(form) if form.editable() => form.take_suggestion(index),
                 _ => false,
             },
-            FormControl::Color(color) => match &mut self.manage.page {
+            FormControl::Palette => match &mut self.manage.page {
                 Page::Add(form) if form.editable() => {
-                    form.color = color;
                     form.field = Field::Color;
                     form.suggestion = None;
+                    form.palette = match form.palette {
+                        Some(_) => None,
+                        None => Some(form.color),
+                    };
+                    true
+                }
+                _ => false,
+            },
+            FormControl::Color(color) => match &mut self.manage.page {
+                Page::Add(form) if form.editable() && form.palette.is_some() => {
+                    form.choose_color(color);
                     true
                 }
                 _ => false,
@@ -776,6 +795,12 @@ impl Picker {
 
     fn add_key(&mut self, key: KeyEvent) {
         if ESC.matches(key) {
+            // Esc closes the open color list first, as a menu closes before its dialog.
+            if let Page::Add(form) = &mut self.manage.page
+                && form.palette.take().is_some()
+            {
+                return;
+            }
             self.manage.back();
             return;
         }
@@ -786,6 +811,26 @@ impl Picker {
             // While the checks run only Esc acts; a login question takes its own keys first.
             return;
         }
+        if let Some(highlighted) = form.palette {
+            form.palette_key(highlighted, key);
+            return;
+        }
+        if TAB.matches(key) || BACK_TAB.matches(key) {
+            // Two fields on one row: either direction moves to the other.
+            form.field = match form.field {
+                Field::Color => Field::Address,
+                Field::Address => Field::Color,
+            };
+            form.suggestion = None;
+            return;
+        }
+        if form.field == Field::Color {
+            // The color opens its list as a select does; Enter there opens it, not the add.
+            if ENTER.matches(key) || SPACE.matches(key) || DOWN.matches(key) {
+                form.palette = Some(form.color);
+            }
+            return;
+        }
         if ENTER.matches(key) {
             if let Some(index) = form.suggestion {
                 form.take_suggestion(index);
@@ -794,55 +839,20 @@ impl Picker {
             }
             return;
         }
-        if TAB.matches(key) || BACK_TAB.matches(key) {
-            let forward = TAB.matches(key);
-            form.field = match (form.field, forward) {
-                (Field::Address, true) | (Field::Color, false) => Field::Name,
-                (Field::Name, true) | (Field::Address, false) => Field::Color,
-                (Field::Color, true) | (Field::Name, false) => Field::Address,
-            };
-            form.suggestion = None;
-            return;
-        }
-        // The color is a single choice: the arrows move it, and it applies at once.
-        if form.field == Field::Color && (LEFT.matches(key) || RIGHT.matches(key)) {
-            let palette = MachineColor::PALETTE;
-            let count = palette.len();
-            let at = form.color as usize;
-            form.color = palette[if RIGHT.matches(key) {
-                (at + 1) % count
-            } else {
-                (at + count - 1) % count
-            }];
-            return;
-        }
         if UP.matches(key) {
-            match (form.field, form.suggestion) {
-                (Field::Address, Some(0)) => form.suggestion = None,
-                (Field::Address, Some(index)) => form.suggestion = Some(index - 1),
-                (Field::Name, _) => {
-                    form.field = Field::Address;
-                    form.suggestion = None;
-                }
-                (Field::Color, _) => form.field = Field::Name,
-                (Field::Address, None) => {}
-            }
+            form.suggestion = match form.suggestion {
+                Some(0) | None => None,
+                Some(index) => Some(index - 1),
+            };
             return;
         }
         if DOWN.matches(key) {
-            match (form.field, form.suggestion) {
-                (Field::Address, None) if !form.suggestions.is_empty() => {
-                    form.suggestion = Some(0);
-                }
-                (Field::Address, Some(index)) if index + 1 < form.suggestions.len() => {
+            match form.suggestion {
+                None if !form.suggestions.is_empty() => form.suggestion = Some(0),
+                Some(index) if index + 1 < form.suggestions.len() => {
                     form.suggestion = Some(index + 1);
                 }
-                (Field::Address, _) => {
-                    form.field = Field::Name;
-                    form.suggestion = None;
-                }
-                (Field::Name, _) => form.field = Field::Color,
-                (Field::Color, _) => {}
+                _ => {}
             }
             return;
         }
@@ -874,9 +884,41 @@ impl AddForm {
     pub(crate) fn focused(&mut self) -> Option<&mut LineEditor> {
         match self.field {
             Field::Address => Some(&mut self.address),
-            Field::Name => Some(&mut self.name),
             Field::Color => None,
         }
+    }
+
+    /// A key while the color list is open: the arrows move the highlight, Enter or Space chooses
+    /// it, and Tab closes the list for the address. Nothing else reaches the fields.
+    fn palette_key(&mut self, highlighted: MachineColor, key: KeyEvent) {
+        let palette = MachineColor::PALETTE;
+        let at = highlighted as usize;
+        let next = if UP.matches(key) || UP_LETTER.matches(key) {
+            at.saturating_sub(1)
+        } else if DOWN.matches(key) || DOWN_LETTER.matches(key) {
+            (at + 1).min(palette.len() - 1)
+        } else if HOME.matches(key) {
+            0
+        } else if END.matches(key) {
+            palette.len() - 1
+        } else {
+            if ENTER.matches(key) || SPACE.matches(key) {
+                self.choose_color(highlighted);
+            } else if TAB.matches(key) || BACK_TAB.matches(key) {
+                self.palette = None;
+                self.field = Field::Address;
+            }
+            return;
+        };
+        self.palette = Some(palette[next]);
+    }
+
+    /// Takes `color` and closes the list; the color keeps focus, as a select's trigger does.
+    fn choose_color(&mut self, color: MachineColor) {
+        self.color = color;
+        self.palette = None;
+        self.field = Field::Color;
+        self.suggestion = None;
     }
 
     /// The person changed what to add: an old failure or problem no longer describes it.
@@ -896,7 +938,7 @@ impl AddForm {
         true
     }
 
-    /// The add Enter asks for, once the address and name read as a Machine.
+    /// The add Enter asks for, once the address reads as a Machine named by its host.
     fn submit(&mut self) -> Option<Work> {
         if !self.can_submit() {
             return None;
@@ -907,17 +949,11 @@ impl AddForm {
             self.field = Field::Address;
             return None;
         }
-        let name = self.name.text().trim();
-        let label = if name.is_empty() {
-            default_label(&target)
-        } else {
-            name.to_owned()
-        };
-        if !valid_label(&label) || names_this_computer(&label) {
+        let Some(label) = added_label(&target) else {
             self.problem = Some(Problem::Name);
-            self.field = Field::Name;
+            self.field = Field::Address;
             return None;
-        }
+        };
         self.problem = None;
         self.suggestion = None;
         self.check = Some(Check::Starting);

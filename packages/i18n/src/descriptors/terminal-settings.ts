@@ -132,6 +132,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageMachinesColorPurple: message('terminal.settings.page.machines.color.purple'),
 	pageMachinesColorPink: message('terminal.settings.page.machines.color.pink'),
 	pageMachinesColorGrey: message('terminal.settings.page.machines.color.grey'),
+	pageMachinesColorChosen: message('terminal.settings.page.machines.color.chosen'),
 	pageMachinesAddressLabel: message('terminal.settings.page.machines.address.label'),
 	pageMachinesAddressDescription: message('terminal.settings.page.machines.address.description'),
 	pageMachinesStatusLabel: message('terminal.settings.page.machines.status.label'),

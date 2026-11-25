@@ -167,6 +167,12 @@ then rereads the catalog finds the ID with the same connection and Session and k
 link as the saved Machine's. A draft that never comes `online` is dropped with its link, its login
 and any answer remembered for it, and nothing was saved.
 
+The add forms, the TUI's and the desktop page's, ask for the color and the address only: the color
+before the address on one line, which opens a list of the colors, and the SSH config hosts below
+it, one a line, any of which the address takes. The machine is saved under its host's name, as
+`machine add` names one without `--name`, or under the whole target when that name is no name a
+machine takes, such as `local`; Rename and the machine's page change it once it is saved.
+
 - **The TUI.** The form sends `connect` with `origin` `user` through the TUI's
   [holder](#the-tui-as-a-hub-client), starting it, and a hub, when no saved Machine started one yet,
   so its login asks in the TUI's [login overlay](#login-questions) and the draft's events reach this
@@ -1459,16 +1465,16 @@ Not now, and either closes an ended notice; a choice on a notice no longer shown
 Log in claims the login, whose question then asks as `login`. The page counts a choice only once
 the notice has shown for a second with no other key pressed on it.
 
-Add Machine on the page adds as the TUI's form adds: the same address and name rules, the eight
+Add Machine on the page adds as the TUI's form adds: the same address rule and name, the eight
 checks on one draft connection, a failed check giving the add up, and the record saved once every
 check passed. `add` is the form's worded `labels` and its `form` while the page shows it, or null:
 `hosts` (the SSH config hosts, each `{host, label}`), `color` (the least-used color it offers
 first), `running`, `status` (`{text, tone}`, `pending` or `error`), `lines` (a failed check's),
-`problem` (`{field, text}`, `address`, `name` or null for a save that failed), `submit` (Add, or the
-failed check's action), `blocked` (a failure with no way on until the address changes) and `saved`
-(the machine it saved). The intents are `add-open`, `add` with `address`, `name` (blank for the
-host name) and `color`, and `add-close`, which gives an add in progress up with its login. The
-proposal's login asks as a page-asked one does, named as the person typed the machine.
+`problem` (`{field, text}`, `address`, which also reports an address that gives no name, or null
+for a save that failed), `submit` (Add, or the failed check's action), `blocked` (a failure with no
+way on until the address changes) and `saved` (the machine it saved). The intents are `add-open`,
+`add` with `address` and `color`, and `add-close`, which gives an add in progress up with its
+login. The proposal's login asks as a page-asked one does, named as the machine will be saved.
 
 [Change machine](#change-machine) on the page moves as the TUI's does, through the same child and
 the same checks. `change` is its worded `labels` (`title`, `heading`, `note`, `here`, `find`,

@@ -58,9 +58,6 @@ pub(super) fn project(
                 "title": locale.machine_manage_text(ManageText::AddTitle),
                 "address": locale.machine_manage_text(ManageText::Address),
                 "hosts": locale.machine_manage_text(ManageText::Hosts),
-                "name": locale.machine_manage_text(ManageText::Name),
-                "nameHint": locale.machine_manage_text(ManageText::NameHint),
-                "color": locale.machine_manage_text(ManageText::Color),
                 "cancel": locale.machine_manage_text(ManageText::Cancel),
                 "add": locale.machine_manage_text(ManageText::Add),
             },
@@ -135,8 +132,8 @@ fn add(locale: Locale, add: &Add) -> Value {
     let problem = add.problem.map(|problem| {
         json!({
             "field": match problem {
-                ManageProblem::Address => Some("address"),
-                ManageProblem::Name => Some("name"),
+                // The name comes from the address: the form asks for no other.
+                ManageProblem::Address | ManageProblem::Name => Some("address"),
                 ManageProblem::Save => None,
             },
             "text": locale.machine_manage_problem(problem),
