@@ -728,7 +728,18 @@ fn claude_status_slot_above_the_prompt_box_follows_live_shapes() {
     let stale = format!(
         "✻ Waiting for 4 background agents to finish\nEarlier output one.\nEarlier output two.\nEarlier output three.\nEarlier output four.\n{BOX}\n  ? for shortcuts\n"
     );
-    for (screen, expected) in [(&turn, Working), (&waiting, Working), (&stale, Idle)] {
+    // A finished turn hands over while work it started runs on; an event from that work starts a new turn.
+    let monitor = format!(
+        "● Sent the two values.\n\n✻ Churned for 20s · done 6:05 AM · 1 monitor still running\n\n{BOX}\n  ⏵⏵ bypass permissions on · 1 monitor · ↓ to manage\n"
+    );
+    let mcp = format!("✻ Worked for 1m 3s · 2 MCP tasks still running\n{BOX}\n{footer}\n");
+    for (screen, expected) in [
+        (&turn, Working),
+        (&waiting, Working),
+        (&stale, Idle),
+        (&monitor, Idle),
+        (&mcp, Idle),
+    ] {
         let detected = engine
             .detect(Some(Provider::Claude), input(screen))
             .unwrap();
