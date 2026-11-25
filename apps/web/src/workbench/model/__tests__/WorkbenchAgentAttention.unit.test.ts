@@ -92,6 +92,26 @@ describe('Workbench Agent attention', () => {
 		unsubscribe();
 	});
 
+	it('marks a turn that ended behind an unrecognised screen unread once', () => {
+		const awaiting = (state: 'idle' | 'unknown', sequence: bigint) => ({
+			...agent(state, sequence),
+			completion: 'awaiting-input' as const,
+		});
+		const server = source(snapshot({ terminal: agent('working', 1n) }));
+		const viewer = new WorkbenchAgentAttention(server);
+		const unsubscribe = viewer.subscribe(() => {});
+		server.publish(snapshot({ terminal: agent('unknown', 2n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		server.publish(snapshot({ terminal: awaiting('idle', 3n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
+		viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
+		// A read Done that passes through an unrecognised screen is not handed over again.
+		server.publish(snapshot({ terminal: awaiting('unknown', 4n) }));
+		server.publish(snapshot({ terminal: awaiting('idle', 5n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		unsubscribe();
+	});
+
 	it('marks a replacement terminal and a returning Agent unread when they hand over', () => {
 		const server = source(snapshot({ terminal: agent('idle', 1n) }));
 		const viewer = new WorkbenchAgentAttention(server);

@@ -80,6 +80,56 @@ fn only_a_change_that_hands_over_is_unseen_and_an_unread_turn_survives_resumed_w
 }
 
 #[test]
+fn a_turn_that_ends_behind_an_unrecognised_screen_is_unseen_once() {
+    let mut owner = PhysicalAttentionState::default();
+    let mut agent = state(1, 1, 1);
+    publish(&mut owner, 1, std::slice::from_ref(&agent));
+    let mut step = |owner: &mut PhysicalAttentionState,
+                    sequence: u64,
+                    next: PanelAgentState,
+                    completion: AgentCompletion| {
+        agent.sequence = WorkbenchRevision::new(sequence);
+        agent.state = next;
+        agent.completion = completion;
+        publish(owner, sequence, std::slice::from_ref(&agent));
+        seen(owner, &agent).unwrap()
+    };
+    assert!(step(
+        &mut owner,
+        2,
+        PanelAgentState::Working,
+        AgentCompletion::None
+    ));
+    assert!(step(
+        &mut owner,
+        3,
+        PanelAgentState::Unknown,
+        AgentCompletion::None
+    ));
+    // The Server holds the finished turn once the screen is recognised again.
+    assert!(!step(
+        &mut owner,
+        4,
+        PanelAgentState::Idle,
+        AgentCompletion::AwaitingInput
+    ));
+    assert!(owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true));
+    // A read Done that passes through an unrecognised screen is not handed over again.
+    assert!(step(
+        &mut owner,
+        5,
+        PanelAgentState::Unknown,
+        AgentCompletion::AwaitingInput
+    ));
+    assert!(step(
+        &mut owner,
+        6,
+        PanelAgentState::Idle,
+        AgentCompletion::AwaitingInput
+    ));
+}
+
+#[test]
 fn stale_hidden_unfocused_and_failed_reads_never_acknowledge_physical_changes() {
     let mut owner = PhysicalAttentionState::default();
     publish(&mut owner, 0, &[]);

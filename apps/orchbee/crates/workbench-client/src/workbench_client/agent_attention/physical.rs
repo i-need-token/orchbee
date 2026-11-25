@@ -121,8 +121,8 @@ impl PhysicalAttentionState {
                     _ => crate::agent_unread::version_starts_seen(
                         previous
                             .filter(|old| old.current.agent == current.agent)
-                            .map(|old| (old.current.state, old.seen)),
-                        current.state,
+                            .map(|old| (unread_version(&old.current), old.seen)),
+                        unread_version(current),
                     ),
                 };
             if entries
@@ -298,6 +298,13 @@ impl PhysicalAttentionState {
             }
         }
         acknowledged
+    }
+}
+
+fn unread_version(state: &TerminalAgentStateSnapshot) -> crate::agent_unread::UnreadVersion {
+    crate::agent_unread::UnreadVersion {
+        state: state.state,
+        completion: state.completion,
     }
 }
 

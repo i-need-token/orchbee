@@ -4,7 +4,6 @@ import type {
 	WorkbenchAgentObservation,
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
-	WorkbenchAgentState,
 } from '../types/workbench-agent-observation';
 
 export interface WorkbenchAgentAttentionSnapshot {
@@ -31,19 +30,26 @@ function version(observation: WorkbenchAgentObservation): string {
  * failure hands the person something new, so it starts unseen. Entering work, starting, or an
  * unrecognised screen shows nothing new and keeps the previous acknowledgement, so a finished turn
  * nobody has read stays unread while the Agent works again. `previous` is the same Agent's older
- * version in the same terminal, absent when this Client has none. An idle version after an idle
- * one means versions went unread in between, which may hold a whole turn, so it counts as finished.
+ * version in the same terminal, absent when this Client has none. An idle version finishes a turn
+ * when it newly awaits input, even after an unrecognised screen, or when it follows a working or an
+ * idle one: an idle version after an idle one means versions went unread in between, which may
+ * hold a whole turn.
  */
 function versionStartsSeen(
 	previous: Acknowledgement | undefined,
-	current: WorkbenchAgentState,
+	current: WorkbenchAgentObservation,
 ): boolean {
-	const before = previous?.observation.state;
+	const before = previous?.observation;
+	const awaits = (observation: WorkbenchAgentObservation | undefined): boolean =>
+		observation?.completion === 'awaiting-input';
 	const handedOver =
-		current === 'done' ||
-		current === 'error' ||
-		current === 'blocked' ||
-		(current === 'idle' && (before === 'working' || before === 'idle'));
+		current.state === 'done' ||
+		current.state === 'error' ||
+		current.state === 'blocked' ||
+		(current.state === 'idle' &&
+			((awaits(current) && !awaits(before)) ||
+				before?.state === 'working' ||
+				before?.state === 'idle'));
 	return !handedOver && (previous?.seen ?? true);
 }
 
@@ -115,7 +121,11 @@ export class WorkbenchAgentAttention {
 		}
 		for (const [id, current] of observation.presentations) {
 			const previous = acknowledgements.get(id);
-			if (previous !== undefined && version(previous.observation) === version(current)) continue;
+			// The same version keeps its acknowledgement; its completion may still have changed.
+			if (previous !== undefined && version(previous.observation) === version(current)) {
+				acknowledgements.set(id, { observation: current, seen: previous.seen });
+				continue;
+			}
 			// A replacement terminal or another Agent starts without the earlier acknowledgement.
 			const sameAgent =
 				previous?.observation.binding === current.binding &&
@@ -124,7 +134,7 @@ export class WorkbenchAgentAttention {
 					: undefined;
 			acknowledgements.set(id, {
 				observation: current,
-				seen: versionStartsSeen(sameAgent, current.state),
+				seen: versionStartsSeen(sameAgent, current),
 			});
 		}
 	}

@@ -87,7 +87,9 @@ Agent does not create an Agent badge. A read never counts as a paint.
 
 A state change hands over when it gives the person something new to look at: a change into done,
 error or blocked, or working becoming idle, which is a finished turn. A complete sample may skip
-versions, so idle after idle at a newer sequence also counts as a finished turn. Entering working,
+versions, so idle after idle at a newer sequence also counts as a finished turn, and so does an
+idle version that newly awaits input, which covers a turn that ended while the screen was
+unrecognised or its process samples failed. Entering working,
 opening or unknown shows nothing new, so its version keeps the previous acknowledgement: a finished
 turn nobody has read stays unseen while the Agent works again, and an Agent that resumes by itself
 after a read turn, such as when a background command ends, gains no unread marker. The machine Agent

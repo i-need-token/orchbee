@@ -4,11 +4,11 @@
 // module-layer: state
 
 use super::checkpoint::{Checkpoint, MAXIMUM_ROWS};
+use crate::agent_unread::UnreadVersion;
 use crate::machines::Choice;
 use orchbee_agent_observation_protocol::AgentLaunchBinding;
 use orchbee_workbench_protocol::{
-    ClientTerminalAgentAttentionSnapshot, PanelAgentState, SessionId, TerminalPresentationId,
-    WorkbenchRevision,
+    ClientTerminalAgentAttentionSnapshot, SessionId, TerminalPresentationId, WorkbenchRevision,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -17,7 +17,7 @@ struct Version {
     binding: AgentLaunchBinding,
     sequence: WorkbenchRevision,
     agent: String,
-    state: PanelAgentState,
+    facts: UnreadVersion,
     seen: bool,
 }
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,17 +63,21 @@ impl Attention {
             if old.is_some_and(|v| {
                 v.sequence > row.sequence
                     || (v.sequence == row.sequence
-                        && (v.agent != row.target.agent || v.state != row.state))
+                        && (v.agent != row.target.agent || v.facts.state != row.state))
             }) {
                 return Err(());
             }
+            let facts = UnreadVersion {
+                state: row.state,
+                completion: row.completion,
+            };
             let seen = previous.is_none()
                 || match old {
                     Some(v) if v.sequence == row.sequence => v.seen,
                     _ => crate::agent_unread::version_starts_seen(
                         old.filter(|v| v.agent == row.target.agent)
-                            .map(|v| (v.state, v.seen)),
-                        row.state,
+                            .map(|v| (v.facts, v.seen)),
+                        facts,
                     ),
                 };
             if versions
@@ -83,7 +87,7 @@ impl Attention {
                         binding: row.target.physical.clone(),
                         sequence: row.sequence,
                         agent: row.target.agent.clone(),
-                        state: row.state,
+                        facts,
                         seen,
                     },
                 )
