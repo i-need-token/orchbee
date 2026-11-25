@@ -190,14 +190,19 @@ impl IdentityState {
         ended
     }
 
-    /// Applies one failed sample; it proves nothing about the anchor, so the run stays.
-    pub(crate) fn fail(&mut self, at: Instant) {
-        if self
-            .last_success
-            .is_none_or(|last| at.saturating_duration_since(last) >= STALE)
+    /// Applies one failed sample; it proves nothing about the anchor, so the run stays. Returns
+    /// whether this failure turned the result stale.
+    pub(crate) fn fail(&mut self, at: Instant) -> bool {
+        let stale = Identity::Unknown(Reason::SampleFailed);
+        if self.result == stale
+            || self
+                .last_success
+                .is_some_and(|last| at.saturating_duration_since(last) < STALE)
         {
-            self.result = Identity::Unknown(Reason::SampleFailed);
+            return false;
         }
+        self.result = stale;
+        true
     }
 
     /// Panel reports show interactive runs, and keep showing runs whose arguments are not yet

@@ -300,7 +300,8 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
   outer Agent, and neither does an ancestor that launched the anchor under an unverified name for
   its provider, such as a version manager's shim. Before a run exists, they prevent settling.
 - Staleness: failed samples never end a run; they keep the last result for at most two seconds and
-  then yield `unknown` with `sample-failed`.
+  then yield `unknown` with `sample-failed`. The screen goes unread meanwhile, so the published run's
+  [screen fallback](agent-report-model.md#periodic-windows-sampling-owner) turns Unknown at that point.
 - Grade: a run is `confirmed` only while the typed command that started it stays open, and only when
   every process from its anchor up to the sample's Job root was created after the Host read that
   command's start marker; any missing evidence keeps `recognized`. The rule and its reasons are

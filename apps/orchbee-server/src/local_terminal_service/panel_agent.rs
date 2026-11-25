@@ -173,7 +173,7 @@ impl LocalTerminalService {
             return;
         }
         if let Ok(mut coordinator) = self.coordinator.lock() {
-            coordinator.observe_host_process_failure(target, started);
+            coordinator.observe_host_process_failure(target, started, std::time::Instant::now());
         }
     }
 }

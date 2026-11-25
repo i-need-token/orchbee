@@ -584,18 +584,56 @@ impl SessionCoordinator {
     }
 
     /// A failed sample of an exactly tracked physical target ages its identity; it never ends a run.
+    /// Screen evidence counts only between two samples that name the run, so the screen goes unread
+    /// while samples fail. Once they have failed for the identity's stale window, the published
+    /// run's state is reported unknown instead of its last observation, until a sample succeeds.
     pub(crate) fn observe_host_process_failure(
         &mut self,
         target: BindingViewerTarget,
         started: Instant,
+        now: Instant,
     ) {
-        if let Some(sample) = self.process_samples.values_mut().find(|sample| {
+        let Some(sample) = self.process_samples.values_mut().find(|sample| {
             sample.target.worker_generation == target.worker.generation
                 && sample.target.identity == target.identity
-        }) && sample.started < started
+        }) else {
+            return;
+        };
+        if sample.started >= started {
+            return;
+        }
+        sample.started = started;
+        if !sample.identity.fail(started)
+            || sample.screen.published().state
+                == orchbee_workbench_protocol::PanelAgentState::Unknown
         {
-            sample.started = started;
-            sample.identity.fail(started);
+            return;
+        }
+        let Some(run) = sample.published() else {
+            return;
+        };
+        // The next successful sample's screen then publishes whatever it shows, even its old state.
+        sample.screen = Stability::new(Detection::fallback(true));
+        let physical = sample.target.clone();
+        let Ok(facts) = self.terminal_agent_bindings() else {
+            return;
+        };
+        if let Some(workbench) = self.workbench.as_mut() {
+            // A refused observation leaves the report as it was, as any failed sample does.
+            let _ = workbench.observe_terminal_agent(
+                &physical,
+                &facts,
+                TerminalAgentProcessObservation {
+                    observed_at: started,
+                    agent: Some(run.provider),
+                    fallback: Some(orchbee_server::TerminalAgentScreenObservation {
+                        state: orchbee_workbench_protocol::PanelAgentState::Unknown,
+                        visible_blocker: false,
+                    }),
+                    exited: false,
+                },
+                now,
+            );
         }
     }
     /// Scheduling hint only; publication still validates the complete physical/process identity.
