@@ -54,7 +54,7 @@ mod agent_registration;
 #[cfg(any(windows, target_os = "macos", test))]
 mod agent_resume;
 #[cfg(any(windows, target_os = "macos"))]
-pub(crate) use agent_resume::{RunTableEntry, read_run_table, resume_arguments};
+pub(crate) use agent_resume::{ProcessSourceEntry, read_process_sources, resume_arguments};
 mod delivery_target;
 pub(crate) use delivery_target::ResumeTarget;
 mod directory_label;

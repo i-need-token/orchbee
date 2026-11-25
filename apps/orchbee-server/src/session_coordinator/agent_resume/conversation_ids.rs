@@ -1,7 +1,8 @@
 //! Where a resumable provider's command line carries a conversation id, as one closed table read
 //! in both directions: the argument tokens a resume types after the program, and the options and
 //! subcommands through which a running Agent's own command line binds the id it opened. Every typed
-//! form is one of the read bindings, so a resumed run reads back the id it was given. It decides no
+//! form is one of the read bindings, so a resumed run reads back the id it was given. The same
+//! table picks the options a resume carries from the run that held the session. It decides no
 //! capture: the capture rule admits a read id only for the published run it was sampled from.
 
 use orchbee_agent_observation_protocol::AgentReportProvider;
@@ -14,8 +15,14 @@ mod tests;
 /// value-taking option or a resume subcommand, so no grammar reads it as a prompt. An option whose
 /// value is optional takes `--name=<id>`; a required-value option or a subcommand takes a separate
 /// token. Every token uses only `[A-Za-z0-9_=-]`; Letta's stored `default:<agent>` key is split
-/// into its own options first.
+/// into its own options first. The session's carried options follow, each an inert token.
 pub(crate) fn resume_arguments(session: &RetainedAgentSession) -> Vec<String> {
+    let mut tokens = id_arguments(session);
+    tokens.extend_from_slice(session.arguments());
+    tokens
+}
+
+fn id_arguments(session: &RetainedAgentSession) -> Vec<String> {
     use AgentResumeProvider as P;
     let id = session.session_id();
     let separate = |option: &str| vec![option.to_owned(), id.to_owned()];
@@ -105,6 +112,68 @@ const fn binding(provider: AgentResumeProvider) -> Binding {
 /// Letta's agent option, which completes a bound `default` conversation into its stored
 /// `default:<agent>` key.
 const LETTA_AGENT: [&str; 2] = ["--agent", "-a"];
+
+/// Options whose value is an initial prompt or an attachment for it, which a resume never repeats.
+const PROMPT_OPTIONS: [&str; 3] = ["-i", "--prompt-interactive", "--image"];
+
+/// The options a resume of `provider` carries from `arguments`, the arguments after the program of
+/// the interactive run that held the session: every option its mode grammar classifies as
+/// interactive, with the value it takes, in order. It drops positionals, which are prompts or
+/// subcommand words, everything after `--`, the options and flags through which the table above
+/// binds or voids a conversation, prompt options, and any option whose tokens are not inert
+/// ([`RetainedAgentSession::valid_arguments`]), so `claude --model opus "fix it"` carries
+/// `--model opus`.
+pub(crate) fn carried_options(provider: AgentResumeProvider, arguments: &[String]) -> Vec<String> {
+    let Some(grammar) = AgentReportProvider::from_native_provider_id(provider.provider_id())
+        .map(|provider| provider.registry_entry().grammar)
+    else {
+        return Vec::new();
+    };
+    let binding = binding(provider);
+    let mut carried = Vec::new();
+    let mut index = 0;
+    while let Some(argument) = arguments.get(index) {
+        index += 1;
+        if argument == "--" {
+            break;
+        }
+        if argument.len() < 2 || !argument.starts_with('-') {
+            continue;
+        }
+        let (name, inline) = match argument.split_once('=') {
+            Some((name, value)) => (name, Some(value)),
+            None => (argument.as_str(), None),
+        };
+        let bound = binding.options.contains(&name)
+            || (provider == AgentResumeProvider::Letta && LETTA_AGENT.contains(&name));
+        let valued = inline.is_none()
+            && (grammar.interactive_options.contains(&name)
+                || (bound
+                    && arguments
+                        .get(index)
+                        .is_some_and(|next| !next.starts_with('-'))));
+        let value = valued.then(|| arguments.get(index)).flatten();
+        if valued {
+            index += 1;
+        }
+        let known = grammar.interactive_options.contains(&name)
+            || grammar.interactive_optional_options.contains(&name)
+            || (inline.is_none() && grammar.interactive_flags.contains(&name));
+        if bound
+            || !known
+            || binding.voiding.contains(&name)
+            || PROMPT_OPTIONS.contains(&name)
+            || (valued && value.is_none())
+        {
+            continue;
+        }
+        let option: Vec<String> = std::iter::once(argument).chain(value).cloned().collect();
+        if RetainedAgentSession::valid_arguments(&option) {
+            carried.extend(option);
+        }
+    }
+    carried
+}
 
 /// The session `arguments`, the arguments after the program of an interactive run of `provider`,
 /// bind on that command line: exactly one id bound through the table, and valid in the provider's

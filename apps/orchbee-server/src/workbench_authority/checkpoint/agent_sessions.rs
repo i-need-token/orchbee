@@ -1,7 +1,8 @@
 //! Retained per-Presentation Agent session references: the closed table of resumable providers,
 //! the native session id format, and their whole-document validation and capture. Selecting a live
 //! reference from observations belongs to the Session, and delivering a resume belongs to the
-//! restore runtime; a retained reference never carries command text.
+//! restore runtime. Beside the id a reference keeps only the run's own carried options, as inert
+//! tokens a resume types after its own; it never carries a program, a prompt or other command text.
 use super::directories::{StoredDirectory, members};
 use super::{WorkbenchAuthority, WorkbenchCheckpointError as Error};
 use orchbee_agent_observation_protocol::AgentProviderId;
@@ -122,12 +123,19 @@ impl AgentResumeProvider {
     }
 }
 
+/// At most this many carried tokens, and this many bytes in all.
+const MAXIMUM_ARGUMENTS: usize = 32;
+const MAXIMUM_ARGUMENT_BYTES: usize = 1024;
+
 /// One admitted native session reference. The id is kept verbatim and is valid for its provider:
 /// every accepted id is inert in PowerShell argument mode and in cmd, and none begins with `-`.
+/// The carried options are the options the run that held the session was started with, which a
+/// resume types again after the id; each passes [`Self::valid_arguments`].
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct RetainedAgentSession {
     provider: AgentResumeProvider,
     session_id: String,
+    arguments: Vec<String>,
 }
 
 impl RetainedAgentSession {
@@ -137,7 +145,50 @@ impl RetainedAgentSession {
         valid_id(provider, session_id).then(|| Self {
             provider,
             session_id: session_id.to_owned(),
+            arguments: Vec::new(),
         })
+    }
+
+    /// The same reference carrying `arguments`, or carrying none when they are not
+    /// [valid](Self::valid_arguments).
+    #[must_use]
+    pub fn with_arguments(mut self, arguments: Vec<String>) -> Self {
+        self.arguments = if Self::valid_arguments(&arguments) {
+            arguments
+        } else {
+            Vec::new()
+        };
+        self
+    }
+
+    /// The carried options a resume types after its own tokens; empty when none.
+    #[must_use]
+    pub fn arguments(&self) -> &[String] {
+        &self.arguments
+    }
+
+    /// Whether every carried token is inert as typed: non-empty, built only from ASCII letters,
+    /// digits and `_ - = : / \ . +`, which no shell a resume types into expands or splits, and
+    /// within the bounds above. A resume types each token as one word after its own.
+    #[must_use]
+    pub fn valid_arguments(arguments: &[String]) -> bool {
+        arguments.len() <= MAXIMUM_ARGUMENTS
+            && arguments.iter().map(String::len).sum::<usize>() <= MAXIMUM_ARGUMENT_BYTES
+            && arguments.iter().all(|token| {
+                !token.is_empty()
+                    && token.bytes().all(|byte| {
+                        byte.is_ascii_alphanumeric()
+                            || matches!(
+                                byte,
+                                b'_' | b'-' | b'=' | b':' | b'/' | b'\\' | b'.' | b'+'
+                            )
+                    })
+            })
+    }
+
+    /// The `(provider, id)` pair no two retained rows share.
+    fn key(&self) -> (AgentResumeProvider, &str) {
+        (self.provider, &self.session_id)
     }
 
     #[must_use]
@@ -267,10 +318,14 @@ pub(super) struct StoredAgentSession {
     presentation_id: TerminalPresentationId,
     provider: AgentResumeProvider,
     session_id: String,
+    /// Written only when there are carried options; an omitted list carries none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    arguments: Vec<String>,
 }
 
 /// Admits the whole list or rejects the document: every row names a distinct member Presentation
-/// that also has a directory row, a valid id, and a distinct `(provider, sessionId)`.
+/// that also has a directory row, a valid id, valid carried options and a distinct
+/// `(provider, sessionId)`.
 pub(super) fn validate(
     rows: &[StoredAgentSession],
     snapshot: &Snapshot,
@@ -281,11 +336,15 @@ pub(super) fn validate(
     let mut admitted = BTreeMap::new();
     let mut sessions = BTreeSet::new();
     for row in rows {
+        if !RetainedAgentSession::valid_arguments(&row.arguments) {
+            return Err(Error::InvalidAgentSession);
+        }
         let session = RetainedAgentSession::new(row.provider, &row.session_id)
-            .ok_or(Error::InvalidAgentSession)?;
+            .ok_or(Error::InvalidAgentSession)?
+            .with_arguments(row.arguments.clone());
         if !retained.contains_key(&row.presentation_id)
             || !directories.contains(&row.presentation_id)
-            || !sessions.insert(session.clone())
+            || !sessions.insert((session.provider, session.session_id.clone()))
             || admitted
                 .insert(row.presentation_id.clone(), session)
                 .is_some()
@@ -329,13 +388,12 @@ pub(super) fn capture(
                 .as_ref()
                 .and_then(|b| live.get(&b.terminal_id).copied())
                 .or_else(|| authority.restart_agent_sessions.get(&id))?;
-            sessions
-                .insert(session.clone())
-                .then(|| StoredAgentSession {
-                    presentation_id: id,
-                    provider: session.provider,
-                    session_id: session.session_id.clone(),
-                })
+            sessions.insert(session.key()).then(|| StoredAgentSession {
+                presentation_id: id,
+                provider: session.provider,
+                session_id: session.session_id.clone(),
+                arguments: session.arguments.clone(),
+            })
         })
         .collect())
 }

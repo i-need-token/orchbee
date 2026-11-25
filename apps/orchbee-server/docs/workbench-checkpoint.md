@@ -129,16 +129,19 @@ Evidence must cover exact identity/revision fences, primary/child separation, in
 
 ### Per-Presentation Agent session references
 
-`checkpoint/agent_sessions.rs` owns the `agentSessions` list of `presentationId`, `provider` and
-`sessionId` rows. `provider` is one id of the closed `AgentResumeProvider` table, and `sessionId`
-must be valid in that provider's own id grammar; the
+`checkpoint/agent_sessions.rs` owns the `agentSessions` list of `presentationId`, `provider`,
+`sessionId` and optional `arguments` rows. `provider` is one id of the closed `AgentResumeProvider`
+table, and `sessionId` must be valid in that provider's own id grammar; the
 [provider table](agent-session-resume.md#provider-table) lists both. The id is stored verbatim,
-never case-folded, as `RetainedAgentSession`. Each row names a distinct member Presentation that also has a
-`terminalDirectories` row, and `(provider, sessionId)` pairs are distinct. A null list, a
-non-member or duplicate Presentation, an unknown provider, an id invalid for its provider, a
-duplicate pair, a row without a directory row or an unknown field rejects the entire document. An
-older build therefore rejects a document with a provider it does not know and loses that layout
-once.
+never case-folded, as `RetainedAgentSession`. `arguments` holds the run's
+[carried options](agent-session-resume.md#carried-options): at most 32 tokens of at most 1024 bytes
+in all, each a nonempty word of ASCII letters, digits and `_-=:/\.+`; the writer omits an empty
+list. Each row names a distinct member Presentation that also has a `terminalDirectories` row, and
+`(provider, sessionId)` pairs are distinct. A null list, a non-member or duplicate Presentation, an
+unknown provider, an id invalid for its provider, an invalid `arguments` list, a duplicate pair, a
+row without a directory row or an unknown field rejects the entire document. An older build
+therefore rejects a document with a provider it does not know, or with a row that carries
+`arguments`, and loses that layout once.
 
 The writer always emits the list. Unlike every other retained field it may be omitted on read,
 where it means no references: an omitted list cannot name anything to resume, so a document written

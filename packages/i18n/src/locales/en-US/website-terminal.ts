@@ -35,7 +35,7 @@ export const enUSWebsiteTerminalMessages = {
 		'Eight categories, a search on <code>/</code>, and 16 themes with separate choices for light and dark. Changes are saved to <code>config.toml</code>.',
 	'website.terminal.highlight.leave.title': 'Leave, and come back',
 	'website.terminal.highlight.leave.body':
-		'Leaves the interface; the terminals keep running. Run <code>orchbee</code> again and everything is where you left it. When a Session is restored on Windows, its Claude Code conversations resume as well.',
+		'Leaves the interface; the terminals keep running. Run <code>orchbee</code> again and everything is where you left it. When a Session is restored on Windows, conversations of supported Agents, such as Claude Code, Codex and Gemini, resume as well, and other terminals show their recent output again.',
 	'website.terminal.highlight.size.title': 'Any window size',
 	'website.terminal.highlight.size.body':
 		'Full layout from 100 columns by 24 rows. Below 60 columns it switches to a compact layout made for narrow windows. <code>Ctrl+b</code> <code>b</code> hides the sidebar at any size.',

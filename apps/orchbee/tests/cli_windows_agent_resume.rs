@@ -9,10 +9,10 @@
 //! crate's README records why. A stub takes a fresh session id in its provider's shape, or the id
 //! its start or resume arguments carry, and only the Agent's own process names it. The Claude Code
 //! row's session is named by Claude Code's own run table entry, which the witness writes for each
-//! of its runs with that process's exact creation time. The other rows are named only by the
-//! Agent's own command line: a Grok started the way an Agent start types it, with a fresh
-//! `--session-id`, a hand-typed `codex resume` with a leading option, and a hand-typed
-//! `mimo --session <id>`. Every run records its arguments, directory and session in the fixture
+//! of its runs with that process's exact creation time, beside the conversation's transcript. The
+//! other rows are named only by the Agent's own command line: a Grok started the way an Agent start
+//! types it, with a fresh `--session-id`, a hand-typed `codex resume` with a leading option, which
+//! its resume carries, and a hand-typed `mimo --session <id>`. Every run records its arguments, directory and session in the fixture
 //! root and stays alive like an interactive Agent until it reads `q`. Every wait reads the Agent
 //! list, as a Client showing it does.
 //!
@@ -152,7 +152,8 @@ const TABLE: [Row; 4] = [
         provider: "codex",
         program: "codex",
         entry: "node_modules/@openai/codex/bin/codex.js",
-        resume: &["resume", "{id}"],
+        // The resume carries the run's own `--search` after the resume tokens.
+        resume: &["resume", "{id}", "--search"],
         start: Start::With(
             &["--search", "resume", "{id}"],
             "8d2e4f60-1a3b-4c5d-8e7f-9a0b1c2d3e4f",
@@ -749,6 +750,26 @@ impl Witness {
                 "status": "idle",
             });
             fs::write(table.join(format!("{pid}.json")), entry.to_string()).unwrap();
+            // The Server resumes only a conversation with a transcript, which Claude Code files
+            // under a folder named for its directory: each UTF-16 unit but an ASCII letter or digit
+            // as `-`, and a name past 200 cut there with a hash suffix.
+            let mut folder: String = call["cwd"]
+                .as_str()
+                .unwrap()
+                .encode_utf16()
+                .map(|unit| match u8::try_from(unit) {
+                    Ok(byte) if byte.is_ascii_alphanumeric() => char::from(byte),
+                    _ => '-',
+                })
+                .collect();
+            if folder.len() > 200 {
+                folder.truncate(200);
+                folder.push_str("-0");
+            }
+            let transcripts = PathBuf::from(self.directory("home/.claude/projects")).join(folder);
+            fs::create_dir_all(&transcripts).unwrap();
+            let id = call["id"].as_str().unwrap();
+            fs::write(transcripts.join(format!("{id}.jsonl")), "{}\n").unwrap();
         }
     }
 

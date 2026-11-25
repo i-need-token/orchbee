@@ -1,4 +1,4 @@
-use super::{binding, command_line_session, resume_arguments};
+use super::{binding, carried_options, command_line_session, resume_arguments};
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 
 const UUID: &str = "0f8fad5b-d9cb-469f-a165-70867728950e";
@@ -161,4 +161,49 @@ fn provider_specific_forms() {
             "{provider:?}: {line}"
         );
     }
+}
+
+/// What a resume carries is the run's own launch options, never a prompt, a conversation binding,
+/// a continue flag, a word after `--` or a token outside the token rule.
+#[test]
+fn carried_options_keep_launch_options_and_drop_prompts_and_bindings() {
+    use AgentResumeProvider as P;
+    let carried = |provider, line: &[&str]| {
+        let arguments: Vec<String> = line.iter().map(|token| (*token).to_owned()).collect();
+        carried_options(provider, &arguments)
+    };
+    assert_eq!(
+        carried(
+            P::ClaudeCode,
+            &[
+                "--model",
+                "sonnet",
+                "--dangerously-skip-permissions",
+                "--resume",
+                UUID,
+                "--effort",
+                "xhigh",
+                "fix the bug",
+            ],
+        ),
+        [
+            "--model",
+            "sonnet",
+            "--dangerously-skip-permissions",
+            "--effort",
+            "xhigh"
+        ]
+    );
+    assert_eq!(
+        carried(P::Codex, &["--search", "resume", UUID]),
+        ["--search"]
+    );
+    assert!(
+        carried(
+            P::ClaudeCode,
+            &["--continue", "--model", "it's", "--", "--model", "opus"]
+        )
+        .is_empty()
+    );
+    assert!(carried(P::Gemini, &["-i", "write a poem"]).is_empty());
 }

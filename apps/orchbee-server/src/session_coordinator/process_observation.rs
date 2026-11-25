@@ -17,11 +17,15 @@ use std::{
 };
 mod host_conventions;
 mod identity;
+mod run_processes;
 mod script_operands;
 #[cfg(all(test, not(windows)))]
 mod tests;
 #[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
+pub(crate) use run_processes::RunAnchor;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) use run_processes::RunProcesses;
 pub(crate) use script_operands::resolve_script_operands;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct Selected {
@@ -57,6 +61,10 @@ pub(super) struct Sample {
     /// it is interactive for the run's provider: the only command line a resume source reads.
     #[cfg(any(windows, target_os = "macos"))]
     command_line: Option<(Selected, Vec<String>)>,
+    /// The published run's processes and directory as this sample's rows gave them, which the
+    /// process source read before a capture looks up.
+    #[cfg(any(windows, target_os = "macos"))]
+    run_processes: Option<RunProcesses>,
 }
 pub(super) type Samples = BTreeMap<(String, String), Sample>;
 
@@ -295,6 +303,14 @@ impl SessionCoordinator {
         let mut screen_input_revision = same.map_or(0, |p| p.screen_input_revision);
         #[cfg(any(windows, target_os = "macos"))]
         let command_line = published_command_line(sample, retained, same);
+        #[cfg(any(windows, target_os = "macos"))]
+        let run_processes = retained.and_then(|run| {
+            let anchor = RunAnchor {
+                pid: run.pid,
+                created: run.created,
+            };
+            RunProcesses::of(anchor, sample)
+        });
         let mut fallback = None;
         let since_seen = started.saturating_duration_since(first_seen);
         if departed.is_none()
@@ -375,6 +391,8 @@ impl SessionCoordinator {
                 directory,
                 #[cfg(any(windows, target_os = "macos"))]
                 command_line,
+                #[cfg(any(windows, target_os = "macos"))]
+                run_processes,
             },
         );
         true
@@ -444,19 +462,25 @@ impl SessionCoordinator {
             .and_then(Sample::published)
     }
 
-    /// The published run of every tracked generation, with that generation's identity result.
+    /// The published run of every tracked generation, with that generation's identity result and
+    /// the run's processes as its latest sample gave them, if read.
     #[cfg(any(windows, target_os = "macos"))]
-    pub(crate) fn published_runs(
+    pub(crate) fn published_run_processes(
         &self,
     ) -> impl Iterator<
         Item = (
             Selected,
             orchbee_agent_observation_protocol::AgentProcessIdentity,
+            Option<&RunProcesses>,
         ),
     > + '_ {
-        self.process_samples
-            .values()
-            .filter_map(|sample| Some((sample.published()?, sample.identity.result())))
+        self.process_samples.values().filter_map(|sample| {
+            Some((
+                sample.published()?,
+                sample.identity.result(),
+                sample.run_processes.as_ref(),
+            ))
+        })
     }
 
     /// The exact physical generation's published run with the arguments after its program, as

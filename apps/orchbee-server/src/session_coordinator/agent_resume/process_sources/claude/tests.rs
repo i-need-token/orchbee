@@ -1,4 +1,4 @@
-use super::super::{RunAnchor, RunTableEntry};
+use super::super::super::RunAnchor;
 use super::{MAXIMUM_ENTRY_BYTES, read_in};
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use std::{fs, path::PathBuf};
@@ -13,7 +13,7 @@ const CREATED_AS_TICKS: u64 = CREATED + 504_911_232_000_000_000;
 
 const PREFIX: &str = "orchbee-claude-run-table-";
 
-/// A fixture run table directory under the system temporary directory, removed on drop.
+/// A fixture configuration directory under the system temporary directory, removed on drop.
 struct Directory(PathBuf);
 
 impl Directory {
@@ -22,15 +22,26 @@ impl Directory {
         getrandom::fill(&mut nonce).unwrap();
         let directory =
             Self(std::env::temp_dir().join(format!("{PREFIX}{:032x}", u128::from_le_bytes(nonce))));
-        fs::create_dir(&directory.0).unwrap();
+        fs::create_dir_all(directory.0.join("sessions")).unwrap();
         directory
     }
 
     fn write(&self, pid: u32, contents: impl AsRef<[u8]>) {
-        fs::write(self.0.join(format!("{pid}.json")), contents).unwrap();
+        fs::write(
+            self.0.join("sessions").join(format!("{pid}.json")),
+            contents,
+        )
+        .unwrap();
     }
 
-    fn read(&self, pid: u32, created: u64) -> Vec<RunTableEntry> {
+    /// Writes the transcript of `session` under the folder Claude Code names `folder`.
+    fn transcript(&self, folder: &str, session: &str) {
+        let folder = self.0.join("projects").join(folder);
+        fs::create_dir_all(&folder).unwrap();
+        fs::write(folder.join(format!("{session}.jsonl")), "{}\n").unwrap();
+    }
+
+    fn read(&self, pid: u32, created: u64) -> Vec<(RunAnchor, RetainedAgentSession)> {
         read_in(&self.0, &[RunAnchor { pid, created }])
     }
 }
@@ -91,12 +102,15 @@ fn an_entry_names_its_session_only_for_the_exact_process_it_was_read_for() {
         pid: PID,
         created: CREATED,
     };
+    // A conversation without a transcript has nothing to resume.
+    assert!(directory.read(PID, CREATED).is_empty());
+    directory.transcript("C--work", SESSION);
     assert_eq!(
         read_in(&directory.0, &[anchor]),
-        [RunTableEntry {
+        [(
             anchor,
-            session: RetainedAgentSession::new(AgentResumeProvider::ClaudeCode, SESSION).unwrap(),
-        }]
+            RetainedAgentSession::new(AgentResumeProvider::ClaudeCode, SESSION).unwrap(),
+        )]
     );
     // The entry an earlier process left behind names nothing for a later one that reuses its pid,
     // nor for one created earlier.
@@ -115,10 +129,22 @@ fn an_entry_names_its_session_only_for_the_exact_process_it_was_read_for() {
         ],
     );
     assert_eq!(entries.len(), 1);
-    assert_eq!(entries[0].anchor, anchor);
+    assert_eq!(entries[0].0, anchor);
     // An entry filed under another process id names that process, not this one.
     directory.write(PID + 8, valid());
     assert!(directory.read(PID + 8, CREATED).is_empty());
+    // A directory past the folder name bound is found by its cut, whatever its hash suffix.
+    let mut long: serde_json::Map<String, serde_json::Value> = serde_json::from_str(&written(
+        (PID + 12).into(),
+        SESSION,
+        CREATED.to_string().into(),
+    ))
+    .unwrap();
+    long.insert("cwd".to_owned(), format!(r"C:\{}", "a".repeat(250)).into());
+    directory.write(PID + 12, serde_json::Value::Object(long).to_string());
+    assert!(directory.read(PID + 12, CREATED).is_empty());
+    directory.transcript(&format!("C--{}-1x2y3z", "a".repeat(197)), SESSION);
+    assert_eq!(directory.read(PID + 12, CREATED).len(), 1);
     // A missing directory has no entries.
     assert!(
         read_in(&directory.0.join("absent"), &[anchor]).is_empty(),
@@ -129,6 +155,7 @@ fn an_entry_names_its_session_only_for_the_exact_process_it_was_read_for() {
 #[test]
 fn a_malformed_oversized_or_foreign_entry_names_nothing() {
     let directory = Directory::new();
+    directory.transcript("C--work", SESSION);
     let entry = valid();
     let start = CREATED.to_string();
     let field = |name: &str, value: serde_json::Value| {
@@ -144,7 +171,7 @@ fn a_malformed_oversized_or_foreign_entry_names_nothing() {
         serde_json::Value::Object(object).to_string()
     };
     let padding = "x".repeat(usize::try_from(MAXIMUM_ENTRY_BYTES).unwrap());
-    let rows: [(&str, Vec<u8>); 18] = [
+    let rows: [(&str, Vec<u8>); 19] = [
         ("an empty file", Vec::new()),
         ("a truncated entry", entry[..entry.len() / 2].into()),
         (
@@ -178,6 +205,7 @@ fn a_malformed_oversized_or_foreign_entry_names_nothing() {
         ),
         ("no sessionId", without("sessionId").into_bytes()),
         ("no procStart", without("procStart").into_bytes()),
+        ("no cwd", without("cwd").into_bytes()),
         (
             "a sessionId that is not a Claude Code id",
             field("sessionId", "session-1".into()).into_bytes(),
@@ -212,6 +240,6 @@ fn a_malformed_oversized_or_foreign_entry_names_nothing() {
     }
     // A directory where the entry belongs is not one.
     let pid = PID + 1;
-    fs::create_dir(directory.0.join(format!("{pid}.json"))).unwrap();
+    fs::create_dir(directory.0.join("sessions").join(format!("{pid}.json"))).unwrap();
     assert!(directory.read(pid, CREATED).is_empty(), "a directory");
 }

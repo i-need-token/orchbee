@@ -5,7 +5,7 @@
 
 use crate::{
     local_terminal_service::{LocalTerminalService, agent_resume::AgentResumeCandidates},
-    session_coordinator::{ProcessObservationTarget, RunTableEntry, SessionCoordinator},
+    session_coordinator::{ProcessObservationTarget, ProcessSourceEntry, SessionCoordinator},
     terminal_coordinator::WorkerPlacement,
 };
 use orchbee_server::{RetainedAgentSession, WorkbenchRestoreTarget};
@@ -22,8 +22,8 @@ pub(in crate::local_terminal_service::checkpoint) fn resumes() -> Resumes {
     Resumes::default()
 }
 
-/// What Claude Code's run table names for each published Claude Code run.
-pub(in crate::local_terminal_service::checkpoint) type Entries = Vec<RunTableEntry>;
+/// What each published Agent run's own files name: its Agent's run table or session store.
+pub(in crate::local_terminal_service::checkpoint) type Entries = Vec<ProcessSourceEntry>;
 
 /// Whether Agent resume is on for one save or restore.
 #[derive(Clone, Copy)]
@@ -35,19 +35,18 @@ impl Resume {
         Self(on)
     }
 
-    /// What Claude Code's run table names for each published Claude Code run, read while no lock
-    /// is held. Capture admits an entry only for a run still published as that exact process, so
-    /// any change in between gains nothing. Resuming off, or an unreadable coordinator, reads
-    /// nothing.
+    /// What each published Agent run's own files name, read while no lock is held. Capture admits
+    /// an entry only for a run still published as that exact process, so any change in between
+    /// gains nothing. Resuming off, or an unreadable coordinator, reads nothing.
     pub(super) fn entries(self, service: &LocalTerminalService) -> Entries {
         if !self.0 {
             return Vec::new();
         }
-        let anchors = match service.coordinator.lock() {
-            Ok(coordinator) => coordinator.run_table_anchors(),
+        let probes = match service.coordinator.lock() {
+            Ok(coordinator) => coordinator.process_source_probes(),
             Err(_) => return Vec::new(),
         };
-        crate::session_coordinator::read_run_table(&anchors)
+        crate::session_coordinator::read_process_sources(&probes)
     }
 
     /// Each terminal's Agent session for the checkpoint, or none while resuming is off.
@@ -55,7 +54,7 @@ impl Resume {
         self,
         coordinator: &mut SessionCoordinator,
         targets: &[ProcessObservationTarget],
-        entries: &[RunTableEntry],
+        entries: &[ProcessSourceEntry],
     ) -> Option<Vec<(PresentationBinding, RetainedAgentSession)>> {
         self.0
             .then(|| coordinator.checkpoint_agent_sessions(targets, entries))

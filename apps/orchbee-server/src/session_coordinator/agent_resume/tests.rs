@@ -1,4 +1,4 @@
-use super::{CommandEvidence, RunAnchor, RunTableEntry};
+use super::{CommandEvidence, ProcessSourceEntry, ProcessSourceKind, RunAnchor};
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::{
     AgentIdentityGrade, AgentIdentityUnknownReason, AgentIdentityUnsupportedReason,
@@ -169,9 +169,10 @@ fn a_run_table_entry_answers_only_for_the_published_agent_run_and_only_without_a
         pid: 40,
         created: 1_000,
     };
-    let entry = RunTableEntry {
+    let entry = ProcessSourceEntry {
         anchor: run,
         session: reference(AgentResumeProvider::ClaudeCode, ENTRY_ID).unwrap(),
+        kind: ProcessSourceKind::RunTable,
     };
     let from_entry = reference(AgentResumeProvider::ClaudeCode, ENTRY_ID);
     let from_hook = reference(AgentResumeProvider::ClaudeCode, CLAUDE);
@@ -294,9 +295,10 @@ fn a_command_line_id_answers_only_for_the_published_agent_run_after_hooks_and_th
         pid: 40,
         created: 2_000,
     };
-    let table = [RunTableEntry {
+    let table = [ProcessSourceEntry {
         anchor: run,
         session: reference(AgentResumeProvider::ClaudeCode, TABLE_ID).unwrap(),
+        kind: ProcessSourceKind::RunTable,
     }];
     let args = |line: &str| -> Vec<String> {
         line.split(' ')
@@ -319,7 +321,7 @@ fn a_command_line_id_answers_only_for_the_published_agent_run_after_hooks_and_th
         &'a str,
         &'a [AgentResumeCandidate],
         &'a AgentProcessIdentity,
-        &'a [RunTableEntry],
+        &'a [ProcessSourceEntry],
         Option<(RunAnchor, &'a str)>,
         Option<RetainedAgentSession>,
     );

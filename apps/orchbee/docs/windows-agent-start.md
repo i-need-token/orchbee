@@ -291,9 +291,10 @@ history rule and the typed-run identity work as they do for managed PowerShell.
    cannot see, it waits 10000 ms, so a hook there can bind the name first. Observation binds no
    name: the workflow releases the reservation and reports the Agent started. The CLI keeps its
    blocked-start rule and refuses a blocked state as `agent-blocked`; the TUI accepts it.
-   Session resume on Windows needs a session the published run's own process names: Claude
-   Code's run table entry, else the conversation id bound on its command line, such as a
-   [launch-time id](#launch-time-conversation-ids)
+   Session resume on Windows needs a session the published run's own process names: its Agent's
+   run table entry, else the conversation id bound on its command line, such as a
+   [launch-time id](#launch-time-conversation-ids), else the sole session its Agent's store holds
+   for the run's directory
    ([Agent session resume](../../orchbee-server/docs/agent-session-resume.md#process-source)).
 
 The default total deadline is 30000 ms, with 3001–300000 admitted. Each I/O step is bounded

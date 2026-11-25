@@ -2,25 +2,28 @@
 //! delivered reference carried forward while the process its delivery started lives; else Agent
 //! candidates joined to the exact Terminal generation, refuted by that generation's command and
 //! process evidence, and admitted only when exactly one remains; else, when none remains, the
-//! session the published run's own process names: the one it registered in its Agent's run table,
-//! else the one its command line binds. Reports, process names and screen detection never grant a
-//! reference. It does not persist, deduplicate across Presentations or deliver a resume.
+//! session the published run's own processes name: the one they registered in their Agent's run
+//! table, else the one the run's command line binds, else the sole one their Agent's session store
+//! holds for the run's directory since the run started. A reference carries the options the run
+//! was started with. Reports, process names and screen detection never grant a reference. It does
+//! not persist, deduplicate across Presentations or deliver a resume.
 
+use super::process_observation::RunAnchor;
 use crate::agent_service::AgentResumeCandidate;
 use orchbee_agent_observation_protocol::AgentProcessIdentity;
 use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use std::collections::BTreeSet;
 
-#[cfg(any(windows, target_os = "macos"))]
-mod claude_run_table;
 mod conversation_ids;
+#[cfg(any(windows, target_os = "macos"))]
+mod process_sources;
 #[cfg(test)]
 mod tests;
 
 #[cfg(any(windows, target_os = "macos"))]
-pub(crate) use claude_run_table::read as read_run_table;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use conversation_ids::resume_arguments;
+#[cfg(any(windows, target_os = "macos"))]
+pub(crate) use process_sources::read as read_process_sources;
 
 /// The shell command evidence of one exact Terminal generation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -45,13 +48,38 @@ impl CommandEvidence {
     }
 }
 
-/// The session one Agent process registered in its Agent's own run table, read outside every lock
-/// before a capture, and the process it was read for. Only an entry whose process id and creation
-/// time are that process's is ever built.
+/// Where a process source entry comes from, which orders it against the run's command line.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ProcessSourceKind {
+    /// The Agent's run table: a record one of the run's own processes keeps under its exact process
+    /// id, naming the conversation it holds now.
+    RunTable,
+    /// The Agent's session store: the one session it holds for the run's directory, written since
+    /// the run started, while no other published run of that provider has that directory.
+    SessionStore,
+}
+
+/// The session one published run's own files name, read outside every lock before a capture, and
+/// the run it was read for.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct RunTableEntry {
+pub(crate) struct ProcessSourceEntry {
     pub(crate) anchor: RunAnchor,
     pub(crate) session: RetainedAgentSession,
+    pub(crate) kind: ProcessSourceKind,
+}
+
+/// What a process source read needs of one published Agent run, taken under the Session lock.
+#[cfg(any(windows, target_os = "macos"))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct RunProbe {
+    pub(crate) provider: AgentResumeProvider,
+    pub(crate) anchor: RunAnchor,
+    /// The run and the processes descending from it in its latest sample, the run first.
+    pub(crate) processes: Vec<RunAnchor>,
+    /// The run's own current directory in its latest sample, if read.
+    pub(crate) directory: Option<String>,
+    /// Whether another published run of the same provider has the same directory.
+    pub(crate) shared_directory: bool,
 }
 
 /// One Presentation's reference without a carried one, if any. An open command keeps the
@@ -62,15 +90,16 @@ pub(crate) struct RunTableEntry {
 /// none. When none remains, the process source decides while the identity is `Agent`: the run
 /// table entry read for the generation's published `run` of that provider gives its session; else
 /// the `command_line` sampled from that same run, the arguments after its program, gives the one
-/// id it binds for that provider. The run table wins because it follows the conversation the
-/// process holds now, while the command line names the one it started in. Anything else gives
-/// none.
+/// id it binds for that provider; else the session store entry read for that run. The run table
+/// wins because it follows the conversation the process holds now, while the command line names
+/// the one it started in; a session store entry rests only on the directory and the time, so it
+/// comes last. Anything else gives none.
 pub(crate) fn select(
     candidates: &[AgentResumeCandidate],
     evidence: CommandEvidence,
     identity: &AgentProcessIdentity,
     run: Option<RunAnchor>,
-    entries: &[RunTableEntry],
+    entries: &[ProcessSourceEntry],
     command_line: Option<(RunAnchor, &[String])>,
 ) -> Option<RetainedAgentSession> {
     let tokenless = || candidates.iter().filter(|c| c.run_token.is_none());
@@ -107,29 +136,27 @@ pub(crate) fn select(
         // No hook session of this run remains: only its own process can name one.
         (None, _) => {
             let (provider, run) = (provider?, run?);
-            let table = entries
-                .iter()
-                .find(|entry| {
-                    entry.anchor == run && entry.session.provider().provider_id() == provider
+            let entry = |kind| {
+                entries
+                    .iter()
+                    .find(|entry| {
+                        entry.anchor == run
+                            && entry.kind == kind
+                            && entry.session.provider().provider_id() == provider
+                    })
+                    .map(|entry| entry.session.clone())
+            };
+            entry(ProcessSourceKind::RunTable)
+                .or_else(|| {
+                    let (_, arguments) = command_line.filter(|(sampled, _)| *sampled == run)?;
+                    conversation_ids::command_line_session(
+                        AgentResumeProvider::from_provider_id(provider)?,
+                        arguments,
+                    )
                 })
-                .map(|entry| entry.session.clone());
-            table.or_else(|| {
-                let (_, arguments) = command_line.filter(|(sampled, _)| *sampled == run)?;
-                conversation_ids::command_line_session(
-                    AgentResumeProvider::from_provider_id(provider)?,
-                    arguments,
-                )
-            })
+                .or_else(|| entry(ProcessSourceKind::SessionStore))
         }
     }
-}
-
-/// The process a delivery started: its pid and its creation time in sample row units, which
-/// defeats pid reuse.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct RunAnchor {
-    pub(crate) pid: u32,
-    pub(crate) created: u64,
 }
 
 /// A delivered reference carried forward. It stays capturable while, and only while, the process
@@ -330,22 +357,49 @@ impl super::SessionCoordinator {
         }
     }
 
-    /// The published run of every tracked generation whose identity is `Agent` of a provider with
-    /// a run table, Claude Code alone, for the run table read that precedes a capture. Capture
-    /// checks each entry against the generation's published run again, so a run that changed
-    /// after this read gains nothing.
-    pub(crate) fn run_table_anchors(&self) -> Vec<RunAnchor> {
-        use orchbee_agent_observation_protocol::AgentReportProvider;
-        self.published_runs()
-            .filter(|(run, identity)| {
-                matches!(identity, AgentProcessIdentity::Agent { provider, .. }
-                    if *provider == AgentReportProvider::Claude && run.provider == *provider)
+    /// A probe of every tracked generation's published run whose identity is `Agent` of a
+    /// provider with a process source, for the read that precedes a capture. Capture checks each
+    /// entry against the generation's published run again, so a run that changed after this read
+    /// gains nothing.
+    pub(crate) fn process_source_probes(&self) -> Vec<RunProbe> {
+        let mut probes: Vec<RunProbe> = self
+            .published_run_processes()
+            .filter_map(|(run, identity, processes)| {
+                let AgentProcessIdentity::Agent { provider, .. } = identity else {
+                    return None;
+                };
+                let provider = AgentResumeProvider::from_provider_id(provider.native_provider_id())
+                    .filter(|_| provider == run.provider)
+                    .filter(|provider| process_sources::reads(*provider))?;
+                let anchor = RunAnchor {
+                    pid: run.pid(),
+                    created: run.created(),
+                };
+                let processes = processes.filter(|processes| processes.run == anchor);
+                Some(RunProbe {
+                    provider,
+                    anchor,
+                    processes: processes.map_or_else(|| vec![anchor], |p| p.processes.clone()),
+                    directory: processes.and_then(|p| p.directory.clone()),
+                    shared_directory: false,
+                })
             })
-            .map(|(run, _)| RunAnchor {
-                pid: run.pid(),
-                created: run.created(),
+            .collect();
+        let shared: Vec<bool> = probes
+            .iter()
+            .map(|probe| {
+                probes.iter().any(|other| {
+                    other.anchor != probe.anchor
+                        && other.provider == probe.provider
+                        && matches!((&other.directory, &probe.directory),
+                            (Some(left), Some(right)) if process_sources::same_directory(left, right))
+                })
             })
-            .collect()
+            .collect();
+        for (probe, shared) in probes.iter_mut().zip(shared) {
+            probe.shared_directory = shared;
+        }
+        probes
     }
 
     /// The live reference of every checkpoint target that has one, keyed by its binding. Targets
@@ -353,14 +407,15 @@ impl super::SessionCoordinator {
     /// a stale target, an unreadable registration or an unavailable Agent cell contributes
     /// nothing, so pending restart references still carry over. A target with any hook candidate
     /// drops its carried reference and takes the live rule; otherwise its carried reference
-    /// decides. Without one, the live rule decides, and `entries`, the run table read for
-    /// published runs before this capture, then each published run's sampled command line answer
-    /// only where no hook candidate remains.
+    /// decides. Without one, the live rule decides, and `entries`, the process sources read for
+    /// published runs before this capture, and each published run's sampled command line answer
+    /// only where no hook candidate remains. A reference the live rule gives carries the options
+    /// of its published run's sampled command line when that run is of its provider.
     /// Capture owns cross-Presentation deduplication in its own order.
     pub(crate) fn checkpoint_agent_sessions(
         &mut self,
         targets: &[super::ProcessObservationTarget],
-        entries: &[RunTableEntry],
+        entries: &[ProcessSourceEntry],
     ) -> Vec<(
         orchbee_workbench_protocol::PresentationBinding,
         RetainedAgentSession,
@@ -429,6 +484,7 @@ impl super::SessionCoordinator {
                         entries,
                         command_line,
                     )
+                    .map(|session| carry_options(session, self.published_command_line(&terminal)))
                 }
             };
             if let Some(session) = session {
@@ -436,6 +492,25 @@ impl super::SessionCoordinator {
             }
         }
         live
+    }
+}
+
+/// `session` carrying the options of the published run's sampled `command_line`, when that run is
+/// of the session's provider; otherwise `session` as it is.
+#[cfg(any(windows, target_os = "macos"))]
+fn carry_options(
+    session: RetainedAgentSession,
+    command_line: Option<(super::process_observation::Selected, &[String])>,
+) -> RetainedAgentSession {
+    match command_line {
+        Some((run, arguments))
+            if AgentResumeProvider::from_provider_id(run.provider.native_provider_id())
+                == Some(session.provider()) =>
+        {
+            let carried = conversation_ids::carried_options(session.provider(), arguments);
+            session.with_arguments(carried)
+        }
+        _ => session,
     }
 }
 
