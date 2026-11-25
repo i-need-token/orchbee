@@ -1,5 +1,10 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { agentObservationMessages, useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
+import {
+	agentObservationMessages,
+	type IntlShape,
+	useOrchbeeIntl,
+	workbenchMessages,
+} from '@orchbee/i18n';
 import type { TabStatusAdornment, TabStatusAdornmentKind } from '@orchbee/tab-strip';
 import * as React from 'react';
 
@@ -109,6 +114,50 @@ const TAB_ADORNMENT_KINDS: Readonly<Record<WorkbenchAgentState, TabStatusAdornme
 	working: 'active',
 };
 
+/** One Tab's Agent mark and the facts it is drawn from. */
+interface TabAgentPresentation {
+	readonly agents: readonly string[];
+	readonly gradientPrefix: string;
+	readonly hasUnread: boolean;
+	readonly identityIcon: React.ReactNode;
+	readonly state: WorkbenchAgentState;
+	readonly statusAdornment: Readonly<TabStatusAdornment>;
+}
+
+interface TabAgentPresentations {
+	readonly byTab: ReadonlyMap<string, TabAgentPresentation>;
+	readonly identityIcons: ReadonlyMap<string, React.ReactNode>;
+	/** The messages the marks are written in; another locale draws every mark again. */
+	readonly intl: IntlShape | null;
+	readonly statusAdornments: ReadonlyMap<string, Readonly<TabStatusAdornment>>;
+}
+
+const NO_TAB_AGENT_PRESENTATIONS: TabAgentPresentations = {
+	byTab: new Map(),
+	identityIcons: new Map(),
+	intl: null,
+	statusAdornments: new Map(),
+};
+
+function sameStrings(left: readonly string[], right: readonly string[]): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+/** Whether both list the same Tabs, in the same order, with the same mark objects. */
+function sameTabAgentPresentations(
+	left: ReadonlyMap<string, TabAgentPresentation>,
+	right: ReadonlyMap<string, TabAgentPresentation>,
+): boolean {
+	const rightEntries = [...right];
+	return (
+		left.size === right.size &&
+		[...left].every(
+			([tabId, presentation], index) =>
+				rightEntries[index]?.[0] === tabId && rightEntries[index]?.[1] === presentation,
+		)
+	);
+}
+
 export function useWorkbenchAgentPresentation({
 	confirmations,
 	nameSource,
@@ -198,9 +247,14 @@ export function useWorkbenchAgentPresentation({
 			return next;
 		});
 	});
+	// The Tab strip skips a Tab whose mark objects keep their identity, so a Tab whose Agent facts
+	// did not change keeps the objects of the last result. A result from a render React discards
+	// is still right for its facts, so it may be reused as well.
+	const lastTabPresentation = React.useRef(NO_TAB_AGENT_PRESENTATIONS);
 	const tabPresentation = React.useMemo(() => {
-		const identityIcons = new Map<string, React.ReactNode>();
-		const statusAdornments = new Map<string, Readonly<TabStatusAdornment>>();
+		const previous = lastTabPresentation.current;
+		const reusable = previous.intl === intl ? previous.byTab : NO_TAB_AGENT_PRESENTATIONS.byTab;
+		const byTab = new Map<string, TabAgentPresentation>();
 		const unreadLabel = intl.formatMessage(agentObservationMessages.statusUnread);
 		for (const tab of panelTabs) {
 			const presentationIds = collectPanelLeaves(tab.root).flatMap((panel) => [
@@ -216,24 +270,53 @@ export function useWorkbenchAgentPresentation({
 			);
 			if (state === null) continue;
 			const agents = [...new Set(observations.map((observation) => observation.agent))];
-			const identityIcon = React.createElement(AgentProviderIcon, {
-				agents,
-				gradientPrefix: `${agentIconGradientPrefix}-${identityIcons.size}`,
-			});
-			identityIcons.set(tab.tabId, identityIcon);
-			const status = formatWorkbenchAgentStatus(intl, state);
+			const gradientPrefix = `${agentIconGradientPrefix}-${byTab.size}`;
 			const hasUnread = presentationIds.some((id) => unread.has(id));
-			statusAdornments.set(tab.tabId, {
-				accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
-				// The strip draws the solid mark on the active Tab, so a Tab switch rebuilds no adornment.
-				activeMark: React.createElement(WorkbenchAgentStateGlyph, { selected: true, status }),
-				mark: React.createElement(WorkbenchAgentStateGlyph, { selected: false, status }),
-				icon: identityIcon,
-				kind: TAB_ADORNMENT_KINDS[state],
-				unreadLabel: hasUnread ? unreadLabel : undefined,
+			const prior = reusable.get(tab.tabId);
+			if (
+				prior !== undefined &&
+				prior.state === state &&
+				prior.hasUnread === hasUnread &&
+				prior.gradientPrefix === gradientPrefix &&
+				sameStrings(prior.agents, agents)
+			) {
+				byTab.set(tab.tabId, prior);
+				continue;
+			}
+			const identityIcon = React.createElement(AgentProviderIcon, { agents, gradientPrefix });
+			const status = formatWorkbenchAgentStatus(intl, state);
+			byTab.set(tab.tabId, {
+				agents,
+				gradientPrefix,
+				hasUnread,
+				identityIcon,
+				state,
+				statusAdornment: {
+					accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
+					// The strip draws the solid mark on the active Tab, so a Tab switch rebuilds no adornment.
+					activeMark: React.createElement(WorkbenchAgentStateGlyph, { selected: true, status }),
+					mark: React.createElement(WorkbenchAgentStateGlyph, { selected: false, status }),
+					icon: identityIcon,
+					kind: TAB_ADORNMENT_KINDS[state],
+					unreadLabel: hasUnread ? unreadLabel : undefined,
+				},
 			});
 		}
-		return { identityIcons, statusAdornments };
+		const next: TabAgentPresentations =
+			previous.intl === intl && sameTabAgentPresentations(previous.byTab, byTab)
+				? previous
+				: {
+						byTab,
+						identityIcons: new Map(
+							[...byTab].map(([tabId, presentation]) => [tabId, presentation.identityIcon]),
+						),
+						intl,
+						statusAdornments: new Map(
+							[...byTab].map(([tabId, presentation]) => [tabId, presentation.statusAdornment]),
+						),
+					};
+		lastTabPresentation.current = next;
+		return next;
 	}, [agentIconGradientPrefix, intl, panelTabs, snapshot, unread]);
 	const presentationAgentStatuses = React.useMemo(() => {
 		const statuses = new Map<string, WorkbenchAgentStatusView>();

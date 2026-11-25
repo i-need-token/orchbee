@@ -76,8 +76,8 @@ interface TabButtonProps extends TabButtonContext {
 }
 
 /**
- * Renders one Tab. Memoized: the parent spreads a `tabButtonContext` for each Tab, so only a Tab
- * whose own state or neighbour's state changed renders again.
+ * Renders one Tab. Memoized: the parent passes each value of the Tab's `tabButtonContext` as a
+ * prop, so only a Tab whose own state or neighbour's state changed renders again.
  */
 export const TabButton = memo(function TabButton({
 	tab,
@@ -89,11 +89,13 @@ export const TabButton = memo(function TabButton({
 	tabPositionIndex,
 	tabCount,
 	hoveredByStrip,
-	previousTab,
+	hasPreviousTab,
+	previousGroup,
 	previousActive,
 	previousSelected,
 	previousTabHovered,
-	nextTab,
+	hasNextTab,
+	nextGroup,
 	nextActive,
 	nextSelected,
 	nextTabHovered,
@@ -184,24 +186,22 @@ export const TabButton = memo(function TabButton({
 			hovered: false,
 			group: tab.group,
 		},
-		previous:
-			previousTab === undefined
-				? null
-				: {
-						active: previousActive,
-						selected: previousSelected,
-						hovered: false,
-						group: previousTab.group,
-					},
-		next:
-			nextTab === undefined
-				? null
-				: {
-						active: nextActive,
-						selected: nextSelected,
-						hovered: false,
-						group: nextTab.group,
-					},
+		previous: hasPreviousTab
+			? {
+					active: previousActive,
+					selected: previousSelected,
+					hovered: false,
+					group: previousGroup,
+				}
+			: null,
+		next: hasNextTab
+			? {
+					active: nextActive,
+					selected: nextSelected,
+					hovered: false,
+					group: nextGroup,
+				}
+			: null,
 		tabCount,
 		declutterEnabled,
 	});

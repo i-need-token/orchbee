@@ -116,12 +116,18 @@ interface DraggedTabsInsertionResult {
  * an unchanged Tab or Group keeps its identity across snapshots; otherwise a new frozen copy.
  */
 function reuseUnchangedRecord<T extends { readonly id: string }>(
-	previous: readonly Readonly<T>[] | undefined,
+	previousById: ReadonlyMap<string, Readonly<T>>,
 	record: Readonly<T>,
 ): Readonly<T> {
-	const prior = previous?.find((candidate) => candidate.id === record.id);
+	const prior = previousById.get(record.id);
 	if (prior !== undefined && sameOwnFields(prior, record)) return prior;
 	return Object.freeze({ ...record });
+}
+
+function recordsById<T extends { readonly id: string }>(
+	records: readonly Readonly<T>[] | undefined,
+): ReadonlyMap<string, Readonly<T>> {
+	return new Map(records?.map((record) => [record.id, record]));
 }
 
 function sameOwnFields(left: object, right: object): boolean {
@@ -1108,10 +1114,12 @@ export class TabModel {
 	 * Groups with the same identity and lets memoized views skip them.
 	 */
 	private createSnapshot(previous?: TabModelSnapshot): TabModelSnapshot {
+		const previousTabs = recordsById(previous?.tabs);
+		const previousGroups = recordsById(previous?.groups);
 		return {
 			revision: this.revision,
-			tabs: this.tabs.map((tab) => reuseUnchangedRecord(previous?.tabs, tab)),
-			groups: this.groups.map((group) => reuseUnchangedRecord(previous?.groups, group)),
+			tabs: this.tabs.map((tab) => reuseUnchangedRecord(previousTabs, tab)),
+			groups: this.groups.map((group) => reuseUnchangedRecord(previousGroups, group)),
 			activeTabId: this.activeTabId,
 			selectedTabIds: new Set(this.selectedTabIds),
 			selectionAnchorId: this.selectionAnchorId,

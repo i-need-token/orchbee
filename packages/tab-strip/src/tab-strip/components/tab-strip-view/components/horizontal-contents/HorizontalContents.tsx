@@ -420,29 +420,22 @@ export function HorizontalContents({
 						);
 					}
 					const dragging = Boolean(drag?.started && drag.tabIds.includes(item.tab.id));
-					const group =
-						item.tab.group === null
-							? null
-							: (snapshot.groups.find((candidate) => candidate.id === item.tab.group) ?? null);
+					const tabContext = tabButtonContext(item.tab, snapshot, hoveredTabId);
 					const slotState = horizontalAnimationRuntimeRef.current?.getSlot(item.id);
 					const hiddenByCollapsedGroup =
-						Boolean(group?.collapsed) &&
+						Boolean(tabContext.group?.collapsed) &&
 						item.tab.group !== expandedHeaderDragGroupId &&
 						!slotState?.animating &&
 						bounds.width <= DEFAULT_TAB_STYLE_METRICS.tabOverlap;
-					const active = tabIsApparentlyActive(item.tab, snapshot);
-					const selected = snapshot.selectedTabIds.has(item.tab.id);
-					const hovering = hover?.kind === 'tab' && hover.id === item.tab.id;
 					const zIndex = dragging
 						? calculateTabContainerZValue({ kind: 'group-header', active: true })
 						: calculateTabContainerZValue({
 								kind: 'tab',
-								active,
-								selected,
-								hovering,
-								hoverAnimationValue: hovering ? 1 : 0,
+								active: tabContext.active,
+								selected: tabContext.selected,
+								hovering: tabContext.hoveredByStrip,
+								hoverAnimationValue: tabContext.hoveredByStrip ? 1 : 0,
 							});
-					const tabContext = tabButtonContext(item.tab, snapshot, hoveredTabId);
 					return (
 						<div
 							key={item.id}
@@ -474,11 +467,13 @@ export function HorizontalContents({
 								tabPositionIndex={tabContext.tabPositionIndex}
 								tabCount={tabContext.tabCount}
 								hoveredByStrip={tabContext.hoveredByStrip}
-								previousTab={tabContext.previousTab}
+								hasPreviousTab={tabContext.hasPreviousTab}
+								previousGroup={tabContext.previousGroup}
 								previousActive={tabContext.previousActive}
 								previousSelected={tabContext.previousSelected}
 								previousTabHovered={tabContext.previousTabHovered}
-								nextTab={tabContext.nextTab}
+								hasNextTab={tabContext.hasNextTab}
+								nextGroup={tabContext.nextGroup}
 								nextActive={tabContext.nextActive}
 								nextSelected={tabContext.nextSelected}
 								nextTabHovered={tabContext.nextTabHovered}

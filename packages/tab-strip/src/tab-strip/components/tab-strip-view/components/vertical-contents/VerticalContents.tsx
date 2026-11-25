@@ -189,11 +189,13 @@ export function VerticalContents({
 					tabPositionIndex={tabContext.tabPositionIndex}
 					tabCount={tabContext.tabCount}
 					hoveredByStrip={tabContext.hoveredByStrip}
-					previousTab={tabContext.previousTab}
+					hasPreviousTab={tabContext.hasPreviousTab}
+					previousGroup={tabContext.previousGroup}
 					previousActive={tabContext.previousActive}
 					previousSelected={tabContext.previousSelected}
 					previousTabHovered={tabContext.previousTabHovered}
-					nextTab={tabContext.nextTab}
+					hasNextTab={tabContext.hasNextTab}
+					nextGroup={tabContext.nextGroup}
 					nextActive={tabContext.nextActive}
 					nextSelected={tabContext.nextSelected}
 					nextTabHovered={tabContext.nextTabHovered}
