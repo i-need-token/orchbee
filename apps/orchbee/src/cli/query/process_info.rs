@@ -122,22 +122,40 @@ pub(crate) fn read_terminal_processes_cancellable(
     project(client, deadline, snapshot, row, observed, wake)
 }
 
-/// Project a process observation for an already selected row without taking viewer release ownership.
+/// Project a process observation for an already selected row without taking viewer release
+/// ownership, for a reader to whom processes are optional: a sample the Host could not take, even
+/// one too large for its reply, leaves them absent instead of failing the read.
 ///
 /// # Errors
-/// Return the shared read's classified failure; the caller still owns the supplied viewer lease.
-pub(super) fn read_attached(
+/// Return every other classified failure; the caller still owns the supplied viewer lease.
+pub(super) fn read_attached_optional(
     client: &mut LocalClient,
     deadline: Instant,
     snapshot: &Snapshot,
     row: results::TerminalRow,
     lease: (&ViewerId, AttachmentId, HostEpoch),
     wake: Option<BorrowedFd<'_>>,
-) -> Result<(Value, results::PanelProcessInfoDoc), Failure> {
-    let observed =
-        crate::agent_runtime::startup::processes::read_attached(client, deadline, lease, wake)
-            .map_err(classify_process)?;
-    project(client, deadline, snapshot, row, observed, wake)
+) -> Result<Option<(Value, results::PanelProcessInfoDoc)>, Failure> {
+    use crate::agent_runtime::startup::processes::Error;
+    let observed = match crate::agent_runtime::startup::processes::read_attached(
+        client, deadline, lease, wake,
+    ) {
+        Ok(observed) => observed,
+        Err(Error::Host(_)) => return Ok(None),
+        Err(error) => {
+            let failure = classify_process(error);
+            return if failure.kind == FailureKind::ServiceUnavailable {
+                Ok(None)
+            } else {
+                Err(failure)
+            };
+        }
+    };
+    match project(client, deadline, snapshot, row, observed, wake) {
+        Ok(observed) => Ok(Some(observed)),
+        Err(error) if error.kind == FailureKind::ServiceUnavailable => Ok(None),
+        Err(error) => Err(error),
+    }
 }
 
 /// Pair the sample with the Server's identity of the same Terminal, read after it.

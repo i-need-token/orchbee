@@ -1,6 +1,6 @@
 //! One read-only attachment samples frame metadata and the existing Windows Job facts.
 use super::{
-    BorrowedFd, Failure, FailureKind, Instant, LocalClient, Snapshot, Target, TerminalViewerAction,
+    BorrowedFd, Failure, Instant, LocalClient, Snapshot, Target, TerminalViewerAction,
     TerminalViewerRequest, attach_viewer_cancellable, obcs_request_id,
     poll_terminal_frame_cancellable, process_info,
 };
@@ -28,18 +28,14 @@ pub(in crate::cli) fn read(
         };
         // Do not retain a complete terminal screen for every Panel in a list.
         drop(frame);
-        let processes = match process_info::read_attached(
+        let processes = process_info::read_attached_optional(
             client,
             deadline,
             snapshot,
             row,
             (&viewer, attachment, epoch),
             wake,
-        ) {
-            Ok(observed) => Some(observed),
-            Err(error) if error.kind == FailureKind::ServiceUnavailable => None,
-            Err(error) => return Err(error),
-        };
+        )?;
         Ok(Read {
             frame: metadata,
             processes,
@@ -68,6 +64,7 @@ fn detach_after<T>(result: Result<T, Failure>, detach: impl FnOnce()) -> Result<
 
 #[cfg(test)]
 mod tests {
+    use super::super::FailureKind;
     use super::*;
 
     #[test]
