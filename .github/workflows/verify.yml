@@ -231,11 +231,23 @@ jobs:
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
 
+      - name: Restore the Terminal Host test build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: test
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Test native Terminal Host
         run: pnpm --filter @orchbee/terminal-host test
+
+      - name: Save the Terminal Host test build cache
+        if: ${{ github.ref == 'refs/heads/main' && !cancelled() }}
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: test
+          save: 'true'
 
       - name: Check native Terminal Host formatting
         run: pnpm --filter @orchbee/terminal-host format:check

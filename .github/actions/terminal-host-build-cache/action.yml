@@ -1,12 +1,17 @@
 name: Terminal Host build cache
 description: >-
-  Restores, or with `save: 'true'` saves, the Zig caches that the Terminal Host build of the Rust
-  test preparation fills (apps/terminal-host/scripts/build-host.mjs). Zig checks every cached
-  result against the content of its inputs, so an entry never makes a build use stale code; the key
-  only decides how much an entry still saves. Run it after `zig-packages`, whose package archives
-  under the global cache's `p` stay that action's own entry.
+  Restores, or with `save: 'true'` saves, the Zig caches that a Terminal Host build fills: the
+  release build of the Rust test preparation (apps/terminal-host/scripts/build-host.mjs), or with
+  `entry: test` the Terminal Host's own test builds. Zig checks every cached result against the
+  content of its inputs, so an entry never makes a build use stale code; the key only decides how
+  much an entry still saves. Run it after `zig-packages`, whose package archives under the global
+  cache's `p` stay that action's own entry.
 
 inputs:
+  entry:
+    description: "'build' for the Rust test preparation's build, 'test' for the Terminal Host tests"
+    required: false
+    default: build
   save:
     description: "'true' saves the caches unless this run restored them under the exact key"
     required: false
@@ -18,7 +23,10 @@ runs:
     - name: Locate the Zig build caches
       id: paths
       shell: bash
+      env:
+        ENTRY: ${{ inputs.entry }}
       run: |
+        case "$ENTRY" in build | test) ;; *) echo "Unknown Terminal Host cache entry: $ENTRY" >&2; exit 1 ;; esac
         if [ "$RUNNER_OS" = Windows ]; then global="$LOCALAPPDATA\\zig"; else global="${XDG_CACHE_HOME:-$HOME/.cache}/zig"; fi
         {
           echo 'paths<<ORCHBEE_PATHS'
@@ -38,9 +46,9 @@ runs:
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ steps.paths.outputs.paths }}
-        key: terminal-host-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-${{ hashFiles('apps/terminal-host/build.zig', 'apps/terminal-host/build/**', 'apps/terminal-host/src/**', 'apps/terminal-host/scripts/build-host.mjs', 'scripts/stage-native-windows.mjs') }}
+        key: terminal-host-${{ inputs.entry }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-${{ hashFiles('apps/terminal-host/build.zig', 'apps/terminal-host/build/**', 'apps/terminal-host/src/**', 'apps/terminal-host/scripts/**', 'scripts/stage-native-windows.mjs') }}
         restore-keys: |
-          terminal-host-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-
+          terminal-host-${{ inputs.entry }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-
 
     - name: Remember the restored key
       if: inputs.save != 'true'

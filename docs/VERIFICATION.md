@@ -317,10 +317,11 @@ complete clean search that took every required action, followed by its mutation 
   `main` save entries, so a pull request reads them and never displaces them. The release
   workflow restores no build cache: its artifacts come from clean builds.
 - The Rust parts restore the Terminal Host's Zig build caches with the local action
-  `.github/actions/terminal-host-build-cache`, and the workspace part saves them on `main`. Zig
-  checks every cached result against its inputs' content, so an entry only shortens a build. An
-  entry starts empty whenever the Zig version or the pinned packages change, and is left unsaved
-  past 2.5 GiB.
+  `.github/actions/terminal-host-build-cache`, and the workspace part saves them on `main`;
+  `terminal-host-native` keeps an entry of its own for the test builds, which took about 9 of its
+  minutes to compile (measured 2026-11-25). Zig checks every cached result against its inputs'
+  content, so an entry only shortens a build. An entry starts empty whenever the Zig version or the
+  pinned packages change, and is left unsaved past 2.5 GiB.
 - Every job that builds the Terminal Host, here and in the release workflow, first runs the local
   action `.github/actions/zig-packages`. It restores Zig's package archives from the Actions cache,
   keyed on the runner's OS and architecture, the Terminal Host's `build.zig.zon` and `build.zig`,
