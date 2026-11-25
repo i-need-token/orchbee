@@ -39,3 +39,15 @@ export type {
 } from './workbench-settings-contract';
 /** @internal The file state, for Web fixtures that publish one. */
 export type { SettingsFile } from './workbench-settings-contract';
+export { isWorkspaceRelativePath } from './workbench-workspace-files-contract';
+export type {
+	WorkspaceDirectoryEntry,
+	WorkspaceFileContent,
+	WorkspaceFileSource,
+	WorkspaceFilesOperation,
+	WorkspaceFilesOutcome,
+	WorkspaceFilesRequest,
+	WorkspaceFilesResult,
+	WorkspaceGitStatusCode,
+	WorkspaceGitStatusEntry,
+} from './workbench-workspace-files-contract';

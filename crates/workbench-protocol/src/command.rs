@@ -198,8 +198,18 @@ pub use current_directory::{
     CurrentDirectoryFailure, CurrentDirectoryOutcome, CurrentDirectoryPanel,
     CurrentDirectoryRequest, CurrentDirectoryResult, MAXIMUM_CURRENT_DIRECTORY_BYTES,
 };
+mod workspace_files;
 mod workspace_git;
 mod workspace_metadata;
+pub use workspace_files::{
+    MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_NAME_BYTES,
+    MAXIMUM_WORKSPACE_FILE_PATH_BYTES, MAXIMUM_WORKSPACE_FILE_TEXT_BYTES,
+    MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES,
+    WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileSource,
+    WorkspaceFilesFailure, WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest,
+    WorkspaceFilesResult, WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
+    is_relative_path as is_workspace_relative_path,
+};
 pub use workspace_git::{
     GitDivergence, MAXIMUM_WORKSPACE_GIT_BYTES, WorkspaceGitFailure, WorkspaceGitOutcome,
     WorkspaceGitRequest, WorkspaceGitResult,
@@ -1128,6 +1138,8 @@ pub enum WorkbenchRequest {
     WorkspaceMetadata(WorkspaceMetadataRequest),
     #[serde(rename = "workbench.workspace-git")]
     WorkspaceGit(WorkspaceGitRequest),
+    #[serde(rename = "workbench.workspace-files")]
+    WorkspaceFiles(WorkspaceFilesRequest),
     #[serde(rename = "workbench.current-directory")]
     CurrentDirectory(CurrentDirectoryRequest),
     #[serde(rename = "workbench.agent-catalog")]
@@ -1579,6 +1591,8 @@ pub enum WorkbenchResponse {
     WorkspaceMetadata(WorkspaceMetadataResult),
     #[serde(rename = "workbench.workspace-git.result")]
     WorkspaceGit(WorkspaceGitResult),
+    #[serde(rename = "workbench.workspace-files.result")]
+    WorkspaceFiles(WorkspaceFilesResult),
     #[serde(rename = "workbench.current-directory.result")]
     CurrentDirectory(CurrentDirectoryResult),
     #[serde(rename = "workbench.agent-catalog.result")]
@@ -1675,6 +1689,9 @@ fn validate_request(request: &WorkbenchRequest) -> Result<(), ContractError> {
         return request.validate();
     }
     if let WorkbenchRequest::WorkspaceMetadata(request) = request {
+        return request.validate();
+    }
+    if let WorkbenchRequest::WorkspaceFiles(request) = request {
         return request.validate();
     }
     if let WorkbenchRequest::ClientView(request) = request {
@@ -1813,6 +1830,9 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     }
     if matches!(request, WorkbenchRequest::Configuration(_)) {
         return MAXIMUM_CONFIGURATION_BYTES;
+    }
+    if matches!(request, WorkbenchRequest::WorkspaceFiles(_)) {
+        return MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES;
     }
     if matches!(
         request,
@@ -1954,6 +1974,10 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
         }
         WorkbenchResponse::WorkspaceGit(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_WORKSPACE_GIT_BYTES)?;
+            result.validate()
+        }
+        WorkbenchResponse::WorkspaceFiles(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES)?;
             result.validate()
         }
         WorkbenchResponse::CurrentDirectory(_) => {

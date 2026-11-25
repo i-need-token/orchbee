@@ -73,6 +73,7 @@ mod viewer_connection;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 mod worker_replacement;
 mod workspace_directory;
+mod workspace_files;
 mod workspace_git;
 mod workspace_group_close;
 mod workspace_metadata;
@@ -121,6 +122,7 @@ pub(crate) struct LocalTerminalService {
     tab_set_maintenance: operation_maintenance::OperationMaintenance,
     tab_duplicate_maintenance: operation_maintenance::OperationMaintenance,
     worktree_discovery: worktree_list::DiscoveryGate,
+    workspace_files: workspace_files::WorkspaceFilesProcesses,
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     terminal_runtime: Arc<crate::terminal_runtime::TerminalRuntime>,
     workers: Arc<Mutex<WorkerRegistry>>,
@@ -189,6 +191,7 @@ impl LocalTerminalService {
                 Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
+            workspace_files: workspace_files::WorkspaceFilesProcesses::default(),
             terminal_output: std::sync::OnceLock::new(),
             terminal_runtime: Arc::default(),
             workers,

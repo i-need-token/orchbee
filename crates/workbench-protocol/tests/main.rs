@@ -30,6 +30,7 @@ mod tab_set_close;
 mod terminal_runtime;
 mod update_check;
 mod window_title;
+mod workspace_files;
 mod workspace_git;
 mod workspace_group_close;
 mod workspace_idle;

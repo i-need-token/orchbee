@@ -47,6 +47,11 @@ pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
 /// unavailable on a Session without it.
 pub const UPDATE_CHECK: &str = "update-check";
 
+/// The `client-server` capability before a Client may send `workbench.workspace-files`, which reads
+/// a Workspace's directory listings, file contents and Git change list for the right bar. A Client
+/// whose Server lacks it never offers the right bar.
+pub const WORKSPACE_FILES: &str = "workspace-files";
+
 /// The `client-server` capability before a Client may send `workbench.workspace-idle`, which reads
 /// whether closing a Workspace would ask first. A Client whose Server lacks it says it could not
 /// check what runs in the Workspace, and asks.
@@ -205,6 +210,7 @@ impl ConnectionKind {
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
+                WORKSPACE_FILES,
                 WORKSPACE_IDLE,
             ],
             Self::WorkerHost => &[
@@ -243,6 +249,7 @@ impl ConnectionKind {
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
+                WORKSPACE_FILES,
                 WORKSPACE_IDLE,
             ]),
             Self::WorkerHost => capability_set(&[

@@ -85,6 +85,8 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
     match request {
         WorkbenchRequest::CloseOperationRead(_)
         | WorkbenchRequest::WorkspaceGit(_)
+        // It reads files and Git facts and writes nothing, not even Git's index.
+        | WorkbenchRequest::WorkspaceFiles(_)
         | WorkbenchRequest::CurrentDirectory(_)
         // A refresh only renews the cached lookup of what this machine has installed.
         | WorkbenchRequest::AgentCatalog(_)

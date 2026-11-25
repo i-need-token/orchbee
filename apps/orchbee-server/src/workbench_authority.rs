@@ -192,6 +192,7 @@ impl TryFrom<WorkbenchRequest> for WorkbenchReadOrNavigationRequest {
             | WorkbenchRequest::WorkspaceMetadata(_)
             | WorkbenchRequest::ClientView(_)
             | WorkbenchRequest::WorkspaceGit(_)
+            | WorkbenchRequest::WorkspaceFiles(_)
             | WorkbenchRequest::CurrentDirectory(_)
             | WorkbenchRequest::AgentCatalog(_)
             | WorkbenchRequest::TerminalRuntime(_)

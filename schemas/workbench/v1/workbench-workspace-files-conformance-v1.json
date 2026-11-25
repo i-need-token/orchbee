@@ -1,0 +1,656 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "list-root",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "list-directory",
+					"path": ""
+				}
+			}
+		},
+		{
+			"name": "list-nested",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "list-directory",
+					"path": "src/工作区/.config"
+				}
+			}
+		},
+		{
+			"name": "read-worktree",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "src/main.rs",
+					"source": "worktree"
+				}
+			}
+		},
+		{
+			"name": "read-head",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "README.md",
+					"source": "head"
+				}
+			}
+		},
+		{
+			"name": "read-index",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "a b/c..d",
+					"source": "index"
+				}
+			}
+		},
+		{
+			"name": "git-status",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-status"
+				}
+			}
+		},
+		{
+			"name": "directory",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "directory",
+					"entries": [
+						{
+							"name": "src",
+							"entryKind": "directory",
+							"symbolicLink": false,
+							"ignored": false
+						},
+						{
+							"name": "target",
+							"entryKind": "directory",
+							"symbolicLink": false,
+							"ignored": true
+						},
+						{
+							"name": "link",
+							"entryKind": "file",
+							"symbolicLink": true,
+							"ignored": false
+						},
+						{
+							"name": ".env",
+							"entryKind": "other",
+							"symbolicLink": false,
+							"ignored": true
+						}
+					],
+					"truncated": false
+				}
+			}
+		},
+		{
+			"name": "empty-truncated",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "directory",
+					"entries": [],
+					"truncated": true
+				}
+			}
+		},
+		{
+			"name": "text",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 8,
+					"content": {
+						"kind": "text",
+						"text": "测试\n\t"
+					}
+				}
+			}
+		},
+		{
+			"name": "binary",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 4096,
+					"content": {
+						"kind": "binary"
+					}
+				}
+			}
+		},
+		{
+			"name": "too-large",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 99999999,
+					"content": {
+						"kind": "too-large"
+					}
+				}
+			}
+		},
+		{
+			"name": "absent",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 0,
+					"content": {
+						"kind": "absent"
+					}
+				}
+			}
+		},
+		{
+			"name": "status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-status",
+					"branch": "main",
+					"entries": [
+						{
+							"path": "src/a.ts",
+							"originalPath": null,
+							"index": "unmodified",
+							"worktree": "modified",
+							"conflicted": false
+						},
+						{
+							"path": "b.ts",
+							"originalPath": "old/b.ts",
+							"index": "renamed",
+							"worktree": "unmodified",
+							"conflicted": false
+						},
+						{
+							"path": "new.txt",
+							"originalPath": null,
+							"index": "untracked",
+							"worktree": "untracked",
+							"conflicted": false
+						},
+						{
+							"path": "c.ts",
+							"originalPath": null,
+							"index": "unmerged",
+							"worktree": "unmerged",
+							"conflicted": true
+						}
+					],
+					"truncated": false
+				}
+			}
+		},
+		{
+			"name": "detached-status",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-status",
+					"branch": null,
+					"entries": [],
+					"truncated": true
+				}
+			}
+		},
+		{
+			"name": "failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "failed",
+					"reason": "not-repository"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "absolute-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "/etc/passwd",
+					"source": "worktree"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "parent-segment",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "list-directory",
+					"path": "src/../.."
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "dot-segment",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "./a",
+					"source": "worktree"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "trailing-separator",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "list-directory",
+					"path": "src/"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "backslash",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "a\\b",
+					"source": "worktree"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "control-character",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "a\nb",
+					"source": "worktree"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-read-path",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "",
+					"source": "worktree"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-source",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "a",
+					"source": "stash"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "a"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "extra-field",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-status"
+				},
+				"root": "/"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-operation",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "entry-with-separator",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "directory",
+					"entries": [
+						{
+							"name": "a/b",
+							"entryKind": "file",
+							"symbolicLink": false,
+							"ignored": false
+						}
+					],
+					"truncated": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "entry-missing-ignored",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "directory",
+					"entries": [
+						{
+							"name": "a",
+							"entryKind": "file",
+							"symbolicLink": false
+						}
+					],
+					"truncated": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "text-length-mismatch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 3,
+					"content": {
+						"kind": "text",
+						"text": "abcd"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "absent-with-length",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 3,
+					"content": {
+						"kind": "absent"
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "unknown-status-code",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-status",
+					"branch": "main",
+					"entries": [
+						{
+							"path": "a",
+							"originalPath": null,
+							"index": "ignored",
+							"worktree": "modified",
+							"conflicted": false
+						}
+					],
+					"truncated": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "missing-original-path",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-status",
+					"branch": "main",
+					"entries": [
+						{
+							"path": "a",
+							"index": "modified",
+							"worktree": "modified",
+							"conflicted": false
+						}
+					],
+					"truncated": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "empty-branch",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-status",
+					"branch": "",
+					"entries": [],
+					"truncated": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-failure",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "failed",
+					"reason": "source-changed"
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

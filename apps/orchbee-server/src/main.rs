@@ -68,6 +68,15 @@ use std::env;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // The right bar's file service runs as a child of this executable, started by the Server only
+    // when a Client first asks; it reads no data root and keeps no log.
+    #[cfg(any(unix, windows))]
+    if env::args_os().nth(1).as_deref()
+        == Some(std::ffi::OsStr::new(orchbee_workspace_files::SERVICE_FLAG))
+    {
+        orchbee_workspace_files::serve_stdio();
+        return ExitCode::SUCCESS;
+    }
     // A root whose layout this build cannot read is refused before anything in it is read, the
     // log included; the Client that started this process names the refusal to the person.
     if orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))

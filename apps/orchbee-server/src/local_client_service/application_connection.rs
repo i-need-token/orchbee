@@ -127,6 +127,7 @@ impl ApplicationRequest {
             self.workbench(),
             Some(
                 WorkbenchRequest::WorkspaceGit(_)
+                    | WorkbenchRequest::WorkspaceFiles(_)
                     | WorkbenchRequest::CurrentDirectory(_)
                     | WorkbenchRequest::WorktreeQuery(_)
                     | WorkbenchRequest::WorktreeListRead(_)

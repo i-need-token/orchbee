@@ -104,6 +104,7 @@ fn request_kind(request: &WorkbenchRequest) -> u16 {
         WorkbenchRequest::ConfiguredCommand(_) => 53,
         WorkbenchRequest::Events(_) => 55,
         WorkbenchRequest::WorkspaceGit(_) => 49,
+        WorkbenchRequest::WorkspaceFiles(_) => 83,
         WorkbenchRequest::AgentView(_) => 47,
         WorkbenchRequest::Plugin(_) => 45,
         WorkbenchRequest::WindowTitle(_) => 43,
@@ -161,6 +162,7 @@ fn response_kind(response: &WorkbenchResponse) -> u16 {
         WorkbenchResponse::ConfiguredCommand(_) => 54,
         WorkbenchResponse::Events(_) => 56,
         WorkbenchResponse::WorkspaceGit(_) => 50,
+        WorkbenchResponse::WorkspaceFiles(_) => 84,
         WorkbenchResponse::AgentView(_) => 48,
         WorkbenchResponse::Plugin(_) => 46,
         WorkbenchResponse::WindowTitle(_) => 44,
@@ -242,6 +244,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 77
                     | 79
                     | 81
+                    | 83
             ))
         || (!request
             && !matches!(
@@ -283,6 +286,7 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
                     | 78
                     | 80
                     | 82
+                    | 84
             ))
     {
         return Err(WorkbenchWireError::InvalidHeader);
@@ -303,6 +307,10 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
         crate::MAXIMUM_CONFIGURED_COMMAND_BYTES
     } else if matches!(kind, 49 | 50) {
         crate::MAXIMUM_WORKSPACE_GIT_BYTES
+    } else if kind == 83 {
+        crate::MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
+    } else if kind == 84 {
+        crate::MAXIMUM_WORKSPACE_FILES_RESULT_BYTES
     } else if matches!(kind, 65 | 66) {
         crate::MAXIMUM_CURRENT_DIRECTORY_BYTES
     } else if matches!(kind, 47 | 48) {

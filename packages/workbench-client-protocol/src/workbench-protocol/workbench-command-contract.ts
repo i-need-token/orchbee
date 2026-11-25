@@ -28,6 +28,10 @@ import {
 	WorkspaceGitResultSchema,
 } from './workbench-workspace-git-contract';
 import {
+	WorkspaceFilesRequestSchema,
+	WorkspaceFilesResultSchema,
+} from './workbench-workspace-files-contract';
+import {
 	CurrentDirectoryRequestSchema,
 	CurrentDirectoryResultSchema,
 	WORKBENCH_MAXIMUM_CURRENT_DIRECTORY_BYTES,
@@ -683,6 +687,7 @@ export const WorkbenchRequestSchema = z
 		WorkbenchWorktreeQuerySchema,
 		WorkspaceMetadataRequestSchema,
 		WorkspaceGitRequestSchema,
+		WorkspaceFilesRequestSchema,
 		CurrentDirectoryRequestSchema,
 		AgentCatalogRequestSchema,
 		TerminalRuntimeRequestSchema,
@@ -824,6 +829,7 @@ export const WorkbenchResponseSchema = z
 		WorkbenchWorktreeQueryResultSchema,
 		WorkspaceMetadataResultSchema,
 		WorkspaceGitResultSchema,
+		WorkspaceFilesResultSchema,
 		CurrentDirectoryResultSchema,
 		AgentCatalogResultSchema,
 		TerminalRuntimeResultSchema,

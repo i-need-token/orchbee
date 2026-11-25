@@ -86,6 +86,15 @@ pub use command::{
     graphics_base64_bytes, graphics_layer_id, graphics_rgba_bytes,
 };
 pub use command::{
+    MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_NAME_BYTES,
+    MAXIMUM_WORKSPACE_FILE_PATH_BYTES, MAXIMUM_WORKSPACE_FILE_TEXT_BYTES,
+    MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES,
+    WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileSource,
+    WorkspaceFilesFailure, WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest,
+    WorkspaceFilesResult, WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
+    is_workspace_relative_path,
+};
+pub use command::{
     TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest, TerminalRuntimeResult,
     TerminalRuntimeState, WorkbenchTerminalRuntime,
 };

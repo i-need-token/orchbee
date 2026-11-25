@@ -99,6 +99,7 @@ impl RenameServer {
                             | WorkbenchRequest::PanelMetadata(_)
                             | WorkbenchRequest::WorkspaceMetadata(_)
                             | WorkbenchRequest::WorkspaceGit(_)
+                            | WorkbenchRequest::WorkspaceFiles(_)
                             | WorkbenchRequest::CurrentDirectory(_)
                             | WorkbenchRequest::AgentCatalog(_)
                             | WorkbenchRequest::TerminalRuntime(_)

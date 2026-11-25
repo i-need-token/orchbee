@@ -149,7 +149,7 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => self.policy.manage_navigation,
             },
-            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
+            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::WorkspaceFiles(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,
@@ -289,6 +289,9 @@ impl WorkbenchService {
 
             WorkbenchRequest::WorkspaceGit(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceGit(self.terminals.execute_workspace_git(request.clone())));
+            }
+            WorkbenchRequest::WorkspaceFiles(request) => {
+                return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceFiles(self.terminals.execute_workspace_files(request.clone())));
             }
             WorkbenchRequest::CurrentDirectory(request) => {
                 return WorkbenchExecution::Response(WorkbenchResponse::CurrentDirectory(
@@ -738,6 +741,21 @@ fn unavailable_or_denied(request: WorkbenchRequest, denied: bool) -> WorkbenchRe
                         orchbee_workbench_protocol::WorkspaceGitFailure::Denied
                     } else {
                         orchbee_workbench_protocol::WorkspaceGitFailure::Unavailable
+                    },
+                },
+            })
+        }
+        WorkbenchRequest::WorkspaceFiles(request) => {
+            WorkbenchResponse::WorkspaceFiles(orchbee_workbench_protocol::WorkspaceFilesResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id.clone(),
+                session_id: request.session_id.clone(),
+                workspace_id: request.workspace_id.clone(),
+                outcome: orchbee_workbench_protocol::WorkspaceFilesOutcome::Failed {
+                    reason: if denied {
+                        orchbee_workbench_protocol::WorkspaceFilesFailure::Denied
+                    } else {
+                        orchbee_workbench_protocol::WorkspaceFilesFailure::Unavailable
                     },
                 },
             })

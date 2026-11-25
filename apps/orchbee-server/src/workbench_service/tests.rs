@@ -70,6 +70,86 @@ fn workspace_git_requires_only_read_grant_and_never_changes_canonical_state() {
     }
 }
 
+#[test]
+fn workspace_files_requires_read_and_answers_without_starting_anything_for_unknown_workspaces() {
+    use orchbee_workbench_protocol::{
+        SessionId, WorkbenchWorkspaceId, WorkspaceFileSource, WorkspaceFilesFailure,
+        WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest,
+    };
+    let terminals = Arc::new(LocalTerminalService::new(Arc::new(Mutex::new(
+        WorkerRegistry::new(),
+    ))));
+    let service = |read| {
+        WorkbenchService::new(
+            WorkbenchPolicy {
+                read,
+                manage_navigation: false,
+                associate_directory: false,
+                create_terminal: false,
+                manage_terminal_lifecycle: false,
+            },
+            terminals.clone(),
+        )
+    };
+    let WorkbenchResponse::Snapshot(reply) = response(service(true).execute(
+        WorkbenchRequest::SnapshotRead(SnapshotReadIntent {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
+        }),
+    )) else {
+        panic!("snapshot")
+    };
+    let WorkbenchSnapshotOutcome::Available { snapshot } = reply.outcome else {
+        panic!("available snapshot")
+    };
+    let other_session = SessionId::parse(&format!("{:032x}", 9)).unwrap();
+    let read_file = |path: &str| WorkspaceFilesOperation::ReadFile {
+        path: path.into(),
+        source: WorkspaceFileSource::Worktree,
+    };
+    for (read, session, operation, reason) in [
+        (
+            false,
+            snapshot.session_id.clone(),
+            WorkspaceFilesOperation::GitStatus {},
+            WorkspaceFilesFailure::Denied,
+        ),
+        (
+            true,
+            other_session,
+            WorkspaceFilesOperation::GitStatus {},
+            WorkspaceFilesFailure::Denied,
+        ),
+        (
+            true,
+            snapshot.session_id.clone(),
+            read_file("README.md"),
+            WorkspaceFilesFailure::NotFound,
+        ),
+        (
+            true,
+            snapshot.session_id.clone(),
+            read_file("../outside"),
+            WorkspaceFilesFailure::Malformed,
+        ),
+    ] {
+        let request = WorkspaceFilesRequest {
+            protocol_version: ProtocolVersion,
+            request_id: WorkbenchRequestId::parse(&format!("{:032x}", 2)).unwrap(),
+            session_id: session,
+            workspace_id: WorkbenchWorkspaceId::parse(&format!("{:032x}", 3)).unwrap(),
+            operation,
+        };
+        let WorkbenchResponse::WorkspaceFiles(reply) =
+            response(service(read).execute(WorkbenchRequest::WorkspaceFiles(request.clone())))
+        else {
+            panic!("typed files result")
+        };
+        assert!(reply.answers(&request));
+        assert_eq!(reply.outcome, WorkspaceFilesOutcome::Failed { reason });
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn configuration_reads_and_reloads_require_their_own_grant_before_owner_admission() {

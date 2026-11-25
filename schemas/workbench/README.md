@@ -924,6 +924,25 @@ vocabulary, the member bounds and distinct Presentations in Rust, TypeScript and
 request keeps the 16 KiB intent cap and the result its exact bound for the most members. The
 [Server](../../apps/orchbee-server/docs/terminal-tab-close.md#workspace-idle-check) owns the evidence.
 
+## Workspace file reads
+
+[`workbench-workspace-files.schema.json`](v1/workbench-workspace-files.schema.json) owns
+`workbench.workspace-files` and its `.result`, OBWP kinds 83/84: the read-only facts the window's
+right bar shows for one Workspace. The request names the Session, the Workspace and one
+`operation`: `list-directory` of a Workspace-relative path (empty for the Workspace's own
+directory), `read-file` of one path from the `worktree`, the `index` or `head`, or `git-status`.
+Paths are `/`-separated names, none empty, `.` or `..`, with no backslash or control character, so
+a Client never names a path outside the Workspace; the Server resolves the Workspace's directory
+itself. An outcome answers its operation: `directory` with at most 5000 `entries` and `truncated`,
+`file` with `byteLength` and `text`, `binary`, `too-large` (over 2 MiB) or `absent`, `git-status`
+with the nullable `branch`, at most 5000 change `entries` and `truncated`, or `failed` with
+`denied`, `unavailable`, `not-found`, `not-repository`, `timeout` or `malformed`. A Client sends the
+read only to a Server whose `client-server` answer lists the
+[`workspace-files` capability](../connection/README.md#generation-registry). The
+[shared corpus](v1/workbench-workspace-files-conformance-v1.json) checks closed shapes, the path
+grammar, the vocabularies and the `text` byte length in Rust, TypeScript and JSON Schema; the
+request keeps a 16 KiB cap and the result the 8 MiB response cap.
+
 ## Agent integration jobs
 
 [`workbench-agent-integration.schema.json`](v1/workbench-agent-integration.schema.json) owns

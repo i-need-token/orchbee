@@ -1,0 +1,385 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"title": "Workspace files and Git change reads",
+	"oneOf": [
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"sessionId",
+				"workspaceId",
+				"operation"
+			],
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-files"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"sessionId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"workspaceId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"operation": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"path"
+							],
+							"properties": {
+								"kind": {
+									"const": "list-directory"
+								},
+								"path": {
+									"oneOf": [
+										{
+											"const": ""
+										},
+										{
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 4096,
+											"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"path",
+								"source"
+							],
+							"properties": {
+								"kind": {
+									"const": "read-file"
+								},
+								"path": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096,
+									"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+								},
+								"source": {
+									"enum": [
+										"worktree",
+										"index",
+										"head"
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind"
+							],
+							"properties": {
+								"kind": {
+									"const": "git-status"
+								}
+							}
+						}
+					]
+				}
+			}
+		},
+		{
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"kind",
+				"protocolVersion",
+				"requestId",
+				"sessionId",
+				"workspaceId",
+				"outcome"
+			],
+			"properties": {
+				"kind": {
+					"const": "workbench.workspace-files.result"
+				},
+				"protocolVersion": {
+					"const": 1
+				},
+				"requestId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"sessionId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"workspaceId": {
+					"type": "string",
+					"pattern": "^[0-9a-f]{32}$"
+				},
+				"outcome": {
+					"oneOf": [
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"entries",
+								"truncated"
+							],
+							"properties": {
+								"kind": {
+									"const": "directory"
+								},
+								"entries": {
+									"type": "array",
+									"maxItems": 5000,
+									"items": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"name",
+											"entryKind",
+											"symbolicLink",
+											"ignored"
+										],
+										"properties": {
+											"name": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 1024,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$"
+											},
+											"entryKind": {
+												"enum": [
+													"file",
+													"directory",
+													"other"
+												]
+											},
+											"symbolicLink": {
+												"type": "boolean"
+											},
+											"ignored": {
+												"type": "boolean"
+											}
+										}
+									}
+								},
+								"truncated": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"byteLength",
+								"content"
+							],
+							"properties": {
+								"kind": {
+									"const": "file"
+								},
+								"byteLength": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 18446744073709551615
+								},
+								"content": {
+									"oneOf": [
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": [
+												"kind",
+												"text"
+											],
+											"properties": {
+												"kind": {
+													"const": "text"
+												},
+												"text": {
+													"type": "string",
+													"maxLength": 2097152
+												}
+											}
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": [
+												"kind"
+											],
+											"properties": {
+												"kind": {
+													"const": "binary"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": [
+												"kind"
+											],
+											"properties": {
+												"kind": {
+													"const": "too-large"
+												}
+											}
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": [
+												"kind"
+											],
+											"properties": {
+												"kind": {
+													"const": "absent"
+												}
+											}
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"branch",
+								"entries",
+								"truncated"
+							],
+							"properties": {
+								"kind": {
+									"const": "git-status"
+								},
+								"branch": {
+									"type": [
+										"string",
+										"null"
+									],
+									"minLength": 1,
+									"maxLength": 1024
+								},
+								"entries": {
+									"type": "array",
+									"maxItems": 5000,
+									"items": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": [
+											"path",
+											"originalPath",
+											"index",
+											"worktree",
+											"conflicted"
+										],
+										"properties": {
+											"path": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 4096,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+											},
+											"originalPath": {
+												"oneOf": [
+													{
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 4096,
+														"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+													},
+													{
+														"type": "null"
+													}
+												]
+											},
+											"index": {
+												"enum": [
+													"unmodified",
+													"modified",
+													"type-changed",
+													"added",
+													"deleted",
+													"renamed",
+													"copied",
+													"unmerged",
+													"untracked"
+												]
+											},
+											"worktree": {
+												"enum": [
+													"unmodified",
+													"modified",
+													"type-changed",
+													"added",
+													"deleted",
+													"renamed",
+													"copied",
+													"unmerged",
+													"untracked"
+												]
+											},
+											"conflicted": {
+												"type": "boolean"
+											}
+										}
+									}
+								},
+								"truncated": {
+									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": [
+								"kind",
+								"reason"
+							],
+							"properties": {
+								"kind": {
+									"const": "failed"
+								},
+								"reason": {
+									"enum": [
+										"denied",
+										"unavailable",
+										"not-found",
+										"not-repository",
+										"timeout",
+										"malformed"
+									]
+								}
+							}
+						}
+					]
+				}
+			}
+		}
+	]
+}
