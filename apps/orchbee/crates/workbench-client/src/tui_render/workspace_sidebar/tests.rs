@@ -1894,15 +1894,14 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             unreachable!()
         };
         let mut agent = agent_for(context_target.clone(), 23);
-        agent.seen = false;
         agent.metadata.title = Some(MetadataTokenValue::parse("Input handling").unwrap());
         let member = agent.target.clone();
-        view.machines.observe_agents(vec![(
-            Choice::Local,
-            crate::machine_agents::Observation::Ready(
-                crate::machine_agents::test_support::checkpoint(vec![agent]),
-            ),
-        )]);
+        for round in crate::machine_agents::test_support::after_unread_turns(vec![agent]) {
+            view.machines.observe_agents(vec![(
+                Choice::Local,
+                crate::machine_agents::Observation::Ready(round),
+            )]);
+        }
         expand_context_agents(&mut view, context_target.clone());
         view.machines.observe_focus(
             Choice::Local,
@@ -1985,14 +1984,13 @@ fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_fo
     let SidebarTarget::Context { target, .. } = &active else {
         unreachable!()
     };
-    let mut agent = agent_for(target.clone(), 23);
-    agent.seen = false;
-    view.machines.observe_agents(vec![(
-        Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
-            vec![agent],
-        )),
-    )]);
+    let agent = agent_for(target.clone(), 23);
+    for round in crate::machine_agents::test_support::after_unread_turns(vec![agent]) {
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            crate::machine_agents::Observation::Ready(round),
+        )]);
+    }
     // Folded Agent rows hand their unread cue and states to the Workspace row.
     if view.machines.sidebar_context_agents_expanded(&active) {
         assert!(view.machines.toggle_sidebar_context_agents(&active));

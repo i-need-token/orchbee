@@ -878,6 +878,8 @@ fn sidebar_truncates_wide_and_unsafe_text_without_changing_navigation_identity()
     wide.workspace = "宽项目👩‍💻".repeat(10);
     wide.label = format!("{} build\u{1b}]0;title\u{7}", wide.workspace);
     wide.sequence = orchbee_workbench_protocol::WorkbenchRevision::new(2);
+    // A finished turn leaves the row an unread cue to keep beside the truncated text.
+    wide.state = orchbee_workbench_protocol::PanelAgentState::Done;
     let target = wide.target.clone();
     let mut round = checkpoint(vec![wide]).as_ref().clone();
     round.report_revision = orchbee_workbench_protocol::WorkbenchRevision::new(3);

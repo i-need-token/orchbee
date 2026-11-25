@@ -163,6 +163,26 @@ pub(crate) fn target() -> Target {
     }
 }
 
+/// Rounds in which `rows` follow their Agents' finished turns that nobody has read, so a Client's
+/// attention shows each row unread whatever its own state; observe them in order.
+#[cfg(test)]
+pub(crate) fn after_unread_turns(rows: Vec<Row>) -> [Arc<Checkpoint>; 2] {
+    let finished = rows
+        .iter()
+        .map(|row| Row {
+            state: PanelAgentState::Done,
+            sequence: WorkbenchRevision::new(
+                row.sequence
+                    .value()
+                    .checked_sub(1)
+                    .expect("an earlier sequence"),
+            ),
+            ..row.clone()
+        })
+        .collect();
+    [checkpoint(finished), checkpoint(rows)]
+}
+
 pub fn checkpoint(rows: Vec<Row>) -> Arc<Checkpoint> {
     Arc::new(Checkpoint {
         session_id: SessionId::parse(&id(1)).unwrap(),

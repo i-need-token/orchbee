@@ -32,12 +32,12 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
     first.metadata.title = Some(MetadataTokenValue::parse("Task 编码").unwrap());
     let second = agent_for(target.clone(), 24);
     let member = first.target.clone();
-    view.machines.observe_agents(vec![(
-        Choice::Local,
-        crate::machine_agents::Observation::Ready(crate::machine_agents::test_support::checkpoint(
-            vec![first, second],
-        )),
-    )]);
+    for round in crate::machine_agents::test_support::after_unread_turns(vec![first, second]) {
+        view.machines.observe_agents(vec![(
+            Choice::Local,
+            crate::machine_agents::Observation::Ready(round),
+        )]);
+    }
     expand_context_agents(&mut view, target.clone());
     view.machines.observe_focus(
         Choice::Local,
