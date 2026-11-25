@@ -198,13 +198,15 @@
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
-/* Update ends the row while a newer version is offered: the shared primary button, its fill as
-   tall as the gear's and centered on it, ending 4 px in from the row's end like the rows' end
-   tools above. */
+/* Update ends the row while a newer version is offered: the shared primary button as a 24 px pill
+   with a semibold label, as Cursor's footer Update is, centered on the gear and ending 4 px in from
+   the row's end like the rows' end tools above. */
 .update {
 	margin-inline: auto var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-3);
 	border: none;
-	font: var(--ob-sys-typography-control-sm);
+	border-radius: var(--ob-ref-radius-full);
+	font: var(--ob-sys-typography-label-sm-strong);
 }
 
 /* The environment marker before it takes the free space; Update keeps 8 px from its text. */

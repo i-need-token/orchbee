@@ -440,7 +440,7 @@ export const WorkbenchSidebar = React.memo(function WorkbenchSidebar({
 									<Button
 										className={styles['update']}
 										data-slot='workbench-sidebar-update'
-										size='sm'
+										size='xs'
 										type='button'
 										onClick={update.onUpdate}
 									/>
