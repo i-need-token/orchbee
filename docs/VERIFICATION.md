@@ -220,9 +220,10 @@ results remain unchanged.
   run, including compilation and the native witnesses outside Zig's test runner. That runner is the
   slowest host: with the moves between Hosts and their black-box run, seven runs took 10.9 to 16.8
   minutes, so the bound leaves over eight minutes above the slowest run. It stays inside
-  the CI job limits (30 minutes for `terminal-host-native`, whose earlier steps take about 2
-  minutes, and 60 for the macOS `client-commands` job, which runs the tests after its Rust parts) so
-  the gate reports before CI cancels the job. Measurements: `windows-latest` and that workstation,
+  the CI job limits (45 minutes for `terminal-host-native`, whose earlier steps take about a minute
+  with the Zig archive cached and took 17 minutes when five jobs downloaded it at once, and 60 for
+  the macOS `client-commands` job, which runs the tests after its Rust parts) so the gate reports
+  before CI cancels the job. Measurements: `windows-latest` and that workstation,
   Zig 0.16.0, 2026-11-21. On expiry the runner lists the test binaries still running and the process
   tree that run started, terminates only that tree, and fails with exit 124. Either timeout fails
   the stage, never passes or skips it. Remeasure before changing either bound.
