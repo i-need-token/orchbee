@@ -25,6 +25,7 @@ const security = '/usr/bin/security';
 const codesign = '/usr/bin/codesign';
 const xcrun = '/usr/bin/xcrun';
 const profile = 'orchbee-release';
+const submissionFile = 'notary-submission-id';
 const peers = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
 const programs = [...peers, 'orchbee-desktop-launcher'];
 const machOMagic = new Set([
@@ -260,15 +261,14 @@ expect {
 }
 `;
 
-async function notarizeDesktop(root, version, platform) {
-	const { application, applicationDirectory, image } = desktopPaths(root, version, platform);
+async function withNotaryCredentials(action) {
 	const credentials = Object.fromEntries(
 		['APPLE_ID', 'APPLE_TEAM_ID', 'APPLE_APP_SPECIFIC_PASSWORD'].map((name) => [
 			name,
 			takeCredential(name),
 		]),
 	);
-	await withKeychain(({ keychain }) => {
+	return withKeychain(({ keychain }) => {
 		const stored = spawnSync('/usr/bin/expect', [], {
 			input: notaryCredentials,
 			env: {
@@ -284,32 +284,54 @@ async function notarizeDesktop(root, version, platform) {
 			const reason = /^\d{3}$/u.test(httpStatus) ? `HTTP ${httpStatus}` : `exit ${stored.status}`;
 			throw new Error(`notarytool could not validate and store the Apple credentials (${reason})`);
 		}
-		const authentication = ['--keychain-profile', profile, '--keychain', keychain];
+		return action(['--keychain-profile', profile, '--keychain', keychain]);
+	});
+}
+
+function notarizationId(value) {
+	if (typeof value !== 'string' || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(value))
+		throw new Error('Expected an Apple notarization submission identifier');
+	return value;
+}
+
+async function submitDesktop(root, version, platform) {
+	const { image } = desktopPaths(root, version, platform);
+	const receipt = path.join(root, submissionFile);
+	if (existsSync(receipt))
+		throw new Error(`The desktop already has a submission in ${submissionFile}`);
+	await withNotaryCredentials((authentication) => {
+		const response = execFileSync(
+			xcrun,
+			['notarytool', 'submit', image, ...authentication, '--no-wait', '--output-format', 'json'],
+			{ encoding: 'utf8' },
+		);
+		const id = notarizationId(JSON.parse(response).id);
+		console.info(`Apple notarization submission ${id}`);
+		writeFileSync(receipt, id + '\n', { flag: 'wx' });
+	});
+}
+
+async function notarizeDesktop(root, version, platform) {
+	const { application, applicationDirectory, image } = desktopPaths(root, version, platform);
+	const receipt = path.join(root, submissionFile);
+	const id = notarizationId(readFileSync(receipt, 'utf8').trim());
+	await withNotaryCredentials((authentication) => {
+		console.info(`Waiting for Apple notarization submission ${id}`);
 		const result = spawnSync(
 			xcrun,
-			[
-				'notarytool',
-				'submit',
-				image,
-				...authentication,
-				'--wait',
-				'--timeout',
-				'40m',
-				'--output-format',
-				'json',
-			],
+			['notarytool', 'wait', id, ...authentication, '--timeout', '50m', '--output-format', 'json'],
 			{ encoding: 'utf8' },
 		);
 		const submission = result.stdout?.trim().startsWith('{') ? JSON.parse(result.stdout) : {};
-		console.info(
-			`Apple notarization submission ${submission.id ?? 'unknown'}: ${submission.status ?? 'failed'}`,
-		);
+		console.info(`Apple notarization submission ${id}: ${submission.status ?? 'wait interrupted'}`);
 		if (result.status !== 0 || submission.status !== 'Accepted') {
-			if (submission.id)
-				execFileSync(xcrun, ['notarytool', 'log', submission.id, ...authentication], {
+			if (['Invalid', 'Rejected'].includes(submission.status))
+				execFileSync(xcrun, ['notarytool', 'log', id, ...authentication], {
 					stdio: 'inherit',
 				});
-			throw new Error(result.stderr?.trim() || 'Apple did not accept the notarization submission');
+			throw new Error(
+				result.stderr?.trim() || `Apple has not accepted notarization submission ${id}`,
+			);
 		}
 	});
 	// Notarizing the DMG also issues a ticket for the contained application.
@@ -328,6 +350,7 @@ async function notarizeDesktop(root, version, platform) {
 		],
 		{ stdio: 'inherit' },
 	);
+	rmSync(receipt);
 }
 
 const [command, root, platform, version, ...rest] = process.argv.slice(2);
@@ -342,10 +365,11 @@ try {
 		throw new Error('Expected an absolute release directory and this Mac host’s release platform');
 	if (command === 'native' && version === undefined) await signNative(root);
 	else if (command === 'desktop' && version) await signDesktop(root, version, platform);
+	else if (command === 'submit' && version) await submitDesktop(root, version, platform);
 	else if (command === 'notarize' && version) await notarizeDesktop(root, version, platform);
 	else
 		throw new Error(
-			'Usage: sign-macos-release.mjs native|desktop|notarize <directory> <platform> [version]',
+			'Usage: sign-macos-release.mjs native|desktop|submit|notarize <directory> <platform> [version]',
 		);
 } catch (error) {
 	console.error(error.message);

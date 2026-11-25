@@ -647,7 +647,8 @@ jobs:
           path: ${{ runner.temp }}\release-artifacts
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+          # The release gate and join can start after a retry of the macOS notarization wait.
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
 
       # The feed job receives only the feed document it signs. A tag run keeps it as long as the
       # release artifacts, so a failed feed job can run again.
@@ -657,7 +658,7 @@ jobs:
           name: release-feed-${{ matrix.platform }}
           path: ${{ runner.temp }}\release-artifacts\orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
           if-no-files-found: error
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
 
   # Dependency installation and Electron assembly run in a job without signing credentials.
   release-assemble-macos:
@@ -728,7 +729,7 @@ jobs:
 
   # Only these steps receive the Apple credentials. Neither builds code nor installs dependencies.
   release-sign-desktop-macos:
-    name: Developer ID sign and notarize desktop ${{ matrix.platform }}
+    name: Developer ID sign and submit desktop ${{ matrix.platform }}
     needs: [release-plan, release-assemble-macos]
     if: ${{ !cancelled() && needs.release-assemble-macos.result == 'success' }}
     strategy:
@@ -736,7 +737,7 @@ jobs:
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
     environment: release
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 20
     defaults:
       run:
         shell: bash
@@ -772,7 +773,66 @@ jobs:
           MACOS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_SIGNING_CERTIFICATE_PASSWORD }}
         run: node scripts/sign-macos-release.mjs desktop "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
 
-      - name: Notarize and staple the disk image and application
+      - name: Submit the disk image for notarization
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: node scripts/sign-macos-release.mjs submit "$RUNNER_TEMP/desktop" "$PLATFORM" "$RELEASE_VERSION"
+
+      # Keep the exact signed bytes and Apple's submission ID together for a later wait.
+      - name: Archive the submitted desktop package
+        run: tar -cf "$RUNNER_TEMP/macos-desktop-submitted.tar" -C "$RUNNER_TEMP/desktop" .
+
+      - name: Upload the submitted desktop package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-desktop-submitted-${{ matrix.platform }}
+          path: ${{ runner.temp }}/macos-desktop-submitted.tar
+          if-no-files-found: error
+          retention-days: 3
+
+  # A wait timeout leaves the submission with Apple. Re-running this job uses the same ID and
+  # signed package, so retries can wait for and staple the original tickets.
+  release-notarize-desktop-macos:
+    name: Apple notarize desktop ${{ matrix.platform }}
+    needs: [release-plan, release-sign-desktop-macos]
+    if: ${{ !cancelled() && needs.release-sign-desktop-macos.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
+    environment: release
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLATFORM: ${{ matrix.platform }}
+      RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the submitted desktop package
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-desktop-submitted-${{ matrix.platform }}
+          path: ${{ runner.temp }}
+
+      - name: Unpack the submitted desktop package
+        run: |
+          mkdir "$RUNNER_TEMP/desktop"
+          tar -xpf "$RUNNER_TEMP/macos-desktop-submitted.tar" -C "$RUNNER_TEMP/desktop"
+
+      - name: Wait for Apple and staple the disk image and application
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -788,12 +848,12 @@ jobs:
           name: release-desktop-${{ matrix.platform }}
           path: ${{ runner.temp }}/macos-desktop.tar
           if-no-files-found: error
-          retention-days: 1
+          retention-days: 3
 
   release-package-macos:
     name: Release package ${{ matrix.platform }}
-    needs: [release-plan, release-sign-desktop-macos]
-    if: ${{ !cancelled() && needs.release-sign-desktop-macos.result == 'success' }}
+    needs: [release-plan, release-notarize-desktop-macos]
+    if: ${{ !cancelled() && needs.release-notarize-desktop-macos.result == 'success' }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}

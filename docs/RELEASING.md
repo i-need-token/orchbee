@@ -143,6 +143,9 @@ repository>`. Print each public half with the command in
   (`git push origin :refs/tags/v0.1.0-beta.1` and `git tag -d v0.1.0-beta.1`) and tag the fixed
   commit. A failed precondition names the missing secret, key or table entry; a lightweight tag or
   an empty tag message gives the tag command.
+- If "Apple notarize desktop <platform>" times out, use "Re-run failed jobs" while the run's
+  artifacts are available. The job continues waiting for the same Apple submission and staples
+  the signed package it already submitted.
 - A failed job "Release gate from v<older>" or "Release gate macos-aarch64 from v<older>" means an
   Orchbee of that release could not update to this one, so nothing was published. Its last lines
   name the stage that failed, the probe record's last line and the diagnostic log's tail. A download
