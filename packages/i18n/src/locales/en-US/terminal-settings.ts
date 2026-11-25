@@ -136,6 +136,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.machines.color.slate': 'Slate',
 	'terminal.settings.page.machines.color.grey': 'Grey',
 	'terminal.settings.page.machines.color.custom': 'Custom…',
+	'terminal.settings.page.machines.color.customName': 'Custom',
 	'terminal.settings.page.machines.color.customLabel': 'Custom color',
 	'terminal.settings.page.machines.color.customPlaceholder': '#3b82f6',
 	'terminal.settings.page.machines.color.chosen': 'Color: {color}',

@@ -141,6 +141,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageMachinesColorSlate: message('terminal.settings.page.machines.color.slate'),
 	pageMachinesColorGrey: message('terminal.settings.page.machines.color.grey'),
 	pageMachinesColorCustom: message('terminal.settings.page.machines.color.custom'),
+	pageMachinesColorCustomName: message('terminal.settings.page.machines.color.customName'),
 	pageMachinesColorCustomLabel: message('terminal.settings.page.machines.color.customLabel'),
 	pageMachinesColorCustomPlaceholder: message(
 		'terminal.settings.page.machines.color.customPlaceholder',

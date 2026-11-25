@@ -216,8 +216,15 @@ fn render_color_marker(
             1,
         ),
     );
+    // The terminal cursor marks the focused color on its disclosure, so a block cursor never hides
+    // the dot that shows the color.
     if editable && form.field == Field::Color && form.palette.is_none() {
-        frame.set_cursor_position((rect.x, rect.y));
+        frame.set_cursor_position((
+            rect.x
+                .saturating_add(marker_width)
+                .min(rect.right().saturating_sub(1)),
+            rect.y,
+        ));
     }
     if let Some((target, spec)) = interaction {
         hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);

@@ -161,12 +161,31 @@ impl Picker {
             style,
             glyphs,
         );
+        // The color list is a grid, so every arrow moves in it.
+        let arrows = join_key_labels(
+            &[
+                format_binding_with_glyphs(
+                    &Binding::new(KeyCode::Left, Modifiers::NONE),
+                    style,
+                    glyphs,
+                ),
+                format_binding_with_glyphs(
+                    &Binding::new(KeyCode::Right, Modifiers::NONE),
+                    style,
+                    glyphs,
+                ),
+                up.clone(),
+                down.clone(),
+            ],
+            style,
+            "/",
+        );
         let choose = join_key_labels(&[up, down], style, "/");
         let menu_key = format_binding_with_glyphs(&crate::machine_picker::MENU_KEY, style, glyphs);
         let text = |text| locale.machine_manage_text(text);
         // Editing keys such as Ctrl+U are conventions, not advertised hints.
         let hints = match self.manage().page() {
-            // The custom color.s field takes Enter alone; the open color list takes the menu.s keys;
+            // The custom color's field takes Enter alone; the open color list takes the menu's keys;
             // on the color, Enter opens the list.
             Page::Add(form) if form.custom.is_some() => vec![
                 KeyHint::new(&close, text(ManageText::Back)),
@@ -174,7 +193,7 @@ impl Picker {
             ],
             Page::Add(form) if form.palette.is_some() => vec![
                 KeyHint::new(&close, text(ManageText::Back)),
-                KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),
+                KeyHint::new(&arrows, locale.machine_picker_text("picker-choose-hint")),
                 KeyHint::new(&enter, text(ManageText::Choose)),
             ],
             Page::Add(form) => vec![

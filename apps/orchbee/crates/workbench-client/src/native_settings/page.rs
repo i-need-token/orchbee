@@ -601,10 +601,16 @@ impl<'a> PageView<'a> {
     /// What the open row editor accepts, while it holds a text the page refused before sending.
     pub(crate) fn text_requirement(self) -> Option<crate::localization::SettingsTextRequirement> {
         let state = self.state;
-        if !state.invalid || state.text.is_none() || state.page != Page::General {
+        if !state.invalid || state.text.is_none() {
             return None;
         }
-        super::values::requirement(state.row)
+        match (state.page, state.row) {
+            (Page::General, row) => super::values::requirement(row),
+            (Page::Machine, Row::MachineColor) => {
+                Some(crate::localization::SettingsTextRequirement::Color)
+            }
+            _ => None,
+        }
     }
     pub(crate) const fn invalid_field(self) -> Option<(usize, UserLaunchField)> {
         self.state.invalid_field

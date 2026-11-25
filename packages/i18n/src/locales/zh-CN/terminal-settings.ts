@@ -131,6 +131,7 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.machines.color.slate': '石板灰',
 	'terminal.settings.page.machines.color.grey': '灰色',
 	'terminal.settings.page.machines.color.custom': '自定义…',
+	'terminal.settings.page.machines.color.customName': '自定义',
 	'terminal.settings.page.machines.color.customLabel': '自定义颜色',
 	'terminal.settings.page.machines.color.customPlaceholder': '#3b82f6',
 	'terminal.settings.page.machines.color.chosen': '颜色：{color}',

@@ -18,8 +18,21 @@ const CUSTOM = 'custom';
 /** An entry of the list: a preset, or Custom…. */
 type Entry = MachineColorPreset | typeof CUSTOM;
 
-/** The native color picker's color while the typed one is no color. */
+/** The native color picker's color when neither the typed text nor a shown color gives one. */
 const PICKER_FALLBACK = '#000000';
+
+/**
+ * The `#rrggbb` an element's background is shown in, so the system color picker opens on the
+ * color the machine has: a preset's theme token may be written in any CSS color space.
+ */
+function shownColor(element: HTMLElement | null): string | null {
+	const context = element === null ? null : document.createElement('canvas').getContext('2d');
+	if (element === null || context === null) return null;
+	context.fillStyle = getComputedStyle(element).backgroundColor;
+	context.fillRect(0, 0, 1, 1);
+	const [red = 0, green = 0, blue = 0] = context.getImageData(0, 0, 1, 1).data;
+	return `#${[red, green, blue].map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
+}
 
 interface MachineColorSelectProps {
 	readonly color: TerminalSettingsMachineColor;
@@ -48,6 +61,12 @@ export function MachineColorSelect({
 	// The typed text while it differs from the color; `null` shows the color itself.
 	const [typed, setTyped] = React.useState<string | null>(null);
 	const [invalid, setInvalid] = React.useState(false);
+	// The preset's shown color, where the system color picker opens after Custom….
+	const [pickerStart, setPickerStart] = React.useState<string | null>(null);
+	const dot = React.useRef<HTMLSpanElement>(null);
+	const hex = React.useRef<HTMLInputElement>(null);
+	// Custom… was just chosen: the list hands focus to the typed color when it closes.
+	const focusHex = React.useRef(false);
 	const presets = MACHINE_COLOR_NAMES.map(([value, name]) => ({
 		label: intl.formatMessage(name),
 		value,
@@ -57,9 +76,12 @@ export function MachineColorSelect({
 		...presets,
 		{ label: customLabel, value: CUSTOM },
 	];
+	// A custom color reads "Custom" beside its dot, since its own field shows the value; the
+	// control's accessible name still says the value.
 	const chosenName = custom
 		? color
 		: (presets.find((entry) => entry.value === color)?.label ?? color);
+	const shownName = custom ? intl.formatMessage(messages.pageMachinesColorCustomName) : chosenName;
 	const text = typed ?? (custom ? color : '');
 	const take = (next: TerminalSettingsMachineColor): void => {
 		setTyped(null);
@@ -81,6 +103,8 @@ export function MachineColorSelect({
 				onValueChange={(next): void => {
 					if (next === null) return;
 					if (next === CUSTOM) {
+						if (!custom) setPickerStart(shownColor(dot.current));
+						focusHex.current = true;
 						setAsking(true);
 						return;
 					}
@@ -94,13 +118,21 @@ export function MachineColorSelect({
 					className={styles['trigger']}
 				>
 					<span
+						ref={dot}
 						aria-hidden='true'
 						className={styles['dot']}
 						style={{ '--ob-comp-machine-color': machineColorValue(color) }}
 					/>
-					{named ? <span aria-hidden='true'>{chosenName}</span> : null}
+					{named ? <span aria-hidden='true'>{shownName}</span> : null}
 				</SelectTrigger>
-				<SelectContent align='start'>
+				<SelectContent
+					align='start'
+					finalFocus={(): HTMLElement | true => {
+						const toHex = focusHex.current;
+						focusHex.current = false;
+						return (toHex ? hex.current : null) ?? true;
+					}}
+				>
 					{presets.map((entry) => (
 						<SelectItem key={entry.value} value={entry.value}>
 							<span
@@ -132,13 +164,19 @@ export function MachineColorSelect({
 						className={styles['picker']}
 						disabled={disabled}
 						type='color'
-						value={parseMachineCustomColor(text) ?? PICKER_FALLBACK}
+						value={
+							parseMachineCustomColor(text) ??
+							parseMachineCustomColor(color) ??
+							pickerStart ??
+							PICKER_FALLBACK
+						}
 						onChange={(event) => {
 							const next = parseMachineCustomColor(event.currentTarget.value);
 							if (next !== null) take(next);
 						}}
 					/>
 					<Input
+						ref={hex}
 						aria-invalid={invalid}
 						aria-label={intl.formatMessage(messages.pageMachinesColorCustomLabel)}
 						className={styles['hex']}
