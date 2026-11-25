@@ -3,12 +3,12 @@
 //! executable, started only on the first request, so a Session whose windows never open the right
 //! bar starts nothing and terminal work never waits on a file read.
 use super::LocalTerminalService;
+use orchbee_server_workspace_files::{Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG};
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchResponse, WorkerId, WorkspaceFilesFailure as Failure,
     WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome, WorkspaceFilesRequest,
     WorkspaceFilesResult, serialize_workbench_response,
 };
-use orchbee_workspace_files::{Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
@@ -76,7 +76,7 @@ impl Running {
         };
         let (sender, answers) = mpsc::channel();
         let reader = std::thread::Builder::new()
-            .name("orchbee-workspace-files".into())
+            .name("orchbee-server-workspace-files".into())
             .spawn(move || {
                 let mut stdout = BufReader::new(stdout);
                 loop {

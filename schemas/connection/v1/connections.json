@@ -386,15 +386,15 @@
 			"sha256": "cf86012e47f031025416e0bd3ecd1dc643291364dc115ad54d91938724c22de7"
 		},
 		{
+			"path": "schemas/workbench/v1/workbench-workspace-files-conformance-v1.json"
+		},
+		{
 			"path": "schemas/workbench/v1/workbench-workspace-git-conformance-v1.json",
 			"sha256": "d488ef957e85cd694f67422efa14468601cb7f7a6aebbf89148726c21c33ea28"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-workspace-group-close-conformance-v1.json",
 			"sha256": "87f26b58d832a1e02578fd735ffc849fe459d2720b5ba68b98aada30e7a4cc24"
-		},
-		{
-			"path": "schemas/workbench/v1/workbench-workspace-files-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-workspace-idle-conformance-v1.json"

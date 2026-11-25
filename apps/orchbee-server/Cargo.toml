@@ -31,7 +31,7 @@ orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" 
 orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 # The right bar's read-only file service, run in a child process of this executable on demand.
-orchbee-workspace-files = { path = "crates/workspace-files" }
+orchbee-server-workspace-files = { path = "crates/workspace-files" }
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["dir", "fs", "poll", "process", "user"] }

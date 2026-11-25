@@ -1,4 +1,4 @@
-# orchbee-workspace-files
+# orchbee-server-workspace-files
 
 The read-only Workspace file service behind the window's right bar. The Server runs it in a
 separate process of its own executable (`orchbee-server --workspace-files`) only after a Client

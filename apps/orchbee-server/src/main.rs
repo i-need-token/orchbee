@@ -72,9 +72,11 @@ fn main() -> ExitCode {
     // when a Client first asks; it reads no data root and keeps no log.
     #[cfg(any(unix, windows))]
     if env::args_os().nth(1).as_deref()
-        == Some(std::ffi::OsStr::new(orchbee_workspace_files::SERVICE_FLAG))
+        == Some(std::ffi::OsStr::new(
+            orchbee_server_workspace_files::SERVICE_FLAG,
+        ))
     {
-        orchbee_workspace_files::serve_stdio();
+        orchbee_server_workspace_files::serve_stdio();
         return ExitCode::SUCCESS;
     }
     // A root whose layout this build cannot read is refused before anything in it is read, the

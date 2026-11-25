@@ -1164,9 +1164,9 @@ dependencies = [
  "orchbee-local-peer-credentials",
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
+ "orchbee-server-workspace-files",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
- "orchbee-workspace-files",
  "process-wrap",
  "regex",
  "serde",
@@ -1176,6 +1176,15 @@ dependencies = [
  "toml",
  "windows",
  "winsafe",
+]
+
+[[package]]
+name = "orchbee-server-workspace-files"
+version = "0.1.0-beta.24"
+dependencies = [
+ "orchbee-workbench-protocol",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1265,15 +1274,6 @@ dependencies = [
  "rustix",
  "windows",
  "winsafe",
-]
-
-[[package]]
-name = "orchbee-workspace-files"
-version = "0.1.0-beta.24"
-dependencies = [
- "orchbee-workbench-protocol",
- "serde",
- "serde_json",
 ]
 
 [[package]]
