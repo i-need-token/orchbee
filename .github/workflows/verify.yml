@@ -17,6 +17,93 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Decides which native jobs a change can affect, with the affected-verification plan against the
+  # last verified commit; docs/VERIFICATION.md#ci-contract gives the rules. The Linux `verify` job
+  # always runs.
+  scope:
+    name: Select native jobs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      rust: ${{ steps.plan.outputs.rust }}
+      terminal-host: ${{ steps.plan.outputs.terminal-host }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      # The plan reads the Cargo workspace graph.
+      - name: Set up Rust
+        run: rustup toolchain install --profile minimal
+
+      # A pull request is compared with the base its merge commit was made on. A push to `main` is
+      # compared with the newest commit before it whose Verify run passed, so commits whose run
+      # failed or never finished stay in the comparison. A manual run, a re-run of a passed run,
+      # or no such commit among the last 50 passed runs runs every job.
+      - name: Find the last verified commit
+        id: base
+        env:
+          EVENT: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          base=
+          if [ "$EVENT" = pull_request ]; then
+            base="$(git rev-parse HEAD^1)"
+          elif [ "$EVENT" = push ]; then
+            passed="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/verify.yml/runs?branch=main&status=success&per_page=50" \
+              --jq ".workflow_runs[] | select(.event == \"push\" or .event == \"workflow_dispatch\") | select(.id != $GITHUB_RUN_ID) | .head_sha")"
+            for commit in $passed; do
+              if git merge-base --is-ancestor "$commit" HEAD 2> /dev/null; then
+                base="$commit"
+                break
+              fi
+            done
+          fi
+          echo "Last verified commit: ${base:-none, so every job runs}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      # The Rust parts run for a selected Cargo member, which the Terminal Host's own changes select
+      # through the process cohort; the Windows Terminal Host job for the Host. A root tooling input
+      # runs both, and a plan that falls back to the complete gate runs everything.
+      - name: Plan the native jobs
+        id: plan
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: |
+          if [ -z "$BASE" ]; then
+            rust=true
+            host=true
+          else
+            plan="$(node scripts/run-checks.mjs verify --changed-since "$BASE" --plan | sed -n 's/^VERIFY_PLAN //p')"
+            if [ -z "$plan" ]; then echo "The plan printed no VERIFY_PLAN line" >&2; exit 1; fi
+            echo "$plan" | jq '{base, changedPathCount, mode, cargo, pnpm, rootTooling, reasons}'
+            rust="$(echo "$plan" | jq '.all or .rootTooling or (.cargo | length > 0)')"
+            host="$(echo "$plan" | jq '.all or .rootTooling or (.pnpm | any(. == "@orchbee/terminal-host"))')"
+          fi
+          echo "Rust parts: $rust; Windows Terminal Host: $host"
+          {
+            echo "rust=$rust"
+            echo "terminal-host=$host"
+          } >> "$GITHUB_OUTPUT"
+          {
+            echo "### Native jobs"
+            echo
+            echo "- Compared with: ${BASE:-nothing, so every job runs}"
+            echo "- Rust parts on Windows and macOS: $rust"
+            echo "- Terminal Host on Windows: $host"
+          } >> "$GITHUB_STEP_SUMMARY"
+
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -70,6 +157,8 @@ jobs:
 
   rust-windows:
     name: Rust native (windows-latest, ${{ matrix.part }})
+    needs: scope
+    if: ${{ needs.scope.outputs.rust == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -132,6 +221,8 @@ jobs:
 
   rust-macos:
     name: Rust native (macos-15, ${{ matrix.label }})
+    needs: scope
+    if: ${{ needs.scope.outputs.rust == 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -210,6 +301,8 @@ jobs:
   terminal-host-native:
     name: Terminal Host native (windows-latest)
     # macOS runs these steps in the `rust-macos` client-commands job.
+    needs: scope
+    if: ${{ needs.scope.outputs.terminal-host == 'true' }}
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -259,7 +352,7 @@ jobs:
   macos-runner-shortage:
     name: Report a missing macOS runner
     needs: [verify, rust-windows, rust-macos, terminal-host-native]
-    if: ${{ !cancelled() && needs.rust-macos.result != 'success' }}
+    if: ${{ !cancelled() && needs.rust-macos.result != 'success' && needs.rust-macos.result != 'skipped' }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:

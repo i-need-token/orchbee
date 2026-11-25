@@ -310,10 +310,12 @@ test('a root tooling input selects every tooling suite and no workspace suite', 
 		'scripts/release-publish.mjs',
 		'.github/workflows/verify.yml',
 		'.github/workflows/release.yml',
+		'.github/actions/zig/action.yml',
 		'knip.config.mjs',
 	]) {
 		const selected = selectVerificationScope(actual, [changed]);
 		assert.equal(selected.all, false, changed);
+		assert.equal(selected.rootTooling, true, changed);
 		assert.deepEqual([...selected.pnpm, ...selected.cargo], [], changed);
 		assert.deepEqual(selected.tooling, toolingSuiteNames, changed);
 		const names = stepNames(checkSteps('verify', selected));
@@ -325,6 +327,8 @@ test('a root tooling input selects every tooling suite and no workspace suite', 
 	const manifest = selectVerificationScope(actual, ['package.json']);
 	assert.deepEqual(manifest.tooling, toolingSuiteNames);
 	assert.ok(manifest.pnpm.includes('@orchbee/web'));
+	// A file a single suite reads is not a root tooling input.
+	assert.equal(selectVerificationScope(actual, ['packages/ui/src/lib/cn.ts']).rootTooling, false);
 	// Anything else outside an owner stays conservative.
 	for (const changed of ['.github/dependabot.yml', 'tsconfig.base.json'])
 		assert.equal(selectVerificationScope(actual, [changed]).all, true, changed);

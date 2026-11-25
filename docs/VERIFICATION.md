@@ -57,14 +57,14 @@ gates.
 
 ### What the plan narrows
 
-| Check                                                                     | Runs when                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| rustfmt and Clippy                                                        | A Cargo owner is selected. Clippy takes the selected members with `--package`; the lint task's source and manifest policies still cover the workspace. A change to `scripts/run-rust-workspace.mjs`, which holds those policies, lints every member.                        |
-| Workspace suites                                                          | Their owner is selected. pnpm suites use the normal workspace commands; Cargo members keep all targets, all features, the lockfile and documentation tests. Node suites finish before Rust tests start, and real-process tests first build the host executables they start. |
-| Root tooling suites                                                       | A root tooling input changes: anything under `scripts/` except `scripts/tla/`, a root pnpm manifest, `knip.config.mjs`, or a workflow file. One suite also runs when a repository file it reads changes; `toolingSuites` in the scope script lists those files.             |
-| Changed TLA+ models                                                       | A file under a `formal/tla/` directory or `scripts/tla/` changes, as [TLA+ models](#tla-models) describes. Such a change selects no suite.                                                                                                                                  |
-| `test:exports`                                                            | A `packages/*` owner is selected or a root tooling input changes.                                                                                                                                                                                                           |
-| Terminal Host test compilation for `x86_64-linux-gnu` and `aarch64-macos` | Terminal Host Zig source or build files change. The host suite compiles for its own system only.                                                                                                                                                                            |
+| Check                                                                     | Runs when                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| rustfmt and Clippy                                                        | A Cargo owner is selected. Clippy takes the selected members with `--package`; the lint task's source and manifest policies still cover the workspace. A change to `scripts/run-rust-workspace.mjs`, which holds those policies, lints every member.                                             |
+| Workspace suites                                                          | Their owner is selected. pnpm suites use the normal workspace commands; Cargo members keep all targets, all features, the lockfile and documentation tests. Node suites finish before Rust tests start, and real-process tests first build the host executables they start.                      |
+| Root tooling suites                                                       | A root tooling input changes: anything under `scripts/` except `scripts/tla/`, a root pnpm manifest, `knip.config.mjs`, a workflow file, or a file under `.github/actions/`. One suite also runs when a repository file it reads changes; `toolingSuites` in the scope script lists those files. |
+| Changed TLA+ models                                                       | A file under a `formal/tla/` directory or `scripts/tla/` changes, as [TLA+ models](#tla-models) describes. Such a change selects no suite.                                                                                                                                                       |
+| `test:exports`                                                            | A `packages/*` owner is selected or a root tooling input changes.                                                                                                                                                                                                                                |
+| Terminal Host test compilation for `x86_64-linux-gnu` and `aarch64-macos` | Terminal Host Zig source or build files change. The host suite compiles for its own system only.                                                                                                                                                                                                 |
 
 An unselected suite is reported as unaffected: it is unexecuted, never a pass or a cache hit. There
 is no test-result cache; native compilers keep their normal incremental behavior.
@@ -87,8 +87,9 @@ also records the edges package managers do not show:
 
 A changed `package.json`, `pnpm-lock.yaml` or `pnpm-workspace.yaml` selects every pnpm owner, and a
 changed `Cargo.toml` or `Cargo.lock` every Cargo owner; a manifest inside an owner also selects that
-owner. A workflow file selects the root tooling suites only: no test reads it, and its real check is
-its run on GitHub.
+owner. A workflow file or a local action's file selects the root tooling suites only: no test reads
+it, and its real check is its run on GitHub. The plan marks every root tooling input with
+`rootTooling`, which CI reads to run its native jobs.
 
 Documentation without a test reader selects no suite and reports `documentation <- <path>`:
 anything under `proposals/`, and Markdown under `docs/`, under `schemas/`, or directly at the
@@ -279,6 +280,17 @@ complete clean search that took every required action, followed by its mutation 
   pushes, so cancelling on every push left `main` without one finished run. GitHub keeps
   one waiting run per concurrency group: the newest commit is verified next, and that run covers
   the commits between. Pull-request runs still cancel on a new push.
+- The `scope` job decides which native jobs run, from the plan of
+  [Affected verification](#affected-verification) against the last verified commit: for a pull
+  request the base its merge commit was made on, and for a push to `main` the newest earlier commit
+  whose Verify run passed, so a commit whose run failed or never finished stays in the comparison.
+  The Rust parts on Windows and macOS run when the plan selects a Cargo member, which a Terminal
+  Host change does through the process cohort; `terminal-host-native` runs when it selects the
+  Terminal Host; a root tooling input runs both. A plan that falls back to the complete gate, a
+  manual run, a re-run of a passed run, or no passed run among the last 50 runs every job. The
+  Linux `verify` job always runs, so a change that touches no native input, such as documentation
+  or the web client alone, finishes without the 26 to 33 minutes of the native jobs. A skipped job
+  reports skipped, not passed: its inputs are those of a commit whose run passed.
 - Read the newest completed run on `main` before landing an integration batch and before pushing a
   release tag: `gh run list --workflow verify.yml --branch main --status completed --limit 1`. A
   red job is fixed, reverted or reported to the owner in that batch, never left for the next run to

@@ -67,7 +67,8 @@ const rootToolingManifests = new Set([
 	'pnpm-workspace.yaml',
 	'knip.config.mjs',
 ]);
-const workflowFile = /^\.github\/workflows\/[^/]+\.ya?ml$/u;
+// A workflow, or any file of a local action that workflows run.
+const workflowInput = /^\.github\/(?:workflows\/[^/]+\.ya?ml|actions\/.+)$/u;
 const toolingSuites = [
 	['test:check-output', []],
 	['test:rust-runner', []],
@@ -326,6 +327,7 @@ export function selectVerificationScope(graph, paths) {
 		const reasons = [];
 		let completeRustLint = false;
 		let posixCompile = false;
+		let rootTooling = false;
 		// Nested Cargo members own their source before the enclosing application's prefix.
 		const owners = graph.toSorted((left, right) => right.root.length - left.root.length);
 		for (const changed of paths) {
@@ -340,9 +342,10 @@ export function selectVerificationScope(graph, paths) {
 			}
 			if (
 				changed.startsWith('scripts/') ||
-				workflowFile.test(changed) ||
+				workflowInput.test(changed) ||
 				rootToolingManifests.has(changed)
 			) {
+				rootTooling = true;
 				for (const [suite] of toolingSuites) tooling.add(suite);
 				reasons.push(`root tooling <- ${changed}`);
 				// A root pnpm manifest also reaches every pnpm workspace below.
@@ -452,6 +455,8 @@ export function selectVerificationScope(graph, paths) {
 					.toSorted(),
 			),
 			tooling: Object.freeze(toolingSuiteNames.filter((name) => tooling.has(name))),
+			// A root tooling input can change how any check runs, so CI runs its native jobs for it.
+			rootTooling,
 			completeRustLint,
 			posixCompile,
 			tla,
