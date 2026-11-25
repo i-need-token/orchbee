@@ -56,6 +56,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.splitActivePanelRight
 		| typeof WORKBENCH_ACTION_IDS.swapActivePanelVisible
 		| typeof WORKBENCH_ACTION_IDS.toggleActivePanelMaximization
+		| typeof WORKBENCH_ACTION_IDS.toggleRightBar
 		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
 	readonly input:
 		| { readonly filter: 'actions' | 'all' }
@@ -458,6 +459,15 @@ export const WORKBENCH_SHORTCUTS = {
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.swapActivePanelVisible,
 	},
+	toggleRightBar: {
+		defaults: {
+			apple: chord('KeyB', ['alt', 'mod']),
+			standard: chord('KeyB', ['alt', 'control']),
+		},
+		id: WORKBENCH_ACTION_IDS.toggleRightBar,
+		input: undefined,
+		shortcutId: 'workbench.right-bar.toggle',
+	},
 	toggleSidebar: {
 		defaults: {
 			apple: chord('KeyB', ['mod']),
@@ -542,6 +552,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'splitActivePanelRight',
 	'startAgent',
 	'swapActivePanelVisible',
+	'toggleRightBar',
 	'toggleSidebar',
 ] as const satisfies readonly WorkbenchShortcutAction[]);
 
@@ -680,6 +691,8 @@ export function formatWorkbenchActionShortcut(
 			return formatWorkbenchShortcut('swapActivePanelVisible', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleActivePanelMaximization:
 			return formatWorkbenchShortcut('maximizeActivePanel', platform, bindings);
+		case WORKBENCH_ACTION_IDS.toggleRightBar:
+			return formatWorkbenchShortcut('toggleRightBar', platform, bindings);
 		case WORKBENCH_ACTION_IDS.toggleSidebar:
 			return formatWorkbenchShortcut('toggleSidebar', platform, bindings);
 		default:
@@ -814,6 +827,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.splitActivePanelRight.defaults[platform],
 		[WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId]:
 			WORKBENCH_SHORTCUTS.swapActivePanelVisible.defaults[platform],
+		[WORKBENCH_SHORTCUTS.toggleRightBar.shortcutId]:
+			WORKBENCH_SHORTCUTS.toggleRightBar.defaults[platform],
 		[WORKBENCH_SHORTCUTS.toggleSidebar.shortcutId]:
 			WORKBENCH_SHORTCUTS.toggleSidebar.defaults[platform],
 	});

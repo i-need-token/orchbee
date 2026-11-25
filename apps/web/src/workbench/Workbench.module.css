@@ -219,3 +219,8 @@ button.statusNoticeText {
 .emptyWindow {
 	height: 100%;
 }
+
+/* The right bar's preview floats over the Tab's content from here; it holds nothing itself. */
+.previewPlace {
+	display: contents;
+}

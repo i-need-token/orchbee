@@ -33,6 +33,7 @@ import type { WorkbenchOtherMachines } from './types/workbench-other-machines';
 import { WorkbenchProjectCreation } from './components/workbench-project-creation/WorkbenchProjectCreation';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
+import { WorkbenchRightBarToggle } from './components/workbench-right-bar-toggle/WorkbenchRightBarToggle';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchMobileBar';
 import { WorkbenchTabList } from './components/workbench-tab-list/WorkbenchTabList';
@@ -64,6 +65,7 @@ import type {
 	WorkbenchAgentNameSource,
 	WorkbenchAgentSource,
 } from './types/workbench-agent-observation';
+import type { WorkbenchWorkspaceFilesSource } from './types/workbench-workspace-files';
 import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
@@ -81,6 +83,15 @@ const NO_CONFIGURED_COMMAND_KEYS: WorkbenchConfiguredCommandKeysView = {
 	keys: { chords: new Map(), heldLabels: new Set(), notes: new Map(), taken: new Map() },
 	takenBy: new Map(),
 };
+
+/** The right bar's code loads the first time a window opens it, and never in one that does not. */
+const LazyRightBar = React.lazy(() =>
+	import('../right-bar').then((module) => ({ default: module.RightBar })),
+);
+/** The right bar's width while it stays open in this window; it is not remembered. */
+const DEFAULT_RIGHT_BAR_WIDTH = 300;
+const MINIMUM_RIGHT_BAR_WIDTH = 200;
+const MAXIMUM_RIGHT_BAR_WIDTH = 640;
 
 interface WorkbenchProps {
 	readonly actionRuntime: ActionRuntime;
@@ -124,6 +135,8 @@ interface WorkbenchProps {
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
+	/** The right bar's file and Git reads; without them the window offers no right bar. */
+	readonly workspaceFilesSource?: WorkbenchWorkspaceFilesSource | undefined;
 	/** Other machines' Workspaces, which the sidebar lists where the window holds several Sessions. */
 	readonly otherMachines?: WorkbenchOtherMachines | undefined;
 	/** Change machine's Manage machines…: Settings on Machines. */
@@ -156,6 +169,7 @@ export function Workbench({
 	suppressClientUpdateFailureNotice = false,
 	terminalActionShortcutLabels,
 	terminalSurface,
+	workspaceFilesSource,
 	workspaceLocationSource,
 	otherMachines,
 	onManageMachines,
@@ -171,6 +185,8 @@ export function Workbench({
 		terminalActionShortcutLabels,
 	});
 	const hostReplacementFocusRef = React.useRef<HTMLButtonElement | null>(null);
+	const [previewHost, setPreviewHost] = React.useState<HTMLDivElement | null>(null);
+	const rightBarWidth = React.useRef(DEFAULT_RIGHT_BAR_WIDTH);
 	const view = useWorkbench({
 		actionRuntime,
 		agentObservationSource,
@@ -186,6 +202,7 @@ export function Workbench({
 		onTerminalFontSizeChange,
 		projectFolderAcquisition,
 		projectWorkspaceRuntime,
+		rightBarAvailable: workspaceFilesSource !== undefined,
 		searchOffered,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
@@ -456,6 +473,18 @@ export function Workbench({
 				statusAdornments={agentPresentation.tabStatusAdornments}
 				tabIdentityIcons={agentPresentation.tabIdentityIcons}
 				tabStripMessages={tabStripMessages}
+				reserveWindowControlsSpace={!view.isRightBarVisible}
+				trailingAction={
+					view.toggleRightBar === undefined ? null : (
+						<WorkbenchRightBarToggle
+							isRightBarVisible={view.isRightBarVisible}
+							label={view.rightBarToggleLabel}
+							onToggle={view.toggleRightBar}
+							shortcutId={view.rightBarShortcutId}
+							shortcutLabel={view.rightBarShortcutLabel}
+						/>
+					)
+				}
 			/>
 		);
 	}
@@ -647,9 +676,38 @@ export function Workbench({
 								{otherMachines === undefined ? null : (
 									<WorkbenchMachineCard otherMachines={otherMachines} />
 								)}
+								{view.isRightBarVisible ? (
+									<div className={styles['previewPlace']} ref={setPreviewHost} />
+								) : null}
 							</div>
 						</div>
 					</ResizablePanel>
+					{view.isRightBarVisible && workspaceFilesSource !== undefined ? (
+						<>
+							<ResizableHandle className={styles['resizeHandle']} />
+							<ResizablePanel
+								id='files'
+								defaultSize={`${rightBarWidth.current}px`}
+								minSize={`${MINIMUM_RIGHT_BAR_WIDTH}px`}
+								maxSize={`${MAXIMUM_RIGHT_BAR_WIDTH}px`}
+								groupResizeBehavior='preserve-pixel-size'
+								onResize={(size) => {
+									rightBarWidth.current = size.inPixels;
+								}}
+							>
+								<React.Suspense fallback={null}>
+									<LazyRightBar
+										closeShortcutLabel={view.rightBarShortcutLabel}
+										key={view.activeWorkspaceId ?? ''}
+										onClose={view.closeRightBar}
+										previewHost={previewHost}
+										source={workspaceFilesSource}
+										workspaceId={view.activeWorkspaceId}
+									/>
+								</React.Suspense>
+							</ResizablePanel>
+						</>
+					) : null}
 				</ResizablePanelGroup>
 			</div>
 			{view.searchState.kind === 'closed' ? null : (

@@ -14,6 +14,7 @@ import {
 	type WorkbenchAuthority,
 	type WorkbenchClientView,
 	type WorkbenchShortcutPlatform,
+	type WorkbenchWorkspaceFilesSource,
 	type WorkbenchWorkspaceLocationSource,
 } from '../../workbench';
 import type { TerminalPresentationId, WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
@@ -47,6 +48,7 @@ import {
 } from './createRelaunchPlaceWorkbenchClientView';
 import {
 	createServerWorkbenchAuthority,
+	createServerWorkspaceFiles,
 	createServerWorkspaceLocations,
 	findServerPresentation,
 	findServerTerminalBinding,
@@ -101,6 +103,8 @@ export interface ServerWorkbenchRuntime {
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
 	/** Each Workspace's branch or folder and divergence, read from the Server while shown. */
 	readonly workspaceLocationSource: WorkbenchWorkspaceLocationSource;
+	/** The right bar's file and Git reads; absent where the Server cannot serve them. */
+	readonly workspaceFilesSource: WorkbenchWorkspaceFilesSource | undefined;
 	dispose(): void;
 }
 
@@ -157,6 +161,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	 */
 	readonly terminalRuntime?: boolean | undefined;
 	/**
+	 * Whether the Session's Server answers `workbench.workspace-files`, as its handshake answer lists
+	 * `workspace-files`. Without it, the window offers no right bar.
+	 */
+	readonly workspaceFiles?: boolean | undefined;
+	/**
 	 * The window named after the Session's title policy, as the TUI names its outer terminal; absent
 	 * where this Client names no window.
 	 */
@@ -193,6 +202,7 @@ export function createServerWorkbenchRuntime({
 	terminalPresentationConfigurationSource = DEFAULT_TERMINAL_PRESENTATION_CONFIGURATION_SOURCE,
 	terminalRuntime = false,
 	titleWindow,
+	workspaceFiles = false,
 }: CreateServerWorkbenchRuntimeOptions): ServerWorkbenchRuntime {
 	let disposed = false;
 	let locale = applicationLocaleSource.current();
@@ -553,6 +563,7 @@ export function createServerWorkbenchRuntime({
 		},
 		projectWorkspaceRuntime,
 		terminalSurfaceCapability,
+		workspaceFilesSource: workspaceFiles ? createServerWorkspaceFiles(session) : undefined,
 		workspaceLocationSource,
 	};
 }

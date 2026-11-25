@@ -1,0 +1,9 @@
+.trigger {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.trigger:hover,
+.trigger:focus-visible,
+.trigger[aria-pressed='true'] {
+	color: var(--ob-sys-color-icon-hover);
+}

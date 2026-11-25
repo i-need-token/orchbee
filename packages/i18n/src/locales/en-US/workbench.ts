@@ -504,6 +504,27 @@ export const enUSWorkbenchMessages = {
 		'same confirmation keeps coming back, waiting for you',
 	'workbench.agentConfirmation.wait.hostTooOld':
 		'terminal started by an older Orchbee, waiting for you',
+	'workbench.rightBar.actions.toggle': 'Toggle Right Bar',
+	'workbench.rightBar.label': 'Files and changes',
+	'workbench.rightBar.files': 'Files',
+	'workbench.rightBar.changes': 'Changes',
+	'workbench.rightBar.refresh': 'Refresh',
+	'workbench.rightBar.close': 'Close right bar',
+	'workbench.rightBar.noWorkspace': 'Open a Workspace to see its files.',
+	'workbench.rightBar.loading': 'Loading…',
+	'workbench.rightBar.failed': "Couldn't read this.",
+	'workbench.rightBar.empty': 'This folder is empty.',
+	'workbench.rightBar.truncated': 'Showing the first {count} items.',
+	'workbench.rightBar.changes.none': 'No changes.',
+	'workbench.rightBar.changes.notRepository': "This folder isn't a Git repository.",
+	'workbench.rightBar.changes.conflicts': 'Merge conflicts',
+	'workbench.rightBar.changes.staged': 'Staged changes',
+	'workbench.rightBar.changes.unstaged': 'Changes',
+	'workbench.rightBar.preview.binary': "This file is binary and can't be shown.",
+	'workbench.rightBar.preview.tooLarge': 'This file is too large to show.',
+	'workbench.rightBar.preview.absent': 'This file no longer exists.',
+	'workbench.rightBar.preview.close': 'Close preview',
+	'workbench.rightBar.preview.diff': '{name} (changes)',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

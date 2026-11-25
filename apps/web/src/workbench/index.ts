@@ -121,6 +121,7 @@ export type {
 	WorkbenchAgentSnapshot,
 	WorkbenchAgentSource,
 } from './types/workbench-agent-observation';
+export type { WorkbenchWorkspaceFilesSource } from './types/workbench-workspace-files';
 export type {
 	WorkbenchWorkspaceGit,
 	WorkbenchWorkspaceLocation,

@@ -36,6 +36,7 @@ export function WorkbenchRoute(): ReactNode {
 		terminalLaunchProfileClient,
 		terminalSettingsController,
 		terminalSurface,
+		workspaceFilesSource,
 		workspaceLocationSource,
 		...unforwarded
 	} = application;
@@ -69,6 +70,7 @@ export function WorkbenchRoute(): ReactNode {
 			terminalLaunchProfileClient={terminalLaunchProfileClient}
 			terminalSettingsController={terminalSettingsController}
 			terminalSurface={terminalSurface}
+			workspaceFilesSource={workspaceFilesSource}
 			workspaceLocationSource={workspaceLocationSource}
 		/>
 	);

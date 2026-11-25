@@ -25,6 +25,7 @@ export { ServerWindowTitle } from './ServerWindowTitle';
 export { ServerWorkbenchSession } from './ServerWorkbenchSession';
 export { createServerWorkbenchAuthority } from './createServerWorkbenchAuthority';
 export type { ServerLaunchProfileSource } from './createServerWorkbenchAuthority';
+export { createServerWorkspaceFiles } from './createServerWorkspaceFiles';
 export { createServerWorkspaceLocations } from './createServerWorkspaceLocations';
 export { findServerPresentation } from './findServerPresentation';
 export { projectServerSnapshot } from './projectServerSnapshot';

@@ -110,6 +110,10 @@ interface UseWorkbenchActionsOptions {
 	/** How the strip lays out Tabs now, which names the place after the active Tab. */
 	readonly tabStripOrientation: TabStripOrientation;
 	readonly toggleSidebar: () => void;
+	/** Whether the right bar is shown; its Action is checked while it is. */
+	readonly isRightBarVisible?: boolean | undefined;
+	/** Shows or hides the right bar; absent where the Session cannot read Workspace files. */
+	readonly toggleRightBar?: (() => void) | undefined;
 	/** Opens the New Worktree form; keep it stable across renders. */
 	readonly requestWorktreeForm: WorkbenchWorktreeFormRequest;
 	/** The localized default Worktree Workspace label with this ordinal; keep it stable across renders. */
@@ -142,6 +146,7 @@ export function useWorkbenchActions({
 	focusRouting,
 	formatCloseWarning,
 	hostActionScope,
+	isRightBarVisible = false,
 	isSidebarVisible,
 	navigation,
 	onNewTerminal,
@@ -160,6 +165,7 @@ export function useWorkbenchActions({
 	runtime,
 	searchFilters,
 	tabStripOrientation,
+	toggleRightBar,
 	toggleSidebar,
 	worktreeLabel,
 }: UseWorkbenchActionsOptions): WorkbenchActions {
@@ -508,6 +514,27 @@ export function useWorkbenchActions({
 					title: workbenchMessages.toggleSidebar,
 				}),
 			),
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: categoryView,
+					execution,
+					getAvailability: () =>
+						toggleRightBar === undefined
+							? { kind: 'hidden' }
+							: { checked: isRightBarVisible, kind: 'enabled' },
+					handler: {
+						execute: (context) => {
+							context.markCommitted();
+							toggleRightBar?.();
+							return { kind: 'completed' };
+						},
+					},
+					id: WORKBENCH_ACTION_IDS.toggleRightBar,
+					input: noActionInput,
+					title: workbenchMessages.toggleRightBar,
+				}),
+			),
 		];
 		// Re-registration notifies registry observers to resolve fresh availability; handlers read the
 		// Runtime snapshot directly and never treat this render snapshot as execution authority.
@@ -522,6 +549,7 @@ export function useWorkbenchActions({
 		focusAfterTabClose,
 		focusRouting,
 		formatCloseWarning,
+		isRightBarVisible,
 		isSidebarVisible,
 		navigation,
 		getNewTerminalAvailability,
@@ -542,6 +570,7 @@ export function useWorkbenchActions({
 		searchFilters,
 		scope,
 		tabStripOrientation,
+		toggleRightBar,
 		toggleSidebar,
 		typedRuntime,
 		worktreeLabel,
@@ -688,6 +717,7 @@ export function useWorkbenchActions({
 				case 'splitActivePanelBelow':
 				case 'splitActivePanelRight':
 				case 'swapActivePanelVisible':
+				case 'toggleRightBar':
 				case 'toggleSidebar': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (

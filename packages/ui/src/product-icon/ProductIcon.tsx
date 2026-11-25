@@ -22,6 +22,7 @@ export type ProductIconName =
 	| 'copy'
 	| 'edit'
 	| 'ellipsis'
+	| 'file'
 	| 'folder'
 	| 'folder-opened'
 	| 'git-branch'
@@ -35,6 +36,7 @@ export type ProductIconName =
 	| 'panels'
 	| 'pin'
 	| 'question'
+	| 'refresh'
 	| 'remove'
 	| 'restore'
 	| 'search'
@@ -43,6 +45,7 @@ export type ProductIconName =
 	| 'select-all'
 	| 'settings'
 	| 'sidebar-left'
+	| 'sidebar-right'
 	| 'split-down'
 	| 'tabs'
 	| 'terminal'
@@ -78,6 +81,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'copy' && styles['copy'],
 				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
+				name === 'file' && styles['file'],
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
 				name === 'git-branch' && styles['gitBranch'],
@@ -91,6 +95,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
 				name === 'question' && styles['question'],
+				name === 'refresh' && styles['refresh'],
 				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
@@ -99,6 +104,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'select-all' && styles['selectAll'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
+				name === 'sidebar-right' && styles['sidebarRight'],
 				name === 'split-down' && styles['splitDown'],
 				name === 'tabs' && styles['tabs'],
 				name === 'terminal' && styles['terminal'],

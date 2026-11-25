@@ -1809,4 +1809,110 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Why a confirmation waits: the terminal was started by an Orchbee that cannot check the screen before typing.',
 	},
+	toggleRightBar: {
+		id: 'workbench.rightBar.actions.toggle',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.actions.toggle'],
+		description:
+			"Action that shows or hides the right bar with the Workspace's files and Git changes.",
+	},
+	rightBarLabel: {
+		id: 'workbench.rightBar.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.label'],
+		description: 'Accessible name of the right bar.',
+	},
+	rightBarFiles: {
+		id: 'workbench.rightBar.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.files'],
+		description: "Right bar tab that lists the Workspace's files.",
+	},
+	rightBarChanges: {
+		id: 'workbench.rightBar.changes',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes'],
+		description: "Right bar tab that lists the Workspace's Git changes.",
+	},
+	rightBarRefresh: {
+		id: 'workbench.rightBar.refresh',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.refresh'],
+		description: 'Right bar button that reads the files or changes again.',
+	},
+	rightBarClose: {
+		id: 'workbench.rightBar.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close'],
+		description: 'Right bar button that hides it.',
+	},
+	rightBarNoWorkspace: {
+		id: 'workbench.rightBar.noWorkspace',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.noWorkspace'],
+		description: 'Right bar text when no Workspace is shown.',
+	},
+	rightBarLoading: {
+		id: 'workbench.rightBar.loading',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.loading'],
+		description: 'Right bar text while a listing, change list or file is read.',
+	},
+	rightBarFailed: {
+		id: 'workbench.rightBar.failed',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.failed'],
+		description: 'Right bar text when a read failed.',
+	},
+	rightBarEmpty: {
+		id: 'workbench.rightBar.empty',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.empty'],
+		description: 'Right bar text for an empty folder.',
+	},
+	rightBarTruncated: {
+		id: 'workbench.rightBar.truncated',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.truncated'],
+		description: 'Right bar note when a listing was cut short. count is the number shown.',
+	},
+	rightBarNoChanges: {
+		id: 'workbench.rightBar.changes.none',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes.none'],
+		description: 'Right bar Changes text when Git reports nothing changed.',
+	},
+	rightBarNotRepository: {
+		id: 'workbench.rightBar.changes.notRepository',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes.notRepository'],
+		description: 'Right bar Changes text outside a Git repository.',
+	},
+	rightBarConflicts: {
+		id: 'workbench.rightBar.changes.conflicts',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes.conflicts'],
+		description: 'Right bar Changes group of conflicted files.',
+	},
+	rightBarStaged: {
+		id: 'workbench.rightBar.changes.staged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes.staged'],
+		description: 'Right bar Changes group of staged files.',
+	},
+	rightBarUnstaged: {
+		id: 'workbench.rightBar.changes.unstaged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changes.unstaged'],
+		description: 'Right bar Changes group of unstaged and untracked files.',
+	},
+	rightBarPreviewBinary: {
+		id: 'workbench.rightBar.preview.binary',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.binary'],
+		description: 'File preview text for a binary file.',
+	},
+	rightBarPreviewTooLarge: {
+		id: 'workbench.rightBar.preview.tooLarge',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.tooLarge'],
+		description: 'File preview text for a file over the size limit.',
+	},
+	rightBarPreviewAbsent: {
+		id: 'workbench.rightBar.preview.absent',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.absent'],
+		description: 'File preview text for a file that was deleted.',
+	},
+	rightBarPreviewClose: {
+		id: 'workbench.rightBar.preview.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.close'],
+		description: 'Button that closes the file preview over the terminals.',
+	},
+	rightBarPreviewDiff: {
+		id: 'workbench.rightBar.preview.diff',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.diff'],
+		description: 'Title of a file preview that shows its changes. name is the file name.',
+	},
 });

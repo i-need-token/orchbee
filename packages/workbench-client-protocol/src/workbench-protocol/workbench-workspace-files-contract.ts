@@ -19,7 +19,7 @@ const isEntryName = (name: string): boolean =>
 	name !== '..' &&
 	!/[/\\\p{Cc}\uD800-\uDFFF]/u.test(name);
 /** A Workspace-relative path: `/`-separated names, none `.` or `..`, no backslash or control. */
-export const isWorkspaceRelativePath = (path: string): boolean =>
+const isWorkspaceRelativePath = (path: string): boolean =>
 	path.length > 0 && byteLength(path) <= MAXIMUM_PATH_BYTES && path.split('/').every(isEntryName);
 
 const RelativePathSchema = z.string().refine(isWorkspaceRelativePath);
@@ -31,7 +31,7 @@ const identity = {
 	workspaceId: WorkbenchWorkspaceIdSchema,
 };
 
-export const WorkspaceFileSourceSchema = z.enum(['worktree', 'index', 'head']);
+const WorkspaceFileSourceSchema = z.enum(['worktree', 'index', 'head']);
 const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -75,7 +75,7 @@ const WorkspaceFileContentSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('too-large') }).readonly(),
 	z.strictObject({ kind: z.literal('absent') }).readonly(),
 ]);
-export const WorkspaceGitStatusCodeSchema = z.enum([
+const WorkspaceGitStatusCodeSchema = z.enum([
 	'unmodified',
 	'modified',
 	'type-changed',
@@ -148,12 +148,11 @@ export const WorkspaceFilesResultSchema = z
 	})
 	.readonly();
 
-export type WorkspaceFilesRequest = z.infer<typeof WorkspaceFilesRequestSchema>;
+type WorkspaceFilesRequest = z.infer<typeof WorkspaceFilesRequestSchema>;
 export type WorkspaceFilesOperation = WorkspaceFilesRequest['operation'];
-export type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
+type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type WorkspaceFilesOutcome = WorkspaceFilesResult['outcome'];
 export type WorkspaceDirectoryEntry = z.infer<typeof WorkspaceDirectoryEntrySchema>;
-export type WorkspaceFileContent = z.infer<typeof WorkspaceFileContentSchema>;
 export type WorkspaceFileSource = z.infer<typeof WorkspaceFileSourceSchema>;
 export type WorkspaceGitStatusEntry = z.infer<typeof WorkspaceGitStatusEntrySchema>;
 export type WorkspaceGitStatusCode = z.infer<typeof WorkspaceGitStatusCodeSchema>;

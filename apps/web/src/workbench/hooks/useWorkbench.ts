@@ -234,6 +234,16 @@ interface WorkbenchView {
 	readonly onTabListKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
 	/** The current Workspace's name, which heads the Tab list. */
 	readonly activeWorkspaceName: string | null;
+	/** The current Workspace, whose files the right bar shows. */
+	readonly activeWorkspaceId: string | null;
+	/** Whether the right bar is open beside the content; never in the mobile layout. */
+	readonly isRightBarVisible: boolean;
+	/** Opens or closes the right bar; absent when the Server reads no Workspace files. */
+	readonly toggleRightBar: (() => void) | undefined;
+	readonly closeRightBar: () => void;
+	readonly rightBarToggleLabel: string;
+	readonly rightBarShortcutId: string;
+	readonly rightBarShortcutLabel: string | undefined;
 	/** Closes the sidebar opened over the content and gives the keyboard back to the terminal. */
 	readonly dismissSidebarOverlay: () => void;
 	/** Esc inside the overlay closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
@@ -381,6 +391,8 @@ interface UseWorkbenchOptions {
 	readonly onTerminalFontSizeChange?: WorkbenchTerminalFontSizeChangeCallback | undefined;
 	readonly projectFolderAcquisition?: WorkbenchProjectFolderAcquisition | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
+	/** Whether the Server reads Workspace files, which the right bar shows. */
+	readonly rightBarAvailable?: boolean | undefined;
 	/**
 	 * Whether the window offers Search across Agents, Actions and Settings. A release withholds it
 	 * and keeps only the Actions filter, the TUI's action menu counterpart.
@@ -408,6 +420,7 @@ export function useWorkbench({
 	onTerminalFontSizeChange,
 	projectFolderAcquisition,
 	projectWorkspaceRuntime,
+	rightBarAvailable = false,
 	searchOffered,
 	shortcutBindings,
 	shortcutPlatform,
@@ -453,6 +466,14 @@ export function useWorkbench({
 	const sidebar = useWorkbenchSidebarPresentation(storage);
 	const sidebarPresentation = sidebar.presentation;
 	const isSidebarVisible = sidebarPresentation !== 'hidden';
+	// The right bar starts closed in every window and is not remembered: a window that never opens
+	// it loads none of its code.
+	const [rightBarOpen, setRightBarOpen] = React.useState(false);
+	const rightBarOffered = rightBarAvailable && !sidebar.mobile;
+	const isRightBarVisible = rightBarOffered && rightBarOpen;
+	const flipRightBar = useMemoizedFn(() => setRightBarOpen((open) => !open));
+	const closeRightBar = useMemoizedFn(() => setRightBarOpen(false));
+	const toggleRightBar = rightBarOffered ? flipRightBar : undefined;
 	const resolveTerminalFocusTarget = useMemoizedFn(() =>
 		terminalSurfaceAvailable ? resolveActiveTerminalPresentationId(projectWorkspaceRuntime) : null,
 	);
@@ -720,6 +741,7 @@ export function useWorkbench({
 		formatCloseWarning,
 		getNewTerminalAvailability,
 		hostActionScope,
+		isRightBarVisible,
 		isSidebarVisible,
 		navigation,
 		onNewTerminal: createTerminal,
@@ -737,6 +759,7 @@ export function useWorkbench({
 		runtime: actionRuntime,
 		searchFilters,
 		tabStripOrientation,
+		toggleRightBar,
 		toggleSidebar,
 		worktreeLabel,
 	});
@@ -1176,6 +1199,18 @@ export function useWorkbench({
 			focusRouting.requestTerminalFocus();
 		},
 		activeWorkspaceName: findActiveWorkspaceName(projectWorkspaceState),
+		activeWorkspaceId:
+			projectWorkspaceState.activeLocation.kind === 'workspace'
+				? projectWorkspaceState.activeLocation.workspaceId
+				: null,
+		isRightBarVisible,
+		toggleRightBar,
+		closeRightBar,
+		rightBarToggleLabel: intl.formatMessage(workbenchMessages.toggleRightBar),
+		rightBarShortcutId: WORKBENCH_SHORTCUTS.toggleRightBar.id,
+		rightBarShortcutLabel: visibleShortcutLabel(
+			formatWorkbenchShortcut('toggleRightBar', shortcutPlatform, shortcutBindings),
+		),
 		dismissSidebarOverlay: () => {
 			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();

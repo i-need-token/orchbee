@@ -1,0 +1,112 @@
+/* The preview floats over the terminals with a margin, so the Tab's content still frames it. */
+.root {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset: var(--ob-ref-space-2);
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: var(--ob-sys-color-surface-raised);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow: hidden;
+}
+
+.root:focus-visible {
+	outline: none;
+	border-color: var(--ob-sys-color-border-focus);
+}
+
+.header {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	min-width: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-3);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+.title {
+	flex: none;
+	font: var(--ob-sys-typography-label-sm);
+	white-space: nowrap;
+}
+
+.folder {
+	min-width: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.close {
+	margin-inline-start: auto;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.viewport {
+	position: relative;
+	flex: 1;
+	min-height: var(--ob-ref-space-0);
+	overflow: auto;
+}
+
+.viewport:focus-visible {
+	outline: none;
+}
+
+.lines {
+	position: relative;
+	height: var(--ob-comp-workbench-right-bar-list-block-size);
+	min-width: 100%;
+	width: max-content;
+}
+
+.line {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline-start: 0;
+	display: flex;
+	min-width: 100%;
+	font: var(--ob-sys-typography-code-sm);
+	transform: translateY(var(--ob-comp-workbench-right-bar-row-translate-y));
+	white-space: pre;
+}
+
+.line[data-kind='added'] {
+	background: color-mix(in oklch, var(--ob-sys-color-status-success-text) 14%, transparent);
+}
+
+.line[data-kind='removed'] {
+	background: color-mix(in oklch, var(--ob-sys-color-status-danger-text) 14%, transparent);
+}
+
+.line[data-kind='gap'] {
+	color: var(--ob-sys-color-text-muted);
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+.number {
+	box-sizing: border-box;
+	flex: none;
+	width: var(--ob-ref-space-12);
+	padding-inline-end: var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-muted);
+	text-align: end;
+	user-select: none;
+}
+
+.text {
+	padding-inline: var(--ob-ref-space-2);
+}
+
+.note {
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-4);
+	color: var(--ob-sys-color-text-muted);
+}

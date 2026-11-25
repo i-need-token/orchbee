@@ -9,7 +9,8 @@
 type ServerSessionAction =
 	| 'check-for-updates'
 	| 'follow-agent-confirmations'
-	| 'follow-terminal-runtime';
+	| 'follow-terminal-runtime'
+	| 'read-workspace-files';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
@@ -24,6 +25,8 @@ const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] 
 	// The terminal surface follows the Session's terminal-runtime read only where it is listed.
 	['terminal-runtime', ['follow-terminal-runtime']],
 	['update-check', ['check-for-updates']],
+	// The right bar is offered only where the Server reads Workspace files.
+	['workspace-files', ['read-workspace-files']],
 ];
 
 /**

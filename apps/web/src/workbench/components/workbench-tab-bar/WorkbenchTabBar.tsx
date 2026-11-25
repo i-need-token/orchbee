@@ -50,6 +50,10 @@ interface WorkbenchTabBarProps {
 	readonly tabStripMessages: TabStripMessages;
 	/** Touch rows: 44 px targets 2 px apart. */
 	readonly touchUi?: boolean | undefined;
+	/** A control at the bar's end, before any space kept for a desktop window's own controls. */
+	readonly trailingAction?: ReactNode;
+	/** False while something to the bar's end, such as the right bar, keeps that space instead. */
+	readonly reserveWindowControlsSpace?: boolean | undefined;
 }
 
 export const WorkbenchTabBar = memo(function WorkbenchTabBar({
@@ -71,6 +75,8 @@ export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 	statusAdornments,
 	tabStripMessages,
 	touchUi = false,
+	trailingAction = null,
+	reserveWindowControlsSpace = true,
 }: WorkbenchTabBarProps): ReactNode {
 	const groupName = useTabGroupNameDialog(tabModel);
 	const orientation = fill ? TabStripOrientation.Vertical : TabStripOrientation.Horizontal;
@@ -89,7 +95,16 @@ export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 					focusRequest={focusRequest}
 					// A desktop window's own controls at the top end, where they draw over the page.
 					horizontalTrailingActions={
-						<div className={styles['trailingActions']} data-slot='workbench-tab-bar-trailing' />
+						<>
+							{trailingAction === null ? null : (
+								<div className={styles['trailingAction']} data-slot='workbench-tab-bar-action'>
+									{trailingAction}
+								</div>
+							)}
+							{reserveWindowControlsSpace ? (
+								<div className={styles['trailingActions']} data-slot='workbench-tab-bar-trailing' />
+							) : null}
+						</>
 					}
 					horizontalLeadingActions={
 						reserveSidebarToggleSpace ? (

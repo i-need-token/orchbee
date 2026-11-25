@@ -862,6 +862,10 @@
 	--ob-comp-workbench-navigation-reorder-inline-start: 0px;
 	--ob-comp-workbench-navigation-reorder-translate-y: 0px;
 	--ob-comp-workbench-sidebar-overlay-inline-size: 15.625rem;
+	/* The right bar's long lists draw only the rows in view, each placed by its offset. */
+	--ob-comp-workbench-right-bar-list-block-size: 0px;
+	--ob-comp-workbench-right-bar-row-translate-y: 0px;
+	--ob-comp-workbench-right-bar-row-depth: 0;
 	/* A machine's `@name` mark keeps twelve characters before it shortens, as the TUI's does. */
 	--ob-comp-workbench-machine-mark-max-inline-size: 12ch;
 	--ob-comp-workbench-sidebar-thumb-size: 0px;

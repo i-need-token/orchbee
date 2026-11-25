@@ -301,6 +301,8 @@ describe('useWorkbenchActions', () => {
 				Object.values(WORKBENCH_ACTION_IDS).filter(
 					(actionId) =>
 						actionId !== WORKBENCH_ACTION_IDS.navigateAgent &&
+						// Only a window whose Server reads Workspace files offers the right bar.
+						actionId !== WORKBENCH_ACTION_IDS.toggleRightBar &&
 						actionId !== WORKBENCH_ACTION_IDS.closeWorkspaceConfirmed &&
 						// The Project creation workflow registers its own entry.
 						actionId !== WORKBENCH_ACTION_IDS.newProject &&

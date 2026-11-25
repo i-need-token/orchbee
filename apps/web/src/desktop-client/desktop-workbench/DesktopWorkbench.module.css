@@ -16,6 +16,7 @@
 			[data-slot='workbench-window-drag-region'],
 			[data-slot='workbench-tab-bar'][data-orientation='horizontal'],
 			[data-slot='workbench-mobile-bar'],
+			[data-slot='workbench-right-bar-header'],
 			[data-slot='workbench-tab-list'][data-open] [data-slot='workbench-tab-list-band']
 		):not([data-covered] *)
 	) {
@@ -32,6 +33,7 @@
 			[data-slot='workbench-tab-bar'][data-orientation='horizontal']
 				:is([data-tab-id], [data-group-id], button),
 			[data-slot='workbench-mobile-bar'] button,
+			[data-slot='workbench-right-bar-header'] button,
 			[data-slot='workbench-tab-list-band'] button
 		):not([data-covered] *)
 	) {
@@ -102,6 +104,7 @@
 /* Windows draws its caption buttons over the page's top end: the horizontal Tab bar, the mobile bar
    and the Tab list keep clear what the window leaves past its title-bar area. */
 .root[data-window-controls='trailing'] :global([data-slot='workbench-tab-bar-trailing']),
+.root[data-window-controls='trailing'] :global([data-slot='workbench-right-bar-trailing']),
 .root[data-window-controls='trailing'] :global([data-slot='workbench-mobile-bar-trailing']),
 .root[data-window-controls='trailing'] :global([data-slot='workbench-tab-list-trailing']) {
 	width: calc(

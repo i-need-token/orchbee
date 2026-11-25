@@ -42,15 +42,11 @@ export type {
 	WorkbenchSnapshot,
 	WorkbenchTerminalContext,
 } from './workbench-protocol';
-export { isWorkspaceRelativePath } from './workbench-protocol';
 export type {
 	WorkspaceDirectoryEntry,
-	WorkspaceFileContent,
 	WorkspaceFileSource,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
-	WorkspaceFilesRequest,
-	WorkspaceFilesResult,
 	WorkspaceGitStatusCode,
 	WorkspaceGitStatusEntry,
 } from './workbench-protocol';

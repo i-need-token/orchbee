@@ -16,6 +16,7 @@ import {
 	type WorkbenchShortcutClaim,
 	type WorkbenchTerminalActionShortcutLabels,
 	type WorkbenchTerminalSurface,
+	type WorkbenchWorkspaceFilesSource,
 	type WorkbenchWorkspaceLocationSource,
 	useWorkbenchConfiguredCommandKeys,
 } from '../workbench';
@@ -102,6 +103,8 @@ export interface WebApplicationProps {
 	readonly terminalDefaultSettingsControl?: TerminalDefaultSettingsControl | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
+	/** The right bar's file and Git reads; without them the window offers no right bar. */
+	readonly workspaceFilesSource?: WorkbenchWorkspaceFilesSource | undefined;
 }
 
 /** The build a window is and the version it runs; null when it is not known. */
@@ -138,6 +141,7 @@ export const WebApplication = React.memo(function WebApplication({
 	terminalLaunchProfileClient,
 	terminalDefaultSettingsControl,
 	terminalSurface,
+	workspaceFilesSource,
 	workspaceLocationSource,
 }: WebApplicationProps): React.ReactNode {
 	const view = useWebApplication({
@@ -259,6 +263,7 @@ export const WebApplication = React.memo(function WebApplication({
 					suppressClientUpdateFailureNotice={view.settingsOpen}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
+					workspaceFilesSource={workspaceFilesSource}
 					workspaceLocationSource={workspaceLocationSource}
 					otherMachines={otherMachines}
 					onManageMachines={machines === undefined ? undefined : view.openMachineSettings}

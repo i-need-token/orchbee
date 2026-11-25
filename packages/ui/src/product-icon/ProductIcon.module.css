@@ -71,6 +71,10 @@
 	composes: codicon-ellipsis from global;
 }
 
+.file {
+	composes: codicon-file from global;
+}
+
 .folder {
 	composes: codicon-folder from global;
 }
@@ -123,6 +127,10 @@
 	composes: codicon-question from global;
 }
 
+.refresh {
+	composes: codicon-refresh from global;
+}
+
 .remove {
 	composes: codicon-remove from global;
 }
@@ -153,6 +161,10 @@
 
 .sidebarLeft {
 	composes: codicon-layout-sidebar-left from global;
+}
+
+.sidebarRight {
+	composes: codicon-layout-sidebar-right from global;
 }
 
 .splitDown {

@@ -72,6 +72,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(keyboardShortcutMessages.splitBelow);
 		case 'split-right':
 			return intl.formatMessage(keyboardShortcutMessages.splitRight);
+		case 'toggle-right-bar':
+			return intl.formatMessage(keyboardShortcutMessages.toggleRightBar);
 		case 'toggle-sidebar':
 			return intl.formatMessage(keyboardShortcutMessages.toggleSidebar);
 		case 'find':

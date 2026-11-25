@@ -320,7 +320,8 @@ describe('Workbench shortcuts', () => {
 
 	it('rejects ambiguous, composing, repeated, and unrelated key events', () => {
 		for (const event of [
-			shortcutEvent({ altKey: true, metaKey: true }),
+			// ⌥⌘B toggles the right bar; ⌥⌘J belongs to no shortcut.
+			shortcutEvent({ altKey: true, code: 'KeyJ', metaKey: true }),
 			shortcutEvent({ ctrlKey: true, metaKey: true }),
 			shortcutEvent({ isComposing: true, metaKey: true }),
 			shortcutEvent({ metaKey: true, repeat: true }),

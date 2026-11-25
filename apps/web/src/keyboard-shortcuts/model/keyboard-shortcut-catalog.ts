@@ -108,6 +108,7 @@ type KeyboardShortcutName =
 	| 'split-right'
 	| 'start-agent'
 	| 'swap-panel-visible'
+	| 'toggle-right-bar'
 	| 'toggle-sidebar';
 
 export type KeyboardShortcutDeclaration = KeyboardShortcutDeclarationBase &
@@ -608,6 +609,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'shortcuts',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.shortcuts.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.toggleRightBar.id,
+		actionInput: WORKBENCH_SHORTCUTS.toggleRightBar.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.toggleRightBar.defaults,
+		feature: 'workbench',
+		name: 'toggle-right-bar',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.toggleRightBar.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.toggleSidebar.id,

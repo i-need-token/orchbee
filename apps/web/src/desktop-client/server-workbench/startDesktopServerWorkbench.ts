@@ -446,6 +446,7 @@ async function run(
 			bootstrap.negotiatedCapabilities,
 			'follow-terminal-runtime',
 		),
+		workspaceFiles: serverSessionServes(bootstrap.negotiatedCapabilities, 'read-workspace-files'),
 		// Electron names the window after its page, which the taskbar and window switcher show.
 		titleWindow: targetWindow,
 	});
@@ -524,6 +525,7 @@ async function run(
 				terminalPlatformEffects: browserPlatformEffects(targetWindow),
 				terminalPresentationConfigurationSource: terminalSettingsController,
 				terminalRuntime: serverSessionServes(remote.capabilities, 'follow-terminal-runtime'),
+				workspaceFiles: serverSessionServes(remote.capabilities, 'read-workspace-files'),
 			}),
 		createRouting: (shown, local, otherMachines, history) =>
 			createWebApplicationRouting(
@@ -536,6 +538,7 @@ async function run(
 					otherMachines,
 					projectFolderAcquisition: local ? projectFolderAcquisition : undefined,
 					projectWorkspaceRuntime: shown.projectWorkspaceRuntime,
+					workspaceFilesSource: shown.workspaceFilesSource,
 					workspaceLocationSource: shown.workspaceLocationSource,
 				},
 				// A window has no address bar, and a reload needs the URL Main loaded it with. Focus
