@@ -305,6 +305,22 @@ complete clean search that took every required action, followed by its mutation 
   failed although nothing ran; when every other job passed, the `macos-runner-shortage` job ends
   that run as cancelled instead. No Verify job runs on an Intel Mac runner; Intel macOS is left to
   the release workflow's `macos-x86_64` row.
+- Every job that needs Zig, here and in the release workflow, installs it with the local action
+  `.github/actions/zig`, which holds the pinned version and each runner's archive digest. The
+  archive comes from the Actions cache when an earlier run kept it, otherwise from ziglang.org,
+  whose downloads took 4 to 15 minutes per job on GitHub's runners (measured 2026-11-25); either
+  way it must match its digest before it is unpacked, and only a checked archive is cached.
+- The Verify jobs that compile Rust restore third-party crates with `Swatinem/rust-cache`: one entry
+  for the Linux lint, and per OS one for the workspace part and one that the two client parts
+  share. Workspace crates are never cached, since a checkout's new timestamps would rebuild them
+  anyway, so a cached entry changes how long a build takes, never what it compiles. Only runs on
+  `main` save entries, so a pull request reads them and never displaces them. The release
+  workflow restores no build cache: its artifacts come from clean builds.
+- The Rust parts restore the Terminal Host's Zig build caches with the local action
+  `.github/actions/terminal-host-build-cache`, and the workspace part saves them on `main`. Zig
+  checks every cached result against its inputs' content, so an entry only shortens a build. An
+  entry starts empty whenever the Zig version or the pinned packages change, and is left unsaved
+  past 2.5 GiB.
 - Every job that builds the Terminal Host, here and in the release workflow, first runs the local
   action `.github/actions/zig-packages`. It restores Zig's package archives from the Actions cache,
   keyed on the runner's OS and architecture, the Terminal Host's `build.zig.zon` and `build.zig`,

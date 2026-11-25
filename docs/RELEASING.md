@@ -68,6 +68,9 @@ repository>`. Print each public half with the command in
    of those rows, runs
    the release gate's paths a tag run would select, joins the rows the way a tag run would, and
    publishes nothing. Its artifacts are a different build of the same version: never install them.
+   Start it, like the tag, once the newest Verify run on `main` has finished: both workflows use
+   macOS runners, GitHub runs at most five macOS jobs of this account at once, and a rehearsal
+   started beside Verify waited 17 minutes for its macOS builds (2026-11-25).
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
    they follow the generated Install section verbatim. Tag the commit with them and push the tag:
    `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then

@@ -1,0 +1,76 @@
+name: Terminal Host build cache
+description: >-
+  Restores, or with `save: 'true'` saves, the Zig caches that the Terminal Host build of the Rust
+  test preparation fills (apps/terminal-host/scripts/build-host.mjs). Zig checks every cached
+  result against the content of its inputs, so an entry never makes a build use stale code; the key
+  only decides how much an entry still saves. Run it after `zig-packages`, whose package archives
+  under the global cache's `p` stay that action's own entry.
+
+inputs:
+  save:
+    description: "'true' saves the caches unless this run restored them under the exact key"
+    required: false
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Locate the Zig build caches
+      id: paths
+      shell: bash
+      run: |
+        if [ "$RUNNER_OS" = Windows ]; then global="$LOCALAPPDATA\\zig"; else global="${XDG_CACHE_HOME:-$HOME/.cache}/zig"; fi
+        {
+          echo 'paths<<ORCHBEE_PATHS'
+          echo 'apps/terminal-host/.zig-cache'
+          echo "$global/o"
+          echo "$global/h"
+          echo "$global/z"
+          echo 'ORCHBEE_PATHS'
+        } >> "$GITHUB_OUTPUT"
+
+    # The prefix holds the compiler and the pinned packages, so an entry starts empty when either
+    # changes; within one prefix a source change restores the newest entry and rebuilds only what
+    # changed, and the entry it saves keeps what that build added.
+    - name: Restore the Zig build caches
+      id: restore
+      if: inputs.save != 'true'
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.paths.outputs.paths }}
+        key: terminal-host-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-${{ hashFiles('apps/terminal-host/build.zig', 'apps/terminal-host/build/**', 'apps/terminal-host/src/**', 'apps/terminal-host/scripts/build-host.mjs', 'scripts/stage-native-windows.mjs') }}
+        restore-keys: |
+          terminal-host-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-
+
+    - name: Remember the restored key
+      if: inputs.save != 'true'
+      shell: bash
+      env:
+        PRIMARY_KEY: ${{ steps.restore.outputs.cache-primary-key }}
+        EXACT_HIT: ${{ steps.restore.outputs.cache-hit }}
+      run: |
+        echo "ORCHBEE_TERMINAL_HOST_BUILD_KEY=$PRIMARY_KEY" >> "$GITHUB_ENV"
+        echo "ORCHBEE_TERMINAL_HOST_BUILD_HIT=$EXACT_HIT" >> "$GITHUB_ENV"
+
+    # Entries accumulate within one prefix; past the bound the entry is left unsaved, and the next
+    # compiler or package change starts a fresh one.
+    - name: Measure the Zig build caches
+      id: size
+      if: inputs.save == 'true' && env.ORCHBEE_TERMINAL_HOST_BUILD_HIT != 'true'
+      shell: bash
+      env:
+        CACHE_PATHS: ${{ steps.paths.outputs.paths }}
+      run: |
+        total=0
+        while IFS= read -r directory; do
+          if [ -d "$directory" ]; then total=$((total + $(du -sk "$directory" | cut -f1))); fi
+        done <<< "$CACHE_PATHS"
+        echo "Zig build caches: $((total / 1024)) MiB"
+        if [ "$total" -le $((2560 * 1024)) ]; then echo "fits=true" >> "$GITHUB_OUTPUT"; else echo "::notice title=Zig build cache not saved::$((total / 1024)) MiB exceeds the 2560 MiB bound"; fi
+
+    - name: Save the Zig build caches
+      if: steps.size.outputs.fits == 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.paths.outputs.paths }}
+        key: ${{ env.ORCHBEE_TERMINAL_HOST_BUILD_KEY }}

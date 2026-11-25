@@ -97,21 +97,8 @@ jobs:
           cargo --version
 
       - name: Set up Zig
-        run: |
-          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
-          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
-          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
-          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error --ssl-revoke-best-effort --retry 5 --retry-all-errors $zigUrl --output $archive
-          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
-          Expand-Archive -Path $archive -DestinationPath $destination
-          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
-          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $zigDirectory 'zig.exe') version
+        uses: ./.github/actions/zig
 
-      # The official installer, checked by digest, unpacked by its own portable mode into the run's
-      # temporary folder; apps/desktop/installer/windows/orchbee.iss refuses any other compiler version.
       - name: Set up Inno Setup
         run: |
           $setupUrl = 'https://github.com/jrsoftware/issrc/releases/download/is-6_7_1/innosetup-6.7.1.exe'
@@ -346,20 +333,8 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as the dry run's build job.
       - name: Set up Zig
-        run: |
-          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
-          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
-          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
-          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error --ssl-revoke-best-effort --retry 5 --retry-all-errors $zigUrl --output $archive
-          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
-          Expand-Archive -Path $archive -DestinationPath $destination
-          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
-          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $zigDirectory 'zig.exe') version
+        uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
@@ -391,9 +366,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  # The macOS rows' `release-build`, in bash, with the pinned Zig download of the Verify job
-  # `rust-macos`. The macOS jobs run only when the plan has a macOS row, since a job with no row
-  # fails.
+  # The macOS rows' `release-build`, in bash. The macOS jobs run only when the plan has a macOS
+  # row, since a job with no row fails.
   release-build-macos:
     name: Release build ${{ matrix.platform }}
     needs: [release-plan, release-preconditions]
@@ -425,28 +399,8 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as the Verify job `rust-macos`.
       - name: Set up Zig
-        run: |
-          case "$(uname -m)" in
-            arm64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
-              zig_sha256="b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489"
-              ;;
-            x86_64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
-              zig_sha256="0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7"
-              ;;
-            *)
-              exit 1
-              ;;
-          esac
-          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
-          echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
-          mkdir -p "$RUNNER_TEMP/orchbee-zig"
-          tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
-          echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/orchbee-zig/zig" version
+        uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
@@ -1145,20 +1099,8 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as the dry run's build job.
       - name: Set up Zig
-        run: |
-          $zigUrl = 'https://ziglang.org/download/0.16.0/zig-x86_64-windows-0.16.0.zip'
-          $zigSha256 = '68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e'
-          $archive = Join-Path $env:RUNNER_TEMP 'orchbee-zig.zip'
-          $destination = Join-Path $env:RUNNER_TEMP 'orchbee-zig'
-          curl.exe --fail --location --silent --show-error --ssl-revoke-best-effort --retry 5 --retry-all-errors $zigUrl --output $archive
-          $actual = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
-          if ($actual -ne $zigSha256) { throw "Unexpected Zig archive digest: $actual" }
-          Expand-Archive -Path $archive -DestinationPath $destination
-          $zigDirectory = (Get-ChildItem -Path $destination -Directory | Select-Object -First 1).FullName
-          $zigDirectory | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          & (Join-Path $zigDirectory 'zig.exe') version
+        uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
@@ -1220,28 +1162,8 @@ jobs:
           rustc --version
           cargo --version
 
-      # The same pinned download as `release-build-macos`.
       - name: Set up Zig
-        run: |
-          case "$(uname -m)" in
-            arm64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-aarch64-macos-0.16.0.tar.xz"
-              zig_sha256="b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489"
-              ;;
-            x86_64)
-              zig_url="https://ziglang.org/download/0.16.0/zig-x86_64-macos-0.16.0.tar.xz"
-              zig_sha256="0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7"
-              ;;
-            *)
-              exit 1
-              ;;
-          esac
-          curl --fail --location --silent --show-error --retry 5 --retry-all-errors "$zig_url" --output "$RUNNER_TEMP/orchbee-zig.tar.xz"
-          echo "$zig_sha256  $RUNNER_TEMP/orchbee-zig.tar.xz" | shasum -a 256 -c
-          mkdir -p "$RUNNER_TEMP/orchbee-zig"
-          tar -xJf "$RUNNER_TEMP/orchbee-zig.tar.xz" --strip-components=1 --directory "$RUNNER_TEMP/orchbee-zig"
-          echo "$RUNNER_TEMP/orchbee-zig" >> "$GITHUB_PATH"
-          "$RUNNER_TEMP/orchbee-zig/zig" version
+        uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages

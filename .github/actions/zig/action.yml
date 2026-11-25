@@ -1,0 +1,120 @@
+name: Zig
+description: >-
+  Puts the pinned Zig compiler on PATH for every job that builds the Terminal Host. The official
+  archive for the runner's OS and architecture comes from the Actions cache when an earlier run kept
+  it, otherwise from ziglang.org, and either way must match its pinned SHA-256 before it is
+  unpacked, so a cached archive is trusted no more than a downloaded one. Downloading it took 4 to
+  15 minutes per job on GitHub's runners (measured 2026-11-25), which is why the archive is cached.
+
+runs:
+  using: composite
+  steps:
+    # One row per runner the workflows use. Update the version, the four names and their digests
+    # together; the cache key holds the digest, so a new archive never meets an old entry.
+    - name: Select the Zig archive
+      id: archive
+      shell: bash
+      run: |
+        version=0.16.0
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)
+            name="zig-x86_64-linux-$version.tar.xz"
+            sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+            ;;
+          Windows-X64)
+            name="zig-x86_64-windows-$version.zip"
+            sha256=68659eb5f1e4eb1437a722f1dd889c5a322c9954607f5edcf337bc3684a75a7e
+            ;;
+          macOS-ARM64)
+            name="zig-aarch64-macos-$version.tar.xz"
+            sha256=b23d70deaa879b5c2d486ed3316f7eaa53e84acf6fc9cc747de152450d401489
+            ;;
+          macOS-X64)
+            name="zig-x86_64-macos-$version.tar.xz"
+            sha256=0387557ed1877bc6a2e1802c8391953baddba76081876301c522f52977b52ba7
+            ;;
+          *)
+            echo "No pinned Zig archive for $RUNNER_OS $RUNNER_ARCH" >&2
+            exit 1
+            ;;
+        esac
+        if [ "$RUNNER_OS" = Windows ]; then
+          directory="$RUNNER_TEMP\\orchbee-zig-archive"
+          compiler="$RUNNER_TEMP\\orchbee-zig"
+        else
+          directory="$RUNNER_TEMP/orchbee-zig-archive"
+          compiler="$RUNNER_TEMP/orchbee-zig"
+        fi
+        {
+          echo "name=$name"
+          echo "sha256=$sha256"
+          echo "url=https://ziglang.org/download/$version/$name"
+          echo "directory=$directory"
+          echo "compiler=$compiler"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore the Zig archive
+      id: restore
+      uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.archive.outputs.directory }}
+        key: zig-toolchain-${{ steps.archive.outputs.name }}-${{ steps.archive.outputs.sha256 }}
+
+    # Windows' schannel fails a revocation check whose distribution point it cannot reach.
+    - name: Download the Zig archive
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        ARCHIVE_DIRECTORY: ${{ steps.archive.outputs.directory }}
+        ARCHIVE_NAME: ${{ steps.archive.outputs.name }}
+        ARCHIVE_URL: ${{ steps.archive.outputs.url }}
+      run: |
+        options=(--fail --location --silent --show-error --retry 5 --retry-all-errors)
+        if [ "$RUNNER_OS" = Windows ]; then options+=(--ssl-revoke-best-effort); fi
+        mkdir -p "$ARCHIVE_DIRECTORY"
+        curl "${options[@]}" "$ARCHIVE_URL" --output "$ARCHIVE_DIRECTORY/$ARCHIVE_NAME"
+
+    # The digest is read from standard input, so no path quoting reaches the tool's output.
+    - name: Check the Zig archive digest
+      shell: bash
+      env:
+        ARCHIVE: ${{ steps.archive.outputs.directory }}/${{ steps.archive.outputs.name }}
+        EXPECTED: ${{ steps.archive.outputs.sha256 }}
+      run: |
+        if command -v sha256sum > /dev/null; then actual="$(sha256sum < "$ARCHIVE")"; else actual="$(shasum -a 256 < "$ARCHIVE")"; fi
+        actual="${actual%% *}"
+        if [ "$actual" != "$EXPECTED" ]; then echo "Unexpected Zig archive digest: $actual" >&2; exit 1; fi
+
+    # Only a checked archive is kept.
+    - name: Cache the Zig archive
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ${{ steps.archive.outputs.directory }}
+        key: ${{ steps.restore.outputs.cache-primary-key }}
+
+    # Windows' own bsdtar unpacks the zip far faster than Expand-Archive.
+    - name: Unpack Zig onto PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      env:
+        ARCHIVE: ${{ steps.archive.outputs.directory }}\${{ steps.archive.outputs.name }}
+        COMPILER: ${{ steps.archive.outputs.compiler }}
+      run: |
+        New-Item -ItemType Directory -Path $env:COMPILER | Out-Null
+        & "$env:SystemRoot\System32\tar.exe" -xf $env:ARCHIVE -C $env:COMPILER --strip-components=1
+        if ($LASTEXITCODE -ne 0) { throw "Unpacking Zig exited $LASTEXITCODE" }
+        $env:COMPILER | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        & (Join-Path $env:COMPILER 'zig.exe') version
+
+    - name: Unpack Zig onto PATH
+      if: runner.os != 'Windows'
+      shell: bash
+      env:
+        ARCHIVE: ${{ steps.archive.outputs.directory }}/${{ steps.archive.outputs.name }}
+        COMPILER: ${{ steps.archive.outputs.compiler }}
+      run: |
+        mkdir -p "$COMPILER"
+        tar -xJf "$ARCHIVE" --strip-components=1 --directory "$COMPILER"
+        echo "$COMPILER" >> "$GITHUB_PATH"
+        "$COMPILER/zig" version
