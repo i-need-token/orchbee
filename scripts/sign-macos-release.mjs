@@ -159,9 +159,9 @@ async function signNative(cohort) {
 			const filename = path.join(cohort, program);
 			chmodSync(filename, 0o755);
 			execFileSync('/usr/bin/lipo', [
+				filename,
 				'-verify_arch',
 				process.arch === 'arm64' ? 'arm64' : 'x86_64',
-				filename,
 			]);
 			sign(filename, ['--options', 'runtime']);
 			execFileSync(codesign, ['--verify', '--strict', filename], { stdio: 'inherit' });
