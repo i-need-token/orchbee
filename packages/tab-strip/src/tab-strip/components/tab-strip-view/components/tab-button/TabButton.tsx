@@ -1,13 +1,15 @@
 import styles from './TabButton.module.css';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import {
+	memo,
 	useState,
 	type CSSProperties,
 	type MouseEvent as ReactMouseEvent,
 	type PointerEvent as ReactPointerEvent,
 	type ReactNode,
 } from 'react';
-import { type TabData, type TabModelSnapshot } from '../../../../model/tab-model';
+import { type TabData } from '../../../../model/tab-model';
+import { type TabGroupId } from '../../../../model/tab-types';
 import { type TabSlotViewState } from '../../../../model/TabSlotViewState';
 import {
 	TAB_AFTER_TITLE_PADDING,
@@ -31,11 +33,11 @@ import {
 	TAB_SIZE,
 	getTabStripTooltipPlacement,
 	joinClassNames,
-	tabIsApparentlyActive,
 } from '../../../../utils/tab-strip-internals';
 import { useTabButton } from './hooks/useTabButton';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStatusAdornment } from '../../../../types/tab-strip-options';
+import type { TabButtonContext } from './utils/tabButtonContext';
 
 /** A Tab whose title is hidden or clipped names itself in its tooltip. */
 function tabTitleCutShort(tabView: HTMLElement | null): boolean {
@@ -44,35 +46,10 @@ function tabTitleCutShort(tabView: HTMLElement | null): boolean {
 	return title === null || title.scrollWidth > title.clientWidth;
 }
 
-export function TabButton({
-	tab,
-	identityIcon,
-	statusAdornment,
-	snapshot,
-	width,
-	orientation,
-	collapsed,
-	onPointerDown,
-	onClose,
-	onContextMenu,
-	onMouseEnter,
-	onMouseLeave,
-	onKeyDown,
-	onKeyUp,
-	tabIndex: rovingTabIndex,
-	touchUi,
-	closeButtonAllowed,
-	declutterEnabled = false,
-	hoveredTabId,
-	frameCondensed = false,
-	slotState,
-	dragging = false,
-	titleTooltip = false,
-}: {
+interface TabButtonProps extends TabButtonContext {
 	tab: Readonly<TabData>;
 	identityIcon?: ReactNode | undefined;
 	statusAdornment?: Readonly<TabStatusAdornment> | undefined;
-	snapshot: TabModelSnapshot;
 	width: number;
 	orientation: TabStripOrientation;
 	collapsed: boolean;
@@ -87,13 +64,61 @@ export function TabButton({
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 	declutterEnabled?: boolean;
-	hoveredTabId?: string | null;
 	frameCondensed?: boolean;
-	slotState?: Readonly<TabSlotViewState> | undefined;
+	/** The Tab's slot state, read by the parent at render time. Slot objects change in place. */
+	slotGroup?: TabGroupId | null | undefined;
+	slotDragging?: boolean | undefined;
+	slotAnimating?: boolean | undefined;
+	slotPinTransition?: TabSlotViewState['pinTransition'] | undefined;
 	dragging?: boolean;
 	/** Names the Tab in the shared Tooltip while its title is hidden or cut short. */
 	titleTooltip?: boolean;
-}): ReactNode {
+}
+
+/**
+ * Renders one Tab. Memoized: the parent spreads a `tabButtonContext` for each Tab, so only a Tab
+ * whose own state or neighbour's state changed renders again.
+ */
+export const TabButton = memo(function TabButton({
+	tab,
+	identityIcon,
+	statusAdornment,
+	active,
+	selected,
+	group,
+	tabPositionIndex,
+	tabCount,
+	hoveredByStrip,
+	previousTab,
+	previousActive,
+	previousSelected,
+	previousTabHovered,
+	nextTab,
+	nextActive,
+	nextSelected,
+	nextTabHovered,
+	width,
+	orientation,
+	collapsed,
+	onPointerDown,
+	onClose,
+	onContextMenu,
+	onMouseEnter,
+	onMouseLeave,
+	onKeyDown,
+	onKeyUp,
+	tabIndex: rovingTabIndex,
+	touchUi,
+	closeButtonAllowed,
+	declutterEnabled = false,
+	frameCondensed = false,
+	slotGroup,
+	slotDragging,
+	slotAnimating,
+	slotPinTransition,
+	dragging = false,
+	titleTooltip = false,
+}: TabButtonProps): ReactNode {
 	const messages = useTabStripMessages();
 	const [tooltipOpen, setTooltipOpen] = useState(false);
 	const { focused, hovered, measuredTabSize, setFocused, setHovered, tabViewRef } = useTabButton();
@@ -104,9 +129,7 @@ export function TabButton({
 		orientation === TabStripOrientation.Horizontal && measuredTabSize.width > 0
 			? measuredTabSize.width
 			: width;
-	const active = tabIsApparentlyActive(tab, snapshot);
-	const selected = snapshot.selectedTabIds.has(tab.id);
-	const visualHovered = hovered || hoveredTabId === tab.id;
+	const visualHovered = hovered || hoveredByStrip;
 	const alertState = tab.alertState ?? 'none';
 	const hasAlert = alertState !== 'none';
 	const hasFavicon =
@@ -123,7 +146,7 @@ export function TabButton({
 					contentsWidth: horizontalContentsWidth,
 					active,
 					pinned: tab.pinned,
-					pinTransition: slotState?.pinTransition,
+					pinTransition: slotPinTransition,
 					hovered: visualHovered,
 					focused,
 					touchUi,
@@ -145,7 +168,7 @@ export function TabButton({
 					closeAllowed: closeButtonAllowed,
 				});
 	const pinningControlOffset =
-		orientation === TabStripOrientation.Horizontal && slotState?.pinTransition === 'pinning'
+		orientation === TabStripOrientation.Horizontal && slotPinTransition === 'pinning'
 			? calculateHorizontalPinnedControlOffset({
 					width: renderedWidth,
 					pinnedWidth: TAB_SIZE.pinnedTabWidth,
@@ -153,21 +176,7 @@ export function TabButton({
 					normalControlX: TAB_CONTENT_HORIZONTAL_INSET,
 				})
 			: 0;
-	const group =
-		tab.group === null
-			? null
-			: (snapshot.groups.find((candidate) => candidate.id === tab.group) ?? null);
 	const separatorBounds = getHorizontalTabSeparatorBounds(renderedWidth);
-	const tabPositionIndex = snapshot.tabs.findIndex((candidate) => candidate.id === tab.id);
-	const separatorStateFor = (candidate: Readonly<TabData> | undefined) =>
-		candidate
-			? {
-					active: tabIsApparentlyActive(candidate, snapshot),
-					selected: snapshot.selectedTabIds.has(candidate.id),
-					hovered: false,
-					group: candidate.group,
-				}
-			: null;
 	const separatorTargets = getHorizontalTabSeparatorTargets({
 		tab: {
 			active,
@@ -175,20 +184,34 @@ export function TabButton({
 			hovered: false,
 			group: tab.group,
 		},
-		previous: separatorStateFor(snapshot.tabs[tabPositionIndex - 1]),
-		next: separatorStateFor(snapshot.tabs[tabPositionIndex + 1]),
-		tabCount: snapshot.tabs.length,
+		previous:
+			previousTab === undefined
+				? null
+				: {
+						active: previousActive,
+						selected: previousSelected,
+						hovered: false,
+						group: previousTab.group,
+					},
+		next:
+			nextTab === undefined
+				? null
+				: {
+						active: nextActive,
+						selected: nextSelected,
+						hovered: false,
+						group: nextTab.group,
+					},
+		tabCount,
 		declutterEnabled,
 	});
-	const previousTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex - 1]?.id;
-	const nextTabHovered = hoveredTabId === snapshot.tabs[tabPositionIndex + 1]?.id;
 	const visibleTitle = getVisibleTabTitle(tab, messages);
 	const { side: tooltipSide, align: tooltipAlign } = getTabStripTooltipPlacement(
 		orientation,
 		collapsed,
 		!tab.pinned,
 	);
-	const tooltipDisabled = dragging || slotState?.dragging === true;
+	const tooltipDisabled = dragging || slotDragging === true;
 	const content = (
 		<span className={styles['ct-tab__content']} data-tab-content=''>
 			{childVisibility.showFavicon || hasStatusSymbol ? (
@@ -244,7 +267,7 @@ export function TabButton({
 			tabIndex={rovingTabIndex}
 			aria-selected={selected}
 			aria-posinset={tabPositionIndex + 1}
-			aria-setsize={snapshot.tabs.length}
+			aria-setsize={tabCount}
 			aria-label={
 				statusAdornment === undefined
 					? messages.formatTabAccessibleLabel(tab, group)
@@ -289,12 +312,11 @@ export function TabButton({
 				(orientation === TabStripOrientation.Horizontal && frameCondensed) || undefined
 			}
 			data-collapsed={collapsed || undefined}
-			data-slot-group={slotState?.group ?? undefined}
-			data-slot-dragging={slotState?.dragging || dragging || undefined}
-			data-slot-animating={slotState?.animating || undefined}
+			data-slot-group={slotGroup ?? undefined}
+			data-slot-dragging={slotDragging || dragging || undefined}
+			data-slot-animating={slotAnimating || undefined}
 			data-pin-compacting={
-				(orientation === TabStripOrientation.Horizontal &&
-					slotState?.pinTransition === 'pinning') ||
+				(orientation === TabStripOrientation.Horizontal && slotPinTransition === 'pinning') ||
 				undefined
 			}
 			style={
@@ -394,4 +416,4 @@ export function TabButton({
 			</TooltipContent>
 		</Tooltip>
 	);
-}
+});

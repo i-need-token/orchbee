@@ -111,6 +111,27 @@ interface DraggedTabsInsertionResult {
 	adjustedTargetIndex: number;
 	noOp: boolean;
 }
+/**
+ * The previous frozen copy of `record` when every own field still holds the same value, so that
+ * an unchanged Tab or Group keeps its identity across snapshots; otherwise a new frozen copy.
+ */
+function reuseUnchangedRecord<T extends { readonly id: string }>(
+	previous: readonly Readonly<T>[] | undefined,
+	record: Readonly<T>,
+): Readonly<T> {
+	const prior = previous?.find((candidate) => candidate.id === record.id);
+	if (prior !== undefined && sameOwnFields(prior, record)) return prior;
+	return Object.freeze({ ...record });
+}
+
+function sameOwnFields(left: object, right: object): boolean {
+	const keys = Object.keys(right);
+	if (Object.keys(left).length !== keys.length) return false;
+	return keys.every(
+		(key) => Object.hasOwn(left, key) && Reflect.get(left, key) === Reflect.get(right, key),
+	);
+}
+
 function clamp(value: number, minimum: number, maximum: number): number {
 	return Math.min(Math.max(value, minimum), maximum);
 }
@@ -1081,19 +1102,16 @@ export class TabModel {
 			throw new TabModelInvariantError(`Unknown most-recent group ${state.mostRecentGroupId}.`);
 		}
 	}
-	private createSnapshot(): TabModelSnapshot {
+	/**
+	 * Freezes the current Tabs and Groups. A record whose fields did not change keeps the
+	 * frozen copy from the previous snapshot, so a selection change leaves unchanged Tabs and
+	 * Groups with the same identity and lets memoized views skip them.
+	 */
+	private createSnapshot(previous?: TabModelSnapshot): TabModelSnapshot {
 		return {
 			revision: this.revision,
-			tabs: this.tabs.map((tab) =>
-				Object.freeze({
-					...tab,
-				}),
-			),
-			groups: this.groups.map((group) =>
-				Object.freeze({
-					...group,
-				}),
-			),
+			tabs: this.tabs.map((tab) => reuseUnchangedRecord(previous?.tabs, tab)),
+			groups: this.groups.map((group) => reuseUnchangedRecord(previous?.groups, group)),
 			activeTabId: this.activeTabId,
 			selectedTabIds: new Set(this.selectedTabIds),
 			selectionAnchorId: this.selectionAnchorId,
@@ -1114,7 +1132,7 @@ export class TabModel {
 			mostRecentGroupId: this.mostRecentGroupId,
 		}).mostRecentGroupId;
 		this.revision += 1;
-		this.snapshot = this.createSnapshot();
+		this.snapshot = this.createSnapshot(this.snapshot);
 	}
 	private notifyListeners(): void {
 		for (const listener of new Set(this.listeners)) {

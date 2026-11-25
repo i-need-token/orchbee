@@ -1,6 +1,8 @@
 import { ProductIcon } from '@orchbee/ui/components';
 import styles from './HorizontalContents.module.css';
 import { type CSSProperties, type MouseEvent, type ReactNode, useRef } from 'react';
+import { useMemoizedFn } from '@orchbee/foundation/react';
+import { type TabCloseSource } from '../../../../layout/tab-closing-mode';
 import { calculateTabContainerZValue } from '../../../../layout/calculateTabContainerZValue';
 import { requireDefined } from '../../../../utils/requireDefined';
 import { isPlainPrimaryDoubleClick } from '../../../../utils/isPlainPrimaryDoubleClick';
@@ -15,6 +17,7 @@ import {
 	tabIsApparentlyActive,
 } from '../../../../utils/tab-strip-internals';
 import { TabButton } from '../tab-button/TabButton';
+import { tabButtonContext } from '../tab-button/utils/tabButtonContext';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useTabStripMessages } from '../../../../hooks/useTabStripMessages';
 import type { TabStripViewModel } from '../../../../types/tab-strip-view-model';
@@ -91,6 +94,17 @@ export function HorizontalContents({
 			setMenu({ kind: 'new-tab', x: event.clientX, y: event.clientY });
 		}
 	};
+	// Stable handlers keep a memoized Tab button from rendering again for every strip render.
+	const closeTabFromButton = useMemoizedFn(
+		(event: MouseEvent, id: string, source: TabCloseSource) => {
+			event.stopPropagation();
+			requestCloseTabs([id], source);
+		},
+	);
+	const openTabContextMenu = useMemoizedFn((event: MouseEvent, id: string) => {
+		setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
+	});
+	const hoveredTabId = hover?.kind === 'tab' ? hover.id : null;
 
 	const idealTrailingBounds = horizontalLayout?.bounds.at(-1);
 	const paintedTrailingBounds = paintedHorizontalBounds(items.length - 1);
@@ -428,6 +442,7 @@ export function HorizontalContents({
 								hovering,
 								hoverAnimationValue: hovering ? 1 : 0,
 							});
+					const tabContext = tabButtonContext(item.tab, snapshot, hoveredTabId);
 					return (
 						<div
 							key={item.id}
@@ -453,21 +468,29 @@ export function HorizontalContents({
 							data-drag-settling={(Boolean(draggedView) && drag?.settling) || undefined}
 						>
 							<TabButton
+								active={tabContext.active}
+								selected={tabContext.selected}
+								group={tabContext.group}
+								tabPositionIndex={tabContext.tabPositionIndex}
+								tabCount={tabContext.tabCount}
+								hoveredByStrip={tabContext.hoveredByStrip}
+								previousTab={tabContext.previousTab}
+								previousActive={tabContext.previousActive}
+								previousSelected={tabContext.previousSelected}
+								previousTabHovered={tabContext.previousTabHovered}
+								nextTab={tabContext.nextTab}
+								nextActive={tabContext.nextActive}
+								nextSelected={tabContext.nextSelected}
+								nextTabHovered={tabContext.nextTabHovered}
 								identityIcon={identityIcons.get(item.tab.id)}
 								tab={item.tab}
 								statusAdornment={statusAdornments.get(item.tab.id)}
-								snapshot={snapshot}
 								width={renderedBounds.width}
 								orientation={orientation}
 								collapsed={false}
 								onPointerDown={onTabPointerDown}
-								onClose={(event, id, source) => {
-									event.stopPropagation();
-									requestCloseTabs([id], source);
-								}}
-								onContextMenu={(event, id) => {
-									setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
-								}}
+								onClose={closeTabFromButton}
+								onContextMenu={openTabContextMenu}
 								onMouseEnter={onTabMouseEnter}
 								onMouseLeave={clearHover}
 								onKeyDown={onTabKeyDown}
@@ -476,11 +499,13 @@ export function HorizontalContents({
 								touchUi={touchUi}
 								closeButtonAllowed
 								declutterEnabled={tabStripDeclutter}
-								hoveredTabId={hover?.kind === 'tab' ? hover.id : null}
 								titleTooltip={!showTabHoverCards}
 								frameCondensed={horizontalFrameCondensed}
 								dragging={dragging}
-								slotState={slotState}
+								slotGroup={slotState?.group}
+								slotDragging={slotState?.dragging}
+								slotAnimating={slotState?.animating}
+								slotPinTransition={slotState?.pinTransition}
 							/>
 						</div>
 					);

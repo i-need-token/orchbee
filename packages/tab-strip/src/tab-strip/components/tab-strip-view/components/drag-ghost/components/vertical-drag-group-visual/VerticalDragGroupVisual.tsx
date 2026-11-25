@@ -8,6 +8,7 @@ import {
 import { TabStripOrientation } from '../../../../../../types/tab-strip-types';
 import { GROUP_COLORS } from '../../../../../../utils/tab-strip-internals';
 import { TabButton } from '../../../tab-button/TabButton';
+import { tabButtonContext } from '../../../tab-button/utils/tabButtonContext';
 import { GroupHeader } from '../../../group-header/GroupHeader';
 
 export function VerticalDragGroupVisual({
@@ -31,29 +32,44 @@ export function VerticalDragGroupVisual({
 }): ReactNode {
 	const presentedGroup =
 		group.collapsed === collapsed ? group : Object.freeze({ ...group, collapsed });
-	const renderTab = (tab: Readonly<TabData>) => (
-		<div key={tab.id} className={styles['ct-vertical-tab-wrap']} data-tab-strip-tab-wrapper=''>
-			<TabButton
-				tab={tab}
-				snapshot={snapshot}
-				width={Math.max(0, width - (collapsedStrip ? 12 : 10))}
-				orientation={TabStripOrientation.Vertical}
-				collapsed={collapsedStrip}
-				onPointerDown={() => undefined}
-				onClose={() => undefined}
-				onContextMenu={() => undefined}
-				onMouseEnter={() => undefined}
-				onMouseLeave={() => undefined}
-				onKeyDown={() => undefined}
-				onKeyUp={() => undefined}
-				tabIndex={-1}
-				touchUi={touchUi}
-				closeButtonAllowed={closeButtonAllowed}
-				hoveredTabId={null}
-				dragging
-			/>
-		</div>
-	);
+	const renderTab = (tab: Readonly<TabData>) => {
+		const tabContext = tabButtonContext(tab, snapshot, null);
+		return (
+			<div key={tab.id} className={styles['ct-vertical-tab-wrap']} data-tab-strip-tab-wrapper=''>
+				<TabButton
+					tab={tab}
+					active={tabContext.active}
+					selected={tabContext.selected}
+					group={tabContext.group}
+					tabPositionIndex={tabContext.tabPositionIndex}
+					tabCount={tabContext.tabCount}
+					hoveredByStrip={tabContext.hoveredByStrip}
+					previousTab={tabContext.previousTab}
+					previousActive={tabContext.previousActive}
+					previousSelected={tabContext.previousSelected}
+					previousTabHovered={tabContext.previousTabHovered}
+					nextTab={tabContext.nextTab}
+					nextActive={tabContext.nextActive}
+					nextSelected={tabContext.nextSelected}
+					nextTabHovered={tabContext.nextTabHovered}
+					width={Math.max(0, width - (collapsedStrip ? 12 : 10))}
+					orientation={TabStripOrientation.Vertical}
+					collapsed={collapsedStrip}
+					onPointerDown={() => undefined}
+					onClose={() => undefined}
+					onContextMenu={() => undefined}
+					onMouseEnter={() => undefined}
+					onMouseLeave={() => undefined}
+					onKeyDown={() => undefined}
+					onKeyUp={() => undefined}
+					tabIndex={-1}
+					touchUi={touchUi}
+					closeButtonAllowed={closeButtonAllowed}
+					dragging
+				/>
+			</div>
+		);
+	};
 	const contents = tabs.map((tab) => renderTab(tab));
 	return (
 		<section

@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import { type TabData, type TabModelSnapshot } from '../../../../../../model/tab-model';
 import { TabStripOrientation } from '../../../../../../types/tab-strip-types';
 import { TabButton } from '../../../tab-button/TabButton';
+import { tabButtonContext } from '../../../tab-button/utils/tabButtonContext';
 
 export function VerticalDragTabVisual({
 	tab,
@@ -18,10 +19,24 @@ export function VerticalDragTabVisual({
 	touchUi: boolean;
 	closeButtonAllowed: boolean;
 }): ReactNode {
+	const tabContext = tabButtonContext(tab, snapshot, null);
 	return (
 		<TabButton
 			tab={tab}
-			snapshot={snapshot}
+			active={tabContext.active}
+			selected={tabContext.selected}
+			group={tabContext.group}
+			tabPositionIndex={tabContext.tabPositionIndex}
+			tabCount={tabContext.tabCount}
+			hoveredByStrip={tabContext.hoveredByStrip}
+			previousTab={tabContext.previousTab}
+			previousActive={tabContext.previousActive}
+			previousSelected={tabContext.previousSelected}
+			previousTabHovered={tabContext.previousTabHovered}
+			nextTab={tabContext.nextTab}
+			nextActive={tabContext.nextActive}
+			nextSelected={tabContext.nextSelected}
+			nextTabHovered={tabContext.nextTabHovered}
 			width={width}
 			orientation={TabStripOrientation.Vertical}
 			collapsed={collapsed}
@@ -35,7 +50,6 @@ export function VerticalDragTabVisual({
 			tabIndex={-1}
 			touchUi={touchUi}
 			closeButtonAllowed={closeButtonAllowed}
-			hoveredTabId={null}
 			dragging
 		/>
 	);

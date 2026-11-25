@@ -33,6 +33,8 @@ import {
 	type MenuState,
 } from '../../../../utils/tab-strip-internals';
 import { TabButton } from '../tab-button/TabButton';
+import { tabButtonContext } from '../tab-button/utils/tabButtonContext';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { GroupHeader } from '../group-header/GroupHeader';
 import { useVerticalContents } from './hooks/useVerticalContents';
 import { useVerticalGroupCollapseCompletion } from './hooks/useVerticalGroupCollapseCompletion';
@@ -143,9 +145,20 @@ export function VerticalContents({
 		dragSource: boolean,
 		slotIdentity: string | number,
 	): string => (dragSource ? `${stableKey}:drag-slot:${slotIdentity}` : stableKey);
+	// Stable handlers keep a memoized Tab button from rendering again for every strip render.
+	const closeTabFromButton = useMemoizedFn(
+		(event: ReactMouseEvent, id: string, source: TabCloseSource) => {
+			event.stopPropagation();
+			requestCloseTabs([id], source);
+		},
+	);
+	const openTabContextMenu = useMemoizedFn((event: ReactMouseEvent, id: string) => {
+		setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
+	});
 	const renderTab = (entry: Readonly<VerticalPinAnimationEntry>, width = defaultTabWidth) => {
 		const { tab } = entry;
 		const dragSource = isIndividuallyDraggedTab(tab);
+		const tabContext = tabButtonContext(tab, snapshot, null);
 		return (
 			<div
 				key={dragSourceRenderKey(entry.key, dragSource, entry.order)}
@@ -170,21 +183,29 @@ export function VerticalContents({
 				data-drag-source={dragSource || undefined}
 			>
 				<TabButton
+					active={tabContext.active}
+					selected={tabContext.selected}
+					group={tabContext.group}
+					tabPositionIndex={tabContext.tabPositionIndex}
+					tabCount={tabContext.tabCount}
+					hoveredByStrip={tabContext.hoveredByStrip}
+					previousTab={tabContext.previousTab}
+					previousActive={tabContext.previousActive}
+					previousSelected={tabContext.previousSelected}
+					previousTabHovered={tabContext.previousTabHovered}
+					nextTab={tabContext.nextTab}
+					nextActive={tabContext.nextActive}
+					nextSelected={tabContext.nextSelected}
+					nextTabHovered={tabContext.nextTabHovered}
 					identityIcon={identityIcons.get(tab.id)}
 					tab={tab}
 					statusAdornment={statusAdornments.get(tab.id)}
-					snapshot={snapshot}
 					width={width}
 					orientation={TabStripOrientation.Vertical}
 					collapsed={collapsed}
 					onPointerDown={onTabPointerDown}
-					onClose={(event, id, source) => {
-						event.stopPropagation();
-						requestCloseTabs([id], source);
-					}}
-					onContextMenu={(event, id) => {
-						setMenu({ kind: 'tab', id, x: event.clientX, y: event.clientY });
-					}}
+					onClose={closeTabFromButton}
+					onContextMenu={openTabContextMenu}
 					onMouseEnter={onTabMouseEnter}
 					onMouseLeave={clearHover}
 					onKeyDown={onTabKeyDown}
@@ -192,7 +213,6 @@ export function VerticalContents({
 					tabIndex={rovingFocusKey === `tab:${tab.id}` ? 0 : -1}
 					touchUi={touchUi}
 					closeButtonAllowed={closeButtonAllowed}
-					hoveredTabId={null}
 					titleTooltip={!showTabHoverCards}
 				/>
 			</div>

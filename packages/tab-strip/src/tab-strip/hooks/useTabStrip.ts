@@ -1110,10 +1110,10 @@ export function useTabStrip(
 		},
 	);
 
-	const onTabMouseEnter = (event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
+	const onTabMouseEnter = useMemoizedFn((event: ReactMouseEvent<HTMLDivElement>, tabId: string) => {
 		lastMousePositionRef.current = { x: event.clientX, y: event.clientY };
 		updateHoverForElement(event.currentTarget, tabId, HoverCardUpdateType.Hover);
-	};
+	});
 
 	const onGroupMouseEnter = (event: ReactMouseEvent<HTMLDivElement>, groupId: string) => {
 		if (!showGroupHoverCards) return;
@@ -1216,138 +1216,140 @@ export function useTabStrip(
 		}
 	};
 
-	const onTabPointerDown = (event: ReactPointerEvent<HTMLDivElement>, tab: Readonly<TabData>) => {
-		if (event.button === 1) {
-			middlePressRef.current = { tabId: tab.id, pointerId: event.pointerId };
-			event.preventDefault();
-			return;
-		}
-		if (event.button !== 0) return;
-		clearHover();
-		const touchPointer = event.pointerType === 'touch';
-		// Tab::OnGestureEvent handles kGestureTapDown exactly like the unmodified
-		// selection portion of OnMousePressed: selection happens before the drag
-		// controller is asked to start.
-		const restoreState = model.captureDragRestoreState();
-		// A strip that fills the window scrolls under the finger, so a plain touch chooses its Tab
-		// on release, and a pan that takes the touch chooses nothing.
-		const selectOnRelease =
-			touchPointer &&
-			verticalFill &&
-			!horizontal &&
-			!event.shiftKey &&
-			!event.metaKey &&
-			!event.ctrlKey;
-		if (!selectOnRelease) selectFromPointer(event, tab);
-		const pointerSnapshot = model.getSnapshot();
-		if (
-			(event.metaKey || event.ctrlKey) &&
-			!event.shiftKey &&
-			!pointerSnapshot.selectedTabIds.has(tab.id)
-		) {
-			return;
-		}
-		// TabStrip::MaybeStartDrag refuses to create a controller while tab-slot
-		// bounds are animating. Selection and ordinary click completion still run.
-		if (horizontal && horizontalAnimationRuntimeRef.current?.isAnimating) {
-			armAnimationBlockedPress(event, 'tab', tab.id);
-			return;
-		}
-		const initiallySelected = pointerSnapshot.selectedTabIds.has(tab.id)
-			? pointerSnapshot.tabs
-					.filter(
-						(candidate) =>
-							pointerSnapshot.selectedTabIds.has(candidate.id) && candidate.pinned === tab.pinned,
-					)
-					.map((candidate) => candidate.id)
-			: [tab.id];
-		const selected = initiallySelected;
-		const draggedTabIds = selected.length ? selected : [tab.id];
-		const draggedIdSet = new Set(draggedTabIds);
-		const fullySelectedGroupIds = pointerSnapshot.groups
-			.filter((group) => {
-				const members = pointerSnapshot.tabs.filter((candidate) => candidate.group === group.id);
-				return members.length > 0 && members.every((candidate) => draggedIdSet.has(candidate.id));
-			})
-			.map((group) => group.id);
-		const visuals = captureDragVisuals({
-			sourceElement: event.currentTarget,
-			sourceId: tab.id,
-			tabIds: draggedTabIds,
-			sourceGroupId: null,
-			groupIds: fullySelectedGroupIds,
-			underlineGroupIds: [
-				...new Set(
-					pointerSnapshot.tabs
-						.filter((candidate) => draggedIdSet.has(candidate.id) && candidate.group !== null)
-						.map((candidate) => requireDefined(candidate.group)),
-				),
-			],
-			orientation,
-			pointer: { x: event.clientX, y: event.clientY },
-		});
-		const dragSessionData = buildDragSessionData({
-			snapshot: pointerSnapshot,
-			tabIds: draggedTabIds,
-			sourceId: tab.id,
-			groupHeaderId: null,
-			groupWasCollapsedBeforeDrag: false,
-			pointerOffsetRatios: visuals.pointerOffsetRatios,
-		});
-		const next: DragState = {
-			sourceId: tab.id,
-			tabIds: draggedTabIds,
-			pointerId: event.pointerId,
-			pointerType: event.pointerType,
-			touchLongPressRecognized: false,
-			startX: event.clientX,
-			startY: event.clientY,
-			shiftPressedOnPointerDown: event.shiftKey,
-			x: event.clientX,
-			y: event.clientY,
-			started: false,
-			targetIndex: null,
-			targetGroup: null,
-			targetIdealLeft: null,
-			lastReorderCoordinate: horizontal ? event.clientX : event.clientY,
-			restoreState,
-			groupHeaderId: null,
-			groupWasCollapsedBeforeDrag: false,
-			horizontalGroupDrag: null,
-			label: tab.title,
-			...visuals,
-			dragSessionData,
-			dragStartAnimationRequired: false,
-			dragStartAnimationStartedAt: null,
-			dragStartAnimationProgress: 1,
-			settling: false,
-		};
-		setDrag(next);
-		if (touchPointer) {
-			if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
-			touchLongPressTimer.current = window.setTimeout(() => {
-				touchLongPressTimer.current = null;
-				const current = dragRef.current;
-				if (!current || current.pointerId !== event.pointerId || current.pointerType !== 'touch')
-					return;
-				const liveSnapshot = model.getSnapshot();
-				if (!liveSnapshot.selectedTabIds.has(current.sourceId)) {
-					actions.execute(
-						TAB_STRIP_ACTION_IDS.selectTab,
-						{ mode: 'replace', tabId: current.sourceId },
-						'pointer',
+	const onTabPointerDown = useMemoizedFn(
+		(event: ReactPointerEvent<HTMLDivElement>, tab: Readonly<TabData>) => {
+			if (event.button === 1) {
+				middlePressRef.current = { tabId: tab.id, pointerId: event.pointerId };
+				event.preventDefault();
+				return;
+			}
+			if (event.button !== 0) return;
+			clearHover();
+			const touchPointer = event.pointerType === 'touch';
+			// Tab::OnGestureEvent handles kGestureTapDown exactly like the unmodified
+			// selection portion of OnMousePressed: selection happens before the drag
+			// controller is asked to start.
+			const restoreState = model.captureDragRestoreState();
+			// A strip that fills the window scrolls under the finger, so a plain touch chooses its Tab
+			// on release, and a pan that takes the touch chooses nothing.
+			const selectOnRelease =
+				touchPointer &&
+				verticalFill &&
+				!horizontal &&
+				!event.shiftKey &&
+				!event.metaKey &&
+				!event.ctrlKey;
+			if (!selectOnRelease) selectFromPointer(event, tab);
+			const pointerSnapshot = model.getSnapshot();
+			if (
+				(event.metaKey || event.ctrlKey) &&
+				!event.shiftKey &&
+				!pointerSnapshot.selectedTabIds.has(tab.id)
+			) {
+				return;
+			}
+			// TabStrip::MaybeStartDrag refuses to create a controller while tab-slot
+			// bounds are animating. Selection and ordinary click completion still run.
+			if (horizontal && horizontalAnimationRuntimeRef.current?.isAnimating) {
+				armAnimationBlockedPress(event, 'tab', tab.id);
+				return;
+			}
+			const initiallySelected = pointerSnapshot.selectedTabIds.has(tab.id)
+				? pointerSnapshot.tabs
+						.filter(
+							(candidate) =>
+								pointerSnapshot.selectedTabIds.has(candidate.id) && candidate.pinned === tab.pinned,
+						)
+						.map((candidate) => candidate.id)
+				: [tab.id];
+			const selected = initiallySelected;
+			const draggedTabIds = selected.length ? selected : [tab.id];
+			const draggedIdSet = new Set(draggedTabIds);
+			const fullySelectedGroupIds = pointerSnapshot.groups
+				.filter((group) => {
+					const members = pointerSnapshot.tabs.filter((candidate) => candidate.group === group.id);
+					return members.length > 0 && members.every((candidate) => draggedIdSet.has(candidate.id));
+				})
+				.map((group) => group.id);
+			const visuals = captureDragVisuals({
+				sourceElement: event.currentTarget,
+				sourceId: tab.id,
+				tabIds: draggedTabIds,
+				sourceGroupId: null,
+				groupIds: fullySelectedGroupIds,
+				underlineGroupIds: [
+					...new Set(
+						pointerSnapshot.tabs
+							.filter((candidate) => draggedIdSet.has(candidate.id) && candidate.group !== null)
+							.map((candidate) => requireDefined(candidate.group)),
+					),
+				],
+				orientation,
+				pointer: { x: event.clientX, y: event.clientY },
+			});
+			const dragSessionData = buildDragSessionData({
+				snapshot: pointerSnapshot,
+				tabIds: draggedTabIds,
+				sourceId: tab.id,
+				groupHeaderId: null,
+				groupWasCollapsedBeforeDrag: false,
+				pointerOffsetRatios: visuals.pointerOffsetRatios,
+			});
+			const next: DragState = {
+				sourceId: tab.id,
+				tabIds: draggedTabIds,
+				pointerId: event.pointerId,
+				pointerType: event.pointerType,
+				touchLongPressRecognized: false,
+				startX: event.clientX,
+				startY: event.clientY,
+				shiftPressedOnPointerDown: event.shiftKey,
+				x: event.clientX,
+				y: event.clientY,
+				started: false,
+				targetIndex: null,
+				targetGroup: null,
+				targetIdealLeft: null,
+				lastReorderCoordinate: horizontal ? event.clientX : event.clientY,
+				restoreState,
+				groupHeaderId: null,
+				groupWasCollapsedBeforeDrag: false,
+				horizontalGroupDrag: null,
+				label: tab.title,
+				...visuals,
+				dragSessionData,
+				dragStartAnimationRequired: false,
+				dragStartAnimationStartedAt: null,
+				dragStartAnimationProgress: 1,
+				settling: false,
+			};
+			setDrag(next);
+			if (touchPointer) {
+				if (touchLongPressTimer.current !== null) window.clearTimeout(touchLongPressTimer.current);
+				touchLongPressTimer.current = window.setTimeout(() => {
+					touchLongPressTimer.current = null;
+					const current = dragRef.current;
+					if (!current || current.pointerId !== event.pointerId || current.pointerType !== 'touch')
+						return;
+					const liveSnapshot = model.getSnapshot();
+					if (!liveSnapshot.selectedTabIds.has(current.sourceId)) {
+						actions.execute(
+							TAB_STRIP_ACTION_IDS.selectTab,
+							{ mode: 'replace', tabId: current.sourceId },
+							'pointer',
+						);
+					}
+					setDrag((candidate) =>
+						candidate?.pointerId === event.pointerId
+							? { ...candidate, touchLongPressRecognized: true }
+							: candidate,
 					);
-				}
-				setDrag((candidate) =>
-					candidate?.pointerId === event.pointerId
-						? { ...candidate, touchLongPressRecognized: true }
-						: candidate,
-				);
-			}, 500);
-		} else {
-			event.currentTarget.setPointerCapture?.(event.pointerId);
-		}
-	};
+				}, 500);
+			} else {
+				event.currentTarget.setPointerCapture?.(event.pointerId);
+			}
+		},
+	);
 
 	useEffect(() => {
 		const finishMiddlePress = (event: PointerEvent) => {
@@ -2252,7 +2254,7 @@ export function useTabStrip(
 		scheduleSuppressedGroupToggleReset,
 	]);
 
-	const onTabKeyDown = (event: React.KeyboardEvent, tabId: string) => {
+	const onTabKeyDown = useMemoizedFn((event: React.KeyboardEvent, tabId: string) => {
 		if (isTabStripKeyboardContextMenuRequest(event)) {
 			event.preventDefault();
 			const bounds = event.currentTarget.getBoundingClientRect();
@@ -2359,9 +2361,9 @@ export function useTabStrip(
 				},
 			);
 		}
-	};
+	});
 
-	const onTabKeyUp = (event: React.KeyboardEvent, tabId: string) => {
+	const onTabKeyUp = useMemoizedFn((event: React.KeyboardEvent, tabId: string) => {
 		if (event.key !== ' ' || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) {
 			return;
 		}
@@ -2369,7 +2371,7 @@ export function useTabStrip(
 		if (snapshot.activeTabId !== tabId) {
 			actions.execute(TAB_STRIP_ACTION_IDS.selectTab, { mode: 'replace', tabId }, 'keyboard');
 		}
-	};
+	});
 
 	const addTab = () => {
 		setTabClosingMode(null);
