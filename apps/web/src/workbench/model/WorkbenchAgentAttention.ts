@@ -27,18 +27,19 @@ function version(observation: WorkbenchAgentObservation): string {
 
 /**
  * Whether a new Agent version starts seen, as the TUI decides it. A finished turn, a request or a
- * failure hands the person something new, so it starts unseen. Entering work, starting, or an
- * unrecognised screen shows nothing new and keeps the previous acknowledgement, so a finished turn
- * nobody has read stays unread while the Agent works again. `previous` is the same Agent's older
- * version in the same terminal, absent when this Client has none. An idle version finishes a turn
- * when it newly awaits input, even after an unrecognised screen, or when it follows a working or an
- * idle one: an idle version after an idle one means versions went unread in between, which may
- * hold a whole turn.
+ * failure hands the person something new, so it starts unseen. Entering work or starting starts
+ * seen even after an unread turn: the work ends in another hand-over, which marks the Agent again,
+ * so a dot never sits on an Agent that is still working. An unrecognised screen shows nothing new
+ * and keeps the previous acknowledgement. `previous` is the same Agent's older version in the same
+ * terminal, absent when this Client has none. An idle version finishes a turn when it newly awaits
+ * input, even after an unrecognised screen, or when it follows a working or an idle one: an idle
+ * version after an idle one means versions went unread in between, which may hold a whole turn.
  */
 function versionStartsSeen(
 	previous: Acknowledgement | undefined,
 	current: WorkbenchAgentObservation,
 ): boolean {
+	if (current.state === 'working' || current.state === 'opening') return true;
 	const before = previous?.observation;
 	const awaits = (observation: WorkbenchAgentObservation | undefined): boolean =>
 		observation?.completion === 'awaiting-input';

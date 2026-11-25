@@ -68,17 +68,17 @@ Workbench membership and report revisions must remain coherent across a complete
 The Client attention owner stores physical acknowledgements separately from canonical versions;
 unavailable canonical observations cannot be used as physical evidence or vice versa.
 
-| Event                                                           | Physical Client transition                                                                                         |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| First complete baseline                                         | Seed current physical sequences as seen.                                                                           |
-| Same binding and Agent, newer semantic sequence                 | Replace the current state; the new sequence is unseen when it hands over, else keeps the previous acknowledgement. |
-| Message/reference-only update                                   | Preserve acknowledgement because the semantic sequence is unchanged.                                               |
-| New physical binding, another Agent or reappearing entry        | After the initial baseline, start unseen when the state hands over, else seen.                                     |
-| Removed or unavailable binding                                  | Remove its readable entry; no seen/unseen fact is manufactured.                                                    |
-| Sequence regression or changed Agent/state at the same sequence | Reject the round before any partial publication.                                                                   |
-| Failed round within ten seconds of the last complete one        | Keep entries and notification baselines: a commit landing inside a read says nothing about them.                   |
-| Older read failure, retirement or shutdown                      | Disable acknowledgement; interrupt and join owned readers.                                                         |
-| Successful visible paint                                        | Acknowledge only the exact binding/sequence, Host frame route and paint serial still current after drawing.        |
+| Event                                                           | Physical Client transition                                                                                                             |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| First complete baseline                                         | Seed current physical sequences as seen.                                                                                               |
+| Same binding and Agent, newer semantic sequence                 | Replace the current state; the new sequence is unseen when it hands over, seen when it works, else keeps the previous acknowledgement. |
+| Message/reference-only update                                   | Preserve acknowledgement because the semantic sequence is unchanged.                                                                   |
+| New physical binding, another Agent or reappearing entry        | After the initial baseline, start unseen when the state hands over, else seen.                                                         |
+| Removed or unavailable binding                                  | Remove its readable entry; no seen/unseen fact is manufactured.                                                                        |
+| Sequence regression or changed Agent/state at the same sequence | Reject the round before any partial publication.                                                                                       |
+| Failed round within ten seconds of the last complete one        | Keep entries and notification baselines: a commit landing inside a read says nothing about them.                                       |
+| Older read failure, retirement or shutdown                      | Disable acknowledgement; interrupt and join owned readers.                                                                             |
+| Successful visible paint                                        | Acknowledge only the exact binding/sequence, Host frame route and paint serial still current after drawing.                            |
 
 The existing overlay, scrollback, maximization, geometry and outer-focus gates apply to physical paint too.
 An old Host frame cannot acknowledge a replacement terminal. Canonical and physical observations of
@@ -89,11 +89,12 @@ A state change hands over when it gives the person something new to look at: a c
 error or blocked, or working becoming idle, which is a finished turn. A complete sample may skip
 versions, so idle after idle at a newer sequence also counts as a finished turn, and so does an
 idle version that newly awaits input, which covers a turn that ended while the screen was
-unrecognised or its process samples failed. Entering working,
-opening or unknown shows nothing new, so its version keeps the previous acknowledgement: a finished
-turn nobody has read stays unseen while the Agent works again, and an Agent that resumes by itself
-after a read turn, such as when a background command ends, gains no unread marker. The machine Agent
-rows and the GUI Client apply the same rule to their own acknowledgements.
+unrecognised or its process samples failed. Entering working or opening starts seen, even after
+a finished turn nobody has read: the work ends in another hand-over, which marks the Agent again,
+so no unread marker sits on an Agent that is still working, and an Agent that resumes by itself,
+such as when a background command or monitor it started reports, gains none. An unknown version
+shows nothing new and keeps the previous acknowledgement. The machine Agent rows and the GUI Client
+apply the same rule to their own acknowledgements.
 
 Viewer attach returns the actual Host terminal ID together with its epoch and attachment ID. The
 projection retains this identity; frame acceptance already validates epoch/attachment routing.

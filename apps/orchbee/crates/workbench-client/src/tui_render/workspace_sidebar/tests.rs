@@ -1896,7 +1896,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
         let mut agent = agent_for(context_target.clone(), 23);
         agent.metadata.title = Some(MetadataTokenValue::parse("Input handling").unwrap());
         let member = agent.target.clone();
-        for round in crate::machine_agents::test_support::after_unread_turns(vec![agent]) {
+        for round in crate::machine_agents::test_support::finished_unread_turns(vec![agent]) {
             view.machines.observe_agents(vec![(
                 Choice::Local,
                 crate::machine_agents::Observation::Ready(round),
@@ -1939,7 +1939,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             if target == &agent {
                 assert_eq!(
                     candidate[(tracks.state.x, y)].symbol(),
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true)
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, true)
                 );
             }
             // An expanded Workspace leaves the unread cue to its visible Agent row.
@@ -1991,7 +1991,7 @@ fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_fo
         unreachable!()
     };
     let agent = agent_for(target.clone(), 23);
-    for round in crate::machine_agents::test_support::after_unread_turns(vec![agent]) {
+    for round in crate::machine_agents::test_support::finished_unread_turns(vec![agent]) {
         view.machines.observe_agents(vec![(
             Choice::Local,
             crate::machine_agents::Observation::Ready(round),
@@ -2034,7 +2034,7 @@ fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_fo
         assert!((0..26).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker));
         assert_eq!(
             buffer[(tracks.primary.x, y + 1)].symbol(),
-            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, false)
         );
         assert_eq!(
             buffer[(tracks.unread.x, y)].symbol(),

@@ -13,13 +13,14 @@ pub(crate) struct UnreadVersion {
 }
 
 /// Whether a terminal's new Agent version starts seen. A finished turn, a request or a failure
-/// hands the person something new, so it starts unseen. Entering work, starting, or a screen no
-/// rule recognises shows nothing new, so the version keeps `previous`'s acknowledgement: a finished
-/// turn nobody has read stays unread while the Agent works again. `previous` is the facts and
-/// acknowledgement of the same Agent's older version in that terminal, absent when this Client has
-/// none. An idle version finishes a turn when it newly awaits input, even after a screen no rule
-/// recognised, or when it follows a working or an idle one: an idle version after an idle one means
-/// versions went unread in between, which may hold a whole turn.
+/// hands the person something new, so it starts unseen. Entering work or starting starts seen even
+/// after an unread turn: the work ends in another hand-over, which marks the Agent again, so a dot
+/// never sits on an Agent that is still working. A screen no rule recognises shows nothing new and
+/// keeps `previous`'s acknowledgement. `previous` is the facts and acknowledgement of the same
+/// Agent's older version in that terminal, absent when this Client has none. An idle version
+/// finishes a turn when it newly awaits input, even after a screen no rule recognised, or when it
+/// follows a working or an idle one: an idle version after an idle one means versions went unread
+/// in between, which may hold a whole turn.
 pub(crate) fn version_starts_seen(
     previous: Option<(UnreadVersion, bool)>,
     current: UnreadVersion,
@@ -33,7 +34,8 @@ pub(crate) fn version_starts_seen(
                 || previous
                     .is_some_and(|(before, _)| matches!(before.state, State::Working | State::Idle))
         }
-        State::Working | State::Opening | State::Unknown => false,
+        State::Working | State::Opening => return true,
+        State::Unknown => false,
     };
     !handed_over && previous.is_none_or(|(_, seen)| seen)
 }

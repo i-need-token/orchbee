@@ -32,7 +32,7 @@ fn current_agent_view() -> (ClientView, SidebarTarget, SidebarTarget) {
     first.metadata.title = Some(MetadataTokenValue::parse("Task 编码").unwrap());
     let second = agent_for(target.clone(), 24);
     let member = first.target.clone();
-    for round in crate::machine_agents::test_support::after_unread_turns(vec![first, second]) {
+    for round in crate::machine_agents::test_support::finished_unread_turns(vec![first, second]) {
         view.machines.observe_agents(vec![(
             Choice::Local,
             crate::machine_agents::Observation::Ready(round),
@@ -831,13 +831,13 @@ fn only_an_agent_state_glyph_explains_its_state_under_the_pointer() {
         assert_eq!(
             glyphs,
             [
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true),
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, true),
                 theme.glyphs.status_bullet
             ]
         );
         // A legend names states, not Agents, so it draws the current Agent's state hollow.
         for glyph in [
-            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false),
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, false),
             theme.glyphs.status_bullet,
         ] {
             assert!(

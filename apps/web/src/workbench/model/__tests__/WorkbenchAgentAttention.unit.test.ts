@@ -77,14 +77,16 @@ describe('Workbench Agent attention', () => {
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
 		server.publish(snapshot({ terminal: agent('idle', 3n) }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
-		// A finished turn nobody has read stays unread while the Agent works again.
+		// An Agent working again carries no dot: its work ends in another hand-over that marks it.
 		server.publish(snapshot({ terminal: agent('working', 4n) }));
+		expect(viewer.getSnapshot().unread).toEqual(new Set());
+		server.publish(snapshot({ terminal: agent('idle', 5n) }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set(['terminal']));
 		viewer.acknowledge(viewer.getSnapshot(), new Set(['terminal']), true);
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
 		// Resuming by itself after a read turn, as when a background command ends, is nothing new.
-		server.publish(snapshot({ terminal: agent('working', 5n) }));
-		server.publish(snapshot({ terminal: agent('unknown', 6n) }));
+		server.publish(snapshot({ terminal: agent('working', 6n) }));
+		server.publish(snapshot({ terminal: agent('unknown', 7n) }));
 		expect(viewer.getSnapshot().unread).toEqual(new Set());
 		// A new Agent that is only starting is nothing new either.
 		server.publish(snapshot({ terminal: agent('opening', 1n, 'terminal:2') }));

@@ -56,7 +56,7 @@ fn physical_clients_observe_independent_paints_and_preserve_quiet_updates() {
 }
 
 #[test]
-fn only_a_change_that_hands_over_is_unseen_and_an_unread_turn_survives_resumed_work() {
+fn only_a_change_that_hands_over_is_unseen_and_resumed_work_clears_an_unread_turn() {
     let mut owner = PhysicalAttentionState::default();
     let mut agent = state(1, 1, 1);
     publish(&mut owner, 1, std::slice::from_ref(&agent));
@@ -68,9 +68,8 @@ fn only_a_change_that_hands_over_is_unseen_and_an_unread_turn_survives_resumed_w
     };
     assert!(step(&mut owner, 2, PanelAgentState::Working));
     assert!(!step(&mut owner, 3, PanelAgentState::Idle));
-    // A finished turn nobody has read stays unread while the Agent works again.
-    assert!(!step(&mut owner, 4, PanelAgentState::Working));
-    assert!(owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true));
+    // An Agent working again carries no dot: its work ends in another hand-over that marks it.
+    assert!(step(&mut owner, 4, PanelAgentState::Working));
     assert!(!step(&mut owner, 5, PanelAgentState::Idle));
     assert!(owner.acknowledge(&owner.paint(|_| true).unwrap(), Some(true), |_| true));
     // Resuming by itself after a read turn, as when a background command ends, is nothing new.
