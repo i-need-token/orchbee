@@ -175,7 +175,7 @@ pub(super) fn parse(
             "set-color" => MachineCommand::SetColor {
                 machine,
                 // Present: `set-color` without it was refused above.
-                color: color.unwrap_or(MachineColor::Cyan),
+                color: color.unwrap_or(MachineColor::DEFAULT),
             },
             "remove" => {
                 let stop_session = seen("--stop-session");

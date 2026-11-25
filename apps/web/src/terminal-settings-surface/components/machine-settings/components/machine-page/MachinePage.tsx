@@ -8,7 +8,7 @@ import type {
 } from '../../../../types/terminal-settings-surface';
 import { SettingsGroup } from '../../../settings-group/SettingsGroup';
 import { SettingsRow } from '../../../settings-row/SettingsRow';
-import { MachineColorChooser } from '../machine-color-chooser/MachineColorChooser';
+import { MachineColorSelect } from '../machine-color-select/MachineColorSelect';
 import { MachineStateWord } from '../machine-state-word/MachineStateWord';
 import styles from './MachinePage.module.css';
 
@@ -39,10 +39,10 @@ export function MachinePage({ machine, machines, passwords }: MachinePageProps):
 					label={intl.formatMessage(messages.pageMachinesColorLabel)}
 					query=''
 				>
-					<MachineColorChooser
+					<MachineColorSelect
+						named
 						color={machine.color}
 						disabled={!idle}
-						label={intl.formatMessage(messages.pageMachinesColorLabel)}
 						onChoose={(color) => machines.request({ act: 'set-color', color, machine: id })}
 					/>
 				</SettingsRow>

@@ -758,8 +758,16 @@
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-600);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-600);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-700);
+	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-700);
+	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-700);
+	--ob-sys-color-machine-blue: var(--ob-ref-color-blue-600);
+	--ob-sys-color-machine-indigo: var(--ob-ref-color-indigo-600);
+	--ob-sys-color-machine-violet: var(--ob-ref-color-violet-600);
 	--ob-sys-color-machine-purple: var(--ob-ref-color-purple-600);
+	--ob-sys-color-machine-magenta: var(--ob-ref-color-fuchsia-700);
 	--ob-sys-color-machine-pink: var(--ob-ref-color-pink-700);
+	--ob-sys-color-machine-brown: var(--ob-ref-color-amber-800);
+	--ob-sys-color-machine-slate: var(--ob-ref-color-slate-600);
 	--ob-sys-color-machine-grey: var(--ob-ref-color-gray-600);
 }
 
@@ -867,6 +875,9 @@
 	/* The current Agent row's index in its Workspace's list, which places the guide's current stretch. */
 	--ob-comp-workbench-agent-list-current-row: 0;
 	--ob-comp-workbench-sidebar-overlay-inline-size: 15.625rem;
+	/* A machine's color where its name is written: a --ob-sys-color-machine-* token, or the custom
+	   color as chosen, set on the element that writes it. */
+	--ob-comp-machine-color: currentcolor;
 	/* A machine's `@name` mark keeps twelve characters before it shortens, as the TUI's does. */
 	--ob-comp-workbench-machine-mark-max-inline-size: 12ch;
 	--ob-comp-workbench-sidebar-thumb-size: 0px;
@@ -1129,8 +1140,21 @@
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-400);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-400);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-400);
+	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-400);
+	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-400);
+	--ob-sys-color-machine-blue: var(--ob-ref-color-blue-400);
+	--ob-sys-color-machine-indigo: var(--ob-ref-color-indigo-400);
+	--ob-sys-color-machine-violet: var(--ob-ref-color-violet-400);
 	--ob-sys-color-machine-purple: var(--ob-ref-color-purple-400);
+	--ob-sys-color-machine-magenta: var(--ob-ref-color-fuchsia-400);
 	--ob-sys-color-machine-pink: var(--ob-ref-color-pink-400);
+	/* No reference scale is a light brown: amber taken toward stone reads as tan, not as amber. */
+	--ob-sys-color-machine-brown: color-mix(
+		in oklab,
+		var(--ob-ref-color-amber-700) 55%,
+		var(--ob-ref-color-stone-200)
+	);
+	--ob-sys-color-machine-slate: var(--ob-ref-color-slate-400);
 	--ob-sys-color-machine-grey: var(--ob-ref-color-gray-400);
 }
 

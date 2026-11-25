@@ -3,6 +3,7 @@ import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 
+import { machineColorValue } from '../../../machine-color';
 import type { TerminalSettingsMachineColor } from '../../types/terminal-settings-surface';
 import { useSettingsChildPageEntry } from './hooks/useSettingsChildPageEntry';
 import styles from './SettingsChildPage.module.css';
@@ -40,7 +41,11 @@ export function SettingsChildPage({
 			<h1
 				ref={titleReference}
 				className={styles['title']}
-				data-machine-color={machineColor}
+				data-machine-color={machineColor === undefined ? undefined : true}
+				style={{
+					'--ob-comp-machine-color':
+						machineColor === undefined ? undefined : machineColorValue(machineColor),
+				}}
 				tabIndex={-1}
 			>
 				{title}

@@ -102,6 +102,7 @@ mapped_values!(NOTIFICATION_POSITIONS, notification_position, NotificationPositi
 mapped_values!(NOTIFICATION_SOUNDS, notification_sound, NotificationSound, {
     "none" => NotificationSound::None, "done" => NotificationSound::Done, "request" => NotificationSound::Request,
 });
-pub(crate) const MACHINE_COLORS: &[&str] = &crate::machines::MachineColor::NAMES;
+/// The presets, offered first; `--color` also takes `#rrggbb`.
+pub(crate) const MACHINE_COLORS: &[&str] = &crate::machines::Preset::NAMES;
 pub(crate) const SHELLS: &[&str] = &["bash", "elvish", "fish", "powershell", "zsh"];
 pub(crate) const FORMAT_VALUES: &[&str] = &["text", "json"];

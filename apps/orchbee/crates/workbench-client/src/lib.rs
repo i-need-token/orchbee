@@ -362,7 +362,7 @@ pub mod application {
     }
 
     pub mod machines {
-        pub use crate::machine_color::MachineColor;
+        pub use crate::machine_color::{MachineColor, Preset};
         pub use crate::machines::{
             Catalog, Connection, Draft, Edit, Error, LOCAL, Profile, ProfileId, RemoteInstall,
             Store, default_label, names_this_computer, valid_label, valid_target,

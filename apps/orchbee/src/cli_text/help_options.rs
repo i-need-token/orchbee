@@ -303,9 +303,9 @@ impl super::CliText {
                     "显式选择已连接的终端客户端。",
                 ),
                 "--color" => (
-                    "<cyan|purple|pink|grey>",
-                    "The machine's color; its name is shown in it.",
-                    "机器的颜色；机器名称以该颜色显示。",
+                    "<color|#rrggbb>",
+                    "The machine's color, a preset by name or #rrggbb; its name is shown in it.",
+                    "机器的颜色，预设颜色名或 #rrggbb；机器名称以该颜色显示。",
                 ),
                 "--cols" => ("<n>", "Terminal width in columns.", "终端列数。"),
                 "--confirm" => (

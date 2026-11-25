@@ -8,6 +8,7 @@
 	"include": [
 		".storybook",
 		"src",
+		"../../apps/web/src/machine-color-css-properties.d.ts",
 		"../../apps/web/src/projected-terminal-css-properties.d.ts",
 		"../../apps/web/src/workbench-css-properties.d.ts",
 		"../../apps/web/stories",

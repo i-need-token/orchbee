@@ -22,6 +22,8 @@ pub enum Choice {
     NewProfile(NewProfile),
     /// A saved machine's color, which its page sets in the machine catalog, not in settings.
     MachineColor(crate::machine_color::MachineColor),
+    /// The color list's last entry, which opens the row's editor for a color of the person's own.
+    MachineCustomColor,
 }
 
 /// What Add profile adds: a shell installed here, or a system-shell profile to fill in.
@@ -106,6 +108,15 @@ fn color_themes(polarity: Polarity) -> Vec<Choice> {
         .collect()
 }
 
+/// A machine's presets, then Custom….
+static MACHINE_COLORS: LazyLock<Vec<Choice>> = LazyLock::new(|| {
+    crate::machine_color::Preset::ALL
+        .into_iter()
+        .map(|preset| Choice::MachineColor(crate::machine_color::MachineColor::Preset(preset)))
+        .chain([Choice::MachineCustomColor])
+        .collect()
+});
+
 static LIGHT_THEMES: LazyLock<Vec<Choice>> = LazyLock::new(|| color_themes(Polarity::Light));
 static DARK_THEMES: LazyLock<Vec<Choice>> = LazyLock::new(|| color_themes(Polarity::Dark));
 
@@ -116,12 +127,7 @@ impl Choice {
             Row::LightTheme => &LIGHT_THEMES,
             Row::DarkTheme => &DARK_THEMES,
             Row::AddProfile => &NEW_PROFILE_CHOICES,
-            Row::MachineColor => &[
-                Self::MachineColor(crate::machine_color::MachineColor::Cyan),
-                Self::MachineColor(crate::machine_color::MachineColor::Purple),
-                Self::MachineColor(crate::machine_color::MachineColor::Pink),
-                Self::MachineColor(crate::machine_color::MachineColor::Grey),
-            ],
+            Row::MachineColor => &MACHINE_COLORS,
             Row::Language => &[
                 Self::Locale(SettingsLocale::System),
                 Self::Locale(SettingsLocale::EnUs),
@@ -194,7 +200,7 @@ impl Choice {
             Self::TerminalTheme(value) => values.terminal_display_theme = value,
             Self::AgentReminders(value) => values.agent_notification_mode = value,
             Self::CompletionReminders(value) => values.completion_reminder_mode = value,
-            Self::NewProfile(_) | Self::MachineColor(_) => {}
+            Self::NewProfile(_) | Self::MachineColor(_) | Self::MachineCustomColor => {}
         }
     }
 
@@ -221,7 +227,8 @@ impl Choice {
             Self::AgentReminders(_)
             | Self::CompletionReminders(_)
             | Self::NewProfile(_)
-            | Self::MachineColor(_) => {}
+            | Self::MachineColor(_)
+            | Self::MachineCustomColor => {}
         }
     }
 }

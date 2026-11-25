@@ -7,7 +7,7 @@
 use super::{Choice, Mode, Picker};
 use crate::client_view::{KeyCode, KeyEvent, Modifiers};
 use crate::machine_add::Stage;
-use crate::machine_color::MachineColor;
+use crate::machine_color::{MachineColor, Preset};
 use crate::machine_discovery::Observation;
 use crate::machine_status::{Action, Explanation, Facts};
 use crate::machines::{
@@ -74,11 +74,35 @@ pub enum FormControl {
     Suggestion(usize),
     /// The color before the address: opens its list, or closes the open list.
     Palette,
-    /// One color of the open list: chooses it and closes the list.
-    Color(MachineColor),
+    /// One entry of the open list: a preset chooses it and closes the list; Custom… asks for a
+    /// color of the person's own.
+    Swatch(Swatch),
     Cancel,
     Submit,
 }
+
+/// An entry of the add form's color list: a preset, or Custom…, which asks for a color of the
+/// person's own.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum Swatch {
+    Preset(Preset),
+    Custom,
+}
+
+impl Swatch {
+    /// The entry that stands for `color`: its preset, or Custom… for a custom color.
+    pub(crate) const fn of(color: MachineColor) -> Self {
+        match color {
+            MachineColor::Preset(preset) => Self::Preset(preset),
+            MachineColor::Custom(_) => Self::Custom,
+        }
+    }
+}
+
+/// The presets stand in rows of this many; Custom… takes its own line below them.
+pub(crate) const SWATCH_COLUMNS: usize = 3;
+/// `#` and six hexadecimal digits.
+const CUSTOM_COLOR_LIMIT: usize = 7;
 
 /// What the picker shows inside its frame.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -117,9 +141,13 @@ pub(crate) struct AddForm {
     pub(crate) address: LineEditor,
     /// Opens on the color the fewest saved machines use.
     pub(crate) color: MachineColor,
-    /// The highlighted color while the color list is open below the color; `None` while it is
+    /// The highlighted entry while the color list is open below the color; `None` while it is
     /// closed.
-    pub(crate) palette: Option<MachineColor>,
+    pub(crate) palette: Option<Swatch>,
+    /// The color typed after Custom…, while its field is open in the list.
+    pub(crate) custom: Option<LineEditor>,
+    /// Enter found the typed custom color no color; editing it again clears this.
+    pub(crate) custom_invalid: bool,
     pub(crate) field: Field,
     /// The highlighted SSH config host while the address field has focus.
     pub(crate) suggestion: Option<usize>,
@@ -482,6 +510,8 @@ impl Picker {
             address: LineEditor::new(String::new(), LengthLimit::Scalars(FIELD_LIMIT)),
             color: MachineColor::least_used(self.rows.iter().filter_map(|row| row.color)),
             palette: None,
+            custom: None,
+            custom_invalid: false,
             field: Field::Address,
             suggestion: None,
             suggestions: Arc::from([]),
@@ -581,7 +611,7 @@ impl Picker {
                 Page::Add(form) if form.editable() => {
                     form.field = field;
                     form.suggestion = None;
-                    form.palette = None;
+                    form.close_palette();
                     true
                 }
                 _ => false,
@@ -594,17 +624,18 @@ impl Picker {
                 Page::Add(form) if form.editable() => {
                     form.field = Field::Color;
                     form.suggestion = None;
-                    form.palette = match form.palette {
-                        Some(_) => None,
-                        None => Some(form.color),
-                    };
+                    if form.palette.is_some() {
+                        form.close_palette();
+                    } else {
+                        form.palette = Some(Swatch::of(form.color));
+                    }
                     true
                 }
                 _ => false,
             },
-            FormControl::Color(color) => match &mut self.manage.page {
+            FormControl::Swatch(swatch) => match &mut self.manage.page {
                 Page::Add(form) if form.editable() && form.palette.is_some() => {
-                    form.choose_color(color);
+                    form.take_swatch(swatch);
                     true
                 }
                 _ => false,
@@ -795,11 +826,16 @@ impl Picker {
 
     fn add_key(&mut self, key: KeyEvent) {
         if ESC.matches(key) {
-            // Esc closes the open color list first, as a menu closes before its dialog.
-            if let Page::Add(form) = &mut self.manage.page
-                && form.palette.take().is_some()
-            {
-                return;
+            // Esc closes the custom color's field, then the open color list, as a menu closes before
+            // its dialog.
+            if let Page::Add(form) = &mut self.manage.page {
+                if form.custom.take().is_some() {
+                    form.custom_invalid = false;
+                    return;
+                }
+                if form.palette.take().is_some() {
+                    return;
+                }
             }
             self.manage.back();
             return;
@@ -827,7 +863,7 @@ impl Picker {
         if form.field == Field::Color {
             // The color opens its list as a select does; Enter there opens it, not the add.
             if ENTER.matches(key) || SPACE.matches(key) || DOWN.matches(key) {
-                form.palette = Some(form.color);
+                form.palette = Some(Swatch::of(form.color));
             }
             return;
         }
@@ -888,35 +924,95 @@ impl AddForm {
         }
     }
 
-    /// A key while the color list is open: the arrows move the highlight, Enter or Space chooses
-    /// it, and Tab closes the list for the address. Nothing else reaches the fields.
-    fn palette_key(&mut self, highlighted: MachineColor, key: KeyEvent) {
-        let palette = MachineColor::PALETTE;
-        let at = highlighted as usize;
-        let next = if UP.matches(key) || UP_LETTER.matches(key) {
-            at.saturating_sub(1)
-        } else if DOWN.matches(key) || DOWN_LETTER.matches(key) {
-            (at + 1).min(palette.len() - 1)
-        } else if HOME.matches(key) {
-            0
-        } else if END.matches(key) {
-            palette.len() - 1
-        } else {
-            if ENTER.matches(key) || SPACE.matches(key) {
-                self.choose_color(highlighted);
-            } else if TAB.matches(key) || BACK_TAB.matches(key) {
-                self.palette = None;
-                self.field = Field::Address;
+    /// A key while the color list is open. In the custom color's field, Enter takes the typed
+    /// color and other keys edit it. Otherwise the arrows move the highlight over the presets'
+    /// rows and Custom… below them, Enter or Space takes the entry, and Tab closes the list for
+    /// the address. Nothing else reaches the fields.
+    fn palette_key(&mut self, highlighted: Swatch, key: KeyEvent) {
+        if let Some(editor) = &mut self.custom {
+            if ENTER.matches(key) {
+                self.accept_custom();
+            } else if edit(editor, key) {
+                self.custom_invalid = false;
             }
             return;
+        }
+        let last = Preset::ALL.len() - 1;
+        let next = match highlighted {
+            _ if HOME.matches(key) => Swatch::Preset(Preset::ALL[0]),
+            _ if END.matches(key) => Swatch::Custom,
+            Swatch::Preset(preset) => {
+                let at = preset.index();
+                let column = at % SWATCH_COLUMNS;
+                if UP.matches(key) || UP_LETTER.matches(key) {
+                    Swatch::Preset(Preset::ALL[at.checked_sub(SWATCH_COLUMNS).unwrap_or(at)])
+                } else if DOWN.matches(key) || DOWN_LETTER.matches(key) {
+                    Preset::ALL
+                        .get(at + SWATCH_COLUMNS)
+                        .map_or(Swatch::Custom, |below| Swatch::Preset(*below))
+                } else if LEFT.matches(key) && column > 0 {
+                    Swatch::Preset(Preset::ALL[at - 1])
+                } else if RIGHT.matches(key) && column + 1 < SWATCH_COLUMNS && at < last {
+                    Swatch::Preset(Preset::ALL[at + 1])
+                } else {
+                    highlighted
+                }
+            }
+            // Up from Custom… returns to the start of the last row.
+            Swatch::Custom if UP.matches(key) || UP_LETTER.matches(key) => {
+                Swatch::Preset(Preset::ALL[last - last % SWATCH_COLUMNS])
+            }
+            Swatch::Custom => highlighted,
         };
-        self.palette = Some(palette[next]);
+        if next != highlighted {
+            self.palette = Some(next);
+        } else if ENTER.matches(key) || SPACE.matches(key) {
+            self.take_swatch(highlighted);
+        } else if TAB.matches(key) || BACK_TAB.matches(key) {
+            self.close_palette();
+            self.field = Field::Address;
+        }
+    }
+
+    /// A preset is chosen at once; Custom… opens its field on the custom color, or on `#`.
+    fn take_swatch(&mut self, swatch: Swatch) {
+        match swatch {
+            Swatch::Preset(preset) => self.choose_color(MachineColor::Preset(preset)),
+            Swatch::Custom => {
+                let start = match self.color {
+                    MachineColor::Custom(_) => self.color.to_string(),
+                    MachineColor::Preset(_) => "#".to_owned(),
+                };
+                self.palette = Some(Swatch::Custom);
+                self.custom = Some(LineEditor::new(
+                    start,
+                    LengthLimit::Scalars(CUSTOM_COLOR_LIMIT),
+                ));
+                self.custom_invalid = false;
+            }
+        }
+    }
+
+    /// Enter in the custom color's field: a typed `#rrggbb` is chosen; anything else stays and
+    /// says what a color is.
+    fn accept_custom(&mut self) {
+        let typed = self.custom.as_ref().map(|editor| editor.text().trim());
+        match typed.and_then(MachineColor::parse) {
+            Some(color @ MachineColor::Custom(_)) => self.choose_color(color),
+            _ => self.custom_invalid = true,
+        }
+    }
+
+    fn close_palette(&mut self) {
+        self.palette = None;
+        self.custom = None;
+        self.custom_invalid = false;
     }
 
     /// Takes `color` and closes the list; the color keeps focus, as a select's trigger does.
     fn choose_color(&mut self, color: MachineColor) {
         self.color = color;
-        self.palette = None;
+        self.close_palette();
         self.field = Field::Color;
         self.suggestion = None;
     }

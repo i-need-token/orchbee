@@ -1,9 +1,8 @@
-/** A saved machine's color, the same names Settings › Machines uses. */
-type WorkbenchMachineColor = 'cyan' | 'grey' | 'pink' | 'purple';
+import type { MachineColor } from '../../machine-color';
 
 /** The machine a sidebar row names after `@`. */
 export interface WorkbenchMachineMark {
-	readonly color: WorkbenchMachineColor;
+	readonly color: MachineColor;
 	readonly name: string;
 }
 

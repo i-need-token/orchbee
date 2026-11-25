@@ -570,6 +570,8 @@ impl Row {
             Self::PrefixKey => Some(64),
             Self::AgentArguments(_) => Some(MAXIMUM_AGENT_ARGUMENT_INPUT_BYTES),
             Self::MachineName => Some(crate::machines::LABEL_LIMIT),
+            // A custom color's `#rrggbb`.
+            Self::MachineColor => Some(7),
             // A filter of 128 characters, each up to four bytes.
             Self::FindMachine => Some(512),
             _ => None,

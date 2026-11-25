@@ -490,6 +490,41 @@ enum DestructiveRest {
     Paired,
 }
 
+/// A named theme's machine presets, each raised to read on its chrome and on its selection fill.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct MachinePalette {
+    pub(super) rest: [Color; 12],
+    pub(super) selection: [Color; 12],
+}
+
+impl MachinePalette {
+    fn quantize(self, level: ColorLevel) -> Self {
+        Self {
+            rest: self.rest.map(|color| quantize_color(color, level)),
+            selection: self.selection.map(|color| quantize_color(color, level)),
+        }
+    }
+}
+
+/// A machine preset where no theme color shows it: 16 colors and `terminal-native` name an ANSI
+/// color for each, never the nearest match, so a preset never reads as an Agent state.
+fn ansi16_machine_preset(preset: crate::machine_color::Preset, base: Style) -> Style {
+    match preset.index() {
+        // Cyan and teal.
+        0 | 1 => base.fg(Color::Cyan),
+        2 => base.fg(Color::LightCyan),
+        // Blue and violet.
+        3 | 5 => base.fg(Color::LightBlue),
+        4 => base.fg(Color::Blue),
+        // Purple and magenta.
+        6 | 7 => base.fg(Color::Magenta),
+        8 => base.fg(Color::LightMagenta),
+        9 => base.fg(Color::DarkGray),
+        // Slate and grey.
+        _ => base.fg(Color::Reset).add_modifier(Modifier::DIM),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct SelectionAccents {
     accent_action: Color,
@@ -558,6 +593,8 @@ pub struct Theme {
     styles: RoleStyles,
     selection_accents: Option<SelectionAccents>,
     pub(crate) tab_groups: TabGroupPalette,
+    /// A named theme's machine presets; `terminal-native` names ANSI colors instead.
+    machines: Option<MachinePalette>,
 }
 
 impl Theme {
@@ -755,9 +792,10 @@ impl Theme {
             .map_or_else(Style::new, |foreground| Style::new().fg(foreground))
     }
 
-    /// A saved machine's name in its color, from `base`. Truecolor and 256 colors take its Tab
-    /// Group accent, raised on a selection; 16 colors and `terminal-native` map by name, never by
-    /// nearest match, so a machine never reads as an Agent state; monochrome keeps `base`.
+    /// A saved machine's name in its color, from `base`. Truecolor and 256 colors take a preset
+    /// as the theme raised it, on a selection onto the selection fill; 16 colors and
+    /// `terminal-native` name an ANSI color for each preset. A custom color is written as chosen at
+    /// the host's color level. Monochrome keeps `base`.
     pub(crate) fn machine_name_style(
         &self,
         color: crate::machine_color::MachineColor,
@@ -765,25 +803,25 @@ impl Theme {
         base: Style,
     ) -> Style {
         use crate::machine_color::MachineColor;
-        use orchbee_workbench_protocol::TabGroupColor;
         if self.no_color || self.color_level == ColorLevel::Monochrome {
             return base;
         }
-        if self.palette.is_none() || self.color_level == ColorLevel::Ansi16 {
-            return match color {
-                MachineColor::Cyan => base.fg(Color::Cyan),
-                MachineColor::Purple => base.fg(Color::Magenta),
-                MachineColor::Pink => base.fg(Color::LightMagenta),
-                MachineColor::Grey => base.fg(Color::Reset).add_modifier(Modifier::DIM),
-            };
+        match color {
+            MachineColor::Preset(preset) => match self.machines {
+                Some(palette) if self.color_level != ColorLevel::Ansi16 => {
+                    base.fg(if matches!(interaction, Some(Role::SurfaceSelection)) {
+                        palette.selection[preset.index()]
+                    } else {
+                        palette.rest[preset.index()]
+                    })
+                }
+                _ => ansi16_machine_preset(preset, base),
+            },
+            MachineColor::Custom(chosen) => base.fg(quantize_color(
+                Color::Rgb(chosen.red, chosen.green, chosen.blue),
+                self.color_level,
+            )),
         }
-        let group = match color {
-            MachineColor::Cyan => TabGroupColor::Cyan,
-            MachineColor::Purple => TabGroupColor::Purple,
-            MachineColor::Pink => TabGroupColor::Pink,
-            MachineColor::Grey => TabGroupColor::Grey,
-        };
-        base.fg(self.tab_group_accent(group, interaction))
     }
 
     pub(crate) const fn tab_group_accent(
@@ -897,6 +935,7 @@ impl Theme {
             },
             selection_accents: None,
             tab_groups: TabGroupPalette::TERMINAL,
+            machines: None,
         }
     }
 
@@ -976,6 +1015,7 @@ impl Theme {
             },
             selection_accents: None,
             tab_groups: TabGroupPalette::TERMINAL,
+            machines: None,
         }
     }
 
@@ -1669,6 +1709,7 @@ impl Theme {
                 .filter(|_| matches!(level, ColorLevel::Truecolor | ColorLevel::Ansi256))
                 .map(|accents| accents.quantize(level)),
             tab_groups: self.tab_groups.quantize(level),
+            machines: self.machines.map(|machines| machines.quantize(level)),
             color_level: level,
             terminal_colors: self.terminal_colors.map(|(foreground, background)| {
                 (

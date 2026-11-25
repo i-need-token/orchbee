@@ -27,6 +27,7 @@ styles or modifiers, localize theme names, or change the fixed Agent glyph color
 | `Roles::resolve(&Theme)` | Every role in the [resolver table](#resolver), with floors on the painted surfaces and derived states in the gate table    |
 | `SelectionAccents`       | Selection-fill semantic accent, status, and Tab-group overrides under `Roles::selection`, plus `Roles::raise_on_selection` |
 | `TabGroups`              | The resolved Tab-group accents, one field per shared group color                                                           |
+| `MACHINE_COLORS`         | The machine color presets: each record name and source color, in the order the Clients list them                           |
 | `Rgb`                    | An 8-bit sRGB color; `u32::from` packs it as `0xRRGGBB`, `Display` writes `#rrggbb`                                        |
 
 Theme files are embedded at build time and admitted on first use. An embedded file that fails to
@@ -110,9 +111,10 @@ gate test passes again.
 | `status-unread`                                     | `accent-action`                                                                                                                                                                |
 | `status-pending`, `status-working`, `status-idle`   | Secondary for pending/working; muted raised to 3:1 on shared surfaces for the idle glyph                                                                                       |
 | `agent-attention`, `agent-done`, `agent-error`      | Fixed per polarity: `#febc2e`, `#28c840`, and `#ff5f57` on dark themes; `#ad6f00`, `#009100`, and `#e1423e` on light themes                                                    |
-| `selection` (`SelectionAccents`)                    | OKLab/OKLCH lightness-corrected selection overrides on `surface-selection`: action/focus/unread at 3:1; destructive/link/statuses and `tab-groups` at 4.5:1                    |
+| `selection` (`SelectionAccents`)                    | OKLab/OKLCH lightness-corrected selection overrides on `surface-selection`: action/focus/unread at 3:1; destructive/link/statuses, `tab-groups`, and `machines` at 4.5:1       |
 | Tab groups blue, cyan, green, grey, red, yellow     | ANSI 4, 6, 2, 8, 1, and 3, each raised to at least 4.5:1 on every shared surface                                                                                               |
 | Tab groups orange, pink, purple                     | ANSI 1 mixed 50% toward ANSI 3, ANSI 5 mixed 30% toward ANSI 1, and ANSI 5 mixed 50% toward ANSI 4, each raised to 4.5:1 on every shared surface                               |
+| `machines` (`MACHINE_COLORS`)                       | Each preset's source color raised to at least 4.5:1 on every shared surface                                                                                                    |
 
 ## Gates
 
@@ -157,7 +159,7 @@ themes and fails when either is stale:
 
 A block takes surfaces, text, frames, accents, and statuses from the resolver: canvas, chrome as
 `surface-raised`, overlay, the text steps, the frame steps as borders, `accent-action` and
-`accent-link`, the four status roles, and the four machine colors from the Tab-group accents. States follow the hand-authored mapping's proportions,
+`accent-link`, the four status roles, and the machine colors. States follow the hand-authored mapping's proportions,
 shifting text, link, and status foregrounds toward white on dark themes and black on light themes,
 and shifting primary-action fill states away from `text-inverse`. The brand honey, the scrim, the overlay
 scrollbar thumb, and every Agent status glyph color keep their polarity's hand-authored reference; `pnpm lint:styles` checks

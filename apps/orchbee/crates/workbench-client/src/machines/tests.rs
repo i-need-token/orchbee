@@ -193,21 +193,34 @@ fn colors_default_to_the_least_used_and_travel_in_extensions() {
             .0;
     }
     let colors: Vec<_> = catalog.profiles.iter().map(|p| p.color).collect();
-    use MachineColor::{Cyan, Grey, Pink, Purple};
-    assert_eq!(colors, [Cyan, Purple, Pink, Grey, Cyan]);
+    let preset = |index: usize| MachineColor::Preset(crate::machine_color::Preset::ALL[index]);
+    assert_eq!(colors, [0, 1, 2, 3, 4].map(preset));
+    let custom = MachineColor::parse("#12AB34").unwrap();
     let (recolored, changed) = catalog
         .edit(&Edit::SetColor {
             id: id(5),
-            color: Grey,
+            color: custom,
         })
         .unwrap();
     assert!(changed);
     let mut value = recolored.json();
-    assert_eq!(value["profiles"][4]["extensions"]["color"], "grey");
+    // An earlier release reads the nearest preset it knows, and keeps the color itself.
+    assert_eq!(value["profiles"][0]["extensions"], json!({"color": "cyan"}));
+    assert_eq!(
+        value["profiles"][1]["extensions"],
+        json!({"color": "cyan", "colorValue": "teal"})
+    );
+    assert_eq!(
+        value["profiles"][4]["extensions"],
+        json!({"color": "cyan", "colorValue": "#12ab34"})
+    );
     value["profiles"][0]["extensions"] = json!({});
     value["profiles"][2]["extensions"] = json!({"color": "red"});
+    // An earlier release that recolors a machine changes `color` alone, and its choice stands.
+    value["profiles"][3]["extensions"]["color"] = json!("pink");
     let loaded = Catalog::parse(&serde_json::to_vec(&value).unwrap()).unwrap();
     let colors: Vec<_> = loaded.profiles.iter().map(|p| p.color).collect();
-    assert_eq!(colors, [Cyan, Purple, Pink, Grey, Grey]);
+    assert_eq!(colors, [preset(0), preset(1), preset(2), preset(8), custom]);
     assert_eq!(MachineColor::parse("Cyan"), None);
+    assert_eq!(MachineColor::parse("#12ab3"), None);
 }

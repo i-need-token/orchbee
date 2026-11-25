@@ -1,8 +1,8 @@
 //! Resolves a theme's palette into every semantic color role: OKLab surface steps and interaction
 //! mixes, frame and text steps, ANSI accents lightness-corrected to their contrast floors on
-//! their painted surfaces, and the Tab-group accents. Agent glyph colors are fixed for each
-//! polarity. It does not quantize or choose modifiers; the README's resolver table is the authority
-//! for each rule.
+//! their painted surfaces, the Tab-group accents and the machine colors. Agent glyph colors are
+//! fixed for each polarity. It does not quantize or choose modifiers; the README's resolver table
+//! is the authority for each rule.
 
 use crate::{Polarity, Rgb, Theme, contrast, oklab};
 
@@ -24,6 +24,25 @@ pub const fn agent_colors(polarity: Polarity) -> [Rgb; 3] {
         ],
     }
 }
+
+/// The colors a saved machine's name takes by name, each with its record name and the color it
+/// starts from, in the order the Clients list them and a new machine's default is chosen from.
+/// [`Roles::machines`] raises each onto a theme. None takes an Agent state's red, yellow or green
+/// hue, so a machine never reads as one.
+pub const MACHINE_COLORS: [(&str, Rgb); 12] = [
+    ("cyan", Rgb::new(0x06, 0xb6, 0xd4)),
+    ("teal", Rgb::new(0x14, 0xb8, 0xa6)),
+    ("sky", Rgb::new(0x0e, 0xa5, 0xe9)),
+    ("blue", Rgb::new(0x3b, 0x82, 0xf6)),
+    ("indigo", Rgb::new(0x63, 0x66, 0xf1)),
+    ("violet", Rgb::new(0x8b, 0x5c, 0xf6)),
+    ("purple", Rgb::new(0xa8, 0x55, 0xf7)),
+    ("magenta", Rgb::new(0xd9, 0x46, 0xef)),
+    ("pink", Rgb::new(0xec, 0x48, 0x99)),
+    ("brown", Rgb::new(0xa1, 0x6a, 0x3c)),
+    ("slate", Rgb::new(0x64, 0x74, 0x8b)),
+    ("grey", Rgb::new(0x73, 0x73, 0x73)),
+];
 
 const BODY_FLOOR: f64 = 4.5;
 const NON_TEXT_FLOOR: f64 = 3.0;
@@ -123,7 +142,10 @@ pub struct Roles {
     pub agent_error: Rgb,
     /// One accent per shared Tab-group color.
     pub tab_groups: TabGroups,
-    /// Semantic hues and Tab-group accents lightness-corrected onto `surface_selection`.
+    /// Each of [`MACHINE_COLORS`] at least 4.5:1 on chrome, in its order.
+    pub machines: [Rgb; 12],
+    /// Semantic hues, Tab-group accents and machine colors lightness-corrected onto
+    /// `surface_selection`.
     pub selection: SelectionAccents,
 }
 
@@ -151,6 +173,8 @@ pub struct SelectionAccents {
     pub status_unread: Rgb,
     /// Each Tab-group accent raised to at least 4.5:1 on `surface_selection`.
     pub tab_groups: TabGroups,
+    /// Each machine color raised to at least 4.5:1 on `surface_selection`.
+    pub machines: [Rgb; 12],
 }
 
 /// The Tab-group accents, one per shared group color, each at least 4.5:1 on chrome.
@@ -332,6 +356,7 @@ impl Roles {
             red: group(red),
             yellow: group(yellow),
         };
+        let machines = MACHINE_COLORS.map(|(_, color)| group(color));
         let on_sel = |color: Rgb, floor: f64| contrast::raise(color, selection, floor);
         let selection_accents = SelectionAccents {
             accent_action: on_sel(accent_action, NON_TEXT_FLOOR),
@@ -354,6 +379,7 @@ impl Roles {
                 red: on_sel(tab_groups.red, BODY_FLOOR),
                 yellow: on_sel(tab_groups.yellow, BODY_FLOOR),
             },
+            machines: machines.map(|color| on_sel(color, BODY_FLOOR)),
         };
         // The primary label is `text_inverse`, so the accent's hover and press move toward the
         // pole that gives that label more contrast, as the GUI's primary-action states do.
@@ -418,6 +444,7 @@ impl Roles {
             agent_done,
             agent_error,
             tab_groups,
+            machines,
             selection: selection_accents,
         }
     }

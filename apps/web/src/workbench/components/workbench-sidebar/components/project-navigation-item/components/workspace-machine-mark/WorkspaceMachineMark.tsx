@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { machineColorValue } from '../../../../../../../machine-color';
 import type { WorkbenchMachineMark } from '../../../../../../types/workbench-other-machines';
 import styles from './WorkspaceMachineMark.module.css';
 
@@ -10,7 +11,10 @@ import styles from './WorkspaceMachineMark.module.css';
  */
 export function WorkspaceMachineMark({ mark }: { readonly mark: WorkbenchMachineMark }): ReactNode {
 	return (
-		<span className={styles['mark']} data-machine-color={mark.color}>
+		<span
+			className={styles['mark']}
+			style={{ '--ob-comp-machine-color': machineColorValue(mark.color) }}
+		>
 			@{mark.name}
 		</span>
 	);

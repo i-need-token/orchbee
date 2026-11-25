@@ -166,7 +166,12 @@ impl Picker {
         let text = |text| locale.machine_manage_text(text);
         // Editing keys such as Ctrl+U are conventions, not advertised hints.
         let hints = match self.manage().page() {
-            // The open color list takes the menu's keys; on the color, Enter opens the list.
+            // The custom color.s field takes Enter alone; the open color list takes the menu.s keys;
+            // on the color, Enter opens the list.
+            Page::Add(form) if form.custom.is_some() => vec![
+                KeyHint::new(&close, text(ManageText::Back)),
+                KeyHint::new(&enter, text(ManageText::Choose)),
+            ],
             Page::Add(form) if form.palette.is_some() => vec![
                 KeyHint::new(&close, text(ManageText::Back)),
                 KeyHint::new(&choose, locale.machine_picker_text("picker-choose-hint")),

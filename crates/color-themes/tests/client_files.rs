@@ -379,13 +379,11 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     {
         colors.push((format!("data-{}", index + 1), color.to_string()));
     }
-    // A saved machine's color: the Tab-group accent of the same name, as the TUI writes it.
-    for (name, color) in [
-        ("cyan", roles.tab_groups.cyan),
-        ("purple", roles.tab_groups.purple),
-        ("pink", roles.tab_groups.pink),
-        ("grey", roles.tab_groups.grey),
-    ] {
+    // A saved machine's color by name, raised onto the theme as the TUI writes it.
+    for ((name, _), color) in orchbee_color_themes::MACHINE_COLORS
+        .iter()
+        .zip(roles.machines)
+    {
         colors.push((format!("machine-{name}"), color.to_string()));
     }
     colors

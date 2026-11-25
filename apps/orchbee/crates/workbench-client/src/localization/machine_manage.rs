@@ -16,6 +16,12 @@ pub(crate) enum ManageText {
     Hosts,
     Color,
     ChooseColor,
+    /// The color list's last entry, which asks for a color of the person's own.
+    CustomColor,
+    /// The field a custom color is typed in, before anything is typed.
+    CustomColorHint,
+    /// A typed custom color that is not one.
+    CustomColorInvalid,
     Cancel,
     Add,
     Actions,
@@ -29,21 +35,35 @@ pub(crate) enum ManageText {
 }
 
 impl Locale {
-    /// A saved machine's color by name.
+    /// A saved machine's color by name; a custom color is named Custom, its value written beside.
     pub(crate) const fn machine_color_name(
         self,
         color: crate::machine_color::MachineColor,
     ) -> &'static str {
         use crate::machine_color::MachineColor;
+        const EN_US: [&str; 12] = [
+            "Cyan", "Teal", "Sky", "Blue", "Indigo", "Violet", "Purple", "Magenta", "Pink",
+            "Brown", "Slate", "Grey",
+        ];
+        const ZH_CN: [&str; 12] = [
+            "青色",
+            "蓝绿色",
+            "天蓝色",
+            "蓝色",
+            "靛蓝色",
+            "紫罗兰色",
+            "紫色",
+            "品红色",
+            "粉色",
+            "棕色",
+            "石板灰",
+            "灰色",
+        ];
         match (self, color) {
-            (Self::EnUs, MachineColor::Cyan) => "Cyan",
-            (Self::ZhCn, MachineColor::Cyan) => "青色",
-            (Self::EnUs, MachineColor::Purple) => "Purple",
-            (Self::ZhCn, MachineColor::Purple) => "紫色",
-            (Self::EnUs, MachineColor::Pink) => "Pink",
-            (Self::ZhCn, MachineColor::Pink) => "粉色",
-            (Self::EnUs, MachineColor::Grey) => "Grey",
-            (Self::ZhCn, MachineColor::Grey) => "灰色",
+            (Self::EnUs, MachineColor::Preset(preset)) => EN_US[preset.index()],
+            (Self::ZhCn, MachineColor::Preset(preset)) => ZH_CN[preset.index()],
+            (Self::EnUs, MachineColor::Custom(_)) => "Custom",
+            (Self::ZhCn, MachineColor::Custom(_)) => "自定义",
         }
     }
 
@@ -66,6 +86,12 @@ impl Locale {
             (Self::ZhCn, Color) => "颜色",
             (Self::EnUs, ChooseColor) => "Choose color",
             (Self::ZhCn, ChooseColor) => "选择颜色",
+            (Self::EnUs, CustomColor) => "Custom…",
+            (Self::ZhCn, CustomColor) => "自定义…",
+            (Self::EnUs, CustomColorHint) => "#3b82f6",
+            (Self::ZhCn, CustomColorHint) => "#3b82f6",
+            (Self::EnUs, CustomColorInvalid) => "Type # and six hex digits, such as #3b82f6.",
+            (Self::ZhCn, CustomColorInvalid) => "请输入 # 加 6 位十六进制数，例如 #3b82f6。",
             (Self::EnUs, Cancel) => "Cancel",
             (Self::ZhCn, Cancel) => "取消",
             (Self::EnUs, Add) => "Add",

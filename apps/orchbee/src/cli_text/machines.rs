@@ -172,9 +172,9 @@ impl super::CliText {
                 "先列出这台电脑（local），再列出每台已保存的机器及其颜色、状态和空闲的处理器份额、内存和磁盘；磁盘指主目录所在的卷。状态和其他机器的空闲资源来自正在运行的后台连接进程：它每秒读取一次这台电脑，对已连接的机器最多每 3 秒询问一次。本命令不启动连接进程，不连接机器，也不创建目录。没有连接进程时，已保存的机器无人连接，按记录显示为离线、已停用或不支持，这台电脑只读取内存和磁盘。读取不到的值在文本中显示为 —，在 JSON 中为 \"unknown\"。更新版本保存的、使用此版本不认识的连接方式的机器显示为不支持。",
             ),
             C::MachineAdd => (
-                "orchbee machine add <ssh-target> [--label <label>] [--color cyan|purple|pink|grey] [--remote-session <name>] [--format text|json]",
-                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The name local, in any letter case, always means this computer and is refused. The machine's name is shown in its color; without --color it takes the color the fewest saved machines use, the earliest of cyan, purple, pink and grey among equals. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
-                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。名称 local（不区分大小写）始终指这台电脑，不能使用。机器名称以其颜色显示；不加 --color 时取已保存机器用得最少的颜色，数量相同时按 cyan、purple、pink、grey 的顺序取第一个。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
+                "orchbee machine add <ssh-target> [--label <label>] [--color <color|#rrggbb>] [--remote-session <name>] [--format text|json]",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The name local, in any letter case, always means this computer and is refused. The machine's name is shown in its color; without --color it takes the color the fewest saved machines use, the earliest of cyan, teal, sky, blue, indigo, violet, purple, magenta, pink, brown, slate and grey among equals; #rrggbb gives a color of your own. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。名称 local（不区分大小写）始终指这台电脑，不能使用。机器名称以其颜色显示；不加 --color 时取已保存机器用得最少的颜色，数量相同时按 cyan、teal、sky、blue、indigo、violet、purple、magenta、pink、brown、slate、grey 的顺序取第一个；#rrggbb 可指定自定义颜色。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <id|label> --label <label> [--format text|json]",
@@ -182,7 +182,7 @@ impl super::CliText {
                 "重命名具有此 ID 的机器，或唯一使用此完整名称的机器。名称不能为空白或含控制字符，最多 128 UTF-8 字节。名称 local（不区分大小写）始终指这台电脑，不能使用。",
             ),
             C::MachineSetColor => (
-                "orchbee machine set-color <id|label> --color cyan|purple|pink|grey [--format text|json]",
+                "orchbee machine set-color <id|label> --color <color|#rrggbb> [--format text|json]",
                 "Change the color of the machine with this ID, or the only machine with this exact name. The machine's name is shown in that color wherever it is written; other machines keep theirs, and several machines may share a color.",
                 "修改具有此 ID 的机器、或唯一使用此完整名称的机器的颜色。机器名称在各处都以该颜色显示；其他机器的颜色不变，多台机器可以使用同一种颜色。",
             ),

@@ -33,8 +33,9 @@ pub(crate) use login::{LoginControl, LoginOverlay};
 pub(crate) use login_notice::LoginNotice;
 pub(crate) use manage::{
     AddForm, Check, MENU_KEY, Notice as ManageNotice, Page, Problem as ManageProblem,
+    SWATCH_COLUMNS,
 };
-pub use manage::{Field, FormControl, MenuItem};
+pub use manage::{Field, FormControl, MenuItem, Swatch};
 pub(crate) use moving::{MoveConfirmation, MoveStatus};
 pub use navigation::SidebarTarget;
 pub(crate) use navigation::{
@@ -216,7 +217,7 @@ impl PickerSource {
                 (manage::PageKind::Add, FormControl::Suggestion(index)) => {
                     index < self.0.manage.suggestions
                 }
-                (manage::PageKind::Add, FormControl::Color(_)) => self.0.manage.palette,
+                (manage::PageKind::Add, FormControl::Swatch(_)) => self.0.manage.palette,
                 (manage::PageKind::Add, _) => true,
                 (
                     manage::PageKind::Rename | manage::PageKind::Confirm,

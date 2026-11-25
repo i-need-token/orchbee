@@ -258,8 +258,8 @@ pub struct Profile {
     pub draft: Draft,
     pub enabled: bool,
     pub remote_install: RemoteInstall,
-    /// Kept in `extensions` as `color`, the record's forward slot, so an earlier release that
-    /// rejects unknown members still reads the catalog.
+    /// Kept in `extensions`, the record's forward slot, so an earlier release that rejects unknown
+    /// members still reads the catalog: see [`COLOR`] and [`COLOR_VALUE`].
     pub color: MachineColor,
     /// Fields a later release added to this machine, kept unread and written back unchanged.
     pub extensions: serde_json::Map<String, Value>,
@@ -274,7 +274,7 @@ impl Profile {
             draft,
             enabled: true,
             remote_install: RemoteInstall::Manual,
-            color: MachineColor::Cyan,
+            color: MachineColor::DEFAULT,
             extensions: serde_json::Map::new(),
         }
     }
@@ -282,16 +282,20 @@ impl Profile {
     pub fn json(&self) -> Value {
         json!({"id":self.id.as_str(),"label":self.draft.label,"connection":self.draft.connection.json(),
             "session":self.draft.session.as_str(),"enabled":self.enabled,
-            "remoteInstall":self.remote_install.as_str(),"color":self.color.as_str()})
+            "remoteInstall":self.remote_install.as_str(),"color":self.color.to_string()})
     }
     fn record(&self) -> Value {
         let mut extensions = self.extensions.clone();
-        extensions.insert(COLOR.to_owned(), Value::from(self.color.as_str()));
+        let legacy = self.color.legacy();
+        extensions.insert(COLOR.to_owned(), Value::from(legacy.to_string()));
+        if self.color != legacy {
+            extensions.insert(COLOR_VALUE.to_owned(), Value::from(self.color.to_string()));
+        }
         json!({"id":self.id.as_str(),"label":self.draft.label,"connection":self.draft.connection.record(),
             "session":self.draft.session.as_str(),"enabled":self.enabled,
             "remoteInstall":self.remote_install.as_str(),"extensions":extensions})
     }
-    /// A record without a color, or with one outside the palette, takes `default`'s.
+    /// A record without a color, or with one no release spells, takes `default`'s.
     fn parse(value: &Value, default: impl FnOnce() -> MachineColor) -> Option<Self> {
         let mut value = value.clone();
         let mut extensions = match value.as_object_mut()?.remove("extensions") {
@@ -299,11 +303,19 @@ impl Profile {
             Some(Value::Object(extensions)) => extensions,
             Some(_) => return None,
         };
-        let color = extensions
-            .remove(COLOR)
-            .as_ref()
-            .and_then(Value::as_str)
-            .and_then(MachineColor::parse)
+        let mut member = |name: &str| {
+            extensions
+                .remove(name)
+                .as_ref()
+                .and_then(Value::as_str)
+                .and_then(MachineColor::parse)
+        };
+        let (color, exact) = (member(COLOR), member(COLOR_VALUE));
+        // The exact color stands while `color` still names its legacy preset; an earlier release
+        // that recolored the machine changed `color` alone, and its choice wins.
+        let color = exact
+            .filter(|exact| color.is_none_or(|color| color == exact.legacy()))
+            .or(color)
             .unwrap_or_else(default);
         if !keys(
             &value,
@@ -333,8 +345,13 @@ impl Profile {
         })
     }
 }
-/// The member of a profile's `extensions` that holds its color.
+/// The member of a profile's `extensions` that every release reads as the machine's color: cyan,
+/// purple, pink or grey, the presets the first releases know, so an earlier release keeps the
+/// record and shows the nearest of them.
 const COLOR: &str = "color";
+/// The member that holds the color itself when [`COLOR`] can only name its nearest legacy preset:
+/// a later preset's name, or a custom color's `#rrggbb`.
+const COLOR_VALUE: &str = "colorValue";
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct Catalog {
     pub revision: u64,

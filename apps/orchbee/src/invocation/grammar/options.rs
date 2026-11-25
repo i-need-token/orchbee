@@ -142,7 +142,8 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
     OptionSpec {
         spelling: "--color",
         values: super::values::MACHINE_COLORS,
-        closed_values: true,
+        // A custom color, `#rrggbb`, is no listed value.
+        closed_values: false,
         string_rule: None,
         commands: &[CommandPath::MachineAdd, CommandPath::MachineSetColor],
         role: OptionRole::Business,

@@ -400,7 +400,25 @@
 			}
 		},
 		"color": {
-			"enum": ["cyan", "purple", "pink", "grey"]
+			"oneOf": [
+				{
+					"enum": [
+						"cyan",
+						"teal",
+						"sky",
+						"blue",
+						"indigo",
+						"violet",
+						"purple",
+						"magenta",
+						"pink",
+						"brown",
+						"slate",
+						"grey"
+					]
+				},
+				{ "type": "string", "pattern": "^#[0-9a-f]{6}$" }
+			]
 		},
 		"capacity": {
 			"type": "object",

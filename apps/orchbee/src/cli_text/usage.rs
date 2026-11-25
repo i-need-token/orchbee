@@ -93,7 +93,12 @@ impl super::CliText {
                 "top-left, top-right, bottom-left, bottom-right"
             }
             (_, ExpectedValue::NotificationSound) => "none, done, request",
-            (_, ExpectedValue::MachineColor) => "cyan, purple, pink, grey",
+            (Locale::EnUs, ExpectedValue::MachineColor) => {
+                "cyan, teal, sky, blue, indigo, violet, purple, magenta, pink, brown, slate, grey, or #rrggbb"
+            }
+            (Locale::ZhCn, ExpectedValue::MachineColor) => {
+                "cyan、teal、sky、blue、indigo、violet、purple、magenta、pink、brown、slate、grey 或 #rrggbb"
+            }
             (Locale::EnUs, ExpectedValue::ReportAgent) => "a nonempty Agent label",
             (Locale::ZhCn, ExpectedValue::ReportAgent) => "非空智能体标签",
             (Locale::EnUs, ExpectedValue::ReportState) => {

@@ -86,6 +86,10 @@ impl Editor {
                         self.choose_machine_color(color);
                         return None;
                     }
+                    if picker.candidate() == Choice::MachineCustomColor {
+                        self.edit_machine_custom_color();
+                        return None;
+                    }
                     if let Choice::NewProfile(entry) = picker.candidate() {
                         values::add_profile(page, entry.shell());
                         self.redraw();

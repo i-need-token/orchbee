@@ -11,5 +11,5 @@ mod theme;
 
 pub use catalog::{orchbee, select, shipped};
 pub use rgb::Rgb;
-pub use roles::{Roles, SelectionAccents, TabGroups, agent_colors};
+pub use roles::{MACHINE_COLORS, Roles, SelectionAccents, TabGroups, agent_colors};
 pub use theme::{Canvas, PaletteColor, Polarity, Source, Theme, ThemeFileError};

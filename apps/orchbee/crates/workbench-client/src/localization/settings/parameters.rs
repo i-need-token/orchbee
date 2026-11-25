@@ -18,6 +18,8 @@ pub(crate) enum SettingsChoice {
     NewProfile(Option<&'static orchbee_local_runtime::InstalledShell>),
     /// A saved machine's color.
     MachineColor(crate::machine_color::MachineColor),
+    /// The color list's Custom… entry.
+    MachineCustomColor,
 }
 
 /// A settings file the page cannot use, for its file line; the path is the Server's spelling.

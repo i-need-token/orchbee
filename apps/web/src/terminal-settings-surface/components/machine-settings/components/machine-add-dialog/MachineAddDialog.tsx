@@ -15,7 +15,7 @@ import type {
 	TerminalSettingsMachines,
 	TerminalSettingsMachinesView,
 } from '../../../../types/terminal-settings-surface';
-import { MachineColorSelect } from './components/machine-color-select/MachineColorSelect';
+import { MachineColorSelect } from '../machine-color-select/MachineColorSelect';
 import styles from './MachineAddDialog.module.css';
 
 interface MachineAddDialogProps {

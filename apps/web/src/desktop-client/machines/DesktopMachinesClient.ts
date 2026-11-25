@@ -6,14 +6,13 @@ import type {
 	TerminalSettingsMachines,
 	TerminalSettingsMachinesView,
 } from '../../terminal-settings-surface';
+import { MachineColorSchema } from '../../machine-color';
 
 const CapacitySchema = z.strictObject({
 	long: z.string(),
 	parts: z.array(z.strictObject({ low: z.boolean(), text: z.string() })).max(3),
 	summary: z.string(),
 });
-
-const ColorSchema = z.enum(['cyan', 'grey', 'pink', 'purple']);
 
 const CountSchema = z.number().int().nonnegative().nullable();
 
@@ -28,7 +27,7 @@ const MachineSchema = z.strictObject({
 	agents: CountSchema,
 	capacity: CapacitySchema,
 	card: z.strictObject({ lines: z.array(z.string()), notNow: z.string(), title: z.string() }),
-	color: ColorSchema,
+	color: MachineColorSchema,
 	label: z.string(),
 	lines: z.array(z.string()),
 	machine: z.string(),
@@ -70,7 +69,7 @@ const LoginSchema = z.strictObject({
 
 const AddSchema = z.strictObject({
 	blocked: z.boolean(),
-	color: ColorSchema,
+	color: MachineColorSchema,
 	hosts: z.array(z.strictObject({ host: z.string(), label: z.string() })),
 	lines: z.array(z.string()),
 	problem: z.strictObject({ field: z.literal('address').nullable(), text: z.string() }).nullable(),

@@ -10,20 +10,5 @@
 	text-overflow: ellipsis;
 	translate: 0 var(--ob-ref-text-icon-center-shift);
 	white-space: nowrap;
-}
-
-.mark[data-machine-color='cyan'] {
-	color: var(--ob-sys-color-machine-cyan);
-}
-
-.mark[data-machine-color='purple'] {
-	color: var(--ob-sys-color-machine-purple);
-}
-
-.mark[data-machine-color='pink'] {
-	color: var(--ob-sys-color-machine-pink);
-}
-
-.mark[data-machine-color='grey'] {
-	color: var(--ob-sys-color-machine-grey);
+	color: var(--ob-comp-machine-color);
 }

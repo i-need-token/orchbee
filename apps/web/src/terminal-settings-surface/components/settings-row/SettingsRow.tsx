@@ -2,6 +2,7 @@ import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import { machineColorValue } from '../../../machine-color';
 import type { TerminalSettingsMachineColor } from '../../types/terminal-settings-surface';
 import { matchesSettingsQuery } from '../../utils/matchesSettingsQuery';
 import styles from './SettingsRow.module.css';
@@ -105,7 +106,14 @@ export function SettingsRow({
 			<div className={styles['copy']}>
 				<div className={styles['nameLine']}>
 					{icon === undefined ? null : <span className={styles['icon']}>{icon}</span>}
-					<span className={styles['name']} data-machine-color={machineColor}>
+					<span
+						className={styles['name']}
+						data-machine-color={machineColor === undefined ? undefined : true}
+						style={{
+							'--ob-comp-machine-color':
+								machineColor === undefined ? undefined : machineColorValue(machineColor),
+						}}
+					>
 						{label}
 					</span>
 					{detail === null || detail === undefined ? null : (

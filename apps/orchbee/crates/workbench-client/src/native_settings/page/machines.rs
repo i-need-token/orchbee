@@ -322,10 +322,15 @@ impl Editor {
                     );
                 }
             }
-            // The list opens on the machine's color; choosing another sets it at once.
+            // The list opens on the machine's color, Custom… for one of the person's own; choosing a
+            // preset sets it at once.
             Row::MachineColor => {
                 if let Some(machine) = shown {
-                    page.picker = ChoicePicker::open(row, Choice::MachineColor(machine.color));
+                    let original = match machine.color {
+                        MachineColor::Preset(_) => Choice::MachineColor(machine.color),
+                        MachineColor::Custom(_) => Choice::MachineCustomColor,
+                    };
+                    page.picker = ChoicePicker::open(row, original);
                     page.follow_selection = true;
                 }
             }
@@ -382,6 +387,27 @@ impl Editor {
         self.redraw();
     }
 
+    /// Custom… in the open machine's color list: the row's editor opens on its custom color, or on
+    /// `#` for a preset's machine.
+    pub(in crate::native_settings) fn edit_machine_custom_color(&mut self) {
+        let State::Open(page) = &mut self.state else {
+            return;
+        };
+        let start = match self
+            .machines
+            .machine(page.machines.machine.as_deref())
+            .map(|machine| machine.color)
+        {
+            Some(color @ MachineColor::Custom(_)) => color.to_string(),
+            _ => "#".to_owned(),
+        };
+        if let Some(limit) = Row::MachineColor.text_limit() {
+            page.text = Some(LineEditor::new(start, LengthLimit::Bytes(limit)));
+            page.invalid = false;
+        }
+        self.redraw();
+    }
+
     /// `Enter` in the editor of a Machines row; `true` when it was one.
     pub(in crate::native_settings) fn accept_machine_text(&mut self) -> bool {
         let State::Open(page) = &mut self.state else {
@@ -408,6 +434,26 @@ impl Editor {
                     self.machines.request = Some(Request::Rename {
                         machine: machine.id.clone(),
                         label,
+                    });
+                }
+            }
+            // A custom color: one that does not read as `#rrggbb` keeps the editor open.
+            Row::MachineColor => {
+                let typed = page.text.as_ref().map(|text| text.text().trim().to_owned());
+                let Some(color @ MachineColor::Custom(_)) =
+                    typed.as_deref().and_then(MachineColor::parse)
+                else {
+                    page.invalid = true;
+                    self.redraw();
+                    return true;
+                };
+                page.text = None;
+                if let Some(machine) = self.machines.machine(page.machines.machine.as_deref())
+                    && machine.color != color
+                {
+                    self.machines.request = Some(Request::SetColor {
+                        machine: machine.id.clone(),
+                        color,
                     });
                 }
             }

@@ -165,10 +165,14 @@ fn parts(row: Row, page: PageView<'_>, locale: Locale) -> Option<Parts> {
     match row {
         Row::MachineName => parts.value = Some((label(machine), Role::TextSecondary)),
         Row::MachineColor => {
+            // A custom color is written as its value.
             parts.value = Some((
-                locale
-                    .settings_choice(Choice::MachineColor(machine.color))
-                    .to_owned(),
+                match machine.color {
+                    MachineColor::Preset(_) => locale
+                        .settings_choice(Choice::MachineColor(machine.color))
+                        .to_owned(),
+                    MachineColor::Custom(_) => machine.color.to_string(),
+                },
                 Role::TextPrimary,
             ));
             parts.lists = true;

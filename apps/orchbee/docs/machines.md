@@ -16,18 +16,29 @@ migration before applying the edit. A record with a version this build cannot us
 newer version or not updated from an earlier one, is never rewritten: saved machines read as none,
 edits last only until the process ends, and the process shows the record message once.
 
-Each machine has a color, `cyan`, `purple`, `pink` or `grey`, kept as `color` in the profile's
-`extensions`, the record's forward slot, so an earlier release that rejects unknown members still
-reads the catalog and writes the color back unchanged. A machine added without a color takes the
-one the fewest saved machines use, the earliest in that order among equals; a record without a
-color, or with another value, takes the same default at load, counting only the machines before it
-in the catalog, and keeps it from the next save. Nothing recolors a saved machine by itself.
+Each machine has a color: one of twelve presets, `cyan`, `teal`, `sky`, `blue`, `indigo`,
+`violet`, `purple`, `magenta`, `pink`, `brown`, `slate` and `grey`, or a color of the person's own,
+`#rrggbb` in lowercase. It is kept in the profile's `extensions`, the record's forward slot, as
+`color`, always one of the four presets earlier releases know: cyan, purple, pink or grey, the one
+nearest in hue, and for a custom color that of its nearest preset. Any other color is also kept as
+`colorValue`. An earlier release that rejects unknown members therefore still reads the catalog,
+shows a near color and writes both members back unchanged; `colorValue` stands only while `color`
+still names its nearer earlier preset, so a color an earlier release sets on the machine stands. A
+machine added without a color takes the preset the fewest saved machines use, the earliest in that
+order among equals; a record without a color, or with another value, takes the same default at
+load, counting only the machines before it in the catalog, and keeps it from the next save.
+Nothing recolors a saved machine by itself.
 The color is text color only, on the machine's name: its `@name` on Workspace rows, the Change
 machine list and the machine that list's entry ends with, Settings › Machines and a machine's page
 title, and the color choices. Add Machine opens on the default and Settings › Machines › Color
-changes it. At 16 colors and in `terminal-native` the TUI maps the color by name, cyan to Cyan,
-purple to Magenta, pink to bright Magenta and grey to the default foreground dimmed, so a machine
-never takes an Agent state's red, yellow or green; monochrome and `NO_COLOR` show the name alone.
+changes it; both list the presets, then Custom…, which takes a typed `#rrggbb`, and the desktop
+window also offers the system color picker. Every theme raises each preset to text contrast on its
+surfaces, as [color-themes](../../../crates/color-themes/README.md#resolver) resolves it; a custom
+color is drawn as chosen. At 16 colors and in `terminal-native` the TUI maps a preset by name, cyan
+and teal to Cyan, sky to bright Cyan, blue and violet to bright Blue, indigo to Blue, purple and
+magenta to Magenta, pink to bright Magenta, brown to bright Black, and slate and grey to the default
+foreground dimmed, so a preset never takes an Agent state's red, yellow or green; a custom color
+takes the nearest color the terminal shows. Monochrome and `NO_COLOR` show the name alone.
 
 A connection `kind` this build does not know is kept verbatim with every member it carries and
 written back unchanged. That machine is listed as unsupported, the same word in every client,

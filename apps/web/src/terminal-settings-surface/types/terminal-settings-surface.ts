@@ -2,6 +2,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 
 import type { ApplicationLocaleController } from '../../application-locale';
 import type { KeyboardShortcutSettingsController } from '../../keyboard-shortcuts';
+import type { MachineColor } from '../../machine-color';
 import type { MacosTerminalInputSettingsController } from '../../macos-terminal-input-settings';
 import type { TerminalDefaultSettingsControl } from '../../terminal-default-settings-control';
 import type { TerminalFeedbackSettingsController } from '../../terminal-feedback-settings';
@@ -70,8 +71,8 @@ interface TerminalSettingsMachineCapacity {
 	readonly summary: string;
 }
 
-/** A saved machine's color, the same names in every locale. */
-export type TerminalSettingsMachineColor = 'cyan' | 'grey' | 'pink' | 'purple';
+/** A saved machine's color: a preset, the same name in every locale, or `#rrggbb`. */
+export type TerminalSettingsMachineColor = MachineColor;
 
 /** What a machine's Status button does. */
 type TerminalSettingsMachineAct = 'connect' | 'disconnect' | 'log-in' | 'retry' | 'retry-now';

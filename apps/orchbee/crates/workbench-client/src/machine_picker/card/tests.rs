@@ -139,7 +139,7 @@ impl Bench {
             last_attempt: None,
             explanation: crate::machine_status::Explanation::default(),
             stopping: false,
-            color: crate::machine_color::MachineColor::Cyan,
+            color: crate::machine_color::MachineColor::DEFAULT,
         }
     }
 

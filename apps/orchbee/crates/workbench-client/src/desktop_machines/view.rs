@@ -76,7 +76,7 @@ fn machine(locale: Locale, machine: &Machine) -> Value {
         "machine": machine.id,
         "label": machine.label,
         "address": machine.address,
-        "color": machine.color.as_str(),
+        "color": machine.color.to_string(),
         "state": state(machine.state),
         "stopping": machine.stopping,
         "word": locale.machine_state_word(machine),
@@ -152,7 +152,7 @@ fn add(locale: Locale, add: &Add) -> Value {
         "submit": submit,
         "blocked": blocked,
         "saved": add.saved.as_ref().map(|machine| machine.as_str()),
-        "color": add.color.as_str(),
+        "color": add.color.to_string(),
     })
 }
 

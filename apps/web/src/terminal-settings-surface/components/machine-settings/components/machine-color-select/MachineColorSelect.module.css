@@ -1,0 +1,52 @@
+/* Its own width beside the address or in a settings row; a custom color's field follows the dot. */
+.root {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.trigger {
+	flex: none;
+}
+
+/* A machine's color: its preset's theme token, or the custom color as chosen. */
+.dot {
+	flex: none;
+	inline-size: var(--ob-ref-size-icon-sm);
+	block-size: var(--ob-ref-size-icon-sm);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-comp-machine-color);
+}
+
+/* Custom… before a custom color is chosen: an empty ring in the dot's place. */
+.ring {
+	box-sizing: border-box;
+	flex: none;
+	inline-size: var(--ob-ref-size-icon-sm);
+	block-size: var(--ob-ref-size-icon-sm);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-strong);
+	border-radius: var(--ob-ref-radius-full);
+}
+
+.custom {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+}
+
+.picker {
+	box-sizing: border-box;
+	width: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-sm);
+	padding: var(--ob-ref-space-0-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+}
+
+.hex {
+	width: calc(var(--ob-ref-space-16) + var(--ob-ref-space-6));
+	height: var(--ob-ref-size-control-sm);
+	font: var(--ob-sys-typography-code-sm);
+}

@@ -1,7 +1,7 @@
 //! Named themes take every role from the shipped theme crate's resolver; no renderer owns colors.
 use super::{
-    Color, ColorLevel, DestructiveRest, GlyphSet, Modifier, Polarity, RoleStyles, SelectionAccents,
-    Style, TabGroupPalette, TerminalColorSource, Theme,
+    Color, ColorLevel, DestructiveRest, GlyphSet, MachinePalette, Modifier, Polarity, RoleStyles,
+    SelectionAccents, Style, TabGroupPalette, TerminalColorSource, Theme,
 };
 use orchbee_color_themes::{Rgb, Roles};
 use ratatui::widgets::BorderType;
@@ -170,6 +170,10 @@ impl Theme {
                 group_channels(roles.selection.tab_groups),
                 channels(roles.surface_strip),
             ),
+            machines: Some(MachinePalette {
+                rest: roles.machines.map(rgb),
+                selection: roles.selection.machines.map(rgb),
+            }),
         }
     }
 

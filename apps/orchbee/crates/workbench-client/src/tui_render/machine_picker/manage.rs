@@ -6,10 +6,10 @@ use super::{component_state, picker_interaction, pointer_presentation, render_pi
 use crate::action_projection::ActionTone;
 use crate::client_view::{Binding, KeyCode, LabelStyle, Modifiers, format_binding_with_glyphs};
 use crate::localization::{Locale, ManageText};
-use crate::machine_color::MachineColor;
+use crate::machine_color::{MachineColor, Preset};
 use crate::machine_picker::{
     AddForm, Check, Field, FormControl, MENU_KEY, MenuItem, Page, Picker, PickerAction,
-    PickerSource,
+    PickerSource, SWATCH_COLUMNS, Swatch,
 };
 use crate::machine_status::Action;
 use crate::machines::added_label;
@@ -225,16 +225,17 @@ fn render_color_marker(
     rect
 }
 
-/// The open color list below the color, as a select's list over the form: each color's marker
-/// and name in that color, the chosen one checked and the highlighted one marked. A click on a
-/// color chooses it; a click anywhere else closes the list.
+/// The open color list below the color, as a select's list over the form: the presets in rows of
+/// [`SWATCH_COLUMNS`], each marker and name in its color, then Custom…, which opens a field for a
+/// color of the person's own on its line. The chosen entry is checked and the highlighted one
+/// marked. A click on a preset chooses it; a click anywhere else closes the list.
 #[expect(clippy::too_many_arguments, reason = "one painter of one list's parts")]
 fn render_palette(
     frame: &mut Frame<'_>,
     body: Rect,
     anchor: Rect,
     form: &AddForm,
-    highlighted: MachineColor,
+    highlighted: Swatch,
     source: &PickerSource,
     locale: Locale,
     theme: &Theme,
@@ -243,23 +244,35 @@ fn render_palette(
     hits.start_modal();
     let bounds = frame.area();
     let heading = locale.machine_manage_text(ManageText::Color);
+    let custom_label = locale.machine_manage_text(ManageText::CustomColor);
+    let invalid = form
+        .custom_invalid
+        .then(|| locale.machine_manage_text(ManageText::CustomColorInvalid));
     let glyph_width = |glyph: &str| u16::try_from(display_width(glyph)).unwrap_or(u16::MAX);
     let navigation_width = glyph_width(theme.glyphs.navigation_marker).max(1);
     let check_width = glyph_width(theme.glyphs.checked_marker);
+    let tracks = navigation_width + check_width;
     let marker_width = glyph_width(theme.glyphs.choice_on);
-    let widest = MachineColor::PALETTE
+    let widest = Preset::ALL
         .iter()
-        .map(|color| glyph_width(locale.machine_color_name(*color)))
+        .map(|preset| glyph_width(locale.machine_color_name(MachineColor::Preset(*preset))))
         .max()
         .unwrap_or(0);
-    // The navigation and checked tracks, the marker between two gaps, the name; two border cells
-    // and two padding cells around them.
-    let content = navigation_width + check_width + 1 + marker_width + 1 + widest;
+    // A cell: the two tracks, the marker between two gaps, the name; one blank cell between cells.
+    let cell = tracks + 1 + marker_width + 1 + widest;
+    let columns = u16::try_from(SWATCH_COLUMNS).unwrap_or(u16::MAX);
+    let grid = cell * columns + columns.saturating_sub(1);
+    // Custom…'s line: its cell, then the typed color's field of `#` and six digits with its padding.
+    let custom_line = tracks + 1 + marker_width + 1 + glyph_width(custom_label) + 1 + 9;
+    let content = grid
+        .max(custom_line)
+        .max(invalid.map_or(0, glyph_width))
+        .max(glyph_width(heading) + 2);
     let width = content
-        .max(glyph_width(heading) + 2)
         .saturating_add(4)
         .min(bounds.width.saturating_sub(2));
-    let height = u16::try_from(MachineColor::PALETTE.len() + 2).unwrap_or(u16::MAX);
+    let rows = Preset::ALL.len().div_ceil(SWATCH_COLUMNS);
+    let height = u16::try_from(rows + 3 + usize::from(invalid.is_some())).unwrap_or(u16::MAX);
     if height > bounds.height {
         return;
     }
@@ -289,20 +302,99 @@ fn render_palette(
         )),
         area,
     );
-    for (index, color) in MachineColor::PALETTE.into_iter().enumerate() {
+    let painter = SwatchPainter {
+        form,
+        highlighted,
+        source,
+        theme,
+        navigation_width,
+        check_width,
+        marker_width,
+    };
+    for (index, preset) in Preset::ALL.into_iter().enumerate() {
+        let (row, column) = (index / SWATCH_COLUMNS, index % SWATCH_COLUMNS);
         let rect = Rect::new(
-            inner.x,
-            inner.y + u16::try_from(index).unwrap_or(u16::MAX),
-            inner.width,
+            inner.x + u16::try_from(column).unwrap_or(u16::MAX) * (cell + 1),
+            inner.y + u16::try_from(row).unwrap_or(u16::MAX),
+            cell,
+            1,
+        )
+        .intersection(inner);
+        painter.paint(
+            frame,
+            rect,
+            Swatch::Preset(preset),
+            locale.machine_color_name(MachineColor::Preset(preset)),
+            hits,
+        );
+    }
+    let custom_y = inner.y + u16::try_from(rows).unwrap_or(u16::MAX);
+    let custom_cell = tracks + 1 + marker_width + 1 + glyph_width(custom_label);
+    let custom_rect = Rect::new(inner.x, custom_y, custom_cell, 1).intersection(inner);
+    painter.paint(frame, custom_rect, Swatch::Custom, custom_label, hits);
+    if let Some(editor) = &form.custom {
+        let field = Rect::new(
+            custom_rect.right() + 1,
+            custom_y,
+            inner.right().saturating_sub(custom_rect.right() + 1).min(9),
             1,
         );
-        if rect.y >= inner.bottom() {
-            break;
+        render_field(
+            frame,
+            field,
+            editor,
+            Some(locale.machine_manage_text(ManageText::CustomColorHint)),
+            true,
+            theme,
+        );
+    }
+    if let Some(invalid) = invalid {
+        frame.render_widget(
+            Paragraph::new(truncate_display(
+                invalid,
+                usize::from(inner.width),
+                theme.glyphs.ellipsis,
+            ))
+            .style(theme.style(Role::StatusError)),
+            Rect::new(inner.x, custom_y + 1, inner.width, 1).intersection(inner),
+        );
+    }
+    if let Some((target, _)) = picker_interaction(source, PickerAction::Form(FormControl::Palette))
+    {
+        hits.record_overlay_dismissal(&target);
+    }
+}
+
+/// What every entry of the open color list paints with.
+struct SwatchPainter<'a> {
+    form: &'a AddForm,
+    highlighted: Swatch,
+    source: &'a PickerSource,
+    theme: &'a Theme,
+    navigation_width: u16,
+    check_width: u16,
+    marker_width: u16,
+}
+
+impl SwatchPainter<'_> {
+    /// One entry in `rect`: its tracks, its marker and its name, both in its color, raised on the
+    /// highlight; Custom… takes the custom color's, or a hollow marker in the text color.
+    fn paint(
+        &self,
+        frame: &mut Frame<'_>,
+        rect: Rect,
+        swatch: Swatch,
+        name: &str,
+        hits: &mut HitMapBuilder,
+    ) {
+        let theme = self.theme;
+        if rect.width == 0 {
+            return;
         }
         let Some((target, spec)) =
-            picker_interaction(source, PickerAction::Form(FormControl::Color(color)))
+            picker_interaction(self.source, PickerAction::Form(FormControl::Swatch(swatch)))
         else {
-            continue;
+            return;
         };
         let pointer = pointer_presentation(hits.projected_pointer(
             HitLayer::Overlay,
@@ -311,26 +403,24 @@ fn render_palette(
             &target,
             spec,
         ));
-        let navigation = Rect::new(rect.x, rect.y, navigation_width, 1);
-        let checked = Rect::new(navigation.right(), rect.y, check_width, 1);
-        let dot = Rect::new(checked.right() + 1, rect.y, marker_width, 1);
+        let navigation = Rect::new(rect.x, rect.y, self.navigation_width, 1);
+        let checked = Rect::new(navigation.right(), rect.y, self.check_width, 1);
+        let dot = Rect::new(checked.right() + 1, rect.y, self.marker_width, 1);
         let primary = Rect::new(
             dot.right() + 1,
             rect.y,
             rect.right().saturating_sub(dot.right() + 1),
             1,
         );
-        let name = truncate_display(
-            locale.machine_color_name(color),
-            usize::from(primary.width),
-            theme.glyphs.ellipsis,
-        );
-        let name_width = glyph_width(&name).min(primary.width);
+        let name = truncate_display(name, usize::from(primary.width), theme.glyphs.ellipsis);
+        let name_width = u16::try_from(display_width(&name))
+            .unwrap_or(u16::MAX)
+            .min(primary.width);
         frame.render_widget(
             Paragraph::new(name).style(theme.style(Role::TextPrimary)),
             primary,
         );
-        let provisional = highlighted == color;
+        let provisional = self.highlighted == swatch;
         let state = component_state(
             pointer,
             if provisional {
@@ -339,7 +429,7 @@ fn render_palette(
                 NavigationState::None
             },
             CurrentState::NotCurrent,
-            if form.color == color {
+            if Swatch::of(self.form.color) == swatch {
                 CheckedState::Checked
             } else {
                 CheckedState::Unchecked
@@ -363,23 +453,31 @@ fn render_palette(
         )
         .is_none()
         {
-            continue;
+            return;
         }
-        // Over the row's fill, the marker and the name take the color, raised on the highlight.
-        let colored = theme.machine_name_style(
-            color,
-            provisional.then_some(Role::SurfaceSelection),
-            Style::new(),
-        );
-        frame.render_widget(Paragraph::new(theme.glyphs.choice_on).style(colored), dot);
-        frame
-            .buffer_mut()
-            .set_style(Rect::new(primary.x, primary.y, name_width, 1), colored);
+        // Over the row's fill, the marker and a preset's name take the color.
+        let color = match swatch {
+            Swatch::Preset(preset) => Some(MachineColor::Preset(preset)),
+            Swatch::Custom => {
+                Some(self.form.color).filter(|color| matches!(color, MachineColor::Custom(_)))
+            }
+        };
+        let raised = provisional.then_some(Role::SurfaceSelection);
+        let (marker, marker_style) = match color {
+            Some(color) => (
+                theme.glyphs.choice_on,
+                theme.machine_name_style(color, raised, Style::new()),
+            ),
+            None => (theme.glyphs.choice_off, theme.style(Role::TextSecondary)),
+        };
+        frame.render_widget(Paragraph::new(marker).style(marker_style), dot);
+        if let Swatch::Preset(preset) = swatch {
+            frame.buffer_mut().set_style(
+                Rect::new(primary.x, primary.y, name_width, 1),
+                theme.machine_name_style(MachineColor::Preset(preset), raised, Style::new()),
+            );
+        }
         hits.record_interaction(HitLayer::Overlay, rect, rect, target, spec);
-    }
-    if let Some((target, _)) = picker_interaction(source, PickerAction::Form(FormControl::Palette))
-    {
-        hits.record_overlay_dismissal(&target);
     }
 }
 
@@ -429,9 +527,9 @@ impl Picker {
         let (title, rows) = match self.manage().page() {
             Page::Add(form) => (
                 locale.machine_manage_text(ManageText::AddTitle),
-                // Five lines for a check's outcome, which also leave the color list room below
-                // the address when no host is listed.
-                11 + hosts_lines(form),
+                // Five lines for a check's outcome, and room for the color list below the
+                // address, a typed custom color's problem included, when no host is listed.
+                13 + hosts_lines(form),
             ),
             Page::Confirm { .. } => (locale.machine_manage_text(ManageText::ConfirmTitle), 8),
             Page::List | Page::Menu { .. } | Page::Rename { .. } => return false,
