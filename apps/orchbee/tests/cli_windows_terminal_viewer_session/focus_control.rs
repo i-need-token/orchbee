@@ -234,7 +234,8 @@ fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_un
     wait("Working kept the completed cell color", || {
         agent_color(&fixture, &tui).filter(|color| color != &completed_color)
     });
-    attention(&fixture, &tui, &second, false);
+    // Entering work starts seen, even after a completion nobody read; finishing marks it again.
+    attention(&fixture, &tui, &second, true);
     report(&fixture, &second, "idle");
     let completed = fixture.run(&["agent", "get", "--panel", &second]);
     assert_eq!(
