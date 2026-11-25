@@ -222,6 +222,8 @@ pub struct GlyphSet {
     /// expanded Tab Group's members in the Tab list, and the strip's member mark where no group
     /// color shows.
     pub(crate) tree_guide: &'static str,
+    /// The guide's stretch beside the current Agent in the sidebar.
+    pub(crate) tree_guide_current: &'static str,
     /// The sidebar toggle's glyph while it hides the visible sidebar and while it shows the hidden
     /// one. The ASCII forms appear only inside that bracketed toggle, never in a marker track.
     pub(crate) sidebar_hide: &'static str,
@@ -253,6 +255,7 @@ impl GlyphSet {
         disclosure_open: "▾",
         disclosure_closed: "▸",
         tree_guide: "│",
+        tree_guide_current: "┃",
         sidebar_hide: "«",
         sidebar_show: "»",
         half_blocks: Some(("▀", "▄")),
@@ -279,6 +282,7 @@ impl GlyphSet {
         disclosure_open: "v",
         disclosure_closed: ">",
         tree_guide: "|",
+        tree_guide_current: "#",
         sidebar_hide: "<",
         sidebar_show: ">",
         half_blocks: None,
@@ -562,39 +566,38 @@ impl Theme {
         Some((u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
     }
 
-    /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark. Both are East
-    /// Asian Neutral, so they keep one cell even on hosts that widen ambiguous-width text.
+    /// Whether Agent state glyphs show selection: where color carries the state, the glyph is solid
+    /// for the current Agent, Tab or pane and hollow elsewhere. Without color or UTF-8, the glyph's
+    /// shape is the only thing that tells states apart, so it shows the state alone.
+    pub(crate) fn agent_glyphs_show_selection(&self) -> bool {
+        self.glyphs.ellipsis != ".." && !self.no_color && self.color_level != ColorLevel::Monochrome
+    }
+
+    /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark, and an
+    /// unknown state draws the status bullet or `◦` U+25E6. Where color shows, color names the
+    /// state and `selected` picks the solid or hollow form; otherwise each state keeps its own
+    /// shape. The hexagons and `◦` are East Asian Neutral, so they keep one cell even on hosts that
+    /// widen ambiguous-width text.
     pub(crate) fn agent_glyph(
         &self,
         state: orchbee_workbench_protocol::MetadataState,
+        selected: bool,
     ) -> &'static str {
         use orchbee_workbench_protocol::MetadataState::*;
+        if self.agent_glyphs_show_selection() {
+            return match (state, selected) {
+                (Unknown, true) => self.glyphs.status_bullet,
+                (Unknown, false) => "◦",
+                (_, true) => "⬢",
+                (_, false) => "⬡",
+            };
+        }
         let ascii = self.glyphs.ellipsis == "..";
-        let distinguish_outcomes =
-            ascii || self.no_color || self.color_level == ColorLevel::Monochrome;
         match state {
             Working => self.glyphs.working_frames.first().copied().unwrap_or("~"),
-            Blocked => {
-                if distinguish_outcomes {
-                    "#"
-                } else {
-                    "⬢"
-                }
-            }
-            Done => {
-                if distinguish_outcomes {
-                    "+"
-                } else {
-                    "⬢"
-                }
-            }
-            Error => {
-                if distinguish_outcomes {
-                    "x"
-                } else {
-                    "⬢"
-                }
-            }
+            Blocked => "#",
+            Done => "+",
+            Error => "x",
             Idle => {
                 if ascii {
                     "o"

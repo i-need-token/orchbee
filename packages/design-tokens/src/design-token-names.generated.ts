@@ -1133,6 +1133,7 @@ export const designTokenNames = [
 	'--ob-sys-typography-label-lg',
 	'--ob-sys-typography-label-md',
 	'--ob-sys-typography-label-sm',
+	'--ob-sys-typography-label-sm-strong',
 	'--ob-sys-typography-label-xs',
 	'--ob-sys-typography-website-agents-states',
 	'--ob-sys-typography-website-away-body',

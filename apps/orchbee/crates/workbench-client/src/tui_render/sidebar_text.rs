@@ -131,18 +131,21 @@ pub(super) fn state_role(state: orchbee_workbench_protocol::MetadataState) -> (&
         MetadataState::Unknown => ("agent-unknown", Role::TextSecondary),
     }
 }
-/// Working cycles through the theme's equal-width frames at the Sidebar phase; other states are
-/// static.
+/// `selected` says whether the glyph stands for the current Agent, Tab or pane, which draws it solid
+/// where color shows. Without color, Working cycles through the theme's equal-width frames at the
+/// Sidebar phase; other states are static.
 pub(super) fn state_glyph(
     state: MetadataState,
+    selected: bool,
     theme: &Theme,
     working_frame: usize,
 ) -> &'static str {
     let frames = theme.glyphs.working_frames;
-    if state == MetadataState::Working && !frames.is_empty() {
+    if state == MetadataState::Working && !theme.agent_glyphs_show_selection() && !frames.is_empty()
+    {
         frames[working_frame % frames.len()]
     } else {
-        theme.agent_glyph(state)
+        theme.agent_glyph(state, selected)
     }
 }
 /// Preserve style boundaries while truncating the entire line at a grapheme boundary.

@@ -34,7 +34,7 @@ fn default_line(
             _ => None,
         })
         .unwrap();
-    let projected = agent_tokens::projection(&view, row, Locale::EnUs, theme, width);
+    let projected = agent_tokens::projection(&view, row, Locale::EnUs, theme, width, false);
     let names = projected.names().to_vec();
     assert_eq!(names.len(), 1);
     let (mut lines, _) = projected.into_parts();
@@ -179,15 +179,9 @@ fn default_agent_row_cuts_its_title_before_its_provider_and_keeps_the_title_when
             format!("{title} {} Codex", theme.glyphs.middle_dot),
             "the tooltip gives the whole row"
         );
-        // The title uses primary text and the separator and provider quieter secondary text.
-        let role = |span: &ratatui::text::Span<'_>| span.style.fg;
-        assert_eq!(role(&spans[0]), theme.style(Role::TextPrimary).fg);
         if spans.len() > 1 {
             assert_eq!(spans.len(), 3);
             assert!(display_width(&actual) <= width, "{actual}");
-            for span in &spans[1..] {
-                assert_eq!(role(span), theme.style(Role::TextSecondary).fg);
-            }
         }
     }
 }
@@ -395,11 +389,9 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 })
                 .unwrap();
             assert!(rows[y as usize].contains("Input"), "{rows:?}");
-            assert!(
-                rows[y as usize].contains(
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-                )
-            );
+            assert!(rows[y as usize].contains(
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
+            ));
             assert!(!rows.join("\n").contains("Local /"));
             assert!(!rows.join("\n").contains("本地 /"));
             assert!(!rows.join("\n").contains("space /"));
@@ -700,9 +692,10 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                 if visible {
                     assert!(joined.contains(locale.settings_title()), "{rows:?}");
                     assert!(
-                        joined.contains(
-                            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
-                        ),
+                        joined.contains(theme.agent_glyph(
+                            orchbee_workbench_protocol::MetadataState::Working,
+                            false
+                        )),
                         "{width}x{height} {rows:?}"
                     );
                     let mut inspected = Vec::new();
@@ -1069,11 +1062,27 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
-        // The Agent surface includes a blank cell before its state, after the guide and gap.
-        assert_eq!(
-            terminal.backend().buffer()[(5, y)].bg,
-            theme.color(Role::SurfaceCurrent)
-        );
+        // The current Agent takes no current fill, which would join the current Workspace's into
+        // one block; its title is bold instead.
+        for x in (0..120).filter(|x| {
+            matches!(
+                hits.hit_target_at(*x, y),
+                Some(HitTarget::MachineAgentRow { .. })
+            )
+        }) {
+            let cell = &terminal.backend().buffer()[(x, y)];
+            assert_eq!(
+                cell.bg,
+                theme.color(Role::SurfaceChrome),
+                "{} x={x}",
+                theme.name
+            );
+            assert!(
+                !cell.modifier.contains(Modifier::UNDERLINED),
+                "{} x={x}",
+                theme.name
+            );
+        }
         let title_x = (0..30)
             .find(|x| {
                 terminal.backend().buffer()[(*x, y)]
@@ -1083,9 +1092,11 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             })
             .unwrap();
         assert!(
-            !terminal.backend().buffer()[(title_x, y)]
+            terminal.backend().buffer()[(title_x, y)]
                 .modifier
-                .contains(Modifier::BOLD)
+                .contains(Modifier::BOLD),
+            "{}",
+            theme.name
         );
         let before_seen = view
             .machines
@@ -1098,56 +1109,11 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 _ => None,
             })
             .unwrap();
-        // The fill alone marks an RGB current row, underlined only where no fill can show;
-        // terminal-native also underlines every cell of its filled band, from the blank cell
-        // before the state glyph to the row's trailing edge, as Monochrome does.
-        let underlined = theme
-            .underline_collapsed_current()
-            .style(Role::SurfaceCurrent)
-            .add_modifier
-            .contains(Modifier::UNDERLINED);
-        assert_eq!(
-            underlined,
-            theme.name == "terminal-native",
-            "{}",
-            theme.name
-        );
-        if theme.color(Role::SurfaceCurrent) != theme.color(Role::SurfaceChrome) {
-            let band = (0..120)
-                .filter(|x| {
-                    matches!(
-                        hits.hit_target_at(*x, y),
-                        Some(HitTarget::MachineAgentRow { .. })
-                    ) && terminal.backend().buffer()[(*x, y)].bg
-                        == theme.color(Role::SurfaceCurrent)
-                })
-                .collect::<Vec<_>>();
-            assert!(band.len() >= 20, "{} {band:?}", theme.name);
-            for x in band {
-                assert_eq!(
-                    terminal.backend().buffer()[(x, y)]
-                        .modifier
-                        .contains(Modifier::UNDERLINED),
-                    underlined,
-                    "{} x={x}",
-                    theme.name
-                );
-            }
-        }
-        assert_eq!(
-            terminal.backend().buffer()[(title_x, y)]
-                .modifier
-                .contains(Modifier::UNDERLINED),
-            theme
-                .underline_collapsed_current()
-                .style(Role::SurfaceCurrent)
-                .add_modifier
-                .contains(Modifier::UNDERLINED)
-        );
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         assert!(
-            rows[y as usize]
-                .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
+            rows[y as usize].contains(
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true)
+            ),
             "{:?}",
             rows[y as usize]
         );

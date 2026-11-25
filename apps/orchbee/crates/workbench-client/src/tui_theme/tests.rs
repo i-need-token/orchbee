@@ -1181,19 +1181,32 @@ fn every_agent_state_glyph_keeps_one_cell_in_every_glyph_set_and_color_level() {
         ] {
             let theme = theme.with_glyphs(glyphs);
             for state in [Working, Blocked, Done, Error, Idle, Unknown] {
-                let glyph = theme.agent_glyph(state);
-                assert_eq!(crate::terminal_text::display_width(glyph), 1, "{glyph}");
+                for selected in [false, true] {
+                    let glyph = theme.agent_glyph(state, selected);
+                    assert_eq!(crate::terminal_text::display_width(glyph), 1, "{glyph}");
+                }
             }
             for frame in glyphs.working_frames {
                 assert_eq!(crate::terminal_text::display_width(frame), 1, "{frame}");
             }
         }
     }
-    // Filled and hollow hexagons keep the filled and hollow meanings where color shows.
-    let theme = Theme::orchbee_dark();
-    assert_eq!(theme.agent_glyph(Working), "⬢");
-    assert_eq!(theme.agent_glyph(Done), "⬢");
-    assert_eq!(theme.agent_glyph(Idle), "⬡");
+    // Where color names the state, the glyph's fill says selection; without color, its shape
+    // says the state alone, so outcomes stay apart and selection changes nothing.
+    let colored = Theme::orchbee_dark();
+    let plain = Theme::terminal_native().with_no_color(true);
+    for state in [Working, Blocked, Done, Error, Idle, Unknown] {
+        assert_ne!(
+            colored.agent_glyph(state, true),
+            colored.agent_glyph(state, false)
+        );
+        assert_eq!(
+            plain.agent_glyph(state, true),
+            plain.agent_glyph(state, false)
+        );
+    }
+    let outcomes = [Blocked, Done, Error].map(|state| plain.agent_glyph(state, false));
+    assert!(outcomes[0] != outcomes[1] && outcomes[1] != outcomes[2] && outcomes[0] != outcomes[2]);
 }
 
 #[test]
@@ -1319,6 +1332,7 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
         GlyphSet::ASCII.disclosure_open,
         GlyphSet::ASCII.disclosure_closed,
         GlyphSet::ASCII.tree_guide,
+        GlyphSet::ASCII.tree_guide_current,
     ] {
         assert!(value.is_ascii());
     }

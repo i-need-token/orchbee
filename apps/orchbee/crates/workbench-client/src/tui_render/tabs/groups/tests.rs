@@ -426,7 +426,7 @@ fn terminal_native_working_reads_on_the_current_tab_fill() {
     let glyph = &buffer[(1, 0)];
     assert_eq!(
         glyph.symbol(),
-        state_glyph(MetadataState::Working, &theme, 0)
+        state_glyph(MetadataState::Working, true, &theme, 0)
     );
     let current = theme.style(Role::SurfaceCurrent);
     assert_eq!((Some(glyph.fg), Some(glyph.bg)), (current.fg, current.bg));
@@ -445,7 +445,7 @@ fn terminal_native_pointer_bands_keep_agent_and_unread_hues_off_reverse_video() 
         let (buffer, _) = draw(std::slice::from_ref(&blocked), &theme, 40, |_, _| pointer);
         assert!(text(&buffer).starts_with(&format!(
             " {} agent {}",
-            state_glyph(MetadataState::Blocked, &theme, 0),
+            state_glyph(MetadataState::Blocked, false, &theme, 0),
             theme.glyphs.status_bullet
         )));
         for (x, role) in [(1, Role::AgentAttention), (9, Role::StatusUnread)] {
@@ -529,7 +529,7 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
     let mut working = tab("agent", true, None);
     working.agent = agent(MetadataState::Working, true);
     let (buffer, _) = draw(std::slice::from_ref(&working), &theme, 40, rest);
-    let glyph = state_glyph(MetadataState::Working, &theme, 0);
+    let glyph = state_glyph(MetadataState::Working, true, &theme, 0);
     assert!(text(&buffer).starts_with(&format!(" {glyph} agent {}", theme.glyphs.status_bullet)));
     assert_eq!(buffer[(1, 0)].fg, theme.color(Role::StatusWorking));
     assert_eq!(buffer[(9, 0)].fg, theme.color(Role::StatusUnread));
@@ -572,7 +572,7 @@ fn agent_cues_lead_tabs_and_a_collapsed_group_carries_and_names_its_hidden_state
     .collect();
     let (buffer, hits) = draw(&members, &theme, 40, rest);
     assert_eq!(hits.len(), 1);
-    let blocked = state_glyph(MetadataState::Blocked, &theme, 0);
+    let blocked = state_glyph(MetadataState::Blocked, true, &theme, 0);
     assert!(
         text(&buffer).starts_with(&format!(" {blocked} Agents {}", theme.glyphs.status_bullet)),
         "{}",

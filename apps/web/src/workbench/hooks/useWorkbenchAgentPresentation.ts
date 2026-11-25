@@ -225,7 +225,9 @@ export function useWorkbenchAgentPresentation({
 			const hasUnread = presentationIds.some((id) => unread.has(id));
 			statusAdornments.set(tab.tabId, {
 				accessibleLabel: `${formatWorkbenchAgentGroupName(intl, agents)}: ${status.status}${hasUnread ? ` · ${unreadLabel}` : ''}`,
-				mark: React.createElement(WorkbenchAgentStateGlyph, { status }),
+				// The strip draws the solid mark on the active Tab, so a Tab switch rebuilds no adornment.
+				activeMark: React.createElement(WorkbenchAgentStateGlyph, { selected: true, status }),
+				mark: React.createElement(WorkbenchAgentStateGlyph, { selected: false, status }),
 				icon: identityIcon,
 				kind: TAB_ADORNMENT_KINDS[state],
 				unreadLabel: hasUnread ? unreadLabel : undefined,
@@ -282,9 +284,10 @@ export function useWorkbenchAgentPresentation({
 						const { agentLabel, titleLabel } = rowNames({ destination, observation });
 						const status = formatWorkbenchAgentStatus(intl, observation.state);
 						return {
+							current: destination.presentationId === currentPresentationId,
+							figure: status.figure,
 							identity: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
 							presentationId: destination.presentationId,
-							shape: status.shape,
 							status: status.status,
 							tone: status.tone,
 						};

@@ -332,7 +332,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 );
                 assert_eq!(
                     buffer[(agent_tracks.state.x, agent_y)].symbol(),
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
                 );
                 assert_eq!(agent_tracks.state.x, 4);
                 assert_eq!(buffer[(3, agent_y)].symbol(), " ");
@@ -1933,13 +1933,13 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             )
             .unwrap();
             assert_eq!(candidate[(tracks.navigation.x, y)].symbol(), " ");
-            // The fill alone marks current identity; no row adds a text marker.
+            // No row adds a text marker.
             assert!((0..120).all(|x| candidate[(x, y)].symbol() != theme.glyphs.active_marker));
-            // Only the Agent row has a state column.
+            // Only the Agent row has a state column, solid for the current Agent.
             if target == &agent {
                 assert_eq!(
                     candidate[(tracks.state.x, y)].symbol(),
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true)
                 );
             }
             // An expanded Workspace leaves the unread cue to its visible Agent row.
@@ -1954,15 +1954,21 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             let identity_x = (tracks.primary.x..tracks.primary.right())
                 .find(|x| candidate[(*x, y)].symbol() != " ")
                 .unwrap();
-            assert!(!candidate[(identity_x, y)].modifier.contains(Modifier::BOLD));
-            // The Agent surface includes leading padding; the tree lead stays on chrome.
+            // The current Workspace's name keeps its configured weight; the current Agent's
+            // title is bold.
+            assert_eq!(
+                candidate[(identity_x, y)].modifier.contains(Modifier::BOLD),
+                target == &agent
+            );
+            // Only the Workspace takes the current fill; the Agent row beneath it stays on chrome,
+            // so the two never join into one block.
             for x in 0..120 {
                 assert_eq!(
                     candidate[(x, y)].bg,
-                    theme.color(if target != &context && x < tracks.surface().x {
-                        Role::SurfaceChrome
-                    } else {
+                    theme.color(if target == &context {
                         Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
                     })
                 );
                 assert!(hit_belongs_to_sidebar_target(
@@ -2028,7 +2034,7 @@ fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_fo
         assert!((0..26).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker));
         assert_eq!(
             buffer[(tracks.primary.x, y + 1)].symbol(),
-            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
         );
         assert_eq!(
             buffer[(tracks.unread.x, y)].symbol(),
@@ -2143,8 +2149,14 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         for y in 0..height {
             for x in 0..width {
                 if before[(x, y)] != after[(x, y)] {
-                    assert_eq!(before[(x, y)].symbol(), theme.glyphs.working_frames[0]);
-                    assert_eq!(after[(x, y)].symbol(), theme.glyphs.working_frames[0]);
+                    let working = [false, true].map(|selected| {
+                        theme.agent_glyph(
+                            orchbee_workbench_protocol::MetadataState::Working,
+                            selected,
+                        )
+                    });
+                    assert!(working.contains(&before[(x, y)].symbol()));
+                    assert_eq!(after[(x, y)].symbol(), before[(x, y)].symbol());
                     assert_ne!(before[(x, y)].style(), after[(x, y)].style());
                     changed += 1;
                 }

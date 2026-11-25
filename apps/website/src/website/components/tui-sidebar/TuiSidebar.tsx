@@ -4,12 +4,14 @@ import type { ReactElement } from 'react';
 import { StateGlyph, type AgentState } from '../state-glyph/StateGlyph';
 import styles from './TuiSidebar.module.css';
 
-/** An Agent row. `bind` names the scene values script writes into it; `shown` hides the row. */
+/** An Agent row. `bind` names the scene values script writes into it; `shown` hides the row;
+ * `current` marks the Agent in the selected Tab's focused Panel. */
 interface TuiSidebarAgent {
 	readonly title: string;
 	readonly provider: string;
 	readonly state: AgentState;
 	readonly unread: boolean;
+	readonly current?: boolean;
 	readonly shown?: boolean;
 	readonly bind?: {
 		readonly state?: string;
@@ -73,9 +75,14 @@ function WorkspaceRows({ workspace }: { workspace: TuiSidebarWorkspace }): React
 					key={`${agent.provider} ${agent.title}`}
 					className={styles['agent']}
 					hidden={agent.shown === false}
+					data-current={agent.current === true ? '' : undefined}
 					data-scene-show={agent.bind?.shown}
 				>
-					<StateGlyph state={agent.state} bind={agent.bind?.state} />
+					<StateGlyph
+						state={agent.state}
+						selected={agent.current === true}
+						bind={agent.bind?.state}
+					/>
 					<span className={styles['title']} data-scene-text={agent.bind?.title}>
 						{agent.title}
 					</span>

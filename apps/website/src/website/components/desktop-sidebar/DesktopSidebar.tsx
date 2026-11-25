@@ -97,10 +97,16 @@ function WorkspaceRows({ workspace }: { workspace: DesktopSidebarWorkspace }): R
 							key={`${agent.provider} ${agent.title}`}
 							className={styles['agent']}
 							hidden={agent.shown === false}
+							data-current={agent.current === true ? '' : undefined}
 							data-scene-show={agent.bind?.shown}
 						>
 							<span className={styles['glyph']}>
-								<StateGlyph state={agent.state} bind={agent.bind?.state} product='regular' />
+								<StateGlyph
+									state={agent.state}
+									selected={agent.current === true}
+									bind={agent.bind?.state}
+									product='regular'
+								/>
 							</span>
 							<span className={styles['text']}>
 								<span className={styles['title']} data-scene-text={agent.bind?.title}>

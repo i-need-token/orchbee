@@ -176,6 +176,11 @@ fn assert_creation_member_surface(
 ) -> Vec<u16> {
     let ys = sidebar_target_rows(hits, buffer.area.width, buffer.area.height, target);
     assert!(!ys.is_empty(), "missing creation member {target:?}");
+    // Only a Workspace takes the current fill; a current Agent row stays on chrome.
+    let surface = match (target, surface) {
+        (SidebarTarget::Agent { .. }, Role::SurfaceCurrent) => Role::SurfaceChrome,
+        _ => surface,
+    };
     // An Agent surface includes leading padding; the guide and its gap stay on chrome.
     let first = match target {
         SidebarTarget::Agent { .. } => {

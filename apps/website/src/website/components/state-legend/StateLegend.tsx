@@ -6,8 +6,9 @@ import { AGENT_STATE_WORDS } from '../state-glyph/state-words';
 import styles from './StateLegend.module.css';
 
 /**
- * The Agent state glyphs with the product's word for each, held still. `list` sets them apart
- * as a list of their own, with the glyphs moving as the product draws them.
+ * The Agent state glyphs with the product's word for each, held still and hollow as the product's
+ * legend draws them. `list` sets them apart as a list of their own, with the glyphs moving as the
+ * product draws them.
  */
 export function StateLegend({
 	states,

@@ -1981,12 +1981,13 @@ has undocked a Wide Client's sidebar.
 ## Agent sidebar row model
 
 An Agent row is one fixed line beside the vertical guide and status glyph: what names the Agent,
-then its provider in secondary text, or the provider alone, as
+then its provider in quieter text, or the provider alone, as
 [Sidebar display identity](native-agent-navigation.md#sidebar-display-identity) defines. Within the
 row's width the title gives way first, so the provider stays whole while the title keeps its first
 few cells; narrower still, the title alone tells sibling Agents apart. Parent Machine/Workspace text
-stays in the tree rather than each Agent. Status color stays on the glyph; the name uses the primary
-text role. A pointer resting on the glyph names its state in a tooltip.
+stays in the tree rather than each Agent. Status color stays on the glyph. The current Agent's name
+is bold primary text and its provider secondary; every other row is muted text. A pointer resting
+on the glyph names its state in a tooltip.
 
 No setting changes an Agent row: the file has no Agent row keys, and a file that still sets
 `appearance.sidebar.agents` receives an `unknown-key` diagnostic for the table, which is ignored.

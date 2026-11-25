@@ -115,6 +115,14 @@ to common roles as follows; the mapping does not require identical token names o
 | Work in progress                                 | Busy indicator and localized operation text                                                                                    | `status-pending` indicator and localized operation text           |
 | Canvas, persistent chrome, and temporary overlay | `--ob-sys-color-surface-canvas`, `--ob-sys-color-surface-raised`, `--ob-sys-color-surface-overlay` as the surface requires     | `surface-canvas`, `surface-chrome`, `surface-overlay`             |
 
+A current item listed directly beneath its current parent, such as the current Agent under the
+current Workspace, takes no current fill of its own: two fills meeting read as one block. It shows
+itself by a stronger stretch of its guide, stronger primary text and a solid state glyph. An Agent
+state glyph's color names the state in both Clients and its fill names selection: solid for the
+current Agent, the active Tab and the focused Panel, and hollow everywhere else, legends included.
+Where a TUI host shows no color, each state keeps a shape of its own instead, and selection rests on
+the guide and the title.
+
 Focus, hover, press, current context, provisional selection, checked value, availability, and
 operation status are independent facts. Define their combined appearance at the owning surface;
 moving focus does not erase current context, and hover never commits a value or changes focus.

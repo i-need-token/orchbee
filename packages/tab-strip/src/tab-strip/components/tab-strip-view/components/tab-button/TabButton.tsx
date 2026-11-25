@@ -194,6 +194,7 @@ export function TabButton({
 			{childVisibility.showFavicon || hasStatusSymbol ? (
 				<TabIcon
 					tab={tab}
+					active={active}
 					availableWidth={Math.max(0, renderedWidth - 18)}
 					identityIcon={identityIcon}
 					statusAdornment={statusAdornment}

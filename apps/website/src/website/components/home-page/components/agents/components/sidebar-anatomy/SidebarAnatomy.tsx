@@ -17,7 +17,8 @@ import { TuiSidebar } from '../../../../../tui-sidebar/TuiSidebar';
 import { TuiWindow } from '../../../../../tui-window/TuiWindow';
 import styles from './SidebarAnatomy.module.css';
 
-// One sidebar, held still, that shows every state but failed and both unread and read Agents.
+// One sidebar, held still, that shows every state but failed, both unread and read Agents, and the
+// current Agent among the rest.
 const WORKSPACES: readonly DesktopSidebarWorkspace[] = [
 	{
 		name: 'shop-api',
@@ -26,7 +27,13 @@ const WORKSPACES: readonly DesktopSidebarWorkspace[] = [
 		ahead: 2,
 		agents: [
 			{ title: CLAUDE_TITLE, provider: 'Claude Code', state: 'attention', unread: true },
-			{ title: 'Review the current changes', provider: 'Codex', state: 'working', unread: false },
+			{
+				title: 'Review the current changes',
+				provider: 'Codex',
+				state: 'working',
+				unread: false,
+				current: true,
+			},
 		],
 	},
 	{

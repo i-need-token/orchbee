@@ -9,6 +9,8 @@ import { useTabIcon } from './hooks/useTabIcon';
 
 interface TabIconProps {
 	tab: Readonly<TabData>;
+	/** Whether the Tab is the active one, which draws its adornment's `activeMark`. */
+	active?: boolean;
 	availableWidth?: number;
 	discardRingTreatmentEnabled?: boolean;
 	identityIcon?: ReactNode | undefined;
@@ -42,7 +44,9 @@ export function TabIcon(props: TabIconProps): ReactNode {
 			</span>
 		);
 	}
-	const statusMark = props.statusAdornment?.mark;
+	const statusMark =
+		(props.active === true ? props.statusAdornment?.activeMark : undefined) ??
+		props.statusAdornment?.mark;
 	// A mark or glyph takes the favicon's place; the status dot stands in only when neither draws.
 	const statusSymbolDrawn = statusMark !== undefined || props.statusAdornment?.glyph !== undefined;
 	let identitySymbol: ReactNode;

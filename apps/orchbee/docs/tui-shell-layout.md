@@ -175,10 +175,10 @@ cell of the Workspace name, then a one-cell chrome gap, one cell of leading row 
 state glyph and a navigation-marker cell, so Agent titles start six cells from the edge. The guide
 spans all Agent lines, including configured continuations and gaps between siblings, and ends with
 the last child. It has no horizontal branches or corners and never crosses the Workspace's second
-line or the gap before its first Agent. Guides use the low-contrast `frame-guide` role on chrome:
-an Agent row's surface starts one cell before its state glyph, so hover, press, navigation and
-current fills include that blank padding while leaving the guide and its adjacent chrome gap
-unfilled. Eligible disclosures follow the displayed first-line identity.
+line or the gap before its first Agent. Guides use the low-contrast `frame-guide` role on chrome;
+beside the current Agent's lines the guide turns heavy (`┃`; ASCII `#`) in `text-primary`. An
+Agent row's surface starts one cell before its state glyph, so hover, press and navigation fills
+include that blank padding while leaving the guide and its adjacent chrome gap unfilled. Eligible disclosures follow the displayed first-line identity.
 The unread marker is the only trailing marker: a small `•` in `status-unread` (ASCII `*`), shared
 with the Tab and pane title cues, in the row's last list cell after one blank cell. A Workspace shows
 its Agents' unread marker only while they are folded; open Agent rows carry their own. An Agent title
@@ -244,9 +244,12 @@ under its heading. The default Workspace gap is zero rows. These external separa
 background and an inert list-surface target; hover, press, current and navigation surfaces never
 include them. Only the gap between Agent siblings stays inside the following Agent row so its trunk continues.
 Current Workspace entries retain their exact targets and neutral full-width `surface-current`
-while typing. A visible active Agent shares that same fill, so the current Workspace and its current
-Agent read as one current group; the Agent's tree lead stays on chrome. When that Agent is folded
-away, the Workspace keeps the current fill and repeats the hidden Agents' unread marker. A
+while typing. Agent rows take no current fill: the current Workspace's fill sits directly above
+them, and a second one would join the two into one block. The current Agent shows the guide's heavy
+stretch, a solid state glyph and a bold `text-primary` title with its provider in `text-secondary`;
+every other Agent row is `text-muted`, and its title rises to `text-primary` under the pointer.
+When the Agents are folded away, the Workspace keeps the current fill and repeats the hidden Agents'
+unread marker. A
 noncurrent Workspace receives the quieter `surface-related` background while one of its Agents
 owns provisional keyboard navigation, so that tint never reads as current. Direct press, navigation and hover feedback on the Workspace takes precedence over its
 current and related backgrounds. This presentation never activates or focuses a second target.
@@ -266,7 +269,7 @@ last line, excluding separators, group headings and neighboring entries.
 Keyboard focus uses the theme navigation marker in the separate track and `surface-selection` across
 the focused entry. Named palettes retain secondary metadata colors; host-relative text uses the
 surface's paired foreground. Explicit token colors and emphasis retain their authority. The fill
-alone marks the current row in the named themes: current names keep their normal weight and no
+alone marks the current Workspace in the named themes: its name keeps its normal weight and no
 marker is added. Terminal-native also underlines the complete current row over its ANSI gray fill.
 Where no fill can show, because quantization collapses it onto chrome or the host is Monochrome, the
 current row is underlined instead. While keyboard navigation or the pointer is on the current row, its
@@ -456,23 +459,27 @@ independent unread marker clears. Accepted terminal text, paste, deletion, compl
 input changes the exact observed completion to a Client-local idle presentation. Focus, hover,
 scrolling, cursor movement, copy and rejected input do not. The observation, outcome and notification
 inputs remain canonical; a newer state or terminal incarnation cannot inherit the edited version.
-Sidebar, Tab and pane-title Working glyphs use a stationary filled hexagon `⬢`
-(U+2B22), echoing the honeycomb mark, breathing from
+Sidebar, Tab and pane-title state glyphs are hexagons echoing the honeycomb mark: color names the
+state and fill names selection. The current Agent's row and status-line glyph, the active Tab's
+glyph, the narrow bar's current Tab included, and the focused pane's title glyph are the filled `⬢`
+(U+2B22); every other glyph is the hollow `⬡` (U+2B21), including those in legend tooltips, which
+name states rather than Agents. A `+N` roster draws its current Agent solid. Working breathes from
 white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
-foreground and adopts the current Tab's paired foreground. Idle uses a gray hollow hexagon `⬡`
-(U+2B21); attention, done and
-error use the fixed traffic-light `agent-attention`, `agent-done` and `agent-error` `⬢`, one value
+foreground and adopts the current Tab's paired foreground. Idle is gray; attention, done and
+error use the fixed traffic-light `agent-attention`, `agent-done` and `agent-error` roles, one value
 per polarity in every theme and host (`#FEBC2E`, `#28C840` and `#FF5F57` on a dark appearance or
 an unknown one, `#AD6F00`, `#009100` and `#E1423E` on a light one), which 16-color hosts show as Yellow,
 Green and Red; their state words keep the status text roles. Opening, from the moment an Agent process is
 seen until its screen is first recognised, draws exactly the Working glyph and breathing; only its
-state word, Starting, differs. Unknown and the default Workspace identity
-use secondary-gray `•`. Attention alternates full and half intensity every 500 ms. The Picker owns
-the phase and only advances while observed Agents need animation. Rendering stays pure. ASCII
-uses `-\|/` Working frames and distinct `#`, `+`, `x`, `o`, `.` status fallbacks; monochrome
-keeps distinguishable outcomes without color breathing. Both hexagons are East Asian Neutral, so
-they measure one cell even on hosts that widen ambiguous-width text, as circles such as `●` are
-not. The shared palette is owned by
+state word, Starting, differs. Unknown uses secondary-gray `•`, or `◦` (U+25E6) where a hexagon
+would be hollow; the default Workspace identity uses `•`. Attention alternates full and half
+intensity every 500 ms. The Picker owns the phase and only advances while observed Agents need
+animation. Rendering stays pure. Without color the fill cannot carry selection, because the shape
+alone tells states apart: no-color and Monochrome hosts draw `⬢` Working, `#` attention, `+` done,
+`x` error, `⬡` idle and `•` unknown whatever the selection, which then rests on the guide and the
+bold title, and keep distinguishable outcomes without color breathing. ASCII uses `-\|/` Working
+frames and `#`, `+`, `x`, `o`, `.`. The hexagons and `◦` are East Asian Neutral, so they measure
+one cell even on hosts that widen ambiguous-width text, as circles such as `●` are not. The shared palette is owned by
 [`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral, idle
 retains its GrokNight color, and the TUI's attention, done and error glyphs, like the Web and
 Desktop windows' colors for them, use the fixed values above. Light themes use a dark breathing

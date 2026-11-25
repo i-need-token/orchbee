@@ -46,7 +46,9 @@ interface WorkbenchWorkspaceAgentFoldedStatusView {
 	 * Every Agent's state, keyed by its terminal Presentation. The line shows as many leading glyphs
 	 * as it has room for and counts the rest as `+N`.
 	 */
-	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'status' | 'tone'> & {
+	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'figure' | 'status' | 'tone'> & {
+		/** Whether this is the current Agent, as its expanded row's `current` says; its glyph is solid. */
+		readonly current: boolean;
 		/** The Agent's identity as its expanded row shows it: its title and provider. */
 		readonly identity: string;
 		readonly presentationId: TerminalPresentationId;

@@ -152,7 +152,8 @@
 .behind {
 	color: var(--ob-sys-color-status-warning-text);
 }
-/* An Agent row stands under a 1 px guide at the Workspace name's start. */
+/* An Agent row stands under a 1 px guide at the Workspace name's start and takes no current fill;
+   the current Agent has a 2 px stretch of the guide, a solid glyph and a heavier title. */
 .agent {
 	position: relative;
 	display: grid;
@@ -162,7 +163,22 @@
 	margin-left: var(--ob-ref-space-3);
 	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
-	color: var(--ob-sys-color-text-secondary);
+	color: var(--ob-sys-color-text-muted);
+}
+.agent[data-current] {
+	color: var(--ob-sys-color-text-primary);
+}
+.agent[data-current]::after {
+	position: absolute;
+	inset-block: var(--ob-ref-space-1);
+	inset-inline-start: calc(
+		var(--ob-ref-space-1) * -1 -
+			(var(--ob-ref-border-width-strong) - var(--ob-ref-border-width-default)) / 2
+	);
+	width: var(--ob-ref-border-width-strong);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-icon-primary);
+	content: '';
 }
 .agent::before {
 	position: absolute;
@@ -193,6 +209,9 @@
 }
 .title {
 	flex: 0 1 auto;
+}
+.agent[data-current] .title {
+	font: var(--ob-sys-typography-label-sm-strong);
 }
 /* The provider stays whole while the title truncates first. */
 .provider {

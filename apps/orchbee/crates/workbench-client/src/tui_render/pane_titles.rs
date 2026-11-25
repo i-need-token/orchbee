@@ -17,7 +17,7 @@ use ratatui::{
 
 pub(super) struct PaneTitle<'a> {
     pub(super) tab: ClientTabView<'a>,
-    /// The pane owns input, so its title carries focus emphasis.
+    /// The pane owns input, so its title carries focus emphasis and its Agent's glyph is solid.
     pub(super) focused: bool,
     /// A maximized pane says so in its title.
     pub(super) zoomed: bool,
@@ -80,7 +80,7 @@ pub(super) fn paint(
     };
     let glyph = state.map(|state| {
         (
-            super::sidebar_text::state_glyph(state, theme, title.working_frame),
+            super::sidebar_text::state_glyph(state, title.focused, theme, title.working_frame),
             theme
                 .agent_style(state, title.working_frame)
                 .remove_modifier(Modifier::BOLD),

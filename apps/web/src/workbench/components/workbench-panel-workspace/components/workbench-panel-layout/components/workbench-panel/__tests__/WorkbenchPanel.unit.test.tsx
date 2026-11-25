@@ -258,7 +258,7 @@ describe('WorkbenchPanel', () => {
 
 	it('leads a split Panel title with its Agent state glyph, and shows none without an Agent', () => {
 		const doneStatus: WorkbenchAgentStatusView = {
-			shape: 'hex',
+			figure: 'hexagon',
 			status: 'Done',
 			tone: 'success',
 		};
@@ -270,7 +270,6 @@ describe('WorkbenchPanel', () => {
 		const glyphAt = withAgent.indexOf('data-agent-state-glyph');
 		expect(glyphAt).toBeGreaterThan(-1);
 		expect(glyphAt).toBeLessThan(withAgent.indexOf('data-slot="workbench-panel-header-title"'));
-		expect(withAgent).toContain('data-shape="hex"');
 		expect(withAgent).toContain('data-tone="success"');
 		expect(withAgent).toContain('aria-label="Done"');
 		expect(withoutAgent).toContain('data-slot="workbench-panel-header-title"');

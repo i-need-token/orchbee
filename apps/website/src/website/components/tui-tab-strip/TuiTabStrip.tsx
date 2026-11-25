@@ -22,7 +22,7 @@ export function TuiTabStrip({
 	return (
 		<div className={styles['strip']}>
 			<span className={styles['tab']}>
-				{state === undefined ? null : <StateGlyph state={state} bind={bind?.state} />}
+				{state === undefined ? null : <StateGlyph state={state} selected bind={bind?.state} />}
 				<span>{title}</span>
 				{unread === undefined ? null : (
 					<span className={styles['unread']} hidden={!unread} data-scene-show={bind?.unread}>

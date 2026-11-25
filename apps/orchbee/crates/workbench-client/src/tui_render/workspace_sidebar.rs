@@ -648,19 +648,20 @@ struct StatusLine {
 }
 
 /// Paints a folded Workspace's Agent states, most urgent first, as [`fit_status_states`] fits
-/// them to the line, then the secondary `+N` remainder beside them. Returns nothing when not even
-/// the remainder fits.
+/// them to the line, then the secondary `+N` remainder beside them. Each state comes with whether
+/// its Agent is the current one, whose glyph alone is solid. Returns nothing when not even the
+/// remainder fits.
 fn paint_status_line(
     frame: &mut Frame<'_>,
     line: Rect,
-    states: &[orchbee_workbench_protocol::MetadataState],
+    states: &[(orchbee_workbench_protocol::MetadataState, bool)],
     interaction: Option<Role>,
     working_frame: usize,
     theme: &Theme,
 ) -> Option<StatusLine> {
     let fit = fit_status_states(states.len(), usize::from(line.width))?;
-    for (index, state) in states.iter().take(fit.shown).enumerate() {
-        let glyph = sidebar_text::state_glyph(*state, theme, working_frame);
+    for (index, (state, current)) in states.iter().take(fit.shown).enumerate() {
+        let glyph = sidebar_text::state_glyph(*state, *current, theme, working_frame);
         let x = line
             .x
             .saturating_add(u16::try_from(2 * index).unwrap_or(u16::MAX));
@@ -1178,24 +1179,29 @@ fn gap_before(view: &ClientView, rows: &[SidebarRow<'_>], index: usize, space_ga
     }
 }
 
-/// The muted guide spans every child line and intervening gap without horizontal branches.
+/// The muted guide spans every child line and intervening gap without horizontal branches. Beside
+/// the current Agent's `current` content lines it turns heavy and primary.
 fn paint_tree_guide(
     frame: &mut Frame<'_>,
     band: Rect,
     tracks: layout::Tracks,
     follows_sibling: bool,
+    current: Option<u16>,
     theme: &Theme,
 ) {
-    let style = theme.content_on_surface(
-        Role::SurfaceChrome,
-        None,
-        Some(Role::FrameGuide),
-        theme.style(Role::FrameGuide),
-    );
+    let style =
+        |role| theme.content_on_surface(Role::SurfaceChrome, None, Some(role), theme.style(role));
+    let current_lines =
+        tracks.content_y..tracks.content_y.saturating_add(current.unwrap_or_default());
     for y in band.y..band.bottom() {
         if y >= tracks.content_y || follows_sibling {
+            let (glyph, role) = if current_lines.contains(&y) {
+                (theme.glyphs.tree_guide_current, Role::TextPrimary)
+            } else {
+                (theme.glyphs.tree_guide, Role::FrameGuide)
+            };
             frame.render_widget(
-                Paragraph::new(theme.glyphs.tree_guide).style(style),
+                Paragraph::new(glyph).style(style(role)),
                 Rect::new(tracks.guide.x, y, tracks.guide.width, 1),
             );
         }
@@ -1456,9 +1462,12 @@ pub(super) fn render(
         };
         let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
         let current = projected_current[row_index];
-        // A current Workspace and its visible current Agent share one current fill. A noncurrent
-        // Workspace takes the quieter related surface while one of its Agents holds keyboard
-        // navigation, so that tint never reads as current.
+        // Only a Workspace takes the current fill. The current Workspace sits right above its
+        // Agents, and a second fill there would join it into one block, so the current Agent shows
+        // in its guide, glyph and title instead. A noncurrent Workspace takes the quieter related
+        // surface while one of its Agents holds keyboard navigation, so that tint never reads as
+        // current.
+        let current_surface = current && !matches!(row, SidebarRow::Agent { .. });
         let related = !current
             && matches!(row, SidebarRow::Context { .. })
             && owns_keyboard
@@ -1514,9 +1523,17 @@ pub(super) fn render(
             }
             _ => Vec::new(),
         };
+        let status_current = |agent: &crate::machine_agents::Row| match row {
+            SidebarRow::Context { row: context, .. } => {
+                view.machines.current_agent(&context.choice, agent)
+            }
+            SidebarRow::Agent { .. } | SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
+                false
+            }
+        };
         let status_states = status_agents
             .iter()
-            .map(|agent| agent.display_state())
+            .map(|agent| (agent.display_state(), status_current(agent)))
             .collect::<Vec<_>>();
 
         let closeable = source.has_part(&target, SidebarPart::Close);
@@ -1550,6 +1567,7 @@ pub(super) fn render(
                     locale,
                     theme,
                     text_width.saturating_sub(markers),
+                    current,
                 );
                 if view.machines.unconnected_state(&row.choice).is_some() {
                     projected.mute(theme);
@@ -1786,10 +1804,10 @@ pub(super) fn render(
                 .with_plain_current(),
             &bands,
             ControlSurface::Chrome,
-            row_state(owns_keyboard, focused, current, surface_pointer),
+            row_state(owns_keyboard, focused, current_surface, surface_pointer),
             theme,
         );
-        let interaction = winning_surface(surface_pointer, focused, current)
+        let interaction = winning_surface(surface_pointer, focused, current_surface)
             .or(related.then_some(Role::SurfaceRelated));
         // Agent surfaces include the blank cell before state; the guide and its gap stay on chrome.
         let surface = tracks.surface();
@@ -1804,6 +1822,15 @@ pub(super) fn render(
                 ),
                 theme,
             );
+        }
+        // A pointed Agent's muted title rises to primary.
+        if let SidebarRow::Agent { row, .. } = row
+            && !current
+            && row_paint_pointer != PointerPresentation::Rest
+            && row.sidebar_agent().is_some()
+            && view.machines.unconnected_state(&row.choice).is_none()
+        {
+            agent_tokens::raise_title(&mut row_lines, theme);
         }
         sidebar_text::compose_lines(
             &mut row_lines,
@@ -1887,6 +1914,7 @@ pub(super) fn render(
             frame.render_widget(
                 Paragraph::new(super::sidebar_text::state_glyph(
                     state,
+                    current,
                     theme,
                     view.machines.working_frame(),
                 ))
@@ -1950,6 +1978,7 @@ pub(super) fn render(
                 row_index
                     .checked_sub(1)
                     .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
+                current.then_some(content_height),
                 theme,
             );
             // The guide runs on through the blank line before a sibling Agent.
@@ -1963,6 +1992,7 @@ pub(super) fn render(
                     Rect::new(band.x, band.bottom(), band.width, touch_line),
                     tracks,
                     true,
+                    None,
                     theme,
                 );
             }
@@ -2114,7 +2144,7 @@ pub(super) fn render(
                         tooltip::describe(
                             None,
                             tooltip::legend(
-                                status_states.iter().copied(),
+                                status_states.iter().map(|(state, _)| *state),
                                 false,
                                 working_frame,
                                 locale,
@@ -2144,6 +2174,7 @@ pub(super) fn render(
                     status_agents.iter().skip(line.shown).map(|agent| {
                         (
                             agent.display_state(),
+                            status_current(agent),
                             agent_tokens::identity_label(agent, theme),
                         )
                     }),

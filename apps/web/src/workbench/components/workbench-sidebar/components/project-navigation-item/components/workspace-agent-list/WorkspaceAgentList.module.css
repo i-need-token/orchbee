@@ -8,7 +8,9 @@
 }
 
 /* Under a 1 px guide at the Workspace name's start; each cell spans the row's height, so its
-   tooltip opens 4 px below the row. */
+   tooltip opens 4 px below the row. Rows take no current fill: the current Workspace above already
+   has one, and two fills meeting read as one block. A stronger stretch of the guide, a solid glyph,
+   a heavier title and a full-strength product mark mark the current Agent instead. */
 .row {
 	position: relative;
 	display: grid;
@@ -18,7 +20,7 @@
 	margin-inline-start: var(--ob-ref-space-3);
 	padding: 0 var(--ob-ref-space-2);
 	border-radius: var(--ob-ref-radius-ui-md);
-	color: var(--ob-sys-color-text-secondary);
+	color: var(--ob-sys-color-text-muted);
 	cursor: default;
 }
 
@@ -39,18 +41,28 @@
 	inset-block-end: var(--ob-ref-space-0-5);
 }
 
+/* The current Agent's stretch of the guide: 2 px over the 1 px guide, centered on it, inset 4 px
+   from the row's ends. */
+.row[data-current]::after {
+	position: absolute;
+	inset-block: var(--ob-ref-space-1);
+	inset-inline-start: calc(
+		var(--ob-ref-space-1) * -1 -
+			(var(--ob-ref-border-width-strong) - var(--ob-ref-border-width-default)) / 2
+	);
+	width: var(--ob-ref-border-width-strong);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-icon-primary);
+	content: '';
+}
+
 .row:hover {
 	background: var(--ob-sys-color-surface-hovered);
-	color: var(--ob-sys-color-text-primary);
+	color: var(--ob-sys-color-text-secondary);
 }
 
 .row[data-current] {
-	background: var(--ob-sys-color-surface-selected);
 	color: var(--ob-sys-color-text-primary);
-}
-
-.row[data-current]:hover {
-	background: var(--ob-sys-color-surface-selected-hover);
 }
 
 .row:has(> .rowMain:active) {
@@ -117,6 +129,10 @@
 	min-width: 0;
 }
 
+.row[data-current] .title {
+	font: var(--ob-sys-typography-label-sm-strong);
+}
+
 /* The provider stays whole while the title truncates first (ORC-319). */
 .provider {
 	flex: 0 0 auto;
@@ -137,8 +153,9 @@
 	gap: var(--ob-ref-space-1-5);
 }
 
-/* The title leads the row; the product is a quieter cue beside it. */
-.mark {
+/* The title leads the row; the product is a quieter cue beside it, at full strength on the current
+   Agent. */
+.row:not([data-current]) .mark {
 	opacity: var(--ob-sys-opacity-muted);
 }
 

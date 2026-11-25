@@ -26,9 +26,14 @@
 	stroke-width: 1;
 }
 
-.glyph[data-shape='ring'] .shape path {
+.glyph[data-fill='hollow'] .shape path {
 	fill: none;
 	stroke-width: 1.5;
+}
+
+/* The hollow dot is a thinner ring, so its center stays open at 12 px. */
+.glyph[data-figure='dot'][data-fill='hollow'] .shape path {
+	stroke-width: 1;
 }
 
 .glyph[data-tone='attention'] {

@@ -60,7 +60,8 @@ Theme rules:
 
 - `frame-guide` is quieter than a region divider. `surface-related` identifies an ancestor of the
   provisionally selected item with a weaker fill than that item's own surface; a current ancestor
-  keeps `surface-current`, which it shares with its current descendant. It never
+  keeps `surface-current`, and its current descendant listed directly beneath it takes no second
+  fill, which would join the two into one block, but a stable marker and `BOLD` identity. It never
   transfers focus or selection; direct interaction on that ancestor takes precedence. Unknown-host
   and reduced-color themes may use the base background, retaining hierarchy and independent markers.
 - Every native Client ships a `terminal-native` theme, shown to people as the terminal's own

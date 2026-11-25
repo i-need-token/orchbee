@@ -185,7 +185,7 @@ impl Token {
         }
         let glyph = self
             .agent
-            .map(|agent| state_glyph(agent.state, theme, working_frame).to_owned());
+            .map(|agent| state_glyph(agent.state, self.active(), theme, working_frame).to_owned());
         let unread = self.agent.is_some_and(|agent| agent.unread);
         let lead = 1 + glyph.as_ref().map_or(0, |glyph| display_width(glyph) + 1);
         let trail = if unread {

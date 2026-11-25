@@ -36,7 +36,8 @@ interface WorkspaceAgentListProps {
 
 /**
  * A Workspace's Agents, one line each as in the TUI: the state glyph, the title, the unread dot, and
- * the provider's product mark at the row's end, or its name where it has no mark. The glyph names
+ * the provider's product mark at the row's end, or its name where it has no mark. The current Agent's
+ * glyph is solid and every other one hollow. The glyph names
  * its state under the pointer, with why a confirmation waits where one does, the mark names its
  * product, and the dot says Unread. A right-click opens the Agent's menu: Rename, which only a Panel's
  * primary terminal offers, Allow confirmations where the Server answers them for this Agent, then
@@ -154,7 +155,7 @@ export function WorkspaceAgentList({
 							/>
 							<Tooltip>
 								<TooltipTrigger render={<span className={styles['glyph']} />}>
-									<WorkbenchAgentStateGlyph status={row.status} />
+									<WorkbenchAgentStateGlyph selected={row.current} status={row.status} />
 								</TooltipTrigger>
 								<TooltipContent side='bottom'>
 									{row.statusReason ?? row.status.status}

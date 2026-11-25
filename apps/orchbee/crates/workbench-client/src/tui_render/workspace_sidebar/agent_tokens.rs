@@ -1,6 +1,6 @@
 //! Pure projection of the already-fenced Agent row: one fixed line. No I/O or Agent authority.
 use super::{
-    ClientView, Line, Locale, ProjectedSidebarLines, Role, Span, Theme, display_label,
+    ClientView, Line, Locale, Modifier, ProjectedSidebarLines, Role, Span, Theme, display_label,
     display_width, full_name, machine_label, truncate_display,
 };
 use crate::machine_picker::Row;
@@ -39,18 +39,28 @@ pub(super) fn identity_label(agent: &crate::machine_agents::Row, theme: &Theme) 
 /// The default row: what names the Agent, then its provider in quieter text, or the provider
 /// alone; its leading glyph and pointer tooltip carry state. Within `width` the title gives way
 /// first, so the provider stays whole while the title keeps its first few cells; narrower still,
-/// the title alone tells sibling Agents apart.
+/// the title alone tells sibling Agents apart. The current Agent's title is bold primary text;
+/// every other row is muted, as the row takes no current fill.
 fn default_row(
     agent: &crate::machine_agents::Row,
     width: usize,
     theme: &Theme,
+    current: bool,
 ) -> ProjectedSidebarLines {
     let style = |role| theme.sidebar_token_style(role, Default::default(), false, false);
+    let (title_style, quiet) = if current {
+        (
+            style(Role::TextPrimary).add_modifier(Modifier::BOLD),
+            style(Role::TextSecondary),
+        )
+    } else {
+        (style(Role::TextMuted), style(Role::TextMuted))
+    };
     let provider = display_label(agent.provider());
     let Some(title) = agent.identity_title() else {
         return ProjectedSidebarLines::new(vec![Line::from(Span::styled(
             provider.clone(),
-            style(Role::TextPrimary),
+            title_style,
         ))])
         .with_names(vec![(0, full_name(provider))]);
     };
@@ -63,27 +73,37 @@ fn default_row(
         vec![
             Span::styled(
                 truncate_display(&title, width - trailing, ellipsis),
-                style(Role::TextPrimary),
+                title_style,
             ),
-            Span::styled(separator, style(Role::TextSecondary)),
-            Span::styled(provider, style(Role::TextSecondary)),
+            Span::styled(separator, quiet),
+            Span::styled(provider, quiet),
         ]
     } else {
-        vec![Span::styled(title, style(Role::TextPrimary))]
+        vec![Span::styled(title, title_style)]
     };
     ProjectedSidebarLines::new(vec![Line::from(spans)]).with_names(vec![(0, full_name(whole))])
 }
 
-/// `width` is the cells the first line may take.
+/// A pointed noncurrent Agent row's title, the first span of its line, rises to primary text.
+pub(in crate::tui_render) fn raise_title(lines: &mut [Line<'static>], theme: &Theme) {
+    if let Some(title) = lines.first_mut().and_then(|line| line.spans.first_mut()) {
+        title.style =
+            theme.sidebar_token_style(Role::TextPrimary, Default::default(), false, false);
+    }
+}
+
+/// `width` is the cells the first line may take; `current` says whether the row is the current
+/// Agent's.
 pub(in crate::tui_render) fn projection(
     view: &ClientView,
     row: &Row,
     locale: Locale,
     theme: &Theme,
     width: usize,
+    current: bool,
 ) -> ProjectedSidebarLines {
     if let Some(agent) = row.sidebar_agent() {
-        return default_row(agent, width, theme);
+        return default_row(agent, width, theme, current);
     }
     let mut lines = Vec::new();
     if view
@@ -113,7 +133,7 @@ pub(in crate::tui_render) fn lines(
     locale: Locale,
     theme: &Theme,
 ) -> Vec<Line<'static>> {
-    projection(view, row, locale, theme, usize::MAX)
+    projection(view, row, locale, theme, usize::MAX, false)
         .into_parts()
         .0
 }

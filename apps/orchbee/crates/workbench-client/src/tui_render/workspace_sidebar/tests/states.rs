@@ -90,7 +90,7 @@ fn move_pointer(pointer: &mut PointerState, view: &mut ClientView, x: u16, y: u1
 }
 
 #[test]
-fn current_workspace_and_agent_share_the_current_surface_and_collapse_keeps_the_owner_fill() {
+fn only_the_current_workspace_takes_the_current_fill_and_collapse_keeps_it() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -110,17 +110,28 @@ fn current_workspace_and_agent_share_the_current_surface_and_collapse_keeps_the_
                 assert_eq!(buffer[(0, y)].symbol(), " ");
                 assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
             }
-            // The Agent surface includes one blank cell before state; the tree stays on chrome.
+            // The current Agent's row stays on chrome beneath its filled Workspace; the heavy
+            // stretch of its guide marks it instead. Its surface starts one blank cell before
+            // state.
             let surface_x = agent_surface_x(&view, &agent);
+            let guide_x = layout::Tracks::resolve_for_width(
+                Rect::new(0, 0, 40, 1),
+                0,
+                40,
+                auxiliary_actions(&view.machines.sidebar_source(), &agent),
+                layout::RowKind::Agent,
+            )
+            .unwrap()
+            .guide
+            .x;
             for y in agent_rows {
-                assert!(
-                    (0..surface_x).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome))
+                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
+                assert_eq!(
+                    buffer[(guide_x, y)].symbol(),
+                    theme.glyphs.tree_guide_current
                 );
                 assert_eq!(buffer[(surface_x, y)].symbol(), " ");
                 assert_ne!(buffer[(surface_x + 1, y)].symbol(), " ");
-                assert!(
-                    (surface_x..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent))
-                );
             }
             assert!(view.machines.toggle_sidebar_context_agents(&workspace));
             let (collapsed, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
@@ -583,7 +594,7 @@ fn folded_status_line_lists_states_by_urgency_and_fits_the_most_before_the_remai
                 // The blank after a glyph is read only while the line goes on past it.
                 while shown < total
                     && 2 * shown < cells
-                    && symbol(2 * shown) == theme.agent_glyph(expected[shown])
+                    && symbol(2 * shown) == theme.agent_glyph(expected[shown], false)
                 {
                     if 2 * shown + 1 < cells {
                         assert_eq!(symbol(2 * shown + 1), " ", "{width}");
@@ -676,7 +687,10 @@ fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_h
     .concat();
     let tail = &sorted[states.len() - hidden..];
     let glyphs: Vec<&str> = first.iter().map(|item| item.state.glyph.as_str()).collect();
-    let expected: Vec<&str> = tail.iter().map(|state| theme.agent_glyph(*state)).collect();
+    let expected: Vec<&str> = tail
+        .iter()
+        .map(|state| theme.agent_glyph(*state, false))
+        .collect();
     assert_eq!(glyphs, expected);
     // Each row names its state as the legend does, then gives the Agent's identity.
     for (item, state) in first.iter().zip(tail) {
@@ -709,8 +723,8 @@ fn current_sidebar_rows_stay_plain_and_distinguishable_at_every_color_level() {
                 .find(|target| matches!(target, SidebarTarget::Agent { .. }) && target != &agent)
                 .unwrap();
             let other = view.machines.space_rows()[1].sidebar_target().unwrap();
-            // A visible current Agent owns the fill; folding it away hands the fill to its
-            // Workspace.
+            // The current Workspace keeps its fill whether its Agents show or fold; a visible
+            // current Agent takes none, and its bold title tells it from its siblings.
             for (kind, current, peer) in [
                 ("Agent", &agent, &sibling),
                 ("Workspace", &workspace, &other),
@@ -734,18 +748,27 @@ fn current_sidebar_rows_stay_plain_and_distinguishable_at_every_color_level() {
                 let (x, y) = identity(current);
                 let shown = &buffer[(x, y)];
                 let rest = &buffer[identity(peer)];
-                assert!(
-                    (x..40).all(|x| !buffer[(x, y)].modifier.contains(Modifier::BOLD)),
-                    "{} {level:?}: the current {kind} is not bold",
-                    base.name
-                );
-                assert!(
-                    shown.bg != rest.bg
-                        || shown.modifier.contains(Modifier::UNDERLINED)
-                            && !rest.modifier.contains(Modifier::UNDERLINED),
-                    "{} {level:?}: the current {kind} looks like its peer",
-                    base.name
-                );
+                if current == &agent {
+                    assert!(
+                        shown.modifier.contains(Modifier::BOLD)
+                            && !rest.modifier.contains(Modifier::BOLD),
+                        "{} {level:?}: the current {kind} looks like its peer",
+                        base.name
+                    );
+                } else {
+                    assert!(
+                        (x..40).all(|x| !buffer[(x, y)].modifier.contains(Modifier::BOLD)),
+                        "{} {level:?}: the current {kind} is not bold",
+                        base.name
+                    );
+                    assert!(
+                        shown.bg != rest.bg
+                            || shown.modifier.contains(Modifier::UNDERLINED)
+                                && !rest.modifier.contains(Modifier::UNDERLINED),
+                        "{} {level:?}: the current {kind} looks like its peer",
+                        base.name
+                    );
+                }
                 assert!(
                     (0..40).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker),
                     "{} {level:?}: the current {kind} has no text marker",
@@ -808,15 +831,19 @@ fn only_an_agent_state_glyph_explains_its_state_under_the_pointer() {
         assert_eq!(
             glyphs,
             [
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working),
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true),
                 theme.glyphs.status_bullet
             ]
         );
-        for glyph in &glyphs {
+        // A legend names states, not Agents, so it draws the current Agent's state hollow.
+        for glyph in [
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false),
+            theme.glyphs.status_bullet,
+        ] {
             assert!(
                 legends
                     .iter()
-                    .any(|legend| legend.len() == 1 && &legend[0].glyph == glyph),
+                    .any(|legend| legend.len() == 1 && legend[0].glyph == glyph),
                 "{legends:?}"
             );
         }
