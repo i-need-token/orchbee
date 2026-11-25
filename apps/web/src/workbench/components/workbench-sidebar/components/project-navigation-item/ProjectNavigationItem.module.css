@@ -12,12 +12,13 @@
 
 /* Group headings: Projects and Recents. Never current, never filled; the pointer lights the
    chevron, which alone folds the group. + and ⋯ end 4 px from the row end, in the columns of a
-   Workspace's ⋯ and ×. */
+   Workspace's ⋯ and ×. A heading is 24 px, 3 px around its 18 px tools, so it sits closer to its
+   first Workspace than Workspaces sit to each other and reads as that group's heading. */
 .heading {
 	position: relative;
 	display: flex;
 	min-width: 0;
-	height: var(--ob-ref-size-control-sm);
+	height: var(--ob-ref-size-control-xs);
 	align-items: center;
 	gap: var(--ob-ref-space-0-5);
 	padding: 0 var(--ob-ref-space-1) 0 var(--ob-ref-space-2);
