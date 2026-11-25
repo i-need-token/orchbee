@@ -53,6 +53,7 @@ pub(crate) fn start(format: OutputFormat, locale: Locale) -> Output {
                 "scope": started.scope,
                 "runtimeBase": Map::from_iter([started.runtime_base]),
                 "negotiatedCapabilities": started.negotiated_capabilities,
+                "sessionVersion": started.session_version,
             });
             // A preparation overflow answers in the caller's format, never
             // with a second stdout document.
@@ -134,6 +135,9 @@ struct StartOutcome {
     runtime_base: (String, serde_json::Value),
     /// The capabilities the admitted probe's `client-server` handshake listed, in bytewise order.
     negotiated_capabilities: Vec<String>,
+    /// The product version the Session's Server named in that handshake, so a newer Client can
+    /// tell that the Session runs an older version.
+    session_version: Option<String>,
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
@@ -157,6 +161,10 @@ fn run() -> Result<StartOutcome, Failure> {
                 .iter()
                 .map(|name| name.as_str().to_owned())
                 .collect(),
+            session_version: started
+                .client
+                .server_version()
+                .map(|version| version.as_str().to_owned()),
             restore_notice: started.restore_notice,
             outcome: if started.spawned {
                 "started"

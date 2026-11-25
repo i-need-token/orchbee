@@ -10,6 +10,7 @@ import * as React from 'react';
 import type {
 	TerminalSettingsAbout,
 	TerminalSettingsUpdateCheckStatus,
+	TerminalSettingsUpdateOffer,
 } from '../../../../types/terminal-settings-surface';
 import { SettingFailure } from '../../../setting-failure/SettingFailure';
 import { SettingsGroup } from '../../../settings-group/SettingsGroup';
@@ -36,6 +37,14 @@ const UNAVAILABLE_DESCRIPTIONS = {
 	session: terminalSettingsMessages.pageAboutUpdatesUnavailableSession,
 } as const satisfies Readonly<Record<string, MessageDescriptor>>;
 
+/** Why a Session move waits, as the window's notice words it. */
+const SESSION_WAITS = {
+	'background-programs': workbenchMessages.updateSessionBackgroundPrograms,
+	clients: workbenchMessages.updateSessionClients,
+	'host-required': workbenchMessages.updateSessionHostRequired,
+	other: workbenchMessages.updateSessionOther,
+} as const satisfies Readonly<Record<string, MessageDescriptor>>;
+
 const NO_INSTALLATION: TerminalSettingsUpdateCheckStatus = {
 	kind: 'unavailable',
 	reason: 'installation',
@@ -46,7 +55,8 @@ const subscribeToNothing = (): (() => void) => () => undefined;
 
 /**
  * The version this window runs and its build, and Updates, whose control is Check for updates until
- * a newer version is offered and Update after; the card's remaining rows follow Updates.
+ * a newer version or a move of an older Session is offered and Update after, except while that move
+ * runs; the card's remaining rows follow Updates.
  */
 export function AboutUpdateStatus({ about, children }: AboutUpdateStatusProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -86,12 +96,13 @@ export function AboutUpdateStatus({ about, children }: AboutUpdateStatusProps): 
 	let tone: 'danger' | 'positive' | undefined;
 	let control: React.ReactNode;
 	if (offer !== null) {
-		description = intl.formatMessage(workbenchMessages.updateTooltip, { version: offer });
-		control = (
-			<Button data-about-update size='sm' type='button' onClick={about.update}>
-				{intl.formatMessage(workbenchMessages.update)}
-			</Button>
-		);
+		description = offerDescription(intl, offer);
+		control =
+			offer.kind === 'session' && offer.state === 'updating' ? null : (
+				<Button data-about-update size='sm' type='button' onClick={about.update}>
+					{intl.formatMessage(workbenchMessages.update)}
+				</Button>
+			);
 	} else {
 		description = intl.formatMessage(updatesDescription(status));
 		tone = statusTone(status);
@@ -191,4 +202,18 @@ function statusTone(status: TerminalSettingsUpdateCheckStatus): 'danger' | 'posi
 	if (status.kind === 'up-to-date') return 'positive';
 	if (status.kind === 'failed') return 'danger';
 	return undefined;
+}
+
+/** What Updates says while Update is offered: the switch, or the Session move and why it waits. */
+function offerDescription(
+	intl: ReturnType<typeof useOrchbeeIntl>,
+	offer: TerminalSettingsUpdateOffer,
+): string {
+	if (offer.kind === 'client') {
+		return intl.formatMessage(workbenchMessages.updateTooltip, { version: offer.version });
+	}
+	if (offer.state === 'updating') {
+		return intl.formatMessage(workbenchMessages.updateSessionUpdating, { version: offer.version });
+	}
+	return intl.formatMessage(SESSION_WAITS[offer.state], { sessionVersion: offer.sessionVersion });
 }

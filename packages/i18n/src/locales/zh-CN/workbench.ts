@@ -69,9 +69,18 @@ export const zhCNWorkbenchMessages = {
 	'workbench.sidebar.items.shortcuts': '快捷键',
 	'workbench.sidebar.items.update': '更新',
 	'workbench.sidebar.items.updateTooltip': '切换到 Orchbee {version}，终端继续运行。',
-	'workbench.update.unavailable':
-		'无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
+	'workbench.sidebar.items.updateSessionTooltip': '将会话更新到 Orchbee {version}，终端继续运行。',
+	'workbench.update.unavailable': '无法在此更新。请退出 Orchbee 后重新打开。',
 	'workbench.update.waiting': '此更新将在没有终端运行时生效。',
+	'workbench.update.session.updating': '正在将会话更新到 Orchbee {version}，终端继续运行。',
+	'workbench.update.session.backgroundPrograms':
+		'会话仍在运行 Orchbee {sessionVersion}，因为其中有配置命令或插件任务正在运行。等它结束后点击“更新”。',
+	'workbench.update.session.clients':
+		'会话仍在运行 Orchbee {sessionVersion}，因为有较旧的 Orchbee 连接着它。退出那个 Orchbee 后点击“更新”。',
+	'workbench.update.session.hostRequired':
+		'会话仍在运行 Orchbee {sessionVersion}。更新它会重启所有终端，所以在等你确认：准备好后点击“更新”。',
+	'workbench.update.session.other':
+		'会话仍在运行 Orchbee {sessionVersion}，此版本的部分功能暂不可用。点击“更新”重试。',
 	'workbench.update.hostReplacement.title': '重启终端以完成更新？',
 	'workbench.update.hostReplacement.description':
 		'此更新无法让终端继续运行。每个终端会在原来的文件夹中重新启动，其中运行的程序会结束。',

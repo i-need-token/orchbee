@@ -183,8 +183,13 @@ impl WorkbenchClientUi {
     }
 
     /// Mirrors the version the Update control offers, for the action menu's offer.
-    pub(in crate::workbench_client) fn observe_update(&mut self, version: Option<String>) {
-        self.update_version = version;
+    /// Takes the version Update offers now; true when it changed.
+    pub(in crate::workbench_client) fn observe_update(&mut self, version: Option<&str>) -> bool {
+        if self.update_version.as_deref() == version {
+            return false;
+        }
+        self.update_version = version.map(str::to_owned);
+        true
     }
 
     pub(in crate::workbench_client) fn take_agent_notification(

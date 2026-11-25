@@ -115,8 +115,19 @@ pub(crate) struct Confirmed {
     file_path: Option<String>,
     set: Vec<String>,
     texts: Vec<(&'static str, Option<String>)>,
-    quota_resume_supported: bool,
+    /// The [`PUBLISHED_ROWS`] keys the Server publishes.
+    published: Vec<&'static str>,
 }
+/// The keys whose rows show only while the Server publishes them, as an older Session's Server
+/// does not.
+const PUBLISHED_ROWS: [&str; 6] = [
+    "agents.auto_allow.claude",
+    "agents.auto_allow.codex",
+    "agents.auto_allow.gemini",
+    "agents.auto_allow.opencode",
+    "agents.quota_resume.enabled",
+    "agents.quota_resume.prompt",
+];
 impl Confirmed {
     pub(crate) fn of(snapshot: &SettingsSnapshot) -> Self {
         let text = |key: &'static str| {
@@ -141,9 +152,10 @@ impl Confirmed {
                 .map(|key| key.as_str().to_owned())
                 .collect(),
             texts: vec![text("keys.prefix")],
-            quota_resume_supported: ["agents.quota_resume.enabled", "agents.quota_resume.prompt"]
-                .iter()
-                .all(|key| snapshot.values.keys().any(|path| path.as_str() == *key)),
+            published: PUBLISHED_ROWS
+                .into_iter()
+                .filter(|key| snapshot.values.keys().any(|path| path.as_str() == *key))
+                .collect(),
         }
     }
     fn sets(&self, key: &str) -> bool {

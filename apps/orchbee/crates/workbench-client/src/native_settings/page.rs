@@ -95,7 +95,7 @@ impl PageState {
                 self.filter.text(),
                 &self.values,
                 self.unlisted,
-                self.confirmed.quota_resume_supported,
+                &self.confirmed.published,
             ),
             self.picker
                 .map(|picker| (picker.row(), Choice::options(picker.row()))),

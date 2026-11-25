@@ -58,6 +58,10 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 /// The part of the start deadline an install of this Client's own release directory leaves for
 /// the store Client's start and this Client's join; the install may use the rest.
 const INSTALL_RESERVE: Duration = Duration::from_secs(8);
+/// How long a restart waits for an install another start of this bundle already runs to make this
+/// Client's version active, and how often it reads the pointer meanwhile.
+const INSTALL_WAIT: Duration = Duration::from_secs(60);
+const INSTALL_WAIT_PAUSE: Duration = Duration::from_millis(250);
 /// The `error` codes an `orchbee.install` document names (`apps/orchbee/src/cli/schemas/
 /// orchbee.install.json`), as the tokens its record carries; any other code, or another document,
 /// records `other`.
@@ -256,6 +260,48 @@ pub(super) fn start_if_absent(
             Err(ActivationFailure::bare(StartupFailure::TimedOut))
         }
     }
+}
+
+/// The store version folder from which `server restart`, run by this Client from outside the
+/// store, starts the new Server and Worker: the store's active version folder when that version is
+/// this Client's own, so the Session keeps running from the store, as a store start leaves it, and
+/// a window's files stay replaceable while its terminals run. A macOS bundle's Client whose version
+/// the store lacks first installs its own release directory, or, when another start of the bundle
+/// already installs it in the background, waits up to [`INSTALL_WAIT`] for it to become active.
+/// `None` leaves the restart to this Client's own cohort: a store Client, a development build, a
+/// store without this version, or one this rule cannot read.
+pub fn restart_cohort_directory(own_client: &Path, deadline: Instant) -> Option<PathBuf> {
+    let own_directory = own_client.parent().unwrap_or(own_client);
+    let decide_now = |installs: bool| {
+        decide(
+            orchbee_local_runtime::environment_kind(),
+            own_directory,
+            CLIENT_VERSION,
+            installs,
+            || orchbee_local_runtime::release_store_root(|name| std::env::var_os(name)),
+            read_active,
+            |client| admit(client).is_ok(),
+        )
+    };
+    let installs = cfg!(target_os = "macos")
+        && orchbee_local_runtime::bundle_of_cohort(own_directory).is_some();
+    let mut decision = decide_now(installs);
+    if let Decision::Install { no_path } = decision {
+        if !install_own(own_client, no_path, deadline) {
+            let until = deadline.min(Instant::now() + INSTALL_WAIT);
+            while Instant::now() < until && !matches!(decide_now(false), Decision::Store(_)) {
+                thread::sleep(INSTALL_WAIT_PAUSE);
+            }
+        }
+        decision = decide_now(false);
+    }
+    let Decision::Store(client) = decision else {
+        return None;
+    };
+    let directory = client.parent()?;
+    let version = directory.file_name()?.to_str()?;
+    (orchbee_local_runtime::compare_product_versions(version, CLIENT_VERSION) == Ordering::Equal)
+        .then(|| directory.to_path_buf())
 }
 
 /// Whether the Session has no Client endpoint: its runtime folder is absent, or present without the

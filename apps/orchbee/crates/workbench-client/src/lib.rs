@@ -172,6 +172,8 @@ pub mod application {
     }
 
     pub mod local_activation {
+        #[cfg(any(windows, target_os = "macos"))]
+        pub use crate::local_activation::restart_cohort_directory;
         pub use crate::local_activation::{
             ActivationCause, ActivationFailure, Rejoined, StartedSession, StartupFailure,
             activate_local_session, check_deadline, pause, refusal, rejoin_local_session,

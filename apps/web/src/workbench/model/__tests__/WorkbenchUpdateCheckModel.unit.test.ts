@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { WorkbenchUpdateCheckAnswer } from '../../types/workbench-client-update';
+import type {
+	WorkbenchUpdateCheckAnswer,
+	WorkbenchUpdateOffer,
+} from '../../types/workbench-client-update';
 import { WorkbenchUpdateCheckModel } from '../WorkbenchUpdateCheckModel';
 
 /** A Session Server that answers each exchange from `answers` in turn, and a host offer. */
@@ -10,7 +13,7 @@ function harness(
 ) {
 	const asked: ('read' | 'start')[] = [];
 	const remaining = [...answers];
-	let offer: string | null = null;
+	let offer: WorkbenchUpdateOffer | null = null;
 	const offerListeners = new Set<() => void>();
 	const model = new WorkbenchUpdateCheckModel({
 		ask: (action) => {
@@ -30,7 +33,7 @@ function harness(
 		asked,
 		model,
 		offer: (version: string) => {
-			offer = version;
+			offer = { kind: 'client', version };
 			for (const listener of offerListeners) listener();
 		},
 		status: () => model.getSnapshot().kind,

@@ -382,8 +382,8 @@ active version's manifest, so every evaluator reaches the same tier:
 | Tier          | Condition, first match                                                                                                        | Shown as                                                                                                                             |
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | `required`    | No common generation with the active version's Client (for Server) or Worker (for a Host), or a version below `securityFloor` | For Server and Worker, the Update control as below; for a Host, the confirmation of a [Host replacement](#required-host-replacement) |
-| `recommended` | A version below `recommendedFloor`                                                                                            | The [Update control](automatic-updates.md#the-update-control), whose click restarts Server and Worker from P1b                       |
-| `none`        | Otherwise                                                                                                                     | Nothing                                                                                                                              |
+| `recommended` | For Server and Worker, any older version; for a Host, a version below `recommendedFloor`                                      | The [Update control](automatic-updates.md#the-update-control), whose click restarts Server and Worker from P1b                       |
+| `none`        | Otherwise, which only a Host reaches                                                                                          | Nothing                                                                                                                              |
 
 - Server and Worker share one tier, the higher of their two. A Host below its `recommendedFloor`
   raises that shared tier to at least `recommended`, because only Restart Session moves new
@@ -401,6 +401,15 @@ active version's manifest, so every evaluator reaches the same tier:
 - A running TUI or Desktop older than the active version shows the Update control, whatever its
   Client floors say, and switches only when the person clicks it, as
   [automatic updates](automatic-updates.md#what-a-click-does) describes.
+- Decided by the owner on 2026-11-25: a TUI or Desktop that joins a Session whose Server runs an
+  older version than its own moves the Session onto its own version by itself, without asking:
+  on Windows and macOS it runs its own `server restart`, whatever the tier, since the tier reads the
+  active version, which a macOS application copied from the disk image may still be installing.
+  A Session too old to join is restarted the same way before its refusal shows. Only when the move
+  cannot happen, because a background program runs, a connected Client is too old to reconnect, a
+  Host must be replaced, or the restart fails, does the Update control offer it, with the reason
+  in a notice; a click tries again, and a Host replacement still asks first. Desktop copy never
+  names a command.
 - `update` text and `orchbee.update` JSON, under [CLI output](../../docs/cli/output.md), list each
   older running process with its tier. `update` itself never restarts or stops a process.
 
@@ -411,7 +420,7 @@ active version's manifest, so every evaluator reaches the same tier:
 | CLI command                       | The next invocation runs it                                                                                                                                                                                                                     | Nothing                                             |
 | TUI                               | Keeps running and shows the [Update control](automatic-updates.md#the-update-control); a click relaunches it on the newer version in the same console and Session                                                                               | One click; terminals continue                       |
 | Desktop                           | Its newer version installs beside it; a click relaunches it through the [window launcher](automatic-updates.md#how-the-window-updates); the Session is untouched                                                                                | One click; terminals continue                       |
-| Server and Worker                 | Keep running while compatible; Restart Session replaces them                                                                                                                                                                                    | A few seconds of "reconnecting"; terminals continue |
+| Server and Worker                 | Keep running while compatible; a newer TUI or Desktop that joins restarts them onto its own version, and Restart Session replaces them                                                                                                          | A few seconds of "reconnecting"; terminals continue |
 | Terminal Host                     | Never restarted; from H4 of [Host handover](host-handover.md#phases) each terminal moves to the newest Host, and the old Host exits; see [Host lifetime](#host-lifetime)                                                                        | Nothing; output pauses for a moment                 |
 | Keeper, from H2                   | From H4, replaced at every update that changes the Terminal Host executable: on Windows a new Keeper takes the handles, and on macOS and Linux the Keeper re-executes in place; see [updating the Keeper](host-handover.md#updating-the-keeper) | Nothing                                             |
 | Terminal that cannot move, rarely | See [Required Host replacement](#required-host-replacement)                                                                                                                                                                                     | One confirmation                                    |
@@ -809,6 +818,10 @@ active version's Worker. Inside 1.x, only a security fix can cause either.
 | `environment-mismatch` | `OtherEnvironment`, `environment-mismatch`            | `otherEnvironment`                         | "This copy of Orchbee belongs to another environment and cannot join the running Session."                                                         |
 | `fingerprint-mismatch` | `DevelopmentBuildMismatch`, `fingerprint-mismatch`    | `developmentBuildMismatch`                 | "This development build cannot join the running Session. Stop it with `orchbee server stop`, then try again."                                      |
 
+- On Windows and macOS the TUI's `SessionTooOld` names `orchbee server restart`, which keeps
+  terminals, since the TUI and Desktop restart the Session themselves before the refusal shows.
+  Desktop's `sessionTooOld` names no command: it says Orchbee couldn't update the Session and points
+  to restarting the computer or ending the Session's processes.
 - The CLI failure keeps kind `incompatible` and adds `clientVersion` and `sessionVersion` details
   when known; Desktop reads them from `server start --format json`. These messages replace
   `StartupFailure::Incompatible`, and every other message that says "cohort" says "installation".

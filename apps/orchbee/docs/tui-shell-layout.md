@@ -691,12 +691,13 @@ controls yet.
 
 ### Update control
 
-While the release store names a version newer than this Client active, `[ Update ]` (`[ 更新 ]`)
-ends the Settings row two blank cells before Help, as an ordinary standing-chrome button: its label
+While the release store names a version newer than this Client active, or while the move of an
+older Session onto this Client's version waits, `[ Update ]` (`[ 更新 ]`) ends the Settings row two blank cells before Help, as an ordinary standing-chrome button: its label
 in `text-primary` on the ordinary fill, or `[ Update ]` brackets in monochrome and NO_COLOR. It
 invokes the Update Client Action through global chrome, as the action menu's Update row does. Its
 pointer tooltip is the effect line "Switch to Orchbee {version}. Terminals keep running."
-(`切换到 Orchbee {version}，终端继续运行。`). A development build never shows it. Each claim on the
+(`切换到 Orchbee {version}，终端继续运行。`), or for the move "Update the Session to Orchbee
+{version}. Terminals keep running." (`将会话更新到 Orchbee {version}，终端继续运行。`). A development build never shows it. Each claim on the
 row takes only what the claims before it leave, in the order Settings, Update, Help, then the
 [marker](#environment-marker), which sits between Settings and Update: as the row narrows Help
 gives way first and Update takes the row's end, then Update gives way once it cannot keep one

@@ -1,10 +1,15 @@
 import { ActionRuntime, createTypedActionRuntime } from '@orchbee/actions';
 import { expect, it, vi } from 'vitest';
 
-import type { WorkbenchClientUpdate } from '../../types/workbench-client-update';
+import type {
+	WorkbenchClientUpdate,
+	WorkbenchUpdateOffer,
+} from '../../types/workbench-client-update';
 import { invokeWorkbenchClientUpdate } from '../invokeWorkbenchClientUpdate';
 import { registerWorkbenchClientUpdateAction } from '../registerWorkbenchClientUpdateAction';
 import type { WorkbenchActionCatalog } from '../workbench-action-ids';
+
+const OFFER: WorkbenchUpdateOffer = { kind: 'client', version: '0.3.0' };
 
 // Regression: a button ran Update through a typed runtime of its own, which the runtime refuses
 // for an Action another typed runtime registered, so neither the footer nor About switched.
@@ -14,7 +19,7 @@ it('runs Update from the scope it was registered in and from one below it', asyn
 	const workbench = runtime.createScope('workbench', host);
 	const request = vi.fn<(version: string) => void>();
 	const clientUpdate: WorkbenchClientUpdate = {
-		getSnapshot: () => '0.3.0',
+		getSnapshot: () => OFFER,
 		request,
 		subscribe: () => () => undefined,
 		subscribeWaiting: () => () => undefined,
@@ -43,7 +48,7 @@ it('calls onUnavailable when Update is unregistered, refused, throws, or invoked
 	expect(onUnavailable).toHaveBeenCalledTimes(1);
 
 	// Registered, but offer disappeared before click -> blocked ('client-update-unavailable')
-	let offered: string | null = null;
+	let offered: WorkbenchUpdateOffer | null = null;
 	registerWorkbenchClientUpdateAction({
 		clientUpdate: {
 			getSnapshot: () => offered,
@@ -61,7 +66,7 @@ it('calls onUnavailable when Update is unregistered, refused, throws, or invoked
 	expect(onUnavailable).toHaveBeenCalledTimes(2);
 
 	// Handler throws -> failed
-	offered = '0.3.0';
+	offered = OFFER;
 	invokeWorkbenchClientUpdate(runtime, host, { onUnavailable });
 	await Promise.resolve();
 	expect(onUnavailable).toHaveBeenCalledTimes(3);

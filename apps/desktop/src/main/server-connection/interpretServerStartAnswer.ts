@@ -10,14 +10,18 @@ import { interpretPathRefusal } from './interpretPathRefusal';
 /** A capability name of the handshake: 1 to 64 lowercase letters, digits, and hyphens. */
 const CapabilityNameSchema = z.string().regex(/^[a-z0-9-]{1,64}$/u);
 
+const ProductVersionSchema = z.string().regex(/^[!-~]{1,64}$/u);
+
 /**
- * `negotiatedCapabilities` names what both sides listed in the `client-server` handshake; a Client
- * that predates it answers none.
+ * `negotiatedCapabilities` names what both sides listed in the `client-server` handshake, and
+ * `sessionVersion` the version the Session's Server named in it; a Client that predates either
+ * answers none.
  */
 const ServerStartDocumentSchema = z.looseObject({
 	result: z.looseObject({
 		negotiatedCapabilities: z.array(CapabilityNameSchema).max(256).optional(),
 		restoreNotice: z.enum(['recovered', 'empty']).nullable(),
+		sessionVersion: ProductVersionSchema.nullable().optional().catch(null),
 	}),
 });
 
@@ -50,8 +54,6 @@ const ServerNotStartedFailureSchema = z.looseObject({
 	}),
 });
 
-const ProductVersionSchema = z.string().regex(/^[!-~]{1,64}$/u);
-
 /**
  * A handshake refusal, as the CLI reports it with exit 6. The bundled Client always names its own
  * version beside a version refusal; the Session names its own unless it predates the handshake.
@@ -77,16 +79,19 @@ type ServerRestoreState =
 
 /**
  * What one `server start` said: how the Session's restore went, and the capabilities its handshake
- * negotiated, which only a successful start names.
+ * negotiated and the version its Server named, which only a successful start names; a refusal by
+ * a Session too old names that version in the refusal instead.
  */
 export interface ServerStartAnswer {
 	readonly negotiatedCapabilities: readonly string[];
 	readonly restore: ServerRestoreState;
+	readonly sessionVersion: string | null;
 }
 
 const LOST_OR_UNKNOWN: ServerStartAnswer = {
 	negotiatedCapabilities: [],
 	restore: { kind: 'lost-or-unknown' },
+	sessionVersion: null,
 };
 
 /**
@@ -108,13 +113,22 @@ export function interpretServerStartAnswer(
 	if (!failed) {
 		const answer = ServerStartDocumentSchema.safeParse(document);
 		if (!answer.success) return LOST_OR_UNKNOWN;
-		const { negotiatedCapabilities = [], restoreNotice } = answer.data.result;
+		const {
+			negotiatedCapabilities = [],
+			restoreNotice,
+			sessionVersion = null,
+		} = answer.data.result;
 		return {
 			negotiatedCapabilities,
 			restore: restoreNotice === 'empty' ? { kind: 'lost-or-unknown' } : { kind: 'intact' },
+			sessionVersion,
 		};
 	}
-	return { negotiatedCapabilities: [], restore: interpretRefusal(document, platform) };
+	return {
+		negotiatedCapabilities: [],
+		restore: interpretRefusal(document, platform),
+		sessionVersion: null,
+	};
 }
 
 function interpretRefusal(document: unknown, platform: NodeJS.Platform): ServerRestoreState {
@@ -163,8 +177,8 @@ function interpretRefusal(document: unknown, platform: NodeJS.Platform): ServerR
 				refusal: {
 					desktopVersion: details.clientVersion,
 					reason: 'session-too-old',
-					// Only Windows restarts a Session's Server while its terminals run.
-					restartable: platform === 'win32',
+					// Only Windows and macOS restart a Session's Server while its terminals run.
+					restartable: platform === 'win32' || platform === 'darwin',
 					sessionVersion: details.sessionVersion ?? null,
 				},
 			};

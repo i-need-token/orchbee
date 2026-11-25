@@ -41,6 +41,7 @@ import type { WorkbenchAgentCatalogSource } from '../types/workbench-agent-start
 import type { WorkbenchConfiguredCommands } from '../types/workbench-configured-commands';
 import type { WorkbenchWorktrees } from '../types/workbench-worktrees';
 import { listShownTerminalPresentationIds } from '../utils/listShownTerminalPresentationIds';
+import type { WorkbenchSessionUpdateOffer } from './useWorkbenchClientUpdate';
 import { formatWorkbenchAgentProvider } from '../utils/workbench-agent-names';
 
 export interface WorkbenchAuthorityNoticeView {
@@ -58,6 +59,11 @@ export interface WorkbenchAuthorityNoticeView {
 	/** An Agent destination failed revalidation, so nothing moved; the TUI says the same. */
 	readonly reportAgentNavigationUnavailable: () => void;
 	readonly reportDuplicationStopped: (stop: WorkbenchTabDuplicationStop) => void;
+	/**
+	 * A move of the Session onto this window's version runs, or waits for the reason its offer names;
+	 * `null` withdraws what such a move said. The TUI says the same.
+	 */
+	readonly reportSessionUpdate: (offer: WorkbenchSessionUpdateOffer | null) => void;
 	/** Update could not switch or launch; the TUI says the same. */
 	readonly reportUpdateUnavailable: () => void;
 	/** Update could not switch yet; the TUI says the same. */
@@ -419,6 +425,25 @@ export function useWorkbenchAuthorityNotice(
 	const reportUpdateWaiting = useMemoizedFn(() => {
 		setNotice({ descriptor: workbenchMessages.updateWaiting, lifetime: 'timed' });
 	});
+	const reportSessionUpdate = useMemoizedFn((offer: WorkbenchSessionUpdateOffer | null) => {
+		if (offer === null) {
+			setNotice((current) => (isSessionUpdateNotice(current) ? null : current));
+			return;
+		}
+		setNotice(
+			offer.state === 'updating'
+				? {
+						descriptor: workbenchMessages.updateSessionUpdating,
+						lifetime: 'until-replaced',
+						values: { version: offer.version },
+					}
+				: {
+						descriptor: SESSION_UPDATE_WAITS[offer.state],
+						lifetime: 'until-press',
+						values: { sessionVersion: offer.sessionVersion },
+					},
+		);
+	});
 	const agentResumeNotices = authority.agentResumeNotices;
 	React.useEffect(
 		() =>
@@ -491,8 +516,29 @@ export function useWorkbenchAuthorityNotice(
 		reportActionOutcome,
 		reportAgentNavigationUnavailable,
 		reportDuplicationStopped,
+		reportSessionUpdate,
 		reportUpdateUnavailable,
 		reportUpdateWaiting,
 		withdrawDirectoryRefusal,
 	};
+}
+
+/** Why a Session move waits, as its notice words it. */
+const SESSION_UPDATE_WAITS = {
+	'background-programs': workbenchMessages.updateSessionBackgroundPrograms,
+	clients: workbenchMessages.updateSessionClients,
+	'host-required': workbenchMessages.updateSessionHostRequired,
+	other: workbenchMessages.updateSessionOther,
+} as const satisfies Record<
+	Exclude<WorkbenchSessionUpdateOffer['state'], 'updating'>,
+	WorkbenchAuthorityNotice['descriptor']
+>;
+
+const SESSION_UPDATE_DESCRIPTORS: ReadonlySet<WorkbenchAuthorityNotice['descriptor']> = new Set([
+	workbenchMessages.updateSessionUpdating,
+	...Object.values(SESSION_UPDATE_WAITS),
+]);
+
+function isSessionUpdateNotice(notice: WorkbenchAuthorityNotice | null): boolean {
+	return notice !== null && SESSION_UPDATE_DESCRIPTORS.has(notice.descriptor);
 }

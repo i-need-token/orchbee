@@ -40,6 +40,20 @@ interface TerminalSettingsUpdateCheck {
 }
 
 /** The version, the build, and the update control About shows. */
+/**
+ * What Update offers: a newer version of this window, or, while the Session runs the older
+ * `sessionVersion`, a move of the Session onto this window's `version`, running now or waiting for
+ * the reason `state` names.
+ */
+export type TerminalSettingsUpdateOffer =
+	| { readonly kind: 'client'; readonly version: string }
+	| {
+			readonly kind: 'session';
+			readonly sessionVersion: string;
+			readonly state: 'background-programs' | 'clients' | 'host-required' | 'other' | 'updating';
+			readonly version: string;
+	  };
+
 export interface TerminalSettingsAbout {
 	/** Which build this window is; null where the host does not say. */
 	readonly build: 'development' | 'release' | 'test' | null;
@@ -47,10 +61,13 @@ export interface TerminalSettingsAbout {
 	readonly check: TerminalSettingsUpdateCheck | undefined;
 	/** Opens orchbee.com's install section in the browser when a check fails; absent where no external browser port is wired. */
 	readonly downloadInstaller?: (() => void) | undefined;
-	/** The newer version the window can switch to now, which puts Update in Check's place. */
+	/**
+	 * The newer version the window can switch to now, or the move of an older Session onto this
+	 * window's version, which puts Update in Check's place.
+	 */
 	readonly offer:
 		| {
-				readonly getSnapshot: () => string | null;
+				readonly getSnapshot: () => TerminalSettingsUpdateOffer | null;
 				readonly subscribe: (listener: () => void) => () => void;
 				/** Calls back each time a requested switch fails to launch the newer window. */
 				readonly subscribeFailed?: ((listener: () => void) => () => void) | undefined;

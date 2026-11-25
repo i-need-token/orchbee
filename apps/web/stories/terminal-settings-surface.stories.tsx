@@ -380,6 +380,7 @@ function createAboutStorySource(
 	live = true,
 ): TerminalSettingsAbout {
 	let current = status;
+	const offered = offer === null ? null : ({ kind: 'client', version: offer } as const);
 	const listeners = new Set<() => void>();
 	const set = (next: AboutStatus): void => {
 		current = next;
@@ -401,7 +402,10 @@ function createAboutStorySource(
 			},
 		},
 		downloadInstaller: () => undefined,
-		offer: { getSnapshot: () => offer, subscribe: () => () => undefined },
+		offer: {
+			getSnapshot: () => offered,
+			subscribe: () => () => undefined,
+		},
 		update: () => undefined,
 		version: '1.3.0',
 	};

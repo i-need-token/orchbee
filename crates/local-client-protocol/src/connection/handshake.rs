@@ -8,8 +8,8 @@ use std::{
 };
 
 use orchbee_connection_handshake::{
-    AcceptorMessage, CapabilitySet, Generation, InitiatorMessage, Offer, OfferFailure, ReadError,
-    conclude_offer, encode_initiator_frame, read_acceptor_message,
+    AcceptorMessage, CapabilitySet, Generation, InitiatorMessage, Offer, OfferFailure,
+    ProductVersion, ReadError, conclude_offer, encode_initiator_frame, read_acceptor_message,
 };
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 use orchbee_connection_handshake::{
@@ -20,16 +20,22 @@ use orchbee_connection_handshake::{
 use super::ConnectClientError;
 use crate::{LocalClientMessage, read_message, write_message};
 
-/// Sends `offer` and accepts only an answer inside it, returning the generation the answer chose
-/// and the capabilities both sides listed. A rejection keeps the Server's facts; a reply that is
-/// not `OBHS` comes from a Server that predates the handshake.
+/// Sends `offer` and accepts only an answer inside it, returning the generation the answer chose,
+/// the capabilities both sides listed, and the Server's product version. A rejection keeps the
+/// Server's facts; a reply that is not `OBHS` comes from a Server that predates the handshake.
 pub(super) fn offer(
     transport: &mut (impl Read + Write),
     offer: &Offer,
-) -> Result<(Generation, CapabilitySet), ConnectClientError> {
+) -> Result<(Generation, CapabilitySet, ProductVersion), ConnectClientError> {
     send(transport, &InitiatorMessage::Offer(offer.clone()))?;
     conclude_offer(offer, receive(transport)?)
-        .map(|answer| (answer.generation, answer.capabilities))
+        .map(|answer| {
+            (
+                answer.generation,
+                answer.capabilities,
+                answer.product_version,
+            )
+        })
         .map_err(|failure| match failure {
             OfferFailure::Rejected(rejection) => ConnectClientError::Refused(Box::new(rejection)),
             OfferFailure::InvalidAnswer | OfferFailure::UnexpectedReply => {

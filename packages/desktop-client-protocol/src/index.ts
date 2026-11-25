@@ -59,7 +59,9 @@ export {
 } from './desktop-window-update-contract';
 export type {
 	DesktopRelaunchPlace,
+	DesktopSessionUpdateState,
 	DesktopWindowUpdateMainMessage,
+	DesktopWindowUpdateOffer,
 	DesktopWindowUpdateRendererMessage,
 } from './desktop-window-update-contract';
 

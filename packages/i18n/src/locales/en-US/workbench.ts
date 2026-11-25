@@ -70,9 +70,20 @@ export const enUSWorkbenchMessages = {
 	'workbench.sidebar.items.shortcuts': 'Shortcuts',
 	'workbench.sidebar.items.update': 'Update',
 	'workbench.sidebar.items.updateTooltip': 'Switch to Orchbee {version}. Terminals keep running.',
-	'workbench.update.unavailable':
-		"Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
+	'workbench.sidebar.items.updateSessionTooltip':
+		'Update the Session to Orchbee {version}. Terminals keep running.',
+	'workbench.update.unavailable': "Couldn't update here. Quit Orchbee and open it again.",
 	'workbench.update.waiting': 'This update applies when no terminal is running.',
+	'workbench.update.session.updating':
+		'Updating the Session to Orchbee {version}. Terminals keep running.',
+	'workbench.update.session.backgroundPrograms':
+		'The Session still runs Orchbee {sessionVersion} while a configured command or plugin job runs in it. Press Update once it ends.',
+	'workbench.update.session.clients':
+		'The Session still runs Orchbee {sessionVersion} because an older Orchbee is connected to it. Quit that one, then press Update.',
+	'workbench.update.session.hostRequired':
+		"The Session still runs Orchbee {sessionVersion}. Updating it restarts every terminal, so it waits for you: press Update when you're ready.",
+	'workbench.update.session.other':
+		"The Session still runs Orchbee {sessionVersion}, so some features of this version aren't available yet. Press Update to try again.",
 	'workbench.update.hostReplacement.title': 'Restart terminals to update?',
 	'workbench.update.hostReplacement.description':
 		"This update can't keep the terminals running. Each terminal restarts in its folder, and the programs running in them end.",

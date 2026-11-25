@@ -40,7 +40,7 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableSessionTooOld: message(
 		'session.connection.unavailable.sessionTooOld',
-		`The running Session is too old for this Desktop; without a version it predates version checks, and only the Orchbee that started it can stop it. Where restartable is true (Windows), a restart replaces its Server and keeps every terminal; elsewhere it must be stopped. Matches the TUI and CLI refusal. The <command> tag holds a command, which is not translated. ${REFUSED_VERSIONS}`,
+		`The running Session is too old for this Desktop, which could not update it: without a version it predates version checks. Where restartable is true (Windows and macOS), Desktop already tried to restart it keeping every terminal, so trying again may still work; otherwise the Session ends only with the computer's restart or its processes ended. Server, Worker and Terminal Host stay in English. system is macos or windows and picks the tool the system ends a process with: Activity Monitor on macOS, Task Manager on Windows. ${REFUSED_VERSIONS}`,
 	),
 	unavailableTitle: message('session.connection.unavailable.title'),
 	unavailableTryAgain: message('session.connection.unavailable.tryAgain'),

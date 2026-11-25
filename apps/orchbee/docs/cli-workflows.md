@@ -119,9 +119,11 @@ workflow, in phase order:
 
 1. Reserve: holding the Session's activation lock until it answers, so that no start runs beside
    the restart, the command creates this build's Server suspended (on Windows outside the caller's
-   Job), records
-   it in the Session record as the restart's successor with a fresh ticket and activation
-   identifier, then resumes it.
+   Job), records it in the Session record as the restart's successor with a fresh ticket and activation
+   identifier, then resumes it. Run from outside the store, as a window's bundled Client runs it,
+   the command takes that Server from the store's folder of this version once that version is
+   active, which a macOS bundle first installs or waits for, so the Session keeps running from the
+   store; otherwise from its own folder.
 2. The successor checks the running Server, its connected Clients and its Terminal Hosts; asks the
    running Server to prepare (it holds new requests, records the Session exactly, releases the
    Session store and ends its Worker while every Host keeps its terminals); takes the store and

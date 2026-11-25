@@ -638,8 +638,9 @@ export const DevelopmentEnvironmentMarker: Story = {
 /** A Desktop window whose host offers a newer version; Update answers that the switch waits. */
 function storyClientUpdate(version: string): WorkbenchClientUpdate {
 	const waiting = new Set<() => void>();
+	const offer = { kind: 'client', version } as const;
 	return {
-		getSnapshot: () => version,
+		getSnapshot: () => offer,
 		request: () => {
 			for (const listener of waiting) listener();
 		},

@@ -743,6 +743,7 @@ export function useWorkbench({
 	const update = useWorkbenchClientUpdate({
 		clientUpdate,
 		registrationScope: hostActionScope ?? actions.scope,
+		reportSessionUpdate: authorityNotice.reportSessionUpdate,
 		reportUnavailable: authorityNotice.reportUpdateUnavailable,
 		reportWaiting: authorityNotice.reportUpdateWaiting,
 		runtime: actionRuntime,

@@ -80,10 +80,12 @@ pub(in crate::cli) fn active(query: &QueryResult) -> Option<Restart> {
 
 /// Server and Worker share the higher of their tiers: `required` when the Server predates the
 /// compatibility window, shares no `client-server` generation with the active Client, or either is
-/// below its security floor; `recommended` when either, or any Host, is below its recommended
-/// floor. A Host is `required` below its security floor or without a `worker-host` generation in
-/// common with the active Worker. Only a process older than its active component gets a tier; a
-/// floor or range the manifest omits imposes nothing.
+/// below its security floor; otherwise `recommended` whenever either is older than its active
+/// component, since a restart keeps every terminal and an older Server leaves the active version's
+/// features unavailable, and also when any Host is below its recommended floor. A Host is
+/// `required` below its security floor or without a `worker-host` generation in common with the
+/// active Worker. Only a process older than its active component gets a tier; a floor or range the
+/// manifest omits imposes nothing.
 pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart {
     let processes = query.processes();
     let of = |role| processes.iter().filter(move |entry| entry.role == role);
@@ -102,14 +104,14 @@ pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart
                 client.and_then(|client| client.connections.client_server),
             );
         tier = tier.max(if joins {
-            floors(entry, server)
+            replacement(entry, server)
         } else {
             Tier::Required
         });
     }
     for entry in of(ProcessRole::Worker) {
         if let Some(worker) = worker.filter(|worker| older(entry, worker)) {
-            tier = tier.max(floors(entry, worker));
+            tier = tier.max(replacement(entry, worker));
         }
     }
     let mut hosts = Vec::new();
@@ -154,13 +156,13 @@ fn below(entry: &ProcessEntry, floor: Option<&str>) -> bool {
     })
 }
 
-fn floors(entry: &ProcessEntry, component: &Component) -> Tier {
+/// The tier of a Server or Worker older than its active component: `required` below its security
+/// floor, else `recommended`.
+fn replacement(entry: &ProcessEntry, component: &Component) -> Tier {
     if below(entry, component.security_floor.as_deref()) {
         Tier::Required
-    } else if below(entry, component.recommended_floor.as_deref()) {
-        Tier::Recommended
     } else {
-        Tier::None
+        Tier::Recommended
     }
 }
 

@@ -5,7 +5,11 @@ import {
 } from '@orchbee/desktop-client-protocol';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { ServerStartAnswer, UpdateRestart } from '../../server-connection';
+import type {
+	ServerStartAnswer,
+	UpdateRestart,
+	UpdateRestartRequest,
+} from '../../server-connection';
 import {
 	DesktopWindowUpdate,
 	type DesktopWindowUpdateFocus,
@@ -68,12 +72,21 @@ function stopNothing(): Promise<boolean> {
 	return Promise.resolve(false);
 }
 
-function restartAsBefore(_root: string, _version: string, joins: boolean): Promise<UpdateRestart> {
+function restartAsBefore(
+	_root: string,
+	_version: string,
+	{ joins }: UpdateRestartRequest,
+): Promise<UpdateRestart> {
 	return Promise.resolve(joins ? 'not-needed' : 'failed');
 }
 
+/** A Session as new as this window, which moves nothing. */
+function restartNothing(): Promise<UpdateRestart> {
+	return Promise.resolve('not-needed');
+}
+
 function started(negotiatedCapabilities: readonly string[]): ServerStartAnswer {
-	return { negotiatedCapabilities, restore: { kind: 'intact' } };
+	return { negotiatedCapabilities, restore: { kind: 'intact' }, sessionVersion: null };
 }
 
 function create(options: {
@@ -81,7 +94,7 @@ function create(options: {
 	readonly restartForVersion?: (
 		root: string,
 		version: string,
-		joins: boolean,
+		request: UpdateRestartRequest,
 	) => Promise<UpdateRestart>;
 	readonly startVersionClient?: (root: string, version: string) => Promise<ServerStartAnswer>;
 }) {
@@ -101,6 +114,7 @@ function create(options: {
 		readPointer: () => Promise.resolve(active),
 		recordEvent: () => undefined,
 		restartForVersion: options.restartForVersion ?? restartAsBefore,
+		restartSession: restartNothing,
 		stopSession: stopNothing,
 		startVersionClient,
 		watchPointer: (_root, onChange) => {
@@ -130,10 +144,12 @@ describe('DesktopWindowUpdate', () => {
 		await settle();
 		const document = fakePort();
 		update.serve(document.port, document.focus);
-		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: '0.3.0' }]);
+		expect(document.sent).toEqual([
+			{ offer: { kind: 'window', version: '0.3.0' }, type: 'desktop-window-update-offered' },
+		]);
 		movePointer('0.2.0');
 		await settle();
-		expect(document.sent.at(-1)).toEqual({ type: 'desktop-window-update-offered', version: null });
+		expect(document.sent.at(-1)).toEqual({ offer: null, type: 'desktop-window-update-offered' });
 	});
 
 	it('says the update waits when the new version cannot join this Session', async () => {
@@ -167,7 +183,7 @@ describe('DesktopWindowUpdate', () => {
 
 	it('switches once the new version restarted a Session it could not join', async () => {
 		const restartForVersion = vi.fn<
-			(root: string, version: string, joins: boolean) => Promise<UpdateRestart>
+			(root: string, version: string, request: UpdateRestartRequest) => Promise<UpdateRestart>
 		>(() => Promise.resolve('restarted'));
 		const { onJoinable, update } = create({
 			active: '0.3.0',
@@ -179,7 +195,10 @@ describe('DesktopWindowUpdate', () => {
 		update.serve(document.port, document.focus);
 		document.request('0.3.0', PLACE);
 		await settle();
-		expect(restartForVersion).toHaveBeenCalledWith(ROOT, '0.3.0', false);
+		expect(restartForVersion).toHaveBeenCalledWith(ROOT, '0.3.0', {
+			joins: false,
+			sessionOlder: false,
+		});
 		expect(onJoinable).toHaveBeenCalledWith('0.3.0', PLACE);
 	});
 
@@ -218,6 +237,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			restartSession: restartNothing,
 			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started([])),
 			watchPointer: (_root, onChange) => {
@@ -235,8 +255,8 @@ describe('DesktopWindowUpdate', () => {
 		changed?.();
 		await settle();
 		expect(document.sent.at(-1)).toEqual({
+			offer: { kind: 'window', version: '0.3.0' },
 			type: 'desktop-window-update-offered',
-			version: '0.3.0',
 		});
 	});
 
@@ -252,6 +272,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer,
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			restartSession: restartNothing,
 			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			watchPointer: () => () => undefined,
@@ -263,7 +284,7 @@ describe('DesktopWindowUpdate', () => {
 		document.request('0.3.0');
 		await settle();
 		expect(readPointer).not.toHaveBeenCalled();
-		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: null }]);
+		expect(document.sent).toEqual([{ offer: null, type: 'desktop-window-update-offered' }]);
 	});
 
 	it('tells the asking document when launching the newer window fails or rejects', async () => {
@@ -279,6 +300,7 @@ describe('DesktopWindowUpdate', () => {
 				readPointer: () => Promise.resolve('0.3.0'),
 				recordEvent: () => undefined,
 				restartForVersion: restartAsBefore,
+				restartSession: restartNothing,
 				stopSession: stopNothing,
 				startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 				watchPointer: () => () => undefined,
@@ -303,6 +325,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			restartSession: restartNothing,
 			stopSession: stopNothing,
 			startVersionClient: () => Promise.resolve(started(['compatibility-window'])),
 			// Simulates OS `fs.watch` coalescing or missing the pointer rename.
@@ -312,14 +335,14 @@ describe('DesktopWindowUpdate', () => {
 		await settle();
 		const document = fakePort();
 		update.serve(document.port, document.focus);
-		expect(document.sent).toEqual([{ type: 'desktop-window-update-offered', version: null }]);
+		expect(document.sent).toEqual([{ offer: null, type: 'desktop-window-update-offered' }]);
 
 		active = '0.3.0';
 		document.refresh();
 		await settle();
 		expect(document.sent.at(-1)).toEqual({
+			offer: { kind: 'window', version: '0.3.0' },
 			type: 'desktop-window-update-offered',
-			version: '0.3.0',
 		});
 	});
 
@@ -338,6 +361,7 @@ describe('DesktopWindowUpdate', () => {
 			readPointer: () => Promise.resolve(active),
 			recordEvent: () => undefined,
 			restartForVersion: restartAsBefore,
+			restartSession: restartNothing,
 			stopSession: stopNothing,
 			startVersionClient: () =>
 				Promise.resolve(started(joinable ? ['compatibility-window'] : ['agent-input-area'])),

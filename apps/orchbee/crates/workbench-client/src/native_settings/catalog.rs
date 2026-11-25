@@ -331,7 +331,8 @@ pub(super) struct Filter<'a> {
     pub(super) query: &'a str,
     pub(super) custom_colors: bool,
     pub(super) completion_reminders: bool,
-    pub(super) quota_resume_supported: bool,
+    /// The keys of rows the Server must publish to show that it does publish.
+    pub(super) published: &'a [&'static str],
     /// Rows whose key the settings registry does not yet mark for the page show anyway.
     pub(super) unlisted: bool,
 }
@@ -341,22 +342,33 @@ impl Filter<'_> {
         query: &'a str,
         values: &orchbee_workbench_protocol::UserSettingsValues,
         unlisted: bool,
-        quota_resume_supported: bool,
+        published: &'a [&'static str],
     ) -> Filter<'a> {
         Filter {
             query,
             custom_colors: values.terminal_display_theme == TerminalDisplayAppearance::Custom,
             completion_reminders: values.completion_reminder_mode != CompletionReminderMode::Never,
-            quota_resume_supported,
+            published,
             unlisted,
         }
+    }
+
+    fn publishes(self, key: &str) -> bool {
+        self.published.contains(&key)
     }
 
     fn shows(self, row: Row) -> bool {
         match row {
             Row::Foreground | Row::Background => self.custom_colors,
             Row::CompletionThreshold => self.completion_reminders,
-            Row::QuotaResumeEnabled | Row::QuotaResumePrompt => self.quota_resume_supported,
+            Row::AutoAllowClaude => self.publishes("agents.auto_allow.claude"),
+            Row::AutoAllowCodex => self.publishes("agents.auto_allow.codex"),
+            Row::AutoAllowGemini => self.publishes("agents.auto_allow.gemini"),
+            Row::AutoAllowOpenCode => self.publishes("agents.auto_allow.opencode"),
+            Row::QuotaResumeEnabled | Row::QuotaResumePrompt => {
+                self.publishes("agents.quota_resume.enabled")
+                    && self.publishes("agents.quota_resume.prompt")
+            }
             Row::AutomaticUpdates => self.unlisted || on_page("update.automatic"),
             // A search lists settings; About's version and update control are information.
             Row::Version | Row::Updates => self.query.split_whitespace().next().is_none(),

@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::release_update::{CheckUnavailable, UpdateCheck};
+use crate::release_update::{CheckUnavailable, UpdateCheck, moves_session};
 use orchbee_local_runtime::EnvironmentKind;
 
 impl Locale {
@@ -11,11 +11,16 @@ impl Locale {
         }
     }
 
-    /// The Update control's effect line: its tooltip, and the sentence its action menu row carries.
+    /// The Update control's effect line: its tooltip, and the sentence its action menu row carries,
+    /// for a switch of this Client or, by [`moves_session`], the move of an older Session.
     pub(crate) fn update_tooltip(self, version: &str) -> String {
-        match self {
-            Self::EnUs => format!("Switch to Orchbee {version}. Terminals keep running."),
-            Self::ZhCn => format!("切换到 Orchbee {version}，终端继续运行。"),
+        match (self, moves_session(version)) {
+            (Self::EnUs, false) => format!("Switch to Orchbee {version}. Terminals keep running."),
+            (Self::EnUs, true) => {
+                format!("Update the Session to Orchbee {version}. Terminals keep running.")
+            }
+            (Self::ZhCn, false) => format!("切换到 Orchbee {version}，终端继续运行。"),
+            (Self::ZhCn, true) => format!("将会话更新到 Orchbee {version}，终端继续运行。"),
         }
     }
 

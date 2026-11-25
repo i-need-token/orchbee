@@ -27,7 +27,8 @@ Updates row; it shows only while the settings registry marks that key for the pa
 [automatic updates proposal](../../../proposals/platform/automatic-updates.md#phases) turns on with
 its slice 1 switch, and a search lists it alone. Agents holds the Allow routine confirmations group: a
 described heading, one switch for each Agent type the Server can answer for
-(`agents.auto_allow.<agent>`), and a closing line inside the frame that asks for more Agents in a
+(`agents.auto_allow.<agent>`), each only while the Server publishes its key, which an older
+Session's Server does not, and the group only with one, and a closing line inside the frame that asks for more Agents in a
 GitHub issue. The page's last line names More options in `config.toml` and
 its path; a path too long for the line drops its leading folders first, so the file name stays.
 Text that does not fit its cells ends in the ellipsis at a grapheme boundary, counted in display
@@ -139,8 +140,8 @@ nothing to activate, so the status line names no primary key on it, nor on Updat
 runs or none can.
 
 Updates ends in a button drawn by the shared button control: Check for updates, or the Update
-control's Update while the release store names a newer version, with the control's own sentence as
-its description. The button takes the ordinary fill, or `[ Label ]` brackets in monochrome and
+control's Update while the release store names a newer version or the move of an older Session
+waits, with the control's own sentence as its description. The button takes the ordinary fill, or `[ Label ]` brackets in monochrome and
 NO_COLOR, and stays whole: the row's name gives up cells to it. The whole row is the button's target,
 so the pointer anywhere on the row shows hover and press on the button and the row takes no pointer
 surface. A row too narrow for the whole button beside two cells of its name shows the label as cut

@@ -290,6 +290,7 @@ never manufactures liveness or termination witnesses.
 
 - A creation receipt whose terminal started or is starting ends with a `terminal list --panel @panel:0x<hex>` hint for the new Panel, because the spawn outcome does not carry the terminal ID.
 - `orchbee.server.start` lists `negotiatedCapabilities`: the capability names both sides listed in this invocation's `client-server` handshake. The window's Update reads it to prove that the active window version joins this Session; it is optional in the schema because Clients before the window self-update release omit it.
+- `orchbee.server.start` also lists `sessionVersion`: the product version the Session's Server named in that handshake, or null without one. Desktop reads it to tell that a Session runs an older version than its own window and moves the Session to its version, as [Desktop's Session update](../../desktop/README.md#session-update) describes; it is optional in the schema because Clients before it omit it.
 
 ## Mutations
 

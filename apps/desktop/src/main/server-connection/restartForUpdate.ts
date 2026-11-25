@@ -37,7 +37,7 @@ const RestartTierDocumentSchema = z.looseObject({
 });
 
 const RestartDocumentSchema = z.looseObject({
-	result: z.looseObject({ outcome: z.string() }),
+	result: z.looseObject({ outcome: z.string(), reason: z.string().optional() }),
 	schema: z.literal('orchbee.server.restart'),
 });
 
@@ -51,33 +51,57 @@ export interface TerminalsStaying {
 }
 
 /**
+ * A restart the running Session refused with nothing changed: because it still runs a background
+ * program its Worker would end, because a connected Client cannot come back to a new Server by
+ * itself, or for another reason, such as another start or restart running.
+ */
+interface RestartRefused {
+	readonly kind: 'refused';
+	readonly reason: 'background-programs' | 'clients' | 'other';
+}
+
+/**
  * What the active version's Client did for a switch to it: `not-needed` when it joins the Session
  * and its restart tier asks for nothing, `restarted` when it restarted the Session's Server and
- * Worker, keeping every terminal, `failed` when it could not, so the update waits, `host-required`
- * when a Terminal Host must be replaced whose terminals that version's Worker does not move, which
- * no restart keeping its terminals can do: the person confirms a restart of every terminal first,
- * and {@link TerminalsStaying} once the moves off such a Host settled with terminals left on it.
+ * Worker, keeping every terminal, {@link RestartRefused} or `failed` when it could not, so the
+ * update waits, `host-required` when a Terminal Host must be replaced whose terminals that
+ * version's Worker does not move, which no restart keeping its terminals can do: the person
+ * confirms a restart of every terminal first, and {@link TerminalsStaying} once the moves off such
+ * a Host settled with terminals left on it.
  */
 export type UpdateRestart =
 	| 'failed'
 	| 'host-required'
 	| 'not-needed'
 	| 'restarted'
+	| RestartRefused
 	| TerminalsStaying;
+
+/**
+ * What a restart is asked for: whether the Client `joins` the Session at all, and whether the
+ * Session's Server is known to run an older version than that Client (`sessionOlder`), which
+ * restarts it whatever tier the store's active release gives it, since a window's version may run
+ * before the store names it active.
+ */
+export interface UpdateRestartRequest {
+	readonly joins: boolean;
+	readonly sessionOlder: boolean;
+}
 
 /**
  * Decides and runs the Session restart a switch to the active version needs, through that version's
  * Client `executable`: the newer side reads the tier with `status server` and restarts with
- * `server restart`. Once the Session runs that version, a `required` Host whose terminals move is
- * read every two seconds until those Hosts run no terminal or their count held for six seconds. Only
- * Windows and macOS restart a Session while terminals run; elsewhere a Session the version cannot
- * join waits for the automatic move.
+ * `server restart`, as it also does when `request` says the Session runs an older version than that
+ * Client. Once the Session runs that version, a `required` Host whose terminals move is read every
+ * two seconds until those Hosts run no terminal or their count held for six seconds. Only Windows
+ * and macOS restart a Session while terminals run; elsewhere a Session the version cannot join
+ * waits for the automatic move.
  */
 export async function restartForUpdate(
 	executable: string,
 	sessionArguments: readonly string[],
 	environment: NodeJS.ProcessEnv,
-	joins: boolean,
+	{ joins, sessionOlder }: UpdateRestartRequest,
 	platform: NodeJS.Platform,
 ): Promise<UpdateRestart> {
 	if (platform !== 'win32' && platform !== 'darwin') return joins ? 'not-needed' : 'failed';
@@ -87,7 +111,8 @@ export async function restartForUpdate(
 	const hosts = restart?.hosts ?? [];
 	if (hosts.some((host) => host.tier === 'required' && host.moves !== true)) return 'host-required';
 	const moving = restart !== undefined && staying(restart) > 0;
-	if (joins && restart?.tier !== 'recommended' && restart?.tier !== 'required') {
+	const tierAsks = restart?.tier === 'recommended' || restart?.tier === 'required';
+	if (joins && !sessionOlder && !tierAsks) {
 		return moving ? left(await settle(read, performance.now()), 'not-needed') : 'not-needed';
 	}
 	const outcome = await run(
@@ -97,8 +122,16 @@ export async function restartForUpdate(
 		RESTART_DEADLINE_MILLISECONDS,
 	);
 	const answer = RestartDocumentSchema.safeParse(outcome);
-	if (!answer.success || answer.data.result.outcome !== 'restarted') return 'failed';
+	if (!answer.success) return 'failed';
+	const { outcome: ended, reason } = answer.data.result;
+	if (ended === 'refused') return { kind: 'refused', reason: refusalReason(reason) };
+	if (ended !== 'restarted') return 'failed';
 	return moving ? left(await settle(read, performance.now()), 'restarted') : 'restarted';
+}
+
+/** The refusals a window words on their own; any other says only that the update waits. */
+function refusalReason(reason: string | undefined): RestartRefused['reason'] {
+	return reason === 'background-programs' || reason === 'clients' ? reason : 'other';
 }
 
 function left(terminals: number, none: 'not-needed' | 'restarted'): UpdateRestart {

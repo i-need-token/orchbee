@@ -283,6 +283,7 @@ fn every_workbench_notice() -> Vec<WorkbenchClientNotice> {
 /// to compile for a new variant until this list names it.
 fn every_client_notice() -> Vec<Notice> {
     use crate::machine_refusal::Refusal;
+    use crate::release_update::SessionWait;
     use BackendAction as Action;
 
     let mut all = vec![
@@ -313,7 +314,17 @@ fn every_client_notice() -> Vec<Notice> {
         Notice::UpdateRestarting,
         Notice::UpdateWaiting,
         Notice::UpdateUnavailable,
+        Notice::SessionUpdating,
     ];
+    all.extend(
+        [
+            SessionWait::BackgroundPrograms,
+            SessionWait::Clients,
+            SessionWait::HostRequired,
+            SessionWait::Other,
+        ]
+        .map(Notice::SessionUpdateWaiting),
+    );
     all.extend(
         [
             Refusal::OtherEnvironment,
@@ -404,7 +415,9 @@ fn every_client_notice() -> Vec<Notice> {
             | Notice::PasswordNotSaved
             | Notice::UpdateRestarting
             | Notice::UpdateWaiting
-            | Notice::UpdateUnavailable => {}
+            | Notice::UpdateUnavailable
+            | Notice::SessionUpdating
+            | Notice::SessionUpdateWaiting(_) => {}
         }
     }
     all

@@ -7,6 +7,12 @@
 //! the Session through this TUI's own connection, so the active version starts it again with every
 //! terminal restarted from the Session's final capture. A Host that version must replace but whose
 //! terminals its Worker moves asks only once the moves settle, about the terminals left on it.
+//!
+//! A TUI that joined a Session running an older version moves it onto its own version the same
+//! way, with its own program and whatever the Session's tier says, since that tier reads the
+//! store's active version, which a macOS bundle may still be installing. A Host that version must
+//! replace asks first, and the confirmed replacement starts the Session again with this program.
+use super::SessionWait;
 use crate::background_thread::BackgroundThread;
 use orchbee_local_client_protocol::{
     SessionStopRequest, SessionStopStatus, StopAction, StopId, exchange_session_stop_before,
@@ -53,6 +59,9 @@ pub(super) enum Progress {
     Leave,
     /// Nothing changed; the update waits for the Session to move.
     Waiting,
+    /// The Session refused to move onto this Client's version, for the reason named; only an
+    /// older Session's move reports it.
+    Refused(SessionWait),
     /// A Terminal Host of the Session must be replaced, which restarts its terminals: the person
     /// confirms first. `None` before the restart, when the active version's Worker cannot adopt
     /// it; `Some` counts the terminals that could not move from it once the Session runs that
@@ -88,6 +97,45 @@ impl Job {
                 Progress::Leave
             } else {
                 Progress::Waiting
+            });
+        })
+    }
+
+    /// Starts the move of the Session `session`, which runs an older version, onto this Client's
+    /// own version: [`Progress::Restarting`] at once, then [`Progress::Leave`] once it runs this
+    /// version, [`Progress::HostRequired`] when a Host must be replaced first, or
+    /// [`Progress::Refused`].
+    pub(super) fn move_session(session: &str) -> Option<Self> {
+        let executable = std::env::current_exe().ok()?;
+        let session = session.to_owned();
+        Self::spawn(move |report| run_move(&executable, &session, report))
+    }
+
+    /// Starts the confirmed Host replacement for an older Session's move: stops the Session whose
+    /// runtime folder is `runtime`, named `session`, as [`Self::replace_host`] does, then starts it
+    /// with this Client's program, so it runs this version with every terminal restarted. This
+    /// TUI's connection waits for that Server and joins it.
+    pub(super) fn replace_host_for_move(runtime: PathBuf, session: String) -> Option<Self> {
+        let executable = std::env::current_exe().ok()?;
+        Self::spawn(move |report| {
+            report(Progress::Restarting);
+            let started = stop(&runtime)
+                && command_json(
+                    &executable,
+                    &session,
+                    &["server", "start", "--format", "json"],
+                    RESTART_BUDGET,
+                )
+                .is_some_and(|document| {
+                    matches!(
+                        document["result"]["outcome"].as_str(),
+                        Some("started" | "already-running")
+                    )
+                });
+            report(if started {
+                Progress::Leave
+            } else {
+                Progress::Refused(SessionWait::Other)
             });
         })
     }
@@ -176,6 +224,51 @@ fn run(executable: &Path, session: &str, joins: bool, report: &dyn Fn(Progress))
         (true, false) => Progress::Leave,
         (true, true) => settle(executable, session),
     });
+}
+
+/// Reports one older Session's move onto this Client's version. A Host this version's Worker
+/// cannot adopt asks the person first; otherwise the Session restarts whatever its tier says, and
+/// the move ends once the restart answers, since the terminals its Worker could not move from a
+/// Host keep running there.
+fn run_move(executable: &Path, session: &str, report: &dyn Fn(Progress)) {
+    report(Progress::Restarting);
+    let status = command_json(
+        executable,
+        session,
+        &["status", "server", "--format", "json"],
+        STATUS_BUDGET,
+    );
+    let hosts = status
+        .as_ref()
+        .and_then(|document| document["result"]["server"]["restart"]["hosts"].as_array());
+    if hosts.is_some_and(|hosts| {
+        hosts
+            .iter()
+            .any(|host| host["tier"] == "required" && host["moves"] != true)
+    }) {
+        report(Progress::HostRequired(None));
+        return;
+    }
+    let answer = command_json(
+        executable,
+        session,
+        &["server", "restart", "--format", "json"],
+        RESTART_BUDGET,
+    );
+    let result = answer.as_ref().map(|document| &document["result"]);
+    report(
+        match (
+            result.and_then(|result| result["outcome"].as_str()),
+            result.and_then(|result| result["reason"].as_str()),
+        ) {
+            (Some("restarted"), _) => Progress::Leave,
+            (Some("refused"), Some("background-programs")) => {
+                Progress::Refused(SessionWait::BackgroundPrograms)
+            }
+            (Some("refused"), Some("clients")) => Progress::Refused(SessionWait::Clients),
+            _ => Progress::Refused(SessionWait::Other),
+        },
+    );
 }
 
 /// Watches the Session's Worker move terminals off the Hosts the active version must replace:

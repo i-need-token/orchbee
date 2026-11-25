@@ -6,6 +6,7 @@ use super::agent_board::AgentBoardText;
 use super::prefix::{en_us_prefix_desc, zh_cn_prefix_desc};
 use super::{BackendAction, Notice};
 use crate::machine_refusal::Refusal;
+use crate::release_update::SessionWait;
 
 const EN_US_TUI_UNAVAILABLE: &str = "The Orchbee TUI is unavailable in this development slice.\n";
 
@@ -472,6 +473,38 @@ impl Locale {
             (Self::ZhCn, Some(Notice::UpdateUnavailable)) => {
                 "无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。"
             }
+            (Self::EnUs, Some(Notice::SessionUpdating)) => {
+                "Updating the Session. Terminals keep running."
+            }
+            (Self::ZhCn, Some(Notice::SessionUpdating)) => "正在更新会话，终端继续运行。",
+            (Self::EnUs, Some(Notice::SessionUpdateWaiting(wait))) => match wait {
+                SessionWait::BackgroundPrograms => {
+                    "The Session runs an older Orchbee while a configured command or plugin job runs in it. Choose Update once it ends."
+                }
+                SessionWait::Clients => {
+                    "The Session runs an older Orchbee because an older Orchbee is connected to it. Quit that one, then choose Update."
+                }
+                SessionWait::HostRequired => {
+                    "Updating the Session restarts every terminal, so it waits for you: choose Update when you're ready."
+                }
+                SessionWait::Other => {
+                    "The Session runs an older Orchbee, so some features aren't available yet. Choose Update to try again."
+                }
+            },
+            (Self::ZhCn, Some(Notice::SessionUpdateWaiting(wait))) => match wait {
+                SessionWait::BackgroundPrograms => {
+                    "会话仍在运行旧版 Orchbee，因为其中有配置命令或插件任务正在运行。等它结束后选择“更新”。"
+                }
+                SessionWait::Clients => {
+                    "会话仍在运行旧版 Orchbee，因为有较旧的 Orchbee 连接着它。退出那个 Orchbee 后选择“更新”。"
+                }
+                SessionWait::HostRequired => {
+                    "更新会话会重启所有终端，所以在等你确认：准备好后选择“更新”。"
+                }
+                SessionWait::Other => {
+                    "会话仍在运行旧版 Orchbee，部分功能暂不可用。选择“更新”重试。"
+                }
+            },
             (Self::EnUs, Some(Notice::PointerInputDropped)) => "Couldn't handle the click.",
             (Self::ZhCn, Some(Notice::PointerInputDropped)) => "没能处理这次点击。",
             (Self::EnUs, Some(Notice::NavigatorChanged)) => "Couldn't go there.",
@@ -533,6 +566,22 @@ impl Locale {
                 "Quit Orchbee and open it again, or run orchbee update.",
                 "退出 Orchbee 并重新打开，或运行 orchbee update。",
             ),
+            Notice::SessionUpdateWaiting(SessionWait::BackgroundPrograms) => (
+                "Session update waits for a background job.",
+                "会话更新在等后台任务结束。",
+            ),
+            Notice::SessionUpdateWaiting(SessionWait::Clients) => (
+                "Session update waits: quit the older Orchbee.",
+                "会话更新在等：请退出较旧的 Orchbee。",
+            ),
+            Notice::SessionUpdateWaiting(SessionWait::HostRequired) => (
+                "Session update restarts terminals; choose Update.",
+                "更新会话会重启终端；准备好后选择“更新”。",
+            ),
+            Notice::SessionUpdateWaiting(SessionWait::Other) => (
+                "Session not updated; choose Update to retry.",
+                "会话未更新；选择“更新”重试。",
+            ),
             Notice::ResizeUnknown
             | Notice::NotificationUnavailable
             | Notice::PointerInputDropped
@@ -564,6 +613,7 @@ impl Locale {
             | Notice::NoNotificationTarget
             | Notice::UpdateRestarting
             | Notice::UpdateWaiting
+            | Notice::SessionUpdating
             | Notice::NavigatorChanged
             | Notice::ResizeBusy
             | Notice::ResizeFailed

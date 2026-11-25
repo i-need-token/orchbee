@@ -6,5 +6,5 @@ export type { ServerStartAnswer } from './interpretServerStartAnswer';
 export { readServerState } from './readServerState';
 export { readServerStopStatus } from './readServerStopStatus';
 export { restartForUpdate } from './restartForUpdate';
-export type { TerminalsStaying, UpdateRestart } from './restartForUpdate';
+export type { TerminalsStaying, UpdateRestart, UpdateRestartRequest } from './restartForUpdate';
 export type { ServerStopStatus } from './readServerStopStatus';

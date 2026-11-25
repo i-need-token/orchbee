@@ -180,6 +180,10 @@ describe('interpretServerStartAnswer', () => {
 				false,
 				'linux',
 			),
-		).toEqual({ negotiatedCapabilities: [], restore: { kind: 'lost-or-unknown' } });
+		).toEqual({
+			negotiatedCapabilities: [],
+			restore: { kind: 'lost-or-unknown' },
+			sessionVersion: null,
+		});
 	});
 });

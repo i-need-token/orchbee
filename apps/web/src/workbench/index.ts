@@ -14,6 +14,7 @@ export type { WorkbenchClientTarget } from './model/workbench-client-selection';
 export type { WorkbenchAgentCatalogSource } from './types/workbench-agent-start';
 export type {
 	WorkbenchClientUpdate,
+	WorkbenchUpdateOffer,
 	WorkbenchUpdateCheckAnswer,
 	WorkbenchUpdateCheckUnavailableReason,
 } from './types/workbench-client-update';

@@ -162,7 +162,7 @@ fn admit(
         expires_at: expires_at.min(Instant::now() + CANDIDATE_DEADLINE),
         ..deadline
     };
-    let (negotiated, capabilities) = handshake::offer(
+    let (negotiated, capabilities, server_version) = handshake::offer(
         &mut DeadlineIo {
             stream: &mut stream,
             deadline: candidate,
@@ -175,7 +175,14 @@ fn admit(
         deadline,
     })?;
     deadline.remaining()?;
-    finish_admission(stream, generation, negotiated, capabilities, deadline)
+    finish_admission(
+        stream,
+        generation,
+        negotiated,
+        capabilities,
+        server_version,
+        deadline,
+    )
 }
 
 /// Connects without blocking past `expires_at` and proves the peer is the same user.
@@ -266,6 +273,7 @@ fn finish_admission(
     generation: NonZeroU64,
     negotiated: orchbee_connection_handshake::Generation,
     capabilities: orchbee_connection_handshake::CapabilitySet,
+    server_version: orchbee_connection_handshake::ProductVersion,
     deadline: Deadline<'_>,
 ) -> Result<ClientConnection, ConnectClientError> {
     deadline.remaining()?;
@@ -277,6 +285,7 @@ fn finish_admission(
         generation,
         negotiated,
         capabilities,
+        server_version,
     })
 }
 

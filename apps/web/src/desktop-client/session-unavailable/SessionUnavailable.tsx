@@ -71,11 +71,11 @@ function describe(
 			});
 		case 'session-too-old':
 			return intl.formatMessage(sessionConnectionMessages.unavailableSessionTooOld, {
-				command,
 				desktopVersion: refusal.desktopVersion,
 				hasSessionVersion: String(refusal.sessionVersion !== null),
 				restartable: String(refusal.restartable),
 				sessionVersion: refusal.sessionVersion ?? '',
+				system,
 			});
 		case 'other-environment':
 			return intl.formatMessage(sessionConnectionMessages.unavailableOtherEnvironment);
@@ -94,9 +94,10 @@ function describe(
 
 /**
  * Takes the place of a window that never reached its Session, as a TUI that cannot start says why
- * and stops. A refusal names its own remedy, and stopping or recovering the Session stays an explicit
- * command; trying again is the only effect here. The window keeps a title-bar strip to be moved by,
- * since no Workbench draws one.
+ * and stops. A refusal names its own remedy; a Session too old to join was already restarted where
+ * that keeps its terminals, so its remedy names only what the person can do on the system. Trying
+ * again is the only effect here. The window keeps a title-bar strip to be moved by, since no
+ * Workbench draws one.
  */
 export function SessionUnavailable({
 	onTryAgain,

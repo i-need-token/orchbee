@@ -7,6 +7,7 @@ import {
 } from '@orchbee/actions';
 import { workbenchMessages } from '@orchbee/i18n';
 
+import { isRequestableUpdateOffer } from '../model/isRequestableUpdateOffer';
 import type { WorkbenchClientUpdate } from '../types/workbench-client-update';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from './workbench-action-ids';
 
@@ -17,9 +18,10 @@ interface RegisterWorkbenchClientUpdateActionOptions {
 }
 
 /**
- * Update: asks the host to switch this window to the newer version it offers. It is hidden while
- * none is offered, so no surface lists it then, and it has no default key. The request is its
- * commit; the host either leaves for the new version or says the update waits.
+ * Update: asks the host to switch this window to the newer version it offers, or to move an older
+ * Session onto this window's version. It is hidden while nothing is offered or a Session move runs,
+ * so no surface lists it then, and it has no default key. The request is its commit; the host
+ * either carries it out or says the update waits.
  */
 export function registerWorkbenchClientUpdateAction({
 	clientUpdate,
@@ -36,14 +38,17 @@ export function registerWorkbenchClientUpdateAction({
 				mode: 'foreground',
 			},
 			getAvailability: () =>
-				clientUpdate.getSnapshot() === null ? { kind: 'hidden' } : { kind: 'enabled' },
+				isRequestableUpdateOffer(clientUpdate.getSnapshot())
+					? { kind: 'enabled' }
+					: { kind: 'hidden' },
 			handler: {
 				execute: (context) => {
 					if (context.signal.aborted) return { kind: 'cancelled' };
-					const version = clientUpdate.getSnapshot();
-					if (version === null) return { code: 'client-update-unavailable', kind: 'blocked' };
+					const offer = clientUpdate.getSnapshot();
+					if (!isRequestableUpdateOffer(offer))
+						return { code: 'client-update-unavailable', kind: 'blocked' };
 					context.markCommitted();
-					clientUpdate.request(version);
+					clientUpdate.request(offer.version);
 					return { kind: 'completed' };
 				},
 			},

@@ -32,6 +32,10 @@ pub(crate) use crate::local_activation::StartupFailure;
 
 mod fallback;
 
+/// How long the start may take before the TUI shows, counted again after a restart of a Session
+/// too old to join.
+const STARTUP: Duration = Duration::from_secs(20);
+
 /// Runs the TUI until it closes, answering the version a click on Update left for. Its start is
 /// recorded for the fallback after a failed move beside it.
 pub(crate) fn run(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
@@ -45,7 +49,7 @@ fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
         return Err(StartupFailure::AlreadyInSession);
     }
-    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut deadline = Instant::now() + STARTUP;
     let startup_cwd = std::env::current_dir().ok();
     let inherited = InheritedTerminal::admit().map_err(|_| StartupFailure::Terminal)?;
     // A temporary zero-cell report is not drawable yet but is not a fault
@@ -72,8 +76,19 @@ fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     // The shared activation core owns cohort validation, rendezvous, the
     // socket-path budget, and the connect-or-activate loop; the TUI verdict
     // is exactly the `StartupFailure` it always derived.
-    let started =
-        local_activation::activate_local_session(deadline).map_err(|failure| failure.failure)?;
+    // A Session too old to join moves onto this version by itself where a restart keeps every
+    // terminal, as Desktop does; its refusal stands when the restart does not happen.
+    let started = match local_activation::activate_local_session(deadline) {
+        Err(failure)
+            if matches!(failure.failure, StartupFailure::SessionTooOld(_))
+                && restart_older_session(locale) =>
+        {
+            deadline = Instant::now() + STARTUP;
+            local_activation::activate_local_session(deadline)
+        }
+        result => result,
+    }
+    .map_err(|failure| failure.failure)?;
     let allow_startup_directory = !matches!(
         started.restore_notice,
         Some(orchbee_local_runtime::CheckpointRestoreNotice::Empty)
@@ -145,6 +160,13 @@ fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     )
     .map_err(|_| StartupFailure::Interface)?;
     Ok(departure.take())
+}
+
+/// Hands the selected Session to this build's Server and Worker, as `server restart` does, keeping
+/// every terminal; true once they serve it. Windows and macOS only, where a restart keeps terminals.
+fn restart_older_session(locale: Locale) -> bool {
+    cfg!(any(windows, target_os = "macos"))
+        && crate::cli::server_restart(crate::invocation::OutputFormat::Json, locale).status == 0
 }
 
 fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Instant) -> StartupWait {

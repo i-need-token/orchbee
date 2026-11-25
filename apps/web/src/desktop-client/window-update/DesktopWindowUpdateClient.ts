@@ -1,35 +1,42 @@
 import {
 	DesktopWindowUpdateMainMessageSchema,
 	type DesktopRelaunchPlace,
+	type DesktopWindowUpdateOffer,
 	type DesktopWindowUpdateRendererMessage,
 } from '@orchbee/desktop-client-protocol';
 
-import type { WorkbenchClientUpdate } from '../../workbench';
+import type { WorkbenchClientUpdate, WorkbenchUpdateOffer } from '../../workbench';
 
 /**
- * This document's window-update port: the newer window version Main offers, or none, the request to
- * switch to it with the place the window shows, Main's answer when the switch has to wait until no
- * terminal runs, and the place it answers when Main asks for one.
+ * This document's window-update port: what Main offers, a newer window version or a move of an
+ * older Session onto this window's version, or nothing; the request to carry it out with the place
+ * the window shows; Main's answer when it has to wait; the place it answers when Main asks for one;
+ * and the reload Main asks for once a confirmed Host replacement stopped the Session.
  */
 export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 	#disposed = false;
-	#offer: string | null = null;
+	#offer: WorkbenchUpdateOffer | null = null;
 	readonly #failedListeners = new Set<() => void>();
 	readonly #hostReplacementListeners = new Set<(terminals: number | null) => void>();
 	readonly #listeners = new Set<() => void>();
 	readonly #port: MessagePort;
 	readonly #readPlace: () => DesktopRelaunchPlace | null;
+	readonly #reload: () => void;
 	readonly #waitingListeners = new Set<() => void>();
 
-	/** `readPlace` names where the relaunched window opens, read when a switch or a place request asks. */
-	constructor(port: MessagePort, readPlace: () => DesktopRelaunchPlace | null) {
+	/**
+	 * `readPlace` names where the relaunched window opens, read when a switch or a place request
+	 * asks; `reload` loads the document again, which starts the Session anew.
+	 */
+	constructor(port: MessagePort, readPlace: () => DesktopRelaunchPlace | null, reload: () => void) {
 		this.#port = port;
 		this.#readPlace = readPlace;
+		this.#reload = reload;
 		port.addEventListener('message', ({ data }) => this.#receive(data));
 		port.start();
 	}
 
-	readonly getSnapshot = (): string | null => this.#offer;
+	readonly getSnapshot = (): WorkbenchUpdateOffer | null => this.#offer;
 
 	/** Asks Main to re-read `active.json` from disk once an update check settles. */
 	readonly refresh = (): void => {
@@ -121,8 +128,31 @@ export class DesktopWindowUpdateClient implements WorkbenchClientUpdate {
 			for (const listener of this.#waitingListeners) listener();
 			return;
 		}
-		if (message.data.version === this.#offer) return;
-		this.#offer = message.data.version;
+		if (message.data.type === 'desktop-window-update-reload') {
+			this.#reload();
+			return;
+		}
+		const offer = projectOffer(message.data.offer);
+		if (sameOffer(offer, this.#offer)) return;
+		this.#offer = offer;
 		for (const listener of this.#listeners) listener();
 	}
+}
+
+/** Main's offer as the Workbench reads it: a newer window is a newer version of this Client. */
+function projectOffer(offer: DesktopWindowUpdateOffer | null): WorkbenchUpdateOffer | null {
+	if (offer === null) return null;
+	return offer.kind === 'window' ? { kind: 'client', version: offer.version } : offer;
+}
+
+function sameOffer(left: WorkbenchUpdateOffer | null, right: WorkbenchUpdateOffer | null): boolean {
+	if (left === null || right === null) return left === right;
+	if (left.kind === 'client' || right.kind === 'client') {
+		return left.kind === right.kind && left.version === right.version;
+	}
+	return (
+		left.version === right.version &&
+		left.sessionVersion === right.sessionVersion &&
+		left.state === right.state
+	);
 }

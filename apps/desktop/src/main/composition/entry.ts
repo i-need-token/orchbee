@@ -360,12 +360,20 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		ownVersion: app.getVersion(),
 		readPointer: readWindowPointer,
 		recordEvent,
-		restartForVersion: (root, version, joins) =>
+		restartForVersion: (root, version, request) =>
 			restartForUpdate(
 				path.join(versionCohort(root, version), clientName),
 				sessionArguments,
 				resolveClientEnvironment(),
-				joins,
+				request,
+				process.platform,
+			),
+		restartSession: (request) =>
+			restartForUpdate(
+				resolveClientExecutable(),
+				sessionArguments,
+				resolveClientEnvironment(),
+				request,
 				process.platform,
 			),
 		startVersionClient: (root, version) =>

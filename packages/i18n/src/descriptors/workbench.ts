@@ -1157,11 +1157,47 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Tooltip of the Update button; version is the installed Orchbee version the window switches to. Terminals keep running through the switch.',
 	},
+	updateSessionTooltip: {
+		id: 'workbench.sidebar.items.updateSessionTooltip',
+		defaultMessage: enUSWorkbenchMessages['workbench.sidebar.items.updateSessionTooltip'],
+		description:
+			"Tooltip of the Update button while the Session still runs an older Orchbee than this window and could not move by itself; version is this window's version, which the Session moves to while terminals keep running.",
+	},
+	updateSessionUpdating: {
+		id: 'workbench.update.session.updating',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.updating'],
+		description:
+			"Status notice while Orchbee moves a Session that runs an older version onto this window's version by itself; version is this window's version. The window reloads once it is done.",
+	},
+	updateSessionBackgroundPrograms: {
+		id: 'workbench.update.session.backgroundPrograms',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.backgroundPrograms'],
+		description:
+			"Notice when the Session, which runs the older sessionVersion, cannot move to this window's version yet because a configured command or plugin job runs in it; Update tries again.",
+	},
+	updateSessionClients: {
+		id: 'workbench.update.session.clients',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.clients'],
+		description:
+			'Notice when the Session, which runs the older sessionVersion, cannot move yet because an older Orchbee window or terminal interface that cannot reconnect by itself is connected; Update tries again.',
+	},
+	updateSessionHostRequired: {
+		id: 'workbench.update.session.hostRequired',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.hostRequired'],
+		description:
+			'Notice when moving the Session, which runs the older sessionVersion, would restart every terminal, so it waits for the person; Update asks before restarting.',
+	},
+	updateSessionOther: {
+		id: 'workbench.update.session.other',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.other'],
+		description:
+			"Notice when the Session, which runs the older sessionVersion, could not move to this window's version for another reason; Update tries again.",
+	},
 	updateUnavailable: {
 		id: 'workbench.update.unavailable',
 		defaultMessage: enUSWorkbenchMessages['workbench.update.unavailable'],
 		description:
-			'Notice after Update when switching could not start or was refused; advises quitting and reopening Orchbee or running orchbee update.',
+			'Notice after Update when switching could not start or was refused; advises quitting and reopening Orchbee.',
 	},
 	actionUnavailable: {
 		id: 'workbench.actions.unavailable',

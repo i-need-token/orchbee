@@ -51,6 +51,7 @@ import {
 	ServerConnectionRelay,
 	readServerStartAnswer,
 	readServerState,
+	type ServerStartAnswer,
 } from '../server-connection';
 import {
 	DesktopMachineSessions,
@@ -108,6 +109,16 @@ export interface DesktopServerClientApplicationOptions {
 		askPlace(): Promise<DesktopRelaunchPlace | null>;
 		/** Switches to an offered newer version whose Client joins the Session; true once started. */
 		switchIfOffered(resolvePlace: () => Promise<DesktopRelaunchPlace | null>): Promise<boolean>;
+		/**
+		 * Once a document connected after `answer`, moves a Session older than this window onto its
+		 * version, keeping every terminal, or offers that move with why it waits.
+		 */
+		moveSession(answer: ServerStartAnswer): Promise<void>;
+		/**
+		 * Restarts a Session too old for this window to join onto its version where that keeps its
+		 * terminals; true once it did, so the start runs again.
+		 */
+		restartRefusedSession(answer: ServerStartAnswer): Promise<boolean>;
 		/** A switch is being checked or prepared; its own Session restart ends this connection. */
 		readonly checking: boolean;
 	};
@@ -465,17 +476,26 @@ export class DesktopServerClientApplication {
 			}
 			end();
 			const request = requests;
-			this.#installedShells ??= detectInstalledShells(options.platform, options.clientEnvironment);
-			void Promise.all([
+			const stale = (): boolean => request !== requests || window.isDestroyed();
+			const start = (): Promise<ServerStartAnswer> =>
 				readServerStartAnswer(
 					options.clientExecutable,
 					options.sessionArguments,
 					options.clientEnvironment,
-				),
-				this.#installedShells,
-			])
-				.then(([{ negotiatedCapabilities, restore }, installedShells]) => {
-					if (request !== requests || window.isDestroyed()) return;
+				);
+			this.#installedShells ??= detectInstalledShells(options.platform, options.clientEnvironment);
+			void Promise.all([start(), this.#installedShells])
+				.then(async ([started, installedShells]) => {
+					if (stale()) return;
+					let answer = started;
+					// A Session too old for this window to join is restarted onto its version where
+					// that keeps every terminal, and the start runs again.
+					if (await options.windowUpdate.restartRefusedSession(answer)) {
+						if (stale()) return;
+						answer = await start();
+						if (stale()) return;
+					}
+					const { negotiatedCapabilities, restore } = answer;
 					const refusal = restore.kind === 'refused' ? restore.refusal : null;
 					if (!everConnected && options.exitsOnFirstStartAnswer(refusal)) return;
 					current = this.#connect(window, {
@@ -502,6 +522,9 @@ export class DesktopServerClientApplication {
 					});
 					this.#document = current;
 					everConnected = true;
+					// A Session older than this window moves onto its version by itself; its restart
+					// ends this connection, and the window loads again once the new Server serves.
+					void options.windowUpdate.moveSession(answer);
 				})
 				.catch(() => {
 					// This document gets no connection and a reload asks again; the window and Main go on.

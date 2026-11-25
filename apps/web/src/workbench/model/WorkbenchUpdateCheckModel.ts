@@ -129,7 +129,7 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 				this.#finish(UP_TO_DATE);
 				return;
 			case 'installed':
-				if (!this.#started || this.#options.offer.getSnapshot() !== null) {
+				if (!this.#started || this.#options.offer.getSnapshot()?.kind === 'client') {
 					this.#finish(IDLE);
 					return;
 				}
@@ -161,7 +161,8 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 	}
 
 	#offerChanged(): void {
-		if (this.#awaitingOffer === null || this.#options.offer.getSnapshot() === null) return;
+		if (this.#awaitingOffer === null || this.#options.offer.getSnapshot()?.kind !== 'client')
+			return;
 		this.#clearOfferWait();
 		this.#set(IDLE);
 	}

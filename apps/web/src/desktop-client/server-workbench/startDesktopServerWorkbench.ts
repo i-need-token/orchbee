@@ -250,16 +250,20 @@ async function run(
 	targetWindow.addEventListener('unload', () => backgroundStatus.dispose(), { once: true });
 	let runtime: ServerWorkbenchRuntime | undefined;
 	// The relaunched window opens at the terminal this one displays, else at its Workspace.
-	const windowUpdate = new DesktopWindowUpdateClient(windowUpdatePort, () => {
-		if (runtime === undefined) return null;
-		const presentationId = resolveActiveTerminalPresentationId(runtime.projectWorkspaceRuntime);
-		if (presentationId !== null) return { kind: 'terminal', presentationId };
-		const location = runtime.projectWorkspaceRuntime.getSnapshot().activeLocation;
-		const workspace = WorkbenchWorkspaceIdSchema.safeParse(
-			location.kind === 'workspace' ? location.workspaceId : undefined,
-		);
-		return workspace.success ? { kind: 'workspace', workspaceId: workspace.data } : null;
-	});
+	const windowUpdate = new DesktopWindowUpdateClient(
+		windowUpdatePort,
+		() => {
+			if (runtime === undefined) return null;
+			const presentationId = resolveActiveTerminalPresentationId(runtime.projectWorkspaceRuntime);
+			if (presentationId !== null) return { kind: 'terminal', presentationId };
+			const location = runtime.projectWorkspaceRuntime.getSnapshot().activeLocation;
+			const workspace = WorkbenchWorkspaceIdSchema.safeParse(
+				location.kind === 'workspace' ? location.workspaceId : undefined,
+			);
+			return workspace.success ? { kind: 'workspace', workspaceId: workspace.data } : null;
+		},
+		() => targetWindow.location.reload(),
+	);
 	targetWindow.addEventListener('unload', () => windowUpdate.dispose(), { once: true });
 	const connection = new ServerConnection(new MessagePortServerCarrier(connectionPort));
 	targetWindow.addEventListener('unload', () => connection.close(), { once: true });

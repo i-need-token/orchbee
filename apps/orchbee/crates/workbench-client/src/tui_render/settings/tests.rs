@@ -284,6 +284,14 @@ fn every_key_set() -> SettingsSnapshot {
         })
         .collect();
     // A current Server publishes these keys at their defaults too.
+    snapshot
+        .values
+        .extend(["claude", "codex", "gemini", "opencode"].map(|agent| {
+            (
+                SettingPath::parse(&format!("agents.auto_allow.{agent}")).unwrap(),
+                Some(SettingScalar::Boolean(false)),
+            )
+        }));
     snapshot.values.extend([
         (
             orchbee_workbench_protocol::SettingPath::parse("agents.quota_resume.enabled").unwrap(),

@@ -565,12 +565,20 @@ impl WorkbenchClient {
             .and_then(crate::release_update::Updater::take_restart)
     }
 
-    /// The person's answer to a Host replacement's question; false when no replacement started.
-    pub fn replace_host_for_update(&mut self, confirmed: bool) -> bool {
+    /// The person's answer to a Host replacement's question: [`UpdateSwitch::Started`] when the
+    /// replacement started, else what the update says instead.
+    ///
+    /// [`UpdateSwitch::Started`]: crate::release_update::UpdateSwitch::Started
+    pub fn replace_host_for_update(
+        &mut self,
+        confirmed: bool,
+    ) -> crate::release_update::UpdateSwitch {
         let runtime = self.local_runtime.as_deref();
         self.updater
             .as_mut()
-            .is_some_and(|updater| updater.replace_host(confirmed, runtime))
+            .map_or(crate::release_update::UpdateSwitch::Waiting, |updater| {
+                updater.replace_host(confirmed, runtime)
+            })
     }
 
     /// Whether a click on Update chose to leave for a newer version.
@@ -617,6 +625,24 @@ impl WorkbenchClient {
             return native.observe_about(None, check);
         };
         let ticked = updater.tick();
+        // A local Session that runs an older version than this Client moves onto it by itself.
+        let older = self
+            .origin
+            .as_ref()
+            .and_then(crate::local_client::LocalClientOrigin::session_version)
+            .is_some_and(|version| {
+                orchbee_local_runtime::compare_product_versions(
+                    version.as_str(),
+                    crate::local_client::CLIENT_VERSION,
+                ) == std::cmp::Ordering::Less
+            });
+        updater.move_older_session(
+            older,
+            self.local_runtime
+                .as_deref()
+                .and_then(std::path::Path::file_name)
+                .and_then(std::ffi::OsStr::to_str),
+        );
         let (session, clock, visible) = native.about_context();
         updater.drive_check(&crate::release_update::CheckContext {
             origin: self.origin.as_ref(),
@@ -624,15 +650,10 @@ impl WorkbenchClient {
             clock: &clock,
             visible,
         });
-        let version = match updater.control() {
-            crate::release_update::UpdateControl::Ready { version } => Some(version.clone()),
-            crate::release_update::UpdateControl::Absent => None,
-        };
+        let version = updater.offered().map(str::to_owned);
         let about = native.observe_about(version.as_deref(), updater.check());
-        if ticked {
-            native.observe_update(version);
-        }
-        ticked || about
+        let offered = native.observe_update(version.as_deref());
+        ticked || about || offered
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -1148,11 +1169,7 @@ impl TerminalInputPort for WorkbenchClient {
             clock: &clock,
             visible,
         });
-        let version = match updater.control() {
-            crate::release_update::UpdateControl::Ready { version } => Some(version.as_str()),
-            crate::release_update::UpdateControl::Absent => None,
-        };
-        native.observe_about(version, updater.check());
+        native.observe_about(updater.offered(), updater.check());
     }
 
     fn open_notification_target(

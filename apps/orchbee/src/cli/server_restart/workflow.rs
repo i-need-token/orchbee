@@ -202,11 +202,19 @@ struct Start {
 }
 
 impl Start {
+    /// The new Server comes from the store's folder of this build's version when this program runs
+    /// outside the store, as a window's bundled Client does, so the Session keeps running from the
+    /// store; otherwise from this program's own cohort.
     fn prepare(deadline: Instant) -> Option<Self> {
         let root = DataRoot::resolve(|name| std::env::var_os(name)).ok()?;
-        let executable = Cohort::current(deadline)
-            .ok()?
-            .executable(CohortArtifact::Server);
+        let own = Cohort::current(deadline).ok()?;
+        let cohort = crate::local_activation::restart_cohort_directory(
+            &own.executable(CohortArtifact::Client),
+            deadline,
+        )
+        .and_then(|directory| Cohort::load(&directory, deadline).ok())
+        .unwrap_or(own);
+        let executable = cohort.executable(CohortArtifact::Server);
         let settings =
             orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name)).ok()?;
         let reservation = RestartReservation {

@@ -778,6 +778,19 @@ impl ClientView {
     pub fn update_refused(&mut self, switch: crate::release_update::UpdateSwitch) {
         self.notice = Some(match switch {
             crate::release_update::UpdateSwitch::Started => return,
+            crate::release_update::UpdateSwitch::SessionUpdated => {
+                if matches!(
+                    self.notice,
+                    Some(Notice::SessionUpdating | Notice::SessionUpdateWaiting(_))
+                ) {
+                    self.notice = None;
+                }
+                return;
+            }
+            crate::release_update::UpdateSwitch::SessionUpdating => Notice::SessionUpdating,
+            crate::release_update::UpdateSwitch::SessionWaiting(wait) => {
+                Notice::SessionUpdateWaiting(wait)
+            }
             crate::release_update::UpdateSwitch::HostReplacement(staying) => {
                 self.machines.ask_host_replacement(staying);
                 return;

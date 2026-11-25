@@ -78,19 +78,28 @@ impl Locale {
             (Self::ZhCn, StartupFailure::SessionTooOld(versions)) if versions.session.is_none() => {
                 "正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。\n".into()
             }
-            // Only Windows restarts a Session's Server while its terminals run.
-            (Self::EnUs, StartupFailure::SessionTooOld(versions)) if cfg!(windows) => format!(
-                "{} is too old for Orchbee {}. Run `orchbee server restart`, then try again. Terminals keep running.\n",
-                session(versions, "The running Session"),
-                versions.client
-            )
-            .into(),
-            (Self::ZhCn, StartupFailure::SessionTooOld(versions)) if cfg!(windows) => format!(
-                "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server restart`，然后重试。终端会继续运行。\n",
-                session(versions, "正在运行的会话"),
-                versions.client
-            )
-            .into(),
+            // Windows and macOS restart a Session's Server while its terminals run; the TUI and
+            // Desktop try that by themselves first.
+            (Self::EnUs, StartupFailure::SessionTooOld(versions))
+                if cfg!(any(windows, target_os = "macos")) =>
+            {
+                format!(
+                    "{} is too old for Orchbee {}. Run `orchbee server restart`, then try again. Terminals keep running.\n",
+                    session(versions, "The running Session"),
+                    versions.client
+                )
+                .into()
+            }
+            (Self::ZhCn, StartupFailure::SessionTooOld(versions))
+                if cfg!(any(windows, target_os = "macos")) =>
+            {
+                format!(
+                    "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server restart`，然后重试。终端会继续运行。\n",
+                    session(versions, "正在运行的会话"),
+                    versions.client
+                )
+                .into()
+            }
             (Self::EnUs, StartupFailure::SessionTooOld(versions)) => format!(
                 "{} is too old for Orchbee {}. Run `orchbee server stop`, then try again.\n",
                 session(versions, "The running Session"),

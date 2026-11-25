@@ -3,11 +3,19 @@ import { randomUUID } from 'node:crypto';
 import {
 	DesktopWindowUpdateRendererMessageSchema,
 	type DesktopRelaunchPlace,
+	type DesktopSessionUpdateState,
 	type DesktopWindowUpdateMainMessage,
+	type DesktopWindowUpdateOffer,
 } from '@orchbee/desktop-client-protocol';
 
 import type { DesktopDiagnosticRecorder } from '../diagnostics';
-import type { ServerStartAnswer, TerminalsStaying, UpdateRestart } from '../server-connection';
+import { isNewerProductVersion } from '../product-version';
+import type {
+	ServerStartAnswer,
+	TerminalsStaying,
+	UpdateRestart,
+	UpdateRestartRequest,
+} from '../server-connection';
 import { resolveWindowUpdateOffer } from './window-update-offer';
 
 /**
@@ -59,8 +67,13 @@ export interface DesktopWindowUpdateOptions {
 	readonly restartForVersion: (
 		desktopRoot: string,
 		version: string,
-		joins: boolean,
+		request: UpdateRestartRequest,
 	) => Promise<UpdateRestart>;
+	/**
+	 * Through this window's own Client, restarts the Session's Server and Worker onto this window's
+	 * version, keeping every terminal.
+	 */
+	readonly restartSession: (request: UpdateRestartRequest) => Promise<UpdateRestart>;
 	/** Runs `server start --format json` through the bundled Client of window version `version`. */
 	readonly startVersionClient: (desktopRoot: string, version: string) => Promise<ServerStartAnswer>;
 	/**
@@ -81,6 +94,31 @@ interface PendingPlace {
 	readonly settle: (place: DesktopRelaunchPlace | null) => void;
 }
 
+/**
+ * The Session's move onto this window's version while its Server runs the older `sessionVersion`:
+ * running now, or waiting for the reason `state` names.
+ */
+interface SessionMove {
+	readonly sessionVersion: string;
+	readonly state: DesktopSessionUpdateState;
+}
+
+/** The Host replacement a document was asked about, until its answer. */
+type HostReplacement =
+	| {
+			/** A switch to window `version`, and whether the Session already runs it. */
+			readonly kind: 'window';
+			readonly place: DesktopRelaunchPlace | null;
+			readonly restarted: boolean;
+			readonly served: ServedPort;
+			readonly version: string;
+	  }
+	| {
+			/** A move of the Session onto this window's own version. */
+			readonly kind: 'session';
+			readonly served: ServedPort;
+	  };
+
 interface ServedPort {
 	/** The focus sequence number of the document's latest focus: a higher number is more recent. */
 	focusedAt: number;
@@ -96,7 +134,10 @@ interface ServedPort {
  * to every document, and a document's request, or a Setup launch's, to switch to it. A request first
  * checks that the new version's Client joins this Session, and has that Client restart the Session
  * when it asks for it or cannot join; when neither serves, a document is told the update waits, and
- * a Setup launch falls back to focusing this window.
+ * a Setup launch falls back to focusing this window. A Session whose Server runs an older version
+ * than this window is moved onto this window's version by itself once a document connects; only a
+ * move that cannot happen now is offered, with why it waits, until a request or a later document
+ * carries it out.
  */
 export class DesktopWindowUpdate {
 	#checking = false;
@@ -105,20 +146,12 @@ export class DesktopWindowUpdate {
 	#offer: string | null = null;
 	readonly #options: DesktopWindowUpdateOptions;
 	readonly #ports = new Set<ServedPort>();
+	/** The offer every served document was last sent. */
+	#published: DesktopWindowUpdateOffer | null = null;
 	#reading: Promise<void> | null = null;
-	/**
-	 * The Host replacement a document was asked about, until its answer, and whether the Session
-	 * already runs the version it switches to.
-	 */
-	#replacing:
-		| {
-				readonly place: DesktopRelaunchPlace | null;
-				readonly restarted: boolean;
-				readonly served: ServedPort;
-				readonly version: string;
-		  }
-		| undefined;
+	#replacing: HostReplacement | undefined;
 	#rereadRequested = false;
+	#session: SessionMove | null = null;
 	#stopWatching: (() => void) | undefined;
 
 	constructor(options: DesktopWindowUpdateOptions) {
@@ -133,6 +166,74 @@ export class DesktopWindowUpdate {
 	/** The newer window version this window offers, or null while it offers none. */
 	get offeredVersion(): string | null {
 		return this.#offer;
+	}
+
+	/**
+	 * Once a document connected after the start `answer`: when the Session's Server runs a version
+	 * older than this window, has this window's Client restart it onto this window's version, keeping
+	 * every terminal. Every document reads that the Session updates meanwhile; the connection then
+	 * ends and the window loads again once the new Server serves. A move that cannot happen now is
+	 * offered with why it waits. A Session as new as this window, or one that names no version,
+	 * clears that offer; a move or a switch already running leaves everything to it.
+	 */
+	async moveSession(answer: ServerStartAnswer): Promise<void> {
+		const sessionVersion = answer.sessionVersion;
+		if (
+			sessionVersion === null ||
+			!isNewerProductVersion(this.#options.ownVersion, sessionVersion)
+		) {
+			this.#setSession(null);
+			return;
+		}
+		if (this.#checking || this.#disposed) return;
+		this.#checking = true;
+		try {
+			this.#setSession({ sessionVersion, state: 'updating' });
+			const restart = await this.#options
+				.restartSession({
+					joins: answer.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW),
+					sessionOlder: true,
+				})
+				.catch((): UpdateRestart => 'failed');
+			if (this.#disposed) return;
+			this.#settleSession(sessionVersion, restart);
+		} finally {
+			this.#checking = false;
+		}
+	}
+
+	/**
+	 * Before a refused start shows its refusal: a Session too old for this window to join is
+	 * restarted onto this window's version where a restart keeps its terminals, and true once it was,
+	 * so the caller starts again; false leaves the refusal to the page.
+	 */
+	async restartRefusedSession(answer: ServerStartAnswer): Promise<boolean> {
+		const restore = answer.restore;
+		if (
+			restore.kind !== 'refused' ||
+			restore.refusal.reason !== 'session-too-old' ||
+			!restore.refusal.restartable ||
+			this.#checking ||
+			this.#disposed
+		) {
+			return false;
+		}
+		this.#checking = true;
+		try {
+			const restart = await this.#options
+				.restartSession({ joins: false, sessionOlder: true })
+				.catch((): UpdateRestart => 'failed');
+			const restarted =
+				restart === 'restarted' ||
+				(typeof restart === 'object' && restart.kind === 'terminals-staying');
+			this.#options.recordEvent(
+				'info',
+				restarted ? 'session-update-restarted' : 'session-update-refused',
+			);
+			return restarted && !this.#disposed;
+		} finally {
+			this.#checking = false;
+		}
 	}
 
 	/** Whether a switch is being checked or prepared, a Session restart included. */
@@ -223,7 +324,7 @@ export class DesktopWindowUpdate {
 			}
 		});
 		port.start();
-		port.postMessage({ type: 'desktop-window-update-offered', version: this.#offer });
+		port.postMessage({ offer: this.#published, type: 'desktop-window-update-offered' });
 		this.#follow();
 		return {
 			close: () => {
@@ -303,6 +404,38 @@ export class DesktopWindowUpdate {
 	}
 
 	/**
+	 * Whether `restart` moved the Session onto this window's version, recorded in the diagnostic log.
+	 * Otherwise the move is offered with why it waits; a platform that restarts no Session while
+	 * terminals run offers nothing.
+	 */
+	#settleSession(sessionVersion: string, restart: UpdateRestart): boolean {
+		if (
+			restart === 'restarted' ||
+			(typeof restart === 'object' && restart.kind === 'terminals-staying')
+		) {
+			this.#options.recordEvent('info', 'session-update-restarted');
+			this.#setSession(null);
+			return true;
+		}
+		if (restart === 'not-needed') {
+			this.#setSession(null);
+			return false;
+		}
+		let state: Exclude<DesktopSessionUpdateState, 'updating'>;
+		if (restart === 'host-required') state = 'host-required';
+		else if (restart === 'failed') state = 'other';
+		else state = restart.reason;
+		this.#options.recordEvent('info', 'session-update-waiting', { reason: state });
+		this.#setSession({ sessionVersion, state });
+		return false;
+	}
+
+	#setSession(session: SessionMove | null): void {
+		this.#session = session;
+		this.#publish();
+	}
+
+	/**
 	 * Watches the pointer's folder unless it already does, and reads the pointer. A folder that cannot
 	 * be watched yet leaves the watch to the next call.
 	 */
@@ -345,8 +478,29 @@ export class DesktopWindowUpdate {
 	#setOffer(offer: string | null): void {
 		if (offer === this.#offer) return;
 		this.#offer = offer;
+		this.#publish();
+	}
+
+	/**
+	 * Sends every served document what Update offers when that changed: a newer window, which also
+	 * moves the Session, before a move of the Session onto this window's own version.
+	 */
+	#publish(): void {
+		const session = this.#session;
+		let offer: DesktopWindowUpdateOffer | null = null;
+		if (this.#offer !== null) offer = { kind: 'window', version: this.#offer };
+		else if (session !== null) {
+			offer = {
+				kind: 'session',
+				sessionVersion: session.sessionVersion,
+				state: session.state,
+				version: this.#options.ownVersion,
+			};
+		}
+		if (sameOffer(offer, this.#published)) return;
+		this.#published = offer;
 		for (const served of this.#ports) {
-			served.port.postMessage({ type: 'desktop-window-update-offered', version: offer });
+			served.port.postMessage({ offer, type: 'desktop-window-update-offered' });
 		}
 	}
 
@@ -364,10 +518,10 @@ export class DesktopWindowUpdate {
 	): Promise<'host-required' | 'ready' | 'waiting' | TerminalsStaying> {
 		const joins = answer?.negotiatedCapabilities.includes(COMPATIBILITY_WINDOW) === true;
 		const restart = await this.#options
-			.restartForVersion(root, version, joins)
+			.restartForVersion(root, version, { joins, sessionOlder: false })
 			.catch((): UpdateRestart => 'failed');
 		if (this.#disposed) return 'waiting';
-		if (typeof restart === 'object') {
+		if (typeof restart === 'object' && restart.kind === 'terminals-staying') {
 			this.#options.recordEvent('info', 'window-update-host-replacement', {
 				terminals: restart.terminals,
 			});
@@ -416,15 +570,21 @@ export class DesktopWindowUpdate {
 		served: ServedPort,
 		{ place, version }: { readonly place: DesktopRelaunchPlace | null; readonly version: string },
 	): Promise<void> {
+		const offer = this.#published;
+		if (this.#checking || offer === null || version !== offer.version) return;
+		if (offer.kind === 'session') {
+			await this.#requestSessionMove(served, offer.sessionVersion);
+			return;
+		}
 		const root = this.#options.desktopRoot;
-		if (root === null || this.#checking || version !== this.#offer) return;
+		if (root === null) return;
 		this.#checking = true;
 		try {
 			const answer = await this.#options.startVersionClient(root, version).catch(() => null);
 			if (this.#disposed) return;
 			const prepared = await this.#prepare(root, version, answer);
 			if (typeof prepared === 'object' && served.open) {
-				this.#replacing = { place, restarted: true, served, version };
+				this.#replacing = { kind: 'window', place, restarted: true, served, version };
 				served.port.postMessage({
 					terminals: prepared.terminals,
 					type: 'desktop-window-update-host-replacement',
@@ -440,7 +600,7 @@ export class DesktopWindowUpdate {
 				return;
 			}
 			if (prepared === 'host-required' && served.open) {
-				this.#replacing = { place, restarted: false, served, version };
+				this.#replacing = { kind: 'window', place, restarted: false, served, version };
 				served.port.postMessage({
 					terminals: null,
 					type: 'desktop-window-update-host-replacement',
@@ -464,6 +624,11 @@ export class DesktopWindowUpdate {
 		const replacing = this.#replacing;
 		if (replacing?.served !== served || this.#checking) return;
 		this.#replacing = undefined;
+		if (replacing.kind === 'session') {
+			// Declined, the move stays offered as it was.
+			if (confirmed) await this.#replaceHostForSession(served);
+			return;
+		}
 		if (!confirmed && replacing.restarted) {
 			this.#options.recordEvent('info', 'window-update-terminals-kept');
 			const started = await this.#options
@@ -498,4 +663,70 @@ export class DesktopWindowUpdate {
 			this.#checking = false;
 		}
 	}
+
+	/**
+	 * A document's request to move the Session onto this window's version: this window's Client
+	 * restarts it, keeping every terminal, after which the connection ends and the window loads again
+	 * once the new Server serves. A Terminal Host that must be replaced asks the document first;
+	 * a move that cannot happen tells it the update waits, with why in the offer.
+	 */
+	async #requestSessionMove(served: ServedPort, sessionVersion: string): Promise<void> {
+		this.#checking = true;
+		try {
+			this.#setSession({ sessionVersion, state: 'updating' });
+			const restart = await this.#options
+				.restartSession({ joins: true, sessionOlder: true })
+				.catch((): UpdateRestart => 'failed');
+			if (this.#disposed) return;
+			if (this.#settleSession(sessionVersion, restart) || !served.open) return;
+			if (restart === 'host-required') {
+				this.#replacing = { kind: 'session', served };
+				served.port.postMessage({
+					terminals: null,
+					type: 'desktop-window-update-host-replacement',
+				});
+				return;
+			}
+			served.port.postMessage({ type: 'desktop-window-update-waiting' });
+		} finally {
+			this.#checking = false;
+		}
+	}
+
+	/**
+	 * The person confirmed that every terminal restarts for this window's version: the Session stops,
+	 * as Quit All stops it, and the document loads again, which starts it with this window's Client.
+	 */
+	async #replaceHostForSession(served: ServedPort): Promise<void> {
+		this.#checking = true;
+		try {
+			const stopped = await this.#options.stopSession().catch(() => false);
+			if (this.#disposed) return;
+			if (!stopped) {
+				this.#options.recordEvent('info', 'session-update-waiting', { reason: 'stop-failed' });
+				if (served.open) served.port.postMessage({ type: 'desktop-window-update-waiting' });
+				return;
+			}
+			this.#options.recordEvent('info', 'session-update-host-replaced');
+			this.#setSession(null);
+			if (served.open) served.port.postMessage({ type: 'desktop-window-update-reload' });
+		} finally {
+			this.#checking = false;
+		}
+	}
+}
+
+function sameOffer(
+	left: DesktopWindowUpdateOffer | null,
+	right: DesktopWindowUpdateOffer | null,
+): boolean {
+	if (left === null || right === null) return left === right;
+	if (left.kind === 'window' || right.kind === 'window') {
+		return left.kind === right.kind && left.version === right.version;
+	}
+	return (
+		left.version === right.version &&
+		left.sessionVersion === right.sessionVersion &&
+		left.state === right.state
+	);
 }

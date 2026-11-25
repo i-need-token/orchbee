@@ -3,7 +3,7 @@
 //! retain the offer, deadline, endpoint, cancellation arbitration and service-lifecycle policy.
 
 use orchbee_connection_handshake::{
-    CANDIDATE_DEADLINE, CapabilitySet, Generation, Offer, Rejection,
+    CANDIDATE_DEADLINE, CapabilitySet, Generation, Offer, ProductVersion, Rejection,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 #[cfg(windows)]
@@ -194,6 +194,8 @@ pub struct ClientConnection {
     negotiated: Generation,
     /// The capabilities the Server's answer listed for this connection.
     capabilities: CapabilitySet,
+    /// The product version the Server's answer named.
+    server_version: ProductVersion,
     stream: UnixStream,
 }
 
@@ -236,7 +238,7 @@ impl ClientConnection {
         require_same_effective_user(&stream)?;
         stream.set_read_timeout(Some(CANDIDATE_DEADLINE))?;
         stream.set_write_timeout(Some(CANDIDATE_DEADLINE))?;
-        let (negotiated, capabilities) = handshake::offer(&mut stream, offer)?;
+        let (negotiated, capabilities, server_version) = handshake::offer(&mut stream, offer)?;
         let generation = handshake::enter_client_phase(&mut stream)?;
         stream.set_read_timeout(None)?;
         stream.set_write_timeout(None)?;
@@ -244,6 +246,7 @@ impl ClientConnection {
             generation,
             negotiated,
             capabilities,
+            server_version,
             stream,
         })
     }
@@ -264,6 +267,12 @@ impl ClientConnection {
     #[must_use]
     pub const fn capabilities(&self) -> &CapabilitySet {
         &self.capabilities
+    }
+
+    /// The product version the Server named in its handshake answer.
+    #[must_use]
+    pub const fn server_version(&self) -> &ProductVersion {
+        &self.server_version
     }
 
     /// Releases the admitted stream for a caller that relays its bytes unchanged.

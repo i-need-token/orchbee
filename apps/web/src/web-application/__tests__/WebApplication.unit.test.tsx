@@ -14,6 +14,7 @@ import { ApplicationLocaleController } from '../../application-locale';
 import {
 	WorkbenchUpdateCheckModel,
 	type WorkbenchClientUpdate,
+	type WorkbenchUpdateOffer,
 	type WorkbenchUpdateCheckAnswer,
 } from '../../workbench';
 import {
@@ -195,14 +196,14 @@ it.each(['en-US', 'zh-CN'] as const)(
 			value: vi.fn<Element['scrollIntoView']>(),
 		});
 
-		let offeredVersion: string | null = null;
+		let offered: WorkbenchUpdateOffer | null = null;
 		const offerListeners = new Set<() => void>();
 		const setOffer = (next: string | null): void => {
-			offeredVersion = next;
+			offered = clientOffer(next);
 			for (const listener of offerListeners) listener();
 		};
 		const offer = {
-			getSnapshot: () => offeredVersion,
+			getSnapshot: () => offered,
 			subscribe: (listener: () => void) => {
 				offerListeners.add(listener);
 				return () => offerListeners.delete(listener);
@@ -351,8 +352,13 @@ it.each(['en-US', 'zh-CN'] as const)(
 	},
 );
 
+/** A newer version of this window as Update offers it, or no offer. */
+function clientOffer(version: string | null): WorkbenchUpdateOffer | null {
+	return version === null ? null : { kind: 'client', version };
+}
+
 function createFakeClientUpdate(initialOffer: string | null) {
-	let offer = initialOffer;
+	let offer = clientOffer(initialOffer);
 	const listeners = new Set<() => void>();
 	const waitingListeners = new Set<() => void>();
 	const failedListeners = new Set<() => void>();
@@ -383,7 +389,7 @@ function createFakeClientUpdate(initialOffer: string | null) {
 		},
 		request,
 		setOfferSilently: (next: string | null) => {
-			offer = next;
+			offer = clientOffer(next);
 		},
 	};
 }
@@ -461,8 +467,8 @@ async function mountWebApplication({
 }
 
 const EXPECTED_UPDATE_UNAVAILABLE = {
-	'en-US': "Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
-	'zh-CN': '无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
+	'en-US': "Couldn't update here. Quit Orchbee and open it again.",
+	'zh-CN': '无法在此更新。请退出 Orchbee 后重新打开。',
 } as const;
 
 describe('WebApplication update wiring and refusals', () => {

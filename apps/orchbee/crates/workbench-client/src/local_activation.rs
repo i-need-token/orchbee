@@ -44,6 +44,8 @@ mod store_start;
 pub use session_selection::{
     inside_selected_session, select_session, selected_session_name, target_session_name,
 };
+#[cfg(any(windows, target_os = "macos"))]
+pub use store_start::restart_cohort_directory;
 
 pub use crate::startup_status::StartupFailure;
 
@@ -304,7 +306,7 @@ fn activate(
             #[cfg(windows)]
             server_job,
         )? {
-            Activated::Joined(client, spawned) => (client, spawned),
+            Activated::Joined(client, spawned) => (*client, spawned),
             // The catalog and the Session's folder handles go too, and the next pass starts with
             // the store's start, so the next Session runs the store's active version.
             Activated::Stopping => {
@@ -340,7 +342,7 @@ fn activate(
 /// What a Client that lost its local Server found while it waited.
 pub enum Rejoined {
     /// A Server serves the Session again: the one a restart handed it to, or one someone started.
-    Joined(LocalClient),
+    Joined(Box<LocalClient>),
     /// The Session moved past this Client: the idle move ended the Server to run the store's
     /// active version, and no Server serves it until a Client starts one, or a restart handed it
     /// to a newer Server that refuses this Client as too old.
@@ -403,7 +405,7 @@ pub fn rejoin_local_session(
 /// How one pass of [`connect_or_activate`] ended.
 enum Activated {
     /// An admitted Client, and whether this pass spawned the Server.
-    Joined(LocalClient, bool),
+    Joined(Box<LocalClient>, bool),
     /// A Server this pass did not start is ending by a stop; the pass let go of the activation
     /// lock so the stop can complete.
     Stopping,
@@ -411,7 +413,7 @@ enum Activated {
 
 /// What one connection attempt reached.
 enum Reached {
-    Client(LocalClient),
+    Client(Box<LocalClient>),
     /// No Server listens.
     Absent,
     /// A Server listens but is ending: a recorded Session stop refuses every Client until the
@@ -709,7 +711,7 @@ fn connect(
     session.client_socket_exists().map_err(runtime_failure)?;
     let offer = client_offer(Some(cohort.identity()));
     match LocalClient::connect_before(session.client_socket_path(), &offer, deadline) {
-        Ok(client) => Ok(Reached::Client(client)),
+        Ok(client) => Ok(Reached::Client(Box::new(client))),
         Err(error) => {
             // An absent or refusing socket inside the activation loop is
             // retryable; every other connect failure surfaces verbatim.

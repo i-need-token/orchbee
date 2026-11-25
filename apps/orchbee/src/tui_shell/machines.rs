@@ -96,7 +96,7 @@ fn rejoin(
         cancel.is_cancelled()
     }) {
         Ok(crate::local_activation::Rejoined::Joined(client)) => {
-            Ok(PreparedSelection::Connection(client))
+            Ok(PreparedSelection::Connection(*client))
         }
         Ok(crate::local_activation::Rejoined::Moved) => Ok(PreparedSelection::Moved),
         Err(failure) => Err(lost(failure)),

@@ -1,6 +1,8 @@
 //! The sole TUI connection owner. Lanes submit complete records and never own a Server socket.
 use super::LocalClientOrigin;
-use orchbee_connection_handshake::{CapabilitySet, Generation, STREAM_OUTCOME_UNKNOWN};
+use orchbee_connection_handshake::{
+    CapabilitySet, Generation, ProductVersion, STREAM_OUTCOME_UNKNOWN,
+};
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
 use orchbee_workbench_protocol::{
@@ -469,6 +471,8 @@ struct Shared {
     generation: AtomicU64,
     /// The capabilities the current carrier's handshake answer listed; a reconnect replaces them.
     capabilities: Mutex<CapabilitySet>,
+    /// The product version the current carrier's answer named; a reconnect replaces it.
+    server_version: Mutex<ProductVersion>,
     /// The `client-server` generation the current carrier's answer chose; a reconnect replaces it.
     negotiated: AtomicU16,
     budget: Arc<AtomicUsize>,
@@ -644,6 +648,7 @@ impl Connection {
             stopped: AtomicBool::new(false),
             generation: AtomicU64::new(connection.generation().get()),
             capabilities: Mutex::new(connection.capabilities().clone()),
+            server_version: Mutex::new(connection.server_version().clone()),
             negotiated: AtomicU16::new(connection.negotiated_generation().get()),
             // The control reservation is part of, not additional to, the public connection cap.
             budget: Arc::new(AtomicUsize::new(health::RESERVED_BYTES)),
@@ -698,6 +703,14 @@ impl Connection {
     pub(super) fn capabilities(&self) -> CapabilitySet {
         self.shared
             .capabilities
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+    /// The product version the current carrier's handshake answer named.
+    pub(super) fn server_version(&self) -> ProductVersion {
+        self.shared
+            .server_version
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
@@ -1091,6 +1104,12 @@ fn actor(
                     next.capabilities().clone_into(
                         &mut shared
                             .capabilities
+                            .lock()
+                            .unwrap_or_else(|poisoned| poisoned.into_inner()),
+                    );
+                    next.server_version().clone_into(
+                        &mut shared
+                            .server_version
                             .lock()
                             .unwrap_or_else(|poisoned| poisoned.into_inner()),
                     );

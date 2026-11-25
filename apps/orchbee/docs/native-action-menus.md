@@ -199,6 +199,19 @@ nothing switches and
 the status line says the update applies when no terminal is running; a row chosen after the store
 moved back says there is no update to switch to.
 
+On Windows and macOS a TUI that joins a local Session whose Server named an older product version
+in its handshake moves that Session onto its own version by itself, once, with nothing to confirm:
+its own `orchbee` runs `server restart` in the background, whatever the restart tier says, while
+the status line says Updating the Session. Terminals keep running. (`正在更新会话，终端继续运行。`),
+and the TUI's connection reconnects to the new Server. A start the Session refuses as too old runs
+the same restart first and joins once it succeeded. A running background program, an older Client
+that cannot reconnect by itself, a Terminal Host that version's Worker cannot adopt, or a failed
+restart leaves the Session on its version: the status line says why, and the Update row and control
+offer the move, Update · Update the Session to Orchbee {version}. Terminals keep running. Choosing
+it tries again; a Host that must be replaced asks Restart terminals to update? first, and Restart
+stops the Session through the TUI's own connection and starts it with this version, which the TUI
+rejoins with every terminal restarted. A newer version in the store takes the row's place.
+
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;
 constrained rows truncate the label first and omit the whole chord only when the remaining row cannot

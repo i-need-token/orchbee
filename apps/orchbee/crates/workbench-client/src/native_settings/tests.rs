@@ -175,7 +175,7 @@ fn every_common_setting_has_one_row_with_one_place_on_the_page() {
         let mut keys: Vec<_> = catalog::entries(
             Page::AgentLaunch(provider),
             Category::Agents,
-            catalog::Filter::of("", &defaults, false, true),
+            catalog::Filter::of("", &defaults, false, &[]),
             None,
         )
         .into_iter()

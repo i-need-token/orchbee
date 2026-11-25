@@ -57,11 +57,11 @@ function settledExecution(result: ActionResult<unknown>): ActionExecution<unknow
 const EXPECTED_NOTICE = {
 	'en-US': {
 		notApplied: "Couldn't apply the change.",
-		update: "Couldn't update here. Quit Orchbee and open it again, or run orchbee update.",
+		update: "Couldn't update here. Quit Orchbee and open it again.",
 	},
 	'zh-CN': {
 		notApplied: '没能应用这项更改。',
-		update: '无法在此更新。请退出 Orchbee 后重新打开，或运行 orchbee update。',
+		update: '无法在此更新。请退出 Orchbee 后重新打开。',
 	},
 } as const;
 

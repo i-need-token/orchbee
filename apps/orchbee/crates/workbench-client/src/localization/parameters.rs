@@ -52,6 +52,10 @@ pub enum Notice {
     UpdateWaiting,
     /// Update found the control no longer Ready, as after the store moved back; nothing switched.
     UpdateUnavailable,
+    /// The Session runs an older version than this Client, which moves it onto its own version.
+    SessionUpdating,
+    /// The Session's move onto this Client's version waits, for the reason named.
+    SessionUpdateWaiting(crate::release_update::SessionWait),
     NavigatorChanged,
     NavigatorTooSmall,
     ResizeBusy,

@@ -67,6 +67,10 @@
 						"type": "string",
 						"pattern": "^[a-z0-9-]{1,64}$"
 					}
+				},
+				"sessionVersion": {
+					"type": ["string", "null"],
+					"pattern": "^[!-~]{1,64}$"
 				}
 			}
 		}

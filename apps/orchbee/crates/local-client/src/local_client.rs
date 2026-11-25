@@ -111,6 +111,12 @@ impl ClientTransport {
             Self::Lane(lane) => lane.connection.capabilities(),
         }
     }
+    fn server_version(&self) -> orchbee_connection_handshake::ProductVersion {
+        match self {
+            Self::Direct(connection) => connection.server_version().clone(),
+            Self::Lane(lane) => lane.connection.server_version(),
+        }
+    }
     fn reply_generation(&self) -> Option<std::num::NonZeroU64> {
         match self {
             Self::Direct(connection) => Some(connection.generation()),
@@ -203,6 +209,13 @@ impl LocalClientOrigin {
         self.multiplex
             .as_ref()
             .map(|connection| connection.negotiated_generation())
+    }
+    /// The product version the Session's handshake answer named on the promoted connection's
+    /// current carrier; a reconnect replaces it. `None` without a promoted connection.
+    pub fn session_version(&self) -> Option<orchbee_connection_handshake::ProductVersion> {
+        self.multiplex
+            .as_ref()
+            .map(|connection| connection.server_version())
     }
 
     pub fn lane_before(
@@ -425,6 +438,15 @@ impl LocalClient {
             .as_ref()
             .map(ClientTransport::capabilities)
             .unwrap_or_default()
+    }
+
+    /// The product version the Session's handshake answer named on the current connection, as
+    /// `server start` reports it; `None` without a connection.
+    #[must_use]
+    pub fn server_version(&self) -> Option<orchbee_connection_handshake::ProductVersion> {
+        self.connection
+            .as_ref()
+            .map(ClientTransport::server_version)
     }
 
     pub fn submit_terminal_viewer_before(

@@ -94,8 +94,9 @@ A copy-on-select change is one edit and reaches installed presentations when its
 The Allow routine confirmations group holds one switch for each Agent type whose routine
 confirmations the Server can answer, named by the Agent's product name: `agents.auto_allow.claude`
 for Claude Code, `agents.auto_allow.codex` for Codex, `agents.auto_allow.gemini` for Gemini CLI,
-and `agents.auto_allow.opencode` for OpenCode. A switch reads and edits its key through the window's settings control and has no
-capability gate; the Server applies a change at once, and Off also stops an answer it had already
+and `agents.auto_allow.opencode` for OpenCode. A switch shows only while the Server publishes its
+key, which an older Session's Server does not, and the group only with one. A switch reads and edits
+its key through the window's settings control and has no capability gate; the Server applies a change at once, and Off also stops an answer it had already
 decided. The group's closing line asks for more Agents in a GitHub issue and opens the project's
 issue page where the host wires an external browser; elsewhere it is text. The
 [Server contract](../../orchbee-server/docs/agent-confirmation.md) owns what is answered.
@@ -431,8 +432,11 @@ words:
   sidebar footer's Update: the same `workbench.client.update` Action, registered in a
   `WebApplication` scope above the Workbench's so both surfaces reach it, with the footer's tooltip
   sentence as the description and the same waiting notice; when switching fails or is refused,
-  About shows the same failure notice on Settings' notice line, advising to quit and reopen Orchbee
-  or run `orchbee update`. Otherwise it is Check for updates, which reads “Checking…” and is
+  About shows the same failure notice on Settings' notice line, advising to quit and reopen Orchbee.
+  While Main offers the move of an older Session onto this window's version, it is the same Update,
+  described by why the move waits, and while that move runs it shows its notice's sentence with no
+  control, as [Desktop's Session update](../../desktop/README.md#session-update) describes.
+  Otherwise it is Check for updates, which reads “Checking…” and is
   disabled, without a spinner, while a run is queued or running. When a check fails, the danger
   description notes that installing the latest version from `orchbee.com` keeps terminals and
   Agents running, and, where the composition supplies `openExternal`, Get installer opens

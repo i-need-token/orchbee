@@ -1111,6 +1111,8 @@ pub fn render_terminal_shell_with_resize<'a>(
                 crate::client_view::Notice::UpdateRestarting
                     | crate::client_view::Notice::UpdateWaiting
                     | crate::client_view::Notice::UpdateUnavailable
+                    | crate::client_view::Notice::SessionUpdating
+                    | crate::client_view::Notice::SessionUpdateWaiting(_)
             )
         });
         let deferred = login_deferred(view, locale);
