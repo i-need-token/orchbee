@@ -117,16 +117,11 @@ Or download the disk image from the
 `Orchbee-<version>-macos-aarch64.dmg` for Apple silicon, `Orchbee-<version>-macos-x86_64.dmg` for
 Intel. Open it and drag **Orchbee** to Applications. Its first start installs the command the same way.
 
-- The app is not notarized by Apple yet, so macOS blocks the first open of a browser download. Click
-  **Done**, then **Open Anyway** in **System Settings › Privacy & Security**; the
-  [website](https://orchbee.com/#install) has the steps. The terminal install skips this.
 - Terminals inside Orchbee find `orchbee`; for other terminals, run the first command above.
 
 Known limits on macOS:
 
 - Intel Macs are tested in CI only.
-- Remembered SSH passwords: macOS asks again for Keychain access after each update, until Orchbee is
-  signed.
 - Images show in terminals that speak the Kitty graphics protocol, such as Ghostty and kitty; iTerm2
   and Terminal.app show a coarser cell picture.
 

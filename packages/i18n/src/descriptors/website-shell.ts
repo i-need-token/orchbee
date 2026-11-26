@@ -161,10 +161,6 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.install.macos.detail',
 		'How to install from the macOS disk image.',
 	),
-	installMacosNote: message(
-		'website.shell.install.macos.note',
-		'Steps under the install rows to open the macOS app that Apple has not notarized.',
-	),
 	installMacosScriptTitle: message(
 		'website.shell.install.macos.scriptTitle',
 		'Row of the install script command for macOS.',

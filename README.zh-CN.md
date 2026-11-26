@@ -114,15 +114,11 @@ curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # 同时安装�
 `Orchbee-<version>-macos-aarch64.dmg`，Intel 下载 `Orchbee-<version>-macos-x86_64.dmg`。打开后把
 **Orchbee** 拖到“应用程序”。首次启动时会以同样方式安装命令。
 
-- 应用暂未经过 Apple 公证，所以从浏览器下载的副本第一次打开时会被 macOS 拦下。点**完成**，再到
-  **系统设置 › 隐私与安全性**中点**仍要打开**；[官网](https://orchbee.com/#install)有详细步骤。用终端安装
-  不会遇到这一步。
 - Orchbee 里的终端能找到 `orchbee`；要在其他终端中使用，请运行上面的第一条命令。
 
 macOS 上的已知限制：
 
 - Intel Mac 只在 CI 中测试过。
-- 记住的 SSH 密码：在 Orchbee 签名之前，每次更新后 macOS 都会再次请求钥匙串访问权限。
 - 终端中的图片只在支持 Kitty 图形协议的终端（如 Ghostty 和 kitty）中显示；iTerm2 和“终端”显示的是较粗的
   字符画面。
 

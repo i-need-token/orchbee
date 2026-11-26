@@ -903,9 +903,10 @@ application calls no store.
   name and whose account is `orchbee`, written through `keyring-core` and
   `apple-native-keyring-store`, the same store family, for the same reason. That store writes no
   label, so Keychain Access names the item by its service. The Keychain's access list trusts the
-  program that created an item by its code signature: an unsigned or ad-hoc-signed build gets a new
-  signature with every update, so after an update macOS asks once more before that build reads an
-  answer it remembered earlier. Linux answers "unavailable" in this build: a current limit, not the
+  program that created an item by its code signature. A release build is signed with the project's
+  Developer ID, whose signature names the team rather than one build, so an update keeps that
+  trust; an ad-hoc-signed development or test build gets a new signature with every build, so after
+  a rebuild macOS asks once more before it reads an answer it remembered earlier. Linux answers "unavailable" in this build: a current limit, not the
   design, which gives it the Secret Service, otherwise the kernel's per-user keyring, as adapters of
   the same port that change no caller. A store that cannot be reached, such as Credential Manager
   in an SSH logon or a Keychain this session cannot reach, also answers unavailable: the TUI shows
@@ -1189,10 +1190,11 @@ wakes only the threads of the two sides it touches.
   time, but the hub and a TUI, or two clients, calling at the same instant can still fail a write
   or leave a deleted answer behind, as two test processes did; nothing orders calls across
   processes. The macOS adapter does not serialize its calls within a process either.
-- **An unsigned macOS build is asked about again after each update.** The Keychain trusts the
-  program that saved an answer by its code signature, so until the macOS release is signed with a
-  stable identity, every update brings one more access request before a remembered answer is used;
-  a request declined, or made where no dialog can be shown, reads as no answer and `ssh` asks.
+- **An ad-hoc-signed macOS build is asked about again after each rebuild.** The Keychain trusts
+  the program that saved an answer by its code signature, which only release builds keep across
+  versions, so each development or test rebuild brings one more access request before a remembered
+  answer is used; a request declined, or made where no dialog can be shown, reads as no answer and
+  `ssh` asks.
 - **A killed hub sweeps orphaned draft answers on restart.** Before a draft can start a carrier
   that might save remembered answers, the hub persists the draft's ID in
   `internal/machines/drafts.json` off the hub's lock and keeps it there until promotion or deletion

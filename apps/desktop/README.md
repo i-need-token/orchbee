@@ -669,8 +669,11 @@ one contract: change the repository's `scripts/brand-assets.mjs` and this packag
 
 The release workflow's form, from a release directory staged and signed in a job of its own, is
 `node apps/desktop/scripts/package.mjs --profile release --installer --cohort <signed cohort>`.
-An ad-hoc signed application is not notarized, so `spctl --assess` rejects it and a browser download
-meets Gatekeeper's Open Anyway steps; a download without the quarantine attribute opens directly.
+The workflow then signs the application and image again with the Developer ID, has Apple notarize
+the image and staples the tickets to both (`scripts/sign-macos-release.mjs`), so a downloaded image
+opens without Gatekeeper's Open Anyway steps. A locally packaged image stays ad-hoc signed and not
+notarized: `spctl --assess` rejects it and a browser download meets those steps, while a download
+without the quarantine attribute opens directly.
 The image carries no window list beside the application, so the application's first start brings
 its runtime version into the store and makes an empty window store, as the window section above
 says, and updates reach it from then on.

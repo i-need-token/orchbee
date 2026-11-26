@@ -172,11 +172,13 @@ export function Install({ release }: { release: Release }): ReactElement {
 							>
 								<CommandChip command='orchbee' tone='quiet' />
 							</InstallRow>
-							{platforms.map(({ platform }) => (
-								<p className={styles['note']} data-install-note={platform.id} key={platform.id}>
-									{t(shellMessages[platform.install.note], richText)}
-								</p>
-							))}
+							{platforms.map(({ platform }) =>
+								platform.install.note === undefined ? null : (
+									<p className={styles['note']} data-install-note={platform.id} key={platform.id}>
+										{t(shellMessages[platform.install.note], richText)}
+									</p>
+								),
+							)}
 						</>
 					) : (
 						<>

@@ -50,13 +50,9 @@ export const enUSWebsiteShellMessages = {
 	'website.shell.install.macos.title': 'macOS desktop app',
 	'website.shell.install.macos.detail':
 		'Open the disk image and drag Orchbee to Applications. Pick the one for your Mac’s chip.',
-	'website.shell.install.macos.note':
-		'The macOS app is not notarized by Apple yet. The first time you open a downloaded copy, macOS says it cannot check Orchbee: click <b>Done</b>, open System Settings › Privacy & Security, click <b>Open Anyway</b> next to Orchbee, and confirm. The terminal commands skip this.',
 	'website.shell.install.macos.scriptTitle': 'macOS terminal and CLI',
-	'website.shell.install.macos.scriptDetail':
-		'Automatically detects Apple silicon or Intel and installs with no macOS security prompt.',
-	'website.shell.install.macos.scriptDesktop':
-		'Desktop app, terminal and CLI (recommended, no security prompt)',
+	'website.shell.install.macos.scriptDetail': 'Automatically detects Apple silicon or Intel.',
+	'website.shell.install.macos.scriptDesktop': 'Desktop app, terminal and CLI (recommended)',
 	'website.shell.install.macos.scriptCli': 'Terminal interface and CLI only',
 	'website.shell.install.downloadAppleSilicon': 'Download for Apple silicon',
 	'website.shell.install.downloadIntel': 'Download for Intel Mac',

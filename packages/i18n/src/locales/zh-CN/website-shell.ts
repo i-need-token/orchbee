@@ -49,12 +49,9 @@ export const zhCNWebsiteShellMessages = {
 	'website.shell.install.macos.title': 'macOS 桌面应用',
 	'website.shell.install.macos.detail':
 		'打开磁盘映像，把 Orchbee 拖进“应用程序”。请按 Mac 的芯片选择对应版本。',
-	'website.shell.install.macos.note':
-		'macOS 应用暂未经过 Apple 公证。首次打开从浏览器下载的副本时，macOS 会提示无法检查 Orchbee：点按<b>完成</b>，打开“系统设置”›“隐私与安全性”，点按 Orchbee 旁的<b>仍要打开</b>并确认。用终端命令安装则不会遇到这一步。',
 	'website.shell.install.macos.scriptTitle': 'macOS 终端和 CLI',
-	'website.shell.install.macos.scriptDetail':
-		'自动识别 Apple 芯片与 Intel，直接安装且不会弹出 macOS 安全拦截提示。',
-	'website.shell.install.macos.scriptDesktop': '桌面应用、终端界面与 CLI（推荐，无安全弹窗）',
+	'website.shell.install.macos.scriptDetail': '自动识别 Apple 芯片与 Intel，直接安装。',
+	'website.shell.install.macos.scriptDesktop': '桌面应用、终端界面与 CLI（推荐）',
 	'website.shell.install.macos.scriptCli': '仅终端界面与 CLI',
 	'website.shell.install.downloadAppleSilicon': '下载 Apple 芯片版',
 	'website.shell.install.downloadIntel': '下载 Intel 版',

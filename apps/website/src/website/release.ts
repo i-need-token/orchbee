@@ -86,11 +86,11 @@ interface PlatformCommand {
 
 // A platform's rows in the install section: the downloads row (its title, its description and a button per
 // installer) and, when the platform has commands, a commands row above it. Both show under the platform's tab,
-// followed by the platform's note.
+// followed by the platform's note when it has one.
 interface PlatformInstall {
 	readonly title: ShellMessageKey;
 	readonly detail: ShellMessageKey;
-	readonly note: ShellMessageKey;
+	readonly note?: ShellMessageKey;
 	readonly commands?: { readonly title: ShellMessageKey; readonly detail: ShellMessageKey };
 }
 
@@ -189,7 +189,6 @@ const PLATFORMS = [
 		install: {
 			title: 'installMacosTitle',
 			detail: 'installMacosDetail',
-			note: 'installMacosNote',
 			commands: { title: 'installMacosScriptTitle', detail: 'installMacosScriptDetail' },
 		},
 	},
