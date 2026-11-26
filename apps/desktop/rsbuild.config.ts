@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,6 +12,8 @@ import { developmentServerPorts } from '../../scripts/development-server-ports.m
 import { prepareDesktopDevelopmentExecutable } from './scripts/prepare-desktop-development-application.mjs';
 
 const desktopRoot = path.dirname(fileURLToPath(import.meta.url));
+/** This package's version, which Main reports as its own in development. */
+const packageVersion = readPackageVersion(path.join(desktopRoot, 'package.json'));
 
 export default defineConfig(({ command }) => {
 	let developmentRuntime: DesktopDevelopmentRuntime | undefined;
@@ -100,7 +103,10 @@ export default defineConfig(({ command }) => {
 					module: false,
 					target: 'node',
 				},
-				source: { entry: { main: './src/main/composition/entry.ts' } },
+				source: {
+					define: { ORCHBEE_DESKTOP_PACKAGE_VERSION: JSON.stringify(packageVersion) },
+					entry: { main: './src/main/composition/entry.ts' },
+				},
 				splitChunks: false,
 				tools: {
 					rspack(config) {
@@ -133,3 +139,16 @@ export default defineConfig(({ command }) => {
 		},
 	};
 });
+
+function readPackageVersion(manifestPath: string): string {
+	const manifest: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
+	if (
+		typeof manifest === 'object' &&
+		manifest !== null &&
+		'version' in manifest &&
+		typeof manifest.version === 'string'
+	) {
+		return manifest.version;
+	}
+	throw new Error(`${manifestPath} names no version.`);
+}

@@ -98,6 +98,11 @@ const launchedAt = performance.now();
 // Before anything starts a process, so none inherits the launcher protocol variable.
 const relaunchAnnounced = takeRelaunchAnnouncement(process.env, process.ppid);
 const packaged = isPackagedDesktop(process);
+/**
+ * This window's product version. Electron's default app, which loads every development entry,
+ * reports Electron's own version, so development takes the version this package was built with.
+ */
+const ownVersion = packaged ? app.getVersion() : ORCHBEE_DESKTOP_PACKAGE_VERSION;
 registerDesktopRendererScheme(protocol);
 const distribution = resolveDesktopApplicationDistribution({
 	applicationPath: app.getAppPath(),
@@ -125,7 +130,7 @@ if (debugPort !== null) app.commandLine.appendSwitch('remote-debugging-port', de
 const windowDesktopRoot = locateWindowDesktopRoot({
 	development: !packaged || distribution.dataScope.kind === 'development',
 	executablePath: process.execPath,
-	ownVersion: app.getVersion(),
+	ownVersion,
 	platform: process.platform,
 	storeRoot:
 		process.platform === 'darwin'
@@ -160,7 +165,7 @@ function prepareOrRefuseDesktopDataRoot(): DesktopDataRoot {
 	try {
 		return prepareDesktopDataRoot(
 			{
-				applicationVersion: app.getVersion(),
+				applicationVersion: ownVersion,
 				distribution,
 				homeDirectory: app.getPath('home'),
 				homeOverride: process.env['ORCHBEE_HOME'],
@@ -357,7 +362,7 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 			else recordEvent('error', 'window-relaunch-failed');
 			return started;
 		},
-		ownVersion: app.getVersion(),
+		ownVersion,
 		readPointer: readWindowPointer,
 		recordEvent,
 		restartForVersion: (root, version, request) =>
@@ -663,7 +668,7 @@ async function start(): Promise<void> {
 		machines.start();
 	}
 	const started = new DesktopServerClientApplication({
-		applicationVersion: app.getVersion(),
+		applicationVersion: ownVersion,
 		background,
 		checkoutName: resolveDesktopCheckoutName(distribution, process.platform),
 		clientEnvironment: resolveClientEnvironment(),
@@ -696,7 +701,7 @@ async function start(): Promise<void> {
 		windowHidden,
 		windowStateOwner: new DesktopWindowStateOwner(
 			new FileDesktopWindowStateStore(dataRoot.windowStateFile, {
-				upgradeBackup: createUpgradeBackup(dataRoot.path, app.getVersion()),
+				upgradeBackup: createUpgradeBackup(dataRoot.path, ownVersion),
 			}),
 			process.platform,
 			reportWindowStateRecord,
