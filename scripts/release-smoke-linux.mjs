@@ -27,9 +27,8 @@
 //   the carried version, `--version` answers it again, the program's `uninstall` removes the store
 //   root, and `npm rm --global` removes the carrier.
 //
-// A test build's `uninstall` takes `--confirm`. A release build refuses it and asks a person to type
-// `orchbee` on a terminal, so its `uninstall` runs on a terminal that python3's pty module opens,
-// and the word is typed once the prompt shows.
+// Every Linux build's `uninstall` takes `--confirm`: only a release Windows or macOS build asks a
+// person to type `orchbee` instead.
 //
 // Every step then requires that no process runs from the work folder, by the program each process
 // in /proc started.
@@ -72,34 +71,6 @@ const setupDeadline = 600_000;
 const settleDeadline = 15_000;
 const hostPlatforms = { arm64: 'linux-aarch64', x64: 'linux-x86_64' };
 const hostPlatform = hostPlatforms[process.arch];
-// The release stem, whose builds ask for this word in place of `uninstall --confirm`.
-const releaseStem = 'orchbee';
-// The release prompt in the locale the typed run sets.
-const uninstallPrompt = 'Type orchbee to uninstall:';
-// Runs argv[3:] on a new terminal, copies its output, types argv[1] and Enter once argv[2] shows,
-// and exits with the program's status.
-const typeAtPrompt = `
-import os, pty, sys
-word, prompt, program = sys.argv[1].encode(), sys.argv[2].encode(), sys.argv[3:]
-pid, terminal = pty.fork()
-if pid == 0:
-    os.execv(program[0], program)
-seen, typed = b"", False
-while True:
-    try:
-        chunk = os.read(terminal, 4096)
-    except OSError:
-        break
-    if not chunk:
-        break
-    os.write(1, chunk)
-    seen += chunk
-    if not typed and prompt in seen:
-        os.write(terminal, word + b"\\n")
-        typed = True
-sys.exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
-`;
-
 function log(line) {
 	process.stdout.write(`${line}\n`);
 }
@@ -183,36 +154,13 @@ function expectStatus(result, expected, what) {
 		throw new StepFailure(`${what} exited ${result.status}, expected ${expected}`);
 }
 
-/**
- * Runs `command uninstall` as its build requires: a test build with `--confirm`, a release build on
- * a terminal, typing the word once the prompt shows.
- */
-function uninstall(identity, command, env) {
-	if (identity.stem !== releaseStem) {
-		expectStatus(
-			run(command, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
-			0,
-			'uninstall --confirm',
-		);
-		return;
-	}
-	log(`> ${command} uninstall, on a terminal, typing ${releaseStem} at its prompt`);
-	const result = spawnSync(
-		'/usr/bin/python3',
-		['-I', '-c', typeAtPrompt, releaseStem, uninstallPrompt, command, 'uninstall'],
-		{
-			encoding: 'utf8',
-			env: { ...env, LC_ALL: 'C.UTF-8' },
-			stdio: ['ignore', 'pipe', 'pipe'],
-			timeout: setupDeadline,
-			maxBuffer: 64 * 1024 * 1024,
-		},
+/** Runs `command uninstall --confirm`. */
+function uninstall(command, env) {
+	expectStatus(
+		run(command, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
+		0,
+		'uninstall --confirm',
 	);
-	if (result.error !== undefined) throw new StepFailure(`python3: ${result.error.message}`);
-	process.stdout.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
-	if (!result.stdout.includes(uninstallPrompt))
-		throw new StepFailure('uninstall never asked for the word');
-	expectStatus(result, 0, `uninstall, typing ${releaseStem}`);
 }
 
 function expectVersion(identity, result, what) {
@@ -322,7 +270,7 @@ function archive(identity, work) {
 	const root = storeRoot(identity, home);
 	expectActive(identity, root);
 	const link = expectLink(identity, home, root, env, 'install');
-	uninstall(identity, link, env);
+	uninstall(link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
 	expectNoProcesses(work);
@@ -367,7 +315,7 @@ function installScriptStep(identity, work) {
 	expectActive(identity, root);
 	const link = expectLink(identity, home, root, env, 'install.sh');
 	log(`install.sh installed ${identity.version}.`);
-	uninstall(identity, link, env);
+	uninstall(link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
 	expectNoProcesses(work);
@@ -393,7 +341,7 @@ function npm(identity, work) {
 	const root = storeRoot(identity, home);
 	expectActive(identity, root);
 	expectVersion(identity, run(command, ['--version'], { env }), '--version');
-	uninstall(identity, command, env);
+	uninstall(command, env);
 	expectGone(root, 'The store root');
 	const packages = [identity.stem, `@${identity.stem}/cli-linux-${identity.cpu}`];
 	expectStatus(
