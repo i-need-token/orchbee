@@ -41,11 +41,14 @@
 		transparent 100%
 	);
 }
+/* The product's 6 px unread circle, as the drawn sidebar's Agent rows show it. */
 .unread {
 	flex: none;
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
 	margin: 0 var(--ob-ref-space-0-5) 0 var(--ob-ref-space-1);
-	color: var(--ob-sys-color-status-unread);
-	font: var(--ob-sys-typography-label-sm);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
 }
 .button,
 .newTab {

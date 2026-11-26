@@ -33,9 +33,7 @@ export function DesktopTabStrip({
 					)}
 				</span>
 				<span className={styles['title']}>{title}</span>
-				<span className={styles['unread']} hidden={!unread} data-scene-show={bind?.unread}>
-					●
-				</span>
+				<span className={styles['unread']} hidden={!unread} data-scene-show={bind?.unread} />
 				<span className={styles['button']}>
 					<Codicon name='close' />
 				</span>

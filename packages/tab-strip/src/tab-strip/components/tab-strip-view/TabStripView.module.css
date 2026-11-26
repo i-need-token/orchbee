@@ -352,11 +352,22 @@
 		transparent 100%
 	);
 }
+/* The unread dot is the 6 px circle the sidebar's Agent rows draw, not a text glyph that grows with
+   the font. Its cell reaches 4 px past it on each side, so the pointer finds its tooltip. */
 .ct-tab__unread {
+	display: flex;
 	flex: none;
+	align-items: center;
+	align-self: stretch;
+	padding-inline: var(--ob-ref-space-1);
 	pointer-events: auto;
-	color: var(--ob-sys-color-status-unread);
-	font: var(--ob-sys-typography-label-sm);
+}
+.ct-tab__unread::before {
+	width: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-status-unread);
+	content: '';
 }
 .ct-tab__alert {
 	border: none;

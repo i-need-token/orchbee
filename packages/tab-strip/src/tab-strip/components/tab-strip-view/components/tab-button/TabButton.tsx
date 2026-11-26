@@ -232,9 +232,7 @@ export const TabButton = memo(function TabButton({
 				<Tooltip disabled={tooltipDisabled}>
 					<TooltipTrigger
 						render={
-							<span aria-hidden='true' className={styles['ct-tab__unread']} data-tab-unread=''>
-								●
-							</span>
+							<span aria-hidden='true' className={styles['ct-tab__unread']} data-tab-unread='' />
 						}
 					/>
 					<TooltipContent side={tooltipSide} align='center'>
