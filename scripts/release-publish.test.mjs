@@ -17,7 +17,9 @@ import {
 	releaseTable,
 	selectGatePaths,
 	selectMacosGatePaths,
+	selectReusableRun,
 	tagNotes,
+	verifyState,
 } from './release-publish.mjs';
 import {
 	parseGateArguments,
@@ -641,4 +643,38 @@ test('parseGateArguments and probeFacts validate gate inputs and gapless probe o
 			]),
 		/processes 4242, 9999/u,
 	);
+});
+
+test('a run reuses only a passed run of its own commit and version that still holds its files', () => {
+	const commit = 'a'.repeat(40);
+	const passed = {
+		id: 7,
+		title: 'Release 0.1.0-beta.25 rehearsal',
+		headSha: commit,
+		conclusion: 'success',
+		joined: true,
+	};
+	const select = (runs) =>
+		selectReusableRun({ runs, version: '0.1.0-beta.25', commit, current: 9 });
+	assert.equal(select([passed, { ...passed, id: 8, title: 'Release v0.1.0-beta.25' }]), 8);
+	for (const other of [
+		{ headSha: 'b'.repeat(40) },
+		{ title: 'Release 0.1.0-beta.24 rehearsal' },
+		{ title: 'Release dry run' },
+		{ conclusion: 'failure' },
+		{ joined: false },
+		{ id: 9 },
+	])
+		assert.equal(select([{ ...passed, ...other }]), undefined, JSON.stringify(other));
+});
+
+test('Verify counts as passed once any run of the commit passed', () => {
+	const done = (conclusion) => ({ status: 'completed', conclusion });
+	assert.equal(verifyState([done('failure'), done('success')]), 'passed');
+	assert.equal(
+		verifyState([done('failure'), { status: 'in_progress', conclusion: null }]),
+		'running',
+	);
+	assert.equal(verifyState([done('failure'), done('cancelled')]), 'failed');
+	assert.equal(verifyState([]), 'missing');
 });

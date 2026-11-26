@@ -73,8 +73,10 @@ repository>`. Print each public half with the command in
    the release identity on every row with `build` set, presses Update in a real Test window of each
    of those rows, runs
    the release gate's paths a tag run would select, joins the rows the way a tag run would, and
-   publishes nothing. Its artifacts are a different build of the same version: never install them.
-   Start it, like the tag, once the newest Verify run on `main` has finished: both workflows use
+   publishes nothing. A tag of the same commit then reuses its joined files for a week: the tag run
+   checks them again and publishes them minutes after the tag instead of building. A tag of another
+   commit builds everything, and so does a rehearsal run with `rebuild` set
+   (`-f rebuild=true`). Start a run that builds once the newest Verify run on `main` has finished: both workflows use
    macOS runners, GitHub runs at most five macOS jobs of this account at once, and a rehearsal
    started beside Verify waited 17 minutes for its macOS builds (2026-11-25).
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
@@ -94,7 +96,9 @@ repository>`. Print each public half with the command in
    > window before you run the installer.
 
 4. The run then needs no human step. To stop a release, cancel the run (Cancel workflow on the run
-   page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public.
+   page) before its job "Publish v0.1.0-beta.1" starts; until then nothing is public. Publication
+   also waits until Verify passed for the tagged commit (job "Verify passed for v0.1.0-beta.1"), so
+   tag a commit that Verify on `main` checks, such as the newest one.
 5. After packaging, each job "Release feed <platform>" signs its row's update feed document and the
    release gate's copy of it with the release key, in a rehearsal too; the gate copy names the
    archives by their file names and is never published. Then the jobs "Release gate from

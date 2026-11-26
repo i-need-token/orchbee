@@ -13,8 +13,16 @@ name: Release
 # release as Latest, and starts the Update check. A lightweight tag or an empty tag message stops it
 # before the build. A rehearsal cannot publish: `release-publish` is the only job with write
 # permissions or the npm token, and it runs only for a `push` event whose plan says `publish`.
+# A run whose commit and version a passed run already built, gated and joined reuses that run's
+# joined files instead of building again, unless a manual run asks to rebuild; a tag run then
+# publishes minutes after the tag. A tag publishes only once Verify passed for its commit.
 # Rules for changing this file: docs/VERIFICATION.md#release-and-update-check-workflows; the owner's
 # steps: docs/RELEASING.md. The comments here are the description of each job.
+# The run name says what a run built: a later run of the same commit and version finds it by name.
+run-name: >-
+  ${{ github.event_name == 'push' && format('Release {0}', github.ref_name) ||
+  inputs.version != '' && format('Release {0} rehearsal', inputs.version) || 'Release dry run' }}
+
 on:
   workflow_dispatch:
     inputs:
@@ -23,6 +31,11 @@ on:
         required: false
         default: ''
         type: string
+      rebuild:
+        description: Build again even when a passed run of this commit and version can be reused
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - 'v*'
@@ -220,7 +233,13 @@ jobs:
     if: github.event_name == 'push' || inputs.version != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      # actions: read finds an earlier run to reuse.
+      actions: read
+      contents: read
     outputs:
+      # The id of the passed run whose joined files this run reuses, or empty to build.
+      reuse: ${{ steps.reuse.outputs.reuse }}
       version: ${{ steps.plan.outputs.version }}
       tag: ${{ steps.plan.outputs.tag }}
       publish: ${{ steps.plan.outputs.publish }}
@@ -275,6 +294,14 @@ jobs:
           MACOS_AARCH64: ${{ steps.plan.outputs.macos-aarch64 }}
         run: node scripts/release-publish.mjs gate-paths --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY" --macos-aarch64 "$MACOS_AARCH64"
 
+      - name: Find a passed run of this commit and version to reuse
+        id: reuse
+        if: inputs.rebuild != true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.plan.outputs.version }}
+        run: node scripts/release-publish.mjs reuse --version "$RELEASE_VERSION" --commit "$GITHUB_SHA" --run "$GITHUB_RUN_ID" --repository "$GITHUB_REPOSITORY"
+
   release-preconditions:
     name: Release preconditions
     needs: release-plan
@@ -306,6 +333,7 @@ jobs:
   release-build:
     name: Release build ${{ matrix.platform }}
     needs: [release-plan, release-preconditions]
+    if: needs.release-plan.outputs.reuse == ''
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
@@ -371,7 +399,7 @@ jobs:
   release-build-macos:
     name: Release build ${{ matrix.platform }}
     needs: [release-plan, release-preconditions]
-    if: needs.release-plan.outputs.macos == 'true'
+    if: needs.release-plan.outputs.macos == 'true' && needs.release-plan.outputs.reuse == ''
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
@@ -1069,6 +1097,7 @@ jobs:
   release-window-update:
     name: Release window Update ${{ matrix.platform }}
     needs: release-plan
+    if: needs.release-plan.outputs.reuse == ''
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.windows-matrix) }}
@@ -1131,7 +1160,7 @@ jobs:
   release-window-update-macos:
     name: Release window Update ${{ matrix.platform }}
     needs: release-plan
-    if: needs.release-plan.outputs.macos == 'true'
+    if: needs.release-plan.outputs.macos == 'true' && needs.release-plan.outputs.reuse == ''
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
@@ -1333,7 +1362,8 @@ jobs:
           done
           node scripts/release-artifacts.mjs join --output "$RUNNER_TEMP/release-joined" "${rows[@]}"
 
-      # A tag run keeps it as long as the row artifacts, for a re-run of the publication.
+      # A tag run keeps it as long as the row artifacts, for a re-run of the publication; a rehearsal
+      # keeps it a week, for a tag of the same commit to reuse.
       - name: Upload the joined release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -1341,15 +1371,86 @@ jobs:
           path: ${{ runner.temp }}/release-joined
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
+
+  # A reusing run takes the joined files of the run release-plan found, checks every feed against
+  # its signature and archive again, and keeps them under this run's name for release-publish.
+  release-reuse:
+    name: Reuse the files of run ${{ needs.release-plan.outputs.reuse }}
+    needs: [release-plan, release-preconditions]
+    if: needs.release-plan.outputs.reuse != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the reused run's joined release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-joined
+          path: ${{ runner.temp }}/release-joined
+          run-id: ${{ needs.release-plan.outputs.reuse }}
+          github-token: ${{ github.token }}
+
+      - name: Check the reused release artifacts
+        run: node scripts/release-artifacts.mjs check "$RUNNER_TEMP/release-joined"
+
+      - name: Keep the joined release artifacts under this run
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-joined
+          path: ${{ runner.temp }}/release-joined
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
+
+  # Tag runs only: waits, beside the build, until Verify passed for the tagged commit; the Verify
+  # run on main that checks the commit is the merge gate the release stands on.
+  release-verified:
+    name: Verify passed for ${{ needs.release-plan.outputs.tag }}
+    needs: release-plan
+    if: github.event_name == 'push' && needs.release-plan.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Wait for Verify on the tagged commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.release-plan.outputs.tag }}
+        run: node scripts/release-publish.mjs verified --commit "$GITHUB_SHA" --tag "$RELEASE_TAG" --repository "$GITHUB_REPOSITORY"
 
   # Tag runs only, with no approval: cancelling the run before this job starts is the way to stop a
   # release. GitHub first, as a draft; then npm, because a published npm version can never be
   # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
   # Run again, the job finishes a partial publication. The condition names the `push` event as well
-  # as the plan's `publish`, so no manual run reaches it; every needed job must have passed, the
-  # macOS smoke and window Update check may be skipped only when the plan has no macOS row, and the
-  # release gate only when the plan selected no path.
+  # as the plan's `publish`, so no manual run reaches it. Verify must have passed for the commit, and
+  # either the reused files passed their check or every needed job must have passed: the macOS smoke
+  # and window Update check may be skipped only when the plan has no macOS row, and the release gate
+  # only when the plan selected no path.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
     needs:
@@ -1363,16 +1464,20 @@ jobs:
         release-window-update-macos,
         release-gate,
         release-gate-macos,
+        release-reuse,
+        release-verified,
       ]
     if: >-
       ${{ !cancelled() && github.event_name == 'push' && needs.release-plan.outputs.publish == 'true' &&
+      needs.release-verified.result == 'success' &&
+      (needs.release-reuse.result == 'success' ||
       needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
       (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
       needs.release-window-update.result == 'success' &&
       (needs.release-window-update-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
       (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') &&
-      (needs.release-gate-macos.result == 'success' || needs.release-plan.outputs.macos-gate == 'false') }}
+      (needs.release-gate-macos.result == 'success' || needs.release-plan.outputs.macos-gate == 'false')) }}
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 30
