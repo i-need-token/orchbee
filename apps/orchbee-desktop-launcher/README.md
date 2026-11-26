@@ -36,7 +36,7 @@ parent check and which programs exist; its steps run in this order.
    folder as working folder, and starts no Job: the window outlives the launcher.
 4. When the pointer names a `previous` version whose program exists, the active window receives
    the [launcher protocol](../orchbee-launcher/README.md#relaunch-protocol) variable
-   `ORCHBEE_RELAUNCH_V1` with the launcher's process id, and the launcher watches it for 120
+   `ORCHBEE_RELAUNCH` with the launcher's process id, and the launcher watches it for 120
    seconds. If it cannot start, or ends within them with a non-zero status, the launcher starts the
    previous version once with `--fallback-from=<active version>` before the same arguments and
    without the variable. A window that ends with status 0, as a second instance does, is no failure.
@@ -79,7 +79,7 @@ are in `src/macos.rs`. The steps run in this order.
    `.<application name>.previous-<its process id>` and renames the copy into place. The Session
    keeps running: the launcher stops no process.
 5. It starts `Contents/MacOS/<name>` of the new application, in a process group of its own, with the
-   remaining arguments, the environment, and `ORCHBEE_RELAUNCH_V1` naming the launcher, and watches
+   remaining arguments, the environment, and `ORCHBEE_RELAUNCH` naming the launcher, and watches
    it for 120 seconds. When it cannot start, or ends within them with a non-zero status or by a
    signal, the launcher puts back what stood at the path before, or removes the copy where nothing
    stood, and starts the application the window ran from with `--fallback-from=<active>` first and

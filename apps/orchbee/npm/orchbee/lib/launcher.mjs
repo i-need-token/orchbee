@@ -31,7 +31,7 @@ const busyRetryMilliseconds = 250;
 
 // The relaunch protocol, the same as `apps/orchbee-launcher/src/relaunch.rs`: the variable carries the
 // launcher's process id, and a Client uses the statuses below only when that process is its parent.
-const relaunchVariable = 'ORCHBEE_RELAUNCH_V1';
+const relaunchVariable = 'ORCHBEE_RELAUNCH';
 const relaunchStatus = 75;
 // A Client that could not join its Session; without the protocol it ends as a startup failure.
 const joinFailedStatus = 76;

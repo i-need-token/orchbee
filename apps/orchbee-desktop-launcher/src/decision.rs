@@ -17,7 +17,7 @@ mod tests;
 
 /// The launcher protocol variable shared with the command launcher: the launcher's own process id
 /// in decimal. A window treats its parent as announcing the protocol only when the value names it.
-pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
+pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH";
 
 /// As the first argument, followed by a process id: wait for that process before starting.
 const RELAUNCH_AFTER: &str = "--relaunch-after";

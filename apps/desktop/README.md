@@ -127,7 +127,7 @@ the arguments `--relaunch-after <its process id>` followed by the place the aski
 Terminals Running does. An entry that cannot start leaves the window running and is recorded. The
 [window launcher](../orchbee-desktop-launcher/README.md) waits for the window to end and starts the
 active version, whose Main strict-parses the place and gives it to its first document only as
-`relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH_V1` from its environment,
+`relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH` from its environment,
 so nothing it starts inherits it. When the variable named its parent and its first `server start`
 answer, within 90 seconds of its start, refuses with `session-too-old`, Main exits with status 1
 instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task of a window that runs from a version folder names the entry, so it outlives that

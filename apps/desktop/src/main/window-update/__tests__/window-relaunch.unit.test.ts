@@ -82,7 +82,7 @@ describe('relaunch announcement', () => {
 			[undefined, false],
 		] as const) {
 			const environment: NodeJS.ProcessEnv = { KEEP: 'yes' };
-			if (value !== undefined) environment['ORCHBEE_RELAUNCH_V1'] = value;
+			if (value !== undefined) environment['ORCHBEE_RELAUNCH'] = value;
 			expect(takeRelaunchAnnouncement(environment, 1200)).toBe(announced);
 			expect(environment).toEqual({ KEEP: 'yes' });
 		}

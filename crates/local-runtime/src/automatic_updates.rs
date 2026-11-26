@@ -23,7 +23,7 @@ pub const WINDOW_INSTALLER_HELPER: &str = "--installer-window";
 /// the launcher's own process id in decimal. A Client uses the protocol's statuses only when that
 /// process is its parent, so a value another process inherits does nothing. Its spelling never
 /// changes.
-pub const RELAUNCH_PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
+pub const RELAUNCH_PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH";
 
 /// Whether release builds run automatic updates, true from the automatic-updates proposal's slice 1
 /// on. While it is false, a release build neither shows nor runs any automatic-update behavior. The

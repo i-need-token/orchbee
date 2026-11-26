@@ -21,7 +21,7 @@ const REPLACE_APPLICATION_SWITCH = '--replace-application=';
 const SELECT_TERMINAL_SWITCH = '--select-terminal=';
 const SELECT_WORKSPACE_SWITCH = '--select-workspace=';
 /** The launcher protocol variable, which carries the announcing launcher's process id. */
-const RELAUNCH_ENVIRONMENT_KEY = 'ORCHBEE_RELAUNCH_V1';
+const RELAUNCH_ENVIRONMENT_KEY = 'ORCHBEE_RELAUNCH';
 /** How long after its start an announced window still gives way to the version it replaced. */
 const ANNOUNCED_REFUSAL_WINDOW_MILLISECONDS = 90_000;
 const PROCESS_ID = /^[1-9]\d{0,9}$/u;

@@ -87,7 +87,7 @@ const fn counts_against_version(failure: &StartupFailure) -> bool {
     )
 }
 
-/// Announcing when `ORCHBEE_RELAUNCH_V1` holds the process id of this process's parent, so a value
+/// Announcing when `ORCHBEE_RELAUNCH` holds the process id of this process's parent, so a value
 /// a later process inherited does nothing.
 fn launcher() -> Launcher {
     let announced = std::env::var_os(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)

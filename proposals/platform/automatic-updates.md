@@ -995,7 +995,7 @@ A click switches the Client it is in; other open Clients keep their own control.
    and starts the active version with the unchanged command line in the same console. The new TUI
    joins the same Session, and a bare start opens at the saved place.
 
-- A launcher announces the protocol through `ORCHBEE_RELAUNCH_V1`, which carries its own process
+- A launcher announces the protocol through `ORCHBEE_RELAUNCH`, which carries its own process
   id, and the TUI uses status 75 only when that process is its parent, so a stale inherited variable
   does nothing. Status 75 lies outside the [CLI exit codes](../../docs/cli/output.md#exit-codes). A
   launcher relaunches at most three times in ten seconds; a fourth request ends it with 1, so 75
