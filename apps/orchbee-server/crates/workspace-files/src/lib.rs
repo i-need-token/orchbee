@@ -143,12 +143,13 @@ pub fn answer(
                 WorkspaceFilesOperation::ReplaceMatches { query, files } => {
                     replace::replace_matches(&root, query, files, deadline)
                 }
-                // The Server answers a watch and a search itself from what their lanes report.
-                WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {
-                    Outcome::Failed {
-                        reason: Failure::Malformed,
-                    }
-                }
+                // The Server answers a watch, a search and a listing itself from what their lanes
+                // report.
+                WorkspaceFilesOperation::Watch { .. }
+                | WorkspaceFilesOperation::Search { .. }
+                | WorkspaceFilesOperation::ListFiles { .. } => Outcome::Failed {
+                    reason: Failure::Malformed,
+                },
             },
         }
     };

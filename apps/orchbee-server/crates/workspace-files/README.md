@@ -18,16 +18,16 @@ ignores (unless a directory holds a tracked file or is shown), and anything past
 directories, which reports the root `unavailable` rather than following part of it.
 
 A third process, the search lane (`orchbee-server --workspace-files-search`), starts with a
-Client's first search and searches file contents with ripgrep's own crates, so a long search delays
-neither the service's requests nor the watch.
+Client's first search or file listing and searches file contents, or lists file paths, with
+ripgrep's own crates, so a long search delays neither the service's requests nor the watch.
 
 ## Protocol
 
 Standard input and output carry one JSON object per line. A request is
 `{"id": 1, "root": "/abs/workspace", "operation": {...}}`, where `operation` is the
 `workbench.workspace-files` operation; the answer is `{"id": 1, "outcome": {...}}`, a
-`workbench.workspace-files` outcome. Requests are answered in order. A `watch` operation answers
-`failed` with `malformed`, because the Server serves watches itself.
+`workbench.workspace-files` outcome. Requests are answered in order. A `watch`, `search` or
+`list-files` operation answers `failed` with `malformed`, because the Server serves them itself.
 
 The watch lane reads one watch set per line,
 `{"roots": [{"root": "/abs/workspace", "directories": [""], "files": ["a.txt"]}]}`, each replacing
@@ -46,7 +46,10 @@ The search lane reads `{"kind": "start", "id": 1, "root": "/abs/workspace", "que
 `workbench.workspace-files` search entries, in order, and finally
 `{"kind": "ended", "id": 1, "state": "complete"}`. A cancelled search still ends with a report. A
 search walks the root on up to eight threads, one fewer than the machine has, and reports about 64
-lines at a time, or what it has after 50 ms.
+lines at a time, or what it has after 50 ms. `{"kind": "list", "id": 2, "root": ..., "query": {...}}`
+lists files instead, with a `list-files` query, and writes `{"kind": "listed", "id": 2, "paths":
+[...]}` with at most 512 Workspace-relative paths at a time, or what it has after 50 ms, before
+its `ended` report; searches and listings share the lane's identities and its limit.
 
 ## Searching
 
@@ -55,7 +58,8 @@ A search reads every file beneath the root except `.git`, following no symbolic 
 file and the ignore files of parent directories leave out; without it, nothing. Hidden files are
 searched. Each include and exclude glob matches a path anywhere beneath the root, or, starting
 with `./`, from the root; one ending in `/` names a directory, and globs ignore case on Windows and
-macOS. Named `paths` are searched alone, with the globs but without ignore files.
+macOS. Named `paths` are searched alone, with the globs but without ignore files. A listing names
+the files a search with the same `excludes` and `useIgnoreFiles` would read, in no set order.
 
 A literal pattern matches as written, a regular expression in ripgrep's syntax; either may span
 lines, a literal one matching CRLF line ends as well as LF. A file with a NUL byte is binary and
@@ -143,6 +147,9 @@ only Git itself is stopped.
   needing more than 64 MiB of memory. The lane runs eight searches at once and answers one more
   `unavailable`; the Server holds 64 across all windows, and a window's new search of a Workspace
   cancels its last. Its report lines stay under 4 MiB. The lane exits after ten idle minutes.
+- A listing stops at 100,000 files as `limit-reached`. It counts against the same eight running
+  and 64 held as searches, and a window's new listing of a Workspace cancels its last listing,
+  not its search.
 - A change names at most 256 paths and a commit message is at most 32 KiB.
 - Each Git read has a four-second deadline and bounded output; Git's own environment variables
   are cleared, terminal prompts are off and `core.fsmonitor` is disabled.

@@ -25,6 +25,7 @@ function watches(): {
 		scopes,
 		source: {
 			changeRepository: () => Promise.resolve(null),
+			listFiles: () => ({ close: () => undefined }),
 			read: () => Promise.resolve(null),
 			replace: () => Promise.resolve([]),
 			save: () => Promise.resolve(null),

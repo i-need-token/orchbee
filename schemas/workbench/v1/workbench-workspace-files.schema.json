@@ -335,6 +335,36 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
+							"required": ["kind", "query"],
+							"properties": {
+								"kind": {
+									"const": "list-files"
+								},
+								"query": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["excludes", "useIgnoreFiles"],
+									"properties": {
+										"excludes": {
+											"type": "array",
+											"maxItems": 64,
+											"items": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 1024,
+												"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+											}
+										},
+										"useIgnoreFiles": {
+											"type": "boolean"
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
 							"required": ["kind", "query", "files"],
 							"properties": {
 								"kind": {
@@ -907,6 +937,37 @@
 										"invalid-glob",
 										"unavailable"
 									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "from", "paths", "more", "state"],
+							"properties": {
+								"kind": {
+									"const": "file-list"
+								},
+								"from": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 18446744073709551615
+								},
+								"paths": {
+									"type": "array",
+									"maxItems": 512,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096,
+										"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+									}
+								},
+								"more": {
+									"type": "boolean"
+								},
+								"state": {
+									"enum": ["searching", "complete", "limit-reached", "invalid-glob", "unavailable"]
 								}
 							}
 						},

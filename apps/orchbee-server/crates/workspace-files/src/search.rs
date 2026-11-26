@@ -1,17 +1,18 @@
-//! The search lane: a child process that searches file contents beneath a Workspace for the
-//! Server, apart from the service's one-at-a-time requests, so a long search delays nothing else.
-//! It reads commands from standard input and writes reports to standard output, one JSON object
-//! per line. Each search runs on threads of its own and reports what it finds in batches until it
-//! ends or is cancelled.
+//! The search lane: a child process that searches file contents, or lists the files, beneath a
+//! Workspace for the Server, apart from the service's one-at-a-time requests, so a long search
+//! delays nothing else. It reads commands from standard input and writes reports to standard
+//! output, one JSON object per line. Each search or listing runs on threads of its own and reports
+//! what it finds in batches until it ends or is cancelled.
 mod engine;
+mod list;
 mod preview;
 
 pub(crate) use engine::matcher;
 
 use crate::IDLE_EXIT;
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES, WorkspaceSearchFile, WorkspaceSearchQuery,
-    WorkspaceSearchState,
+    MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES, WorkspaceFileListQuery, WorkspaceSearchFile,
+    WorkspaceSearchQuery, WorkspaceSearchState,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -26,7 +27,7 @@ pub const SEARCH_FLAG: &str = "--workspace-files-search";
 /// The longest report line the lane writes, its line feed included; a batch of
 /// [`BATCH_LINES`] preview lines stays far below it.
 pub const MAXIMUM_SEARCH_REPORT_LINE_BYTES: usize = 4 * 1024 * 1024;
-/// Searches the lane runs at once; one past it ends at once as unavailable.
+/// Searches and listings the lane runs at once; one past it ends at once as unavailable.
 pub const MAXIMUM_RUNNING_SEARCHES: usize = 8;
 /// One command line's bytes: the largest query and the root beside it.
 const MAXIMUM_COMMAND_LINE_BYTES: u64 =
@@ -52,12 +53,20 @@ pub enum SearchCommand {
         root: String,
         query: WorkspaceSearchQuery,
     },
-    /// Stops a search; it still ends with a report.
+    /// Lists the files beneath `root`, as [`SearchCommand::Start`] would walk them, under an `id`
+    /// of the same kind.
+    List {
+        id: u64,
+        root: String,
+        query: WorkspaceFileListQuery,
+    },
+    /// Stops a search or listing; it still ends with a report.
     Cancel { id: u64 },
 }
 
 /// One report line. A search's `found` reports come in order, and an entry continuing the
-/// previous entry's file comes straight after it; `ended` comes last.
+/// previous entry's file comes straight after it; a listing's `listed` reports carry at most a
+/// page of paths each; `ended` comes last.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(
     tag = "kind",
@@ -69,6 +78,10 @@ pub enum SearchReport {
     Found {
         id: u64,
         files: Vec<WorkspaceSearchFile>,
+    },
+    Listed {
+        id: u64,
+        paths: Vec<String>,
     },
     Ended {
         id: u64,
@@ -143,7 +156,13 @@ fn run(inputs: &Receiver<Input>, sender: &Sender<Input>, output: &mut impl Write
             IDLE_EXIT.saturating_sub(since.elapsed())
         });
         let report = match inputs.recv_timeout(wait) {
-            Ok(Input::Command(SearchCommand::Start { id, root, query })) => {
+            Ok(Input::Command(
+                command @ (SearchCommand::Start { .. } | SearchCommand::List { .. }),
+            )) => {
+                let (SearchCommand::Start { id, .. } | SearchCommand::List { id, .. }) = command
+                else {
+                    continue;
+                };
                 if running.contains_key(&id) {
                     continue;
                 }
@@ -153,7 +172,22 @@ fn run(inputs: &Receiver<Input>, sender: &Sender<Input>, output: &mut impl Write
                     let reports = sender.clone();
                     std::thread::Builder::new()
                         .name("orchbee-workspace-files-search".into())
-                        .spawn(move || conduct(id, &root, query, &flag, &reports))
+                        .spawn(move || match command {
+                            SearchCommand::Start { root, query, .. } => {
+                                conduct(id, &root, query, &flag, &reports);
+                            }
+                            SearchCommand::List { root, query, .. } => {
+                                let state = list::list(
+                                    &root,
+                                    query,
+                                    &flag,
+                                    &mut list::sender(id, &reports),
+                                );
+                                let _closed =
+                                    reports.send(Input::Report(SearchReport::Ended { id, state }));
+                            }
+                            SearchCommand::Cancel { .. } => {}
+                        })
                         .is_ok()
                 };
                 if !started {

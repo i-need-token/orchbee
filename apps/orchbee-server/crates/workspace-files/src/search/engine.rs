@@ -6,7 +6,7 @@ use grep_matcher::{LineTerminator, Matcher as _};
 use grep_regex::{RegexMatcher, RegexMatcherBuilder};
 use grep_searcher::{BinaryDetection, Searcher, SearcherBuilder, Sink, SinkError as _, SinkMatch};
 use ignore::overrides::{Override, OverrideBuilder};
-use ignore::{WalkBuilder, WalkState};
+use ignore::{WalkBuilder, WalkParallel, WalkState};
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_SEARCH_MATCHES, WorkspaceFilesOperation, WorkspaceSearchFile,
     WorkspaceSearchLine, WorkspaceSearchQuery, WorkspaceSearchState,
@@ -87,7 +87,8 @@ pub(super) fn prepare(
     };
     let root = Root::open(root).map_err(|_| WorkspaceSearchState::Unavailable)?;
     let (matcher, multi_line) = matcher(&query).ok_or(WorkspaceSearchState::InvalidPattern)?;
-    let overrides = overrides(root.path(), &query).ok_or(WorkspaceSearchState::InvalidGlob)?;
+    let overrides = overrides(root.path(), &query.includes, &query.excludes)
+        .ok_or(WorkspaceSearchState::InvalidGlob)?;
     Ok(Plan {
         root,
         matcher,
@@ -144,19 +145,19 @@ fn escape(text: &str) -> String {
     escaped
 }
 
-/// The file filter for `query`'s include and exclude globs.
-pub(super) fn overrides(root: &Path, query: &WorkspaceSearchQuery) -> Option<Override> {
+/// The file filter for a query's include and exclude globs.
+pub(super) fn overrides(root: &Path, includes: &[String], excludes: &[String]) -> Option<Override> {
     let mut builder = OverrideBuilder::new(root);
     // Names compare the way the platform's own file system usually does.
     builder
         .case_insensitive(cfg!(any(windows, target_os = "macos")))
         .ok()?;
-    for glob in &query.includes {
+    for glob in includes {
         for pattern in expand(glob) {
             builder.add(&pattern).ok()?;
         }
     }
-    for glob in &query.excludes {
+    for glob in excludes {
         for pattern in expand(glob) {
             builder.add(&format!("!{pattern}")).ok()?;
         }
@@ -217,19 +218,7 @@ fn run_walk(
     shared: &Shared<'_>,
     found: &Sender<Vec<WorkspaceSearchFile>>,
 ) {
-    let ignores = plan.use_ignore_files;
-    let mut walk = WalkBuilder::new(plan.root.path());
-    walk.hidden(false)
-        .parents(ignores)
-        .ignore(ignores)
-        .git_ignore(ignores)
-        .git_global(ignores)
-        .git_exclude(ignores)
-        .follow_links(false)
-        .overrides(plan.overrides.clone())
-        .threads(threads())
-        .filter_entry(|entry| entry.file_name() != ".git");
-    walk.build_parallel().run(|| {
+    walker(&plan.root, plan.use_ignore_files, plan.overrides.clone()).run(|| {
         let mut searcher = searchers.build();
         let found = found.clone();
         Box::new(move |entry| {
@@ -252,6 +241,24 @@ fn run_walk(
             }
         })
     });
+}
+
+/// A walk on several threads of the files beneath `root` that the globs in `overrides` admit,
+/// minding ignore files when `ignores` is set; hidden files count, `.git` and symbolic links are
+/// not followed.
+pub(super) fn walker(root: &Root, ignores: bool, overrides: Override) -> WalkParallel {
+    WalkBuilder::new(root.path())
+        .hidden(false)
+        .parents(ignores)
+        .ignore(ignores)
+        .git_ignore(ignores)
+        .git_global(ignores)
+        .git_exclude(ignores)
+        .follow_links(false)
+        .overrides(overrides)
+        .threads(threads())
+        .filter_entry(|entry| entry.file_name() != ".git")
+        .build_parallel()
 }
 
 /// Searches only the files named, ignore files aside, still applying the include and exclude
@@ -292,7 +299,7 @@ fn run_paths(
 }
 
 /// `path` beneath `root` as a Workspace-relative path, or none when a name in it cannot be one.
-fn relative(root: &Path, path: &Path) -> Option<String> {
+pub(super) fn relative(root: &Path, path: &Path) -> Option<String> {
     let names: Option<Vec<&str>> = path
         .strip_prefix(root)
         .ok()?

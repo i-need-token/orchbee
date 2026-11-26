@@ -3,8 +3,9 @@
 //! and on the UTF-16 arithmetic behind each preview, which no single function shows alone.
 use super::{SearchCommand, SearchReport, serve_search};
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_SEARCH_MATCHES, WorkspaceFilesOperation, WorkspaceFilesOutcome,
-    WorkspaceSearchFile, WorkspaceSearchQuery, WorkspaceSearchState,
+    MAXIMUM_WORKSPACE_FILE_LIST_PAGE, MAXIMUM_WORKSPACE_SEARCH_MATCHES, WorkspaceFileListQuery,
+    WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceSearchFile, WorkspaceSearchQuery,
+    WorkspaceSearchState,
 };
 use std::io::{BufReader, Read, Write};
 use std::path::PathBuf;
@@ -116,6 +117,19 @@ impl Lane {
                     files: more,
                 } if found == id => files.extend(more),
                 SearchReport::Ended { id: ended, state } if ended == id => return (files, state),
+                _ => {}
+            }
+        }
+    }
+    /// Every batch listing `id` reports, until it ends.
+    fn collect_listed(&self, id: u64) -> (Vec<Vec<String>>, WorkspaceSearchState) {
+        let mut batches = Vec::new();
+        loop {
+            match self.reports.recv_timeout(Duration::from_secs(30)).unwrap() {
+                SearchReport::Listed { id: listed, paths } if listed == id => batches.push(paths),
+                SearchReport::Ended { id: ended, state } if ended == id => {
+                    return (batches, state);
+                }
                 _ => {}
             }
         }
@@ -436,4 +450,48 @@ fn a_cancelled_search_still_ends() {
     lane.send(&SearchCommand::Cancel { id: 7 });
     let (_, state) = lane.collect(7);
     assert_ne!(state, WorkspaceSearchState::Searching);
+}
+
+#[test]
+fn a_listing_names_the_files_a_search_would_read_in_pages() {
+    let scratch = Scratch::new();
+    scratch.git_init();
+    scratch.write(".gitignore", "build/\n");
+    scratch.write(".hidden/a.txt", "");
+    scratch.write("build/b.txt", "");
+    scratch.write("lib/c.log", "");
+    scratch.write(".git/d.txt", "");
+    for index in 0..MAXIMUM_WORKSPACE_FILE_LIST_PAGE {
+        scratch.write(&format!("many/{index}.txt"), "");
+    }
+    let list = |excludes: &[&str], use_ignore_files: bool| {
+        let lane = Lane::start();
+        lane.send(&SearchCommand::List {
+            id: 3,
+            root: scratch.root(),
+            query: WorkspaceFileListQuery {
+                excludes: excludes.iter().map(|glob| (*glob).to_owned()).collect(),
+                use_ignore_files,
+            },
+        });
+        let (batches, state) = lane.collect_listed(3);
+        assert_eq!(state, WorkspaceSearchState::Complete);
+        assert!(
+            batches
+                .iter()
+                .all(|batch| batch.len() <= MAXIMUM_WORKSPACE_FILE_LIST_PAGE)
+        );
+        let mut paths: Vec<String> = batches.into_iter().flatten().collect();
+        paths.retain(|path| !path.starts_with("many/"));
+        paths.sort_unstable();
+        paths
+    };
+    assert_eq!(
+        list(&[], true),
+        [".gitignore", ".hidden/a.txt", "lib/c.log"]
+    );
+    assert_eq!(
+        list(&["*.log"], false),
+        [".gitignore", ".hidden/a.txt", "build/b.txt"]
+    );
 }

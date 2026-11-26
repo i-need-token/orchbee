@@ -1,7 +1,7 @@
 //! Workspace file and Git facts for the right bar: one directory listing, one chunk of a file's
 //! content from the working tree, the index or `HEAD`, or the Workspace's change list; as a State
 //! stream, how far what the right bar shows has changed since; or, as an Events stream, the
-//! matches of a text search, page by page as they are found. The writing operations save a
+//! matches of a text search or the Workspace's file paths, page by page as they are found. The writing operations save a
 //! working-tree file only while the file is still the version the client read, replace the
 //! matches a search found only while the files still hold them, and stage, unstage, discard and
 //! commit changes with Git. Paths are
@@ -61,6 +61,10 @@ pub const MAXIMUM_WORKSPACE_SEARCH_PATHS: usize = MAXIMUM_WORKSPACE_FILE_ENTRIES
 pub const MAXIMUM_WORKSPACE_SEARCH_MATCHES: u64 = 20_000;
 /// UTF-16 code units one match preview holds; a longer line shows the part around its matches.
 pub const MAXIMUM_WORKSPACE_SEARCH_PREVIEW_UNITS: usize = 1000;
+/// Paths one file listing reports; at this many it stops and says the limit was reached.
+pub const MAXIMUM_WORKSPACE_LISTED_FILES: u64 = 100_000;
+/// Paths one page of a file listing carries.
+pub const MAXIMUM_WORKSPACE_FILE_LIST_PAGE: usize = 512;
 /// A replacement's bytes.
 pub const MAXIMUM_WORKSPACE_REPLACEMENT_BYTES: usize = MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES;
 /// Files one `replace-matches` request names; a client replaces in more files with several
@@ -157,6 +161,13 @@ pub enum WorkspaceFilesOperation {
     Search {
         query: WorkspaceSearchQuery,
     },
+    /// Lists the paths of the Workspace's files, as a search would walk them, sent only as an
+    /// Events stream: each frame carries the paths found since, until a frame's state says the
+    /// listing ended. Closing the stream stops it, as does a later listing of the same Workspace
+    /// on the same connection; a listing and a search do not replace each other.
+    ListFiles {
+        query: WorkspaceFileListQuery,
+    },
     /// Replaces matches a search found in `files`, each named by where it starts, with
     /// `query.replacement`. A file is searched again for `query`, and written only while every
     /// match named still starts where it was found and the file did not change while it was
@@ -202,6 +213,16 @@ impl WorkspaceSearchQuery {
                     && paths.iter().all(|path| is_relative_path(path))
             })
     }
+}
+
+/// Which files a listing leaves out.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceFileListQuery {
+    /// Glob patterns, read as a search's are, of files left out.
+    pub excludes: Vec<String>,
+    /// Whether Git's ignore rules and `.ignore` files leave files out.
+    pub use_ignore_files: bool,
 }
 
 /// What a replacement looks for, as the search that found the matches did, and what it writes.
@@ -323,6 +344,7 @@ impl WorkspaceFilesOperation {
                 Ok(())
             }
             Self::Search { query } if query.is_valid() => Ok(()),
+            Self::ListFiles { query } if is_glob_list(&query.excludes) => Ok(()),
             Self::ReplaceMatches { query, files } if query.is_valid() && is_replace_list(files) => {
                 Ok(())
             }
@@ -335,6 +357,7 @@ impl WorkspaceFilesOperation {
             | Self::GitDiscard { .. }
             | Self::GitCommit { .. }
             | Self::Search { .. }
+            | Self::ListFiles { .. }
             | Self::ReplaceMatches { .. } => Err(ContractError::InvalidDocument),
         }
     }
@@ -366,7 +389,7 @@ impl WorkspaceFilesOperation {
     pub fn request_byte_limit(&self) -> usize {
         match self {
             Self::WriteFile { .. } => MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
-            Self::Search { .. } | Self::ReplaceMatches { .. } => {
+            Self::Search { .. } | Self::ListFiles { .. } | Self::ReplaceMatches { .. } => {
                 MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES
             }
             _ => MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES,
@@ -632,6 +655,16 @@ pub enum WorkspaceFilesOutcome {
         more: bool,
         state: WorkspaceSearchState,
     },
+    /// One page of a file listing: at most [`MAXIMUM_WORKSPACE_FILE_LIST_PAGE`] paths found since
+    /// the last page, after the `from` paths earlier pages carried, in no particular order. `more`
+    /// and `state` say what they say of a search, which `limit-reached` stops at
+    /// [`MAXIMUM_WORKSPACE_LISTED_FILES`] paths; a listing never ends `invalid-pattern`.
+    FileList {
+        from: u64,
+        paths: Vec<String>,
+        more: bool,
+        state: WorkspaceSearchState,
+    },
     /// What became of each file a `replace-matches` named, in the order it named them.
     Replaced {
         files: Vec<WorkspaceReplacedFile>,
@@ -691,6 +724,11 @@ impl WorkspaceFilesOutcome {
                             && !file.lines.is_empty()
                             && file.lines.iter().all(is_search_line)
                     })
+            }
+            Self::FileList { paths, state, .. } => {
+                paths.len() <= MAXIMUM_WORKSPACE_FILE_LIST_PAGE
+                    && paths.iter().all(|path| is_relative_path(path))
+                    && *state != WorkspaceSearchState::InvalidPattern
             }
             Self::Replaced { files } => {
                 files.len() <= MAXIMUM_WORKSPACE_REPLACE_FILES
@@ -762,6 +800,10 @@ impl WorkspaceFilesOutcome {
                 | (
                     Self::SearchResults { .. },
                     WorkspaceFilesOperation::Search { .. }
+                )
+                | (
+                    Self::FileList { .. },
+                    WorkspaceFilesOperation::ListFiles { .. }
                 )
                 | (
                     Self::Written { .. } | Self::Conflict { .. },

@@ -326,6 +326,35 @@ describe('createServerWorkspaceFiles search', () => {
 	});
 });
 
+describe('createServerWorkspaceFiles listFiles', () => {
+	const QUERY = { excludes: [], useIgnoreFiles: true };
+	const listed = (from: number, paths: string[], state = 'searching') => ({
+		from,
+		kind: 'file-list',
+		more: false,
+		paths,
+		state,
+	});
+
+	it('ends as unavailable rather than hold more paths than a listing names', () => {
+		const { connection, opened } = streams();
+		const reports: { paths: readonly string[]; state: string }[] = [];
+		createServerWorkspaceFiles(
+			sessionAnswering(() => ({ kind: 'not-submitted' })),
+			connection,
+		).listFiles(WORKSPACE, QUERY, (report) => reports.push(report));
+		expect(opened[0]?.request.operation).toEqual({ kind: 'list-files', query: QUERY });
+		const page = Array.from({ length: 512 }, (_, index) => `${index}.txt`);
+		for (let from = 0; from < 100_000; from += 512) {
+			respond(opened[0], listed(from, page.slice(0, Math.min(512, 100_000 - from))));
+		}
+		expect(reports.at(-1)?.state).toBe('searching');
+		respond(opened[0], listed(100_000, ['extra.txt'], 'limit-reached'));
+		expect(reports.at(-1)).toEqual({ paths: [], state: 'unavailable' });
+		expect(opened[0]?.closed).toBe(true);
+	});
+});
+
 describe('createServerWorkspaceFiles replace', () => {
 	const QUERY = {
 		matchCase: false,

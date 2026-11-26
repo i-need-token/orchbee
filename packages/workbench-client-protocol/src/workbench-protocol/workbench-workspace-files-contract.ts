@@ -30,8 +30,8 @@ export const MAXIMUM_WORKSPACE_GIT_PATHS = 256;
 export const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES = 32 * 1024;
 const MAXIMUM_GIT_OUTPUT_BYTES = 8 * 1024;
 /**
- * An encoded `search` request, a query that may name thousands of files, or `replace-matches`, which
- * names the matches of up to 256 of them.
+ * An encoded `search` request, a query that may name thousands of files, `list-files`, which carries
+ * a search's exclude globs, or `replace-matches`, which names the matches of up to 256 files.
  */
 export const WORKSPACE_FILES_SEARCH_REQUEST_BYTES = 2 * 1024 * 1024;
 /** The encoded search text one search carries. */
@@ -43,6 +43,10 @@ export const MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES = 1024;
 export const MAXIMUM_WORKSPACE_SEARCH_PATHS = 5000;
 /** UTF-16 code units one preview carries. */
 const MAXIMUM_SEARCH_PREVIEW_UNITS = 1000;
+/** Paths one file listing reports before it stops as `limit-reached`. */
+export const MAXIMUM_WORKSPACE_LISTED_FILES = 100_000;
+/** Paths one page of a file listing carries. */
+const MAXIMUM_FILE_LIST_PAGE = 512;
 /** A replacement's bytes. */
 export const MAXIMUM_WORKSPACE_REPLACEMENT_BYTES = 8 * 1024;
 /** Files one `replace-matches` names; a client replaces in more files with several requests. */
@@ -109,6 +113,14 @@ const WorkspaceSearchQuerySchema = z
 		useIgnoreFiles: z.boolean(),
 		/** When not null, only these files are searched. */
 		paths: z.array(RelativePathSchema).max(MAXIMUM_WORKSPACE_SEARCH_PATHS).readonly().nullable(),
+	})
+	.readonly();
+/** Which files a listing leaves out, read as a search's excludes are. */
+const WorkspaceFileListQuerySchema = z
+	.strictObject({
+		excludes: GlobListSchema,
+		/** Whether Git's ignore rules and `.ignore` files leave files out. */
+		useIgnoreFiles: z.boolean(),
 	})
 	.readonly();
 /** What a replacement looks for, as the search that found the matches did, and what it writes. */
@@ -229,6 +241,11 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 	 * or a later search of the same Workspace on the connection, stops it.
 	 */
 	z.strictObject({ kind: z.literal('search'), query: WorkspaceSearchQuerySchema }).readonly(),
+	/**
+	 * Sent only as an Events stream, whose pages carry the Workspace's file paths as a search would
+	 * walk them; closing the stream, or a later listing of the same Workspace, stops it.
+	 */
+	z.strictObject({ kind: z.literal('list-files'), query: WorkspaceFileListQuerySchema }).readonly(),
 	/**
 	 * Replaces the named matches file by file, writing a file only while each match still starts
 	 * where it was found; the answer says what became of each file, in order.
@@ -495,6 +512,19 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 			state: WorkspaceSearchStateSchema,
 		})
 		.readonly(),
+	/**
+	 * A page of a file listing: paths found after the `from` earlier pages carried, in no order.
+	 * `more` and `state` read as a search's do; a listing never ends `invalid-pattern`.
+	 */
+	z
+		.strictObject({
+			kind: z.literal('file-list'),
+			from: OffsetSchema,
+			paths: z.array(RelativePathSchema).max(MAXIMUM_FILE_LIST_PAGE).readonly(),
+			more: z.boolean(),
+			state: WorkspaceSearchStateSchema.exclude(['invalid-pattern']),
+		})
+		.readonly(),
 	/** What Git and its hooks printed when it refused, from the start; `truncated` when cut. */
 	z
 		.strictObject({
@@ -534,6 +564,7 @@ export type WorkspaceFilesWatchState = z.infer<typeof WorkspaceFilesWatchStateSc
 export type WorkspaceSearchQuery = z.infer<typeof WorkspaceSearchQuerySchema>;
 export type WorkspaceSearchFile = z.infer<typeof WorkspaceSearchFileSchema>;
 export type WorkspaceSearchState = z.infer<typeof WorkspaceSearchStateSchema>;
+export type WorkspaceFileListQuery = z.infer<typeof WorkspaceFileListQuerySchema>;
 export type WorkspaceReplaceQuery = z.infer<typeof WorkspaceReplaceQuerySchema>;
 export type WorkspaceReplaceFile = z.infer<typeof WorkspaceReplaceFileSchema>;
 export type WorkspaceReplaceResult = z.infer<typeof WorkspaceReplaceResultSchema>;

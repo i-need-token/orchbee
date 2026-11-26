@@ -729,7 +729,8 @@ export const WorkbenchRequestSchema = z
 		if (value.kind === 'workbench.workspace-files') {
 			maximum = WORKSPACE_FILES_REQUEST_BYTES;
 			if (value.operation.kind === 'write-file') maximum = WORKSPACE_FILES_WRITE_REQUEST_BYTES;
-			if (value.operation.kind === 'search' || value.operation.kind === 'replace-matches') {
+			const { kind } = value.operation;
+			if (kind === 'search' || kind === 'list-files' || kind === 'replace-matches') {
 				maximum = WORKSPACE_FILES_SEARCH_REQUEST_BYTES;
 			}
 		}

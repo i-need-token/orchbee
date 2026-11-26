@@ -1,5 +1,6 @@
 import type {
 	WorkbenchWorkspaceFilesSource,
+	WorkspaceFileListReport,
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,
 	WorkspaceFilesWatchScope,
@@ -10,19 +11,20 @@ import type {
 import {
 	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+	MAXIMUM_WORKSPACE_LISTED_FILES,
 	MAXIMUM_WORKSPACE_REPLACE_FILES,
 	MAXIMUM_WORKSPACE_REPLACE_MATCHES,
 	WORKBENCH_PROTOCOL_VERSION,
 	WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
 	parseWorkbenchRequest,
 	type WorkbenchResponse,
+	type WorkspaceFileListQuery,
 	type WorkspaceFilesOperation,
 	type WorkspaceFilesOutcome,
 	type WorkspaceFilesWatchState,
 	type WorkspaceReplaceFile,
 	type WorkspaceReplaceQuery,
 	type WorkspaceSearchQuery,
-	type WorkspaceSearchState,
 } from '@orchbee/workbench-client-protocol';
 
 import {
@@ -74,6 +76,8 @@ function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperat
 			return outcome.kind === 'watching';
 		case 'search':
 			return outcome.kind === 'search-results';
+		case 'list-files':
+			return outcome.kind === 'file-list';
 		case 'replace-matches':
 			// Each file's result is read by its place, so only the files asked about, in order, answer.
 			return (
@@ -315,19 +319,29 @@ function watchWorkspace(
 	};
 }
 
+/** One page of a paged stream: the entries it carries, counted from the stream's first, and its state. */
+interface StreamPage<Entry, State extends string> {
+	readonly entries: readonly Entry[];
+	readonly from: number;
+	readonly state: State;
+}
+
 /**
- * One search over a `workbench.workspace-files` Events stream. Each frame is a page of what the
- * Server found, counted from the search's first entry, so a page that does not follow the last one
- * shows that entries went missing and ends the search as `unavailable`. A page the Server answers
- * again unchanged is dropped. The stream closes once the search has ended, which frees its place in
- * the Server; a stream the Server closes first ends the search as `unavailable`.
+ * One search or listing over a `workbench.workspace-files` Events stream. Each frame is a page of
+ * what the Server found, counted from the first entry, so a page that does not follow the last one
+ * shows that entries went missing and ends the stream as `unavailable`, as does a frame of another
+ * kind or, past `limit` entries, one with more. A page the Server answers again unchanged is
+ * dropped. The stream closes once its state is final, which frees its place in the Server; a
+ * stream the Server closes first ends as `unavailable`.
  */
-function searchWorkspace(
+function streamPages<Entry, State extends string>(
 	connection: FilesConnection,
 	session: FilesSession,
 	workspaceId: string,
-	query: WorkspaceSearchQuery,
-	onReport: (report: WorkspaceSearchReport) => void,
+	operation: Extract<WorkspaceFilesOperation, { readonly kind: 'search' | 'list-files' }>,
+	limit: number,
+	pageOf: (outcome: WorkspaceFilesOutcome) => StreamPage<Entry, State> | null,
+	onPage: (entries: readonly Entry[], state: State | 'unavailable') => void,
 ): WorkspaceSearch {
 	let closed = false;
 	let stream: ServerSubscription | null = null;
@@ -339,37 +353,38 @@ function searchWorkspace(
 		stream?.close();
 		stream = null;
 	};
-	const report = (next: WorkspaceSearchReport): void => {
+	const report = (entries: readonly Entry[], state: State | 'unavailable'): void => {
 		if (closed) return;
-		received += next.files.length;
-		onReport(next);
-		if (next.state !== 'searching') close();
+		received += entries.length;
+		onPage(entries, state);
+		if (state !== 'searching') close();
 	};
-	const end = (state: WorkspaceSearchState): void => report({ files: [], state });
+	const end = (): void => report([], 'unavailable');
 
 	const adopt = (record: Uint8Array, requestId: string): void => {
 		const outcome = outcomeOf(record, requestId, workspaceId);
 		if (outcome === null) return;
-		if (outcome.kind !== 'search-results') {
-			end('unavailable');
+		const page = pageOf(outcome);
+		if (page === null) {
+			end();
 			return;
 		}
-		const { files, from, state } = outcome;
-		if (from < received && from + files.length === received) return;
-		if (from !== received) {
-			end('unavailable');
+		const { entries, from, state } = page;
+		if (from < received && from + entries.length === received) return;
+		if (from !== received || received + entries.length > limit) {
+			end();
 			return;
 		}
-		if (files.length === 0 && state === 'searching') return;
-		report({ files, state });
+		if (entries.length === 0 && state === 'searching') return;
+		report(entries, state);
 	};
 
 	const requestId = createWorkbenchRequestId();
 	const request = shows(session, workspaceId)
-		? streamRequest(session, workspaceId, requestId, { kind: 'search', query })
+		? streamRequest(session, workspaceId, requestId, operation)
 		: null;
 	if (request === null) {
-		end('unavailable');
+		end();
 		return { close };
 	}
 	try {
@@ -377,7 +392,7 @@ function searchWorkspace(
 			onClosed: () => {
 				if (stream !== opened) return;
 				stream = null;
-				end('unavailable');
+				end();
 			},
 			onFrame: (_kind, record) => {
 				if (stream === opened) adopt(record, requestId);
@@ -388,14 +403,58 @@ function searchWorkspace(
 		stream = opened;
 	} catch {
 		// The connection has ended, which its Workbench session reports.
-		end('unavailable');
+		end();
 	}
 	return { close };
 }
 
+/** A search of file contents, whose entries carry each file's matching lines. */
+function searchWorkspace(
+	connection: FilesConnection,
+	session: FilesSession,
+	workspaceId: string,
+	query: WorkspaceSearchQuery,
+	onReport: (report: WorkspaceSearchReport) => void,
+): WorkspaceSearch {
+	return streamPages(
+		connection,
+		session,
+		workspaceId,
+		{ kind: 'search', query },
+		Number.POSITIVE_INFINITY,
+		(outcome) =>
+			outcome.kind === 'search-results'
+				? { entries: outcome.files, from: outcome.from, state: outcome.state }
+				: null,
+		(files, state) => onReport({ files, state }),
+	);
+}
+
+/** A listing of the files a search would read, which never names more than the Server lists. */
+function listWorkspaceFiles(
+	connection: FilesConnection,
+	session: FilesSession,
+	workspaceId: string,
+	query: WorkspaceFileListQuery,
+	onReport: (report: WorkspaceFileListReport) => void,
+): WorkspaceSearch {
+	return streamPages(
+		connection,
+		session,
+		workspaceId,
+		{ kind: 'list-files', query },
+		MAXIMUM_WORKSPACE_LISTED_FILES,
+		(outcome) =>
+			outcome.kind === 'file-list'
+				? { entries: outcome.paths, from: outcome.from, state: outcome.state }
+				: null,
+		(paths, state) => onReport({ paths, state }),
+	);
+}
+
 /**
- * `workbench.workspace-files` reads, saves, replacements, repository changes, watches and searches
- * for the right bar. Nothing is read until the bar asks, and the Server starts its file service only then.
+ * `workbench.workspace-files` reads, saves, replacements, repository changes, watches, searches and
+ * file listings for the right bar. Nothing is read until the bar asks, and the Server starts its file service only then.
  */
 export function createServerWorkspaceFiles(
 	session: FilesSession,
@@ -472,6 +531,9 @@ export function createServerWorkspaceFiles(
 		},
 		search(workspaceId, query, onReport) {
 			return searchWorkspace(connection, session, workspaceId, query, onReport);
+		},
+		listFiles(workspaceId, query, onReport) {
+			return listWorkspaceFiles(connection, session, workspaceId, query, onReport);
 		},
 	};
 }

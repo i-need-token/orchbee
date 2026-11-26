@@ -1,4 +1,5 @@
 import type {
+	WorkspaceFileListQuery,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceFilesWatchState,
@@ -52,6 +53,17 @@ export interface WorkspaceSearchReport {
 	readonly state: WorkspaceSearchState;
 }
 
+/** The file paths a listing found since its last report, and where it stands. */
+export interface WorkspaceFileListReport {
+	/** Workspace-relative paths found since the last report, in no set order, each once. */
+	readonly paths: readonly string[];
+	/**
+	 * Every state but `searching` ends the listing; nothing is reported after it. `limit-reached`
+	 * means the Workspace holds more files than a listing names.
+	 */
+	readonly state: Exclude<WorkspaceSearchState, 'invalid-pattern'>;
+}
+
 /** What became of one file a replacement named. */
 export interface WorkspaceReplaceReport {
 	readonly path: string;
@@ -59,9 +71,9 @@ export interface WorkspaceReplaceReport {
 	readonly result: WorkspaceReplaceResult | null;
 }
 
-/** One search a view holds while it shows the results. */
+/** One search or file listing a view holds while it shows the results. */
 export interface WorkspaceSearch {
-	/** Stops the search, if it still runs, and reports nothing more. */
+	/** Stops the search or listing, if it still runs, and reports nothing more. */
 	close(): void;
 }
 
@@ -124,5 +136,15 @@ export interface WorkbenchWorkspaceFilesSource {
 		workspaceId: string,
 		query: WorkspaceSearchQuery,
 		onReport: (report: WorkspaceSearchReport) => void,
+	): WorkspaceSearch;
+	/**
+	 * Lists the paths of the files in a Workspace that a search with the same excludes and ignore
+	 * choice would read, and reports them until the listing ends. A new listing of a Workspace ends
+	 * the one before, but not a search; one whose answers stop arriving ends as `unavailable`.
+	 */
+	listFiles(
+		workspaceId: string,
+		query: WorkspaceFileListQuery,
+		onReport: (report: WorkspaceFileListReport) => void,
 	): WorkspaceSearch;
 }

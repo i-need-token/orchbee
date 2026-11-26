@@ -168,9 +168,11 @@ impl WorkspaceFilesProcesses {
             | WorkspaceFilesOperation::GitDiscard { .. }
             | WorkspaceFilesOperation::GitCommit { .. }
             | WorkspaceFilesOperation::ReplaceMatches { .. } => &self.git,
-            // A watch and a search belong to a Client connection, which answers them with
-            // `watch_workspace_files` and `search_workspace_files`.
-            WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {
+            // A watch, a search and a listing belong to a Client connection, which answers them
+            // with `watch_workspace_files` and `search_workspace_files`.
+            WorkspaceFilesOperation::Watch { .. }
+            | WorkspaceFilesOperation::Search { .. }
+            | WorkspaceFilesOperation::ListFiles { .. } => {
                 return Err(Failure::Unavailable);
             }
         };
@@ -197,7 +199,7 @@ impl WorkspaceFilesProcesses {
 
 impl LocalTerminalService {
     /// Wakes `signal` whenever a watched Workspace's revisions or watch state change, or a search
-    /// finds more or ends.
+    /// or listing finds more or ends.
     pub(crate) fn subscribe_workspace_files(
         &self,
         signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>,
@@ -248,15 +250,21 @@ impl LocalTerminalService {
         self.workspace_files.watches.forget(owner, workspace);
     }
 
-    /// Answers the next page of the search `request` for the Client connection `owner`, starting
-    /// it if it is new and replacing that connection's earlier search of the same Workspace.
+    /// Answers the next page of the search or listing `request` for the Client connection
+    /// `owner`, starting it if it is new and replacing that connection's earlier one of the same
+    /// kind of the same Workspace.
     pub(crate) fn search_workspace_files(
         &self,
         owner: std::num::NonZeroU64,
         request: &WorkspaceFilesRequest,
     ) -> WorkspaceFilesResult {
-        let outcome = match (&request.operation, request.validate()) {
-            (WorkspaceFilesOperation::Search { query }, Ok(())) => self
+        let query = match &request.operation {
+            WorkspaceFilesOperation::Search { query } => Some(search::Query::Search(query)),
+            WorkspaceFilesOperation::ListFiles { query } => Some(search::Query::List(query)),
+            _ => None,
+        };
+        let outcome = match (query, request.validate()) {
+            (Some(query), Ok(())) => self
                 .workspace_files_directory(request)
                 .map(|root| {
                     self.workspace_files.searches.page(
@@ -284,8 +292,8 @@ impl LocalTerminalService {
         )
     }
 
-    /// Ends the connection `owner`'s search of a Workspace while it is still the named request,
-    /// or all its searches for none.
+    /// Ends the connection `owner`'s search or listing of a Workspace while it is still the named
+    /// request, or all of them for none.
     pub(crate) fn forget_workspace_files_search(
         &self,
         owner: std::num::NonZeroU64,

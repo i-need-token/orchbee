@@ -79,8 +79,8 @@ impl ApplicationRequest {
                 Some(WorkbenchRequest::Notification(_))
             )
         ) || matches!(
-            // A window watches and searches each Workspace once; a new watch or search of it
-            // replaces the old one.
+            // A window watches, searches and lists each Workspace once; a new watch, search or
+            // listing of it replaces the old one.
             (self.workbench(), other.workbench()),
             (
                 Some(WorkbenchRequest::WorkspaceFiles(left)),
@@ -93,6 +93,9 @@ impl ApplicationRequest {
                 ) | (
                     orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. },
                     orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                ) | (
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. },
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. }
                 )
             )
         )
@@ -312,7 +315,8 @@ impl ApplicationRequest {
     pub(super) fn follows_terminal_runtime(&self) -> bool {
         matches!(self.workbench(), Some(WorkbenchRequest::TerminalRuntime(_)))
     }
-    /// A Workspace file watch or search, whose value changes only with what its lane reports.
+    /// A Workspace file watch, search or listing, whose value changes only with what its lane
+    /// reports.
     pub(super) fn follows_workspace_files(&self) -> bool {
         matches!(
             self.workbench(),
@@ -320,6 +324,7 @@ impl ApplicationRequest {
                 request.operation,
                 orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
                     | orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                    | orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. }
             )
         )
     }

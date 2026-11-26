@@ -1,10 +1,10 @@
 //! Paging what a search holds: the multiplex sends a stream update only when an answer differs
 //! from the last, so a page must repeat exactly while nothing has come, and pages must carry every
 //! entry once, in order, with the final state only after the last of them.
-use super::{PAGE_BYTES, Search, next_page};
+use super::{Held, PAGE_BYTES, Search, next_page};
 use orchbee_workbench_protocol::{
-    WorkbenchRequestId, WorkspaceFilesOutcome as Outcome, WorkspaceSearchFile, WorkspaceSearchLine,
-    WorkspaceSearchRange, WorkspaceSearchState as State,
+    MAXIMUM_WORKSPACE_FILE_LIST_PAGE, WorkbenchRequestId, WorkspaceFilesOutcome as Outcome,
+    WorkspaceSearchFile, WorkspaceSearchLine, WorkspaceSearchRange, WorkspaceSearchState as State,
 };
 use std::collections::VecDeque;
 
@@ -25,11 +25,18 @@ fn search() -> Search {
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
         lane_id: 1,
         incarnation: 1,
-        held: VecDeque::new(),
+        held: Held::Files(VecDeque::new()),
         delivered: 0,
         ended: None,
         last: None,
     }
+}
+
+fn files(search: &mut Search) -> &mut VecDeque<(WorkspaceSearchFile, usize)> {
+    let Held::Files(held) = &mut search.held else {
+        panic!("not a search");
+    };
+    held
 }
 
 fn parts(page: &Outcome) -> (u64, Vec<(String, u64)>, bool, State) {
@@ -56,8 +63,8 @@ fn pages_repeat_while_nothing_comes_and_end_after_the_last_entry() {
     assert_eq!(parts(&first), (0, vec![], false, State::Searching));
     assert_eq!(next_page(&mut search), first);
 
-    search.held.push_back((entry("a", 1), 100));
-    search.held.push_back((entry("a", 2), 100));
+    files(&mut search).push_back((entry("a", 1), 100));
+    files(&mut search).push_back((entry("a", 2), 100));
     let second = next_page(&mut search);
     assert_eq!(
         parts(&second),
@@ -71,8 +78,8 @@ fn pages_repeat_while_nothing_comes_and_end_after_the_last_entry() {
     assert_eq!(next_page(&mut search), second);
 
     // A page stops at its byte budget; the rest follows at once, the state only after it.
-    search.held.push_back((entry("b", 1), PAGE_BYTES));
-    search.held.push_back((entry("c", 1), 10));
+    files(&mut search).push_back((entry("b", 1), PAGE_BYTES));
+    files(&mut search).push_back((entry("c", 1), 10));
     search.ended = Some(State::Complete);
     let third = next_page(&mut search);
     assert_eq!(
@@ -85,4 +92,34 @@ fn pages_repeat_while_nothing_comes_and_end_after_the_last_entry() {
         (3, vec![("c".into(), 1)], false, State::Complete)
     );
     assert_eq!(next_page(&mut search), fourth);
+}
+
+#[test]
+fn a_listing_pages_at_most_its_page_of_paths() {
+    let mut listing = Search {
+        held: Held::Paths(VecDeque::new()),
+        ..search()
+    };
+    if let Held::Paths(held) = &mut listing.held {
+        for index in 0..=MAXIMUM_WORKSPACE_FILE_LIST_PAGE {
+            held.push_back((format!("{index}.txt"), 10));
+        }
+    }
+    listing.ended = Some(State::LimitReached);
+    let count = |page: &Outcome| match page {
+        Outcome::FileList {
+            from,
+            paths,
+            more,
+            state,
+        } => (*from, paths.len(), *more, *state),
+        _ => panic!("not a listing page"),
+    };
+    assert_eq!(
+        count(&next_page(&mut listing)),
+        (0, MAXIMUM_WORKSPACE_FILE_LIST_PAGE, true, State::Searching)
+    );
+    let last = next_page(&mut listing);
+    assert_eq!(count(&last), (512, 1, false, State::LimitReached));
+    assert_eq!(next_page(&mut listing), last);
 }

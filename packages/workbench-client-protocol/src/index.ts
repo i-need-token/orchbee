@@ -48,6 +48,7 @@ export {
 	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
 	MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES,
 	MAXIMUM_WORKSPACE_GIT_PATHS,
+	MAXIMUM_WORKSPACE_LISTED_FILES,
 	MAXIMUM_WORKSPACE_REPLACE_FILES,
 	MAXIMUM_WORKSPACE_REPLACE_MATCHES,
 	MAXIMUM_WORKSPACE_REPLACEMENT_BYTES,
@@ -61,6 +62,7 @@ export {
 export type {
 	WorkspaceDirectoryEntry,
 	WorkspaceFileEncoding,
+	WorkspaceFileListQuery,
 	WorkspaceFileSource,
 	WorkspaceFileVersion,
 	WorkspaceFilesWatchState,

@@ -937,7 +937,9 @@ the whole new `text`, at most 10 MiB, and the `expected` SHA-256 the file was re
 file that must not exist yet, or `search` of file contents with a `query`: a `pattern` of 1 to
 8192 characters read literally or, with `regex`, as a regular expression, `matchCase`,
 `wholeWord`, `includes` and `excludes` of at most 64 globs each, `useIgnoreFiles`, and `paths`,
-null to search the whole Workspace or at most 5000 files to search alone, or `replace-matches`
+null to search the whole Workspace or at most 5000 files to search alone, or `list-files` with a
+`query` of `excludes`, at most 64 globs, and `useIgnoreFiles`, naming the files such a search would
+read, or `replace-matches`
 with a `query` (the search's `pattern`, `regex`, `matchCase` and `wholeWord`, a `replacement` of
 at most 8192 bytes and `preserveCase`) and 1 to 256 distinct `files`, each a `path` and its
 `matches` in order, each where a match starts as a search reported it: its `line` and the UTF-16
@@ -956,7 +958,9 @@ with the `files` and `repository` revisions and the watch `state` (`starting`, `
 `conflict` with the file's current nullable `version` when it is not the one `expected`, in
 which case nothing was written; `search-results` with `from`, the count of entries earlier pages
 carried, at most 5000 `files` entries, `more` and the search `state` (`searching`, `complete`,
-`limit-reached`, `invalid-pattern`, `invalid-glob` or `unavailable`); `replaced` with each file
+`limit-reached`, `invalid-pattern`, `invalid-glob` or `unavailable`); `file-list` with `from`, the
+count of paths earlier pages carried, at most 512 `paths`, `more` and a search `state` other than
+`invalid-pattern`, `limit-reached` once 100,000 files are listed; `replaced` with each file
 the replacement named, in its order, and what became of it: `replaced` with its new `version`,
 `changed` when a match no longer starts where it was found or the file changed while it was
 replaced, `not-editable` for a file that is not UTF-8 text or is past 10 MiB, or `failed` with a
@@ -966,7 +970,8 @@ reason, `timeout` for a file it had no time left to start; or `failed` with `den
 State stream: the Server sends a new frame when a revision moves, and only a value that differs from
 the previous frame means a change. A `search` is sent only as an Events stream, one per Workspace
 for each connection, a new one replacing the last: each frame is the next page, and `more` has the
-Server send another at once. A search entry is one file's `path` and up to 64 `lines`, each a line
+Server send another at once. A `list-files` is sent the same way, and a new listing replaces only
+the last listing. A search entry is one file's `path` and up to 64 `lines`, each a line
 counted from 1 with a `preview` of at most 1000 UTF-16 code units starting `previewStart` units
 into the line and at least one match span inside it, ordered and apart; a file with more lines
 comes as entries in a row, which may cross pages. Every state but `searching` is final, and it
@@ -977,7 +982,7 @@ A Client sends the request only to a Server whose `client-server` answer lists t
 [shared corpus](v1/workbench-workspace-files-conformance-v1.json) checks closed shapes, the path
 grammar, the vocabularies, the watch limits, each chunk's bounds and a replacement's match order
 in Rust, TypeScript and JSON Schema. A request keeps a 64 KiB cap except `write-file`, which may reach 24 MiB, the most kind 83
-carries, and `search` and `replace-matches`, which may reach 2 MiB; the result keeps the 8 MiB
+carries, and `search`, `list-files` and `replace-matches`, which may reach 2 MiB; the result keeps the 8 MiB
 response cap. A Server answers `write-file`, `replace-matches` and the Git changes only to a
 connection that may also start and end terminals.
 

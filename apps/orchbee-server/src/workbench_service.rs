@@ -1159,7 +1159,8 @@ impl WorkbenchClientConnection<'_> {
                     .service
                     .terminals
                     .forget_workspace_files_watch(self.generation, Some(&files.workspace_id)),
-                orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. } => {
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                | orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. } => {
                     self.service.terminals.forget_workspace_files_search(
                         self.generation,
                         Some((&files.workspace_id, &files.request_id)),
@@ -1390,13 +1391,15 @@ impl WorkbenchClientConnection<'_> {
                 },
             ));
         }
-        // A watch or a search belongs to this connection: it lasts until its stream closes or the
-        // connection does, and a later one of the same kind and Workspace replaces it.
+        // A watch, a search or a listing belongs to this connection: it lasts until its stream
+        // closes or the connection does, and a later one of the same kind and Workspace replaces
+        // it.
         if let WorkbenchRequest::WorkspaceFiles(files) = &request
             && matches!(
                 files.operation,
                 orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
                     | orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                    | orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. }
             )
         {
             let result = if !self.service.policy.read {
@@ -1412,6 +1415,7 @@ impl WorkbenchClientConnection<'_> {
             } else if matches!(
                 files.operation,
                 orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                    | orchbee_workbench_protocol::WorkspaceFilesOperation::ListFiles { .. }
             ) {
                 self.service
                     .terminals

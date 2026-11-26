@@ -1,16 +1,17 @@
-//! Workspace searches: each window's search of a Workspace runs in the search lane, a separate
-//! process of this executable that the Server starts with the first search, and what it finds is
-//! held here until that window's search stream reads it a page at a time. A window has one search
-//! of a Workspace at once: a new one replaces it, and closing its stream or its connection stops
-//! it. A lane that ends ends its searches as unavailable; the next search starts another.
+//! Workspace searches and file listings: each window's search or listing of a Workspace runs in
+//! the search lane, a separate process of this executable that the Server starts with the first of
+//! them, and what it finds is held here until that window's stream reads it a page at a time. A
+//! window has one search and one listing of a Workspace at once: a new one replaces the one of its
+//! kind, and closing its stream or its connection stops it. A lane that ends ends what it ran as
+//! unavailable; the next search or listing starts another.
 use orchbee_server::{SessionChangeSignal, SessionChangeSource};
 use orchbee_server_workspace_files::{
     MAXIMUM_SEARCH_REPORT_LINE_BYTES, SEARCH_FLAG, SearchCommand, SearchReport,
 };
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_FILE_ENTRIES, WorkbenchRequestId, WorkbenchWorkspaceId,
-    WorkspaceFilesOutcome as Outcome, WorkspaceSearchFile, WorkspaceSearchQuery,
-    WorkspaceSearchState as State,
+    MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_LIST_PAGE, WorkbenchRequestId,
+    WorkbenchWorkspaceId, WorkspaceFileListQuery, WorkspaceFilesOutcome as Outcome,
+    WorkspaceSearchFile, WorkspaceSearchQuery, WorkspaceSearchState as State,
 };
 use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
@@ -19,20 +20,59 @@ use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-/// Searches the Server holds at once, across every window and Workspace; the lane runs fewer.
+/// Searches and listings the Server holds at once, across every window and Workspace; the lane
+/// runs fewer.
 const MAXIMUM_SEARCHES: usize = 64;
 /// Encoded entries one page carries before it stops, unless its first entry alone is larger.
 const PAGE_BYTES: usize = 1024 * 1024;
 
-/// One window's search of one Workspace.
+/// What a window asks the lane to do beneath a Workspace.
+#[derive(Clone, Copy)]
+pub(super) enum Query<'a> {
+    Search(&'a WorkspaceSearchQuery),
+    List(&'a WorkspaceFileListQuery),
+}
+
+/// The two kinds a window holds one of each per Workspace.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Kind {
+    Search,
+    List,
+}
+
+impl Query<'_> {
+    const fn kind(self) -> Kind {
+        match self {
+            Self::Search(_) => Kind::Search,
+            Self::List(_) => Kind::List,
+        }
+    }
+}
+
+/// What the lane reported that no page has carried yet, with each entry's encoded size.
+enum Held {
+    Files(VecDeque<(WorkspaceSearchFile, usize)>),
+    Paths(VecDeque<(String, usize)>),
+}
+
+impl Held {
+    const fn new(kind: Kind) -> Self {
+        match kind {
+            Kind::Search => Self::Files(VecDeque::new()),
+            Kind::List => Self::Paths(VecDeque::new()),
+        }
+    }
+}
+
+/// One window's search or listing of one Workspace.
 struct Search {
     request_id: WorkbenchRequestId,
     /// The search's identity in the lane.
     lane_id: u64,
     /// The lane it runs in.
     incarnation: u64,
-    /// What the lane found that no page has carried yet, with each entry's encoded size.
-    held: VecDeque<(WorkspaceSearchFile, usize)>,
+    /// What the lane found that no page has carried yet.
+    held: Held,
     /// Entries earlier pages carried.
     delivered: u64,
     /// How the lane said the search ended, once it has.
@@ -57,7 +97,7 @@ impl Drop for Lane {
 
 #[derive(Default)]
 struct Registry {
-    searches: BTreeMap<(NonZeroU64, WorkbenchWorkspaceId), Search>,
+    searches: BTreeMap<(NonZeroU64, WorkbenchWorkspaceId, Kind), Search>,
     lane: Option<Lane>,
     incarnations: u64,
     next_id: u64,
@@ -69,7 +109,7 @@ struct Shared {
     changes: SessionChangeSource,
 }
 
-/// Every window's searches, and the lane that runs them.
+/// Every window's searches and listings, and the lane that runs them.
 pub(super) struct Searches(Arc<Shared>);
 
 impl Default for Searches {
@@ -83,23 +123,24 @@ impl Default for Searches {
 }
 
 impl Searches {
-    /// Wakes `signal` whenever a search finds more or ends.
+    /// Wakes `signal` whenever a search or listing finds more or ends.
     pub(super) fn subscribe(&self, signal: &Arc<SessionChangeSignal>) {
         self.0.changes.watch(signal);
     }
 
-    /// The next page of `owner`'s search `request_id` of `workspace`. A search not yet running
-    /// starts, beneath `root`, and replaces that owner's earlier search of the Workspace.
+    /// The next page of `owner`'s search or listing `request_id` of `workspace`. One not yet
+    /// running starts, beneath `root`, and replaces that owner's earlier one of its kind.
     pub(super) fn page(
         &self,
         owner: NonZeroU64,
         workspace: &WorkbenchWorkspaceId,
         request_id: &WorkbenchRequestId,
         root: &str,
-        query: &WorkspaceSearchQuery,
+        query: Query<'_>,
     ) -> Outcome {
         let mut registry = self.0.lock();
-        let key = (owner, workspace.clone());
+        let kind = query.kind();
+        let key = (owner, workspace.clone(), kind);
         let current = registry
             .searches
             .get(&key)
@@ -109,7 +150,7 @@ impl Searches {
                 cancel(&mut registry, &replaced);
             }
             if registry.searches.len() >= MAXIMUM_SEARCHES {
-                return ended(State::Unavailable);
+                return ended(kind, State::Unavailable);
             }
             let search = start(&self.0, &mut registry, request_id, root, query);
             registry.searches.insert(key.clone(), search);
@@ -117,11 +158,11 @@ impl Searches {
         registry
             .searches
             .get_mut(&key)
-            .map_or_else(|| ended(State::Unavailable), next_page)
+            .map_or_else(|| ended(kind, State::Unavailable), next_page)
     }
 
-    /// Ends `owner`'s search of `workspace` while it is still `request_id`, or every search of
-    /// `owner` for none.
+    /// Ends `owner`'s search or listing of `workspace` while it is still `request_id`, or every
+    /// one of `owner` for none.
     pub(super) fn forget(
         &self,
         owner: NonZeroU64,
@@ -131,7 +172,7 @@ impl Searches {
         let keys: Vec<_> = registry
             .searches
             .iter()
-            .filter(|((holder, searched), search)| {
+            .filter(|((holder, searched, _), search)| {
                 *holder == owner
                     && workspace.is_none_or(|(workspace, request_id)| {
                         searched == workspace && search.request_id == *request_id
@@ -153,67 +194,106 @@ impl Shared {
     }
 }
 
-/// A page that ends a search with nothing found.
-fn ended(state: State) -> Outcome {
-    Outcome::SearchResults {
-        from: 0,
-        files: Vec::new(),
-        more: false,
-        state,
+/// A page that ends a search or listing with nothing found.
+fn ended(kind: Kind, state: State) -> Outcome {
+    match kind {
+        Kind::Search => Outcome::SearchResults {
+            from: 0,
+            files: Vec::new(),
+            more: false,
+            state,
+        },
+        Kind::List => Outcome::FileList {
+            from: 0,
+            paths: Vec::new(),
+            more: false,
+            state,
+        },
     }
+}
+
+/// Takes the entries of the next page from `held`: at most `entries`, and no more than
+/// [`PAGE_BYTES`] once it has one.
+fn take<T>(held: &mut VecDeque<(T, usize)>, entries: usize) -> Vec<T> {
+    let mut taken = Vec::new();
+    let mut bytes = 0usize;
+    while let Some((_, size)) = held.front() {
+        if !taken.is_empty() && (bytes.saturating_add(*size) > PAGE_BYTES || taken.len() >= entries)
+        {
+            break;
+        }
+        bytes = bytes.saturating_add(*size);
+        if let Some((entry, _)) = held.pop_front() {
+            taken.push(entry);
+        }
+    }
+    taken
 }
 
 /// Takes the next page from what `search` holds; the same page as last time while nothing new
 /// has come, so a stream woken for another reason sends nothing.
 fn next_page(search: &mut Search) -> Outcome {
-    let mut files = Vec::new();
-    let mut bytes = 0usize;
-    while let Some((_, size)) = search.held.front() {
-        if !files.is_empty()
-            && (bytes.saturating_add(*size) > PAGE_BYTES
-                || files.len() >= MAXIMUM_WORKSPACE_FILE_ENTRIES)
-        {
-            break;
+    let from = search.delivered;
+    let ended = search.ended.unwrap_or(State::Searching);
+    let (page, count) = match &mut search.held {
+        Held::Files(held) => {
+            let files = take(held, MAXIMUM_WORKSPACE_FILE_ENTRIES);
+            let count = files.len();
+            let more = !held.is_empty();
+            let state = if more { State::Searching } else { ended };
+            (
+                Outcome::SearchResults {
+                    from,
+                    files,
+                    more,
+                    state,
+                },
+                count,
+            )
         }
-        bytes = bytes.saturating_add(*size);
-        if let Some((file, _)) = search.held.pop_front() {
-            files.push(file);
+        Held::Paths(held) => {
+            let paths = take(held, MAXIMUM_WORKSPACE_FILE_LIST_PAGE);
+            let count = paths.len();
+            let more = !held.is_empty();
+            let state = if more { State::Searching } else { ended };
+            (
+                Outcome::FileList {
+                    from,
+                    paths,
+                    more,
+                    state,
+                },
+                count,
+            )
         }
-    }
-    let state = if search.held.is_empty() {
-        search.ended.unwrap_or(State::Searching)
-    } else {
-        State::Searching
     };
-    if files.is_empty()
+    if count == 0
         && let Some(last) = &search.last
-        && matches!(last, Outcome::SearchResults { state: answered, .. } if *answered == state)
+        && state_of(last) == state_of(&page)
     {
         return last.clone();
     }
-    let page = Outcome::SearchResults {
-        from: search.delivered,
-        more: !search.held.is_empty(),
-        state,
-        files,
-    };
-    if let Outcome::SearchResults { files, .. } = &page {
-        search.delivered = search
-            .delivered
-            .saturating_add(u64::try_from(files.len()).unwrap_or(u64::MAX));
-    }
+    search.delivered = from.saturating_add(u64::try_from(count).unwrap_or(u64::MAX));
     search.last = Some(page.clone());
     page
 }
 
-/// Starts a search in the lane, starting the lane first if none runs. A search the lane cannot
-/// take has already ended as unavailable.
+/// The state a page answered.
+const fn state_of(page: &Outcome) -> Option<State> {
+    match page {
+        Outcome::SearchResults { state, .. } | Outcome::FileList { state, .. } => Some(*state),
+        _ => None,
+    }
+}
+
+/// Starts a search or listing in the lane, starting the lane first if none runs. One the lane
+/// cannot take has already ended as unavailable.
 fn start(
     shared: &Arc<Shared>,
     registry: &mut Registry,
     request_id: &WorkbenchRequestId,
     root: &str,
-    query: &WorkspaceSearchQuery,
+    query: Query<'_>,
 ) -> Search {
     registry.next_id = registry.next_id.wrapping_add(1);
     let lane_id = registry.next_id;
@@ -221,7 +301,7 @@ fn start(
         request_id: request_id.clone(),
         lane_id,
         incarnation: 0,
-        held: VecDeque::new(),
+        held: Held::new(query.kind()),
         delivered: 0,
         ended: None,
         last: None,
@@ -238,10 +318,17 @@ fn start(
         search.ended = Some(State::Unavailable);
         return search;
     }
-    let command = SearchCommand::Start {
-        id: lane_id,
-        root: root.to_owned(),
-        query: query.clone(),
+    let command = match query {
+        Query::Search(query) => SearchCommand::Start {
+            id: lane_id,
+            root: root.to_owned(),
+            query: query.clone(),
+        },
+        Query::List(query) => SearchCommand::List {
+            id: lane_id,
+            root: root.to_owned(),
+            query: query.clone(),
+        },
     };
     if let Some(incarnation) = send(registry, &command) {
         search.incarnation = incarnation;
@@ -251,7 +338,7 @@ fn start(
     search
 }
 
-/// Stops a search the lane may still be running.
+/// Stops a search or listing the lane may still be running.
 fn cancel(registry: &mut Registry, search: &Search) {
     if search.ended.is_none() {
         let _sent = send(registry, &SearchCommand::Cancel { id: search.lane_id });
@@ -316,8 +403,8 @@ fn start_lane(shared: &Arc<Shared>, registry: &mut Registry) -> Result<(), ()> {
     Ok(())
 }
 
-/// Holds each report of one lane for its search until the lane ends, then ends every search it
-/// was still running as unavailable.
+/// Holds each report of one lane for its search or listing until the lane ends, then ends every
+/// one it was still running as unavailable.
 fn read_reports(shared: &Arc<Shared>, stdout: impl Read, incarnation: u64) {
     let mut stdout = BufReader::new(stdout);
     let limit = u64::try_from(MAXIMUM_SEARCH_REPORT_LINE_BYTES).unwrap_or(u64::MAX) + 1;
@@ -337,18 +424,20 @@ fn read_reports(shared: &Arc<Shared>, stdout: impl Read, incarnation: u64) {
         let changed = {
             let mut registry = shared.lock();
             let (id, found, state) = match report {
-                SearchReport::Found { id, files } => (id, files, None),
-                SearchReport::Ended { id, state } => (id, Vec::new(), Some(state)),
+                SearchReport::Found { id, files } => (id, Found::Files(files), None),
+                SearchReport::Listed { id, paths } => (id, Found::Paths(paths), None),
+                SearchReport::Ended { id, state } => (id, Found::Paths(Vec::new()), Some(state)),
             };
             registry
                 .searches
                 .values_mut()
                 .find(|search| search.lane_id == id && search.incarnation == incarnation)
                 .is_some_and(|search| {
-                    for file in found {
-                        let size =
-                            serde_json::to_vec(&file).map_or(usize::MAX, |bytes| bytes.len());
-                        search.held.push_back((file, size));
+                    match (&mut search.held, found) {
+                        (Held::Files(held), Found::Files(files)) => hold(held, files),
+                        (Held::Paths(held), Found::Paths(paths)) => hold(held, paths),
+                        // A report of the other kind is not one this Server asked for.
+                        _ => {}
                     }
                     if search.ended.is_none() {
                         search.ended = state;
@@ -378,6 +467,20 @@ fn read_reports(shared: &Arc<Shared>, stdout: impl Read, incarnation: u64) {
     drop(registry);
     if changed {
         shared.changes.notify_workspace_files();
+    }
+}
+
+/// What one report found.
+enum Found {
+    Files(Vec<WorkspaceSearchFile>),
+    Paths(Vec<String>),
+}
+
+/// Holds `found` after what `held` already holds, with each entry's encoded size.
+fn hold<T: serde::Serialize>(held: &mut VecDeque<(T, usize)>, found: Vec<T>) {
+    for entry in found {
+        let size = serde_json::to_vec(&entry).map_or(usize::MAX, |bytes| bytes.len());
+        held.push_back((entry, size));
     }
 }
 
