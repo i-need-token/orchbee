@@ -1,0 +1,123 @@
+/* The window floats over the Tab's terminals with a margin, so the Tab's content still frames it. */
+.window {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset: var(--ob-ref-space-2);
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-canvas);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow: hidden;
+}
+
+.window:focus-visible {
+	outline: none;
+}
+
+.header {
+	display: flex;
+	flex: none;
+	align-items: stretch;
+	block-size: var(--ob-ref-size-control-lg);
+	min-inline-size: var(--ob-ref-space-0);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	background: var(--ob-sys-color-surface-raised);
+}
+
+.actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-1);
+}
+
+.action {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.action[aria-pressed='true'] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.segments {
+	display: flex;
+	padding: var(--ob-ref-space-0);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	overflow: hidden;
+}
+
+.segment {
+	padding-inline: var(--ob-ref-space-2);
+	border: none;
+	background: transparent;
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-xs);
+	cursor: pointer;
+}
+
+.segment:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.segment[aria-pressed='true'] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.segment:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: calc(var(--ob-sys-focus-ring-width) * -1);
+}
+
+.separator {
+	align-self: center;
+	inline-size: var(--ob-ref-border-width-default);
+	block-size: var(--ob-ref-space-4);
+	margin-inline: var(--ob-ref-space-1);
+	background: var(--ob-sys-color-border-default);
+}
+
+.note {
+	display: grid;
+	flex: 1 1 auto;
+	place-items: center;
+	margin: 0;
+	color: var(--ob-sys-color-text-muted);
+}
+
+/* The collapsed window: one pill at the Tab's lower left that brings it back. */
+.pill {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset-block-end: var(--ob-ref-space-3);
+	inset-inline-start: var(--ob-ref-space-3);
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	block-size: var(--ob-ref-size-control-sm);
+	padding-inline: var(--ob-ref-space-2) var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-strong);
+	border-radius: var(--ob-ref-radius-ui-4xl);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-label-sm);
+	cursor: pointer;
+}
+
+.pill:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.pill:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: var(--ob-sys-focus-ring-width);
+}

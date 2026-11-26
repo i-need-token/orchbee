@@ -241,6 +241,8 @@ interface WorkbenchView {
 	/** Opens or closes the right bar; absent when the Server reads no Workspace files. */
 	readonly toggleRightBar: (() => void) | undefined;
 	readonly closeRightBar: () => void;
+	/** Hands the keyboard back to the current terminal, as a surface over it closes. */
+	readonly returnFocusToTerminal: () => void;
 	readonly rightBarToggleLabel: string;
 	readonly rightBarShortcutId: string;
 	readonly rightBarShortcutLabel: string | undefined;
@@ -1206,6 +1208,7 @@ export function useWorkbench({
 		isRightBarVisible,
 		toggleRightBar,
 		closeRightBar,
+		returnFocusToTerminal: focusRouting.requestTerminalFocus,
 		rightBarToggleLabel: intl.formatMessage(workbenchMessages.toggleRightBar),
 		rightBarShortcutId: WORKBENCH_SHORTCUTS.toggleRightBar.id,
 		rightBarShortcutLabel: visibleShortcutLabel(

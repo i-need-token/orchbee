@@ -5,14 +5,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"sessionId",
-				"workspaceId",
-				"operation"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId", "operation"],
 			"properties": {
 				"kind": {
 					"const": "workbench.workspace-files"
@@ -37,10 +30,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"path"
-							],
+							"required": ["kind", "path"],
 							"properties": {
 								"kind": {
 									"const": "list-directory"
@@ -63,11 +53,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"path",
-								"source"
-							],
+							"required": ["kind", "path", "source"],
 							"properties": {
 								"kind": {
 									"const": "read-file"
@@ -79,20 +65,14 @@
 									"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
 								},
 								"source": {
-									"enum": [
-										"worktree",
-										"index",
-										"head"
-									]
+									"enum": ["worktree", "index", "head"]
 								}
 							}
 						},
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind"
-							],
+							"required": ["kind"],
 							"properties": {
 								"kind": {
 									"const": "git-status"
@@ -106,14 +86,7 @@
 		{
 			"type": "object",
 			"additionalProperties": false,
-			"required": [
-				"kind",
-				"protocolVersion",
-				"requestId",
-				"sessionId",
-				"workspaceId",
-				"outcome"
-			],
+			"required": ["kind", "protocolVersion", "requestId", "sessionId", "workspaceId", "outcome"],
 			"properties": {
 				"kind": {
 					"const": "workbench.workspace-files.result"
@@ -138,11 +111,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"entries",
-								"truncated"
-							],
+							"required": ["kind", "entries", "truncated"],
 							"properties": {
 								"kind": {
 									"const": "directory"
@@ -153,12 +122,7 @@
 									"items": {
 										"type": "object",
 										"additionalProperties": false,
-										"required": [
-											"name",
-											"entryKind",
-											"symbolicLink",
-											"ignored"
-										],
+										"required": ["name", "entryKind", "symbolicLink", "ignored"],
 										"properties": {
 											"name": {
 												"type": "string",
@@ -167,11 +131,7 @@
 												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+$"
 											},
 											"entryKind": {
-												"enum": [
-													"file",
-													"directory",
-													"other"
-												]
+												"enum": ["file", "directory", "other"]
 											},
 											"symbolicLink": {
 												"type": "boolean"
@@ -190,11 +150,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"byteLength",
-								"content"
-							],
+							"required": ["kind", "byteLength", "content"],
 							"properties": {
 								"kind": {
 									"const": "file"
@@ -209,10 +165,7 @@
 										{
 											"type": "object",
 											"additionalProperties": false,
-											"required": [
-												"kind",
-												"text"
-											],
+											"required": ["kind", "text"],
 											"properties": {
 												"kind": {
 													"const": "text"
@@ -226,9 +179,7 @@
 										{
 											"type": "object",
 											"additionalProperties": false,
-											"required": [
-												"kind"
-											],
+											"required": ["kind"],
 											"properties": {
 												"kind": {
 													"const": "binary"
@@ -238,9 +189,7 @@
 										{
 											"type": "object",
 											"additionalProperties": false,
-											"required": [
-												"kind"
-											],
+											"required": ["kind"],
 											"properties": {
 												"kind": {
 													"const": "too-large"
@@ -250,9 +199,7 @@
 										{
 											"type": "object",
 											"additionalProperties": false,
-											"required": [
-												"kind"
-											],
+											"required": ["kind"],
 											"properties": {
 												"kind": {
 													"const": "absent"
@@ -266,21 +213,13 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"branch",
-								"entries",
-								"truncated"
-							],
+							"required": ["kind", "branch", "entries", "truncated"],
 							"properties": {
 								"kind": {
 									"const": "git-status"
 								},
 								"branch": {
-									"type": [
-										"string",
-										"null"
-									],
+									"type": ["string", "null"],
 									"minLength": 1,
 									"maxLength": 1024
 								},
@@ -290,13 +229,7 @@
 									"items": {
 										"type": "object",
 										"additionalProperties": false,
-										"required": [
-											"path",
-											"originalPath",
-											"index",
-											"worktree",
-											"conflicted"
-										],
+										"required": ["path", "originalPath", "index", "worktree", "conflicted"],
 										"properties": {
 											"path": {
 												"type": "string",
@@ -357,10 +290,7 @@
 						{
 							"type": "object",
 							"additionalProperties": false,
-							"required": [
-								"kind",
-								"reason"
-							],
+							"required": ["kind", "reason"],
 							"properties": {
 								"kind": {
 									"const": "failed"

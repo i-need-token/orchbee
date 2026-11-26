@@ -1905,14 +1905,125 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.absent'],
 		description: 'File preview text for a file that was deleted.',
 	},
-	rightBarPreviewClose: {
-		id: 'workbench.rightBar.preview.close',
-		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.close'],
-		description: 'Button that closes the file preview over the terminals.',
+	rightBarSideHead: {
+		id: 'workbench.rightBar.side.head',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.head'],
+		description: 'One side of a comparison: the file as of the last commit.',
 	},
-	rightBarPreviewDiff: {
-		id: 'workbench.rightBar.preview.diff',
-		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.diff'],
-		description: 'Title of a file preview that shows its changes. name is the file name.',
+	rightBarSideIndex: {
+		id: 'workbench.rightBar.side.index',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.index'],
+		description: 'One side of a comparison: the file as staged.',
+	},
+	rightBarSideNone: {
+		id: 'workbench.rightBar.side.none',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.none'],
+		description: 'One side of a comparison when the file did not exist on that side.',
+	},
+	rightBarSideWorktree: {
+		id: 'workbench.rightBar.side.worktree',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.worktree'],
+		description: 'One side of a comparison: the file as it is on disk.',
+	},
+	rightBarCompare: {
+		id: 'workbench.rightBar.compare',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.compare'],
+		description:
+			'Which two versions a diff compares. before and after are side names such as "last commit" and "working copy".',
+	},
+	rightBarLineCount: {
+		id: 'workbench.rightBar.lineCount',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.lineCount'],
+		description: 'How many lines an open file has.',
+	},
+	rightBarChangeCount: {
+		id: 'workbench.rightBar.changeCount',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.changeCount'],
+		description: 'How many separate changed regions a diff has.',
+	},
+	rightBarFloatLabel: {
+		id: 'workbench.rightBar.float.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.label'],
+		description:
+			'Accessible name of the floating window over the terminals. name is the file shown.',
+	},
+	rightBarFloatTabs: {
+		id: 'workbench.rightBar.float.tabs',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.tabs'],
+		description: "Accessible name of the floating window's tab strip.",
+	},
+	rightBarFloatPill: {
+		id: 'workbench.rightBar.float.pill',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.pill'],
+		description:
+			'Button that brings back a collapsed floating window. count is how many files it holds.',
+	},
+	rightBarFloatReopen: {
+		id: 'workbench.rightBar.float.reopen',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.reopen'],
+		description: 'Tooltip of the button that brings back a collapsed floating window.',
+	},
+	rightBarFloatClose: {
+		id: 'workbench.rightBar.float.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.close'],
+		description: 'Button that closes the floating window and every file in it.',
+	},
+	rightBarFloatCloseTab: {
+		id: 'workbench.rightBar.float.closeTab',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.closeTab'],
+		description: 'Button that closes one file in the floating window. name is the file name.',
+	},
+	rightBarFloatPreviewTitle: {
+		id: 'workbench.rightBar.float.tabTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.tabTitle'],
+		description:
+			"Tooltip of a preview tab, which the next opened file replaces. path is the file's path in the Workspace.",
+	},
+	rightBarDiffLayout: {
+		id: 'workbench.rightBar.diff.layout',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.layout'],
+		description: 'Accessible name of the choice between a side-by-side and an inline diff.',
+	},
+	rightBarDiffSideBySide: {
+		id: 'workbench.rightBar.diff.sideBySide',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.sideBySide'],
+		description: 'Shows a diff with the two versions next to each other.',
+	},
+	rightBarDiffInline: {
+		id: 'workbench.rightBar.diff.inline',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.inline'],
+		description: 'Shows a diff in one column with removed and added lines interleaved.',
+	},
+	rightBarDiffIgnoreWhitespace: {
+		id: 'workbench.rightBar.diff.ignoreWhitespace',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.ignoreWhitespace'],
+		description: 'Toggle that hides changes made only of leading or trailing whitespace.',
+	},
+	rightBarDiffHideUnchanged: {
+		id: 'workbench.rightBar.diff.hideUnchanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.hideUnchanged'],
+		description: 'Toggle that folds the lines a diff did not change.',
+	},
+	rightBarDiffPrevious: {
+		id: 'workbench.rightBar.diff.previous',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.previous'],
+		description: 'Moves to the previous change in a diff.',
+	},
+	rightBarDiffNext: {
+		id: 'workbench.rightBar.diff.next',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.next'],
+		description: 'Moves to the next change in a diff.',
+	},
+	rightBarDiffSuffixStaged: {
+		id: 'workbench.rightBar.diff.suffixStaged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.suffixStaged'],
+		description:
+			'Shown after a file name on a tab that compares the staged file with the last commit.',
+	},
+	rightBarDiffSuffixWorktree: {
+		id: 'workbench.rightBar.diff.suffixWorktree',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.diff.suffixWorktree'],
+		description:
+			'Shown after a file name on a tab that compares the file on disk with the staged or committed one.',
 	},
 });

@@ -11,21 +11,25 @@ export type ProductIconName =
 	| 'appearance'
 	| 'arrow-down'
 	| 'arrow-left'
+	| 'arrow-up'
 	| 'bell'
-	| 'clipboard'
+	| 'check'
 	| 'chevron-down'
 	| 'chevron-right'
-	| 'check'
 	| 'clear-all'
+	| 'clipboard'
 	| 'close'
 	| 'color'
 	| 'copy'
+	| 'diff'
 	| 'edit'
 	| 'ellipsis'
 	| 'file'
+	| 'fold'
 	| 'folder'
 	| 'folder-opened'
 	| 'git-branch'
+	| 'go-to-file'
 	| 'info'
 	| 'keyboard'
 	| 'layout'
@@ -39,9 +43,9 @@ export type ProductIconName =
 	| 'refresh'
 	| 'remove'
 	| 'restore'
-	| 'search'
 	| 'screen-full'
 	| 'screen-normal'
+	| 'search'
 	| 'select-all'
 	| 'settings'
 	| 'sidebar-left'
@@ -51,7 +55,8 @@ export type ProductIconName =
 	| 'terminal'
 	| 'trash'
 	| 'ungroup'
-	| 'warning';
+	| 'warning'
+	| 'whitespace';
 
 interface ProductIconProps {
 	readonly name: ProductIconName;
@@ -70,21 +75,25 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'appearance' && styles['appearance'],
 				name === 'arrow-down' && styles['arrowDown'],
 				name === 'arrow-left' && styles['arrowLeft'],
+				name === 'arrow-up' && styles['arrowUp'],
 				name === 'bell' && styles['bell'],
-				name === 'clipboard' && styles['clipboard'],
+				name === 'check' && styles['check'],
 				name === 'chevron-down' && styles['chevronDown'],
 				name === 'chevron-right' && styles['chevronRight'],
-				name === 'check' && styles['check'],
 				name === 'clear-all' && styles['clearAll'],
+				name === 'clipboard' && styles['clipboard'],
 				name === 'close' && styles['close'],
 				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
+				name === 'diff' && styles['diff'],
 				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
 				name === 'file' && styles['file'],
+				name === 'fold' && styles['fold'],
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
 				name === 'git-branch' && styles['gitBranch'],
+				name === 'go-to-file' && styles['goToFile'],
 				name === 'info' && styles['info'],
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
@@ -98,9 +107,9 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'refresh' && styles['refresh'],
 				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
-				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],
+				name === 'search' && styles['search'],
 				name === 'select-all' && styles['selectAll'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
@@ -111,6 +120,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'trash' && styles['trash'],
 				name === 'ungroup' && styles['ungroup'],
 				name === 'warning' && styles['warning'],
+				name === 'whitespace' && styles['whitespace'],
 			)}
 			data-icon={name}
 			data-icon-size={size}

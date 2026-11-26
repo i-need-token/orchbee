@@ -190,3 +190,23 @@
 .warning {
 	composes: codicon-warning from global;
 }
+
+.arrowUp {
+	composes: codicon-arrow-up from global;
+}
+
+.whitespace {
+	composes: codicon-whitespace from global;
+}
+
+.fold {
+	composes: codicon-fold from global;
+}
+
+.diff {
+	composes: codicon-diff from global;
+}
+
+.goToFile {
+	composes: codicon-go-to-file from global;
+}

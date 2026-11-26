@@ -220,7 +220,12 @@ button.statusNoticeText {
 	height: 100%;
 }
 
-/* The right bar's preview floats over the Tab's content from here; it holds nothing itself. */
-.previewPlace {
+/* The right bar's float window covers the Tab's content from here; it holds nothing itself. */
+.floatPlace {
+	display: contents;
+}
+
+/* The right bar draws into its panel from here, so its state outlives the panel closing. */
+.rightBarPlace {
 	display: contents;
 }

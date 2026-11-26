@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                           |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Draft; phase 1 (read-only files, changes and preview) is implemented on `feat/right-bar-v1`; editing, search and Git actions remain future                      |
+| Status            | Draft; phase 1 (read-only files and changes) and the float window with Monaco preview and diff are implemented on `feat/right-bar-v1`; the rest remains future  |
 | Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                           |
 | Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md` |
 | Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                      |
@@ -30,28 +30,47 @@ it and without slowing terminal work.
 - **Web.** The right bar is a separate lazily loaded chunk. Only a window whose Server offers the
   capability shows the toggle (tab bar button, `Cmd+Option+B` / `Ctrl+Alt+B`). It has two views:
   a virtualized file tree (directories first, `.git` hidden, ignored files dimmed) and a change list
-  grouped into conflicts, staged and unstaged. Selecting a file or change opens a preview floating
-  over the terminal area: windowed text for a file, a folded line diff for a change.
+  grouped into conflicts, staged and unstaged.
+
+## Float window, as implemented
+
+- **Placement.** Files and changes open in a float window over the Tab content area; terminals keep
+  their size. Each Workspace keeps its own window, and the window outlives closing the bar.
+- **Tabs.** The window has its own tab strip. A single click opens a preview tab (italic) that the
+  next preview replaces in place; a double click, or opening an already open file for keeps, keeps
+  it. New tabs open after the active one; closing the active tab hands over to its right neighbor,
+  or its left one at the end. The staged and unstaged change of one file are separate tabs.
+- **Collapse.** Esc, or choosing another terminal Tab, collapses the window to a pill naming how many
+  files it holds; the pill brings it back. The close button closes the window and every file in it.
+  Collapsing returns the keyboard to the terminal.
+- **Editor.** Monaco loads in its own chunk the first time the window shows a file, with only the
+  editor features the window uses, no language-service workers and languages registered lazily.
+  Its theme is derived from the current named theme's system tokens and follows theme changes; the
+  icon font is the application's own codicon font. Files above 1 MB open as plain text.
+- **Diff.** Monaco's diff editor: side by side where the window is at least 900 px wide, inline
+  otherwise or on request; leading and trailing whitespace ignored by default; unchanged regions
+  can be collapsed; previous and next change. A meta line shows added and removed lines, the number
+  of changes and which two versions are compared.
 
 ## Deviations from the design discussion
 
 - **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
   and signing are unchanged. Under [native runtime topology](../platform/native-runtime-topology.md)
   the Worker should own filesystem and Git effects; moving the service behind the Worker is open.
-- **No Monaco yet.** The preview uses a built-in viewer and a Myers line diff (with a whole-file
-  fallback past 1000 edits) to avoid a large dependency in phase 1. Monaco remains the plan for
-  editing and side-by-side diff.
+- **Read-only editor.** The editor and the diff's right side are read-only until saving with a
+  version precondition lands.
 - **Refresh.** No file watching or polling: views refresh on open, on switching view, on the refresh
   button and on window focus.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
-- **Preview.** One floating preview, not yet a tab in a unified tab bar.
-- **Bundle.** The lazy chunk is about 17 KB JS and 7 KB CSS raw. The main bundle still grows by about
-  22 KB raw (3.3 KB gzip), above the 10–15 KB target, mostly from protocol schemas, messages and
-  shortcut descriptors that the current architecture loads eagerly.
+- **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
+- **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
+  (6.4 KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current
+  architecture loads eagerly. The bar and float window chunk is about 6.5 KB gzip; the editor pane
+  is about 5 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
 
 ## Later phases
 
-1. Simple editing and saving through Monaco, loaded only when an editor opens.
+1. Simple editing and saving, with a version precondition and a conflict notice.
 2. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
 3. Git actions: stage, unstage, discard, commit, with explicit confirmation for destructive ones.

@@ -3,14 +3,13 @@ import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
 import type { WorkspaceFilesOutcome } from '@orchbee/workbench-client-protocol';
 import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 
-import type { WorkbenchWorkspaceFilesSource } from '../workbench';
-import { type ChangeGroup, type ChangeItem, groupChanges, splitPath } from './change-groups';
-import { FilePreview, type FilePreviewTarget } from './components/file-preview/FilePreview';
+import type { WorkbenchWorkspaceFilesSource } from '../../../workbench';
+import { type ChangeGroup, type ChangeItem, groupChanges, splitPath } from '../../change-groups';
 import { flattenTree, type Listing, parentPath, type TreeRow } from './file-tree';
-import { useWindowedRows } from './hooks';
-import { readWorkspaceFiles } from './readWorkspaceFiles';
+import { useWindowedRows } from './hooks/useWindowedRows';
+import type { FloatTarget } from '../../float-tabs';
+import { readWorkspaceFiles } from '../../readWorkspaceFiles';
 
 import styles from './RightBar.module.css';
 
@@ -20,8 +19,12 @@ export interface RightBarProps {
 	readonly workspaceId: string | null;
 	readonly onClose: () => void;
 	readonly closeShortcutLabel?: string | undefined;
-	/** Where the preview floats: the Tab content area beside the bar. */
-	readonly previewHost: HTMLElement | null;
+	/** What the float window shows, which the tree and the change list mark. */
+	readonly activeTarget: FloatTarget | null;
+	/** Opens a file or change in the float window; a preview gives way to the next one. */
+	readonly onOpen: (target: FloatTarget, preview: boolean) => void;
+	/** Tells the float window that the files may have changed. */
+	readonly onRefresh: () => void;
 }
 
 type View = 'files' | 'changes';
@@ -73,15 +76,15 @@ export function RightBar({
 	workspaceId,
 	onClose,
 	closeShortcutLabel,
-	previewHost,
+	activeTarget,
+	onOpen,
+	onRefresh,
 }: RightBarProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [view, setView] = React.useState<View>('files');
 	const [listings, setListings] = React.useState<ReadonlyMap<string, Listing>>(() => new Map());
 	const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set());
 	const [changes, setChanges] = React.useState<Changes>({ state: 'loading' });
-	const [preview, setPreview] = React.useState<FilePreviewTarget | null>(null);
-	const [refreshCount, setRefreshCount] = React.useState(0);
 	// The newest read for each folder and for the change list; an older answer is dropped.
 	const reads = React.useRef(new Map<string, number>());
 	const nextRead = React.useRef(0);
@@ -130,7 +133,7 @@ export function RightBar({
 		} else {
 			loadChanges();
 		}
-		setRefreshCount((count) => count + 1);
+		onRefresh();
 	});
 	React.useEffect(() => {
 		refresh();
@@ -140,10 +143,6 @@ export function RightBar({
 		return () => window.removeEventListener('focus', refresh);
 	}, [refresh]);
 
-	const closePreview = useMemoizedFn(() => {
-		setPreview(null);
-		treeReference.current?.focus({ preventScroll: true });
-	});
 	const toggleFolder = useMemoizedFn((path: string) => {
 		const next = new Set(expanded);
 		if (next.has(path)) {
@@ -167,10 +166,10 @@ export function RightBar({
 		body = (
 			<FileTree
 				expanded={expanded}
-				onOpenFile={(path) => setPreview({ kind: 'file', path })}
+				onOpenFile={(path, preview) => onOpen({ kind: 'file', path }, preview)}
 				onToggleFolder={toggleFolder}
 				rows={rows}
-				selectedPath={preview?.kind === 'file' ? preview.path : null}
+				selectedPath={activeTarget?.kind === 'file' ? activeTarget.path : null}
 				treeReference={treeReference}
 			/>
 		);
@@ -178,8 +177,8 @@ export function RightBar({
 		body = (
 			<ChangeList
 				changes={changes}
-				onOpen={(item) => setPreview({ item, kind: 'diff' })}
-				selectedKey={preview?.kind === 'diff' ? preview.item.key : null}
+				onOpen={(item, preview) => onOpen({ item, kind: 'diff' }, preview)}
+				selectedKey={activeTarget?.kind === 'diff' ? activeTarget.item.key : null}
 			/>
 		);
 	}
@@ -241,18 +240,6 @@ export function RightBar({
 			<div className={styles['body']} role='tabpanel'>
 				{body}
 			</div>
-			{preview === null || previewHost === null || workspaceId === null
-				? null
-				: createPortal(
-						<FilePreview
-							onClose={closePreview}
-							refreshCount={refreshCount}
-							source={source}
-							target={preview}
-							workspaceId={workspaceId}
-						/>,
-						previewHost,
-					)}
 		</aside>
 	);
 }
@@ -262,7 +249,7 @@ interface FileTreeProps {
 	readonly expanded: ReadonlySet<string>;
 	readonly selectedPath: string | null;
 	readonly onToggleFolder: (path: string) => void;
-	readonly onOpenFile: (path: string) => void;
+	readonly onOpenFile: (path: string, preview: boolean) => void;
 	readonly treeReference: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -282,10 +269,10 @@ function FileTree({
 		0,
 		rows.findIndex((row) => row.kind === 'entry' && row.path === activePath),
 	);
-	const activate = (row: TreeRow): void => {
+	const activate = (row: TreeRow, preview: boolean): void => {
 		if (row.kind !== 'entry') return;
 		if (row.entry.entryKind === 'directory') onToggleFolder(row.path);
-		else if (row.entry.entryKind === 'file') onOpenFile(row.path);
+		else if (row.entry.entryKind === 'file') onOpenFile(row.path, preview);
 	};
 	const moveTo = (index: number): void => {
 		const row = rows[index];
@@ -339,7 +326,7 @@ function FileTree({
 				break;
 			case 'Enter':
 			case ' ':
-				if (row !== undefined) activate(row);
+				if (row !== undefined) activate(row, true);
 				break;
 			default:
 				handled = false;
@@ -394,7 +381,10 @@ function FileTree({
 				key={row.key}
 				onClick={() => {
 					setActivePath(row.path);
-					activate(row);
+					activate(row, true);
+				}}
+				onDoubleClick={() => {
+					if (row.entry.entryKind === 'file') onOpenFile(row.path, false);
 				}}
 				ref={measure}
 				role='treeitem'
@@ -449,7 +439,7 @@ function FileTree({
 interface ChangeListProps {
 	readonly changes: Changes;
 	readonly selectedKey: string | null;
-	readonly onOpen: (item: ChangeItem) => void;
+	readonly onOpen: (item: ChangeItem, preview: boolean) => void;
 }
 
 function ChangeList({ changes, selectedKey, onOpen }: ChangeListProps): React.ReactNode {
@@ -520,7 +510,8 @@ function ChangeList({ changes, selectedKey, onOpen }: ChangeListProps): React.Re
 				aria-pressed={item.key === selectedKey}
 				className={styles['changeRow']}
 				key={item.key}
-				onClick={() => onOpen(item)}
+				onClick={() => onOpen(item, true)}
+				onDoubleClick={() => onOpen(item, false)}
 				ref={measure}
 				style={
 					{

@@ -1,0 +1,71 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	min-block-size: 0;
+	flex: 1 1 auto;
+	position: relative;
+}
+
+.fontProbe {
+	position: absolute;
+	visibility: hidden;
+	pointer-events: none;
+	font: var(--ob-sys-typography-code-md);
+}
+
+.meta {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-3);
+	flex: none;
+	block-size: var(--ob-ref-size-control-sm);
+	padding-inline: var(--ob-ref-space-3);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	font: var(--ob-sys-typography-body-sm);
+	color: var(--ob-sys-color-text-muted);
+	white-space: nowrap;
+}
+
+.crumb {
+	flex: 1 1 auto;
+	min-inline-size: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.name {
+	color: var(--ob-sys-color-text-primary);
+}
+
+.facts {
+	display: flex;
+	gap: var(--ob-ref-space-3);
+	flex: none;
+}
+
+.body {
+	position: relative;
+	flex: 1 1 auto;
+	min-block-size: 0;
+}
+
+.host {
+	position: absolute;
+	inset: 0;
+}
+
+.host[hidden] {
+	display: none;
+}
+
+.note {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	margin: 0;
+	padding: var(--ob-ref-space-6);
+	font: var(--ob-sys-typography-body-sm);
+	color: var(--ob-sys-color-text-muted);
+	text-align: center;
+}

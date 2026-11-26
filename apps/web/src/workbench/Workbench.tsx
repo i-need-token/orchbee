@@ -85,8 +85,10 @@ const NO_CONFIGURED_COMMAND_KEYS: WorkbenchConfiguredCommandKeysView = {
 };
 
 /** The right bar's code loads the first time a window opens it, and never in one that does not. */
-const LazyRightBar = React.lazy(() =>
-	import('../right-bar').then((module) => ({ default: module.RightBar })),
+const LazyWorkspaceFilesSurface = React.lazy(() =>
+	import('../workspace-files-surface').then((module) => ({
+		default: module.WorkspaceFilesSurface,
+	})),
 );
 /** The right bar's width while it stays open in this window; it is not remembered. */
 const DEFAULT_RIGHT_BAR_WIDTH = 300;
@@ -185,7 +187,8 @@ export function Workbench({
 		terminalActionShortcutLabels,
 	});
 	const hostReplacementFocusRef = React.useRef<HTMLButtonElement | null>(null);
-	const [previewHost, setPreviewHost] = React.useState<HTMLDivElement | null>(null);
+	const [floatHost, setFloatHost] = React.useState<HTMLDivElement | null>(null);
+	const [rightBarHost, setRightBarHost] = React.useState<HTMLDivElement | null>(null);
 	const rightBarWidth = React.useRef(DEFAULT_RIGHT_BAR_WIDTH);
 	const view = useWorkbench({
 		actionRuntime,
@@ -211,6 +214,12 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
+	// The right bar's code loads the first time it opens, then stays, so its float window and the
+	// files in it outlive closing the bar.
+	const [workspaceFilesLoaded, setWorkspaceFilesLoaded] = React.useState(false);
+	if (!workspaceFilesLoaded && view.isRightBarVisible && workspaceFilesSource !== undefined) {
+		setWorkspaceFilesLoaded(true);
+	}
 	const agentPresentation = useWorkbenchAgentPresentation({
 		confirmations: view.authority.agentConfirmations,
 		nameSource: agentNameSource,
@@ -676,8 +685,8 @@ export function Workbench({
 								{otherMachines === undefined ? null : (
 									<WorkbenchMachineCard otherMachines={otherMachines} />
 								)}
-								{view.isRightBarVisible ? (
-									<div className={styles['previewPlace']} ref={setPreviewHost} />
+								{workspaceFilesLoaded ? (
+									<div className={styles['floatPlace']} ref={setFloatHost} />
 								) : null}
 							</div>
 						</div>
@@ -695,20 +704,25 @@ export function Workbench({
 									rightBarWidth.current = size.inPixels;
 								}}
 							>
-								<React.Suspense fallback={null}>
-									<LazyRightBar
-										closeShortcutLabel={view.rightBarShortcutLabel}
-										key={view.activeWorkspaceId ?? ''}
-										onClose={view.closeRightBar}
-										previewHost={previewHost}
-										source={workspaceFilesSource}
-										workspaceId={view.activeWorkspaceId}
-									/>
-								</React.Suspense>
+								<div className={styles['rightBarPlace']} ref={setRightBarHost} />
 							</ResizablePanel>
 						</>
 					) : null}
 				</ResizablePanelGroup>
+				{workspaceFilesLoaded && workspaceFilesSource !== undefined ? (
+					<React.Suspense fallback={null}>
+						<LazyWorkspaceFilesSurface
+							barHost={view.isRightBarVisible ? rightBarHost : null}
+							closeShortcutLabel={view.rightBarShortcutLabel}
+							floatHost={floatHost}
+							onCloseBar={view.closeRightBar}
+							onReturnFocus={view.returnFocusToTerminal}
+							source={workspaceFilesSource}
+							tabModel={terminalContext?.tabModel ?? null}
+							workspaceId={view.activeWorkspaceId}
+						/>
+					</React.Suspense>
+				) : null}
 			</div>
 			{view.searchState.kind === 'closed' ? null : (
 				<WorkbenchSearchSurface
