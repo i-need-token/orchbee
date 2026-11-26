@@ -1,12 +1,17 @@
 //! Read-only Workspace file and Git facts for the right bar: one directory listing, one chunk of a
-//! file's content from the working tree, the index or `HEAD`, or the Workspace's change list. Paths
+//! file's content from the working tree, the index or `HEAD`, or the Workspace's change list; or,
+//! as a State stream, how far what the right bar shows has changed since. Paths
 //! are Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
 //! client never names an absolute path.
-use crate::{ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchWorkspaceId};
+use crate::{
+    ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
+    WorkbenchWorkspaceId,
+};
 use serde::{Deserialize, Serialize};
 
-/// The encoded request stays small: one relative path and a closed operation.
-pub const MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES: usize = 16 * 1024;
+/// The encoded request stays small: one relative path and a closed operation, or the paths a
+/// watch follows.
+pub const MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES: usize = 64 * 1024;
 /// The encoded result fits the general Workbench response budget.
 pub const MAXIMUM_WORKSPACE_FILES_RESULT_BYTES: usize = 8 * 1024 * 1024;
 /// Workspace-relative path bytes.
@@ -24,6 +29,10 @@ pub const MAXIMUM_WORKSPACE_FILE_OPEN_BYTES: u64 = 50 * 1024 * 1024;
 pub const MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES: u64 = 10 * 1024 * 1024;
 /// The largest file that reads as bytes, such as an image to show.
 pub const MAXIMUM_WORKSPACE_FILE_BYTES_READ: u64 = 10 * 1024 * 1024;
+/// Directories one watch names: the ones the right bar shows expanded.
+pub const MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES: usize = 256;
+/// Files one watch names: the ones open from the right bar.
+pub const MAXIMUM_WORKSPACE_FILES_WATCHED_FILES: usize = 64;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -60,6 +69,15 @@ pub enum WorkspaceFilesOperation {
         encoding: WorkspaceFileEncoding,
     },
     GitStatus {},
+    /// Follows changes as a State stream: each frame carries the Workspace's revisions, and the
+    /// Server sends a new frame when one moves. `directories` are the ones shown, the empty path
+    /// naming the Workspace itself, and `files` the ones open in the working tree. A platform that
+    /// watches recursively also sees changes beneath directories nobody shows, which move only
+    /// `repository`.
+    Watch {
+        directories: Vec<String>,
+        files: Vec<String>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -83,7 +101,17 @@ impl WorkspaceFilesOperation {
             Self::ListDirectory { path } if path.is_empty() || is_relative_path(path) => Ok(()),
             Self::ReadFile { path, .. } if is_relative_path(path) => Ok(()),
             Self::GitStatus {} => Ok(()),
-            Self::ListDirectory { .. } | Self::ReadFile { .. } => {
+            Self::Watch { directories, files }
+                if directories.len() <= MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES
+                    && files.len() <= MAXIMUM_WORKSPACE_FILES_WATCHED_FILES
+                    && directories
+                        .iter()
+                        .all(|path| path.is_empty() || is_relative_path(path))
+                    && files.iter().all(|path| is_relative_path(path)) =>
+            {
+                Ok(())
+            }
+            Self::ListDirectory { .. } | Self::ReadFile { .. } | Self::Watch { .. } => {
                 Err(ContractError::InvalidDocument)
             }
         }
@@ -176,6 +204,17 @@ pub struct WorkspaceGitStatusEntry {
     pub conflicted: bool,
 }
 
+/// Whether a watch follows changes. A client that reads `unavailable` refreshes only when asked.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkspaceFilesWatchState {
+    /// The Server has asked to watch and has no answer yet.
+    Starting,
+    Watching,
+    /// The platform refused, or the Workspace holds more than the platform can watch.
+    Unavailable,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkspaceFilesFailure {
@@ -212,6 +251,15 @@ pub enum WorkspaceFilesOutcome {
         branch: Option<String>,
         entries: Vec<WorkspaceGitStatusEntry>,
         truncated: bool,
+    },
+    /// A watch's state. `files` moves when an entry of a shown directory, or an open file,
+    /// changes; `repository` moves when anything in the working tree changes, or the repository's
+    /// index, `HEAD` or references do. Both start again whenever the Server starts following the
+    /// Workspace, so only a value that differs from the last frame means anything.
+    Watching {
+        files: WorkbenchRevision,
+        repository: WorkbenchRevision,
+        state: WorkspaceFilesWatchState,
     },
     Failed {
         reason: WorkspaceFilesFailure,
@@ -258,7 +306,7 @@ impl WorkspaceFilesOutcome {
                             && entry.original_path.as_deref().is_none_or(is_relative_path)
                     })
             }
-            Self::Failed { .. } => true,
+            Self::Watching { .. } | Self::Failed { .. } => true,
         };
         if valid {
             Ok(())
@@ -299,6 +347,7 @@ impl WorkspaceFilesOutcome {
                     Self::GitStatus { .. },
                     WorkspaceFilesOperation::GitStatus {}
                 )
+                | (Self::Watching { .. }, WorkspaceFilesOperation::Watch { .. })
         )
     }
 }

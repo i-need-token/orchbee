@@ -7,7 +7,7 @@ import type { WorkbenchWorkspaceFilesSource } from '../workbench';
 
 /** One read whose lost answer or rejected request reads as unavailable. */
 export async function readWorkspaceFiles(
-	source: WorkbenchWorkspaceFilesSource,
+	source: Pick<WorkbenchWorkspaceFilesSource, 'read'>,
 	workspaceId: string,
 	operation: WorkspaceFilesOperation,
 ): Promise<WorkspaceFilesOutcome> {

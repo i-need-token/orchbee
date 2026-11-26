@@ -37,6 +37,10 @@ export type {
 	SettingsRefusalReason,
 	SettingsSnapshot,
 } from './workbench-settings-contract';
+export {
+	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
+	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+} from './workbench-workspace-files-contract';
 /** @internal The file state, for Web fixtures that publish one. */
 export type { SettingsFile } from './workbench-settings-contract';
 export type {
@@ -44,6 +48,7 @@ export type {
 	WorkspaceFileEncoding,
 	WorkspaceFileSource,
 	WorkspaceFileVersion,
+	WorkspaceFilesWatchState,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceGitStatusCode,

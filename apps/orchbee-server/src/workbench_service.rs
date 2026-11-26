@@ -1152,6 +1152,10 @@ impl WorkbenchClientConnection<'_> {
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .remove(events.action.subscription_id());
             }
+            WorkbenchRequest::WorkspaceFiles(files) => self
+                .service
+                .terminals
+                .forget_workspace_files_watch(self.generation, Some(&files.workspace_id)),
             _ => {}
         }
     }
@@ -1165,6 +1169,7 @@ impl WorkbenchClientConnection<'_> {
         self.service.terminals.watch_agent_catalog(signal);
         self.service.terminals.watch_terminal_runtime(signal);
         self.service.terminals.watch_agent_confirmations(signal);
+        self.service.terminals.subscribe_workspace_files(signal);
     }
     /// Metadata expiry is an owner deadline; the carrier waits without holding the Session gate.
     pub(crate) fn maintain_subscription_deadline(
@@ -1374,6 +1379,31 @@ impl WorkbenchClientConnection<'_> {
                 },
             ));
         }
+        // A watch belongs to this connection: it lasts until its stream closes or the connection
+        // does, and a later watch of the same Workspace replaces it.
+        if let WorkbenchRequest::WorkspaceFiles(files) = &request
+            && matches!(
+                files.operation,
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
+            )
+        {
+            let result = if self.service.policy.read {
+                self.service
+                    .terminals
+                    .watch_workspace_files(self.generation, files)
+            } else {
+                orchbee_workbench_protocol::WorkspaceFilesResult {
+                    protocol_version: files.protocol_version,
+                    request_id: files.request_id.clone(),
+                    session_id: files.session_id.clone(),
+                    workspace_id: files.workspace_id.clone(),
+                    outcome: orchbee_workbench_protocol::WorkspaceFilesOutcome::Failed {
+                        reason: orchbee_workbench_protocol::WorkspaceFilesFailure::Denied,
+                    },
+                }
+            };
+            return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceFiles(result));
+        }
         if let WorkbenchRequest::ClientView(request) = request {
             use orchbee_workbench_protocol::{
                 ClientViewAction, ClientViewOutcome, ClientViewUnavailable,
@@ -1450,6 +1480,9 @@ impl Drop for WorkbenchClientConnection<'_> {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .disconnect(self.generation);
         self.stop_title_listening();
+        self.service
+            .terminals
+            .forget_workspace_files_watch(self.generation, None);
     }
 }
 

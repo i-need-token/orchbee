@@ -8,8 +8,9 @@ import type { DiffOptions } from './components/float-window/components/editor-pa
 import { FloatWindow } from './components/float-window/FloatWindow';
 import { floatOf, reduceFloatWindows } from './float-reducer';
 import type { FloatTarget } from './float-tabs';
-import { RightBar } from './components/right-bar/RightBar';
+import { type AutoRefresh, RightBar } from './components/right-bar/RightBar';
 import { useAgentSettled } from './hooks/useAgentSettled';
+import { type WorkspaceFilesChange, useWorkspaceFilesWatch } from './hooks/useWorkspaceFilesWatch';
 
 export interface WorkspaceFilesSurfaceProps {
 	readonly source: WorkbenchWorkspaceFilesSource;
@@ -38,6 +39,16 @@ const DEFAULT_DIFF_OPTIONS: DiffOptions = {
 
 const NO_TABS = (): (() => void) => () => {};
 const NO_ACTIVE_TAB = (): null => null;
+const NO_FOLDERS: ReadonlySet<string> = new Set();
+const EVERYTHING: WorkspaceFilesChange = { files: true, repository: true };
+
+/** Shallower folders first, so a watch that cannot take them all keeps the ones nearest the top. */
+function byDepth(left: string, right: string): number {
+	const depth = (path: string): number => path.split('/').length;
+	const difference = depth(left) - depth(right);
+	if (difference !== 0) return difference;
+	return left < right ? -1 : Number(left > right);
+}
 
 /**
  * What the right bar brings to a window: the bar itself and the float window that opens its files.
@@ -76,16 +87,43 @@ export function WorkspaceFilesSurface({
 		if (workspaceId !== null) dispatch({ kind: 'open', preview, target, workspaceId });
 	});
 	const refresh = useMemoizedFn(() => setRefreshCount((count) => count + 1));
-	// Reads what shows again when the files likely changed: the open bar reads its view and the
-	// float window with it; with the bar closed, only an expanded float window reads. Nothing reads
-	// while neither shows, or while the window is hidden, which reads again when it comes back.
-	const [barRefreshCount, setBarRefreshCount] = React.useState(0);
-	const invalidate = useMemoizedFn(() => {
-		if (document.hidden) return;
-		if (barHost !== null) setBarRefreshCount((count) => count + 1);
-		else if (float.open) refresh();
+
+	// Each Workspace keeps its open folders and its dismissed note while the window lives.
+	const [folders, setFolders] = React.useState<ReadonlyMap<string, ReadonlySet<string>>>(
+		() => new Map(),
+	);
+	const [noteDismissed, setNoteDismissed] = React.useState<ReadonlySet<string>>(() => new Set());
+	const expanded = (workspaceId === null ? undefined : folders.get(workspaceId)) ?? NO_FOLDERS;
+
+	// What shows is followed: the open bar's folders, and the expanded float window's files. A
+	// collapsed float window or a closed bar reads again when it shows, so neither is followed.
+	const barOpen = barHost !== null;
+	const scope = React.useMemo(() => {
+		if (!barOpen && !float.open) return null;
+		return {
+			directories: barOpen ? ['', ...[...expanded].sort(byDepth)] : [],
+			files: float.open
+				? float.tabs.flatMap((tab) => (tab.target.kind === 'file' ? [tab.target.path] : []))
+				: [],
+		};
+	}, [barOpen, expanded, float.open, float.tabs]);
+
+	// A change reads again only what shows it: the bar's view, and the float window's tab when it
+	// shows that file or a diff, which the repository's status covers.
+	const [autoRefresh, setAutoRefresh] = React.useState<AutoRefresh>({
+		count: 0,
+		files: false,
+		repository: false,
 	});
-	useAgentSettled(agentSource, invalidate);
+	const showChange = useMemoizedFn((change: WorkspaceFilesChange) => {
+		if (barOpen) setAutoRefresh((previous) => ({ count: previous.count + 1, ...change }));
+		const target = float.open ? activeTab?.target : undefined;
+		if (target !== undefined && (target.kind === 'file' ? change.files : change.repository)) {
+			refresh();
+		}
+	});
+	const watch = useWorkspaceFilesWatch(source, workspaceId, scope, showChange);
+	useAgentSettled(agentSource, () => watch.notify(EVERYTHING));
 
 	return (
 		<>
@@ -94,13 +132,26 @@ export function WorkspaceFilesSurface({
 				: createPortal(
 						<RightBar
 							activeTarget={float.open ? (activeTab?.target ?? null) : null}
-							autoRefreshCount={barRefreshCount}
+							autoRefresh={autoRefresh}
 							closeShortcutLabel={closeShortcutLabel}
+							expanded={expanded}
 							key={workspaceId ?? ''}
+							noteDismissed={workspaceId !== null && noteDismissed.has(workspaceId)}
 							onClose={onCloseBar}
+							onDismissNote={() => {
+								if (workspaceId !== null) {
+									setNoteDismissed((previous) => new Set(previous).add(workspaceId));
+								}
+							}}
+							onExpandedChange={(next) => {
+								if (workspaceId !== null) {
+									setFolders((previous) => new Map(previous).set(workspaceId, next));
+								}
+							}}
 							onOpen={open}
 							onRefresh={refresh}
 							source={source}
+							watchState={watch.state}
 							workspaceId={workspaceId}
 						/>,
 						barHost,

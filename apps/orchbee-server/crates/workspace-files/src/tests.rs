@@ -1,4 +1,7 @@
-use super::{Answer, BlobCache, Request, answer, serve};
+use super::{
+    Answer, Backend, BlobCache, COALESCE, Coalescer, Notice, Request, WatchEvent, WatchRoot,
+    WatchSet, answer, serve, serve_watch,
+};
 use base64::Engine as _;
 use orchbee_workbench_protocol::{
     WORKSPACE_FILE_CHUNK_BYTES, WorkspaceEntryKind, WorkspaceFileContent,
@@ -651,4 +654,241 @@ fn serves_lines_in_order_and_skips_what_is_not_a_request() {
     assert_eq!(answers.len(), 2);
     assert_eq!((answers[0].id, answers[1].id), (7, 8));
     assert_eq!(text(&answers[1].outcome), Some("new\n"));
+}
+
+fn watch_root(root: &str, directories: &[&str], files: &[&str]) -> WatchRoot {
+    WatchRoot {
+        root: root.to_owned(),
+        directories: directories.iter().map(|path| (*path).to_owned()).collect(),
+        files: files.iter().map(|path| (*path).to_owned()).collect(),
+    }
+}
+
+fn changed(root: &str, files: bool, repository: bool) -> WatchEvent {
+    WatchEvent::Changed {
+        root: root.to_owned(),
+        files,
+        repository,
+    }
+}
+
+#[test]
+fn a_change_moves_what_it_can_change_and_git_at_work_moves_nothing() {
+    let workspace = Path::new("/work/app");
+    let root = workspace.to_string_lossy().into_owned();
+    let nested = workspace.join("packages/lib");
+    let nested_root = nested.to_string_lossy().into_owned();
+    let mut coalescer = Coalescer::default();
+    coalescer.replace(&[
+        watch_root(&root, &["", "src"], &["docs/guide.md"]),
+        watch_root(&nested_root, &[], &[]),
+    ]);
+    let after = |coalescer: &mut Coalescer, relative: &str| {
+        coalescer.record(&Notice::Path(workspace.join(relative)));
+        coalescer.drain()
+    };
+    // An entry of a shown directory, the shown directory itself, and an open file are shown.
+    for relative in ["README.md", "src/main.rs", "src", "docs/guide.md"] {
+        assert_eq!(
+            after(&mut coalescer, relative),
+            [changed(&root, true, true)],
+            "{relative}"
+        );
+    }
+    // A file in a directory nobody shows changes only the change list.
+    assert_eq!(
+        after(&mut coalescer, "docs/other.md"),
+        [changed(&root, false, true)]
+    );
+    // The index, HEAD and references change the change list; Git's other work changes nothing.
+    for relative in [
+        ".git/index",
+        ".git/HEAD",
+        ".git/refs/heads/main",
+        ".git/packed-refs",
+    ] {
+        assert_eq!(
+            after(&mut coalescer, relative),
+            [changed(&root, false, true)],
+            "{relative}"
+        );
+    }
+    for relative in [
+        ".git/objects/ab/cdef",
+        ".git/index.lock",
+        ".git/refs/heads/main.lock",
+        ".git/logs/HEAD",
+        ".git",
+    ] {
+        assert_eq!(after(&mut coalescer, relative), [], "{relative}");
+    }
+    // A path outside every root is nobody's change; one inside a nested Workspace is both roots'.
+    coalescer.record(&Notice::Path(PathBuf::from("/work/other/file")));
+    assert_eq!(coalescer.drain(), []);
+    assert_eq!(
+        after(&mut coalescer, "packages/lib/index.ts"),
+        [
+            changed(&root, false, true),
+            changed(&nested_root, false, true)
+        ]
+    );
+    // Lost events may hide anything, and a burst is one report per root.
+    coalescer.record(&Notice::Path(workspace.join("docs/other.md")));
+    coalescer.record(&Notice::Overflow(workspace.join("src")));
+    coalescer.record(&Notice::Path(workspace.join("src/lib.rs")));
+    assert_eq!(coalescer.drain(), [changed(&root, true, true)]);
+    // Pending changes of a root no longer watched are dropped; the root still watched keeps its.
+    coalescer.record(&Notice::Path(nested.join("a")));
+    coalescer.replace(&[watch_root(&root, &[""], &[])]);
+    assert_eq!(coalescer.drain(), [changed(&root, false, true)]);
+}
+
+/// A backend that follows every root except those named `refused`, and keeps its notice sender.
+struct Fake {
+    notices: std::sync::mpsc::Sender<Notice>,
+    handed: std::sync::mpsc::Sender<std::sync::mpsc::Sender<Notice>>,
+}
+impl Backend for Fake {
+    fn watch(
+        &mut self,
+        roots: &[WatchRoot],
+    ) -> Vec<(String, orchbee_workbench_protocol::WorkspaceFilesWatchState)> {
+        let _handed = self.handed.send(self.notices.clone());
+        roots
+            .iter()
+            .filter(|root| root.root.ends_with("refused"))
+            .map(|root| {
+                (
+                    root.root.clone(),
+                    orchbee_workbench_protocol::WorkspaceFilesWatchState::Unavailable,
+                )
+            })
+            .collect()
+    }
+}
+
+#[test]
+fn the_watch_lane_reports_each_root_once_then_coalesced_changes() {
+    use orchbee_workbench_protocol::WorkspaceFilesWatchState as State;
+    let root = Path::new("/work/app").to_string_lossy().into_owned();
+    let refused = Path::new("/work/refused").to_string_lossy().into_owned();
+    let (mut writer, reader) = pipe();
+    let (lines, output) = std::sync::mpsc::channel::<Vec<u8>>();
+    let (handed, notices) = std::sync::mpsc::channel();
+    let lane = std::thread::spawn(move || {
+        serve_watch(
+            std::io::BufReader::new(reader),
+            LineSink(lines, Vec::new()),
+            |sender| Fake {
+                notices: sender,
+                handed,
+            },
+        );
+    });
+    let next = || -> WatchEvent {
+        let line = output.recv_timeout(Duration::from_secs(5)).unwrap();
+        serde_json::from_slice(&line).unwrap()
+    };
+    let set = |roots: Vec<WatchRoot>| {
+        let mut line = serde_json::to_vec(&WatchSet { roots }).unwrap();
+        line.push(b'\n');
+        line
+    };
+    std::io::Write::write_all(
+        &mut writer,
+        &set(vec![
+            watch_root(&root, &[""], &[]),
+            watch_root(&refused, &[""], &[]),
+        ]),
+    )
+    .unwrap();
+    let mut states = [next(), next()];
+    states.sort_by_key(|event| format!("{event:?}"));
+    assert_eq!(
+        states,
+        [
+            WatchEvent::State {
+                root: root.clone(),
+                state: State::Watching
+            },
+            WatchEvent::State {
+                root: refused.clone(),
+                state: State::Unavailable
+            },
+        ]
+    );
+    let sender = notices.recv_timeout(Duration::from_secs(5)).unwrap();
+    let started = Instant::now();
+    for name in ["a", "b", "c"] {
+        sender
+            .send(Notice::Path(Path::new(&root).join(name)))
+            .unwrap();
+    }
+    assert_eq!(next(), changed(&root, true, true));
+    assert!(started.elapsed() >= COALESCE);
+    // The same set again reports nothing new; a root that stops being watched is simply dropped.
+    std::io::Write::write_all(&mut writer, &set(vec![watch_root(&root, &[""], &[])])).unwrap();
+    sender
+        .send(Notice::Path(Path::new(&root).join("d")))
+        .unwrap();
+    assert_eq!(next(), changed(&root, true, true));
+    drop(writer);
+    lane.join().unwrap();
+}
+
+/// An in-memory pipe: what the writer writes, the reader reads, until the writer drops.
+fn pipe() -> (PipeWriter, PipeReader) {
+    let (sender, receiver) = std::sync::mpsc::channel();
+    (
+        PipeWriter(sender),
+        PipeReader {
+            receiver,
+            buffer: Vec::new(),
+        },
+    )
+}
+struct PipeWriter(std::sync::mpsc::Sender<Vec<u8>>);
+impl std::io::Write for PipeWriter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0
+            .send(bytes.to_vec())
+            .map_err(|_| std::io::ErrorKind::BrokenPipe)?;
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+struct PipeReader {
+    receiver: std::sync::mpsc::Receiver<Vec<u8>>,
+    buffer: Vec<u8>,
+}
+impl std::io::Read for PipeReader {
+    fn read(&mut self, into: &mut [u8]) -> std::io::Result<usize> {
+        if self.buffer.is_empty() {
+            match self.receiver.recv() {
+                Ok(bytes) => self.buffer = bytes,
+                Err(_) => return Ok(0),
+            }
+        }
+        let count = into.len().min(self.buffer.len());
+        into[..count].copy_from_slice(&self.buffer[..count]);
+        self.buffer.drain(..count);
+        Ok(count)
+    }
+}
+/// Hands each complete line written to it to a channel.
+struct LineSink(std::sync::mpsc::Sender<Vec<u8>>, Vec<u8>);
+impl std::io::Write for LineSink {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.1.extend_from_slice(bytes);
+        while let Some(end) = self.1.iter().position(|byte| *byte == b'\n') {
+            let line: Vec<u8> = self.1.drain(..=end).collect();
+            let _sent = self.0.send(line);
+        }
+        Ok(bytes.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
 }

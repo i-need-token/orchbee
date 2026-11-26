@@ -1,7 +1,10 @@
 //! `workbench.workspace-files`: the right bar's read-only file and Git facts for one Workspace.
 //! The Server resolves the Workspace's own directory and asks a separate process of its own
 //! executable, started only on the first request, so a Session whose windows never open the right
-//! bar starts nothing and terminal work never waits on a file read.
+//! bar starts nothing and terminal work never waits on a file read. A watch is answered here, from
+//! what the watch lane last reported; see [`watch`].
+mod watch;
+
 use super::LocalTerminalService;
 use orchbee_server_workspace_files::{Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG};
 use orchbee_workbench_protocol::{
@@ -27,6 +30,7 @@ pub(super) struct WorkspaceFilesProcesses {
     executable: Option<PathBuf>,
     files: Mutex<Option<Running>>,
     changes: Mutex<Option<Running>>,
+    watches: watch::Watches,
 }
 
 impl Default for WorkspaceFilesProcesses {
@@ -35,6 +39,7 @@ impl Default for WorkspaceFilesProcesses {
             executable: std::env::current_exe().ok(),
             files: Mutex::new(None),
             changes: Mutex::new(None),
+            watches: watch::Watches::default(),
         }
     }
 }
@@ -146,6 +151,8 @@ impl WorkspaceFilesProcesses {
             WorkspaceFilesOperation::GitStatus {} => &self.changes,
             WorkspaceFilesOperation::ListDirectory { .. }
             | WorkspaceFilesOperation::ReadFile { .. } => &self.files,
+            // A watch belongs to a Client connection, which answers it with `watch_workspace_files`.
+            WorkspaceFilesOperation::Watch { .. } => return Err(Failure::Unavailable),
         };
         let mut running = lane.lock().map_err(|_| Failure::Unavailable)?;
         // A process that exited on its own, after its idle time, is replaced.
@@ -169,6 +176,56 @@ impl WorkspaceFilesProcesses {
 }
 
 impl LocalTerminalService {
+    /// Wakes `signal` whenever a watched Workspace's revisions or watch state change.
+    pub(crate) fn subscribe_workspace_files(
+        &self,
+        signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>,
+    ) {
+        self.workspace_files.watches.subscribe(signal);
+    }
+
+    /// Answers the watch `request` for the Client connection `owner`, replacing that
+    /// connection's earlier watch of the same Workspace.
+    pub(crate) fn watch_workspace_files(
+        &self,
+        owner: std::num::NonZeroU64,
+        request: &WorkspaceFilesRequest,
+    ) -> WorkspaceFilesResult {
+        let outcome = match (&request.operation, request.validate()) {
+            (WorkspaceFilesOperation::Watch { directories, files }, Ok(())) => self
+                .workspace_files_directory(request)
+                .map(|root| {
+                    self.workspace_files.watches.watch(
+                        owner,
+                        &request.workspace_id,
+                        &root,
+                        directories,
+                        files,
+                    )
+                })
+                .unwrap_or_else(|reason| Outcome::Failed { reason }),
+            _ => Outcome::Failed {
+                reason: Failure::Malformed,
+            },
+        };
+        WorkspaceFilesResult {
+            protocol_version: ProtocolVersion,
+            request_id: request.request_id.clone(),
+            session_id: request.session_id.clone(),
+            workspace_id: request.workspace_id.clone(),
+            outcome,
+        }
+    }
+
+    /// Ends the connection `owner`'s watch of `workspace`, or all its watches for none.
+    pub(crate) fn forget_workspace_files_watch(
+        &self,
+        owner: std::num::NonZeroU64,
+        workspace: Option<&orchbee_workbench_protocol::WorkbenchWorkspaceId>,
+    ) {
+        self.workspace_files.watches.forget(owner, workspace);
+    }
+
     pub(crate) fn execute_workspace_files(
         &self,
         request: WorkspaceFilesRequest,

@@ -86,6 +86,43 @@
 									"const": "git-status"
 								}
 							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "directories", "files"],
+							"properties": {
+								"kind": {
+									"const": "watch"
+								},
+								"directories": {
+									"type": "array",
+									"maxItems": 256,
+									"items": {
+										"oneOf": [
+											{
+												"const": ""
+											},
+											{
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 4096,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+											}
+										]
+									}
+								},
+								"files": {
+									"type": "array",
+									"maxItems": 64,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096,
+										"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+									}
+								}
+							}
 						}
 					]
 				}
@@ -370,6 +407,31 @@
 								},
 								"truncated": {
 									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "files", "repository", "state"],
+							"properties": {
+								"kind": {
+									"const": "watching"
+								},
+								"files": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$"
+								},
+								"repository": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 20,
+									"pattern": "^(?:0|[1-9][0-9]{0,19})$"
+								},
+								"state": {
+									"enum": ["starting", "watching", "unavailable"]
 								}
 							}
 						},

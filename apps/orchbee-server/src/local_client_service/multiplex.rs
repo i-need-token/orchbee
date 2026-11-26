@@ -868,7 +868,8 @@ fn dispatch(
 /// A published-title read follows commits, which move bindings, and title changes, never output;
 /// no other stream follows title changes. A confirmation read follows commits and the Server's
 /// confirmation decisions, never output. An Agent catalog read follows only the catalog's own
-/// changes, and a terminal-runtime read only that state's.
+/// changes, a terminal-runtime read only that state's, and a Workspace file watch only what the
+/// watch lane reports.
 fn stream_revision(
     signal: &SessionChangeSignal,
     mode: StreamMode,
@@ -878,6 +879,8 @@ fn stream_revision(
         signal.agent_catalog_revision()
     } else if request.follows_terminal_runtime() {
         signal.terminal_runtime_revision()
+    } else if request.follows_workspace_files() {
+        signal.workspace_files_revision()
     } else if request.follows_titles() {
         signal
             .commit_revision()

@@ -15,7 +15,7 @@ interface Served {
 
 function serving(file: Served, size: number, onRead?: (offset: number) => void) {
 	const offsets: number[] = [];
-	const source: WorkbenchWorkspaceFilesSource = {
+	const source: Pick<WorkbenchWorkspaceFilesSource, 'read'> = {
 		read(_workspaceId: string, operation: WorkspaceFilesOperation) {
 			if (operation.kind !== 'read-file') throw new Error('not a file read');
 			offsets.push(operation.offset);

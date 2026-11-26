@@ -1860,6 +1860,18 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.empty'],
 		description: 'Right bar text for an empty folder.',
 	},
+	rightBarAutoRefreshOff: {
+		id: 'workbench.rightBar.autoRefreshOff',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.autoRefreshOff'],
+		description:
+			'Right bar note when the Workspace’s files cannot be watched, so the bar refreshes only when asked.',
+	},
+	rightBarAutoRefreshOffDismiss: {
+		id: 'workbench.rightBar.autoRefreshOff.dismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.autoRefreshOff.dismiss'],
+		description:
+			'Button that hides the right bar note saying the Workspace’s changes are not followed.',
+	},
 	rightBarTruncated: {
 		id: 'workbench.rightBar.truncated',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.truncated'],

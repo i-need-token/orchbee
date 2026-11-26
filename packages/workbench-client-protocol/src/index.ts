@@ -42,11 +42,16 @@ export type {
 	WorkbenchSnapshot,
 	WorkbenchTerminalContext,
 } from './workbench-protocol';
+export {
+	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
+	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+} from './workbench-protocol';
 export type {
 	WorkspaceDirectoryEntry,
 	WorkspaceFileEncoding,
 	WorkspaceFileSource,
 	WorkspaceFileVersion,
+	WorkspaceFilesWatchState,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceGitStatusCode,

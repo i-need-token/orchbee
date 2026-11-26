@@ -78,6 +78,15 @@ impl ApplicationRequest {
                 Some(WorkbenchRequest::Notification(_)),
                 Some(WorkbenchRequest::Notification(_))
             )
+        ) || matches!(
+            // A window watches each Workspace once; a new watch of it replaces the old one.
+            (self.workbench(), other.workbench()),
+            (
+                Some(WorkbenchRequest::WorkspaceFiles(left)),
+                Some(WorkbenchRequest::WorkspaceFiles(right))
+            ) if matches!(left.operation, orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. })
+                && matches!(right.operation, orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. })
+                && left.workspace_id == right.workspace_id
         )
     }
     pub(super) fn shares_event_cursor(&self, other: &Self) -> bool {
@@ -123,16 +132,18 @@ impl ApplicationRequest {
     /// A read that waits on a Worker job or a terminal sample, whose duration belongs to an external
     /// process.
     pub(super) fn waits_for_worker_job(&self) -> bool {
-        matches!(
-            self.workbench(),
-            Some(
-                WorkbenchRequest::WorkspaceGit(_)
-                    | WorkbenchRequest::WorkspaceFiles(_)
-                    | WorkbenchRequest::CurrentDirectory(_)
-                    | WorkbenchRequest::WorktreeQuery(_)
-                    | WorkbenchRequest::WorktreeListRead(_)
+        // A watch answers from what the Server holds and never waits on the file service.
+        !self.follows_workspace_files()
+            && matches!(
+                self.workbench(),
+                Some(
+                    WorkbenchRequest::WorkspaceGit(_)
+                        | WorkbenchRequest::WorkspaceFiles(_)
+                        | WorkbenchRequest::CurrentDirectory(_)
+                        | WorkbenchRequest::WorktreeQuery(_)
+                        | WorkbenchRequest::WorktreeListRead(_)
+                )
             )
-        )
     }
     pub(super) fn continuation(&self) -> Self {
         let mut next = self.clone();
@@ -220,6 +231,10 @@ impl ApplicationRequest {
             }
             // Each evaluation would read every terminal of the Workspace again; it stays one-shot.
             ApplicationRequestKind::Workbench(WorkbenchRequest::WorkspaceIdle(_)) => false,
+            // A read of files is one-shot, asked again when a watch moves; only the watch streams.
+            ApplicationRequestKind::Workbench(WorkbenchRequest::WorkspaceFiles(_)) => {
+                self.follows_workspace_files()
+            }
             // Each evaluation of a refresh would ask for another lookup; a stream reads `current`.
             ApplicationRequestKind::Workbench(WorkbenchRequest::AgentCatalog(request))
                 if matches!(
@@ -272,6 +287,16 @@ impl ApplicationRequest {
     /// A terminal-runtime read, whose value changes only with that state's own revisions.
     pub(super) fn follows_terminal_runtime(&self) -> bool {
         matches!(self.workbench(), Some(WorkbenchRequest::TerminalRuntime(_)))
+    }
+    /// A Workspace file watch, whose value changes only with what the watch lane reports.
+    pub(super) fn follows_workspace_files(&self) -> bool {
+        matches!(
+            self.workbench(),
+            Some(WorkbenchRequest::WorkspaceFiles(request)) if matches!(
+                request.operation,
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
+            )
+        )
     }
     pub(super) fn requires_sampling(&self) -> bool {
         // Host output and external filesystem/process state currently expose snapshot reads,

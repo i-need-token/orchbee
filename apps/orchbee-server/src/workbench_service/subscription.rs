@@ -25,8 +25,8 @@ pub(crate) fn subscription_request(request: &WorkbenchRequest) -> bool {
         WorkbenchRequest::TerminalRuntime(_) => true,
         // It reads evidence and changes nothing.
         WorkbenchRequest::WorkspaceIdle(_) => true,
-        // A one-shot read of files the Session does not watch; the right bar asks again.
-        WorkbenchRequest::WorkspaceFiles(_) => false,
+        // It reads files, or follows them with its own revisions, and changes nothing.
+        WorkbenchRequest::WorkspaceFiles(_) => true,
         WorkbenchRequest::Configuration(request) => {
             matches!(request.action, ConfigurationAction::Current)
         }

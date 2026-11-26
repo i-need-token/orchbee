@@ -52,7 +52,7 @@ function join(parts: readonly Uint8Array[], length: number): Uint8Array {
  * chunk said.
  */
 async function readOnce(
-	source: WorkbenchWorkspaceFilesSource,
+	source: Pick<WorkbenchWorkspaceFilesSource, 'read'>,
 	workspaceId: string,
 	path: string,
 	fileSource: WorkspaceFileSource,
@@ -110,7 +110,7 @@ async function readOnce(
  * always belong to one version of it.
  */
 export async function readFileChunks(
-	source: WorkbenchWorkspaceFilesSource,
+	source: Pick<WorkbenchWorkspaceFilesSource, 'read'>,
 	workspaceId: string,
 	path: string,
 	fileSource: WorkspaceFileSource,

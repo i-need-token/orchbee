@@ -515,6 +515,9 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.failed': "Couldn't read this.",
 	'workbench.rightBar.empty': 'This folder is empty.',
 	'workbench.rightBar.truncated': 'Showing the first {count} items.',
+	'workbench.rightBar.autoRefreshOff':
+		"Changes here aren't followed, so use Refresh to see new ones.",
+	'workbench.rightBar.autoRefreshOff.dismiss': 'Dismiss',
 	'workbench.rightBar.changes.none': 'No changes.',
 	'workbench.rightBar.changes.notRepository': "This folder isn't a Git repository.",
 	'workbench.rightBar.changes.conflicts': 'Merge conflicts',

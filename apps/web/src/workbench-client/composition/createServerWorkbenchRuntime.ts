@@ -563,7 +563,9 @@ export function createServerWorkbenchRuntime({
 		},
 		projectWorkspaceRuntime,
 		terminalSurfaceCapability,
-		workspaceFilesSource: workspaceFiles ? createServerWorkspaceFiles(session) : undefined,
+		workspaceFilesSource: workspaceFiles
+			? createServerWorkspaceFiles(session, connection)
+			: undefined,
 		workspaceLocationSource,
 	};
 }

@@ -474,6 +474,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.failed': '无法读取。',
 	'workbench.rightBar.empty': '此文件夹为空。',
 	'workbench.rightBar.truncated': '只显示前 {count} 项。',
+	'workbench.rightBar.autoRefreshOff': '这里不会自动跟进更改，请点刷新查看最新内容。',
+	'workbench.rightBar.autoRefreshOff.dismiss': '关闭提示',
 	'workbench.rightBar.changes.none': '没有变更。',
 	'workbench.rightBar.changes.notRepository': '此文件夹不是 Git 仓库。',
 	'workbench.rightBar.changes.conflicts': '合并冲突',

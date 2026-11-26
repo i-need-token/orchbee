@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
 	SessionIdSchema,
 	WorkbenchRequestIdSchema,
+	WorkbenchRevisionSchema,
 	WorkbenchWorkspaceIdSchema,
 	WORKBENCH_PROTOCOL_VERSION,
 } from './workbench-semantic-contract';
@@ -9,6 +10,10 @@ import {
 const MAXIMUM_PATH_BYTES = 4096;
 const MAXIMUM_NAME_BYTES = 1024;
 const MAXIMUM_ENTRIES = 5000;
+/** Directories one watch follows; a view showing more follows the first ones. */
+export const MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES = 256;
+/** Open files one watch follows. */
+export const MAXIMUM_WORKSPACE_FILES_WATCHED_FILES = 64;
 /** Content bytes one read returns; a larger file is read chunk by chunk. */
 const WORKSPACE_FILE_CHUNK_BYTES = 256 * 1024;
 const encoder = new TextEncoder();
@@ -52,6 +57,16 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('git-status') }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('watch'),
+			directories: z
+				.array(z.union([z.literal(''), RelativePathSchema]))
+				.max(MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES)
+				.readonly(),
+			files: z.array(RelativePathSchema).max(MAXIMUM_WORKSPACE_FILES_WATCHED_FILES).readonly(),
+		})
+		.readonly(),
 ]);
 export const WorkspaceFilesRequestSchema = z
 	.strictObject({
@@ -148,6 +163,8 @@ const WorkspaceGitStatusEntrySchema = z
 		conflicted: z.boolean(),
 	})
 	.readonly();
+/** Whether a watch follows changes; with `unavailable` a client refreshes only when asked. */
+const WorkspaceFilesWatchStateSchema = z.enum(['starting', 'watching', 'unavailable']);
 const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -196,6 +213,14 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 		.readonly(),
 	z
 		.strictObject({
+			kind: z.literal('watching'),
+			files: WorkbenchRevisionSchema,
+			repository: WorkbenchRevisionSchema,
+			state: WorkspaceFilesWatchStateSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
 			kind: z.literal('failed'),
 			reason: z.enum([
 				'denied',
@@ -226,3 +251,4 @@ export type WorkspaceFileEncoding = z.infer<typeof WorkspaceFileEncodingSchema>;
 export type WorkspaceFileVersion = z.infer<typeof WorkspaceFileVersionSchema>;
 export type WorkspaceGitStatusEntry = z.infer<typeof WorkspaceGitStatusEntrySchema>;
 export type WorkspaceGitStatusCode = z.infer<typeof WorkspaceGitStatusCodeSchema>;
+export type WorkspaceFilesWatchState = z.infer<typeof WorkspaceFilesWatchStateSchema>;

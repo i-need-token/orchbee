@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                           |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Draft; phase 1, the float window with Monaco preview and diff, and chunked, versioned reads are implemented on `feat/right-bar-v1`; the rest remains future     |
+| Status            | Draft; phase 1, the float window, chunked versioned reads and change following are implemented on `feat/right-bar-v1`; the rest remains future                  |
 | Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                           |
 | Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md` |
 | Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                      |
@@ -60,6 +60,30 @@ it and without slowing terminal work.
   can be collapsed; previous and next change. A meta line shows added and removed lines, the number
   of changes and which two versions are compared.
 
+## Following changes, as implemented
+
+- **What is followed.** A watch follows only what shows: the open bar's Workspace directory and
+  expanded folders, and the expanded float window's working-tree files. A closed bar or a collapsed
+  float window follows nothing and reads again when it shows. Expanded folders are kept per
+  Workspace while the window lives, so reopening the bar shows and follows them again.
+- **Protocol.** `watch` is a fourth `workbench.workspace-files` operation, sent only as a State
+  stream. Each frame carries two revisions, `files` (a shown folder's entries or an open file) and
+  `repository` (anything in the working tree, or the index, `HEAD` and references), and the watch
+  state. A new scope opens its stream before the old one closes.
+- **Server.** The Server unions the watches of every connection per Workspace directory and hands the
+  set to a watch lane, a second child process of its own executable (`--workspace-files-watch`)
+  started on the first watch. The lane collects platform events over 100 ms and reports which
+  revisions moved; Git's own objects, logs and lock files move neither. A lane that exits restarts
+  with backoff while any watch remains, and each Workspace reads as `unavailable` meanwhile.
+- **Web.** Reports are read one second after the last change, and at least every five seconds during
+  a burst that never goes quiet. Nothing reads while the window is hidden; what changed reads when it
+  shows again. A terminal Agent that stops working reads at once. The bar reads only the view that
+  shows the change, and the float window only a tab that shows it. A change list cut short at 5000
+  entries is not followed, and while changes are not followed the bar says once that Refresh is the
+  way to see them and also reads again when the window comes to the front.
+- **Platform watcher.** The watcher behind the lane, `notify` with its debouncer, is a new dependency
+  awaiting admission, so the lane currently reports every Workspace as `unavailable`.
+
 ## Deviations from the design discussion
 
 - **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
@@ -68,14 +92,17 @@ it and without slowing terminal work.
 - **Read-only editor.** The editor and the diff's right side are read-only until saving with a
   version precondition lands.
 - **Encodings.** Text that is not UTF-8 shows as binary rather than read-only text.
-- **Refresh.** No file watching or polling: views refresh on open, on switching view, on the refresh
-  button and on window focus.
+- **Refresh.** Change following is built end to end, but until a platform watcher is admitted the
+  bar refreshes on open, on switching view, on the refresh button, on window focus and when a
+  terminal Agent stops working. Ignored paths such as build output still move `repository`
+  until an ignore matcher is admitted, and Git status stops following at 5000 entries rather than
+  the design's 10,000, because that is where its list is cut.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
   (6.4 KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current
-  architecture loads eagerly; chunked reads added about 0.2 KB gzip more. The bar and float window
-  chunk is about 6.5 KB gzip; the editor pane is about 6 KB gzip; Monaco is about 800 KB gzip and
+  architecture loads eagerly; chunked reads added about 0.2 KB gzip more and change following
+  about 0.8 KB gzip. The bar and float window chunk is about 7.5 KB gzip; the editor pane is about 6 KB gzip; Monaco is about 800 KB gzip and
   loads only with the first open file.
 
 ## Later phases
@@ -84,5 +111,5 @@ it and without slowing terminal work.
 2. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
 3. Git actions: stage, unstage, discard, commit, with explicit confirmation for destructive ones.
-4. File watching with bounded, coalesced invalidation instead of focus refresh.
-5. Persisted open state, width and expanded folders per Workspace.
+4. A platform watcher behind the watch lane, once admitted.
+5. Persisted open state, width and expanded folders per Workspace across restarts.

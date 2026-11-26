@@ -87,6 +87,25 @@
 	white-space: nowrap;
 }
 
+/* Says once that changes are not followed; the Refresh button above is the way to see them. */
+.autoRefreshNote {
+	display: flex;
+	flex: none;
+	align-items: flex-start;
+	gap: var(--ob-ref-space-1);
+	margin: var(--ob-ref-space-0-5) var(--ob-ref-space-2) var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.autoRefreshNoteText {
+	flex: 1;
+	margin: var(--ob-ref-space-0);
+	min-width: var(--ob-ref-space-0);
+}
+
 .body {
 	display: flex;
 	flex: 1;

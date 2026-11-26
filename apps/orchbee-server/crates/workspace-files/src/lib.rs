@@ -1,9 +1,11 @@
 //! The read-only Workspace file service behind `workbench.workspace-files`. The Server runs it in a
 //! child process of its own executable only once a Client asks, and talks to it over standard
-//! input and output, one JSON object per line; see this crate's README.
+//! input and output, one JSON object per line; a second child, the watch lane, follows changes.
+//! See this crate's README.
 mod files;
 mod git;
 mod status;
+mod watch;
 
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, WorkspaceFileSource, WorkspaceFilesFailure as Failure,
@@ -15,6 +17,10 @@ use std::io::{BufRead, Read, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
+pub use watch::{
+    Backend, COALESCE, Coalescer, Effect, MAXIMUM_WATCHED_ROOTS, Notice, Unwatched, WATCH_FLAG,
+    WatchEvent, WatchRoot, WatchSet, serve_watch, serve_watch_stdio,
+};
 
 /// The command-line flag that turns the Server's executable into this service.
 pub const SERVICE_FLAG: &str = "--workspace-files";
@@ -82,6 +88,10 @@ pub fn answer(
                     }
                 }
                 WorkspaceFilesOperation::GitStatus {} => status::git_status(&root, deadline),
+                // The Server answers a watch itself from what the watch lane reports.
+                WorkspaceFilesOperation::Watch { .. } => Outcome::Failed {
+                    reason: Failure::Malformed,
+                },
             },
         }
     };

@@ -1,5 +1,5 @@
-//! Commit, output, published-title, Agent catalog, terminal-runtime and Agent confirmation
-//! invalidation fanout. A listener owns its wait; publishers never wait for delivery.
+//! Commit, output, published-title, Agent catalog, terminal-runtime, Agent confirmation and
+//! Workspace file invalidation fanout. A listener owns its wait; publishers never wait for delivery.
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::time::Duration;
 
@@ -32,6 +32,9 @@ impl SessionChangeSource {
     pub fn notify_agent_confirmations(&self) {
         self.each(|listener| listener.notify_agent_confirmations());
     }
+    pub fn notify_workspace_files(&self) {
+        self.each(|listener| listener.notify_workspace_files());
+    }
     fn each(&self, mut signal: impl FnMut(&SessionChangeSignal)) {
         let listeners = self
             .0
@@ -56,6 +59,7 @@ struct SignalState {
     catalog: u64,
     terminal_runtime: u64,
     agent_confirmations: u64,
+    workspace_files: u64,
     wake: u64,
 }
 impl SessionChangeSignal {
@@ -124,6 +128,17 @@ impl SessionChangeSignal {
         state.wake = state.wake.wrapping_add(1);
         self.changed.notify_all();
     }
+    /// Something a Workspace file watch follows changed. It is neither commit nor output, so only
+    /// the watch streams reevaluate.
+    pub fn notify_workspace_files(&self) {
+        let mut state = self
+            .state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        state.workspace_files = state.workspace_files.wrapping_add(1);
+        state.wake = state.wake.wrapping_add(1);
+        self.changed.notify_all();
+    }
     /// Carrier mailbox activity is a wakeup, never a semantic publication.
     pub fn wake(&self) {
         let mut state = self
@@ -168,6 +183,12 @@ impl SessionChangeSignal {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .agent_confirmations
+    }
+    pub fn workspace_files_revision(&self) -> u64 {
+        self.state
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .workspace_files
     }
     pub fn wake_revision(&self) -> u64 {
         self.state

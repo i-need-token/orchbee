@@ -1,6 +1,9 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import type { WorkspaceFilesOutcome } from '@orchbee/workbench-client-protocol';
+import type {
+	WorkspaceFilesOutcome,
+	WorkspaceFilesWatchState,
+} from '@orchbee/workbench-client-protocol';
 import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
@@ -9,6 +12,7 @@ import { type ChangeGroup, type ChangeItem, groupChanges, splitPath } from '../.
 import { flattenTree, type Listing, parentPath, type TreeRow } from './file-tree';
 import { useWindowedRows } from './hooks/useWindowedRows';
 import type { FloatTarget } from '../../float-tabs';
+import type { WorkspaceFilesChange } from '../../hooks/useWorkspaceFilesWatch';
 import { readWorkspaceFiles } from '../../readWorkspaceFiles';
 
 import styles from './RightBar.module.css';
@@ -23,10 +27,23 @@ export interface RightBarProps {
 	readonly activeTarget: FloatTarget | null;
 	/** Opens a file or change in the float window; a preview gives way to the next one. */
 	readonly onOpen: (target: FloatTarget, preview: boolean) => void;
-	/** Tells the float window that the files may have changed. */
+	/** Tells the float window that the user asked to see the files again. */
 	readonly onRefresh: () => void;
-	/** Changes when the files likely changed, which reads the shown view again. */
-	readonly autoRefreshCount: number;
+	/** A new count when the files likely changed; the shown view reads again if it shows the change. */
+	readonly autoRefresh: AutoRefresh;
+	/** Whether changes are followed; null while nothing is watched yet. */
+	readonly watchState: WorkspaceFilesWatchState | null;
+	/** The open folders, kept for the Workspace while the bar is closed. */
+	readonly expanded: ReadonlySet<string>;
+	readonly onExpandedChange: (expanded: ReadonlySet<string>) => void;
+	/** Whether the note that changes are not followed was dismissed for this Workspace. */
+	readonly noteDismissed: boolean;
+	readonly onDismissNote: () => void;
+}
+
+/** One automatic refresh: its count, and what may have changed. */
+export interface AutoRefresh extends WorkspaceFilesChange {
+	readonly count: number;
 }
 
 type View = 'files' | 'changes';
@@ -70,9 +87,10 @@ function changeRows(outcome: Extract<WorkspaceFilesOutcome, { kind: 'git-status'
 }
 
 /**
- * The right bar: the Workspace's files as a tree and its Git changes, both read on demand and read
- * again on Refresh, on switching views, when the window comes back to the front and when a terminal
- * Agent stops working. Nothing polls.
+ * The right bar: the Workspace's files as a tree and its Git changes, both read on demand. Each view
+ * reads again on Refresh, on switching to it, and when a change it shows arrives. While changes are
+ * not followed, coming back to the window reads again too, and a note says Refresh is needed; a
+ * change list cut short is not followed either. Nothing polls.
  */
 export function RightBar({
 	source,
@@ -80,14 +98,18 @@ export function RightBar({
 	onClose,
 	closeShortcutLabel,
 	activeTarget,
-	autoRefreshCount,
+	autoRefresh,
+	watchState,
+	expanded,
+	onExpandedChange,
+	noteDismissed,
+	onDismissNote,
 	onOpen,
 	onRefresh,
 }: RightBarProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [view, setView] = React.useState<View>('files');
 	const [listings, setListings] = React.useState<ReadonlyMap<string, Listing>>(() => new Map());
-	const [expanded, setExpanded] = React.useState<ReadonlySet<string>>(() => new Set());
 	const [changes, setChanges] = React.useState<Changes>({ state: 'loading' });
 	// The newest read for each folder and for the change list; an older answer is dropped.
 	const reads = React.useRef(new Map<string, number>());
@@ -130,22 +152,34 @@ export function RightBar({
 			);
 		});
 	});
-	const refresh = useMemoizedFn(() => {
+	const changesCut = changes.state === 'loaded' && changes.truncated;
+	const reload = useMemoizedFn(() => {
 		if (view === 'files') {
 			loadFolder('');
 			for (const folder of expanded) loadFolder(folder);
 		} else {
 			loadChanges();
 		}
+	});
+	const refresh = useMemoizedFn(() => {
+		reload();
 		onRefresh();
 	});
 	React.useEffect(() => {
-		refresh();
-	}, [autoRefreshCount, refresh, view, workspaceId]);
+		reload();
+	}, [reload, view, workspaceId]);
+	const autoRefreshed = React.useRef(autoRefresh.count);
 	React.useEffect(() => {
+		if (autoRefreshed.current === autoRefresh.count) return;
+		autoRefreshed.current = autoRefresh.count;
+		if (view === 'files' ? autoRefresh.files : autoRefresh.repository && !changesCut) reload();
+	}, [autoRefresh, changesCut, reload, view]);
+	const followed = watchState === 'watching' || watchState === 'starting';
+	React.useEffect(() => {
+		if (followed) return;
 		window.addEventListener('focus', refresh);
 		return () => window.removeEventListener('focus', refresh);
-	}, [refresh]);
+	}, [followed, refresh]);
 
 	const toggleFolder = useMemoizedFn((path: string) => {
 		const next = new Set(expanded);
@@ -156,7 +190,7 @@ export function RightBar({
 			// An opened folder is read again, so it never shows what it held when last closed.
 			loadFolder(path);
 		}
-		setExpanded(next);
+		onExpandedChange(next);
 	});
 
 	const rows = React.useMemo(() => flattenTree(listings, expanded), [expanded, listings]);
@@ -239,6 +273,25 @@ export function RightBar({
 				<div className={styles['branch']}>
 					<ProductIcon name='git-branch' />
 					<span className={styles['branchName']}>{changes.branch}</span>
+				</div>
+			) : null}
+			{workspaceId !== null &&
+			!noteDismissed &&
+			(watchState === 'unavailable' || (view === 'changes' && changesCut)) ? (
+				<div className={styles['autoRefreshNote']} role='status'>
+					<p className={styles['autoRefreshNoteText']}>
+						{intl.formatMessage(workbenchMessages.rightBarAutoRefreshOff)}
+					</p>
+					<Button
+						aria-label={intl.formatMessage(workbenchMessages.rightBarAutoRefreshOffDismiss)}
+						className={styles['headerButton']}
+						onClick={onDismissNote}
+						size='icon-xs'
+						title={intl.formatMessage(workbenchMessages.rightBarAutoRefreshOffDismiss)}
+						variant='ghost'
+					>
+						<ProductIcon name='close' />
+					</Button>
 				</div>
 			) : null}
 			<div className={styles['body']} role='tabpanel'>
