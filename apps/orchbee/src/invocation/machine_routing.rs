@@ -1,4 +1,5 @@
 //! Saved-machine prefix and the shared remote command admission boundary.
+use super::grammar::Availability;
 use super::{
     FailureEnvelope, MutationCommand, OutputFormat, ParseFailure, QueryCommand, Request,
     RuntimeStatusScope, SelectedRequest, ServerStopCommand, TerminalSendInput, UsageContext,
@@ -32,15 +33,17 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         && entry == "--machine-session"
     {
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::WindowsAndMacos,
+            availability: Availability::WindowsAndMacos,
             format: None,
             request: Request::DesktopSession(machine.clone()),
             session: None,
         });
     }
+    // Saved machines are portable: each path admits `Capability::SavedMachines` itself, so only the
+    // Desktop's helpers keep the Desktop's platforms.
     if tokens == ["--machine-link-v1"] {
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::WindowsAndMacos,
+            availability: Availability::Portable,
             format: None,
             request: Request::MachineLink,
             session: None,
@@ -48,15 +51,31 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     // Internal pairings between this program and its own start path, not frozen helpers: a release
     // may rename them.
-    for (token, request) in [
-        ("--machine-hub-v1", Request::MachineHub),
-        ("--machine-hub-state-v1", Request::MachineHubState),
-        ("--machine-hub-hold-v1", Request::MachineHubHold),
-        ("--desktop-machines", Request::DesktopMachines),
+    for (token, request, availability) in [
+        (
+            "--machine-hub-v1",
+            Request::MachineHub,
+            Availability::Portable,
+        ),
+        (
+            "--machine-hub-state-v1",
+            Request::MachineHubState,
+            Availability::Portable,
+        ),
+        (
+            "--machine-hub-hold-v1",
+            Request::MachineHubHold,
+            Availability::Portable,
+        ),
+        (
+            "--desktop-machines",
+            Request::DesktopMachines,
+            Availability::WindowsAndMacos,
+        ),
     ] {
         if tokens == [token] {
             return Ok(SelectedRequest {
-                availability: super::grammar::Availability::WindowsAndMacos,
+                availability,
                 format: None,
                 request,
                 session: None,
@@ -144,7 +163,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             ));
         }
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::WindowsAndMacos,
+            availability: Availability::Portable,
             format: Some(*format),
             session: None,
             request: Request::MachineStop(RemoteStop {
@@ -163,7 +182,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         )
     })?;
     Ok(SelectedRequest {
-        availability: super::grammar::Availability::WindowsAndMacos,
+        availability: Availability::Portable,
         format: Some(format),
         session: None,
         request: Request::MachineRoute(Route {

@@ -20,9 +20,8 @@ mod tests;
 
 use platform::scan;
 
-/// The most parent links the walk from this process follows, so a cycle of reused ids ends. Linux
-/// has no process scan.
-#[cfg(any(windows, target_os = "macos"))]
+/// The most parent links the walk from this process follows, so a cycle of reused ids ends.
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
 const ANCESTORS: usize = 64;
 
 /// Whether a live Session or a client process may hold the hub `process_id`.

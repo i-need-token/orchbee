@@ -358,8 +358,8 @@ pub mod application {
     }
     pub mod machine_ssh {
         pub use crate::machine_ssh::{
-            PROGRAM_NOT_FOUND, STAND_IN, Version, carrier_command, executable, link_program,
-            remembering, version,
+            PLATFORM_UNSUPPORTED, PROGRAM_NOT_FOUND, STAND_IN, Version, carrier_command,
+            executable, link_program, remembering, version,
         };
     }
 

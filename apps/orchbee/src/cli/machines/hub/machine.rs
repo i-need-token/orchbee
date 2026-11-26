@@ -599,7 +599,7 @@ impl Machine {
         if attempt.carrier != carrier || attempt.answered.is_none() {
             return Vec::new();
         }
-        let supported = matches!(platform.as_str(), "windows" | "macos")
+        let supported = matches!(platform.as_str(), "windows" | "macos" | "linux")
             && matches!(architecture.as_str(), "x86_64" | "aarch64");
         let session = route.session.clone();
         self.platform = Some(platform);

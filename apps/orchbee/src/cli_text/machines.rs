@@ -173,8 +173,8 @@ impl super::CliText {
             ),
             C::MachineAdd => (
                 "orchbee machine add <ssh-target> [--label <label>] [--color <color|#rrggbb>] [--remote-session <name>] [--format text|json]",
-                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The name local, in any letter case, always means this computer and is refused. The machine's name is shown in its color; without --color it takes the color the fewest saved machines use, the earliest of cyan, teal, sky, blue, indigo, violet, purple, magenta, pink, brown, slate and grey among equals; #rrggbb gives a color of your own. The remote must run Windows x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
-                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。名称 local（不区分大小写）始终指这台电脑，不能使用。机器名称以其颜色显示；不加 --color 时取已保存机器用得最少的颜色，数量相同时按 cyan、teal、sky、blue、indigo、violet、purple、magenta、pink、brown、slate、grey 的顺序取第一个；#rrggbb 可指定自定义颜色。远端须为 Windows x64 或 ARM64，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
+                "The label defaults to the target's host name; names may repeat, and the ID then tells machines apart. The name local, in any letter case, always means this computer and is refused. The machine's name is shown in its color; without --color it takes the color the fewest saved machines use, the earliest of cyan, teal, sky, blue, indigo, violet, purple, magenta, pink, brown, slate and grey among equals; #rrggbb gives a color of your own. The remote must run Windows, macOS or Linux on x64 or ARM64 with an available Orchbee installation of the same environment kind: release with release, a development or test build with a development or test build. Product versions may differ; the remote Session checks each connection. Session defaults to default. Sign-in questions are asked as machine connect asks them, and preparation has a 90-second deadline that time spent answering them does not count against. Failed preparation does not save the machine; an already started remote session is retained. Automatic remote installation is not available yet.",
+                "名称默认使用目标的主机名；名称可以重复，此时用 ID 区分。名称 local（不区分大小写）始终指这台电脑，不能使用。机器名称以其颜色显示；不加 --color 时取已保存机器用得最少的颜色，数量相同时按 cyan、teal、sky、blue、indigo、violet、purple、magenta、pink、brown、slate、grey 的顺序取第一个；#rrggbb 可指定自定义颜色。远端须为 x64 或 ARM64 上的 Windows、macOS 或 Linux，且有可用的同类 Orchbee 安装：正式版对正式版，开发版或测试版对开发版或测试版。产品版本可以不同，远端会话会检查每个连接。会话默认 default。登录问题的询问方式与 machine connect 相同；准备过程期限为 90 秒，回答登录问题的时间不计入。准备失败不保存机器；已启动的远端会话会保留。自动安装远端程序暂不可用。",
             ),
             C::MachineRename => (
                 "orchbee machine rename <id|label> --label <label> [--format text|json]",
@@ -347,10 +347,10 @@ impl super::CliText {
             }
             (Locale::ZhCn, "remote-protocol") => "远端客户端返回了无效或不支持的状态文档。",
             (Locale::EnUs, "remote-unsupported") => {
-                "This version supports remote machines running Windows x64 or ARM64 only."
+                "This version supports remote machines running Windows, macOS or Linux on x64 or ARM64 only."
             }
             (Locale::ZhCn, "remote-unsupported") => {
-                "此版本只支持运行 Windows x64 或 ARM64 的远程机器。"
+                "此版本只支持运行 Windows、macOS 或 Linux（x64 或 ARM64）的远程机器。"
             }
             (Locale::EnUs, "remote-not-installed") if orchbee_local_runtime::is_release() => {
                 "The remote machine has no usable Orchbee installation."

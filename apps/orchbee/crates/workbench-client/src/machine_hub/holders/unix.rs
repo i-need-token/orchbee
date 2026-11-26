@@ -1,12 +1,13 @@
-//! The macOS process reads of the holder check: one `/bin/ps` listing names each process's parent
-//! and start path. A Unix parent link always names a live parent, since an orphan passes to
-//! `launchd`, so the walk needs no start times. Elsewhere no listing is read, and the check holds.
+//! The macOS and Linux process reads of the holder check: each process's parent and start path, from
+//! one `/bin/ps` listing on macOS and from `/proc` on Linux. A Unix parent link always names a live
+//! parent, since an orphan passes to `launchd` or `init`, so the walk needs no start times.
+//! Elsewhere no listing is read, and the check holds.
 
 use super::Scan;
 
 /// Lists the processes named like the hub's program; `None` when the hub's program or the process
 /// list cannot be read.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 pub(super) fn scan(process_id: u32) -> Option<Scan> {
     use super::ANCESTORS;
     use std::{collections::HashMap, path::Path};
@@ -53,14 +54,14 @@ pub(super) fn scan(process_id: u32) -> Option<Scan> {
     })
 }
 
-/// No process listing is read off macOS, so whatever may hold the hub counts as holding it.
-#[cfg(not(target_os = "macos"))]
+/// No process listing is read elsewhere, so whatever may hold the hub counts as holding it.
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 pub(super) const fn scan(_process_id: u32) -> Option<Scan> {
     None
 }
 
 /// One process of the listing.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 struct Listed {
     pid: u32,
     parent: u32,
@@ -68,7 +69,7 @@ struct Listed {
     comm: String,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 impl Listed {
     /// The canonical program path; `None` for a relative start path or one that no longer
     /// resolves.
@@ -116,4 +117,49 @@ fn listing() -> Option<Vec<Listed>> {
             })
             .collect(),
     )
+}
+
+/// Every process with its parent, from `/proc`; `None` when `/proc` cannot be read. A process of
+/// this user carries its program path, or its short name when that cannot be read or the file was
+/// replaced, which classifies nothing; another user's carries none, since it cannot attach to this
+/// user's hub. A process that ends during the walk is left out.
+#[cfg(target_os = "linux")]
+fn listing() -> Option<Vec<Listed>> {
+    use std::os::unix::fs::MetadataExt as _;
+    let own = std::fs::metadata("/proc/self").ok()?.uid();
+    let mut listed = Vec::new();
+    for entry in std::fs::read_dir("/proc").ok()?.flatten() {
+        let Some(pid) = entry
+            .file_name()
+            .to_str()
+            .and_then(|name| name.parse().ok())
+        else {
+            continue;
+        };
+        let folder = entry.path();
+        // `<pid> (<name>) <state> <parent> …`, where the name may hold spaces and parentheses.
+        let Ok(stat) = std::fs::read_to_string(folder.join("stat")) else {
+            continue;
+        };
+        let Some((name, rest)) = stat
+            .split_once(" (")
+            .and_then(|(_, rest)| rest.rsplit_once(") "))
+        else {
+            continue;
+        };
+        let Some(parent) = rest.split(' ').nth(1).and_then(|field| field.parse().ok()) else {
+            continue;
+        };
+        let comm = if entry.metadata().is_ok_and(|metadata| metadata.uid() == own) {
+            std::fs::read_link(folder.join("exe"))
+                .ok()
+                .and_then(|path| path.into_os_string().into_string().ok())
+                .filter(|path| !path.ends_with(" (deleted)"))
+                .unwrap_or_else(|| name.to_owned())
+        } else {
+            String::new()
+        };
+        listed.push(Listed { pid, parent, comm });
+    }
+    Some(listed)
 }

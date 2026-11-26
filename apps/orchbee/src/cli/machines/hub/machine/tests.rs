@@ -491,8 +491,8 @@ fn an_end_before_the_answer_reads_by_exit_status_and_standard_error() {
         ),
         (
             End::Exited {
-                code: Some(127),
-                stderr: b"zsh:1: command not found: powershell.exe\n".to_vec(),
+                code: Some(124),
+                stderr: b"sh: 1: power%OS:Windows_NT=%shell.exe: not found\n".to_vec(),
             },
             Failure::Unsupported(orchbee_machine_protocol::hub::UnsupportedCause::RemotePlatform),
         ),

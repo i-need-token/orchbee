@@ -1,7 +1,6 @@
-//! The system OpenSSH client of macOS and its bounded runs; the runs keep the caller's signal mask,
-//! since a Client's signal owner blocks its signals on every thread, and each run's process group
-//! ends by the deadline or the interruption. Linux builds the same code, but no saved machine starts
-//! there: the `SavedMachines` capability refuses first.
+//! The system OpenSSH client of macOS and Linux and its bounded runs; the runs keep the caller's
+//! signal mask, since a Client's signal owner blocks its signals on every thread, and each run's
+//! process group ends by the deadline or the interruption.
 use super::Output;
 use std::{io, path::PathBuf, process::Command, time::Instant};
 

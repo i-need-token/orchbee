@@ -1,5 +1,6 @@
-//! macOS admits portable commands, saved machines, named Sessions and a selected Session. Linux
-//! admits portable commands only and refuses a selected Session.
+//! macOS admits portable commands, saved machines among them, the Windows and macOS commands such
+//! as named Sessions, and a selected Session. Linux admits portable commands only and refuses a
+//! selected Session.
 use super::Unsupported;
 use crate::invocation::grammar::Availability;
 

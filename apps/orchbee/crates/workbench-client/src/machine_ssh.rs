@@ -15,6 +15,11 @@ use std::{
 
 /// The exit status of the remote launch line when it finds no Orchbee to run or cannot start it.
 pub const PROGRAM_NOT_FOUND: i32 = 125;
+/// The exit status of the remote launch line on a system or processor no release of Orchbee runs
+/// on.
+pub const PLATFORM_UNSUPPORTED: i32 = 124;
+/// The options the launch line starts every PowerShell with.
+const POWERSHELL_OPTIONS: &str = "-NoLogo -NoProfile -NonInteractive";
 /// The development and test program that replaces `ssh` and its launch line in the machine hub.
 pub const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
 /// How long `ssh -V` may take.
@@ -110,67 +115,90 @@ pub fn literal(value: &str) -> String {
 }
 /// The remote command the machine hub's carrier runs: the remote link helper of the active version
 /// a remote store's pointer names, with exit 125 when there is none. An unreadable pointer names
-/// none, and nothing is inferred from `Path`.
+/// none, and nothing is inferred from `PATH`.
 pub fn link_program() -> String {
-    launch("'--machine-link-v1'")
+    launch("--machine-link-v1")
 }
-/// The encoded PowerShell command that resolves the program and runs it with `arguments`, already
-/// quoted.
-fn launch(arguments: &str) -> String {
+/// The remote command that runs the program the remote store's pointer names with `argument`, a
+/// plain option, whichever shell the remote OpenSSH runs it with. Win32-OpenSSH's default
+/// `cmd.exe` runs only the first line, where `%OS:Windows_NT=%`, Windows' own `OS` variable with
+/// its whole value replaced by nothing, leaves `powershell.exe`. Every other shell finds no program
+/// of the literal name, which holds no character a shell globs, not even zsh's `^` or `~` under
+/// `extendedglob`, and runs the second line: PowerShell, as a Windows `DefaultShell`, fails `exec`
+/// and starts the same PowerShell program, while a POSIX shell, fish or csh replaces itself with
+/// `/bin/sh` running [`posix`]. The line holds no double quote, which Win32-OpenSSH passes
+/// unescaped on PowerShell's command line.
+fn launch(argument: &str) -> String {
+    let encoded = powershell(argument);
+    format!(
+        "power%OS:Windows_NT=%shell.exe {POWERSHELL_OPTIONS} -EncodedCommand {encoded}\n\
+        exec /bin/sh -c '{}' ; powershell.exe {POWERSHELL_OPTIONS} -EncodedCommand {encoded} ; exit $LASTEXITCODE",
+        posix(argument)
+    )
+}
+/// The encoded PowerShell program that resolves the program on Windows and runs it with
+/// `argument`.
+fn powershell(argument: &str) -> String {
     let resolve = {
-        {
-            let (roots, names) = probe_names();
-            let list = |items: Vec<String>| {
-                items
-                    .iter()
-                    .map(|item| literal(item))
-                    .collect::<Vec<_>>()
-                    .join(",")
-            };
-            format!(
-                "$program=$null;\
-                $roots=if($env:ORCHBEE_INSTALL_DIR){{,$env:ORCHBEE_INSTALL_DIR}}else{{foreach($name in {}){{Join-Path $env:LOCALAPPDATA ('Programs\\'+$name)}}}};\
-                foreach($root in $roots){{if($program){{break}};try{{\
-                $pointer=[IO.File]::ReadAllText((Join-Path $root 'active.json'))|ConvertFrom-Json;\
-                $version=$pointer.active.product;\
-                if($pointer.version -eq 1 -and $version -is [string] -and $version -cmatch '^[0-9][0-9A-Za-z.-]{{0,63}}$'){{\
-                foreach($name in {}){{$candidate=Join-Path (Join-Path (Join-Path $root 'versions') $version) $name;\
-                if(Test-Path -LiteralPath $candidate -PathType Leaf){{$program=$candidate;break}}}}}}}}catch{{}}}}",
-                list(roots),
-                list(names)
-            )
-        }
+        let (folder, stem) = store_names();
+        format!(
+            "$program=$null;\
+            $roots=if($env:ORCHBEE_INSTALL_DIR){{,$env:ORCHBEE_INSTALL_DIR}}else{{foreach($name in {}){{Join-Path $env:LOCALAPPDATA ('Programs\\'+$name)}}}};\
+            foreach($root in $roots){{if($program){{break}};try{{\
+            $pointer=[IO.File]::ReadAllText((Join-Path $root 'active.json'))|ConvertFrom-Json;\
+            $version=$pointer.active.product;\
+            if($pointer.version -eq 1 -and $version -is [string] -and $version -cmatch '^[0-9][0-9A-Za-z.-]{{0,63}}$'){{\
+            foreach($name in {}){{$candidate=Join-Path (Join-Path (Join-Path $root 'versions') $version) $name;\
+            if(Test-Path -LiteralPath $candidate -PathType Leaf){{$program=$candidate;break}}}}}}}}catch{{}}}}",
+            literal(folder),
+            literal(&format!("{stem}.exe"))
+        )
     };
+    let argument = literal(argument);
     let script = format!(
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
         $OutputEncoding=[Console]::OutputEncoding;\
         try{{{resolve};if(-not $program){{exit {PROGRAM_NOT_FOUND}}};\
-        & $program {arguments};exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}"
+        & $program {argument};exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}"
     );
-    let encoded = base64::engine::general_purpose::STANDARD.encode(
+    base64::engine::general_purpose::STANDARD.encode(
         script
             .encode_utf16()
             .flat_map(u16::to_le_bytes)
             .collect::<Vec<_>>(),
-    );
-    format!("powershell.exe -NoLogo -NoProfile -NonInteractive -EncodedCommand {encoded}")
+    )
 }
-/// The remote store folder under `%LOCALAPPDATA%\Programs` and the Client name the launch line
-/// looks for: this build's environment's only. A development or test build never runs the release
+/// The `sh` program that resolves the program on macOS and Linux, and on a Windows whose OpenSSH
+/// shell is MSYS or Cygwin, as [`powershell`] does, and runs it with `argument`; it exits
+/// [`PLATFORM_UNSUPPORTED`] on any other system or processor. It holds no quote, so it can sit
+/// inside the single quotes of every shell: an empty `IFS` and `set -f` keep each expansion one
+/// unglobbed word, and `tr` turns the pointer into `_`-separated words, which only the store's own
+/// member order matches.
+fn posix(argument: &str) -> String {
+    let (folder, stem) = store_names();
+    format!(
+        "IFS=;set -f;case $(uname -s) in \
+        Darwin|Linux) case $(uname -m) in x86_64|amd64|aarch64|arm64) ;; *) exit {PLATFORM_UNSUPPORTED};; esac;\
+        r=${{ORCHBEE_INSTALL_DIR:-$HOME/.local/share/{stem}}};n={stem};;\
+        MINGW*|MSYS*|CYGWIN*) r=$(cygpath -u ${{ORCHBEE_INSTALL_DIR:-$LOCALAPPDATA/Programs/{folder}}}) || exit {PROGRAM_NOT_FOUND};n={stem}.exe;;\
+        *) exit {PLATFORM_UNSUPPORTED};; esac;\
+        p=$(tr -cs [:alnum:].- _ 2>/dev/null <$r/active.json) || exit {PROGRAM_NOT_FOUND};\
+        case $p in _version_1_active_product_[0-9]*) ;; *) exit {PROGRAM_NOT_FOUND};; esac;\
+        v=${{p#_version_1_active_product_}};v=${{v%%_*}};[ ${{#v}} -le 64 ] || exit {PROGRAM_NOT_FOUND};\
+        c=$r/versions/$v/$n;[ -f $c ] && [ -x $c ] || exit {PROGRAM_NOT_FOUND};exec $c {argument}"
+    )
+}
+/// The remote store folder under `%LOCALAPPDATA%\Programs` and the Client stem the launch line
+/// looks for: this build's environment's only. The macOS and Linux store folder under
+/// `$HOME/.local/share` is the stem itself. A development or test build never runs the release
 /// installation, nor another build's, so a remote without its own reads as not installed.
-fn probe_names() -> (Vec<String>, Vec<String>) {
+fn store_names() -> (&'static str, &'static str) {
     if orchbee_local_runtime::is_release() {
-        (
-            vec!["Orchbee".to_owned()],
-            vec![format!(
-                "{}.exe",
-                orchbee_connection_handshake::RELEASE_ENVIRONMENT
-            )],
-        )
+        ("Orchbee", orchbee_connection_handshake::RELEASE_ENVIRONMENT)
     } else {
         let stem = orchbee_local_runtime::environment_stem();
-        (vec![stem.to_owned()], vec![format!("{stem}.exe")])
+        (stem, stem)
     }
 }
 /// The machine hub's carrier `ssh`: without batch mode and with `StrictHostKeyChecking=ask`, so

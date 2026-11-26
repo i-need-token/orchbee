@@ -43,7 +43,7 @@ recovery.
 
 Windows `channel show [--format text|json]` reads the strict stable/preview preference from the shared user configuration without activating a Session. See [configuration and channel provenance](docs/windows-cli-configuration.md#rule-update-policy).
 
-Windows and macOS `machine list|add|rename|remove|enable|disable` manage saved remote machines, named by ID or exact label; `add` checks the new machine through the background machine hub and saves it only once it is online, keeping that connection; `remove --stop-session --confirm` stops the remote Session before removing the record; `machine connect|disconnect` connect a saved machine through the hub and end that connection, and `connect --remember` remembers a typed sign-in answer in Credential Manager on Windows and in the login Keychain on macOS; `add --no-install` is parsed and refused as not yet available, and help and completion leave it out. `workspace set-machine <workspace> --to <machine|local>` moves a Workspace to another machine by creating it there and closing it where it ran; files are not moved. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, changing a Workspace's machine, and live TUI switching.
+Windows, macOS and Linux `machine list|add|rename|remove|enable|disable` manage saved remote machines, named by ID or exact label; `add` checks the new machine through the background machine hub and saves it only once it is online, keeping that connection; `remove --stop-session --confirm` stops the remote Session before removing the record; `machine connect|disconnect` connect a saved machine through the hub and end that connection, and `connect --remember` remembers a typed sign-in answer in Credential Manager on Windows and in the login Keychain on macOS; `add --no-install` is parsed and refused as not yet available, and help and completion leave it out. `workspace set-machine <workspace> --to <machine|local>` moves a Workspace to another machine by creating it there and closing it where it ran; files are not moved. See [remote machines](docs/machines.md) for the catalog, partial outcomes, command routing, changing a Workspace's machine, and live TUI switching.
 
 Windows `install` publishes the signed release directory the running Client sits in into the store's
 `versions\<version>` and makes it the active version through `active.json`, then performs the PATH
@@ -82,7 +82,7 @@ geometry, then run the local startup workflow below on Windows, Linux, and macOS
 are the same Client route; `tui` does not select a different mode. `--help` and `--version`
 initialize neither TUI nor service. Commands use the exact grammar below without abbreviations;
 unknown commands, undeclared options, extra operands, and non-Unicode arguments are usage failures.
-Windows and macOS remote selection follows the [saved-machine routing
+Windows, macOS and Linux remote selection follows the [saved-machine routing
 contract](docs/machines.md#command-routing-contract). A release build withholds some surfaces; see
 [release-withheld surfaces](#release-withheld-surfaces).
 

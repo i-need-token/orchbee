@@ -2,10 +2,9 @@
 
 The native Client owns the catalog of saved remote machines. The `machine` commands manage
 labels, connections, explicit remote Session names, and enabled state; the machines themselves
-are reached from Windows and macOS today; Linux answers unsupported. From either, the far end must
-run Windows x64 or ARM64: the [launch line](#adding-a-machine) is a PowerShell program, so a macOS
-or Linux far end is not reached yet. The person's own configuration for a connection kind owns
-everything else: for SSH, OpenSSH owns credentials, keys, ports, host trust, and SSH configuration.
+are reached from Windows, macOS and Linux, and the far end runs Windows, macOS or Linux, each on x64
+or ARM64. The person's own configuration for a connection kind owns everything else: for SSH,
+OpenSSH owns credentials, keys, ports, host trust, and SSH configuration.
 
 ## Catalog and transitions
 
@@ -197,19 +196,34 @@ machine takes, such as `local`; Rename and the machine's page change it once it 
 
 `ssh` never changes the person's files by itself. The `ssh` command line Orchbee builds sets
 `UpdateHostKeys=no`: since OpenSSH 8.5 the default otherwise lets `ssh` add and remove a host's keys
-in `known_hosts` after a login, which a background hub would repeat at every connection. The Windows
-remote command is an encoded PowerShell program with literal data.
+in `known_hosts` after a login, which a background hub would repeat at every connection.
+
+The remote command, the launch line, is one text for every far end, since the near side cannot know
+which shell the remote OpenSSH runs it with. Its first line is for `cmd.exe`, Win32-OpenSSH's default
+shell, which runs only that line: `power%OS:Windows_NT=%shell.exe`, where cmd replaces Windows' own
+`OS` variable with its whole value removed, starts an encoded PowerShell program with literal data.
+Every other shell finds no program of that literal name, which holds no character a shell globs, not
+even zsh's `^` or `~` under `extendedglob`, and runs the second line. PowerShell, as a Windows `DefaultShell`, fails its `exec` and starts the same PowerShell
+program. A POSIX shell, fish or csh replaces itself with `/bin/sh` running a program that needs no
+quote, in one single-quoted word: on macOS and Linux it reads the store under `$HOME/.local/share`,
+and on a Windows whose OpenSSH shell is MSYS or Cygwin, such as Git Bash, the Windows store. The line
+holds no double quote, which Win32-OpenSSH passes to PowerShell unescaped, and no `\` or `!`, which
+fish and csh read inside single quotes. A system or processor no release runs on exits 124, read as
+`unsupported` with `remote-platform`.
 
 The launch line resolves the remote program through the remote store's `active.json`, never
 through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
-`%LOCALAPPDATA%\Programs`) it reads the active version and runs `versions\<version>\<name>.exe`, and
-exits 125, read as `remote-not-installed`, when it resolves no program or cannot start it. Each
-build looks only for its own environment's installation, so builds never meet on the remote either:
-a release build reads the `Orchbee` store and looks for `orchbee.exe`, and a development or test
-build reads only its own `<stem>` store and looks only for `<stem>.exe`. It never runs the release
-installation or another build's, so nothing of theirs starts and nothing is written into their data
-folder; a remote without its own installation reads as `remote-not-installed`, whose sentence in a
-development or test build says that this environment's Orchbee is not there. See
+`%LOCALAPPDATA%\Programs` on Windows and under `$HOME/.local/share` on macOS and Linux) it reads the
+active version and runs `versions/<version>/<name>`, and exits 125, read as `remote-not-installed`,
+when it resolves no program or cannot start it. Each build looks only for its own environment's
+installation, so builds never meet on the remote either: a release build reads the `Orchbee` store
+and looks for `orchbee.exe` on Windows, and the `orchbee` store and `orchbee` elsewhere, and a
+development or test build reads only its own `<stem>` store and looks only for `<stem>.exe` or
+`<stem>`. It never runs the release installation or another build's, so nothing of theirs starts
+and nothing is written into their data folder; a remote without its own installation reads as
+`remote-not-installed`, whose sentence in a development or test build says that this environment's
+Orchbee is not there. A macOS store is filled by `install.sh`, or by the desktop application the
+first time it starts a Session; a Linux store by `install.sh`. See
 [Windows release installation](windows-cli-configuration.md#windows-release-installation).
 No protocol version, product version, or cohort is compared across machines beyond what the link's
 offer and the remote Session's handshake admit.
@@ -269,7 +283,10 @@ carry an `extensions` object whose member names follow the capability-name gramm
 content the receiver ignores. Neither carries a cohort. The remote [link helper](#link-helper) refuses a
 generation it does not read, then revalidates the Session, argument grammar and command allowlist
 under its own grammar before spawning its own executable with literal arguments in an owned
-Windows Job.
+Windows Job or process group. A Linux far end serves routed commands for its default Session only,
+since its command line takes no `--session`; a Machine that names another Session there has them
+refused as not submitted. It runs each one as the Linux command line admits it, so a command Linux
+does not run yet, such as `terminal run` or a terminal stream, answers `unsupported-platform` there.
 The packet's `locale` names the sender's language; a value the receiver does not ship, including
 one a later sender adds, falls back to `en_US.UTF-8` instead of refusing the command, and the
 routed command runs under the resolved locale.
@@ -372,7 +389,7 @@ The result document `orchbee.workspace.set-machine` names both machines, the fol
 
 ### Change machine
 
-The TUI's Change machine, on Windows and macOS where the TUI reaches saved machines, moves one Workspace by running the command above, so a person, a Client and an Agent get one result under one set of rules. A Workspace's menu offers it after Move to Project, and the global action menu offers it for the Workspace in use; the row ends with the machine the Workspace runs on, and it opens the list.
+The TUI's Change machine, on Windows, macOS and Linux where the TUI reaches saved machines, moves one Workspace by running the command above, so a person, a Client and an Agent get one result under one set of rules. A Workspace's menu offers it after Move to Project, and the global action menu offers it for the Workspace in use; the row ends with the machine the Workspace runs on, and it opens the list.
 
 - **The list.** The heading `Runs on` with the column note `free CPU · memory · disk`, This computer, then every saved machine: usable ones with room first, then usable ones low on something, ones that need a login, and ones that cannot take a Workspace now (not connected, connecting, of another version, or stopping their terminals), each band by name as Settings orders it. The order is taken once, when the list opens, so a row never moves under the pointer; what the rows say keeps following the machines. `Manage machines…` ends the list and opens Settings on Machines. Past eight saved machines the list leads with a `Find a machine` query that matches a name or an address.
 - **A row.** A machine that can take the Workspace ends with what it has free, `88% · 24 GB · 310 GB`, read as Settings reads it while the list is open; a number turns amber below 20% CPU, 4 GB of memory or 25 GB of disk, and a value its source cannot give reads "—". A machine that needs a login ends with that state word and can be chosen, since the move waits for the login where Orchbee asks for it; any other machine ends with its state word and cannot be chosen, since the command refuses it. The machine the Workspace runs on carries the check; choosing it changes nothing.
@@ -389,14 +406,14 @@ The desktop window's Change machine keeps these rules: its [machines process](#d
 `orchbee --machine-link-v1`, with no other argument, is the remote end of the
 [`machine-link`](../../../schemas/machine/README.md) connection: the hub starts it over `ssh` and
 speaks to it on its standard input and output. One pair of pipes carries several Sessions' byte
-streams, routed commands, and Session starts at once. Windows and macOS serve it; elsewhere it
-answers unsupported before reading a byte. It is the only remote entry Orchbee starts over `ssh`: the
+streams, routed commands, and Session starts at once. Windows, macOS and Linux serve it; elsewhere
+it answers unsupported before reading a byte. It is the only remote entry Orchbee starts over `ssh`: the
 earlier `--machine-tunnel-v1` and `--machine-relay-v1` helpers are gone, and a build that still
 starts one finds an unknown argument. The contract owns every byte; this section owns how the
 helper meets it.
 
-Before it reads any Orchbee state, a Windows helper reads its own token; a macOS helper has none
-to check. Win32-OpenSSH gives an
+Before it reads any Orchbee state, a Windows helper reads its own token; a macOS or Linux helper
+has none to check. Win32-OpenSSH gives an
 administrator's logon an elevated token, and a Session started with it refuses the Clients the
 person starts at the desktop. A token above Medium integrity or with BUILTIN Administrators enabled
 therefore never serves the link: the helper starts itself again with a
@@ -416,8 +433,10 @@ An administrator who wants an elevated remote terminal opens a plain `ssh` sessi
 `ensure-session` uses the same activation as `server start`; the Server it starts outlives the helper. A Session's endpoint is found as a local Client finds it and must belong to the same user.
 
 On macOS the Server a helper starts leaves the helper's session and process group, as every local
-start's Server does, so the end of the connection leaves it running; this is not yet proven over a
-real `sshd`. Win32-OpenSSH runs each connection's processes in one Job that ends every member when the
+start's Server does, so the end of the connection leaves it running. On Linux it stays in the
+session `sshd` created for the connection, which has no terminal, so no hangup reaches it when the
+connection ends; a host whose systemd-logind sets `KillUserProcesses=yes` still ends it with the
+login, an [accepted limit](#accepted-limits). Win32-OpenSSH runs each connection's processes in one Job that ends every member when the
 connection closes and lets a member create a child outside it on request
 (`JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE` and `JOB_OBJECT_LIMIT_BREAKAWAY_OK`, set in
 `contrib/win32/win32compat/w32-doexec.c` from 7.9 on and in `session.c` in 7.7.2). The helper
@@ -464,9 +483,9 @@ through which interfaces reach saved machines over
 [`machine-hub`](../../../schemas/machine/README.md#hub-records). It serves the catalog, its own
 lifetime and each Machine's state, and [carries](#carrying-a-machine) each Machine it connects over
 one child: `ssh` running the remote [link helper](#link-helper), and [relays](#channels) every
-client's Session streams and routed commands over that child. Windows and macOS serve it;
-elsewhere both hub entries answer unsupported before they touch the data root. A macOS hub leaves
-the session and process group of the client that started it at once, so the client's terminal
+client's Session streams and routed commands over that child. Windows, macOS and Linux serve it;
+elsewhere both hub entries answer unsupported before they touch the data root. A macOS or Linux hub
+leaves the session and process group of the client that started it at once, so the client's terminal
 signals it neither at an interrupt nor when it closes. The entry is an internal pairing
 between this program and its own start path, not a command: nothing outside one installation runs
 it, and a release may rename it. Every client reaches the hub through one
@@ -480,17 +499,17 @@ guide.
 
 ### Names that freeze
 
-| Name                | Spelling                                                                                                                                                                                                                                                           |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Lock                | `<data root>/internal/machines/hub.lock`                                                                                                                                                                                                                           |
-| Windows endpoint    | `\\.\pipe\orchbee-<id>-hub`: `<id>` is the first 32 lowercase hexadecimal digits of the SHA-256 of `orchbee-windows-machine-hub-v1`, one NUL byte, and the UTF-16LE code units of the data root's canonical `\\?\` path with ASCII letters lowercased              |
-| macOS, Linux socket | `<socket folder>/<id>-hub.sock` in the environment's `/tmp/<stem>-<uid>` (`/private/tmp/` on macOS), `<id>` as on Windows over `orchbee-posix-machine-hub-v1`, NUL, and the canonical path's bytes, at most 90 bytes. A macOS hub binds it; Linux only computes it |
+| Name                | Spelling                                                                                                                                                                                                                                              |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Lock                | `<data root>/internal/machines/hub.lock`                                                                                                                                                                                                              |
+| Windows endpoint    | `\\.\pipe\orchbee-<id>-hub`: `<id>` is the first 32 lowercase hexadecimal digits of the SHA-256 of `orchbee-windows-machine-hub-v1`, one NUL byte, and the UTF-16LE code units of the data root's canonical `\\?\` path with ASCII letters lowercased |
+| macOS, Linux socket | `<socket folder>/<id>-hub.sock` in the environment's `/tmp/<stem>-<uid>` (`/private/tmp/` on macOS), `<id>` as on Windows over `orchbee-posix-machine-hub-v1`, NUL, and the canonical path's bytes, at most 90 bytes                                  |
 
 The lock and the Windows endpoint freeze at the first public release. After an update an older hub
 meets a newer interface, or the reverse, so they must find each other by these spellings alone; a
 later release changes the connection through the `OBHS` generation, never through the names. The
-macOS spelling freezes with the first public release that serves saved machines there. A macOS hub
-creates the socket folder through `prepare_socket_root` and holds it shared for as long as it
+macOS and Linux spelling freezes with the first public release that serves saved machines there. A
+macOS or Linux hub creates the socket folder through `prepare_socket_root` and holds it shared for as long as it
 serves, as Session endpoints do, and binds under its lock, removing a socket file a killed hub left
 behind; whether the canonical path stays stable on macOS is unverified.
 
@@ -632,17 +651,17 @@ itself.
 
 #### The carrier child
 
-| Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe` on Windows, `/usr/bin/ssh` on macOS, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off                                                                                                                                                                                                                                                                                                                                           |
-| Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                                                                                                                                    |
-| Launch line    | The encoded PowerShell program that resolves the remote store's active version, as [adding a machine](#adding-a-machine) describes, and runs it with `--machine-link-v1`; it exits 125 when it finds none. It needs a Windows remote: a launch line for a macOS remote is not part of this build, so a macOS far end is reached only through a stand-in today                                                                                                                                                                                                                                                                                                           |
-| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. On Windows a local far end runs inside the carrier's Job, which lets no process leave, so a Session it starts ends with the carrier, unlike one via `ssh`; on macOS that Session leaves the carrier's process group and outlives it, as one via `ssh` does |
-| Process        | No console window (`CREATE_NO_WINDOW`) on Windows, the system folder as working directory (`/` on macOS), an empty signal mask, which on macOS the launch gives the child itself (the owner thread clears its own mask before every start), standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                              |
-| Descriptors    | On macOS the child inherits no descriptor but its three standard streams, even while other hub threads create descriptors, because the child starts through the native launch. Linux creates close-on-exec descriptors atomically and keeps the standard library's spawn; Windows is unchanged                                                                                                                                                                                                                                                                                                                                                                          |
-| Job or group   | On Windows each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started. On macOS each carrier leads its own process group, which the hub ends with `SIGKILL`; when the hub is killed outright, `ssh` ends once its input closes, while an askpass helper waiting on a question keeps its 250-second bound                                                                                                                                                                |
-| Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| Reaping        | Each carrier has one owner thread, its only reaper: it starts the child, waits for the root process, then terminates whatever is left in the Job or group, takes the exit status, and reports the end once the carrier's reader, writer and standard-error threads have ended. Ending a carrier stops its writer, which closes the child's input, and terminates the root process; the owner does the rest                                                                                                                                                                                                                                                              |
+| Rule           | Contract                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe` on Windows, `/usr/bin/ssh` on macOS and Linux, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off                                                                                                                                                                                                                                                                                                                                                                                                |
+| Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                                                                                                                                                                                                   |
+| Launch line    | The two-line command that resolves the remote store's active version on Windows, macOS and Linux, as [adding a machine](#adding-a-machine) describes, and runs it with `--machine-link-v1`; it exits 125 when it finds none and 124 on a system or processor no release runs on                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link-v1` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. On Windows a local far end runs inside the carrier's Job, which lets no process leave, so a Session it starts ends with the carrier, unlike one via `ssh`; on macOS that Session leaves the carrier's process group and outlives it, as one via `ssh` does, and on Linux it stays in that group and ends with the carrier |
+| Process        | No console window (`CREATE_NO_WINDOW`) on Windows, the system folder as working directory (`/` on macOS and Linux), an empty signal mask, which on macOS the launch gives the child itself (the owner thread clears its own mask before every start), standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                                                                   |
+| Descriptors    | On macOS the child inherits no descriptor but its three standard streams, even while other hub threads create descriptors, because the child starts through the native launch. Linux creates close-on-exec descriptors atomically and keeps the standard library's spawn; Windows is unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Job or group   | On Windows each carrier starts suspended inside its own Job, which ends every process in it when its last handle closes. Only the hub holds the handle, so the hub's exit, however it happens, a kill or a panic included, ends every carrier and whatever it started. On macOS and Linux each carrier leads its own process group, which the hub ends with `SIGKILL`; when the hub is killed outright, `ssh` ends once its input closes, while an askpass helper waiting on a question keeps its 250-second bound                                                                                                                                                                                                                     |
+| Standard error | The last 4 KiB are kept only to classify an end and are never copied into a record, an event, a log or product copy                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Reaping        | Each carrier has one owner thread, its only reaper: it starts the child, waits for the root process, then terminates whatever is left in the Job or group, takes the exit status, and reports the end once the carrier's reader, writer and standard-error threads have ended. Ending a carrier stops its writer, which closes the child's input, and terminates the root process; the owner does the rest. An output that ends before the helper answered only stops the writer and lets the root exit by itself, so its exit status tells what happened: OpenSSH on macOS closes its output a few milliseconds before it exits. One that has not exited 5 seconds later is ended and reads `remote-protocol`                         |
 
 The link client writes its `OBHS` offer the moment the child starts, since the helper counts its
 2-second candidate deadline from its own start, then reads the answer and the frames that follow.
@@ -665,7 +684,7 @@ comes before that limit.
 | An [askpass helper](#askpass-helper) the hub cannot ask while attempting                                                                                    | `needs-login` cause `auth-required`                                                      |
 | Before the answer, exit 255 with a resolution, refusal, timeout or route failure                                                                            | `host-unresolved`, `host-refused`, `host-timeout` or `host-unreachable`                  |
 | Before the answer, exit 255 otherwise                                                                                                                       | `ssh-failed`                                                                             |
-| Before the answer, exit 127 with `powershell.exe` in standard error: a shell that has no PowerShell                                                         | `unsupported` cause `remote-platform`                                                    |
+| Before the answer, exit 124: a system or processor no release runs on                                                                                       | `unsupported` cause `remote-platform`                                                    |
 | Before the answer, any other end, or a frame that is not an `OBHS` answer                                                                                   | `remote-protocol`                                                                        |
 | `initiator-too-old` / `initiator-too-new`                                                                                                                   | `local-needs-update` / `needs-update` cause `remote-too-old`                             |
 | `environment-mismatch`, `fingerprint-mismatch`                                                                                                              | `incompatible`                                                                           |
@@ -794,7 +813,7 @@ digits.
 2. It reads the prompt as text, replacing what is not Unicode and cutting at 4,096 bytes on a
    character boundary, and reads the [kind](#login-episode) from it.
 3. It binds its own one-shot answer endpoint, `\\.\pipe\orchbee-answer-<pid>-<random>` on Windows
-   and `answer-<pid>-<random>.sock` in the socket folder on macOS, and draws a 16-byte token.
+   and `answer-<pid>-<random>.sock` in the socket folder on macOS and Linux, and draws a 16-byte token.
 4. It writes one record: `OBAQ`, a big-endian `u32` length, and a JSON object with the ticket and
    the question: the kind, the prompt, the host key when there is one, the answer endpoint and the
    token. A helper that cannot ask, for an empty prompt or when it cannot draw random bytes or bind
@@ -1040,7 +1059,7 @@ variable from the view and nothing from the process environment afterwards:
 | Every other `ORCHBEE_*`                                      | Never: `ORCHBEE_RUNTIME_SCOPE`, `ORCHBEE_ENVIRONMENT`, `ORCHBEE_SESSION`, terminal, Worker, Workspace, Tab, Panel, command, Agent, plugin, Desktop, TUI and test variables |
 | Every other variable                                         | Unchanged                                                                                                                                                                  |
 
-Names compare without letter case on Windows, as Windows does, and exactly on macOS. A variable whose name or value is not valid
+Names compare without letter case on Windows, as Windows does, and exactly on macOS and Linux. A variable whose name or value is not valid
 Unicode is left out of the view.
 
 A [carrier child](#the-carrier-child) receives the view without any `ORCHBEE_*` variable but the
@@ -1048,7 +1067,7 @@ askpass pairing `ORCHBEE_MACHINE_ASKPASS`, and without the terminal's own variab
 `WT_SESSION` and `WT_PROFILE_ID`, since it runs in no terminal, plus only the variables its command
 line sets and the [askpass settings](#the-carrier-child), which win over the view. One spawn path
 clears the inherited environment first. The child has no console, piped standard streams and the
-system folder as working directory, `/` on macOS. An askpass program inherits `ssh`'s whole environment, so
+system folder as working directory, `/` on macOS and Linux. An askpass program inherits `ssh`'s whole environment, so
 whatever the hub passes to `ssh` also reaches the askpass: that is the endpoint and the ticket,
 never an answer. `PATH` stays as the view has it, an
 [accepted limit](#accepted-limits).
@@ -1178,6 +1197,11 @@ wakes only the threads of the two sides it touches.
   read, 7.7.2 to 10.4, does, gets the Server [inside it](#link-helper); the Machine still comes
   `online` and nothing on screen tells the two apart, only `server-job` `inside` in the remote's
   daily log.
+- **A Linux login that ends its processes ends the Session.** A Linux far end whose systemd-logind
+  sets `KillUserProcesses=yes` ends the Server the [link helper](#link-helper) started when the
+  connection's login ends, so the next connection starts the Session again with no terminal of the
+  last one. Most distributions leave it off; a person who keeps it on enables lingering for the user
+  (`loginctl enable-linger`).
 - **The `ssh` phrases are one version's.** The classification reads OpenSSH 9.5's standard error
   wording and the prompts M0 recorded; another wording reads `ssh-failed`, and a prompt it does not
   recognize is asked as `other`.
@@ -1221,7 +1245,7 @@ wakes only the threads of the two sides it touches.
 One owner reaches the hub for every client: the diagnostic entries, `machine connect`, routed
 commands, the remote Session stop, uninstall and the [TUI](#persistent-tui-connections) today,
 the Desktop's Client in a later slice. It is the workbench Client crate's `machine_hub` module,
-built on every platform and used where saved machines are served, Windows and macOS. Two rules
+built on every platform and used where saved machines are served, Windows, macOS and Linux. Two rules
 place it there. An internal crate never depends on the application
 target ([Rust](../../../docs/RUST.md#placement-and-workspace-ownership)), so the TUI's crate cannot
 reach code under the application's `cli`. Reusable code goes to its nearest semantic owner
@@ -1349,7 +1373,7 @@ stops the run at the store wait, which names it.
 
 ## Machines in Settings
 
-Settings' Machines category, on Windows and macOS where the TUI reaches saved machines, is where a
+Settings' Machines category, on Windows, macOS and Linux where the TUI reaches saved machines, is where a
 person adds and looks after them; [native settings](native-settings.md#machines) owns how it is
 drawn. It lists this computer and every saved machine, each with what it has free while it is
 online and its state otherwise, and a machine's own page offers the one act its state calls for.
@@ -1521,7 +1545,7 @@ Session.
 
 ## Persistent TUI connections
 
-The Windows and macOS TUI discovers the saved catalog while open and lists every enabled
+The Windows, macOS and Linux TUI discovers the saved catalog while open and lists every enabled
 machine's Workspaces in the sidebar; `Ctrl+b Shift+M` and the action menu's `Machines…` open
 Settings › Machines. There is no permanent footer indicator. Selection is by
 profile identity, not row index or label. Local remains
@@ -1596,7 +1620,7 @@ draft's id, which the person never sees.
 ### Session carrier
 
 A remote terminal, a Workspace switch to another machine and Agents mode run their ordinary Client
-connection on a private, same-user local endpoint, a pipe on Windows and a socket on macOS, that the TUI creates for each observed
+connection on a private, same-user local endpoint, a pipe on Windows and a socket on macOS and Linux, that the TUI creates for each observed
 Machine. Each physical connection the endpoint accepts opens one hub `session` channel to the
 Machine and copies bytes both ways on two threads of its own:
 
@@ -1693,7 +1717,7 @@ cancellation owner; stale completion cannot switch the active machine.
 
 ## Automatic machine discovery
 
-The running Windows or macOS TUI reconciles enabled profiles by ID, connection and Session; a connection
+The running Windows, macOS or Linux TUI reconciles enabled profiles by ID, connection and Session; a connection
 kind this build does not know is never observed, and the picker lists that machine as Unsupported
 without offering it as a choice. Each endpoint generation owns at most one observer, cancellation
 flag and latest-event slot. Disabled, removed and replaced entries cancel their observers, and

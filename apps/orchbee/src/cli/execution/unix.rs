@@ -1,7 +1,8 @@
 //! Unix refuses extended CLI capabilities before effects. macOS and Linux admit the canonical
 //! Workbench reads and mutations, process and Agent reads, Agent names, retained close
 //! operations, runtime inspection, terminal input, Agent prompts and the read-only Client view
-//! list and get, which their managed Sessions serve.
+//! list and get, which their managed Sessions serve, and the extended creation options and the
+//! enriched Workbench inspection, which moving a Workspace between machines runs on both ends.
 //! These commands borrow the interrupt-pair port, which captures `SIGINT` and `SIGTERM` on both,
 //! and both admit a declared `terminal send` input source under its own signal watch.
 //! macOS and Linux admit release installation and uninstallation; only macOS admits the update
@@ -10,8 +11,8 @@
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
 //! Agent detection rule commands, the Panel, Workspace,
-//! notification, title and configuration reports, the extended creation and move options, the
-//! enriched Workbench inspection, `terminal run` with its managed-shell wait, `terminal clear`,
+//! notification, title and configuration reports, the move options, `terminal run` with its
+//! managed-shell wait, `terminal clear`,
 //! `panel create-terminal`, layout export and apply, the terminal streams: `terminal attach`,
 //! `agent attach` and `terminal session observe/control`, the named-Session commands
 //! `session list/attach/stop/delete`, and `events subscribe/wait`.
@@ -36,9 +37,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::SchemaPublication
         | Capability::AgentManifests
         | Capability::Reports
-        | Capability::ExtendedCreation
         | Capability::ExtendedWorkbenchMutation
-        | Capability::WorkbenchInspection
         | Capability::TerminalRun
         | Capability::TerminalClear
         | Capability::TerminalCreation
@@ -60,6 +59,8 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::AgentPrompt
         | Capability::ClientViewRead
         | Capability::TerminalInputSource
+        | Capability::ExtendedCreation
+        | Capability::WorkbenchInspection
             if cfg!(any(target_os = "linux", target_os = "macos")) =>
         {
             Ok(())

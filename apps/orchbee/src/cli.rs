@@ -508,7 +508,14 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
     {
         return terminal_list::run(command, format, locale);
     }
+    // Workspace rows also join the Workspace reports, which the Server serves only where the
+    // command line admits reports; elsewhere they keep the canonical read.
+    let workspace_rows = matches!(
+        command,
+        QueryCommand::WorkspaceList { .. } | QueryCommand::WorkspaceGet(_)
+    );
     if execution::admit(execution::Capability::WorkbenchInspection).is_ok()
+        && (!workspace_rows || execution::admit(execution::Capability::Reports).is_ok())
         && matches!(
             command,
             QueryCommand::WorkspaceList { .. }
@@ -695,6 +702,12 @@ pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale)
                 locale,
             ),
         },
+        QueryCommand::WorkspaceList { .. } => machines::other_lists::carry(
+            network_query(&command, format, locale),
+            &command,
+            format,
+            locale,
+        ),
         _ => network_query(&command, format, locale),
     }
 }

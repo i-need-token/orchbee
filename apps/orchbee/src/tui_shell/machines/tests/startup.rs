@@ -153,9 +153,13 @@ fn peer(snapshot: Snapshot) -> io::Result<FakeServer> {
         )
         .map_err(io::Error::other)?;
         stream.answer_probes();
+        // Linux resets a Unix socket that its Client closes with a probe answer still unread.
+        let read = match stream.read(&mut [0]) {
+            Err(error) if closed_by_client(&error) => 0,
+            read => read?,
+        };
         assert_eq!(
-            stream.read(&mut [0])?,
-            0,
+            read, 0,
             "empty/unbound or refused startup must not create/attach another terminal"
         );
         Ok(())
