@@ -632,7 +632,9 @@ fn failed_subscription_admission_and_first_read_recover_without_successful_state
         .map_err(io::Error::other)?
         .into_multiplexed()?;
     let mut held = Vec::new();
-    let deadline = Instant::now() + Duration::from_secs(3);
+    // Each wait has its own bound, so a slow fill leaves the later waits their whole time.
+    let bound = || Instant::now() + Duration::from_secs(5);
+    let deadline = bound();
     while held.len() < 63 {
         match client.origin().subscribe(&request, StreamMode::State) {
             Ok(stream) => held.push(stream),
@@ -659,6 +661,7 @@ fn failed_subscription_admission_and_first_read_recover_without_successful_state
     released.recv_timeout(Duration::from_secs(2)).unwrap();
     // Leave room for the subscription and its one-shot domain read after admission succeeds.
     drop(held.pop());
+    let deadline = bound();
     loop {
         collector.tick(sources(&source, 1), retry, read_revision);
         if collector.entries[0].read_failures > 0 {
@@ -672,6 +675,7 @@ fn failed_subscription_admission_and_first_read_recover_without_successful_state
         .expect("failed first read schedules recovery");
     assert!(retry_read > retry);
     assert_eq!(collector.entries[0].observation, Observation::Unavailable);
+    let deadline = bound();
     loop {
         let values = collector.tick(sources(&source, 1), retry_read, read_revision);
         if matches!(values[0].1, Observation::Ready(_)) {
