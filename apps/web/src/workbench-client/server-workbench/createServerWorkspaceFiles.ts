@@ -34,6 +34,11 @@ const READ_MILLISECONDS = 7_000;
  * short once it starts writing, and the carrier needs a little more for a large text.
  */
 const SAVE_MILLISECONDS = 24_000;
+/**
+ * One repository change's budget: the Server waits sixty-four and a half seconds for Git, which a
+ * hook may keep busy, and stops it before then.
+ */
+const CHANGE_MILLISECONDS = 66_000;
 /** A watch stream the Server closed opens again after this long. */
 const REOPEN_MILLISECONDS = 2000;
 
@@ -57,6 +62,11 @@ function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperat
 			return outcome.kind === 'written' || outcome.kind === 'conflict';
 		case 'watch':
 			return outcome.kind === 'watching';
+		case 'git-stage':
+		case 'git-unstage':
+		case 'git-discard':
+		case 'git-commit':
+			return outcome.kind === 'git-done' || outcome.kind === 'git-rejected';
 	}
 }
 
@@ -215,7 +225,7 @@ function watchWorkspace(
 }
 
 /**
- * `workbench.workspace-files` reads, saves and watches for the right bar. Nothing is read until the
+ * `workbench.workspace-files` reads, saves, repository changes and watches for the right bar. Nothing is read until the
  * bar asks, and the Server starts its file service only then.
  */
 export function createServerWorkspaceFiles(
@@ -261,6 +271,9 @@ export function createServerWorkspaceFiles(
 		},
 		save(workspaceId, path, text, expected) {
 			return ask(workspaceId, { expected, kind: 'write-file', path, text }, SAVE_MILLISECONDS);
+		},
+		changeRepository(workspaceId, change) {
+			return ask(workspaceId, change, CHANGE_MILLISECONDS);
 		},
 		watch(workspaceId, scope, onReport) {
 			return watchWorkspace(connection, session, workspaceId, scope, onReport);

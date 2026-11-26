@@ -24,6 +24,7 @@ function watches(): {
 		report: (report) => act(() => onReport?.(report)),
 		scopes,
 		source: {
+			changeRepository: () => Promise.resolve(null),
 			read: () => Promise.resolve(null),
 			save: () => Promise.resolve(null),
 			watch(_workspaceId, scope, receive) {

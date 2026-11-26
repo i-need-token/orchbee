@@ -1,17 +1,16 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import type {
-	WorkspaceFilesOutcome,
-	WorkspaceFilesWatchState,
-} from '@orchbee/workbench-client-protocol';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
+import type { WorkspaceFilesWatchState } from '@orchbee/workbench-client-protocol';
 import { Button, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { WorkbenchWorkspaceFilesSource } from '../../../workbench';
-import { type ChangeGroup, type ChangeItem, groupChanges, splitPath } from '../../change-groups';
+import type { FloatTarget } from '../../float-tabs';
+import { changeRows, type Changes } from './changeRows';
+import { ChangesView } from './components/changes-view/ChangesView';
 import { flattenTree, type Listing, parentPath, type TreeRow } from './file-tree';
 import { useWindowedRows } from './hooks/useWindowedRows';
-import type { FloatTarget } from '../../float-tabs';
 import type { WorkspaceFilesChange } from '../../hooks/useWorkspaceFilesWatch';
 import { readWorkspaceFiles } from '../../readWorkspaceFiles';
 
@@ -39,6 +38,13 @@ export interface RightBarProps {
 	/** Whether the note that changes are not followed was dismissed for this Workspace. */
 	readonly noteDismissed: boolean;
 	readonly onDismissNote: () => void;
+	/** The Workspace's commit message, kept while the bar is closed. */
+	readonly commitMessage: string;
+	readonly onCommitMessageChange: (message: string) => void;
+	/** Messages the Workspace committed in this window, oldest first. */
+	readonly commitHistory: readonly string[];
+	readonly onCommitted: (workspaceId: string, message: string) => void;
+	readonly shortcutPlatform: KeyboardShortcutPlatform;
 }
 
 /** One automatic refresh: its count, and what may have changed. */
@@ -47,47 +53,10 @@ export interface AutoRefresh extends WorkspaceFilesChange {
 }
 
 type View = 'files' | 'changes';
-type Failure = Extract<WorkspaceFilesOutcome, { kind: 'failed' }>['reason'];
-type Changes =
-	| { readonly state: 'loading' }
-	| { readonly state: 'failed'; readonly reason: Failure }
-	| {
-			readonly state: 'loaded';
-			readonly branch: string | null;
-			readonly items: readonly ChangeRow[];
-			readonly empty: boolean;
-			readonly truncated: boolean;
-	  };
-type ChangeRow =
-	| { readonly kind: 'header'; readonly group: ChangeGroup; readonly count: number }
-	| { readonly kind: 'item'; readonly item: ChangeItem };
-
-const GROUP_MESSAGES = {
-	conflicts: workbenchMessages.rightBarConflicts,
-	staged: workbenchMessages.rightBarStaged,
-	unstaged: workbenchMessages.rightBarUnstaged,
-} as const;
-
-function changeRows(outcome: Extract<WorkspaceFilesOutcome, { kind: 'git-status' }>): Changes {
-	const groups = groupChanges(outcome.entries);
-	const items: ChangeRow[] = [];
-	for (const group of ['conflicts', 'staged', 'unstaged'] as const) {
-		const members = groups[group];
-		if (members.length === 0) continue;
-		items.push({ count: members.length, group, kind: 'header' });
-		for (const item of members) items.push({ item, kind: 'item' });
-	}
-	return {
-		branch: outcome.branch,
-		empty: items.length === 0,
-		items,
-		state: 'loaded',
-		truncated: outcome.truncated,
-	};
-}
 
 /**
- * The right bar: the Workspace's files as a tree and its Git changes, both read on demand. Each view
+ * The right bar: the Workspace's files as a tree and its Git changes, both read on demand, and the
+ * staging and committing of those changes. Each view
  * reads again on Refresh, on switching to it, and when a change it shows arrives. While changes are
  * not followed, coming back to the window reads again too, and a note says Refresh is needed; a
  * change list cut short is not followed either. Nothing polls.
@@ -106,6 +75,11 @@ export function RightBar({
 	onDismissNote,
 	onOpen,
 	onRefresh,
+	commitMessage,
+	onCommitMessageChange,
+	commitHistory,
+	onCommitted,
+	shortcutPlatform,
 }: RightBarProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [view, setView] = React.useState<View>('files');
@@ -213,10 +187,18 @@ export function RightBar({
 		);
 	} else {
 		body = (
-			<ChangeList
+			<ChangesView
 				changes={changes}
-				onOpen={(item, preview) => onOpen({ item, kind: 'diff' }, preview)}
+				history={commitHistory}
+				message={commitMessage}
+				onChanged={refresh}
+				onCommitted={onCommitted}
+				onMessageChange={onCommitMessageChange}
+				onOpen={onOpen}
 				selectedKey={activeTarget?.kind === 'diff' ? activeTarget.item.key : null}
+				shortcutPlatform={shortcutPlatform}
+				source={source}
+				workspaceId={workspaceId}
 			/>
 		);
 	}
@@ -269,12 +251,6 @@ export function RightBar({
 				</Button>
 				<div className={styles['windowControls']} data-slot='workbench-right-bar-trailing' />
 			</div>
-			{view === 'changes' && changes.state === 'loaded' && changes.branch !== null ? (
-				<div className={styles['branch']}>
-					<ProductIcon name='git-branch' />
-					<span className={styles['branchName']}>{changes.branch}</span>
-				</div>
-			) : null}
 			{workspaceId !== null &&
 			!noteDismissed &&
 			(watchState === 'unavailable' || (view === 'changes' && changesCut)) ? (
@@ -489,127 +465,6 @@ function FileTree({
 			>
 				{drawn}
 			</div>
-		</div>
-	);
-}
-
-interface ChangeListProps {
-	readonly changes: Changes;
-	readonly selectedKey: string | null;
-	readonly onOpen: (item: ChangeItem, preview: boolean) => void;
-}
-
-function ChangeList({ changes, selectedKey, onOpen }: ChangeListProps): React.ReactNode {
-	const intl = useOrchbeeIntl();
-	const items = changes.state === 'loaded' ? changes.items : [];
-	const windowed = useWindowedRows(
-		items.length + (changes.state === 'loaded' && changes.truncated ? 1 : 0),
-	);
-	let note: string | null = null;
-	if (changes.state === 'loading') note = intl.formatMessage(workbenchMessages.rightBarLoading);
-	else if (changes.state === 'failed') {
-		note = intl.formatMessage(
-			changes.reason === 'not-repository'
-				? workbenchMessages.rightBarNotRepository
-				: workbenchMessages.rightBarFailed,
-		);
-	} else if (changes.empty) note = intl.formatMessage(workbenchMessages.rightBarNoChanges);
-	const drawn: React.ReactNode[] = [];
-	for (let index = windowed.first; index < windowed.last; index += 1) {
-		const placement = `${index * windowed.rowHeight}px`;
-		const measure = index === windowed.first ? windowed.measureRow : undefined;
-		const row = items[index];
-		if (row === undefined) {
-			if (index === items.length && changes.state === 'loaded' && changes.truncated) {
-				drawn.push(
-					<div
-						className={styles['treeNote']}
-						key='truncated'
-						ref={measure}
-						style={
-							{
-								'--ob-comp-workbench-right-bar-row-translate-y': placement,
-							} satisfies React.CSSProperties
-						}
-					>
-						{intl.formatMessage(workbenchMessages.rightBarTruncated, {
-							count: items.filter((candidate) => candidate.kind === 'item').length,
-						})}
-					</div>,
-				);
-			}
-			continue;
-		}
-		if (row.kind === 'header') {
-			drawn.push(
-				<div
-					className={styles['groupHeader']}
-					key={`group:${row.group}`}
-					ref={measure}
-					style={
-						{
-							'--ob-comp-workbench-right-bar-row-translate-y': placement,
-						} satisfies React.CSSProperties
-					}
-				>
-					<span className={styles['entryName']}>
-						{intl.formatMessage(GROUP_MESSAGES[row.group])}
-					</span>
-					<span className={styles['count']}>{row.count}</span>
-				</div>,
-			);
-			continue;
-		}
-		const { item } = row;
-		const { name, folder } = splitPath(item.path);
-		drawn.push(
-			<button
-				aria-pressed={item.key === selectedKey}
-				className={styles['changeRow']}
-				key={item.key}
-				onClick={() => onOpen(item, true)}
-				onDoubleClick={() => onOpen(item, false)}
-				ref={measure}
-				style={
-					{
-						'--ob-comp-workbench-right-bar-row-translate-y': placement,
-					} satisfies React.CSSProperties
-				}
-				title={item.originalPath === null ? item.path : `${item.originalPath} → ${item.path}`}
-				type='button'
-			>
-				<span className={styles['entryIcon']}>
-					<ProductIcon name='file' />
-				</span>
-				<span className={styles['entryName']}>{name}</span>
-				<span className={styles['folder']}>{folder}</span>
-				<span className={styles['letter']} data-letter={item.letter}>
-					{item.letter}
-				</span>
-			</button>,
-		);
-	}
-	return (
-		<div
-			aria-label={intl.formatMessage(workbenchMessages.rightBarChanges)}
-			className={styles['viewport']}
-			onScroll={windowed.onScroll}
-			ref={windowed.viewportReference}
-		>
-			{note === null ? (
-				<div
-					className={styles['rows']}
-					style={
-						{
-							'--ob-comp-workbench-right-bar-list-block-size': `${windowed.totalHeight}px`,
-						} satisfies React.CSSProperties
-					}
-				>
-					{drawn}
-				</div>
-			) : (
-				<p className={styles['note']}>{note}</p>
-			)}
 		</div>
 	);
 }

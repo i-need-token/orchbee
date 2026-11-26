@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"title": "Workspace files and Git change reads, and saving a working-tree file",
+	"title": "Workspace files and Git change reads, saving a working-tree file, and staging, discarding and committing changes",
 	"oneOf": [
 		{
 			"type": "object",
@@ -152,6 +152,103 @@
 											"pattern": "^[0-9a-f]{64}$"
 										}
 									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "paths"],
+							"properties": {
+								"kind": {
+									"const": "git-stage"
+								},
+								"paths": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 256,
+											"items": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 4096,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+											}
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "paths"],
+							"properties": {
+								"kind": {
+									"const": "git-unstage"
+								},
+								"paths": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "array",
+											"minItems": 1,
+											"maxItems": 256,
+											"items": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 4096,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+											}
+										}
+									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "paths"],
+							"properties": {
+								"kind": {
+									"const": "git-discard"
+								},
+								"paths": {
+									"type": "array",
+									"minItems": 1,
+									"maxItems": 256,
+									"items": {
+										"type": "string",
+										"minLength": 1,
+										"maxLength": 4096,
+										"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "message", "amend", "stageAll"],
+							"properties": {
+								"kind": {
+									"const": "git-commit"
+								},
+								"message": {
+									"type": "string",
+									"maxLength": 32768
+								},
+								"amend": {
+									"type": "boolean"
+								},
+								"stageAll": {
+									"type": "boolean"
 								}
 							}
 						}
@@ -527,6 +624,33 @@
 											}
 										}
 									]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind"],
+							"properties": {
+								"kind": {
+									"const": "git-done"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "output", "truncated"],
+							"properties": {
+								"kind": {
+									"const": "git-rejected"
+								},
+								"output": {
+									"type": "string",
+									"maxLength": 8192
+								},
+								"truncated": {
+									"type": "boolean"
 								}
 							}
 						},

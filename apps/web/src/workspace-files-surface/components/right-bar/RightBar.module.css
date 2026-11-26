@@ -71,22 +71,6 @@
 	height: 100%;
 }
 
-.branch {
-	display: flex;
-	flex: none;
-	align-items: center;
-	gap: var(--ob-ref-space-1);
-	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-3) var(--ob-ref-space-1);
-	color: var(--ob-sys-color-text-secondary);
-}
-
-.branchName {
-	min-width: var(--ob-ref-space-0);
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
 /* Says once that changes are not followed; the Refresh button above is the way to see them. */
 .autoRefreshNote {
 	display: flex;
@@ -131,9 +115,7 @@
 }
 
 .treeRow,
-.treeNote,
-.groupHeader,
-.changeRow {
+.treeNote {
 	position: absolute;
 	inset-block-start: 0;
 	inset-inline: 0;
@@ -154,18 +136,15 @@
 	);
 }
 
-.treeRow,
-.changeRow {
+.treeRow {
 	cursor: pointer;
 }
 
-.treeRow:hover,
-.changeRow:hover {
+.treeRow:hover {
 	background: var(--ob-sys-color-surface-hovered);
 }
 
-.treeRow[aria-selected='true'],
-.changeRow[aria-pressed='true'] {
+.treeRow[aria-selected='true'] {
 	background: var(--ob-sys-color-surface-selected);
 }
 
@@ -184,27 +163,6 @@
 	color: var(--ob-sys-color-text-muted);
 }
 
-.groupHeader {
-	padding-inline-start: var(--ob-ref-space-3);
-	color: var(--ob-sys-color-text-secondary);
-	font: var(--ob-sys-typography-label-xs);
-	text-transform: uppercase;
-}
-
-.changeRow {
-	padding-inline-start: var(--ob-ref-space-3);
-	border: none;
-	background: transparent;
-	color: inherit;
-	font: var(--ob-sys-typography-body-sm);
-	text-align: start;
-}
-
-.changeRow:focus-visible {
-	outline: none;
-	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
-}
-
 .disclosure,
 .entryIcon {
 	display: flex;
@@ -221,40 +179,9 @@
 	text-overflow: ellipsis;
 }
 
-.folder {
-	flex: 1;
-	min-width: var(--ob-ref-space-0);
-	color: var(--ob-sys-color-text-muted);
-	overflow: hidden;
-	text-overflow: ellipsis;
-}
-
-.linkMark,
-.count {
+.linkMark {
 	flex: none;
 	color: var(--ob-sys-color-text-muted);
-}
-
-.count {
-	margin-inline-start: auto;
-}
-
-.letter {
-	flex: none;
-	width: var(--ob-ref-size-icon-md);
-	font: var(--ob-sys-typography-code-sm);
-	text-align: center;
-	color: var(--ob-sys-color-status-warning-text);
-}
-
-.letter[data-letter='A'],
-.letter[data-letter='U'] {
-	color: var(--ob-sys-color-status-success-text);
-}
-
-.letter[data-letter='D'],
-.letter[data-letter='!'] {
-	color: var(--ob-sys-color-status-danger-text);
 }
 
 .note {

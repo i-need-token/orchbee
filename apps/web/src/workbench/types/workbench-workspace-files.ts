@@ -4,6 +4,12 @@ import type {
 	WorkspaceFilesWatchState,
 } from '@orchbee/workbench-client-protocol';
 
+/** A change to a Workspace's repository: staging, unstaging, discarding or committing. */
+export type WorkspaceGitChange = Extract<
+	WorkspaceFilesOperation,
+	{ readonly kind: 'git-stage' | 'git-unstage' | 'git-discard' | 'git-commit' }
+>;
+
 /** What a watch follows in one Workspace: the directories shown and the files open. */
 export interface WorkspaceFilesWatchScope {
 	/** Workspace-relative directories whose entries show; `''` is the Workspace itself. */
@@ -50,6 +56,14 @@ export interface WorkbenchWorkspaceFilesSource {
 		path: string,
 		text: string,
 		expected: string | null,
+	): Promise<WorkspaceFilesOutcome | null>;
+	/**
+	 * Changes a Workspace's repository. Answers `git-done`, `git-rejected` with Git's own output, or
+	 * `failed`; null when no answer arrived, which leaves unknown whether the change was made.
+	 */
+	changeRepository(
+		workspaceId: string,
+		change: WorkspaceGitChange,
 	): Promise<WorkspaceFilesOutcome | null>;
 	/**
 	 * Follows a scope in a Workspace and reports each change, starting with the watch's state. While

@@ -1183,6 +1183,7 @@ name = "orchbee-server-workspace-files"
 version = "0.1.0-beta.24"
 dependencies = [
  "base64",
+ "nix",
  "orchbee-workbench-protocol",
  "serde",
  "serde_json",

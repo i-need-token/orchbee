@@ -113,6 +113,35 @@ it and without slowing terminal work.
   the file or folder refused writing, the folder is gone, the Server could not save, or no answer
   came, which leaves unknown whether it saved.
 
+## Changing the repository, as implemented
+
+- **Staging.** Each change row offers, on hover or on the change the keyboard is on, Open file
+  (except for deletions), Discard (tracked unstaged changes only) and Stage or Unstage; Space
+  stages or unstages the keyboard's change and Enter previews its diff. Group headers offer Stage
+  All Changes and Discard All Changes for unstaged changes, Unstage All Changes for staged ones and
+  Stage All Conflicts for conflicts. Staging every unstaged change leaves conflicts alone; staging
+  a conflict marks it resolved, as `git add` does. Unstaging a rename unstages both of its paths.
+- **Discarding.** Discard asks first, naming the file or the count and listing up to eight paths,
+  with Cancel focused, and then puts the files back to what the index holds. Untracked files are
+  not offered for discarding yet: the design moves them to the trash, which needs a dependency that
+  is not admitted.
+- **Committing.** The message box grows from one line to ten; `Cmd+Enter` / `Ctrl+Enter` or Commit
+  commits what is staged, across the whole repository as Git does. With nothing staged and
+  unstaged changes present, Commit asks whether to stage everything and commit, with that button
+  focused. A menu beside Commit offers Stage all and commit and Amend last commit; an amend with an
+  empty message keeps the last message. `↑` on the first line and `↓` on the last walk through up
+  to 50 messages committed before, per Workspace, kept in memory only. A message typed into a
+  Workspace stays with it while switching. A commit that lands empties the box unless something
+  else was typed meanwhile.
+- **Running.** One change runs at a time and the list reads the repository again after each,
+  whatever happened. Git's own words for a refusal, such as a failing hook or a missing identity,
+  show under the commit box, cut to 8 KiB with escape sequences removed, until dismissed or the
+  next change; other failures say whether the folder is not a repository, Git timed out, the
+  Server refused, or no answer came. Changes run on a lane and a Server thread of their own, one at
+  a time across Workspaces, so file reads and the change list never wait behind a slow hook. A
+  change has 60 seconds, after which its whole process group is stopped (on Windows, only Git
+  itself); the Server answers it only to a connection that may also start and end terminals.
+
 ## Deviations from the design discussion
 
 - **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
@@ -127,6 +156,11 @@ it and without slowing terminal work.
   terminal Agent stops working. Ignored paths such as build output still move `repository`
   until an ignore matcher is admitted, and Git status stops following at 5000 entries rather than
   the design's 10,000, because that is where its list is cut.
+- **Git actions.** Untracked files cannot be discarded, a running commit cannot be cancelled, a
+  failed commit offers no "view in terminal", rows and group headers have no context menu, and the
+  header and row buttons are reached by pointer only (the keyboard path is Space and Enter).
+  Staging a conflict that still holds conflict markers does not warn. Discard All lists only the
+  changes shown when the list was cut at 5000. Git 2.25 or later is needed.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
@@ -134,16 +168,18 @@ it and without slowing terminal work.
   architecture loads eagerly; chunked reads added about 0.2 KB gzip more and change following
   about 0.8 KB gzip. Editing and saving added about 24 KB raw (5.2 KB gzip), nearly all of it
   message descriptors and both locales' strings, which the application loads eagerly with their
-  translator descriptions; the right bar's descriptors alone are about 13 KB raw. Together this
-  puts the right bar about 2.5 KB gzip over the design's 10 KB budget for the main bundle; loading
-  the right bar's messages with its chunk, or dropping descriptions from the built catalog, would
-  bring it back under. The bar and float window chunk is about 10.7 KB gzip; the editor pane is
-  about 7.3 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
+  translator descriptions; the right bar's descriptors alone are about 13 KB raw. Changing the
+  repository added about 13 KB raw (2.4 KB gzip), again nearly all messages and the protocol's new
+  operations. Together this puts the right bar about 5 KB gzip over the design's 10 KB budget for
+  the main bundle; loading the right bar's messages with its chunk, or dropping descriptions from
+  the built catalog, would bring it back under. The bar and float window chunk is about 13.8 KB
+  gzip; the editor pane is about 7.3 KB gzip; Monaco is about 800 KB gzip and loads only with the
+  first open file.
 
 ## Later phases
 
 1. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
-2. Git actions: stage, unstage, discard, commit, with explicit confirmation for destructive ones.
-3. A platform watcher behind the watch lane, once admitted.
+2. A platform watcher behind the watch lane, once admitted.
+3. Moving untracked files to the trash on discard, once a trash dependency is admitted.
 4. Persisted open state, width and expanded folders per Workspace across restarts.

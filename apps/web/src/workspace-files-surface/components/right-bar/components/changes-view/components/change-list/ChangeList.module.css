@@ -1,0 +1,141 @@
+.viewport {
+	position: relative;
+	flex: 1;
+	min-height: var(--ob-ref-space-0);
+	overflow-x: hidden;
+	overflow-y: auto;
+}
+
+.viewport:focus-visible {
+	outline: none;
+}
+
+.rows {
+	position: relative;
+	height: var(--ob-comp-workbench-right-bar-list-block-size);
+}
+
+.note,
+.groupHeader,
+.changeRow {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+	display: flex;
+	box-sizing: border-box;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	height: var(--ob-ref-size-control-xs);
+	min-width: var(--ob-ref-space-0);
+	padding-inline: var(--ob-ref-space-3) var(--ob-ref-space-2);
+	transform: translateY(var(--ob-comp-workbench-right-bar-row-translate-y));
+	white-space: nowrap;
+}
+
+.note {
+	color: var(--ob-sys-color-text-muted);
+}
+
+.groupHeader {
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-xs);
+	text-transform: uppercase;
+}
+
+.groupName {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.changeRow {
+	cursor: pointer;
+}
+
+.changeRow:hover,
+.groupHeader:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.changeRow[aria-selected='true'] {
+	background: var(--ob-sys-color-surface-selected);
+}
+
+.viewport:focus-visible .changeRow[data-active] {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* A row's and a header's actions show on hover, and on the change the keyboard is on. */
+.actions {
+	display: none;
+	flex: none;
+	align-items: center;
+}
+
+.changeRow:hover .actions,
+.groupHeader:hover .actions,
+.viewport:focus-visible .changeRow[data-active] .actions {
+	display: flex;
+}
+
+.action {
+	flex: none;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.action:hover {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.entryIcon {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-md);
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.entryName {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.folder {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-muted);
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.count {
+	flex: none;
+	color: var(--ob-sys-color-text-muted);
+}
+
+.letter {
+	flex: none;
+	width: var(--ob-ref-size-icon-md);
+	font: var(--ob-sys-typography-code-sm);
+	text-align: center;
+	color: var(--ob-sys-color-status-warning-text);
+}
+
+.letter[data-letter='A'],
+.letter[data-letter='U'] {
+	color: var(--ob-sys-color-status-success-text);
+}
+
+.letter[data-letter='D'],
+.letter[data-letter='!'] {
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.empty {
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+}

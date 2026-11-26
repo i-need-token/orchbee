@@ -12,5 +12,9 @@ serde_json.workspace = true
 sha2.workspace = true
 orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
 
+[target.'cfg(unix)'.dependencies]
+# Stops a Git command that changes the repository, with its hooks, at its deadline.
+nix = { workspace = true, features = ["process", "signal"] }
+
 [lints]
 workspace = true

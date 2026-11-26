@@ -123,6 +123,7 @@ export type {
 } from './types/workbench-agent-observation';
 export type {
 	WorkbenchWorkspaceFilesSource,
+	WorkspaceGitChange,
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,
 	WorkspaceFilesWatchScope,

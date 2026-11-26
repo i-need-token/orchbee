@@ -22,6 +22,11 @@ export const MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES = 10 * 1024 * 1024;
 export const WORKSPACE_FILES_REQUEST_BYTES = 64 * 1024;
 /** An encoded `write-file` request: the largest editable text with its escapes. */
 export const WORKSPACE_FILES_WRITE_REQUEST_BYTES = 24 * 1024 * 1024;
+/** Paths one Git operation names; a longer list goes in several requests. */
+export const MAXIMUM_WORKSPACE_GIT_PATHS = 256;
+/** A commit message's bytes. */
+export const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES = 32 * 1024;
+const MAXIMUM_GIT_OUTPUT_BYTES = 8 * 1024;
 const encoder = new TextEncoder();
 const byteLength = (value: string): number => encoder.encode(value).length;
 const isEntryName = (name: string): boolean =>
@@ -35,6 +40,11 @@ const isWorkspaceRelativePath = (path: string): boolean =>
 	path.length > 0 && byteLength(path) <= MAXIMUM_PATH_BYTES && path.split('/').every(isEntryName);
 
 const RelativePathSchema = z.string().refine(isWorkspaceRelativePath);
+const GitPathsSchema = z
+	.array(RelativePathSchema)
+	.min(1)
+	.max(MAXIMUM_WORKSPACE_GIT_PATHS)
+	.readonly();
 const EntryNameSchema = z.string().refine(isEntryName);
 const identity = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
@@ -83,6 +93,21 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 			/** The SHA-256 the file was read at, or null for a file that must not exist yet. */
 			expected: Sha256Schema.nullable(),
 		})
+		.readonly(),
+	/** Null stages every change in the Workspace's directory that is not a conflict. */
+	z.strictObject({ kind: z.literal('git-stage'), paths: GitPathsSchema.nullable() }).readonly(),
+	/** Null takes everything staged in the Workspace's directory out of the index. */
+	z.strictObject({ kind: z.literal('git-unstage'), paths: GitPathsSchema.nullable() }).readonly(),
+	z.strictObject({ kind: z.literal('git-discard'), paths: GitPathsSchema }).readonly(),
+	z
+		.strictObject({
+			kind: z.literal('git-commit'),
+			message: z.string().refine((text) => byteLength(text) <= MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES),
+			amend: z.boolean(),
+			stageAll: z.boolean(),
+		})
+		// Only an amend may keep the last commit's message by sending none.
+		.refine(({ amend, message }) => amend || message.trim().length > 0)
 		.readonly(),
 ]);
 export const WorkspaceFilesRequestSchema = z
@@ -243,6 +268,15 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('conflict'),
 			version: WorkspaceFileVersionSchema.nullable(),
+		})
+		.readonly(),
+	z.strictObject({ kind: z.literal('git-done') }).readonly(),
+	/** What Git and its hooks printed when it refused, from the start; `truncated` when cut. */
+	z
+		.strictObject({
+			kind: z.literal('git-rejected'),
+			output: z.string().refine((text) => byteLength(text) <= MAXIMUM_GIT_OUTPUT_BYTES),
+			truncated: z.boolean(),
 		})
 		.readonly(),
 	z

@@ -586,6 +586,48 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.close.description': "Your edits are lost if you don't save them.",
 	'workbench.rightBar.close.discard': "Don't save",
 	'workbench.rightBar.close.cancel': 'Cancel',
+	'workbench.rightBar.git.stage': 'Stage changes',
+	'workbench.rightBar.git.unstage': 'Unstage changes',
+	'workbench.rightBar.git.discard': 'Discard changes',
+	'workbench.rightBar.git.openFile': 'Open file',
+	'workbench.rightBar.git.stageAll': 'Stage all changes',
+	'workbench.rightBar.git.stageConflicts': 'Stage all merge changes',
+	'workbench.rightBar.git.unstageAll': 'Unstage all changes',
+	'workbench.rightBar.git.discardAll': 'Discard all changes',
+	'workbench.rightBar.git.message': 'Commit message',
+	'workbench.rightBar.git.messagePlaceholder': 'Message ({shortcut} to commit)',
+	'workbench.rightBar.git.commit': 'Commit',
+	'workbench.rightBar.git.committing': 'Committing…',
+	'workbench.rightBar.git.commitMore': 'More commit actions',
+	'workbench.rightBar.git.stageAllAndCommit': 'Stage all and commit',
+	'workbench.rightBar.git.amend': 'Amend last commit',
+	'workbench.rightBar.git.commitAllTitle': 'Stage all changes and commit them?',
+	'workbench.rightBar.git.commitAllDescription':
+		'Nothing is staged yet. This stages every change, new files included, then commits.',
+	'workbench.rightBar.git.discardTitleOne': 'Discard changes in {name}?',
+	'workbench.rightBar.git.discardTitleMany':
+		'{count, plural, one {Discard changes in # file?} other {Discard changes in # files?}}',
+	'workbench.rightBar.git.discardDescription':
+		"This can't be undone. Each file goes back to its staged version, or to its last commit if nothing of it is staged.",
+	'workbench.rightBar.git.discardMore':
+		'{count, plural, one {and # more file} other {and # more files}}',
+	'workbench.rightBar.git.discardConfirm': 'Discard',
+	'workbench.rightBar.git.cancel': 'Cancel',
+	'workbench.rightBar.git.failed.commit': 'Commit failed',
+	'workbench.rightBar.git.failed.stage': "Couldn't stage",
+	'workbench.rightBar.git.failed.unstage': "Couldn't unstage",
+	'workbench.rightBar.git.failed.discard': "Couldn't discard",
+	'workbench.rightBar.git.reason.timeout': "Git didn't finish within a minute, so it was stopped.",
+	'workbench.rightBar.git.reason.notRepository': 'This folder is no longer in a Git repository.',
+	'workbench.rightBar.git.reason.denied': "This window isn't allowed to change files.",
+	'workbench.rightBar.git.reason.unavailable': "Couldn't run Git. Try again.",
+	'workbench.rightBar.git.reason.notFound': 'This Workspace is no longer open.',
+	'workbench.rightBar.git.reason.unconfirmed':
+		"Couldn't confirm whether Git finished. The list shows what Git has now.",
+	'workbench.rightBar.git.reason.messageTooLong':
+		'The commit message is too long. Keep it under 32 KB.',
+	'workbench.rightBar.git.outputTruncated': 'Git printed more than is shown here.',
+	'workbench.rightBar.git.outputDismiss': 'Dismiss',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

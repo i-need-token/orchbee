@@ -85,8 +85,6 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
     match request {
         WorkbenchRequest::CloseOperationRead(_)
         | WorkbenchRequest::WorkspaceGit(_)
-        // It reads files and Git facts and writes nothing, not even Git's index.
-        | WorkbenchRequest::WorkspaceFiles(_)
         | WorkbenchRequest::CurrentDirectory(_)
         // A refresh only renews the cached lookup of what this machine has installed.
         | WorkbenchRequest::AgentCatalog(_)
@@ -103,6 +101,15 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
         WorkbenchRequest::Command(_)
         | WorkbenchRequest::TabCloseResume(_)
         | WorkbenchRequest::WorkspaceCloseResume(_) => Intent,
+        // A save or a Git change writes the person's files or Git's index; its outcome is theirs
+        // to learn even when the answer cannot be delivered.
+        WorkbenchRequest::WorkspaceFiles(request) => {
+            if request.operation.writes() {
+                Intent
+            } else {
+                Read
+            }
+        }
         WorkbenchRequest::PaneGraphics(request) => match request.action {
             PaneGraphicsAction::Observe { .. }
             | PaneGraphicsAction::Info { .. }

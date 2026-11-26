@@ -2174,4 +2174,188 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.cancel'],
 		description: 'Keeps the files open.',
 	},
+	rightBarGitStage: {
+		id: 'workbench.rightBar.git.stage',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.stage'],
+		description: "Row action that stages one file's change.",
+	},
+	rightBarGitUnstage: {
+		id: 'workbench.rightBar.git.unstage',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.unstage'],
+		description: "Row action that takes one file's change out of the staged changes.",
+	},
+	rightBarGitDiscard: {
+		id: 'workbench.rightBar.git.discard',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discard'],
+		description: "Row action that throws away one file's unstaged change, after asking.",
+	},
+	rightBarGitOpenFile: {
+		id: 'workbench.rightBar.git.openFile',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.openFile'],
+		description: 'Row action that opens the changed file itself rather than its diff.',
+	},
+	rightBarGitStageAll: {
+		id: 'workbench.rightBar.git.stageAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.stageAll'],
+		description: 'Group action that stages every unstaged change, new files included.',
+	},
+	rightBarGitStageConflicts: {
+		id: 'workbench.rightBar.git.stageConflicts',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.stageConflicts'],
+		description: 'Group action that stages every conflicted file, which marks it resolved.',
+	},
+	rightBarGitUnstageAll: {
+		id: 'workbench.rightBar.git.unstageAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.unstageAll'],
+		description: 'Group action that takes every staged change out of the index.',
+	},
+	rightBarGitDiscardAll: {
+		id: 'workbench.rightBar.git.discardAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardAll'],
+		description:
+			'Group action that throws away every unstaged change to a tracked file, after asking.',
+	},
+	rightBarGitMessage: {
+		id: 'workbench.rightBar.git.message',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.message'],
+		description: 'Accessible name of the commit message box.',
+	},
+	rightBarGitMessagePlaceholder: {
+		id: 'workbench.rightBar.git.messagePlaceholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.messagePlaceholder'],
+		description:
+			'Placeholder of the commit message box. shortcut is the key chord that commits, such as Ctrl+Enter.',
+	},
+	rightBarGitCommit: {
+		id: 'workbench.rightBar.git.commit',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.commit'],
+		description: 'Commits the staged changes with the message typed.',
+	},
+	rightBarGitCommitting: {
+		id: 'workbench.rightBar.git.committing',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.committing'],
+		description: 'Shown on the commit button while Git and its hooks run.',
+	},
+	rightBarGitCommitMore: {
+		id: 'workbench.rightBar.git.commitMore',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.commitMore'],
+		description: 'Accessible name of the menu beside the commit button.',
+	},
+	rightBarGitStageAllAndCommit: {
+		id: 'workbench.rightBar.git.stageAllAndCommit',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.stageAllAndCommit'],
+		description: 'Stages every change, new files included, then commits.',
+	},
+	rightBarGitAmend: {
+		id: 'workbench.rightBar.git.amend',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.amend'],
+		description:
+			'Adds the staged changes to the last commit, with the message typed, or its own message when none is typed.',
+	},
+	rightBarGitCommitAllTitle: {
+		id: 'workbench.rightBar.git.commitAllTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.commitAllTitle'],
+		description: 'Title of the question asked when Commit is chosen with nothing staged.',
+	},
+	rightBarGitCommitAllDescription: {
+		id: 'workbench.rightBar.git.commitAllDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.commitAllDescription'],
+		description: 'Explains what committing with nothing staged does.',
+	},
+	rightBarGitDiscardTitleOne: {
+		id: 'workbench.rightBar.git.discardTitleOne',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTitleOne'],
+		description:
+			"Title of the question asked before discarding one file's change. name is the file name.",
+	},
+	rightBarGitDiscardTitleMany: {
+		id: 'workbench.rightBar.git.discardTitleMany',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTitleMany'],
+		description: "Title of the question asked before discarding several files' changes.",
+	},
+	rightBarGitDiscardDescription: {
+		id: 'workbench.rightBar.git.discardDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardDescription'],
+		description: 'Explains what discarding a change does.',
+	},
+	rightBarGitDiscardMore: {
+		id: 'workbench.rightBar.git.discardMore',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardMore'],
+		description: 'Ends the list of files a discard affects when it is too long to show.',
+	},
+	rightBarGitDiscardConfirm: {
+		id: 'workbench.rightBar.git.discardConfirm',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardConfirm'],
+		description: 'Confirms discarding the changes.',
+	},
+	rightBarGitCancel: {
+		id: 'workbench.rightBar.git.cancel',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.cancel'],
+		description: 'Leaves the changes as they are.',
+	},
+	rightBarGitFailedCommit: {
+		id: 'workbench.rightBar.git.failed.commit',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.failed.commit'],
+		description: 'Heading over what went wrong when committing.',
+	},
+	rightBarGitFailedStage: {
+		id: 'workbench.rightBar.git.failed.stage',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.failed.stage'],
+		description: 'Heading over what went wrong when staging.',
+	},
+	rightBarGitFailedUnstage: {
+		id: 'workbench.rightBar.git.failed.unstage',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.failed.unstage'],
+		description: 'Heading over what went wrong when unstaging.',
+	},
+	rightBarGitFailedDiscard: {
+		id: 'workbench.rightBar.git.failed.discard',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.failed.discard'],
+		description: 'Heading over what went wrong when discarding.',
+	},
+	rightBarGitReasonTimeout: {
+		id: 'workbench.rightBar.git.reason.timeout',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.timeout'],
+		description: 'Git, or a hook it ran, took too long.',
+	},
+	rightBarGitReasonNotRepository: {
+		id: 'workbench.rightBar.git.reason.notRepository',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.notRepository'],
+		description: "The Workspace's folder is not in a repository.",
+	},
+	rightBarGitReasonDenied: {
+		id: 'workbench.rightBar.git.reason.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.denied'],
+		description: 'The connection may read but not change files.',
+	},
+	rightBarGitReasonUnavailable: {
+		id: 'workbench.rightBar.git.reason.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.unavailable'],
+		description: 'Git could not be started or the file service is not running.',
+	},
+	rightBarGitReasonNotFound: {
+		id: 'workbench.rightBar.git.reason.notFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.notFound'],
+		description: 'The Workspace was closed.',
+	},
+	rightBarGitReasonUnconfirmed: {
+		id: 'workbench.rightBar.git.reason.unconfirmed',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.unconfirmed'],
+		description: 'No answer arrived, so the change may or may not have been made.',
+	},
+	rightBarGitReasonMessageTooLong: {
+		id: 'workbench.rightBar.git.reason.messageTooLong',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.messageTooLong'],
+		description: 'The commit message exceeds what a commit request carries.',
+	},
+	rightBarGitOutputTruncated: {
+		id: 'workbench.rightBar.git.outputTruncated',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.outputTruncated'],
+		description: 'Says the output shown was cut short.',
+	},
+	rightBarGitOutputDismiss: {
+		id: 'workbench.rightBar.git.outputDismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.outputDismiss'],
+		description: 'Hides what went wrong.',
+	},
 });

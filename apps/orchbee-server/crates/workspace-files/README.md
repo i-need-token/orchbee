@@ -6,8 +6,8 @@ first sends `workbench.workspace-files`, so a Session whose windows never open t
 nothing. The process exits after ten idle minutes or when its standard input closes.
 
 It reads one directory listing, one file from the working tree, the index or `HEAD`, or the change
-list of `git status`, always beneath the Workspace directory the Server names, and saves one
-working-tree file. Reads write nothing: Git runs with optional locks off, so a status read never
+list of `git status`, always beneath the Workspace directory the Server names, saves one
+working-tree file, and stages, unstages, discards or commits. Reads write nothing: Git runs with optional locks off, so a status read never
 refreshes the index.
 
 The same executable also runs the watch lane (`orchbee-server --workspace-files-watch`), a second
@@ -50,6 +50,23 @@ the directory takes no new file, or where the platform refuses the rename, the f
 and rewritten in place instead. A new file is created exclusively and written directly. A save is
 never cut short inside the service; the Server waits up to 20 seconds for it.
 
+## Changing the repository
+
+`git-stage` runs `git add -A` for the named paths, or for none every change beneath the Workspace
+directory except conflicts. `git-unstage` runs `git reset` for the named paths or everything
+staged beneath it, which on a branch with no commit removes them from the index. `git-discard`
+checks tracked paths out of the index; Git checks every path first, so an untracked path or a
+conflict refuses the whole list. `git-commit` commits what is staged, staging every change that is
+not a conflict first for `stageAll`, and an amend with an empty message keeps the last one. Paths
+go to Git on standard input as literal, NUL-separated pathspecs and the message on standard input,
+so neither is limited by a command line or read as a pattern.
+
+Success answers `git-done`. A Git refusal answers `git-rejected` with what Git printed, decoded
+lossily, stripped of escape sequences and control characters and cut to 8 KiB. Each change has 60
+seconds; on Unix Git runs in a process group of its own, which gets `SIGTERM` at the deadline and
+`SIGKILL` three seconds later, so hooks stop with it and no `index.lock` is left behind. On Windows
+only Git itself is stopped.
+
 ## Limits
 
 - Paths must stay beneath the canonical root; a symbolic link that leaves it is `denied`.
@@ -65,5 +82,6 @@ never cut short inside the service; the Server waits up to 20 seconds for it.
 - A watch set names at most 64 roots, each with at most 256 directories and 64 files, and the
   Server keeps the whole set under 4 MiB. The lane exits after ten minutes with nothing to watch.
 - A save carries at most 10 MiB of text, so a request line may reach 24 MiB.
-- Each Git command has a four-second deadline and bounded output; Git's own environment variables
+- A change names at most 256 paths and a commit message is at most 32 KiB.
+- Each Git read has a four-second deadline and bounded output; Git's own environment variables
   are cleared, terminal prompts are off and `core.fsmonitor` is disabled.

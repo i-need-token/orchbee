@@ -1,14 +1,12 @@
-//! `workbench.workspace-files`: the right bar's file and Git facts for one Workspace, and saving
-//! one of its files. The Server resolves the Workspace's own directory and asks a separate process of its own
+//! `workbench.workspace-files`: the right bar's file and Git facts for one Workspace, saving one of
+//! its files, and staging, discarding and committing its changes. The Server resolves the Workspace's own directory and asks a separate process of its own
 //! executable, started only on the first request, so a Session whose windows never open the right
 //! bar starts nothing and terminal work never waits on a file read. A watch is answered here, from
 //! what the watch lane last reported; see [`watch`].
 mod watch;
 
 use super::LocalTerminalService;
-use orchbee_server_workspace_files::{
-    Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG, WRITE_DEADLINE,
-};
+use orchbee_server_workspace_files::{Answer, Request, SERVICE_FLAG, answer_time};
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchResponse, WorkerId, WorkspaceFilesFailure as Failure,
     WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome, WorkspaceFilesRequest,
@@ -21,19 +19,20 @@ use std::sync::Mutex;
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::time::{Duration, Instant};
 
-/// How long the Server waits for one answer: the service's own deadline and a margin to start.
-const ANSWER_DEADLINE: Duration = OPERATION_DEADLINE.saturating_add(Duration::from_millis(1500));
-/// How long the Server waits for a save, which the service never cuts short.
-const WRITE_ANSWER_DEADLINE: Duration = WRITE_DEADLINE.saturating_add(Duration::from_millis(1500));
+/// How much longer than the service's own time for an operation the Server waits for its answer:
+/// room to start the process and carry the answer.
+const ANSWER_MARGIN: Duration = Duration::from_millis(1500);
 /// One answer line's bytes: the result cap and its envelope.
 const MAXIMUM_ANSWER_LINE_BYTES: u64 = 9 * 1024 * 1024;
 
-/// The service processes: file reads and change lists run in separate lanes, so a slow `git
-/// status` in a large repository never holds up a directory listing.
+/// The service processes: file reads, change lists and Git changes run in separate lanes, so a
+/// slow `git status` in a large repository never holds up a directory listing, and a commit whose
+/// hooks run for a minute holds up neither.
 pub(super) struct WorkspaceFilesProcesses {
     executable: Option<PathBuf>,
     files: Mutex<Option<Running>>,
     changes: Mutex<Option<Running>>,
+    git: Mutex<Option<Running>>,
     watches: watch::Watches,
 }
 
@@ -43,6 +42,7 @@ impl Default for WorkspaceFilesProcesses {
             executable: std::env::current_exe().ok(),
             files: Mutex::new(None),
             changes: Mutex::new(None),
+            git: Mutex::new(None),
             watches: watch::Watches::default(),
         }
     }
@@ -130,12 +130,7 @@ impl Running {
             .write_all(&line)
             .and_then(|()| self.stdin.flush())
             .map_err(|_| Failure::Unavailable)?;
-        let deadline = Instant::now()
-            + if operation.writes() {
-                WRITE_ANSWER_DEADLINE
-            } else {
-                ANSWER_DEADLINE
-            };
+        let deadline = Instant::now() + answer_time(operation).saturating_add(ANSWER_MARGIN);
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             match self.answers.recv_timeout(left) {
@@ -162,6 +157,11 @@ impl WorkspaceFilesProcesses {
             WorkspaceFilesOperation::ListDirectory { .. }
             | WorkspaceFilesOperation::ReadFile { .. }
             | WorkspaceFilesOperation::WriteFile { .. } => &self.files,
+            // A Git change runs alone, in order with the other Git changes of every Workspace.
+            WorkspaceFilesOperation::GitStage { .. }
+            | WorkspaceFilesOperation::GitUnstage { .. }
+            | WorkspaceFilesOperation::GitDiscard { .. }
+            | WorkspaceFilesOperation::GitCommit { .. } => &self.git,
             // A watch belongs to a Client connection, which answers it with `watch_workspace_files`.
             WorkspaceFilesOperation::Watch { .. } => return Err(Failure::Unavailable),
         };

@@ -260,7 +260,9 @@ struct Subscription {
 }
 
 /// Input and frames must not queue behind a Git process, so these reads run on their own owner.
-/// A one-shot read has no order against its lane; its result returns through the dispatcher.
+/// A one-shot read has no order against its lane; its result returns through the dispatcher. A
+/// change to a repository, such as a commit, may run for up to a minute, so it has an owner of its
+/// own and never holds up the reads behind it.
 struct JobRead {
     stream_id: MultiplexStreamId,
     request: ApplicationRequest,
@@ -282,6 +284,30 @@ struct JobReadState {
 struct JobReads {
     state: Mutex<JobReadState>,
     ready: Condvar,
+}
+/// The two owners of one connection's Worker jobs: reads, and changes to a repository.
+#[derive(Default)]
+struct JobQueues {
+    reads: JobReads,
+    repository_changes: JobReads,
+}
+impl JobQueues {
+    fn owner(&self, request: &ApplicationRequest) -> &JobReads {
+        if request.changes_repository() {
+            &self.repository_changes
+        } else {
+            &self.reads
+        }
+    }
+    fn close(&self) {
+        self.reads.close();
+        self.repository_changes.close();
+    }
+    fn take_finished(&self) -> impl Iterator<Item = FinishedJobRead> {
+        let reads = std::mem::take(&mut self.reads.state().finished);
+        let changes = std::mem::take(&mut self.repository_changes.state().finished);
+        reads.into_iter().chain(changes)
+    }
 }
 impl JobReads {
     fn state(&self) -> std::sync::MutexGuard<'_, JobReadState> {
@@ -350,7 +376,7 @@ pub(super) fn run(
     let first = admit(0, &budget, &streams, first).ok_or(io::ErrorKind::OutOfMemory)?;
     let reader = stream.try_clone()?;
     let mut writer = super::record_stream::ClientRecordStream::new(stream)?;
-    let job_reads = JobReads::default();
+    let job_queues = JobQueues::default();
     thread::scope(|scope| {
         let read_inbox = Arc::clone(&inbox);
         let read_signal = Arc::clone(&signal);
@@ -371,14 +397,21 @@ pub(super) fn run(
             })?;
         let job_task = thread::Builder::new()
             .name("orchbee-client-job-read".into())
-            .spawn_scoped(scope, || job_reads.run(&signal, &execute_job_read))?;
+            .spawn_scoped(scope, || job_queues.reads.run(&signal, &execute_job_read))?;
+        let change_task = thread::Builder::new()
+            .name("orchbee-client-repository-change".into())
+            .spawn_scoped(scope, || {
+                job_queues
+                    .repository_changes
+                    .run(&signal, &execute_job_read);
+            })?;
         let result = dispatch(
             &mut writer,
             first,
             unknown,
             &inbox,
             &signal,
-            &job_reads,
+            &job_queues,
             &mut execute,
             &mut viewer_ready,
             &mut cancel,
@@ -400,17 +433,24 @@ pub(super) fn run(
             let _notice =
                 write_multiplex_message(&mut writer, &MultiplexMessage::Disconnect { reason });
         }
-        // This owner closes both before joining; no detached bridge or lane thread exists. A read
+        // This owner closes every thread before joining; no detached bridge or lane thread exists. A read
         // in progress returns by its own Worker job deadline.
         let shutdown = stream.shutdown(std::net::Shutdown::Both);
-        job_reads.close();
+        job_queues.close();
         let joined = reader_task
             .join()
             .map_err(|_| io::Error::other("Client reader panicked"));
         let job_joined = job_task
             .join()
             .map_err(|_| io::Error::other("Client job reader panicked"));
-        result.and(shutdown).and(joined).and(job_joined)
+        let change_joined = change_task
+            .join()
+            .map_err(|_| io::Error::other("Client repository change owner panicked"));
+        result
+            .and(shutdown)
+            .and(joined)
+            .and(job_joined)
+            .and(change_joined)
     })
 }
 
@@ -468,7 +508,7 @@ fn dispatch(
     unknown: IntentUnknown,
     inbox: &Mutex<Inbox>,
     signal: &SessionChangeSignal,
-    job_reads: &JobReads,
+    job_queues: &JobQueues,
     execute: &mut impl FnMut(
         MultiplexLaneId,
         &ApplicationRequest,
@@ -507,8 +547,7 @@ fn dispatch(
         if closed {
             return Ok(());
         }
-        let finished = std::mem::take(&mut job_reads.state().finished);
-        for read in finished {
+        for read in job_queues.take_finished() {
             if open_job_reads.remove(&read.stream_id).is_none() {
                 continue;
             }
@@ -614,12 +653,13 @@ fn dispatch(
                     }
                     if mode == StreamMode::Request && parsed.waits_for_worker_job() {
                         open_job_reads.insert(stream_id, lane_id);
-                        job_reads.state().waiting.push_back(JobRead {
+                        let owner = job_queues.owner(&parsed);
+                        owner.state().waiting.push_back(JobRead {
                             stream_id,
                             request: parsed,
                             claim,
                         });
-                        job_reads.ready.notify_one();
+                        owner.ready.notify_one();
                         continue;
                     }
                     // Registration precedes capture: publication during capture changes the signal

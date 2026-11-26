@@ -1,7 +1,8 @@
 //! Workspace file and Git facts for the right bar: one directory listing, one chunk of a file's
 //! content from the working tree, the index or `HEAD`, or the Workspace's change list; or, as a
-//! State stream, how far what the right bar shows has changed since. One operation writes: it
-//! saves a working-tree file only while the file is still the version the client read. Paths are
+//! State stream, how far what the right bar shows has changed since. The writing operations save a
+//! working-tree file only while the file is still the version the client read, and stage, unstage,
+//! discard and commit changes with Git. Paths are
 //! Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
 //! client never names an absolute path.
 use crate::{
@@ -37,6 +38,12 @@ pub const MAXIMUM_WORKSPACE_FILE_BYTES_READ: u64 = 10 * 1024 * 1024;
 pub const MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES: usize = 256;
 /// Files one watch names: the ones open from the right bar.
 pub const MAXIMUM_WORKSPACE_FILES_WATCHED_FILES: usize = 64;
+/// Paths one Git operation names; a client sends a longer list in several requests.
+pub const MAXIMUM_WORKSPACE_GIT_PATHS: usize = 256;
+/// A commit message's bytes.
+pub const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES: usize = 32 * 1024;
+/// The bytes of Git's own output a refused Git operation reports.
+pub const MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES: usize = 8 * 1024;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -91,6 +98,32 @@ pub enum WorkspaceFilesOperation {
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
         expected: Option<String>,
     },
+    /// Stages `paths` as they are in the working tree, a deletion included; staging a conflict
+    /// marks it resolved. Null stages every change in the Workspace's directory that is not a
+    /// conflict, untracked files included.
+    GitStage {
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        paths: Option<Vec<String>>,
+    },
+    /// Takes `paths` out of the index, back to what `HEAD` holds; null takes out everything
+    /// staged in the Workspace's directory.
+    GitUnstage {
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        paths: Option<Vec<String>>,
+    },
+    /// Puts tracked `paths` back to what the index holds, dropping their unstaged changes. Git
+    /// refuses the whole operation, changing nothing, when one is untracked or a conflict.
+    GitDiscard {
+        paths: Vec<String>,
+    },
+    /// Commits what is staged with `message`, running the repository's hooks. `stage_all` first
+    /// stages what a null `git-stage` would. `amend` replaces the last commit instead; an empty
+    /// message then keeps that commit's own.
+    GitCommit {
+        message: String,
+        amend: bool,
+        stage_all: bool,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -134,21 +167,49 @@ impl WorkspaceFilesOperation {
             {
                 Ok(())
             }
+            Self::GitStage { paths } | Self::GitUnstage { paths }
+                if paths.as_deref().is_none_or(is_path_list) =>
+            {
+                Ok(())
+            }
+            Self::GitDiscard { paths } if is_path_list(paths) => Ok(()),
+            Self::GitCommit { message, amend, .. }
+                if message.len() <= MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES
+                    && (*amend || !message.trim().is_empty()) =>
+            {
+                Ok(())
+            }
             Self::ListDirectory { .. }
             | Self::ReadFile { .. }
             | Self::Watch { .. }
-            | Self::WriteFile { .. } => Err(ContractError::InvalidDocument),
+            | Self::WriteFile { .. }
+            | Self::GitStage { .. }
+            | Self::GitUnstage { .. }
+            | Self::GitDiscard { .. }
+            | Self::GitCommit { .. } => Err(ContractError::InvalidDocument),
         }
     }
     /// Whether the operation changes the Workspace, which needs more than reading permission.
     #[must_use]
     pub fn writes(&self) -> bool {
-        matches!(self, Self::WriteFile { .. })
+        matches!(self, Self::WriteFile { .. }) || self.runs_git_write()
+    }
+    /// Whether the operation changes the repository through Git. Hooks may make it run for up to a
+    /// minute, so it waits in a queue of its own and never holds up a read.
+    #[must_use]
+    pub fn runs_git_write(&self) -> bool {
+        matches!(
+            self,
+            Self::GitStage { .. }
+                | Self::GitUnstage { .. }
+                | Self::GitDiscard { .. }
+                | Self::GitCommit { .. }
+        )
     }
     /// The encoded size a request carrying this operation may reach.
     #[must_use]
     pub fn request_byte_limit(&self) -> usize {
-        if self.writes() {
+        if matches!(self, Self::WriteFile { .. }) {
             MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES
         } else {
             MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
@@ -310,6 +371,15 @@ pub enum WorkspaceFilesOutcome {
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
         version: Option<WorkspaceFileVersion>,
     },
+    /// The Git operation ran to its end.
+    GitDone {},
+    /// Git refused, or a hook stopped it; `output` is the start of what Git and its hooks printed,
+    /// lossily decoded and at most [`MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES`], and `truncated` says
+    /// more was printed.
+    GitRejected {
+        output: String,
+        truncated: bool,
+    },
     Failed {
         reason: WorkspaceFilesFailure,
     },
@@ -357,7 +427,8 @@ impl WorkspaceFilesOutcome {
             }
             Self::Written { version } => is_version(version) && version.sha256.is_some(),
             Self::Conflict { version } => version.as_ref().is_none_or(is_version),
-            Self::Watching { .. } | Self::Failed { .. } => true,
+            Self::GitRejected { output, .. } => output.len() <= MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES,
+            Self::Watching { .. } | Self::GitDone {} | Self::Failed { .. } => true,
         };
         if valid {
             Ok(())
@@ -403,7 +474,8 @@ impl WorkspaceFilesOutcome {
                     Self::Written { .. } | Self::Conflict { .. },
                     WorkspaceFilesOperation::WriteFile { .. }
                 )
-        )
+        ) || (matches!(self, Self::GitDone {} | Self::GitRejected { .. })
+            && operation.runs_git_write())
     }
 }
 
@@ -436,6 +508,13 @@ pub fn is_relative_path(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= MAXIMUM_WORKSPACE_FILE_PATH_BYTES
         && path.split('/').all(is_entry_name)
+}
+
+/// One to [`MAXIMUM_WORKSPACE_GIT_PATHS`] Workspace-relative paths.
+fn is_path_list(paths: &[String]) -> bool {
+    !paths.is_empty()
+        && paths.len() <= MAXIMUM_WORKSPACE_GIT_PATHS
+        && paths.iter().all(|path| is_relative_path(path))
 }
 
 fn is_entry_name(name: &str) -> bool {

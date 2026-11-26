@@ -548,6 +548,130 @@
 					"version": null
 				}
 			}
+		},
+		{
+			"name": "stage-paths",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-stage",
+					"paths": ["src/main.rs", "docs/工作区.md"]
+				}
+			}
+		},
+		{
+			"name": "stage-every-change",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-stage",
+					"paths": null
+				}
+			}
+		},
+		{
+			"name": "unstage-everything",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-unstage",
+					"paths": null
+				}
+			}
+		},
+		{
+			"name": "discard-tracked",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-discard",
+					"paths": ["src/main.rs"]
+				}
+			}
+		},
+		{
+			"name": "commit-staged",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-commit",
+					"message": "Fix the parser\n\nIt dropped the last record.",
+					"amend": false,
+					"stageAll": false
+				}
+			}
+		},
+		{
+			"name": "amend-keeping-message",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-commit",
+					"message": "",
+					"amend": true,
+					"stageAll": false
+				}
+			}
+		},
+		{
+			"name": "git-done",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-done"
+				}
+			}
+		},
+		{
+			"name": "git-rejected-by-hook",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-rejected",
+					"output": "lint-staged: 2 problems\nerror: src/main.rs:3 unused import\n",
+					"truncated": true
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1518,6 +1642,105 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "stage-no-paths",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-stage",
+					"paths": []
+				}
+			}
+		},
+		{
+			"name": "discard-everything",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-discard",
+					"paths": null
+				}
+			}
+		},
+		{
+			"name": "stage-outside-workspace",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-stage",
+					"paths": ["../secret"]
+				}
+			}
+		},
+		{
+			"name": "commit-without-stage-all",
+			"direction": "request",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-commit",
+					"message": "x",
+					"amend": false
+				}
+			}
+		},
+		{
+			"name": "commit-empty-message",
+			"direction": "request",
+			"boundary": "semantic",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "git-commit",
+					"message": "  \n",
+					"amend": false,
+					"stageAll": false
+				}
+			}
+		},
+		{
+			"name": "git-rejected-without-truncated",
+			"direction": "response",
+			"boundary": "schema",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "git-rejected",
+					"output": "error"
+				}
+			}
 		}
 	]
 }

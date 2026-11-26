@@ -1062,3 +1062,286 @@ fn a_save_keeps_the_file_mode_and_its_other_links() {
         "c\n"
     );
 }
+
+/// A repository's own identity and hooks, since a Git change runs with the service's environment
+/// and the developer's global configuration may name neither.
+fn configure(scratch: &Scratch) {
+    for (key, value) in [
+        ("user.name", "Test"),
+        ("user.email", "test@example.invalid"),
+        ("commit.gpgsign", "false"),
+        ("core.hooksPath", ".git/hooks"),
+    ] {
+        git(&scratch.0, &["config", key, value]);
+    }
+}
+
+fn change(root: &str, operation: WorkspaceFilesOperation) -> WorkspaceFilesOutcome {
+    answer(root, &operation, &BlobCache::default(), deadline())
+}
+
+fn paths(list: &[&str]) -> Option<Vec<String>> {
+    Some(list.iter().map(|path| (*path).to_owned()).collect())
+}
+
+/// Each changed path with its index and working-tree codes, sorted.
+fn status(root: &str) -> Vec<(String, Code, Code)> {
+    let WorkspaceFilesOutcome::GitStatus { entries, .. } =
+        change(root, WorkspaceFilesOperation::GitStatus {})
+    else {
+        panic!("not a change list");
+    };
+    let mut facts: Vec<_> = entries
+        .into_iter()
+        .map(|entry| (entry.path, entry.index, entry.worktree))
+        .collect();
+    facts.sort_by(|left, right| left.0.cmp(&right.0));
+    facts
+}
+
+fn last_message(scratch: &Scratch) -> String {
+    let output = Command::new("git")
+        .args(["log", "-1", "--format=%B"])
+        .current_dir(&scratch.0)
+        .output()
+        .unwrap();
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
+}
+
+fn commit(message: &str, amend: bool, stage_all: bool) -> WorkspaceFilesOperation {
+    WorkspaceFilesOperation::GitCommit {
+        message: message.into(),
+        amend,
+        stage_all,
+    }
+}
+
+#[test]
+fn stages_unstages_discards_and_commits_only_what_is_named() {
+    let scratch = repository();
+    configure(&scratch);
+    let root = scratch.root();
+    // An untracked path refuses the whole discard, so the tracked one beside it keeps its change.
+    assert!(matches!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitDiscard {
+                paths: paths(&["README.md", "notes/todo.md"]).unwrap()
+            }
+        ),
+        WorkspaceFilesOutcome::GitRejected { .. }
+    ));
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("README.md")).unwrap(),
+        "one\ntwo\n"
+    );
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitDiscard {
+                paths: paths(&["README.md", "gone.txt"]).unwrap()
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("README.md")).unwrap(),
+        "one\n"
+    );
+    assert!(scratch.0.join("gone.txt").exists());
+    // Unstaging both sides of a rename leaves a deletion and an untracked file.
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitUnstage {
+                paths: paths(&["src/new.rs", "src/old.rs"])
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        status(&root),
+        [
+            ("added.txt".into(), Code::Added, Code::Unmodified),
+            ("notes/todo.md".into(), Code::Untracked, Code::Untracked),
+            ("src/new.rs".into(), Code::Untracked, Code::Untracked),
+            ("src/old.rs".into(), Code::Unmodified, Code::Deleted),
+        ]
+    );
+    assert_eq!(
+        change(&root, WorkspaceFilesOperation::GitStage { paths: None }),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert!(
+        status(&root)
+            .iter()
+            .all(|(_, index, worktree)| *index != Code::Untracked && *worktree == Code::Unmodified)
+    );
+    assert_eq!(
+        change(&root, WorkspaceFilesOperation::GitUnstage { paths: None }),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert!(
+        status(&root)
+            .iter()
+            .all(|(_, index, _)| matches!(index, Code::Unmodified | Code::Untracked))
+    );
+    // Nothing staged: Git itself refuses, and says why.
+    let WorkspaceFilesOutcome::GitRejected { output, .. } =
+        change(&root, commit("nothing", false, false))
+    else {
+        panic!("an empty commit went through");
+    };
+    assert!(output.contains("no changes added to commit"), "{output}");
+    assert_eq!(
+        change(&root, commit("second\n\nbody", false, true)),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert!(status(&root).is_empty());
+    assert_eq!(last_message(&scratch), "second\n\nbody");
+    // An amend without a message keeps the last commit's.
+    scratch.write("README.md", "three\n");
+    assert_eq!(
+        change(&root, commit("", true, true)),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(last_message(&scratch), "second\n\nbody");
+    assert!(status(&root).is_empty());
+}
+
+#[test]
+fn staging_everything_leaves_conflicts_and_a_hook_may_refuse_a_commit() {
+    let scratch = Scratch::new("conflict");
+    git(&scratch.0, &["init", "-q"]);
+    configure(&scratch);
+    let root = scratch.root();
+    // Before the first commit, unstaging takes a file back out of the index.
+    scratch.write("both.txt", "base\n");
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitStage {
+                paths: paths(&["both.txt"])
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitUnstage {
+                paths: paths(&["both.txt"])
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        status(&root),
+        [("both.txt".into(), Code::Untracked, Code::Untracked)]
+    );
+    git(&scratch.0, &["add", "-A"]);
+    git(&scratch.0, &["commit", "-q", "-m", "base"]);
+    git(&scratch.0, &["checkout", "-q", "-b", "other"]);
+    scratch.write("both.txt", "other\n");
+    git(&scratch.0, &["commit", "-q", "-am", "other"]);
+    git(&scratch.0, &["checkout", "-q", "main"]);
+    scratch.write("both.txt", "main\n");
+    git(&scratch.0, &["commit", "-q", "-am", "main"]);
+    let merged = Command::new("git")
+        .args(["merge", "-q", "other"])
+        .current_dir(&scratch.0)
+        .output()
+        .unwrap();
+    assert!(!merged.status.success());
+    scratch.write("new file.txt", "new\n");
+    assert_eq!(
+        change(&root, WorkspaceFilesOperation::GitStage { paths: None }),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        status(&root),
+        [
+            ("both.txt".into(), Code::Unmerged, Code::Unmerged),
+            ("new file.txt".into(), Code::Added, Code::Unmodified),
+        ]
+    );
+    // Staging a conflict by name marks it resolved.
+    scratch.write("both.txt", "resolved\n");
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitStage {
+                paths: paths(&["both.txt"])
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    scratch.write(
+        ".git/hooks/pre-commit",
+        "#!/bin/sh\nprintf '\\033[31mlint failed\\033[0m\\r\\n'\necho 'one problem' >&2\nexit 1\n",
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(
+            scratch.0.join(".git/hooks/pre-commit"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .unwrap();
+    }
+    assert_eq!(
+        change(&root, commit("merge", false, false)),
+        WorkspaceFilesOutcome::GitRejected {
+            output: "lint failed\none problem".into(),
+            truncated: false,
+        }
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_git_change_past_its_deadline_stops_with_its_hooks_and_leaves_no_lock() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let scratch = Scratch::new("deadline");
+    git(&scratch.0, &["init", "-q"]);
+    configure(&scratch);
+    scratch.write("a.txt", "a\n");
+    git(&scratch.0, &["add", "a.txt"]);
+    // The hook leaves a mark only if it outlives the stop.
+    scratch.write(
+        ".git/hooks/pre-commit",
+        "#!/bin/sh\nsleep 6\ntouch \"$(git rev-parse --git-dir)/outlived\"\n",
+    );
+    std::fs::set_permissions(
+        scratch.0.join(".git/hooks/pre-commit"),
+        std::fs::Permissions::from_mode(0o755),
+    )
+    .unwrap();
+    let started = Instant::now();
+    assert_eq!(
+        answer(
+            &scratch.root(),
+            &commit("slow", false, false),
+            &BlobCache::default(),
+            Instant::now() + Duration::from_secs(1),
+        ),
+        WorkspaceFilesOutcome::Failed {
+            reason: WorkspaceFilesFailure::Timeout
+        }
+    );
+    assert!(started.elapsed() < Duration::from_secs(5));
+    assert!(!scratch.0.join(".git/index.lock").exists());
+    std::thread::sleep(Duration::from_secs(6));
+    assert!(!scratch.0.join(".git/outlived").exists());
+}
+
+#[test]
+fn makes_git_output_readable() {
+    let (text, cut) =
+        super::change::readable(b"\n\x1b[1;31merror\x1b[0m: bad\r\nprogress 1\rprogress 2\x07\n\n");
+    assert_eq!(text, "error: bad\nprogress 1\nprogress 2");
+    assert!(!cut);
+    let long = "\u{4e2d}".repeat(3000);
+    let (text, cut) = super::change::readable(long.as_bytes());
+    assert!(cut && text.len() <= 8 * 1024 && text.chars().all(|c| c == '\u{4e2d}'));
+}

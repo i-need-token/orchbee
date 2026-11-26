@@ -15,7 +15,7 @@ const STATUS_OUTPUT_CAP: usize = 16 * 1024 * 1024;
 const STATUS_PATH_BUDGET: usize = 6 * 1024 * 1024;
 
 /// The root's path inside its repository, `""` at the top or `dir/` beneath it.
-fn prefix(root: &Root, deadline: Instant) -> Result<String, Failure> {
+pub(crate) fn prefix(root: &Root, deadline: Instant) -> Result<String, Failure> {
     match git::run(
         root.path(),
         &["rev-parse", "--show-prefix"],

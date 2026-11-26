@@ -28,7 +28,7 @@ export interface WorkspaceFilesSurfaceProps {
 	readonly tabModel: TabModel | null;
 	readonly onCloseBar: () => void;
 	readonly closeShortcutLabel?: string | undefined;
-	/** The platform the float window's own shortcuts match and show for. */
+	/** The platform the float window's and the commit box's shortcuts match and show for. */
 	readonly shortcutPlatform: KeyboardShortcutPlatform;
 	/** Hands the keyboard back to the terminal when the float window collapses or closes. */
 	readonly onReturnFocus: () => void;
@@ -45,6 +45,16 @@ const NO_TABS = (): (() => void) => () => {};
 const NO_ACTIVE_TAB = (): null => null;
 const NO_FOLDERS: ReadonlySet<string> = new Set();
 const EVERYTHING: WorkspaceFilesChange = { files: true, repository: true };
+
+/** A Workspace's commit message, and the messages it committed, oldest first. */
+interface CommitDraft {
+	readonly message: string;
+	readonly history: readonly string[];
+}
+
+const NO_COMMIT: CommitDraft = { history: [], message: '' };
+/** The messages ↑ and ↓ walk through, newest kept. */
+const COMMIT_HISTORY_LIMIT = 50;
 
 /** Shallower folders first, so a watch that cannot take them all keeps the ones nearest the top. */
 function byDepth(left: string, right: string): number {
@@ -126,6 +136,24 @@ export function WorkspaceFilesSurface({
 	);
 	const [noteDismissed, setNoteDismissed] = React.useState<ReadonlySet<string>>(() => new Set());
 	const expanded = (workspaceId === null ? undefined : folders.get(workspaceId)) ?? NO_FOLDERS;
+	// Each Workspace keeps its commit message and the messages it committed while the window lives;
+	// nothing about them is stored.
+	const [commits, setCommits] = React.useState<ReadonlyMap<string, CommitDraft>>(() => new Map());
+	const commit = (workspaceId === null ? undefined : commits.get(workspaceId)) ?? NO_COMMIT;
+	const committed = useMemoizedFn((id: string, message: string) => {
+		setCommits((previous) => {
+			const current = previous.get(id) ?? NO_COMMIT;
+			const kept = current.history.filter((earlier) => earlier !== message);
+			return new Map(previous).set(id, {
+				history:
+					message.trim().length === 0
+						? current.history
+						: [...kept, message].slice(-COMMIT_HISTORY_LIMIT),
+				// A message typed while Git ran is a new one and stays.
+				message: current.message === message ? '' : current.message,
+			});
+		});
+	});
 
 	// What shows is followed: the open bar's folders, and the expanded float window's files. A
 	// collapsed float window or a closed bar reads again when it shows, so neither is followed.
@@ -166,10 +194,22 @@ export function WorkspaceFilesSurface({
 							activeTarget={float.open ? (activeTab?.target ?? null) : null}
 							autoRefresh={autoRefresh}
 							closeShortcutLabel={closeShortcutLabel}
+							commitHistory={commit.history}
+							commitMessage={commit.message}
 							expanded={expanded}
 							key={workspaceId ?? ''}
 							noteDismissed={workspaceId !== null && noteDismissed.has(workspaceId)}
 							onClose={onCloseBar}
+							onCommitMessageChange={(message) => {
+								if (workspaceId === null) return;
+								setCommits((previous) =>
+									new Map(previous).set(workspaceId, {
+										history: previous.get(workspaceId)?.history ?? [],
+										message,
+									}),
+								);
+							}}
+							onCommitted={committed}
 							onDismissNote={() => {
 								if (workspaceId !== null) {
 									setNoteDismissed((previous) => new Set(previous).add(workspaceId));
@@ -182,6 +222,7 @@ export function WorkspaceFilesSurface({
 							}}
 							onOpen={open}
 							onRefresh={refresh}
+							shortcutPlatform={shortcutPlatform}
 							source={source}
 							watchState={watch.state}
 							workspaceId={workspaceId}

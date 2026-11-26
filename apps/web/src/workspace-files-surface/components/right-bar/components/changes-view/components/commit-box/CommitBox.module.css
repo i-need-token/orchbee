@@ -1,0 +1,102 @@
+.root {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1-5);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-3) var(--ob-ref-space-2);
+}
+
+/* One line at rest, growing with the message to ten lines, then scrolling. */
+.message {
+	box-sizing: border-box;
+	width: 100%;
+	max-height: calc(10lh + 2 * var(--ob-ref-space-1-5) + 2 * var(--ob-ref-border-width-default));
+	padding: var(--ob-ref-space-1-5) var(--ob-ref-space-2);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	field-sizing: content;
+	resize: none;
+}
+
+.message:disabled {
+	cursor: not-allowed;
+	opacity: var(--ob-sys-opacity-muted);
+}
+
+.message::placeholder {
+	color: var(--ob-sys-color-text-muted);
+}
+
+.message:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: calc(-1 * var(--ob-ref-border-width-default));
+}
+
+.buttons {
+	display: flex;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.commit {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+	border-start-end-radius: var(--ob-ref-radius-none);
+	border-end-end-radius: var(--ob-ref-radius-none);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.more {
+	flex: none;
+	border-start-start-radius: var(--ob-ref-radius-none);
+	border-end-start-radius: var(--ob-ref-radius-none);
+}
+
+.report {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1) var(--ob-ref-space-1-5) var(--ob-ref-space-2);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-surface-raised);
+}
+
+.reportHeader {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+.reportHeading {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.dismiss {
+	flex: none;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.dismiss:hover,
+.dismiss:focus-visible {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+/* Git's own lines, as it printed them; the first ones show and the rest scroll. */
+.output {
+	max-height: 8lh;
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-code-sm);
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.reason {
+	margin: var(--ob-ref-space-0);
+	color: var(--ob-sys-color-text-secondary);
+}

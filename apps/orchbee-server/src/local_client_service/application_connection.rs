@@ -145,6 +145,13 @@ impl ApplicationRequest {
                 )
             )
     }
+    /// A Worker job that changes a repository, such as a commit, and may run for up to a minute.
+    pub(super) fn changes_repository(&self) -> bool {
+        matches!(
+            self.workbench(),
+            Some(WorkbenchRequest::WorkspaceFiles(request)) if request.operation.runs_git_write()
+        )
+    }
     pub(super) fn continuation(&self) -> Self {
         let mut next = self.clone();
         if let ApplicationRequestKind::Workbench(WorkbenchRequest::Events(request)) = &mut next.kind

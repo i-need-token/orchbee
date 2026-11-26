@@ -118,3 +118,27 @@ export function splitPath(path: string): { readonly name: string; readonly folde
 		? { folder: '', name: path }
 		: { folder: path.slice(0, slash), name: path.slice(slash + 1) };
 }
+
+/**
+ * Whether a change can be discarded here: an unstaged change to a tracked file, which Git restores
+ * from the index. An untracked file would have to be deleted, which this view does not do.
+ */
+export function canDiscard(item: ChangeItem): boolean {
+	return item.group === 'unstaged' && item.before !== null;
+}
+
+/** Whether the changed file is there to open: a deletion leaves nothing in the working tree. */
+export function opensFile(item: ChangeItem): boolean {
+	return item.letter !== 'D';
+}
+
+/**
+ * The paths an unstage names: both sides of a staged rename, so the index loses the new name and
+ * gets the old one back.
+ */
+export function unstagePaths(item: ChangeItem): readonly string[] {
+	// A copy leaves its source as it was, and the source's own staged change stays staged.
+	return item.letter === 'R' && item.originalPath !== null
+		? [item.originalPath, item.path]
+		: [item.path];
+}

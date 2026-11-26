@@ -1,0 +1,15 @@
+.branch {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-3) var(--ob-ref-space-1);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.branchName {
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}

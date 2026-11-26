@@ -2,6 +2,7 @@
 //! while it is still the version a client read. The Server runs it in a child process of its own
 //! executable only once a Client asks, and talks to it over standard input and output, one JSON
 //! object per line; a second child, the watch lane, follows changes. See this crate's README.
+mod change;
 mod files;
 mod git;
 mod status;
@@ -31,8 +32,22 @@ pub const OPERATION_DEADLINE: Duration = Duration::from_secs(4);
 /// How long the Server waits for a save, which writes and syncs up to the editable size and is
 /// never cut short inside the service, so a slow disk does not report a save that then lands.
 pub const WRITE_DEADLINE: Duration = Duration::from_secs(20);
+/// How long a Git command that changes the repository, its hooks included, may run inside the
+/// service before it is stopped; stopping takes up to [`git::STOP_GRACE`] more.
+pub const GIT_CHANGE_DEADLINE: Duration = Duration::from_secs(60);
 /// The service exits after this long without a request.
 pub const IDLE_EXIT: Duration = Duration::from_secs(10 * 60);
+/// How long the service may take to answer `operation`, from the moment it reads the request.
+#[must_use]
+pub fn answer_time(operation: &WorkspaceFilesOperation) -> Duration {
+    if operation.runs_git_write() {
+        GIT_CHANGE_DEADLINE.saturating_add(git::STOP_GRACE)
+    } else if operation.writes() {
+        WRITE_DEADLINE
+    } else {
+        OPERATION_DEADLINE
+    }
+}
 /// Room the result's identity fields take beside the outcome.
 const ENVELOPE_BYTES: usize = 4 * 1024;
 /// One request line's bytes: the largest request, a save, and the root beside it.
@@ -99,6 +114,20 @@ pub fn answer(
                     text,
                     expected,
                 } => write::write_worktree(&root, path, text, expected.as_deref()),
+                WorkspaceFilesOperation::GitStage { paths } => {
+                    change::stage(&root, paths.as_deref(), deadline)
+                }
+                WorkspaceFilesOperation::GitUnstage { paths } => {
+                    change::unstage(&root, paths.as_deref(), deadline)
+                }
+                WorkspaceFilesOperation::GitDiscard { paths } => {
+                    change::discard(&root, paths, deadline)
+                }
+                WorkspaceFilesOperation::GitCommit {
+                    message,
+                    amend,
+                    stage_all,
+                } => change::commit(&root, message, *amend, *stage_all, deadline),
                 // The Server answers a watch itself from what the watch lane reports.
                 WorkspaceFilesOperation::Watch { .. } => Outcome::Failed {
                     reason: Failure::Malformed,
@@ -164,12 +193,13 @@ fn handle(
     let Ok(request) = serde_json::from_slice::<Request>(line) else {
         return true;
     };
-    let outcome = answer(
-        &request.root,
-        &request.operation,
-        cache,
-        Instant::now() + OPERATION_DEADLINE,
-    );
+    let deadline = Instant::now()
+        + if request.operation.runs_git_write() {
+            GIT_CHANGE_DEADLINE
+        } else {
+            OPERATION_DEADLINE
+        };
+    let outcome = answer(&request.root, &request.operation, cache, deadline);
     let Ok(mut encoded) = serde_json::to_vec(&Answer {
         id: request.id,
         outcome,
