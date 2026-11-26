@@ -100,7 +100,7 @@ pub(super) fn prepare(
 
 /// The matcher for `query`, and whether a match may run across lines, which a line break in the
 /// pattern asks for.
-pub(super) fn matcher(query: &WorkspaceSearchQuery) -> Option<(RegexMatcher, bool)> {
+pub(crate) fn matcher(query: &WorkspaceSearchQuery) -> Option<(RegexMatcher, bool)> {
     let multi_line = query.pattern.contains('\n') || (query.regex && query.pattern.contains("\\n"));
     let mut builder = RegexMatcherBuilder::new();
     builder

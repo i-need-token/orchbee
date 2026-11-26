@@ -29,6 +29,7 @@ import {
 } from './workbench-workspace-git-contract';
 import {
 	WORKSPACE_FILES_REQUEST_BYTES,
+	WORKSPACE_FILES_RESULT_BYTES,
 	WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
 	WORKSPACE_FILES_WRITE_REQUEST_BYTES,
 	WorkspaceFilesRequestSchema,
@@ -728,7 +729,9 @@ export const WorkbenchRequestSchema = z
 		if (value.kind === 'workbench.workspace-files') {
 			maximum = WORKSPACE_FILES_REQUEST_BYTES;
 			if (value.operation.kind === 'write-file') maximum = WORKSPACE_FILES_WRITE_REQUEST_BYTES;
-			if (value.operation.kind === 'search') maximum = WORKSPACE_FILES_SEARCH_REQUEST_BYTES;
+			if (value.operation.kind === 'search' || value.operation.kind === 'replace-matches') {
+				maximum = WORKSPACE_FILES_SEARCH_REQUEST_BYTES;
+			}
 		}
 		if (value.kind === 'workbench.agent-integration')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES;
@@ -914,6 +917,8 @@ export const WorkbenchResponseSchema = z
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_CATALOG_BYTES;
 		} else if (value.kind === 'workbench.agent-integration.result') {
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_RESULT_BYTES;
+		} else if (value.kind === 'workbench.workspace-files.result') {
+			maximum = WORKSPACE_FILES_RESULT_BYTES;
 		}
 
 		if (value.kind === 'workbench.command.result' && value.outcome.kind === 'workspaces-reordered')

@@ -27,9 +27,9 @@ const ANSWER_MARGIN: Duration = Duration::from_millis(1500);
 /// One answer line's bytes: the result cap and its envelope.
 const MAXIMUM_ANSWER_LINE_BYTES: u64 = 9 * 1024 * 1024;
 
-/// The service processes: file reads, change lists and Git changes run in separate lanes, so a
+/// The service processes: file reads, change lists and long changes run in separate lanes, so a
 /// slow `git status` in a large repository never holds up a directory listing, and a commit whose
-/// hooks run for a minute holds up neither.
+/// hooks run for a minute, or a replacement across many files, holds up neither.
 pub(super) struct WorkspaceFilesProcesses {
     executable: Option<PathBuf>,
     files: Mutex<Option<Running>>,
@@ -161,11 +161,13 @@ impl WorkspaceFilesProcesses {
             WorkspaceFilesOperation::ListDirectory { .. }
             | WorkspaceFilesOperation::ReadFile { .. }
             | WorkspaceFilesOperation::WriteFile { .. } => &self.files,
-            // A Git change runs alone, in order with the other Git changes of every Workspace.
+            // A Git change or a replacement runs alone, in order with the other long changes of
+            // every Workspace, and holds up no read.
             WorkspaceFilesOperation::GitStage { .. }
             | WorkspaceFilesOperation::GitUnstage { .. }
             | WorkspaceFilesOperation::GitDiscard { .. }
-            | WorkspaceFilesOperation::GitCommit { .. } => &self.git,
+            | WorkspaceFilesOperation::GitCommit { .. }
+            | WorkspaceFilesOperation::ReplaceMatches { .. } => &self.git,
             // A watch and a search belong to a Client connection, which answers them with
             // `watch_workspace_files` and `search_workspace_files`.
             WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {

@@ -285,27 +285,27 @@ struct JobReads {
     state: Mutex<JobReadState>,
     ready: Condvar,
 }
-/// The two owners of one connection's Worker jobs: reads, and changes to a repository.
+/// The two owners of one connection's Worker jobs: reads, and long changes to a Workspace.
 #[derive(Default)]
 struct JobQueues {
     reads: JobReads,
-    repository_changes: JobReads,
+    long_changes: JobReads,
 }
 impl JobQueues {
     fn owner(&self, request: &ApplicationRequest) -> &JobReads {
-        if request.changes_repository() {
-            &self.repository_changes
+        if request.changes_at_length() {
+            &self.long_changes
         } else {
             &self.reads
         }
     }
     fn close(&self) {
         self.reads.close();
-        self.repository_changes.close();
+        self.long_changes.close();
     }
     fn take_finished(&self) -> impl Iterator<Item = FinishedJobRead> {
         let reads = std::mem::take(&mut self.reads.state().finished);
-        let changes = std::mem::take(&mut self.repository_changes.state().finished);
+        let changes = std::mem::take(&mut self.long_changes.state().finished);
         reads.into_iter().chain(changes)
     }
 }
@@ -399,11 +399,9 @@ pub(super) fn run(
             .name("orchbee-client-job-read".into())
             .spawn_scoped(scope, || job_queues.reads.run(&signal, &execute_job_read))?;
         let change_task = thread::Builder::new()
-            .name("orchbee-client-repository-change".into())
+            .name("orchbee-client-long-change".into())
             .spawn_scoped(scope, || {
-                job_queues
-                    .repository_changes
-                    .run(&signal, &execute_job_read);
+                job_queues.long_changes.run(&signal, &execute_job_read);
             })?;
         let result = dispatch(
             &mut writer,

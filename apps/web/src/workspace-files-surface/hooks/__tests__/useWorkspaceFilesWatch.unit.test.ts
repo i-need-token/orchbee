@@ -26,6 +26,7 @@ function watches(): {
 		source: {
 			changeRepository: () => Promise.resolve(null),
 			read: () => Promise.resolve(null),
+			replace: () => Promise.resolve([]),
 			save: () => Promise.resolve(null),
 			search: () => ({ close: () => undefined }),
 			watch(_workspaceId, scope, receive) {

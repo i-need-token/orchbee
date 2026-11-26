@@ -2,8 +2,9 @@
 //! content from the working tree, the index or `HEAD`, or the Workspace's change list; as a State
 //! stream, how far what the right bar shows has changed since; or, as an Events stream, the
 //! matches of a text search, page by page as they are found. The writing operations save a
-//! working-tree file only while the file is still the version the client read, and stage, unstage,
-//! discard and commit changes with Git. Paths are
+//! working-tree file only while the file is still the version the client read, replace the
+//! matches a search found only while the files still hold them, and stage, unstage, discard and
+//! commit changes with Git. Paths are
 //! Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
 //! client never names an absolute path.
 use crate::{
@@ -60,6 +61,13 @@ pub const MAXIMUM_WORKSPACE_SEARCH_PATHS: usize = MAXIMUM_WORKSPACE_FILE_ENTRIES
 pub const MAXIMUM_WORKSPACE_SEARCH_MATCHES: u64 = 20_000;
 /// UTF-16 code units one match preview holds; a longer line shows the part around its matches.
 pub const MAXIMUM_WORKSPACE_SEARCH_PREVIEW_UNITS: usize = 1000;
+/// A replacement's bytes.
+pub const MAXIMUM_WORKSPACE_REPLACEMENT_BYTES: usize = MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES;
+/// Files one `replace-matches` request names; a client replaces in more files with several
+/// requests.
+pub const MAXIMUM_WORKSPACE_REPLACE_FILES: usize = MAXIMUM_WORKSPACE_GIT_PATHS;
+/// Matches one `replace-matches` request names across its files: every match one search reports.
+pub const MAXIMUM_WORKSPACE_REPLACE_MATCHES: usize = MAXIMUM_WORKSPACE_SEARCH_MATCHES as usize;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -149,6 +157,15 @@ pub enum WorkspaceFilesOperation {
     Search {
         query: WorkspaceSearchQuery,
     },
+    /// Replaces matches a search found in `files`, each named by where it starts, with
+    /// `query.replacement`. A file is searched again for `query`, and written only while every
+    /// match named still starts where it was found and the file did not change while it was
+    /// read; any other file is left as it was. Files are replaced one at a time, in order, and
+    /// the answer says for each what became of it.
+    ReplaceMatches {
+        query: WorkspaceReplaceQuery,
+        files: Vec<WorkspaceReplaceFile>,
+    },
 }
 
 /// What one search looks for and where.
@@ -185,6 +202,71 @@ impl WorkspaceSearchQuery {
                     && paths.iter().all(|path| is_relative_path(path))
             })
     }
+}
+
+/// What a replacement looks for, as the search that found the matches did, and what it writes.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceReplaceQuery {
+    /// The search's text or regular expression.
+    pub pattern: String,
+    pub regex: bool,
+    pub match_case: bool,
+    pub whole_word: bool,
+    /// What each match becomes. With `regex`, `$1` to `$99` and `${name}` insert a group, `$0`
+    /// and `$&` the whole match and `$$` a dollar sign; `\n`, `\t` and `\\` insert a line feed, a
+    /// tab and a backslash; and `\u`, `\l`, `\U` and `\L` make the next group's first letter, or
+    /// all of it, upper or lower case. Without `regex` it is written as it stands.
+    pub replacement: String,
+    /// Writes a replacement without groups in the case of the text it replaces: all upper, all
+    /// lower or with a capital first letter, part by part when both hold the same hyphens or
+    /// underscores.
+    pub preserve_case: bool,
+}
+
+/// A file's matches to replace.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceReplaceFile {
+    pub path: String,
+    /// Where each match starts, in order through the file and apart.
+    pub matches: Vec<WorkspaceReplaceMatch>,
+}
+
+/// Where a match starts: the line counted from 1 and the UTF-16 code units of that line before
+/// it, as a search reports `line` and `preview_start` plus the match's `start`.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceReplaceMatch {
+    pub line: u64,
+    pub column: u32,
+}
+
+impl WorkspaceReplaceQuery {
+    fn is_valid(&self) -> bool {
+        !self.pattern.is_empty()
+            && self.pattern.len() <= MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES
+            && self.replacement.len() <= MAXIMUM_WORKSPACE_REPLACEMENT_BYTES
+    }
+}
+
+/// One to [`MAXIMUM_WORKSPACE_REPLACE_FILES`] distinct files, each with matches in order, and at
+/// most [`MAXIMUM_WORKSPACE_REPLACE_MATCHES`] matches in all.
+fn is_replace_list(files: &[WorkspaceReplaceFile]) -> bool {
+    let mut paths: Vec<&str> = files.iter().map(|file| file.path.as_str()).collect();
+    paths.sort_unstable();
+    paths.dedup();
+    !files.is_empty()
+        && files.len() <= MAXIMUM_WORKSPACE_REPLACE_FILES
+        && paths.len() == files.len()
+        && files.iter().map(|file| file.matches.len()).sum::<usize>()
+            <= MAXIMUM_WORKSPACE_REPLACE_MATCHES
+        && files.iter().all(|file| {
+            is_relative_path(&file.path)
+                && !file.matches.is_empty()
+                && file.matches.first().is_some_and(|first| first.line >= 1)
+                && file.matches.windows(2).all(|pair| pair[0] < pair[1])
+        })
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -241,6 +323,9 @@ impl WorkspaceFilesOperation {
                 Ok(())
             }
             Self::Search { query } if query.is_valid() => Ok(()),
+            Self::ReplaceMatches { query, files } if query.is_valid() && is_replace_list(files) => {
+                Ok(())
+            }
             Self::ListDirectory { .. }
             | Self::ReadFile { .. }
             | Self::Watch { .. }
@@ -249,16 +334,23 @@ impl WorkspaceFilesOperation {
             | Self::GitUnstage { .. }
             | Self::GitDiscard { .. }
             | Self::GitCommit { .. }
-            | Self::Search { .. } => Err(ContractError::InvalidDocument),
+            | Self::Search { .. }
+            | Self::ReplaceMatches { .. } => Err(ContractError::InvalidDocument),
         }
     }
     /// Whether the operation changes the Workspace, which needs more than reading permission.
     #[must_use]
     pub fn writes(&self) -> bool {
-        matches!(self, Self::WriteFile { .. }) || self.runs_git_write()
+        matches!(self, Self::WriteFile { .. }) || self.changes_at_length()
     }
-    /// Whether the operation changes the repository through Git. Hooks may make it run for up to a
-    /// minute, so it waits in a queue of its own and never holds up a read.
+    /// Whether the operation is a change that may run for up to a minute: a Git change, whose
+    /// hooks may run that long, or replacing matches across many files. It waits in a queue of its
+    /// own and never holds up a read.
+    #[must_use]
+    pub fn changes_at_length(&self) -> bool {
+        self.runs_git_write() || matches!(self, Self::ReplaceMatches { .. })
+    }
+    /// Whether the operation changes the repository through Git.
     #[must_use]
     pub fn runs_git_write(&self) -> bool {
         matches!(
@@ -274,7 +366,9 @@ impl WorkspaceFilesOperation {
     pub fn request_byte_limit(&self) -> usize {
         match self {
             Self::WriteFile { .. } => MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
-            Self::Search { .. } => MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
+            Self::Search { .. } | Self::ReplaceMatches { .. } => {
+                MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES
+            }
             _ => MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES,
         }
     }
@@ -428,6 +522,35 @@ pub struct WorkspaceSearchRange {
     pub end: u32,
 }
 
+/// What became of one file a replacement named.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceReplacedFile {
+    pub path: String,
+    pub result: WorkspaceReplaceResult,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(
+    tag = "kind",
+    rename_all = "kebab-case",
+    rename_all_fields = "camelCase",
+    deny_unknown_fields
+)]
+pub enum WorkspaceReplaceResult {
+    /// Every match named was replaced; `version` is what the file is now, with its SHA-256.
+    Replaced { version: WorkspaceFileVersion },
+    /// The file no longer holds a match where the search found it, or changed while it was
+    /// replaced, so nothing was written.
+    Changed {},
+    /// The file is not UTF-8 text, or it or the replaced text is larger than a file that opens for
+    /// editing, so it was left as it was.
+    NotEditable {},
+    /// Not written for `reason`; `timeout` names a file the replacement had no time left to
+    /// start.
+    Failed { reason: WorkspaceFilesFailure },
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkspaceFilesFailure {
@@ -509,6 +632,10 @@ pub enum WorkspaceFilesOutcome {
         more: bool,
         state: WorkspaceSearchState,
     },
+    /// What became of each file a `replace-matches` named, in the order it named them.
+    Replaced {
+        files: Vec<WorkspaceReplacedFile>,
+    },
     Failed {
         reason: WorkspaceFilesFailure,
     },
@@ -565,6 +692,20 @@ impl WorkspaceFilesOutcome {
                             && file.lines.iter().all(is_search_line)
                     })
             }
+            Self::Replaced { files } => {
+                files.len() <= MAXIMUM_WORKSPACE_REPLACE_FILES
+                    && files.iter().all(|file| {
+                        is_relative_path(&file.path)
+                            && match &file.result {
+                                WorkspaceReplaceResult::Replaced { version } => {
+                                    is_version(version) && version.sha256.is_some()
+                                }
+                                WorkspaceReplaceResult::Changed {}
+                                | WorkspaceReplaceResult::NotEditable {}
+                                | WorkspaceReplaceResult::Failed { .. } => true,
+                            }
+                    })
+            }
             Self::Watching { .. } | Self::GitDone {} | Self::Failed { .. } => true,
         };
         if valid {
@@ -575,6 +716,17 @@ impl WorkspaceFilesOutcome {
     }
     /// Whether this outcome is a possible answer to `operation`.
     pub fn answers(&self, operation: &WorkspaceFilesOperation) -> bool {
+        if let (
+            Self::Replaced { files: done },
+            WorkspaceFilesOperation::ReplaceMatches { files, .. },
+        ) = (self, operation)
+        {
+            return done.len() == files.len()
+                && done
+                    .iter()
+                    .zip(files)
+                    .all(|(done, asked)| done.path == asked.path);
+        }
         if let (
             Self::File { content, .. },
             WorkspaceFilesOperation::ReadFile {

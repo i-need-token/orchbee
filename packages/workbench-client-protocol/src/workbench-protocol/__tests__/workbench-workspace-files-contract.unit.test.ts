@@ -3,6 +3,10 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { WorkbenchRequestSchema, WorkbenchResponseSchema } from '../workbench-command-contract';
+import {
+	WORKSPACE_FILES_RESULT_BYTES,
+	WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
+} from '../workbench-workspace-files-contract';
 const caseSchema = z.strictObject({
 	name: z.string(),
 	direction: z.enum(['request', 'response']),
@@ -71,5 +75,48 @@ describe('Workspace files and Git change reads', () => {
 				accepted: false,
 			});
 		}
+	});
+
+	// The encoded limits are the Rust crate's own, so a whole chunk or a replacement naming many
+	// matches is not refused by the window after the Server sent or accepted it.
+	it('carries a chunk and a replacement as large as the Server allows', () => {
+		const id = (value: number): string => value.toString(16).padStart(32, '0');
+		const identity = { protocolVersion: 1, requestId: id(1), sessionId: id(2), workspaceId: id(3) };
+		const result = (text: string): unknown => ({
+			...identity,
+			kind: 'workbench.workspace-files.result',
+			outcome: {
+				byteLength: text.length,
+				content: { kind: 'text', nextOffset: null, offset: 0, text },
+				kind: 'file',
+				version: null,
+			},
+		});
+		const chunk = result('x'.repeat(256 * 1024));
+		expect(JSON.stringify(chunk).length).toBeLessThan(WORKSPACE_FILES_RESULT_BYTES);
+		expect(WorkbenchResponseSchema.safeParse(chunk).success).toBe(true);
+		const replace = (files: number): unknown => ({
+			...identity,
+			kind: 'workbench.workspace-files',
+			operation: {
+				files: Array.from({ length: files }, (_file, index) => ({
+					matches: Array.from({ length: 50 }, (_match, line) => ({ column: 0, line: line + 1 })),
+					path: `src/${String(index).padStart(400, '0')}.txt`,
+				})),
+				kind: 'replace-matches',
+				query: {
+					matchCase: false,
+					pattern: 'needle',
+					preserveCase: false,
+					regex: false,
+					replacement: 'pin',
+					wholeWord: false,
+				},
+			},
+		});
+		const large = replace(256);
+		expect(JSON.stringify(large).length).toBeLessThan(WORKSPACE_FILES_SEARCH_REQUEST_BYTES);
+		expect(JSON.stringify(large).length).toBeGreaterThan(64 * 1024);
+		expect(WorkbenchRequestSchema.safeParse(large).success).toBe(true);
 	});
 });

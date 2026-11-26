@@ -898,6 +898,174 @@
 					"state": "invalid-pattern"
 				}
 			}
+		},
+		{
+			"name": "replace-literal",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "src/a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								},
+								{
+									"line": 1,
+									"column": 12
+								},
+								{
+									"line": 4,
+									"column": 3
+								}
+							]
+						},
+						{
+							"path": "b.txt",
+							"matches": [
+								{
+									"line": 2,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "replace-regex-groups-preserving-case",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "(\\w+)-id",
+						"regex": true,
+						"matchCase": true,
+						"wholeWord": false,
+						"replacement": "\\u$1Id",
+						"preserveCase": true
+					},
+					"files": [
+						{
+							"path": "a.ts",
+							"matches": [
+								{
+									"line": 3,
+									"column": 7
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "replace-empty-replacement",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "replaced-each-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "replaced",
+					"files": [
+						{
+							"path": "src/a.txt",
+							"result": {
+								"kind": "replaced",
+								"version": {
+									"modified": "1700000000000000000",
+									"sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+								}
+							}
+						},
+						{
+							"path": "b.txt",
+							"result": {
+								"kind": "changed"
+							}
+						},
+						{
+							"path": "c.bin",
+							"result": {
+								"kind": "not-editable"
+							}
+						},
+						{
+							"path": "d.txt",
+							"result": {
+								"kind": "failed",
+								"reason": "denied"
+							}
+						},
+						{
+							"path": "e.txt",
+							"result": {
+								"kind": "failed",
+								"reason": "timeout"
+							}
+						}
+					]
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -2221,6 +2389,398 @@
 				}
 			},
 			"boundary": "semantic"
+		},
+		{
+			"name": "replace-without-files",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": []
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-file-without-matches",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": []
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-line-zero",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 0,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-outside-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "../a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-empty-pattern",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-without-preserve-case",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin"
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-with-globs",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false,
+						"includes": []
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replace-unordered-matches",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 2,
+									"column": 0
+								},
+								{
+									"line": 1,
+									"column": 5
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "replace-repeated-match",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 5
+								},
+								{
+									"line": 1,
+									"column": 5
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "replace-repeated-file",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "replace-matches",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"replacement": "pin",
+						"preserveCase": false
+					},
+					"files": [
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 1,
+									"column": 0
+								}
+							]
+						},
+						{
+							"path": "a.txt",
+							"matches": [
+								{
+									"line": 2,
+									"column": 0
+								}
+							]
+						}
+					]
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "replaced-without-hash",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "replaced",
+					"files": [
+						{
+							"path": "a.txt",
+							"result": {
+								"kind": "replaced",
+								"version": {
+									"modified": "1",
+									"sha256": null
+								}
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "replaced-unknown-result",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "replaced",
+					"files": [
+						{
+							"path": "a.txt",
+							"result": {
+								"kind": "skipped"
+							}
+						}
+					]
+				}
+			},
+			"boundary": "schema"
 		}
 	]
 }

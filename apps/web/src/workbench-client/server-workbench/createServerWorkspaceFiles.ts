@@ -3,18 +3,24 @@ import type {
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,
 	WorkspaceFilesWatchScope,
+	WorkspaceReplaceReport,
 	WorkspaceSearch,
 	WorkspaceSearchReport,
 } from '../../workbench';
 import {
 	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+	MAXIMUM_WORKSPACE_REPLACE_FILES,
+	MAXIMUM_WORKSPACE_REPLACE_MATCHES,
 	WORKBENCH_PROTOCOL_VERSION,
+	WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
 	parseWorkbenchRequest,
 	type WorkbenchResponse,
 	type WorkspaceFilesOperation,
 	type WorkspaceFilesOutcome,
 	type WorkspaceFilesWatchState,
+	type WorkspaceReplaceFile,
+	type WorkspaceReplaceQuery,
 	type WorkspaceSearchQuery,
 	type WorkspaceSearchState,
 } from '@orchbee/workbench-client-protocol';
@@ -40,7 +46,7 @@ const READ_MILLISECONDS = 7_000;
 const SAVE_MILLISECONDS = 24_000;
 /**
  * One repository change's budget: the Server waits sixty-four and a half seconds for Git, which a
- * hook may keep busy, and stops it before then.
+ * hook may keep busy, and stops it before then. A replacement waits as long, in the same lane.
  */
 const CHANGE_MILLISECONDS = 66_000;
 /** A watch stream the Server closed opens again after this long. */
@@ -68,12 +74,62 @@ function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperat
 			return outcome.kind === 'watching';
 		case 'search':
 			return outcome.kind === 'search-results';
+		case 'replace-matches':
+			// Each file's result is read by its place, so only the files asked about, in order, answer.
+			return (
+				outcome.kind === 'replaced' &&
+				outcome.files.length === operation.files.length &&
+				outcome.files.every((file, index) => file.path === operation.files[index]?.path)
+			);
 		case 'git-stage':
 		case 'git-unstage':
 		case 'git-discard':
 		case 'git-commit':
 			return outcome.kind === 'git-done' || outcome.kind === 'git-rejected';
 	}
+}
+
+const encoder = new TextEncoder();
+
+/** Room a replacement's request keeps for its envelope beside the query and the files. */
+const REPLACE_ENVELOPE_BYTES = 4096;
+
+/**
+ * The files of a replacement in requests the protocol carries, in order: each within the limits
+ * on files, matches and bytes. A file is never split, because its later matches would be looked
+ * for in what the earlier ones already changed.
+ */
+function replaceBatches(
+	query: WorkspaceReplaceQuery,
+	files: readonly WorkspaceReplaceFile[],
+): readonly (readonly WorkspaceReplaceFile[])[] {
+	const room =
+		WORKSPACE_FILES_SEARCH_REQUEST_BYTES -
+		REPLACE_ENVELOPE_BYTES -
+		encoder.encode(JSON.stringify(query)).length;
+	const batches: WorkspaceReplaceFile[][] = [];
+	let batch: WorkspaceReplaceFile[] = [];
+	let matches = 0;
+	let bytes = 0;
+	for (const file of files) {
+		const size = encoder.encode(JSON.stringify(file)).length + 1;
+		if (
+			batch.length > 0 &&
+			(batch.length === MAXIMUM_WORKSPACE_REPLACE_FILES ||
+				matches + file.matches.length > MAXIMUM_WORKSPACE_REPLACE_MATCHES ||
+				bytes + size > room)
+		) {
+			batches.push(batch);
+			batch = [];
+			matches = 0;
+			bytes = 0;
+		}
+		batch.push(file);
+		matches += file.matches.length;
+		bytes += size;
+	}
+	if (batch.length > 0) batches.push(batch);
+	return batches;
 }
 
 /** The scope a request can carry: each path once, the first ones within the protocol's limits. */
@@ -338,8 +394,8 @@ function searchWorkspace(
 }
 
 /**
- * `workbench.workspace-files` reads, saves, repository changes, watches and searches for the right
- * bar. Nothing is read until the bar asks, and the Server starts its file service only then.
+ * `workbench.workspace-files` reads, saves, replacements, repository changes, watches and searches
+ * for the right bar. Nothing is read until the bar asks, and the Server starts its file service only then.
  */
 export function createServerWorkspaceFiles(
 	session: FilesSession,
@@ -387,6 +443,29 @@ export function createServerWorkspaceFiles(
 		},
 		changeRepository(workspaceId, change) {
 			return ask(workspaceId, change, CHANGE_MILLISECONDS);
+		},
+		async replace(workspaceId, query, files) {
+			const reports: WorkspaceReplaceReport[] = [];
+			for (const batch of replaceBatches(query, files)) {
+				const outcome = await ask(
+					workspaceId,
+					{ files: batch, kind: 'replace-matches', query },
+					CHANGE_MILLISECONDS,
+				);
+				if (outcome?.kind !== 'replaced') {
+					// Nothing after a batch that failed, or whose answer never came, is sent.
+					const result = outcome?.kind === 'failed' ? outcome : null;
+					for (const file of batch) reports.push({ path: file.path, result });
+					break;
+				}
+				for (const file of outcome.files) reports.push(file);
+				// A batch the Server could not finish in time leaves the rest for later.
+				const late = outcome.files.some(
+					(file) => file.result.kind === 'failed' && file.result.reason === 'timeout',
+				);
+				if (late) break;
+			}
+			return reports;
 		},
 		watch(workspaceId, scope, onReport) {
 			return watchWorkspace(connection, session, workspaceId, scope, onReport);

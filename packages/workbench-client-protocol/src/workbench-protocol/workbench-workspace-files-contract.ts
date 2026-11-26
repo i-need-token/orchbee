@@ -20,6 +20,8 @@ const WORKSPACE_FILE_CHUNK_BYTES = 256 * 1024;
 export const MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES = 10 * 1024 * 1024;
 /** An encoded request that reads or watches. */
 export const WORKSPACE_FILES_REQUEST_BYTES = 64 * 1024;
+/** An encoded result: a file chunk, a listing or change list, or a page of search results. */
+export const WORKSPACE_FILES_RESULT_BYTES = 8 * 1024 * 1024;
 /** An encoded `write-file` request: the largest editable text with its escapes. */
 export const WORKSPACE_FILES_WRITE_REQUEST_BYTES = 24 * 1024 * 1024;
 /** Paths one Git operation names; a longer list goes in several requests. */
@@ -27,7 +29,10 @@ export const MAXIMUM_WORKSPACE_GIT_PATHS = 256;
 /** A commit message's bytes. */
 export const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES = 32 * 1024;
 const MAXIMUM_GIT_OUTPUT_BYTES = 8 * 1024;
-/** An encoded `search` request: a query that may name thousands of files. */
+/**
+ * An encoded `search` request, a query that may name thousands of files, or `replace-matches`, which
+ * names the matches of up to 256 of them.
+ */
 export const WORKSPACE_FILES_SEARCH_REQUEST_BYTES = 2 * 1024 * 1024;
 /** The encoded search text one search carries. */
 export const MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES = 8 * 1024;
@@ -38,6 +43,12 @@ export const MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES = 1024;
 export const MAXIMUM_WORKSPACE_SEARCH_PATHS = 5000;
 /** UTF-16 code units one preview carries. */
 const MAXIMUM_SEARCH_PREVIEW_UNITS = 1000;
+/** A replacement's bytes. */
+export const MAXIMUM_WORKSPACE_REPLACEMENT_BYTES = 8 * 1024;
+/** Files one `replace-matches` names; a client replaces in more files with several requests. */
+export const MAXIMUM_WORKSPACE_REPLACE_FILES = 256;
+/** Matches one `replace-matches` names across its files. */
+export const MAXIMUM_WORKSPACE_REPLACE_MATCHES = 20_000;
 const encoder = new TextEncoder();
 const byteLength = (value: string): number => encoder.encode(value).length;
 const isEntryName = (name: string): boolean =>
@@ -71,17 +82,18 @@ const GlobListSchema = z
 	)
 	.max(MAXIMUM_WORKSPACE_SEARCH_GLOBS)
 	.readonly();
+/** Text, or a regular expression with `regex`; a line break lets a match span lines. */
+const SearchPatternSchema = z
+	.string()
+	.min(1)
+	.refine(
+		(pattern) =>
+			byteLength(pattern) <= MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES &&
+			!/[\uD800-\uDFFF]/u.test(pattern),
+	);
 const WorkspaceSearchQuerySchema = z
 	.strictObject({
-		/** Text, or a regular expression with `regex`; a line break lets a match span lines. */
-		pattern: z
-			.string()
-			.min(1)
-			.refine(
-				(pattern) =>
-					byteLength(pattern) <= MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES &&
-					!/[\uD800-\uDFFF]/u.test(pattern),
-			),
+		pattern: SearchPatternSchema,
 		regex: z.boolean(),
 		matchCase: z.boolean(),
 		wholeWord: z.boolean(),
@@ -97,6 +109,56 @@ const WorkspaceSearchQuerySchema = z
 		useIgnoreFiles: z.boolean(),
 		/** When not null, only these files are searched. */
 		paths: z.array(RelativePathSchema).max(MAXIMUM_WORKSPACE_SEARCH_PATHS).readonly().nullable(),
+	})
+	.readonly();
+/** What a replacement looks for, as the search that found the matches did, and what it writes. */
+const WorkspaceReplaceQuerySchema = z
+	.strictObject({
+		pattern: SearchPatternSchema,
+		regex: z.boolean(),
+		matchCase: z.boolean(),
+		wholeWord: z.boolean(),
+		/**
+		 * What each match becomes. With `regex`, `$1`, `${name}`, `$&` and `$$` insert a group, the
+		 * whole match and a dollar sign, `\n`, `\t` and `\\` a line feed, a tab and a backslash, and
+		 * `\u`, `\l`, `\U` and `\L` change the next group's case; otherwise it is written as it stands.
+		 */
+		replacement: z
+			.string()
+			.refine(
+				(replacement) =>
+					byteLength(replacement) <= MAXIMUM_WORKSPACE_REPLACEMENT_BYTES &&
+					!/[\uD800-\uDFFF]/u.test(replacement),
+			),
+		/** A replacement without groups takes the case of the text it replaces. */
+		preserveCase: z.boolean(),
+	})
+	.readonly();
+/** Where a match starts: its line counted from 1 and the UTF-16 code units of the line before it. */
+const WorkspaceReplaceMatchSchema = z
+	.strictObject({
+		line: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+		column: z.number().int().min(0).max(0xffff_ffff),
+	})
+	.readonly();
+const WorkspaceReplaceFileSchema = z
+	.strictObject({
+		path: RelativePathSchema,
+		/** In order through the file and apart. */
+		matches: z
+			.array(WorkspaceReplaceMatchSchema)
+			.min(1)
+			.refine((matches) =>
+				matches.every((match, index) => {
+					const before = matches[index - 1];
+					return (
+						before === undefined ||
+						before.line < match.line ||
+						(before.line === match.line && before.column < match.column)
+					);
+				}),
+			)
+			.readonly(),
 	})
 	.readonly();
 const identity = {
@@ -167,6 +229,27 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 	 * or a later search of the same Workspace on the connection, stops it.
 	 */
 	z.strictObject({ kind: z.literal('search'), query: WorkspaceSearchQuerySchema }).readonly(),
+	/**
+	 * Replaces the named matches file by file, writing a file only while each match still starts
+	 * where it was found; the answer says what became of each file, in order.
+	 */
+	z
+		.strictObject({
+			kind: z.literal('replace-matches'),
+			query: WorkspaceReplaceQuerySchema,
+			files: z
+				.array(WorkspaceReplaceFileSchema)
+				.min(1)
+				.max(MAXIMUM_WORKSPACE_REPLACE_FILES)
+				.refine(
+					(files) =>
+						new Set(files.map((file) => file.path)).size === files.length &&
+						files.reduce((sum, file) => sum + file.matches.length, 0) <=
+							MAXIMUM_WORKSPACE_REPLACE_MATCHES,
+				)
+				.readonly(),
+		})
+		.readonly(),
 ]);
 export const WorkspaceFilesRequestSchema = z
 	.strictObject({
@@ -302,6 +385,33 @@ const WorkspaceSearchStateSchema = z.enum([
 	'invalid-glob',
 	'unavailable',
 ]);
+const WorkspaceFilesFailureSchema = z.enum([
+	'denied',
+	'unavailable',
+	'not-found',
+	'not-repository',
+	'timeout',
+	'malformed',
+	'trash-unavailable',
+]);
+/**
+ * What became of one file: replaced, now at `version`; changed since the search, so left alone;
+ * not editable text; or not written for a reason, `timeout` when no time was left to start it.
+ */
+const WorkspaceReplaceResultSchema = z.discriminatedUnion('kind', [
+	z
+		.strictObject({
+			kind: z.literal('replaced'),
+			version: WorkspaceFileVersionSchema.refine(({ sha256 }) => sha256 !== null),
+		})
+		.readonly(),
+	z.strictObject({ kind: z.literal('changed') }).readonly(),
+	z.strictObject({ kind: z.literal('not-editable') }).readonly(),
+	z.strictObject({ kind: z.literal('failed'), reason: WorkspaceFilesFailureSchema }).readonly(),
+]);
+const WorkspaceReplacedFileSchema = z
+	.strictObject({ path: RelativePathSchema, result: WorkspaceReplaceResultSchema })
+	.readonly();
 /** Whether a watch follows changes; with `unavailable` a client refreshes only when asked. */
 const WorkspaceFilesWatchStateSchema = z.enum(['starting', 'watching', 'unavailable']);
 const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
@@ -393,20 +503,14 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 			truncated: z.boolean(),
 		})
 		.readonly(),
+	/** What became of each file a `replace-matches` named, in the order it named them. */
 	z
 		.strictObject({
-			kind: z.literal('failed'),
-			reason: z.enum([
-				'denied',
-				'unavailable',
-				'not-found',
-				'not-repository',
-				'timeout',
-				'malformed',
-				'trash-unavailable',
-			]),
+			kind: z.literal('replaced'),
+			files: z.array(WorkspaceReplacedFileSchema).max(MAXIMUM_WORKSPACE_REPLACE_FILES).readonly(),
 		})
 		.readonly(),
+	z.strictObject({ kind: z.literal('failed'), reason: WorkspaceFilesFailureSchema }).readonly(),
 ]);
 export const WorkspaceFilesResultSchema = z
 	.strictObject({
@@ -430,3 +534,6 @@ export type WorkspaceFilesWatchState = z.infer<typeof WorkspaceFilesWatchStateSc
 export type WorkspaceSearchQuery = z.infer<typeof WorkspaceSearchQuerySchema>;
 export type WorkspaceSearchFile = z.infer<typeof WorkspaceSearchFileSchema>;
 export type WorkspaceSearchState = z.infer<typeof WorkspaceSearchStateSchema>;
+export type WorkspaceReplaceQuery = z.infer<typeof WorkspaceReplaceQuerySchema>;
+export type WorkspaceReplaceFile = z.infer<typeof WorkspaceReplaceFileSchema>;
+export type WorkspaceReplaceResult = z.infer<typeof WorkspaceReplaceResultSchema>;

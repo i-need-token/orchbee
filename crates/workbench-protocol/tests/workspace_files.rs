@@ -189,3 +189,38 @@ fn workspace_files_only_a_write_or_search_carries_a_large_request() {
     assert!(parse_workbench_request(&encode(write(&largest))).is_ok());
     assert!(parse_workbench_request(&encode(write(&(largest + "x")))).is_err());
 }
+
+#[test]
+fn workspace_files_replaced_answers_only_its_own_files_in_order() {
+    let file = |path: &str| WorkspaceReplaceFile {
+        path: path.into(),
+        matches: vec![WorkspaceReplaceMatch { line: 1, column: 0 }],
+    };
+    let operation = WorkspaceFilesOperation::ReplaceMatches {
+        query: WorkspaceReplaceQuery {
+            pattern: "needle".into(),
+            regex: false,
+            match_case: false,
+            whole_word: false,
+            replacement: "pin".into(),
+            preserve_case: false,
+        },
+        files: vec![file("a.txt"), file("b.txt")],
+    };
+    assert!(operation.writes() && operation.changes_at_length() && !operation.runs_git_write());
+    let done = |paths: &[&str]| WorkspaceFilesOutcome::Replaced {
+        files: paths
+            .iter()
+            .map(|path| WorkspaceReplacedFile {
+                path: (*path).into(),
+                result: WorkspaceReplaceResult::Changed {},
+            })
+            .collect(),
+    };
+    // The client reads each file's result by its place, so a reordered or partial answer is not
+    // one; nor does a Git outcome answer a replacement.
+    assert!(done(&["a.txt", "b.txt"]).answers(&operation));
+    assert!(!done(&["b.txt", "a.txt"]).answers(&operation));
+    assert!(!done(&["a.txt"]).answers(&operation));
+    assert!(!WorkspaceFilesOutcome::GitDone {}.answers(&operation));
+}

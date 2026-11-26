@@ -2,10 +2,12 @@
 //! while it is still the version a client read. The Server runs it in a child process of its own
 //! executable only once a Client asks, and talks to it over standard input and output, one JSON
 //! object per line; a second child, the watch lane, follows changes, and a third, the search
-//! lane, searches file contents. See this crate's README.
+//! lane, searches file contents. The service itself replaces what a search found. See this
+//! crate's README.
 mod change;
 mod files;
 mod git;
+mod replace;
 mod search;
 mod status;
 mod system_trash;
@@ -42,12 +44,15 @@ pub const WRITE_DEADLINE: Duration = Duration::from_secs(20);
 /// How long a Git command that changes the repository, its hooks included, may run inside the
 /// service before it is stopped; stopping takes up to [`git::STOP_GRACE`] more.
 pub const GIT_CHANGE_DEADLINE: Duration = Duration::from_secs(60);
+/// How long a replacement keeps starting files inside the service; a file it starts it finishes,
+/// within a save's own time, so the answer still comes inside [`answer_time`].
+pub const REPLACE_DEADLINE: Duration = Duration::from_secs(40);
 /// The service exits after this long without a request.
 pub const IDLE_EXIT: Duration = Duration::from_secs(10 * 60);
 /// How long the service may take to answer `operation`, from the moment it reads the request.
 #[must_use]
 pub fn answer_time(operation: &WorkspaceFilesOperation) -> Duration {
-    if operation.runs_git_write() {
+    if operation.changes_at_length() {
         GIT_CHANGE_DEADLINE.saturating_add(git::STOP_GRACE)
     } else if operation.writes() {
         WRITE_DEADLINE
@@ -135,6 +140,9 @@ pub fn answer(
                     amend,
                     stage_all,
                 } => change::commit(&root, message, *amend, *stage_all, deadline),
+                WorkspaceFilesOperation::ReplaceMatches { query, files } => {
+                    replace::replace_matches(&root, query, files, deadline)
+                }
                 // The Server answers a watch and a search itself from what their lanes report.
                 WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {
                     Outcome::Failed {
@@ -205,6 +213,8 @@ fn handle(
     let deadline = Instant::now()
         + if request.operation.runs_git_write() {
             GIT_CHANGE_DEADLINE
+        } else if request.operation.changes_at_length() {
+            REPLACE_DEADLINE
         } else {
             OPERATION_DEADLINE
         };

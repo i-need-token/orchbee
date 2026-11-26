@@ -325,3 +325,83 @@ describe('createServerWorkspaceFiles search', () => {
 		expect(later).toEqual([{ files: [], state: 'unavailable' }]);
 	});
 });
+
+describe('createServerWorkspaceFiles replace', () => {
+	const QUERY = {
+		matchCase: false,
+		pattern: 'needle',
+		preserveCase: false,
+		regex: false,
+		replacement: 'pin',
+		wholeWord: false,
+	};
+	const file = (index: number, matches = 1) => ({
+		matches: Array.from({ length: matches }, (_, at) => ({ column: 0, line: at + 1 })),
+		path: `src/${index}.txt`,
+	});
+	const VERSION = { modified: '1', sha256: 'a'.repeat(64) };
+
+	/** The files each request named, and a session answering each file with `result`. */
+	function replacing(result: (path: string, request: number) => unknown): {
+		readonly batches: string[][];
+		readonly session: Pick<ServerWorkbenchSession, 'ask' | 'snapshot'>;
+	} {
+		const batches: string[][] = [];
+		return {
+			batches,
+			session: sessionAnswering((request) => {
+				if (request.kind !== 'workbench.workspace-files') throw new Error(request.kind);
+				const { operation } = request;
+				if (operation.kind !== 'replace-matches') throw new Error(operation.kind);
+				const paths = operation.files.map((named) => named.path);
+				batches.push(paths);
+				const answer = result(paths[0] ?? '', batches.length);
+				if (answer === undefined) return { kind: 'outcome-unknown' };
+				return filesResult(request.requestId, {
+					files: paths.map((path) => ({ path, result: result(path, batches.length) })),
+					kind: 'replaced',
+				});
+			}),
+		};
+	}
+
+	it('splits a replacement within the limits, never splitting a file, and keeps the order', async () => {
+		const { batches, session } = replacing(() => ({ kind: 'replaced', version: VERSION }));
+		const source = createServerWorkspaceFiles(session, NO_STREAMS);
+		const many = Array.from({ length: 300 }, (_, index) => file(index));
+		const reports = await source.replace(WORKSPACE, QUERY, many);
+		expect(batches.map((paths) => paths.length)).toEqual([256, 44]);
+		expect(reports.map((report) => report.path)).toEqual(many.map((named) => named.path));
+		// Two files of 15,000 matches each go in requests of their own.
+		batches.length = 0;
+		await source.replace(WORKSPACE, QUERY, [file(1, 15_000), file(2, 15_000)]);
+		expect(batches).toEqual([['src/1.txt'], ['src/2.txt']]);
+	});
+
+	it('sends nothing after a request that ran out of time or went unanswered', async () => {
+		const late = replacing((path) =>
+			path === 'src/1.txt'
+				? { kind: 'failed', reason: 'timeout' }
+				: { kind: 'replaced', version: VERSION },
+		);
+		const files = Array.from({ length: 300 }, (_, index) => file(index));
+		const reports = await createServerWorkspaceFiles(late.session, NO_STREAMS).replace(
+			WORKSPACE,
+			QUERY,
+			files,
+		);
+		expect(late.batches).toHaveLength(1);
+		expect(reports).toHaveLength(256);
+		const lost = replacing((_path, request) =>
+			request === 2 ? undefined : { kind: 'replaced', version: VERSION },
+		);
+		const unanswered = await createServerWorkspaceFiles(lost.session, NO_STREAMS).replace(
+			WORKSPACE,
+			QUERY,
+			files,
+		);
+		expect(lost.batches).toHaveLength(2);
+		expect(unanswered.slice(256).every((report) => report.result === null)).toBe(true);
+		expect(unanswered).toHaveLength(300);
+	});
+});

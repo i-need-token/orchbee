@@ -7,7 +7,7 @@ nothing. The process exits after ten idle minutes or when its standard input clo
 
 It reads one directory listing, one file from the working tree, the index or `HEAD`, or the change
 list of `git status`, always beneath the Workspace directory the Server names, saves one
-working-tree file, and stages, unstages, discards or commits. Reads write nothing: Git runs with optional locks off, so a status read never
+working-tree file, replaces what a search found, and stages, unstages, discards or commits. Reads write nothing: Git runs with optional locks off, so a status read never
 refreshes the index.
 
 The same executable also runs the watch lane (`orchbee-server --workspace-files-watch`), a second
@@ -80,6 +80,29 @@ the target has (another hard link, or on Unix an owner or group the service woul
 the directory takes no new file, or where the platform refuses the rename, the file is truncated
 and rewritten in place instead. A new file is created exclusively and written directly. A save is
 never cut short inside the service; the Server waits up to 20 seconds for it.
+
+## Replacing
+
+`replace-matches` replaces matches a search found, each named by the line it starts on and the
+UTF-16 code units of that line before it. Each file is read whole and searched again with the
+search's own matcher, line by line or, for a pattern that spans lines, across the file, and its
+positions are counted as a preview counts them. A file is written, as a save writes and against
+the SHA-256 of what was read, only while every named match still starts a match there; it answers
+`changed` otherwise, or when the save finds it changed since, and the other matches it holds are
+left as they are. A file with a NUL byte, one that is not UTF-8, or one that is or would become
+larger than 10 MiB answers `not-editable`.
+
+Without `regex` the replacement is written as it stands. With it, `$1` to `$99`, `${name}` and
+`$<name>` insert a group (a two-digit group that does not exist reads as the one-digit group and a
+digit), `$0` and `$&` the whole match and `$$` a dollar sign, and `\n`, `\t` and `\\` a line feed,
+a tab and a backslash; `\u`, `\l`, `\U` and `\L` change the case of the next group's first letter
+or of all of it. `preserveCase` gives a replacement that inserts no group the matched text's case:
+all upper, all lower, or a capital or small first letter, part by part where both hold the same
+number of hyphens, or of underscores, but not both.
+
+Files are replaced one at a time in the order named. A replacement runs in the lane of Git
+changes, so it never holds up a read, and starts no file after 40 seconds; a file it did not start
+answers `timeout`.
 
 ## Changing the repository
 

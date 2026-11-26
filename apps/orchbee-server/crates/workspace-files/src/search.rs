@@ -6,6 +6,8 @@
 mod engine;
 mod preview;
 
+pub(crate) use engine::matcher;
+
 use crate::IDLE_EXIT;
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES, WorkspaceSearchFile, WorkspaceSearchQuery,

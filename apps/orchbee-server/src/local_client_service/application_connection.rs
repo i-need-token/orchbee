@@ -153,11 +153,12 @@ impl ApplicationRequest {
                 )
             )
     }
-    /// A Worker job that changes a repository, such as a commit, and may run for up to a minute.
-    pub(super) fn changes_repository(&self) -> bool {
+    /// A Worker job that changes a Workspace and may run for up to a minute, such as a commit or a
+    /// replacement across many files.
+    pub(super) fn changes_at_length(&self) -> bool {
         matches!(
             self.workbench(),
-            Some(WorkbenchRequest::WorkspaceFiles(request)) if request.operation.runs_git_write()
+            Some(WorkbenchRequest::WorkspaceFiles(request)) if request.operation.changes_at_length()
         )
     }
     pub(super) fn continuation(&self) -> Self {

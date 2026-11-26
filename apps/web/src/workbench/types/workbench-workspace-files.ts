@@ -2,6 +2,9 @@ import type {
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceFilesWatchState,
+	WorkspaceReplaceFile,
+	WorkspaceReplaceQuery,
+	WorkspaceReplaceResult,
 	WorkspaceSearchFile,
 	WorkspaceSearchQuery,
 	WorkspaceSearchState,
@@ -49,6 +52,13 @@ export interface WorkspaceSearchReport {
 	readonly state: WorkspaceSearchState;
 }
 
+/** What became of one file a replacement named. */
+export interface WorkspaceReplaceReport {
+	readonly path: string;
+	/** Null when no answer arrived, which leaves unknown whether the file was written. */
+	readonly result: WorkspaceReplaceResult | null;
+}
+
 /** One search a view holds while it shows the results. */
 export interface WorkspaceSearch {
 	/** Stops the search, if it still runs, and reports nothing more. */
@@ -85,6 +95,17 @@ export interface WorkbenchWorkspaceFilesSource {
 		workspaceId: string,
 		change: WorkspaceGitChange,
 	): Promise<WorkspaceFilesOutcome | null>;
+	/**
+	 * Replaces the matches a search found in each file, in order, in as many requests as the
+	 * protocol needs; a file is written only while each named match still starts there. Reports end
+	 * after a request that failed, went unanswered or ran out of time, so files past the last report
+	 * were not started.
+	 */
+	replace(
+		workspaceId: string,
+		query: WorkspaceReplaceQuery,
+		files: readonly WorkspaceReplaceFile[],
+	): Promise<readonly WorkspaceReplaceReport[]>;
 	/**
 	 * Follows a scope in a Workspace and reports each change, starting with the watch's state. While
 	 * no answer arrives, the state reported is `unavailable`.

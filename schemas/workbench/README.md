@@ -937,7 +937,12 @@ the whole new `text`, at most 10 MiB, and the `expected` SHA-256 the file was re
 file that must not exist yet, or `search` of file contents with a `query`: a `pattern` of 1 to
 8192 characters read literally or, with `regex`, as a regular expression, `matchCase`,
 `wholeWord`, `includes` and `excludes` of at most 64 globs each, `useIgnoreFiles`, and `paths`,
-null to search the whole Workspace or at most 5000 files to search alone. Paths are `/`-separated names, none empty, `.`
+null to search the whole Workspace or at most 5000 files to search alone, or `replace-matches`
+with a `query` (the search's `pattern`, `regex`, `matchCase` and `wholeWord`, a `replacement` of
+at most 8192 bytes and `preserveCase`) and 1 to 256 distinct `files`, each a `path` and its
+`matches` in order, each where a match starts as a search reported it: its `line` and the UTF-16
+`column` of that line before it, `previewStart` plus the match's `start`, at most 20,000 in
+all. Paths are `/`-separated names, none empty, `.`
 or `..`, with no backslash or control character, so a Client never names a path outside the
 Workspace; the Server resolves the Workspace's directory itself.
 
@@ -951,7 +956,11 @@ with the `files` and `repository` revisions and the watch `state` (`starting`, `
 `conflict` with the file's current nullable `version` when it is not the one `expected`, in
 which case nothing was written; `search-results` with `from`, the count of entries earlier pages
 carried, at most 5000 `files` entries, `more` and the search `state` (`searching`, `complete`,
-`limit-reached`, `invalid-pattern`, `invalid-glob` or `unavailable`); or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`,
+`limit-reached`, `invalid-pattern`, `invalid-glob` or `unavailable`); `replaced` with each file
+the replacement named, in its order, and what became of it: `replaced` with its new `version`,
+`changed` when a match no longer starts where it was found or the file changed while it was
+replaced, `not-editable` for a file that is not UTF-8 text or is past 10 MiB, or `failed` with a
+reason, `timeout` for a file it had no time left to start; or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`,
 `malformed`, or `trash-unavailable` when the system trash did not take every untracked file a
 `git-discard` named, in which case no tracked file was checked out. A `watch` is sent only as a
 State stream: the Server sends a new frame when a revision moves, and only a value that differs from
@@ -966,9 +975,10 @@ comes once every entry has.
 A Client sends the request only to a Server whose `client-server` answer lists the
 [`workspace-files` capability](../connection/README.md#generation-registry). The
 [shared corpus](v1/workbench-workspace-files-conformance-v1.json) checks closed shapes, the path
-grammar, the vocabularies, the watch limits and each chunk's bounds in Rust, TypeScript and JSON
-Schema. A request keeps a 64 KiB cap except `write-file`, which may reach 24 MiB, the most kind 83
-carries, and `search`, which may reach 2 MiB; the result keeps the 8 MiB response cap. A Server answers `write-file` only to a
+grammar, the vocabularies, the watch limits, each chunk's bounds and a replacement's match order
+in Rust, TypeScript and JSON Schema. A request keeps a 64 KiB cap except `write-file`, which may reach 24 MiB, the most kind 83
+carries, and `search` and `replace-matches`, which may reach 2 MiB; the result keeps the 8 MiB
+response cap. A Server answers `write-file`, `replace-matches` and the Git changes only to a
 connection that may also start and end terminals.
 
 ## Agent integration jobs
