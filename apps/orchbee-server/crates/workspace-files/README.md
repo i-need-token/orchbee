@@ -59,8 +59,11 @@ never cut short inside the service; the Server waits up to 20 seconds for it.
 `git-stage` runs `git add -A` for the named paths, or for none every change beneath the Workspace
 directory except conflicts. `git-unstage` runs `git reset` for the named paths or everything
 staged beneath it, which on a branch with no commit removes them from the index. `git-discard`
-checks tracked paths out of the index; Git checks every path first, so an untracked path or a
-conflict refuses the whole list. `git-commit` commits what is staged, staging every change that is
+moves each path `git status` reports as an untracked file to the system trash, on a thread of its
+own (on macOS through `NSFileManager`, which asks for no permission to control Finder), and only
+then checks the rest out of the index; Git checks every path first, so a conflict or a path it does
+not know refuses the whole checkout, while files already in the trash stay there. A trash that
+takes nothing, or not everything, answers `trash-unavailable` and checks nothing out. `git-commit` commits what is staged, staging every change that is
 not a conflict first for `stageAll`, and an amend with an empty message keeps the last one. Paths
 go to Git on standard input as literal, NUL-separated pathspecs and the message on standard input,
 so neither is limited by a command line or read as a pattern.

@@ -12,6 +12,7 @@ import * as React from 'react';
 import type { WorkbenchWorkspaceFilesSource, WorkspaceGitChange } from '../../../../../workbench';
 import {
 	canDiscard,
+	isUntracked,
 	type ChangeGroup,
 	type ChangeItem,
 	splitPath,
@@ -73,6 +74,7 @@ const FAILURE_REASONS = {
 	'not-found': workbenchMessages.rightBarGitReasonNotFound,
 	'not-repository': workbenchMessages.rightBarGitReasonNotRepository,
 	timeout: workbenchMessages.rightBarGitReasonTimeout,
+	'trash-unavailable': workbenchMessages.rightBarGitReasonTrashUnavailable,
 	unavailable: workbenchMessages.rightBarGitReasonUnavailable,
 } as const;
 
@@ -166,9 +168,38 @@ export function ChangesView({
 		}
 	});
 	const discard = useMemoizedFn((items: readonly ChangeItem[]) => {
-		const paths = items.filter(canDiscard).map((item) => item.path);
+		const discarded = items.filter(canDiscard);
+		const paths = discarded.map((item) => item.path);
 		const [first] = paths;
 		if (first === undefined) return;
+		const untracked = discarded.filter(isUntracked).length;
+		// Only files moved to the trash can be had back, so only then is Enter allowed to confirm.
+		const onlyTrash = untracked === paths.length;
+		let description = intl.formatMessage(workbenchMessages.rightBarGitDiscardDescription);
+		if (onlyTrash) {
+			description = intl.formatMessage(workbenchMessages.rightBarGitDiscardTrashDescription, {
+				count: untracked,
+			});
+		} else if (untracked > 0) {
+			description = intl.formatMessage(workbenchMessages.rightBarGitDiscardMixedDescription, {
+				count: untracked,
+			});
+		}
+		let title = intl.formatMessage(workbenchMessages.rightBarGitDiscardTitleMany, {
+			count: paths.length,
+		});
+		if (paths.length === 1) {
+			title = intl.formatMessage(
+				onlyTrash
+					? workbenchMessages.rightBarGitDiscardTrashTitleOne
+					: workbenchMessages.rightBarGitDiscardTitleOne,
+				{ name: splitPath(first).name },
+			);
+		} else if (onlyTrash) {
+			title = intl.formatMessage(workbenchMessages.rightBarGitDiscardTrashTitleMany, {
+				count: paths.length,
+			});
+		}
 		setPending({
 			proceed: () => {
 				void run(
@@ -177,18 +208,15 @@ export function ChangesView({
 				);
 			},
 			question: {
-				confirm: intl.formatMessage(workbenchMessages.rightBarGitDiscardConfirm),
-				description: intl.formatMessage(workbenchMessages.rightBarGitDiscardDescription),
-				destructive: true,
+				confirm: intl.formatMessage(
+					onlyTrash
+						? workbenchMessages.rightBarGitDiscardTrashConfirm
+						: workbenchMessages.rightBarGitDiscardConfirm,
+				),
+				description,
+				destructive: !onlyTrash,
 				paths,
-				title:
-					paths.length === 1
-						? intl.formatMessage(workbenchMessages.rightBarGitDiscardTitleOne, {
-								name: splitPath(first).name,
-							})
-						: intl.formatMessage(workbenchMessages.rightBarGitDiscardTitleMany, {
-								count: paths.length,
-							}),
+				title,
 			},
 		});
 	});

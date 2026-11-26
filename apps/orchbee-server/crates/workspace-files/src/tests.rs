@@ -1122,12 +1122,13 @@ fn stages_unstages_discards_and_commits_only_what_is_named() {
     let scratch = repository();
     configure(&scratch);
     let root = scratch.root();
-    // An untracked path refuses the whole discard, so the tracked one beside it keeps its change.
+    // A path Git does not know refuses the whole checkout, so the tracked one beside it keeps its
+    // change.
     assert!(matches!(
         change(
             &root,
             WorkspaceFilesOperation::GitDiscard {
-                paths: paths(&["README.md", "notes/todo.md"]).unwrap()
+                paths: paths(&["README.md", "missing.txt"]).unwrap()
             }
         ),
         WorkspaceFilesOutcome::GitRejected { .. }
@@ -1208,6 +1209,118 @@ fn stages_unstages_discards_and_commits_only_what_is_named() {
     );
     assert_eq!(last_message(&scratch), "second\n\nbody");
     assert!(status(&root).is_empty());
+}
+
+/// Set in the child run of the trash test, whose trash is its own directory.
+#[cfg(all(unix, not(target_os = "macos")))]
+const TRASH_CHILD: &str = "ORCHBEE_WORKSPACE_FILES_TRASH_CHILD";
+
+/// The freedesktop trash and Git's view of what is untracked meet only on a real disk. The child
+/// run points `XDG_DATA_HOME` at a scratch directory, so nothing reaches the trash of whoever runs
+/// the tests, and setting it never races other tests in this process.
+#[test]
+#[cfg(all(unix, not(target_os = "macos")))]
+fn discard_moves_untracked_files_to_the_trash_and_checks_out_the_rest() {
+    match std::env::var(TRASH_CHILD).as_deref() {
+        Ok("trash") => return discard_into_trash(),
+        Ok("refused") => return discard_with_no_trash(),
+        _ => {}
+    }
+    let data = Scratch::new("trash-home");
+    for (case, data_home) in [
+        ("trash", data.0.clone()),
+        // A file where the data directory should be leaves the trash nowhere to go.
+        ("refused", {
+            data.write("not-a-directory", "");
+            data.0.join("not-a-directory")
+        }),
+    ] {
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "tests::discard_moves_untracked_files_to_the_trash_and_checks_out_the_rest",
+                "--test-threads=1",
+            ])
+            .env(TRASH_CHILD, case)
+            .env("XDG_DATA_HOME", &data_home)
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let printed = String::from_utf8_lossy(&output.stdout);
+        // A name that matched nothing would pass without running the case.
+        assert!(
+            output.status.success() && printed.contains(" 1 passed"),
+            "{case}: {printed}"
+        );
+    }
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn discard_into_trash() {
+    let scratch = repository();
+    let root = scratch.root();
+    let outside = Scratch::new("trash-outside");
+    outside.write("target.txt", "kept\n");
+    std::os::unix::fs::symlink(outside.0.join("target.txt"), scratch.0.join("link")).unwrap();
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitDiscard {
+                paths: paths(&["README.md", "notes/todo.md", "link"]).unwrap()
+            }
+        ),
+        WorkspaceFilesOutcome::GitDone {}
+    );
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("README.md")).unwrap(),
+        "one\n"
+    );
+    assert!(!scratch.0.join("notes/todo.md").exists());
+    assert!(scratch.0.join("link").symlink_metadata().is_err());
+    // A link goes to the trash as itself; what it points at stays.
+    assert_eq!(
+        std::fs::read_to_string(outside.0.join("target.txt")).unwrap(),
+        "kept\n"
+    );
+    let trash = PathBuf::from(std::env::var_os("XDG_DATA_HOME").unwrap()).join("Trash");
+    assert_eq!(
+        std::fs::read_to_string(trash.join("files/todo.md")).unwrap(),
+        "later\n"
+    );
+    let info = std::fs::read_to_string(trash.join("info/todo.md.trashinfo")).unwrap();
+    assert!(
+        info.contains("Path=") && info.contains("DeletionDate="),
+        "{info}"
+    );
+    assert!(
+        trash
+            .join("files/link")
+            .symlink_metadata()
+            .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    );
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn discard_with_no_trash() {
+    let scratch = repository();
+    let root = scratch.root();
+    assert_eq!(
+        change(
+            &root,
+            WorkspaceFilesOperation::GitDiscard {
+                paths: paths(&["README.md", "notes/todo.md"]).unwrap()
+            }
+        ),
+        WorkspaceFilesOutcome::Failed {
+            reason: WorkspaceFilesFailure::TrashUnavailable
+        }
+    );
+    // Nothing is checked out once the trash refused.
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("README.md")).unwrap(),
+        "one\ntwo\n"
+    );
+    assert!(scratch.0.join("notes/todo.md").exists());
 }
 
 #[test]

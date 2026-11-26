@@ -559,6 +559,13 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.git.discardTitleMany': '要放弃 {count} 个文件中的更改吗？',
 	'workbench.rightBar.git.discardDescription':
 		'此操作无法撤销。每个文件会恢复为已暂存的版本；没有暂存的则恢复为上次提交的版本。',
+	'workbench.rightBar.git.discardTrashTitleOne': '要把 {name} 移到回收站吗？',
+	'workbench.rightBar.git.discardTrashTitleMany': '要把 {count} 个文件移到回收站吗？',
+	'workbench.rightBar.git.discardTrashDescription':
+		'{count, plural, =1 {这个文件还不在 Git 中，会移到系统回收站，可以从那里恢复。} other {这些文件还不在 Git 中，会移到系统回收站，可以从那里恢复。}}',
+	'workbench.rightBar.git.discardMixedDescription':
+		'已跟踪的文件会恢复为已暂存的版本，没有暂存的则恢复为上次提交的版本，此操作无法撤销。{count} 个新文件会移到系统回收站，可以从那里恢复。',
+	'workbench.rightBar.git.discardTrashConfirm': '移到回收站',
 	'workbench.rightBar.git.discardMore': '以及另外 {count} 个文件',
 	'workbench.rightBar.git.discardConfirm': '放弃',
 	'workbench.rightBar.git.cancel': '取消',
@@ -568,6 +575,8 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.git.failed.discard': '放弃更改失败',
 	'workbench.rightBar.git.reason.timeout': 'Git 一分钟内没有完成，已被停止。',
 	'workbench.rightBar.git.reason.notRepository': '这个文件夹已不在 Git 仓库中。',
+	'workbench.rightBar.git.reason.trashUnavailable':
+		'系统回收站没有接收这些新文件。没被移走的仍在原处，其他文件也没有改动。',
 	'workbench.rightBar.git.reason.denied': '这个窗口没有修改文件的权限。',
 	'workbench.rightBar.git.reason.unavailable': '无法运行 Git，请重试。',
 	'workbench.rightBar.git.reason.notFound': '这个工作区已经关闭。',

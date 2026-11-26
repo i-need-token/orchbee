@@ -14,6 +14,8 @@ sha2.workspace = true
 ignore = { version = "0.4.35", default-features = false }
 # The platform's own file watcher (inotify, FSEvents, ReadDirectoryChangesW) behind the watch lane.
 notify = { version = "9.0.0", default-features = false }
+# The system trash (Recycle Bin, macOS Trash, freedesktop trash), where discarding puts new files.
+trash = { version = "5.4.0", default-features = false }
 orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
 
 [target.'cfg(unix)'.dependencies]
@@ -23,6 +25,14 @@ nix = { workspace = true, features = ["process", "signal"] }
 [target.'cfg(target_os = "macos")'.dependencies]
 # FSEvents follows a whole tree with one stream; without it notify falls back to polling.
 notify = { version = "9.0.0", default-features = false, features = ["macos_fsevent"] }
+
+[target.'cfg(windows)'.dependencies]
+# Each discard moves files on a thread of its own, so COM joins the multithreaded apartment.
+trash = { version = "5.4.0", default-features = false, features = ["coinit_multithreaded"] }
+
+[target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
+# The freedesktop trash, with the deletion date file managers show and restore by.
+trash = { version = "5.4.0", default-features = false, features = ["freedesktop", "jiff"] }
 
 [lints]
 workspace = true

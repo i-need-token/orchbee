@@ -4,12 +4,14 @@
 //! long list would overflow, and are literal: no name is read as a pattern.
 use crate::files::Root;
 use crate::git::{self, Change, Run};
-use crate::status::prefix;
+use crate::status::{self, prefix};
+use crate::system_trash;
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES, WorkspaceFilesFailure as Failure,
-    WorkspaceFilesOutcome as Outcome,
+    WorkspaceFilesOutcome as Outcome, WorkspaceGitStatusCode as Code,
 };
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use std::time::Instant;
 
 /// Raw output read from `git ls-files --unmerged` before the conflict list is refused as too long.
@@ -95,11 +97,35 @@ pub(crate) fn unstage(root: &Root, paths: Option<&[String]>, deadline: Instant) 
     ))
 }
 
-/// Puts tracked `paths` back to what the index holds. Git checks every path before it changes
-/// any, so an untracked path or a conflict refuses the whole list.
+/// Puts `paths` back to what the index holds. Each untracked file goes to the system trash first,
+/// since nothing else holds its content and the trash can give it back; then Git checks the rest
+/// out of the index, checking every path before it changes any, so a conflict or a path it does
+/// not know refuses the whole checkout. A path Git does not report as an untracked file, a
+/// directory or one past a cut status list among them, is left to Git.
 pub(crate) fn discard(root: &Root, paths: &[String], deadline: Instant) -> Outcome {
-    if let Err(reason) = prefix(root, deadline) {
+    let untracked = match status::git_status(root, deadline) {
+        Outcome::GitStatus { entries, .. } => entries
+            .into_iter()
+            .filter(|entry| entry.worktree == Code::Untracked)
+            .map(|entry| entry.path)
+            .collect::<BTreeSet<_>>(),
+        failed => return failed,
+    };
+    let mut trashed = Vec::new();
+    let mut tracked = Vec::new();
+    for path in paths {
+        match untracked_file(root, path, &untracked) {
+            Some(file) => trashed.push(file),
+            None => tracked.push(path.as_str()),
+        }
+    }
+    if !trashed.is_empty()
+        && let Err(reason) = system_trash::move_to_trash(trashed, deadline)
+    {
         return Outcome::Failed { reason };
+    }
+    if tracked.is_empty() {
+        return Outcome::GitDone {};
     }
     finished(git::change(
         root.path(),
@@ -110,10 +136,22 @@ pub(crate) fn discard(root: &Root, paths: &[String], deadline: Instant) -> Outco
             "--pathspec-from-file=-",
             "--pathspec-file-nul",
         ],
-        Some(nul_list(paths.iter().map(String::as_str))),
+        Some(nul_list(tracked.into_iter())),
         MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES,
         deadline,
     ))
+}
+
+/// Where the untracked file `relative` is, when Git reports it untracked, its directory resolves
+/// inside the Workspace, and it is a file or a symbolic link, which the trash takes as a link.
+fn untracked_file(root: &Root, relative: &str, untracked: &BTreeSet<String>) -> Option<PathBuf> {
+    if !untracked.contains(relative) {
+        return None;
+    }
+    let (directory, name) = relative.rsplit_once('/').unwrap_or(("", relative));
+    let file = root.resolve(directory).ok()?.join(name);
+    let kind = file.symlink_metadata().ok()?.file_type();
+    (kind.is_file() || kind.is_symlink()).then_some(file)
 }
 
 /// Commits what is staged, after staging every change that is not a conflict for `stage_all`.

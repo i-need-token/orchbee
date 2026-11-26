@@ -2187,7 +2187,8 @@ export const workbenchMessages = defineMessages({
 	rightBarGitDiscard: {
 		id: 'workbench.rightBar.git.discard',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discard'],
-		description: "Row action that throws away one file's unstaged change, after asking.",
+		description:
+			"Row action that throws away one file's unstaged change, after asking; a file Git does not track goes to the system trash.",
 	},
 	rightBarGitOpenFile: {
 		id: 'workbench.rightBar.git.openFile',
@@ -2213,7 +2214,7 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.rightBar.git.discardAll',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardAll'],
 		description:
-			'Group action that throws away every unstaged change to a tracked file, after asking.',
+			'Group action that throws away every unstaged change, after asking; files Git does not track go to the system trash.',
 	},
 	rightBarGitMessage: {
 		id: 'workbench.rightBar.git.message',
@@ -2278,6 +2279,35 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardDescription'],
 		description: 'Explains what discarding a change does.',
 	},
+	rightBarGitDiscardTrashTitleOne: {
+		id: 'workbench.rightBar.git.discardTrashTitleOne',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTrashTitleOne'],
+		description:
+			'Title of the question asked before discarding one file Git does not track, which moves it to the system trash. name is the file name.',
+	},
+	rightBarGitDiscardTrashTitleMany: {
+		id: 'workbench.rightBar.git.discardTrashTitleMany',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTrashTitleMany'],
+		description:
+			'Title of the question asked before discarding several files Git does not track, which moves them to the system trash.',
+	},
+	rightBarGitDiscardTrashDescription: {
+		id: 'workbench.rightBar.git.discardTrashDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTrashDescription'],
+		description:
+			'Explains that discarding files Git does not track moves them to the trash of the computer running Orchbee, where they can be restored. count is how many files.',
+	},
+	rightBarGitDiscardMixedDescription: {
+		id: 'workbench.rightBar.git.discardMixedDescription',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardMixedDescription'],
+		description:
+			'Explains a discard of tracked and untracked files together: tracked files go back for good, untracked ones go to the system trash. count is how many untracked files.',
+	},
+	rightBarGitDiscardTrashConfirm: {
+		id: 'workbench.rightBar.git.discardTrashConfirm',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTrashConfirm'],
+		description: 'Confirms moving the untracked files to the system trash.',
+	},
 	rightBarGitDiscardMore: {
 		id: 'workbench.rightBar.git.discardMore',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardMore'],
@@ -2322,6 +2352,12 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.rightBar.git.reason.notRepository',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.notRepository'],
 		description: "The Workspace's folder is not in a repository.",
+	},
+	rightBarGitReasonTrashUnavailable: {
+		id: 'workbench.rightBar.git.reason.trashUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.reason.trashUnavailable'],
+		description:
+			'The system trash did not take the untracked files a discard named, so tracked files were left as they were too.',
 	},
 	rightBarGitReasonDenied: {
 		id: 'workbench.rightBar.git.reason.denied',

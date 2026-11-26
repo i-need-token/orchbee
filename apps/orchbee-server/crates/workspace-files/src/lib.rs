@@ -6,6 +6,7 @@ mod change;
 mod files;
 mod git;
 mod status;
+mod system_trash;
 mod watch;
 mod write;
 

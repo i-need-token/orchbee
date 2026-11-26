@@ -289,6 +289,7 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 				'not-repository',
 				'timeout',
 				'malformed',
+				'trash-unavailable',
 			]),
 		})
 		.readonly(),

@@ -609,6 +609,14 @@ export const enUSWorkbenchMessages = {
 		'{count, plural, one {Discard changes in # file?} other {Discard changes in # files?}}',
 	'workbench.rightBar.git.discardDescription':
 		"This can't be undone. Each file goes back to its staged version, or to its last commit if nothing of it is staged.",
+	'workbench.rightBar.git.discardTrashTitleOne': 'Move {name} to the trash?',
+	'workbench.rightBar.git.discardTrashTitleMany':
+		'{count, plural, one {Move # file to the trash?} other {Move # files to the trash?}}',
+	'workbench.rightBar.git.discardTrashDescription':
+		"{count, plural, one {Git doesn't have this file yet, so it goes to the system trash, where you can restore it.} other {Git doesn't have these files yet, so they go to the system trash, where you can restore them.}}",
+	'workbench.rightBar.git.discardMixedDescription':
+		"{count, plural, one {Tracked files go back to their staged version, or to their last commit if nothing of them is staged, and that can't be undone. The new file goes to the system trash, where you can restore it.} other {Tracked files go back to their staged version, or to their last commit if nothing of them is staged, and that can't be undone. The # new files go to the system trash, where you can restore them.}}",
+	'workbench.rightBar.git.discardTrashConfirm': 'Move to Trash',
 	'workbench.rightBar.git.discardMore':
 		'{count, plural, one {and # more file} other {and # more files}}',
 	'workbench.rightBar.git.discardConfirm': 'Discard',
@@ -619,6 +627,8 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.git.failed.discard': "Couldn't discard",
 	'workbench.rightBar.git.reason.timeout': "Git didn't finish within a minute, so it was stopped.",
 	'workbench.rightBar.git.reason.notRepository': 'This folder is no longer in a Git repository.',
+	'workbench.rightBar.git.reason.trashUnavailable':
+		"The system trash didn't take the new files. Any it didn't take are still here, and no other file was changed.",
 	'workbench.rightBar.git.reason.denied': "This window isn't allowed to change files.",
 	'workbench.rightBar.git.reason.unavailable': "Couldn't run Git. Try again.",
 	'workbench.rightBar.git.reason.notFound': 'This Workspace is no longer open.',

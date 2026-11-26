@@ -946,8 +946,9 @@ a file up to 10 MiB, its SHA-256) and `content`, which is a `text` or `bytes` ch
 with the `files` and `repository` revisions and the watch `state` (`starting`, `watching` or
 `unavailable`); `written` with the saved file's `version`, which always carries its SHA-256;
 `conflict` with the file's current nullable `version` when it is not the one `expected`, in
-which case nothing was written; or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`
-or `malformed`. A `watch` is sent only as a State stream: the Server sends a new frame when a
+which case nothing was written; or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`,
+`malformed`, or `trash-unavailable` when the system trash did not take every untracked file a
+`git-discard` named, in which case no tracked file was checked out. A `watch` is sent only as a State stream: the Server sends a new frame when a
 revision moves, and only a value that differs from the previous frame means a change.
 
 A Client sends the request only to a Server whose `client-server` answer lists the

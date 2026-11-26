@@ -119,15 +119,17 @@ it and without slowing terminal work.
 ## Changing the repository, as implemented
 
 - **Staging.** Each change row offers, on hover or on the change the keyboard is on, Open file
-  (except for deletions), Discard (tracked unstaged changes only) and Stage or Unstage; Space
+  (except for deletions), Discard (any unstaged change) and Stage or Unstage; Space
   stages or unstages the keyboard's change and Enter previews its diff. Group headers offer Stage
   All Changes and Discard All Changes for unstaged changes, Unstage All Changes for staged ones and
   Stage All Conflicts for conflicts. Staging every unstaged change leaves conflicts alone; staging
   a conflict marks it resolved, as `git add` does. Unstaging a rename unstages both of its paths.
 - **Discarding.** Discard asks first, naming the file or the count and listing up to eight paths,
-  with Cancel focused, and then puts the files back to what the index holds. Untracked files are
-  not offered for discarding yet: the design moves them to the trash, which needs a dependency that
-  is not admitted.
+  and then puts tracked files back to what the index holds and moves untracked files to the system
+  trash of the computer running the Server, where they can be restored. The question says which
+  files go to the trash; while anything would be lost for good, Cancel is focused, and a discard of
+  untracked files alone focuses Move to Trash instead. Files the trash did not take stay where they
+  were, and nothing tracked is checked out then.
 - **Committing.** The message box grows from one line to ten; `Cmd+Enter` / `Ctrl+Enter` or Commit
   commits what is staged, across the whole repository as Git does. With nothing staged and
   unstaged changes present, Commit asks whether to stage everything and commit, with that button
@@ -156,29 +158,28 @@ it and without slowing terminal work.
 - **Encodings.** Text that is not UTF-8 shows as binary rather than read-only text.
 - **Refresh.** Git status stops following at 5000 entries rather than the design's 10,000, because
   that is where its list is cut.
-- **Git actions.** Untracked files cannot be discarded, a running commit cannot be cancelled, a
-  failed commit offers no "view in terminal", rows and group headers have no context menu, and the
-  header and row buttons are reached by pointer only (the keyboard path is Space and Enter).
-  Staging a conflict that still holds conflict markers does not warn. Discard All lists only the
-  changes shown when the list was cut at 5000. Git 2.25 or later is needed.
+- **Git actions.** A running commit cannot be cancelled, a failed commit offers no "view in
+  terminal", rows and group headers have no context menu, and the header and row buttons are reached
+  by pointer only (the keyboard path is Space and Enter). Staging a conflict that still holds
+  conflict markers does not warn. Discard All lists only the changes shown when the list was cut at
+  5000. Git 2.25 or later is needed.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
-- **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
-  (6.4 KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current
-  architecture loads eagerly; chunked reads added about 0.2 KB gzip more and change following
-  about 0.8 KB gzip. Editing and saving added about 24 KB raw (5.2 KB gzip), nearly all of it
-  message descriptors and both locales' strings, which the application loads eagerly with their
-  translator descriptions; the right bar's descriptors alone are about 13 KB raw. Changing the
-  repository added about 13 KB raw (2.4 KB gzip), again nearly all messages and the protocol's new
-  operations. Together this puts the right bar about 5 KB gzip over the design's 10 KB budget for
-  the main bundle; loading the right bar's messages with its chunk, or dropping descriptions from
-  the built catalog, would bring it back under. The bar and float window chunk is about 13.8 KB
-  gzip; the editor pane is about 7.3 KB gzip; Monaco is about 800 KB gzip and loads only with the
-  first open file.
+- **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw (6.4
+  KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current architecture
+  loads eagerly; chunked reads added about 0.2 KB gzip more and change following about 0.8 KB gzip.
+  Editing and saving added about 24 KB raw (5.2 KB gzip), nearly all of it message descriptors and
+  both locales' strings, which the application loads eagerly with their translator descriptions; the
+  right bar's descriptors alone are about 13 KB raw. Changing the repository added about 13 KB raw
+  (2.4 KB gzip), again nearly all messages and the protocol's new operations. Moving untracked files
+  to the trash added about 3.9 KB raw (0.7 KB gzip), all messages in both locales. Together this
+  puts the right bar about 5.7 KB gzip over the design's 10 KB budget for the main bundle; loading
+  the right bar's messages with its chunk, or dropping descriptions from the built catalog, would
+  bring it back under. The bar and float window chunk is about 13.8 KB gzip; the editor pane is
+  about 7.3 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
 
 ## Later phases
 
 1. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
-2. Moving untracked files to the trash on discard, once a trash dependency is admitted.
-3. Persisted open state, width and expanded folders per Workspace across restarts.
+2. Persisted open state, width and expanded folders per Workspace across restarts.

@@ -120,11 +120,16 @@ export function splitPath(path: string): { readonly name: string; readonly folde
 }
 
 /**
- * Whether a change can be discarded here: an unstaged change to a tracked file, which Git restores
- * from the index. An untracked file would have to be deleted, which this view does not do.
+ * Whether a change can be discarded here: any unstaged change. Git restores a tracked file from the
+ * index; an untracked file goes to the system trash.
  */
 export function canDiscard(item: ChangeItem): boolean {
-	return item.group === 'unstaged' && item.before !== null;
+	return item.group === 'unstaged';
+}
+
+/** Whether a change is a file Git does not track, which discarding moves to the system trash. */
+export function isUntracked(item: ChangeItem): boolean {
+	return item.group === 'unstaged' && item.before === null;
 }
 
 /** Whether the changed file is there to open: a deletion leaves nothing in the working tree. */

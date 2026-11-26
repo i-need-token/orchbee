@@ -317,6 +317,21 @@
 			}
 		},
 		{
+			"name": "failed-trash-unavailable",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "failed",
+					"reason": "trash-unavailable"
+				}
+			}
+		},
+		{
 			"name": "read-bytes-chunk",
 			"direction": "request",
 			"document": {

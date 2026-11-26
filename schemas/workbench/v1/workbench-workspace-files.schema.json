@@ -669,7 +669,8 @@
 										"not-found",
 										"not-repository",
 										"timeout",
-										"malformed"
+										"malformed",
+										"trash-unavailable"
 									]
 								}
 							}

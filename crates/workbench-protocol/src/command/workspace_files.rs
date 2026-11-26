@@ -111,8 +111,10 @@ pub enum WorkspaceFilesOperation {
         #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
         paths: Option<Vec<String>>,
     },
-    /// Puts tracked `paths` back to what the index holds, dropping their unstaged changes. Git
-    /// refuses the whole operation, changing nothing, when one is untracked or a conflict.
+    /// Puts `paths` back to what the index holds: each untracked file goes to the system trash,
+    /// where it can be restored, and then Git checks the tracked ones out of the index, dropping
+    /// their unstaged changes. Git refuses the whole checkout, changing nothing, when a path is a
+    /// conflict or not known to it; the files already in the trash stay there.
     GitDiscard {
         paths: Vec<String>,
     },
@@ -323,6 +325,9 @@ pub enum WorkspaceFilesFailure {
     NotRepository,
     Timeout,
     Malformed,
+    /// The system trash did not take every untracked file a discard named; those it did not take
+    /// are where they were, and no tracked file was checked out.
+    TrashUnavailable,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
