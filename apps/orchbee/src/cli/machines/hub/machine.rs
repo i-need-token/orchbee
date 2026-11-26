@@ -31,6 +31,10 @@ use std::time::{Duration, Instant};
 
 /// An attempt that has not reached `online` by then is ended.
 pub(super) const ATTEMPT: Duration = Duration::from_secs(60);
+/// How long a carrier whose output ended before the helper answered may take to exit by itself,
+/// so its exit status says what happened: OpenSSH on macOS closes its output a few milliseconds
+/// before it exits.
+const EXIT_GRACE: Duration = Duration::from_secs(5);
 /// The link sends `ping` this long after the last one.
 pub(super) const PING_INTERVAL: Duration = Duration::from_secs(30);
 /// A `ping` unanswered this long makes the Machine `unresponsive`.
@@ -117,6 +121,8 @@ pub(super) enum Effect {
     Start { carrier: u64, route: Route },
     /// End the carrier `carrier` and everything it started.
     End { carrier: u64 },
+    /// Stop writing to the carrier `carrier`, closing its input, and let it exit by itself.
+    Finish { carrier: u64 },
     /// Open `ensure-session` for `session` on the carrier's link.
     EnsureSession { carrier: u64, session: SessionName },
     /// Send `ping` on the carrier's link.
@@ -192,6 +198,8 @@ struct Attempt {
     deadline: Instant,
     /// The helper's product version once it answered the offer.
     answered: Option<ProductVersion>,
+    /// The carrier's output ended before the answer; the carrier is exiting by itself.
+    output_ended: bool,
     /// Reports `reconnecting` with `cause` instead of `connecting`.
     retry: bool,
     cause: Option<ReconnectCause>,
@@ -523,7 +531,10 @@ impl Machine {
                 self.start(true, cause, cx)
             }
             Phase::Attempting(attempt) if !attempt.question_open() && attempt.deadline <= now => {
-                let cause = if attempt.answered.is_some() {
+                // A carrier that did not exit after its output ended is ended unread.
+                let cause = if attempt.output_ended {
+                    OfflineCause::RemoteProtocol
+                } else if attempt.answered.is_some() {
                     OfflineCause::RemoteNotReady
                 } else {
                     OfflineCause::HostTimeout
@@ -681,15 +692,18 @@ impl Machine {
         }
     }
 
-    /// The carrier's output ended before the helper answered: it is ended, and its exit status
-    /// then tells what happened.
+    /// The carrier's output ended before the helper answered: its input closes and it exits by
+    /// itself within [`EXIT_GRACE`], so its exit status tells what happened. Ending it at once
+    /// would lose that status whenever `ssh` closes its output before it exits.
     pub(super) fn closed(&mut self, carrier: u64, cx: &mut Context<'_>) -> Vec<Effect> {
-        match &self.phase {
+        match &mut self.phase {
             Phase::Attempting(attempt) if attempt.carrier == carrier => {
                 if attempt.answered.is_some() {
                     self.fail(carrier, Failure::Offline(OfflineCause::RemoteProtocol), cx)
                 } else {
-                    vec![Effect::End { carrier }]
+                    attempt.output_ended = true;
+                    attempt.deadline = attempt.deadline.min(cx.now.at + EXIT_GRACE);
+                    vec![Effect::Finish { carrier }]
                 }
             }
             _ => self.broken(carrier, cx),
@@ -1305,6 +1319,7 @@ impl Machine {
             carrier,
             deadline: cx.now.at + ATTEMPT,
             answered: None,
+            output_ended: false,
             retry,
             cause,
             episode: None,

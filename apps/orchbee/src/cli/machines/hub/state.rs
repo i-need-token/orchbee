@@ -435,6 +435,11 @@ impl Hub {
                     handle.end();
                 }
             }
+            Effect::Finish { carrier } => {
+                if let Some(handle) = self.carriers.get(&carrier) {
+                    handle.finish();
+                }
+            }
             Effect::EnsureSession { carrier, session } => {
                 if let Some(handle) = self.carriers.get(&carrier) {
                     handle.ensure_session(session);

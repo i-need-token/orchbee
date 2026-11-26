@@ -509,6 +509,45 @@ fn an_end_before_the_answer_reads_by_exit_status_and_standard_error() {
     }
 }
 
+/// OpenSSH on macOS closes its output a few milliseconds before it exits: ending the carrier then
+/// lost its exit status and read every early end as `remote-protocol`, check 8 of an add.
+#[test]
+fn an_output_that_ends_before_the_answer_waits_for_the_exit_status() {
+    let mut hub = Hub::new(false);
+    let mut machine = machine();
+    let carrier = started(&machine.connect(waiter(1), &mut hub.cx())).unwrap();
+    let closed = machine.closed(carrier, &mut hub.at(Duration::from_secs(1)).cx());
+    assert_eq!(closed, [Effect::Finish { carrier }]);
+    let not_installed = End::Exited {
+        code: Some(125),
+        stderr: Vec::new(),
+    };
+    assert_eq!(
+        replies(&machine.ended(carrier, &not_installed, &mut hub.cx())),
+        [ConnectOutcome::NotOnline(
+            ConnectFailure::RemoteNotInstalled
+        )]
+    );
+
+    // A carrier that does not exit by itself is ended once the grace passes.
+    let mut machine = self::machine();
+    let carrier = started(&machine.connect(waiter(1), &mut hub.at(Duration::ZERO).cx())).unwrap();
+    machine.closed(carrier, &mut hub.at(Duration::from_secs(1)).cx());
+    let due = Duration::from_secs(1) + EXIT_GRACE;
+    assert_eq!(machine.next_wake(), Some(hub.start + due));
+    assert!(
+        machine
+            .tick(&mut hub.at(due - Duration::from_millis(1)).cx())
+            .is_empty()
+    );
+    let effects = machine.tick(&mut hub.at(due).cx());
+    assert!(ends(&effects, carrier));
+    assert_eq!(
+        replies(&effects),
+        [ConnectOutcome::NotOnline(ConnectFailure::RemoteProtocol)]
+    );
+}
+
 #[test]
 fn a_claimant_receives_each_question_in_order_and_a_refused_answer_is_marked_repeated() {
     // A `user` request, and a `command` that wants answers while nobody else asks, both claim.

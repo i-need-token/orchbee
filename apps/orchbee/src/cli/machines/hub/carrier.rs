@@ -117,6 +117,13 @@ impl Handle {
         }
     }
 
+    /// Stops the writer, which closes the child's input, and leaves the root process to exit by
+    /// itself; its owner then reports the end with the root's own exit status.
+    pub(super) fn finish(&self) {
+        self.line.lock().open = false;
+        self.line.wake();
+    }
+
     /// The link's state and its writer's signal.
     pub(super) const fn line(&self) -> &Arc<LinkLine> {
         &self.line
