@@ -27,6 +27,7 @@ function watches(): {
 			changeRepository: () => Promise.resolve(null),
 			read: () => Promise.resolve(null),
 			save: () => Promise.resolve(null),
+			search: () => ({ close: () => undefined }),
 			watch(_workspaceId, scope, receive) {
 				scopes.push(scope);
 				onReport = receive;

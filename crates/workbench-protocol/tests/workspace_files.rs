@@ -142,7 +142,7 @@ fn workspace_files_frame_budget_is_rejected_before_reading_a_body() {
 }
 
 #[test]
-fn workspace_files_only_a_write_carries_a_large_request() {
+fn workspace_files_only_a_write_or_search_carries_a_large_request() {
     let encode = |operation| {
         serde_json::to_vec(&WorkbenchRequest::WorkspaceFiles(request(operation))).unwrap()
     };
@@ -161,6 +161,28 @@ fn workspace_files_only_a_write_carries_a_large_request() {
     assert!(matches!(
         parse_workbench_request(&encode(watch)),
         Err(ContractError::EncodedValueTooLarge { maximum, .. }) if maximum == MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
+    ));
+    // A search may name thousands of files, so it has a limit of its own.
+    let search = |count: usize| WorkspaceFilesOperation::Search {
+        query: WorkspaceSearchQuery {
+            pattern: "needle".into(),
+            regex: false,
+            match_case: false,
+            whole_word: false,
+            includes: Vec::new(),
+            excludes: Vec::new(),
+            use_ignore_files: true,
+            paths: Some(
+                (0..count)
+                    .map(|index| format!("src/{index:0>500}.rs"))
+                    .collect(),
+            ),
+        },
+    };
+    assert!(parse_workbench_request(&encode(search(1000))).is_ok());
+    assert!(matches!(
+        parse_workbench_request(&encode(search(5000))),
+        Err(ContractError::EncodedValueTooLarge { maximum, .. }) if maximum == MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES
     ));
     // The text itself stops at the editable size, whatever room its encoding leaves.
     let largest = "x".repeat(MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES as usize);

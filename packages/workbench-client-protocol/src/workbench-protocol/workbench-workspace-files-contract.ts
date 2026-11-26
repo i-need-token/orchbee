@@ -27,6 +27,15 @@ export const MAXIMUM_WORKSPACE_GIT_PATHS = 256;
 /** A commit message's bytes. */
 export const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES = 32 * 1024;
 const MAXIMUM_GIT_OUTPUT_BYTES = 8 * 1024;
+/** An encoded `search` request: a query that may name thousands of files. */
+export const WORKSPACE_FILES_SEARCH_REQUEST_BYTES = 2 * 1024 * 1024;
+const MAXIMUM_SEARCH_PATTERN_BYTES = 8 * 1024;
+const MAXIMUM_SEARCH_GLOBS = 64;
+const MAXIMUM_SEARCH_GLOB_BYTES = 1024;
+/** Files one search may name in place of the whole Workspace. */
+const MAXIMUM_SEARCH_PATHS = 5000;
+/** UTF-16 code units one preview carries. */
+const MAXIMUM_SEARCH_PREVIEW_UNITS = 1000;
 const encoder = new TextEncoder();
 const byteLength = (value: string): number => encoder.encode(value).length;
 const isEntryName = (name: string): boolean =>
@@ -46,6 +55,46 @@ const GitPathsSchema = z
 	.max(MAXIMUM_WORKSPACE_GIT_PATHS)
 	.readonly();
 const EntryNameSchema = z.string().refine(isEntryName);
+/** Glob patterns: each non-empty, within its size and without control characters. */
+const GlobListSchema = z
+	.array(
+		z
+			.string()
+			.min(1)
+			.refine(
+				(glob) =>
+					byteLength(glob) <= MAXIMUM_SEARCH_GLOB_BYTES && !/[\p{Cc}\uD800-\uDFFF]/u.test(glob),
+			),
+	)
+	.max(MAXIMUM_SEARCH_GLOBS)
+	.readonly();
+const WorkspaceSearchQuerySchema = z
+	.strictObject({
+		/** Text, or a regular expression with `regex`; a line break lets a match span lines. */
+		pattern: z
+			.string()
+			.min(1)
+			.refine(
+				(pattern) =>
+					byteLength(pattern) <= MAXIMUM_SEARCH_PATTERN_BYTES && !/[\uD800-\uDFFF]/u.test(pattern),
+			),
+		regex: z.boolean(),
+		matchCase: z.boolean(),
+		wholeWord: z.boolean(),
+		/**
+		 * Globs the files searched must match, none meaning every file. One starting with `./` names
+		 * a path from the Workspace's directory, any other matches at any depth, and one naming a
+		 * directory includes what lies in it.
+		 */
+		includes: GlobListSchema,
+		/** Globs, read as `includes` are, of files left out. */
+		excludes: GlobListSchema,
+		/** Whether Git's ignore rules and `.ignore` files leave files out. */
+		useIgnoreFiles: z.boolean(),
+		/** When not null, only these files are searched. */
+		paths: z.array(RelativePathSchema).max(MAXIMUM_SEARCH_PATHS).readonly().nullable(),
+	})
+	.readonly();
 const identity = {
 	protocolVersion: z.literal(WORKBENCH_PROTOCOL_VERSION),
 	requestId: WorkbenchRequestIdSchema,
@@ -109,6 +158,11 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 		// Only an amend may keep the last commit's message by sending none.
 		.refine(({ amend, message }) => amend || message.trim().length > 0)
 		.readonly(),
+	/**
+	 * Sent only as an Events stream, whose pages carry what the search finds; closing the stream,
+	 * or a later search of the same Workspace on the connection, stops it.
+	 */
+	z.strictObject({ kind: z.literal('search'), query: WorkspaceSearchQuerySchema }).readonly(),
 ]);
 export const WorkspaceFilesRequestSchema = z
 	.strictObject({
@@ -202,6 +256,48 @@ const WorkspaceGitStatusEntrySchema = z
 		conflicted: z.boolean(),
 	})
 	.readonly();
+/** A match's span within its preview, in UTF-16 code units. */
+const WorkspaceSearchRangeSchema = z
+	.strictObject({
+		start: z.number().int().min(0).max(MAXIMUM_SEARCH_PREVIEW_UNITS),
+		end: z.number().int().min(0).max(MAXIMUM_SEARCH_PREVIEW_UNITS),
+	})
+	.readonly();
+/**
+ * One preview: the text of the line counted from 1 that matches start on, or for a long line the
+ * part of it from `previewStart` code units on, with the matches in order, apart and inside it.
+ */
+const WorkspaceSearchLineSchema = z
+	.strictObject({
+		line: z.number().int().min(1).max(Number.MAX_SAFE_INTEGER),
+		previewStart: z.number().int().min(0).max(0xffff_ffff),
+		preview: z.string().max(MAXIMUM_SEARCH_PREVIEW_UNITS),
+		matches: z.array(WorkspaceSearchRangeSchema).min(1).readonly(),
+	})
+	.refine(({ matches, preview }) => {
+		let end = 0;
+		return matches.every((range) => {
+			const apart = range.start >= end && range.start < range.end && range.end <= preview.length;
+			end = range.end;
+			return apart;
+		});
+	})
+	.readonly();
+/** Lines of one file; a file with many comes as several entries in a row. */
+const WorkspaceSearchFileSchema = z
+	.strictObject({
+		path: RelativePathSchema,
+		lines: z.array(WorkspaceSearchLineSchema).min(1).readonly(),
+	})
+	.readonly();
+const WorkspaceSearchStateSchema = z.enum([
+	'searching',
+	'complete',
+	'limit-reached',
+	'invalid-pattern',
+	'invalid-glob',
+	'unavailable',
+]);
 /** Whether a watch follows changes; with `unavailable` a client refreshes only when asked. */
 const WorkspaceFilesWatchStateSchema = z.enum(['starting', 'watching', 'unavailable']);
 const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
@@ -271,6 +367,20 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('git-done') }).readonly(),
+	/**
+	 * A page of a search: entries found after the `from` earlier pages carried. Entries with the
+	 * same path follow one another, possibly across pages, continuing that file's lines. `more`
+	 * says the next page follows at once; once `state` is no longer `searching`, no page follows.
+	 */
+	z
+		.strictObject({
+			kind: z.literal('search-results'),
+			from: OffsetSchema,
+			files: z.array(WorkspaceSearchFileSchema).max(MAXIMUM_ENTRIES).readonly(),
+			more: z.boolean(),
+			state: WorkspaceSearchStateSchema,
+		})
+		.readonly(),
 	/** What Git and its hooks printed when it refused, from the start; `truncated` when cut. */
 	z
 		.strictObject({
@@ -313,3 +423,6 @@ export type WorkspaceFileVersion = z.infer<typeof WorkspaceFileVersionSchema>;
 export type WorkspaceGitStatusEntry = z.infer<typeof WorkspaceGitStatusEntrySchema>;
 export type WorkspaceGitStatusCode = z.infer<typeof WorkspaceGitStatusCodeSchema>;
 export type WorkspaceFilesWatchState = z.infer<typeof WorkspaceFilesWatchStateSchema>;
+export type WorkspaceSearchQuery = z.infer<typeof WorkspaceSearchQuerySchema>;
+export type WorkspaceSearchFile = z.infer<typeof WorkspaceSearchFileSchema>;
+export type WorkspaceSearchState = z.infer<typeof WorkspaceSearchStateSchema>;

@@ -60,6 +60,9 @@ export type {
 	WorkspaceFilesOutcome,
 	WorkspaceGitStatusCode,
 	WorkspaceGitStatusEntry,
+	WorkspaceSearchFile,
+	WorkspaceSearchQuery,
+	WorkspaceSearchState,
 } from './workbench-protocol';
 
 export {

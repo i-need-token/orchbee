@@ -79,14 +79,22 @@ impl ApplicationRequest {
                 Some(WorkbenchRequest::Notification(_))
             )
         ) || matches!(
-            // A window watches each Workspace once; a new watch of it replaces the old one.
+            // A window watches and searches each Workspace once; a new watch or search of it
+            // replaces the old one.
             (self.workbench(), other.workbench()),
             (
                 Some(WorkbenchRequest::WorkspaceFiles(left)),
                 Some(WorkbenchRequest::WorkspaceFiles(right))
-            ) if matches!(left.operation, orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. })
-                && matches!(right.operation, orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. })
-                && left.workspace_id == right.workspace_id
+            ) if left.workspace_id == right.workspace_id && matches!(
+                (&left.operation, &right.operation),
+                (
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. },
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
+                ) | (
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. },
+                    orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+                )
+            )
         )
     }
     pub(super) fn shares_event_cursor(&self, other: &Self) -> bool {
@@ -132,7 +140,7 @@ impl ApplicationRequest {
     /// A read that waits on a Worker job or a terminal sample, whose duration belongs to an external
     /// process.
     pub(super) fn waits_for_worker_job(&self) -> bool {
-        // A watch answers from what the Server holds and never waits on the file service.
+        // A watch or search answers from what the Server holds and never waits on the file service.
         !self.follows_workspace_files()
             && matches!(
                 self.workbench(),
@@ -206,6 +214,13 @@ impl ApplicationRequest {
                 SemanticEventsOutcome::Gap { .. } => (false, true),
                 _ => (false, false),
             },
+            // A search page whose Server holds more is read again at once.
+            Ok(WorkbenchResponse::WorkspaceFiles(reply)) => match reply.outcome {
+                orchbee_workbench_protocol::WorkspaceFilesOutcome::SearchResults {
+                    more, ..
+                } => (more, false),
+                _ => (false, false),
+            },
             _ => (false, false),
         }
     }
@@ -238,7 +253,8 @@ impl ApplicationRequest {
             }
             // Each evaluation would read every terminal of the Workspace again; it stays one-shot.
             ApplicationRequestKind::Workbench(WorkbenchRequest::WorkspaceIdle(_)) => false,
-            // A read of files is one-shot, asked again when a watch moves; only the watch streams.
+            // A read of files is one-shot, asked again when a watch moves; only a watch or a search
+            // streams.
             ApplicationRequestKind::Workbench(WorkbenchRequest::WorkspaceFiles(_)) => {
                 self.follows_workspace_files()
             }
@@ -295,13 +311,14 @@ impl ApplicationRequest {
     pub(super) fn follows_terminal_runtime(&self) -> bool {
         matches!(self.workbench(), Some(WorkbenchRequest::TerminalRuntime(_)))
     }
-    /// A Workspace file watch, whose value changes only with what the watch lane reports.
+    /// A Workspace file watch or search, whose value changes only with what its lane reports.
     pub(super) fn follows_workspace_files(&self) -> bool {
         matches!(
             self.workbench(),
             Some(WorkbenchRequest::WorkspaceFiles(request)) if matches!(
                 request.operation,
                 orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
+                    | orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
             )
         )
     }

@@ -1154,10 +1154,19 @@ impl WorkbenchClientConnection<'_> {
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
                     .remove(events.action.subscription_id());
             }
-            WorkbenchRequest::WorkspaceFiles(files) => self
-                .service
-                .terminals
-                .forget_workspace_files_watch(self.generation, Some(&files.workspace_id)),
+            WorkbenchRequest::WorkspaceFiles(files) => match &files.operation {
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. } => self
+                    .service
+                    .terminals
+                    .forget_workspace_files_watch(self.generation, Some(&files.workspace_id)),
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. } => {
+                    self.service.terminals.forget_workspace_files_search(
+                        self.generation,
+                        Some((&files.workspace_id, &files.request_id)),
+                    );
+                }
+                _ => {}
+            },
             _ => {}
         }
     }
@@ -1381,19 +1390,16 @@ impl WorkbenchClientConnection<'_> {
                 },
             ));
         }
-        // A watch belongs to this connection: it lasts until its stream closes or the connection
-        // does, and a later watch of the same Workspace replaces it.
+        // A watch or a search belongs to this connection: it lasts until its stream closes or the
+        // connection does, and a later one of the same kind and Workspace replaces it.
         if let WorkbenchRequest::WorkspaceFiles(files) = &request
             && matches!(
                 files.operation,
                 orchbee_workbench_protocol::WorkspaceFilesOperation::Watch { .. }
+                    | orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
             )
         {
-            let result = if self.service.policy.read {
-                self.service
-                    .terminals
-                    .watch_workspace_files(self.generation, files)
-            } else {
+            let result = if !self.service.policy.read {
                 orchbee_workbench_protocol::WorkspaceFilesResult {
                     protocol_version: files.protocol_version,
                     request_id: files.request_id.clone(),
@@ -1403,6 +1409,17 @@ impl WorkbenchClientConnection<'_> {
                         reason: orchbee_workbench_protocol::WorkspaceFilesFailure::Denied,
                     },
                 }
+            } else if matches!(
+                files.operation,
+                orchbee_workbench_protocol::WorkspaceFilesOperation::Search { .. }
+            ) {
+                self.service
+                    .terminals
+                    .search_workspace_files(self.generation, files)
+            } else {
+                self.service
+                    .terminals
+                    .watch_workspace_files(self.generation, files)
             };
             return WorkbenchExecution::Response(WorkbenchResponse::WorkspaceFiles(result));
         }
@@ -1485,6 +1502,9 @@ impl Drop for WorkbenchClientConnection<'_> {
         self.service
             .terminals
             .forget_workspace_files_watch(self.generation, None);
+        self.service
+            .terminals
+            .forget_workspace_files_search(self.generation, None);
     }
 }
 

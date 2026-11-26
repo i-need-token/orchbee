@@ -934,7 +934,10 @@ shows for one Workspace. The request names the Session, the Workspace and one `o
 `text` or `bytes`, `git-status`, `watch` with the `directories` shown (the empty path naming the
 Workspace) and the `files` open, at most 256 and 64, or `write-file` of a working-tree path with
 the whole new `text`, at most 10 MiB, and the `expected` SHA-256 the file was read at, null for a
-file that must not exist yet. Paths are `/`-separated names, none empty, `.`
+file that must not exist yet, or `search` of file contents with a `query`: a `pattern` of 1 to
+8192 characters read literally or, with `regex`, as a regular expression, `matchCase`,
+`wholeWord`, `includes` and `excludes` of at most 64 globs each, `useIgnoreFiles`, and `paths`,
+null to search the whole Workspace or at most 5000 files to search alone. Paths are `/`-separated names, none empty, `.`
 or `..`, with no backslash or control character, so a Client never names a path outside the
 Workspace; the Server resolves the Workspace's directory itself.
 
@@ -946,17 +949,26 @@ a file up to 10 MiB, its SHA-256) and `content`, which is a `text` or `bytes` ch
 with the `files` and `repository` revisions and the watch `state` (`starting`, `watching` or
 `unavailable`); `written` with the saved file's `version`, which always carries its SHA-256;
 `conflict` with the file's current nullable `version` when it is not the one `expected`, in
-which case nothing was written; or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`,
+which case nothing was written; `search-results` with `from`, the count of entries earlier pages
+carried, at most 5000 `files` entries, `more` and the search `state` (`searching`, `complete`,
+`limit-reached`, `invalid-pattern`, `invalid-glob` or `unavailable`); or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`,
 `malformed`, or `trash-unavailable` when the system trash did not take every untracked file a
-`git-discard` named, in which case no tracked file was checked out. A `watch` is sent only as a State stream: the Server sends a new frame when a
-revision moves, and only a value that differs from the previous frame means a change.
+`git-discard` named, in which case no tracked file was checked out. A `watch` is sent only as a
+State stream: the Server sends a new frame when a revision moves, and only a value that differs from
+the previous frame means a change. A `search` is sent only as an Events stream, one per Workspace
+for each connection, a new one replacing the last: each frame is the next page, and `more` has the
+Server send another at once. A search entry is one file's `path` and up to 64 `lines`, each a line
+counted from 1 with a `preview` of at most 1000 UTF-16 code units starting `previewStart` units
+into the line and at least one match span inside it, ordered and apart; a file with more lines
+comes as entries in a row, which may cross pages. Every state but `searching` is final, and it
+comes once every entry has.
 
 A Client sends the request only to a Server whose `client-server` answer lists the
 [`workspace-files` capability](../connection/README.md#generation-registry). The
 [shared corpus](v1/workbench-workspace-files-conformance-v1.json) checks closed shapes, the path
 grammar, the vocabularies, the watch limits and each chunk's bounds in Rust, TypeScript and JSON
 Schema. A request keeps a 64 KiB cap except `write-file`, which may reach 24 MiB, the most kind 83
-carries; the result keeps the 8 MiB response cap. A Server answers `write-file` only to a
+carries, and `search`, which may reach 2 MiB; the result keeps the 8 MiB response cap. A Server answers `write-file` only to a
 connection that may also start and end terminals.
 
 ## Agent integration jobs

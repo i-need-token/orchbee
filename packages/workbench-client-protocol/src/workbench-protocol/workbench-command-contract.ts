@@ -29,6 +29,7 @@ import {
 } from './workbench-workspace-git-contract';
 import {
 	WORKSPACE_FILES_REQUEST_BYTES,
+	WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
 	WORKSPACE_FILES_WRITE_REQUEST_BYTES,
 	WorkspaceFilesRequestSchema,
 	WorkspaceFilesResultSchema,
@@ -724,11 +725,11 @@ export const WorkbenchRequestSchema = z
 			maximum = WORKBENCH_MAXIMUM_CONFIGURED_COMMAND_BYTES;
 		if (value.kind === 'workbench.events') maximum = WORKBENCH_MAXIMUM_EVENTS_BYTES;
 		if (value.kind === 'workbench.panel-graphics') maximum = GRAPHICS_REQUEST_BYTES;
-		if (value.kind === 'workbench.workspace-files')
-			maximum =
-				value.operation.kind === 'write-file'
-					? WORKSPACE_FILES_WRITE_REQUEST_BYTES
-					: WORKSPACE_FILES_REQUEST_BYTES;
+		if (value.kind === 'workbench.workspace-files') {
+			maximum = WORKSPACE_FILES_REQUEST_BYTES;
+			if (value.operation.kind === 'write-file') maximum = WORKSPACE_FILES_WRITE_REQUEST_BYTES;
+			if (value.operation.kind === 'search') maximum = WORKSPACE_FILES_SEARCH_REQUEST_BYTES;
+		}
 		if (value.kind === 'workbench.agent-integration')
 			maximum = WORKBENCH_MAXIMUM_ENCODED_AGENT_INTEGRATION_REQUEST_BYTES;
 		if (value.kind === 'workbench.command' && value.action.kind === 'tab.create-layout')

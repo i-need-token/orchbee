@@ -687,6 +687,217 @@
 					"truncated": true
 				}
 			}
+		},
+		{
+			"name": "search-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": [],
+						"excludes": [],
+						"useIgnoreFiles": true,
+						"paths": null
+					}
+				}
+			}
+		},
+		{
+			"name": "search-named-files-by-regex",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "fn \\w+\\(",
+						"regex": true,
+						"matchCase": true,
+						"wholeWord": true,
+						"includes": ["src", "*.rs"],
+						"excludes": ["./target"],
+						"useIgnoreFiles": false,
+						"paths": ["src/main.rs", "src/lib.rs"]
+					}
+				}
+			}
+		},
+		{
+			"name": "search-across-lines",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "end of\nstart",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": [],
+						"excludes": [],
+						"useIgnoreFiles": true,
+						"paths": null
+					}
+				}
+			}
+		},
+		{
+			"name": "search-first-page",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [
+						{
+							"path": "src/main.rs",
+							"lines": [
+								{
+									"line": 3,
+									"previewStart": 0,
+									"preview": "let needle = 1;",
+									"matches": [
+										{
+											"start": 4,
+											"end": 10
+										}
+									]
+								},
+								{
+									"line": 9,
+									"previewStart": 0,
+									"preview": "needle(needle)",
+									"matches": [
+										{
+											"start": 0,
+											"end": 6
+										},
+										{
+											"start": 7,
+											"end": 13
+										}
+									]
+								}
+							]
+						}
+					],
+					"more": true,
+					"state": "searching"
+				}
+			}
+		},
+		{
+			"name": "search-cut-long-line",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 12,
+					"files": [
+						{
+							"path": "min.js",
+							"lines": [
+								{
+									"line": 1,
+									"previewStart": 2460,
+									"preview": "…needle…",
+									"matches": [
+										{
+											"start": 1,
+											"end": 7
+										}
+									]
+								}
+							]
+						}
+					],
+					"more": false,
+					"state": "searching"
+				}
+			}
+		},
+		{
+			"name": "search-complete-with-nothing-more",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 40,
+					"files": [],
+					"more": false,
+					"state": "complete"
+				}
+			}
+		},
+		{
+			"name": "search-limit-reached",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 900,
+					"files": [],
+					"more": false,
+					"state": "limit-reached"
+				}
+			}
+		},
+		{
+			"name": "search-invalid-pattern",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [],
+					"more": false,
+					"state": "invalid-pattern"
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1756,6 +1967,260 @@
 					"output": "error"
 				}
 			}
+		},
+		{
+			"name": "search-empty-pattern",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": [],
+						"excludes": [],
+						"useIgnoreFiles": true,
+						"paths": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-glob-with-control-character",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": ["src\u0007"],
+						"excludes": [],
+						"useIgnoreFiles": true,
+						"paths": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-path-outside-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": [],
+						"excludes": [],
+						"useIgnoreFiles": true,
+						"paths": ["../secret"]
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-without-paths",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "search",
+					"query": {
+						"pattern": "needle",
+						"regex": false,
+						"matchCase": false,
+						"wholeWord": false,
+						"includes": [],
+						"excludes": [],
+						"useIgnoreFiles": true
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-file-without-lines",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [
+						{
+							"path": "a.txt",
+							"lines": []
+						}
+					],
+					"more": false,
+					"state": "searching"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-line-zero",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [
+						{
+							"path": "a.txt",
+							"lines": [
+								{
+									"line": 0,
+									"previewStart": 0,
+									"preview": "needle",
+									"matches": [
+										{
+											"start": 0,
+											"end": 6
+										}
+									]
+								}
+							]
+						}
+					],
+					"more": false,
+					"state": "searching"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-unknown-state",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [],
+					"more": false,
+					"state": "stopped"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "search-unordered-matches",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [
+						{
+							"path": "a.txt",
+							"lines": [
+								{
+									"line": 1,
+									"previewStart": 0,
+									"preview": "needle needle",
+									"matches": [
+										{
+											"start": 7,
+											"end": 13
+										},
+										{
+											"start": 0,
+											"end": 6
+										}
+									]
+								}
+							]
+						}
+					],
+					"more": false,
+					"state": "searching"
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "search-match-past-preview",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "search-results",
+					"from": 0,
+					"files": [
+						{
+							"path": "a.txt",
+							"lines": [
+								{
+									"line": 1,
+									"previewStart": 0,
+									"preview": "needle",
+									"matches": [
+										{
+											"start": 2,
+											"end": 9
+										}
+									]
+								}
+							]
+						}
+					],
+					"more": false,
+					"state": "searching"
+				}
+			},
+			"boundary": "semantic"
 		}
 	]
 }

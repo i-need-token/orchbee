@@ -127,6 +127,8 @@ export type {
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,
 	WorkspaceFilesWatchScope,
+	WorkspaceSearch,
+	WorkspaceSearchReport,
 } from './types/workbench-workspace-files';
 export type {
 	WorkbenchWorkspaceGit,

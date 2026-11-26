@@ -59,10 +59,14 @@ function watching(
 	repository: string,
 	state = 'watching',
 ): void {
+	respond(stream, { files, kind: 'watching', repository, state });
+}
+
+function respond(stream: Opened | undefined, outcome: unknown): void {
 	const payload = new TextEncoder().encode(
 		JSON.stringify({
 			kind: 'workbench.workspace-files.result',
-			outcome: { files, kind: 'watching', repository, state },
+			outcome,
 			protocolVersion: 1,
 			requestId: stream?.request.requestId,
 			sessionId: SNAPSHOT.sessionId,
@@ -255,5 +259,69 @@ describe('createServerWorkspaceFiles watch', () => {
 		expect(opened).toHaveLength(2);
 		watching(opened[1], '5', '4');
 		expect(reports.at(-1)).toEqual({ files: true, repository: false, state: 'watching' });
+	});
+});
+
+describe('createServerWorkspaceFiles search', () => {
+	const QUERY = {
+		excludes: [],
+		includes: [],
+		matchCase: false,
+		paths: null,
+		pattern: 'needle',
+		regex: false,
+		useIgnoreFiles: true,
+		wholeWord: false,
+	};
+	const entry = (path: string, line: number) => ({
+		lines: [{ line, matches: [{ end: 6, start: 0 }], preview: 'needle', previewStart: 0 }],
+		path,
+	});
+	const page = (from: number, files: unknown[], state = 'searching') => ({
+		files,
+		from,
+		kind: 'search-results',
+		more: false,
+		state,
+	});
+
+	it('reports pages in order, drops a page answered again, and closes once the search ends', () => {
+		const { connection, opened } = streams();
+		const reports: unknown[] = [];
+		createServerWorkspaceFiles(
+			sessionAnswering(() => ({ kind: 'not-submitted' })),
+			connection,
+		).search(WORKSPACE, QUERY, (report) => reports.push(report));
+		expect(opened[0]?.request.operation).toEqual({ kind: 'search', query: QUERY });
+		respond(opened[0], page(0, []));
+		respond(opened[0], page(0, [entry('a.txt', 1), entry('a.txt', 70)]));
+		respond(opened[0], page(0, [entry('a.txt', 1), entry('a.txt', 70)]));
+		respond(opened[0], page(2, [entry('b.txt', 3)], 'complete'));
+		expect(reports).toEqual([
+			{ files: [entry('a.txt', 1), entry('a.txt', 70)], state: 'searching' },
+			{ files: [entry('b.txt', 3)], state: 'complete' },
+		]);
+		expect(opened[0]?.closed).toBe(true);
+	});
+
+	it('ends as unavailable when entries go missing or the stream closes first', () => {
+		const skipped = streams();
+		const reports: unknown[] = [];
+		createServerWorkspaceFiles(
+			sessionAnswering(() => ({ kind: 'not-submitted' })),
+			skipped.connection,
+		).search(WORKSPACE, QUERY, (report) => reports.push(report));
+		respond(skipped.opened[0], page(1, [entry('b.txt', 3)]));
+		expect(reports).toEqual([{ files: [], state: 'unavailable' }]);
+		expect(skipped.opened[0]?.closed).toBe(true);
+
+		const dropped = streams();
+		const later: unknown[] = [];
+		createServerWorkspaceFiles(
+			sessionAnswering(() => ({ kind: 'not-submitted' })),
+			dropped.connection,
+		).search(WORKSPACE, QUERY, (report) => later.push(report));
+		dropped.opened[0]?.handlers.onClosed('stopping');
+		expect(later).toEqual([{ files: [], state: 'unavailable' }]);
 	});
 });

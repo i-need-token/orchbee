@@ -1,10 +1,12 @@
 //! The Workspace file service behind `workbench.workspace-files`: it reads, and saves a file only
 //! while it is still the version a client read. The Server runs it in a child process of its own
 //! executable only once a Client asks, and talks to it over standard input and output, one JSON
-//! object per line; a second child, the watch lane, follows changes. See this crate's README.
+//! object per line; a second child, the watch lane, follows changes, and a third, the search
+//! lane, searches file contents. See this crate's README.
 mod change;
 mod files;
 mod git;
+mod search;
 mod status;
 mod system_trash;
 mod watch;
@@ -14,6 +16,10 @@ use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
     WorkspaceFileSource, WorkspaceFilesFailure as Failure, WorkspaceFilesOperation,
     WorkspaceFilesOutcome as Outcome,
+};
+pub use search::{
+    MAXIMUM_RUNNING_SEARCHES, MAXIMUM_SEARCH_REPORT_LINE_BYTES, SEARCH_FLAG, SearchCommand,
+    SearchReport, serve_search, serve_search_stdio,
 };
 use serde::{Deserialize, Serialize};
 pub use status::BlobCache;
@@ -129,10 +135,12 @@ pub fn answer(
                     amend,
                     stage_all,
                 } => change::commit(&root, message, *amend, *stage_all, deadline),
-                // The Server answers a watch itself from what the watch lane reports.
-                WorkspaceFilesOperation::Watch { .. } => Outcome::Failed {
-                    reason: Failure::Malformed,
-                },
+                // The Server answers a watch and a search itself from what their lanes report.
+                WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {
+                    Outcome::Failed {
+                        reason: Failure::Malformed,
+                    }
+                }
             },
         }
     };

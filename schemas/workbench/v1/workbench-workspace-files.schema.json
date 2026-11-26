@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"title": "Workspace files and Git change reads, saving a working-tree file, and staging, discarding and committing changes",
+	"title": "Workspace files and Git change reads, saving a working-tree file, staging, discarding and committing changes, and searching file contents",
 	"oneOf": [
 		{
 			"type": "object",
@@ -249,6 +249,86 @@
 								},
 								"stageAll": {
 									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "query"],
+							"properties": {
+								"kind": {
+									"const": "search"
+								},
+								"query": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": [
+										"pattern",
+										"regex",
+										"matchCase",
+										"wholeWord",
+										"includes",
+										"excludes",
+										"useIgnoreFiles",
+										"paths"
+									],
+									"properties": {
+										"pattern": {
+											"type": "string",
+											"minLength": 1,
+											"maxLength": 8192
+										},
+										"regex": {
+											"type": "boolean"
+										},
+										"matchCase": {
+											"type": "boolean"
+										},
+										"wholeWord": {
+											"type": "boolean"
+										},
+										"includes": {
+											"type": "array",
+											"maxItems": 64,
+											"items": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 1024,
+												"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+											}
+										},
+										"excludes": {
+											"type": "array",
+											"maxItems": 64,
+											"items": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 1024,
+												"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+											}
+										},
+										"useIgnoreFiles": {
+											"type": "boolean"
+										},
+										"paths": {
+											"oneOf": [
+												{
+													"type": "null"
+												},
+												{
+													"type": "array",
+													"maxItems": 5000,
+													"items": {
+														"type": "string",
+														"minLength": 1,
+														"maxLength": 4096,
+														"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+													}
+												}
+											]
+										}
+									}
 								}
 							}
 						}
@@ -651,6 +731,97 @@
 								},
 								"truncated": {
 									"type": "boolean"
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "from", "files", "more", "state"],
+							"properties": {
+								"kind": {
+									"const": "search-results"
+								},
+								"from": {
+									"type": "integer",
+									"minimum": 0,
+									"maximum": 18446744073709551615
+								},
+								"files": {
+									"type": "array",
+									"maxItems": 5000,
+									"items": {
+										"type": "object",
+										"additionalProperties": false,
+										"required": ["path", "lines"],
+										"properties": {
+											"path": {
+												"type": "string",
+												"minLength": 1,
+												"maxLength": 4096,
+												"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+											},
+											"lines": {
+												"type": "array",
+												"minItems": 1,
+												"items": {
+													"type": "object",
+													"additionalProperties": false,
+													"required": ["line", "previewStart", "preview", "matches"],
+													"properties": {
+														"line": {
+															"type": "integer",
+															"minimum": 1,
+															"maximum": 18446744073709551615
+														},
+														"previewStart": {
+															"type": "integer",
+															"minimum": 0,
+															"maximum": 4294967295
+														},
+														"preview": {
+															"type": "string",
+															"maxLength": 1000
+														},
+														"matches": {
+															"type": "array",
+															"minItems": 1,
+															"items": {
+																"type": "object",
+																"additionalProperties": false,
+																"required": ["start", "end"],
+																"properties": {
+																	"start": {
+																		"type": "integer",
+																		"minimum": 0,
+																		"maximum": 999
+																	},
+																	"end": {
+																		"type": "integer",
+																		"minimum": 1,
+																		"maximum": 1000
+																	}
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								},
+								"more": {
+									"type": "boolean"
+								},
+								"state": {
+									"enum": [
+										"searching",
+										"complete",
+										"limit-reached",
+										"invalid-pattern",
+										"invalid-glob",
+										"unavailable"
+									]
 								}
 							}
 						},

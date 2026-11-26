@@ -3,6 +3,8 @@ import type {
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,
 	WorkspaceFilesWatchScope,
+	WorkspaceSearch,
+	WorkspaceSearchReport,
 } from '../../workbench';
 import {
 	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
@@ -13,6 +15,8 @@ import {
 	type WorkspaceFilesOperation,
 	type WorkspaceFilesOutcome,
 	type WorkspaceFilesWatchState,
+	type WorkspaceSearchQuery,
+	type WorkspaceSearchState,
 } from '@orchbee/workbench-client-protocol';
 
 import {
@@ -62,6 +66,8 @@ function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperat
 			return outcome.kind === 'written' || outcome.kind === 'conflict';
 		case 'watch':
 			return outcome.kind === 'watching';
+		case 'search':
+			return outcome.kind === 'search-results';
 		case 'git-stage':
 		case 'git-unstage':
 		case 'git-discard':
@@ -85,6 +91,58 @@ function sameScope(left: WorkspaceFilesWatchScope, right: WorkspaceFilesWatchSco
 	const same = (a: readonly string[], b: readonly string[]): boolean =>
 		a.length === b.length && a.every((path, index) => path === b[index]);
 	return same(left.directories, right.directories) && same(left.files, right.files);
+}
+
+/** The outcome a stream frame carries, or null for a frame that does not answer `requestId`. */
+function outcomeOf(
+	record: Uint8Array,
+	requestId: string,
+	workspaceId: string,
+): WorkspaceFilesOutcome | null {
+	let response: WorkbenchResponse;
+	try {
+		response = decodeWorkbenchResponse(record);
+	} catch {
+		return null;
+	}
+	if (
+		response.kind !== 'workbench.workspace-files.result' ||
+		response.requestId !== requestId ||
+		response.workspaceId !== workspaceId
+	) {
+		return null;
+	}
+	return response.outcome;
+}
+
+/** The request opening a stream in a shown Workspace; null when it cannot be encoded. */
+function streamRequest(
+	session: FilesSession,
+	workspaceId: string,
+	requestId: string,
+	operation: WorkspaceFilesOperation,
+): Uint8Array | null {
+	try {
+		return encodeWorkbenchRequest(
+			parseWorkbenchRequest({
+				kind: 'workbench.workspace-files',
+				operation,
+				protocolVersion: WORKBENCH_PROTOCOL_VERSION,
+				requestId,
+				sessionId: session.snapshot.sessionId,
+				workspaceId,
+			}),
+		);
+	} catch {
+		return null;
+	}
+}
+
+/** Whether the Session shows a Workspace; only such a Workspace is asked about or followed. */
+function shows(session: FilesSession, workspaceId: string): boolean {
+	return session.snapshot.navigation.workspaces.some(
+		(candidate) => candidate.workspaceId === workspaceId,
+	);
 }
 
 interface Followed {
@@ -123,20 +181,8 @@ function watchWorkspace(
 	const lost = (): void => report({ files: false, repository: false, state: 'unavailable' });
 
 	const adopt = (record: Uint8Array, requestId: string): void => {
-		let response: WorkbenchResponse;
-		try {
-			response = decodeWorkbenchResponse(record);
-		} catch {
-			return;
-		}
-		if (
-			response.kind !== 'workbench.workspace-files.result' ||
-			response.requestId !== requestId ||
-			response.workspaceId !== workspaceId
-		) {
-			return;
-		}
-		const { outcome } = response;
+		const outcome = outcomeOf(record, requestId, workspaceId);
+		if (outcome === null) return;
 		if (outcome.kind !== 'watching') {
 			lost();
 			return;
@@ -152,28 +198,17 @@ function watchWorkspace(
 
 	const open = (): void => {
 		if (closed) return;
-		// Only a Workspace the Session shows is followed; its own identity names it.
-		const shown = session.snapshot.navigation.workspaces.some(
-			(candidate) => candidate.workspaceId === workspaceId,
-		);
-		if (!shown) {
+		if (!shows(session, workspaceId)) {
 			lost();
 			return;
 		}
 		const requestId = createWorkbenchRequestId();
-		let request: Uint8Array;
-		try {
-			request = encodeWorkbenchRequest(
-				parseWorkbenchRequest({
-					kind: 'workbench.workspace-files',
-					operation: { directories: scope.directories, files: scope.files, kind: 'watch' },
-					protocolVersion: WORKBENCH_PROTOCOL_VERSION,
-					requestId,
-					sessionId: session.snapshot.sessionId,
-					workspaceId,
-				}),
-			);
-		} catch {
+		const request = streamRequest(session, workspaceId, requestId, {
+			directories: scope.directories,
+			files: scope.files,
+			kind: 'watch',
+		});
+		if (request === null) {
 			lost();
 			return;
 		}
@@ -225,8 +260,86 @@ function watchWorkspace(
 }
 
 /**
- * `workbench.workspace-files` reads, saves, repository changes and watches for the right bar. Nothing is read until the
- * bar asks, and the Server starts its file service only then.
+ * One search over a `workbench.workspace-files` Events stream. Each frame is a page of what the
+ * Server found, counted from the search's first entry, so a page that does not follow the last one
+ * shows that entries went missing and ends the search as `unavailable`. A page the Server answers
+ * again unchanged is dropped. The stream closes once the search has ended, which frees its place in
+ * the Server; a stream the Server closes first ends the search as `unavailable`.
+ */
+function searchWorkspace(
+	connection: FilesConnection,
+	session: FilesSession,
+	workspaceId: string,
+	query: WorkspaceSearchQuery,
+	onReport: (report: WorkspaceSearchReport) => void,
+): WorkspaceSearch {
+	let closed = false;
+	let stream: ServerSubscription | null = null;
+	// Entries reported so far, which the next page starts from.
+	let received = 0;
+
+	const close = (): void => {
+		closed = true;
+		stream?.close();
+		stream = null;
+	};
+	const report = (next: WorkspaceSearchReport): void => {
+		if (closed) return;
+		received += next.files.length;
+		onReport(next);
+		if (next.state !== 'searching') close();
+	};
+	const end = (state: WorkspaceSearchState): void => report({ files: [], state });
+
+	const adopt = (record: Uint8Array, requestId: string): void => {
+		const outcome = outcomeOf(record, requestId, workspaceId);
+		if (outcome === null) return;
+		if (outcome.kind !== 'search-results') {
+			end('unavailable');
+			return;
+		}
+		const { files, from, state } = outcome;
+		if (from < received && from + files.length === received) return;
+		if (from !== received) {
+			end('unavailable');
+			return;
+		}
+		if (files.length === 0 && state === 'searching') return;
+		report({ files, state });
+	};
+
+	const requestId = createWorkbenchRequestId();
+	const request = shows(session, workspaceId)
+		? streamRequest(session, workspaceId, requestId, { kind: 'search', query })
+		: null;
+	if (request === null) {
+		end('unavailable');
+		return { close };
+	}
+	try {
+		const opened = connection.subscribe('events', request, {
+			onClosed: () => {
+				if (stream !== opened) return;
+				stream = null;
+				end('unavailable');
+			},
+			onFrame: (_kind, record) => {
+				if (stream === opened) adopt(record, requestId);
+			},
+			// Each page names the entry it starts from, so a page after a gap shows what was lost.
+			onGap: () => undefined,
+		});
+		stream = opened;
+	} catch {
+		// The connection has ended, which its Workbench session reports.
+		end('unavailable');
+	}
+	return { close };
+}
+
+/**
+ * `workbench.workspace-files` reads, saves, repository changes, watches and searches for the right
+ * bar. Nothing is read until the bar asks, and the Server starts its file service only then.
  */
 export function createServerWorkspaceFiles(
 	session: FilesSession,
@@ -277,6 +390,9 @@ export function createServerWorkspaceFiles(
 		},
 		watch(workspaceId, scope, onReport) {
 			return watchWorkspace(connection, session, workspaceId, scope, onReport);
+		},
+		search(workspaceId, query, onReport) {
+			return searchWorkspace(connection, session, workspaceId, query, onReport);
 		},
 	};
 }

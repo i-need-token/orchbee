@@ -128,8 +128,8 @@ impl SessionChangeSignal {
         state.wake = state.wake.wrapping_add(1);
         self.changed.notify_all();
     }
-    /// Something a Workspace file watch follows changed. It is neither commit nor output, so only
-    /// the watch streams reevaluate.
+    /// Something a Workspace file watch or search follows changed. It is neither commit nor
+    /// output, so only the watch and search streams reevaluate.
     pub fn notify_workspace_files(&self) {
         let mut state = self
             .state

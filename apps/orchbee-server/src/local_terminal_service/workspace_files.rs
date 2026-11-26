@@ -1,8 +1,10 @@
 //! `workbench.workspace-files`: the right bar's file and Git facts for one Workspace, saving one of
-//! its files, and staging, discarding and committing its changes. The Server resolves the Workspace's own directory and asks a separate process of its own
+//! its files, staging, discarding and committing its changes, and searching its contents. The
+//! Server resolves the Workspace's own directory and asks a separate process of its own
 //! executable, started only on the first request, so a Session whose windows never open the right
-//! bar starts nothing and terminal work never waits on a file read. A watch is answered here, from
-//! what the watch lane last reported; see [`watch`].
+//! bar starts nothing and terminal work never waits on a file read. A watch and a search are
+//! answered here, from what their lanes last reported; see [`watch`] and [`search`].
+mod search;
 mod watch;
 
 use super::LocalTerminalService;
@@ -34,6 +36,7 @@ pub(super) struct WorkspaceFilesProcesses {
     changes: Mutex<Option<Running>>,
     git: Mutex<Option<Running>>,
     watches: watch::Watches,
+    searches: search::Searches,
 }
 
 impl Default for WorkspaceFilesProcesses {
@@ -44,6 +47,7 @@ impl Default for WorkspaceFilesProcesses {
             changes: Mutex::new(None),
             git: Mutex::new(None),
             watches: watch::Watches::default(),
+            searches: search::Searches::default(),
         }
     }
 }
@@ -162,8 +166,11 @@ impl WorkspaceFilesProcesses {
             | WorkspaceFilesOperation::GitUnstage { .. }
             | WorkspaceFilesOperation::GitDiscard { .. }
             | WorkspaceFilesOperation::GitCommit { .. } => &self.git,
-            // A watch belongs to a Client connection, which answers it with `watch_workspace_files`.
-            WorkspaceFilesOperation::Watch { .. } => return Err(Failure::Unavailable),
+            // A watch and a search belong to a Client connection, which answers them with
+            // `watch_workspace_files` and `search_workspace_files`.
+            WorkspaceFilesOperation::Watch { .. } | WorkspaceFilesOperation::Search { .. } => {
+                return Err(Failure::Unavailable);
+            }
         };
         let mut running = lane.lock().map_err(|_| Failure::Unavailable)?;
         // A process that exited on its own, after its idle time, is replaced.
@@ -187,12 +194,14 @@ impl WorkspaceFilesProcesses {
 }
 
 impl LocalTerminalService {
-    /// Wakes `signal` whenever a watched Workspace's revisions or watch state change.
+    /// Wakes `signal` whenever a watched Workspace's revisions or watch state change, or a search
+    /// finds more or ends.
     pub(crate) fn subscribe_workspace_files(
         &self,
         signal: &std::sync::Arc<orchbee_server::SessionChangeSignal>,
     ) {
         self.workspace_files.watches.subscribe(signal);
+        self.workspace_files.searches.subscribe(signal);
     }
 
     /// Answers the watch `request` for the Client connection `owner`, replacing that
@@ -237,6 +246,55 @@ impl LocalTerminalService {
         self.workspace_files.watches.forget(owner, workspace);
     }
 
+    /// Answers the next page of the search `request` for the Client connection `owner`, starting
+    /// it if it is new and replacing that connection's earlier search of the same Workspace.
+    pub(crate) fn search_workspace_files(
+        &self,
+        owner: std::num::NonZeroU64,
+        request: &WorkspaceFilesRequest,
+    ) -> WorkspaceFilesResult {
+        let outcome = match (&request.operation, request.validate()) {
+            (WorkspaceFilesOperation::Search { query }, Ok(())) => self
+                .workspace_files_directory(request)
+                .map(|root| {
+                    self.workspace_files.searches.page(
+                        owner,
+                        &request.workspace_id,
+                        &request.request_id,
+                        &root,
+                        query,
+                    )
+                })
+                .unwrap_or_else(|reason| Outcome::Failed { reason }),
+            _ => Outcome::Failed {
+                reason: Failure::Malformed,
+            },
+        };
+        checked(
+            request,
+            WorkspaceFilesResult {
+                protocol_version: ProtocolVersion,
+                request_id: request.request_id.clone(),
+                session_id: request.session_id.clone(),
+                workspace_id: request.workspace_id.clone(),
+                outcome,
+            },
+        )
+    }
+
+    /// Ends the connection `owner`'s search of a Workspace while it is still the named request,
+    /// or all its searches for none.
+    pub(crate) fn forget_workspace_files_search(
+        &self,
+        owner: std::num::NonZeroU64,
+        search: Option<(
+            &orchbee_workbench_protocol::WorkbenchWorkspaceId,
+            &orchbee_workbench_protocol::WorkbenchRequestId,
+        )>,
+    ) {
+        self.workspace_files.searches.forget(owner, search);
+    }
+
     pub(crate) fn execute_workspace_files(
         &self,
         request: WorkspaceFilesRequest,
@@ -257,20 +315,7 @@ impl LocalTerminalService {
             workspace_id: request.workspace_id.clone(),
             outcome,
         };
-        if result.answers(&request)
-            && result.validate().is_ok()
-            && serialize_workbench_response(&WorkbenchResponse::WorkspaceFiles(result.clone()))
-                .is_ok()
-        {
-            result
-        } else {
-            WorkspaceFilesResult {
-                outcome: Outcome::Failed {
-                    reason: Failure::Malformed,
-                },
-                ..result
-            }
-        }
+        checked(&request, result)
     }
 
     /// The Workspace's primary directory, when this Session's active Worker owns it.
@@ -307,5 +352,23 @@ impl LocalTerminalService {
             return Err(Failure::Unavailable);
         }
         Ok(directory.path.as_str().to_owned())
+    }
+}
+
+/// `result` when it answers `request`, holds to its record and encodes; otherwise a malformed
+/// failure in its place.
+fn checked(request: &WorkspaceFilesRequest, result: WorkspaceFilesResult) -> WorkspaceFilesResult {
+    if result.answers(request)
+        && result.validate().is_ok()
+        && serialize_workbench_response(&WorkbenchResponse::WorkspaceFiles(result.clone())).is_ok()
+    {
+        result
+    } else {
+        WorkspaceFilesResult {
+            outcome: Outcome::Failed {
+                reason: Failure::Malformed,
+            },
+            ..result
+        }
     }
 }

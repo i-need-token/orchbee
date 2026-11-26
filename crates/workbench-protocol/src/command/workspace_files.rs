@@ -1,6 +1,7 @@
 //! Workspace file and Git facts for the right bar: one directory listing, one chunk of a file's
-//! content from the working tree, the index or `HEAD`, or the Workspace's change list; or, as a
-//! State stream, how far what the right bar shows has changed since. The writing operations save a
+//! content from the working tree, the index or `HEAD`, or the Workspace's change list; as a State
+//! stream, how far what the right bar shows has changed since; or, as an Events stream, the
+//! matches of a text search, page by page as they are found. The writing operations save a
 //! working-tree file only while the file is still the version the client read, and stage, unstage,
 //! discard and commit changes with Git. Paths are
 //! Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
@@ -44,6 +45,21 @@ pub const MAXIMUM_WORKSPACE_GIT_PATHS: usize = 256;
 pub const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES: usize = 32 * 1024;
 /// The bytes of Git's own output a refused Git operation reports.
 pub const MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES: usize = 8 * 1024;
+/// An encoded `search` request: the files it may be limited to and the identity around it. A
+/// client leaves out the files that would not fit.
+pub const MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES: usize = 2 * 1024 * 1024;
+/// A search pattern's bytes.
+pub const MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES: usize = 8 * 1024;
+/// Glob patterns one search includes, and as many again that it excludes.
+pub const MAXIMUM_WORKSPACE_SEARCH_GLOBS: usize = 64;
+/// One glob pattern's bytes.
+pub const MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES: usize = 1024;
+/// Files a search limited to named files names: the files open, or the changed ones.
+pub const MAXIMUM_WORKSPACE_SEARCH_PATHS: usize = MAXIMUM_WORKSPACE_FILE_ENTRIES;
+/// Matches one search reports; at this many it stops and says the limit was reached.
+pub const MAXIMUM_WORKSPACE_SEARCH_MATCHES: u64 = 20_000;
+/// UTF-16 code units one match preview holds; a longer line shows the part around its matches.
+pub const MAXIMUM_WORKSPACE_SEARCH_PREVIEW_UNITS: usize = 1000;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -126,6 +142,49 @@ pub enum WorkspaceFilesOperation {
         amend: bool,
         stage_all: bool,
     },
+    /// Searches the Workspace's files for `query`, sent only as an Events stream: the first frame
+    /// starts the search and each later one carries the matches found since, until a frame's
+    /// state says the search ended. Closing the stream stops the search, as does a later search of
+    /// the same Workspace on the same connection.
+    Search {
+        query: WorkspaceSearchQuery,
+    },
+}
+
+/// What one search looks for and where.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceSearchQuery {
+    /// The text to find, or a regular expression when `regex` is set; a line break in it lets a
+    /// match span lines.
+    pub pattern: String,
+    pub regex: bool,
+    pub match_case: bool,
+    /// Matches only where the pattern starts and ends at word boundaries.
+    pub whole_word: bool,
+    /// Glob patterns the files searched must match, none meaning every file. A pattern starting
+    /// with `./` names a path from the Workspace's directory, any other one matches at any depth,
+    /// and a pattern that names a directory includes what lies in it.
+    pub includes: Vec<String>,
+    /// Glob patterns, read as `includes` are, of files left out.
+    pub excludes: Vec<String>,
+    /// Whether Git's ignore rules and `.ignore` files leave files out.
+    pub use_ignore_files: bool,
+    /// When not null, only these files are searched: the files open, or the changed ones.
+    #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+    pub paths: Option<Vec<String>>,
+}
+impl WorkspaceSearchQuery {
+    fn is_valid(&self) -> bool {
+        !self.pattern.is_empty()
+            && self.pattern.len() <= MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES
+            && is_glob_list(&self.includes)
+            && is_glob_list(&self.excludes)
+            && self.paths.as_deref().is_none_or(|paths| {
+                paths.len() <= MAXIMUM_WORKSPACE_SEARCH_PATHS
+                    && paths.iter().all(|path| is_relative_path(path))
+            })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -181,6 +240,7 @@ impl WorkspaceFilesOperation {
             {
                 Ok(())
             }
+            Self::Search { query } if query.is_valid() => Ok(()),
             Self::ListDirectory { .. }
             | Self::ReadFile { .. }
             | Self::Watch { .. }
@@ -188,7 +248,8 @@ impl WorkspaceFilesOperation {
             | Self::GitStage { .. }
             | Self::GitUnstage { .. }
             | Self::GitDiscard { .. }
-            | Self::GitCommit { .. } => Err(ContractError::InvalidDocument),
+            | Self::GitCommit { .. }
+            | Self::Search { .. } => Err(ContractError::InvalidDocument),
         }
     }
     /// Whether the operation changes the Workspace, which needs more than reading permission.
@@ -211,10 +272,10 @@ impl WorkspaceFilesOperation {
     /// The encoded size a request carrying this operation may reach.
     #[must_use]
     pub fn request_byte_limit(&self) -> usize {
-        if matches!(self, Self::WriteFile { .. }) {
-            MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES
-        } else {
-            MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
+        match self {
+            Self::WriteFile { .. } => MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
+            Self::Search { .. } => MAXIMUM_WORKSPACE_FILES_SEARCH_REQUEST_BYTES,
+            _ => MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES,
         }
     }
 }
@@ -316,6 +377,57 @@ pub enum WorkspaceFilesWatchState {
     Unavailable,
 }
 
+/// Where a search stands.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WorkspaceSearchState {
+    Searching,
+    /// Every file was searched.
+    Complete,
+    /// The search stopped at [`MAXIMUM_WORKSPACE_SEARCH_MATCHES`] matches.
+    LimitReached,
+    /// The pattern is not a regular expression the search can run.
+    InvalidPattern,
+    /// An include or exclude pattern is not a glob the search can read.
+    InvalidGlob,
+    /// The search could not run, or stopped before it searched every file.
+    Unavailable,
+}
+
+/// One file's matches.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceSearchFile {
+    pub path: String,
+    /// In order through the file; a long line can show as several previews.
+    pub lines: Vec<WorkspaceSearchLine>,
+}
+
+/// Matches that start on one line, with the text around them.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceSearchLine {
+    /// The line the first match starts on, counted from 1.
+    pub line: u64,
+    /// UTF-16 code units of the line before the preview starts; more than zero when a long line
+    /// shows only the part around its matches.
+    pub preview_start: u32,
+    /// The line from `preview_start`, or for a match spanning lines those lines joined by `\n`;
+    /// bytes that are not UTF-8 read as U+FFFD. At most
+    /// [`MAXIMUM_WORKSPACE_SEARCH_PREVIEW_UNITS`] UTF-16 code units.
+    pub preview: String,
+    /// Each match as UTF-16 code unit offsets into `preview`, in order and apart.
+    pub matches: Vec<WorkspaceSearchRange>,
+}
+
+/// A span of UTF-16 code units, `start` included and `end` not.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WorkspaceSearchRange {
+    pub start: u32,
+    pub end: u32,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WorkspaceFilesFailure {
@@ -385,6 +497,18 @@ pub enum WorkspaceFilesOutcome {
         output: String,
         truncated: bool,
     },
+    /// One page of a search: the entries found since the last page, after the `from` entries
+    /// earlier pages carried. A file with many matching lines comes as several entries for the
+    /// same path that follow one another, possibly across pages, each continuing that file's
+    /// lines; no other path comes between them. `more` says the Server already holds more, which
+    /// the next page carries at once. Once `state` is no longer `searching`, no later page carries
+    /// anything.
+    SearchResults {
+        from: u64,
+        files: Vec<WorkspaceSearchFile>,
+        more: bool,
+        state: WorkspaceSearchState,
+    },
     Failed {
         reason: WorkspaceFilesFailure,
     },
@@ -433,6 +557,14 @@ impl WorkspaceFilesOutcome {
             Self::Written { version } => is_version(version) && version.sha256.is_some(),
             Self::Conflict { version } => version.as_ref().is_none_or(is_version),
             Self::GitRejected { output, .. } => output.len() <= MAXIMUM_WORKSPACE_GIT_OUTPUT_BYTES,
+            Self::SearchResults { files, .. } => {
+                files.len() <= MAXIMUM_WORKSPACE_FILE_ENTRIES
+                    && files.iter().all(|file| {
+                        is_relative_path(&file.path)
+                            && !file.lines.is_empty()
+                            && file.lines.iter().all(is_search_line)
+                    })
+            }
             Self::Watching { .. } | Self::GitDone {} | Self::Failed { .. } => true,
         };
         if valid {
@@ -476,6 +608,10 @@ impl WorkspaceFilesOutcome {
                 )
                 | (Self::Watching { .. }, WorkspaceFilesOperation::Watch { .. })
                 | (
+                    Self::SearchResults { .. },
+                    WorkspaceFilesOperation::Search { .. }
+                )
+                | (
                     Self::Written { .. } | Self::Conflict { .. },
                     WorkspaceFilesOperation::WriteFile { .. }
                 )
@@ -513,6 +649,33 @@ pub fn is_relative_path(path: &str) -> bool {
     !path.is_empty()
         && path.len() <= MAXIMUM_WORKSPACE_FILE_PATH_BYTES
         && path.split('/').all(is_entry_name)
+}
+
+/// At most [`MAXIMUM_WORKSPACE_SEARCH_GLOBS`] non-empty glob patterns without control characters.
+fn is_glob_list(globs: &[String]) -> bool {
+    globs.len() <= MAXIMUM_WORKSPACE_SEARCH_GLOBS
+        && globs.iter().all(|glob| {
+            !glob.is_empty()
+                && glob.len() <= MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES
+                && !glob.chars().any(char::is_control)
+        })
+}
+
+/// A preview within its size, on a line counted from 1, whose matches are non-empty, in order,
+/// apart and inside it.
+fn is_search_line(line: &WorkspaceSearchLine) -> bool {
+    let Ok(units) = u32::try_from(line.preview.encode_utf16().count()) else {
+        return false;
+    };
+    let mut end = 0;
+    line.line >= 1
+        && units as usize <= MAXIMUM_WORKSPACE_SEARCH_PREVIEW_UNITS
+        && !line.matches.is_empty()
+        && line.matches.iter().all(|range| {
+            let apart = range.start >= end && range.start < range.end && range.end <= units;
+            end = range.end;
+            apart
+        })
 }
 
 /// One to [`MAXIMUM_WORKSPACE_GIT_PATHS`] Workspace-relative paths.

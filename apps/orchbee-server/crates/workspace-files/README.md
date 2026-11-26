@@ -17,6 +17,10 @@ each root with the platform's own watcher through `notify`: one recursive watch 
 ignores (unless a directory holds a tracked file or is shown), and anything past 65,536 watched
 directories, which reports the root `unavailable` rather than following part of it.
 
+A third process, the search lane (`orchbee-server --workspace-files-search`), starts with a
+Client's first search and searches file contents with ripgrep's own crates, so a long search delays
+neither the service's requests nor the watch.
+
 ## Protocol
 
 Standard input and output carry one JSON object per line. A request is
@@ -36,6 +40,29 @@ references, changed. Ignore rules are Git's own: each directory's `.gitignore`, 
 the user's excludes file, with `core.ignorecase`, and a tracked file is never ignored. Objects,
 logs and lock files inside Git's directories count for neither. A lost or overflowing event queue
 reports both; a root that is removed or moved reports `unavailable`.
+
+The search lane reads `{"kind": "start", "id": 1, "root": "/abs/workspace", "query": {...}}` and
+`{"kind": "cancel", "id": 1}` and writes `{"kind": "found", "id": 1, "files": [...]}` with the
+`workbench.workspace-files` search entries, in order, and finally
+`{"kind": "ended", "id": 1, "state": "complete"}`. A cancelled search still ends with a report. A
+search walks the root on up to eight threads, one fewer than the machine has, and reports about 64
+lines at a time, or what it has after 50 ms.
+
+## Searching
+
+A search reads every file beneath the root except `.git`, following no symbolic link. With
+`useIgnoreFiles` it leaves out what `.gitignore`, `.ignore`, `info/exclude`, the user's excludes
+file and the ignore files of parent directories leave out; without it, nothing. Hidden files are
+searched. Each include and exclude glob matches a path anywhere beneath the root, or, starting
+with `./`, from the root; one ending in `/` names a directory, and globs ignore case on Windows and
+macOS. Named `paths` are searched alone, with the globs but without ignore files.
+
+A literal pattern matches as written, a regular expression in ripgrep's syntax; either may span
+lines, a literal one matching CRLF line ends as well as LF. A file with a NUL byte is binary and
+gives nothing. Text is shown as UTF-8, with each invalid sequence as U+FFFD. Matches are grouped by
+the line they start on; a preview runs to the end of the last match's line, and a line longer than
+1000 UTF-16 code units shows the part from 40 units before a match, several parts for matches far
+apart.
 
 ## Saving
 
@@ -89,6 +116,10 @@ only Git itself is stopped.
 - A watch set names at most 64 roots, each with at most 256 directories and 64 files, and the
   Server keeps the whole set under 4 MiB. The lane exits after ten minutes with nothing to watch.
 - A save carries at most 10 MiB of text, so a request line may reach 24 MiB.
+- A search stops at 20,000 matches as `limit-reached`, and skips a line or multi-line match
+  needing more than 64 MiB of memory. The lane runs eight searches at once and answers one more
+  `unavailable`; the Server holds 64 across all windows, and a window's new search of a Workspace
+  cancels its last. Its report lines stay under 4 MiB. The lane exits after ten idle minutes.
 - A change names at most 256 paths and a commit message is at most 32 KiB.
 - Each Git read has a four-second deadline and bounded output; Git's own environment variables
   are cleared, terminal prompts are off and `core.fsmonitor` is disabled.

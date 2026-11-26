@@ -68,8 +68,9 @@ use std::env;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
-    // The right bar's file service and its watch lane run as children of this executable, started
-    // by the Server only when a Client first asks; they read no data root and keep no log.
+    // The right bar's file service and its watch and search lanes run as children of this
+    // executable, started by the Server only when a Client first asks; they read no data root and
+    // keep no log.
     #[cfg(any(unix, windows))]
     if env::args_os().nth(1).as_deref()
         == Some(std::ffi::OsStr::new(
@@ -86,6 +87,15 @@ fn main() -> ExitCode {
         ))
     {
         orchbee_server_workspace_files::serve_watch_stdio();
+        return ExitCode::SUCCESS;
+    }
+    #[cfg(any(unix, windows))]
+    if env::args_os().nth(1).as_deref()
+        == Some(std::ffi::OsStr::new(
+            orchbee_server_workspace_files::SEARCH_FLAG,
+        ))
+    {
+        orchbee_server_workspace_files::serve_search_stdio();
         return ExitCode::SUCCESS;
     }
     // A root whose layout this build cannot read is refused before anything in it is read, the

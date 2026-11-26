@@ -161,8 +161,7 @@ it and without slowing terminal work.
 - **Git actions.** A running commit cannot be cancelled, a failed commit offers no "view in
   terminal", rows and group headers have no context menu, and the header and row buttons are reached
   by pointer only (the keyboard path is Space and Enter). Staging a conflict that still holds
-  conflict markers does not warn. Discard All lists only the changes shown when the list was cut at
-  5000. Git 2.25 or later is needed.
+  conflict markers does not warn. Discard All lists only the changes shown when the list was cut at 5000. Git 2.25 or later is needed.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw (6.4

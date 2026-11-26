@@ -2,6 +2,9 @@ import type {
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceFilesWatchState,
+	WorkspaceSearchFile,
+	WorkspaceSearchQuery,
+	WorkspaceSearchState,
 } from '@orchbee/workbench-client-protocol';
 
 /** A change to a Workspace's repository: staging, unstaging, discarding or committing. */
@@ -32,6 +35,23 @@ export interface WorkspaceFilesWatchReport {
 export interface WorkspaceFilesWatch {
 	/** Follows another scope; the old one is followed until the new one is. */
 	update(scope: WorkspaceFilesWatchScope): void;
+	close(): void;
+}
+
+/** What a search found since its last report, and where it stands. */
+export interface WorkspaceSearchReport {
+	/**
+	 * Entries found since the last report, in the order found. An entry with the same path as the
+	 * one before it, in this report or the last, continues that file's lines.
+	 */
+	readonly files: readonly WorkspaceSearchFile[];
+	/** Every state but `searching` ends the search; nothing is reported after it. */
+	readonly state: WorkspaceSearchState;
+}
+
+/** One search a view holds while it shows the results. */
+export interface WorkspaceSearch {
+	/** Stops the search, if it still runs, and reports nothing more. */
 	close(): void;
 }
 
@@ -74,4 +94,14 @@ export interface WorkbenchWorkspaceFilesSource {
 		scope: WorkspaceFilesWatchScope,
 		onReport: (report: WorkspaceFilesWatchReport) => void,
 	): WorkspaceFilesWatch;
+	/**
+	 * Searches file contents in a Workspace and reports what it finds until the search ends. A
+	 * window searches a Workspace once at a time, so a new search of it ends the one before. A
+	 * search whose answers stop arriving ends as `unavailable`.
+	 */
+	search(
+		workspaceId: string,
+		query: WorkspaceSearchQuery,
+		onReport: (report: WorkspaceSearchReport) => void,
+	): WorkspaceSearch;
 }
