@@ -1,0 +1,24 @@
+.content {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+	overflow-wrap: anywhere;
+}
+
+.description {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.files {
+	margin: var(--ob-ref-space-2) var(--ob-ref-space-0) var(--ob-ref-space-0);
+	padding-inline-start: var(--ob-ref-space-4);
+	color: var(--ob-sys-color-text-primary);
+	overflow-wrap: anywhere;
+}
+
+.footer :global([data-slot='alert-dialog-action']),
+.footer :global([data-slot='alert-dialog-cancel']) {
+	font: var(--ob-sys-typography-control-sm);
+}

@@ -30,14 +30,26 @@ export interface WorkspaceFilesWatch {
 }
 
 /**
- * File and Git facts for the right bar, read one at a time on demand and followed while shown. A
- * Session that cannot serve them offers no source, and the window offers no right bar.
+ * File and Git facts for the right bar, read one at a time on demand and followed while shown, and
+ * the saving of a file it edits. A Session that cannot serve them offers no source, and the window
+ * offers no right bar.
  */
 export interface WorkbenchWorkspaceFilesSource {
 	/** One read in a Workspace; null when no answer arrived (a lost connection or a stale Session). */
 	read(
 		workspaceId: string,
 		operation: WorkspaceFilesOperation,
+	): Promise<WorkspaceFilesOutcome | null>;
+	/**
+	 * Saves a working-tree file's text, only while the file still hashes to `expected`, or, for
+	 * null, only while there is no file there yet. Answers `written`, `conflict` or `failed`; null
+	 * when no answer arrived, which leaves unknown whether the file was written.
+	 */
+	save(
+		workspaceId: string,
+		path: string,
+		text: string,
+		expected: string | null,
 	): Promise<WorkspaceFilesOutcome | null>;
 	/**
 	 * Follows a scope in a Workspace and reports each change, starting with the watch's state. While

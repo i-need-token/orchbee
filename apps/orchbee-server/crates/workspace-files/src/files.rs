@@ -215,11 +215,7 @@ pub(crate) fn read_worktree(root: &Root, relative: &str, read: Read) -> Outcome 
         };
     }
     let byte_length = metadata.len();
-    let modified = metadata
-        .modified()
-        .ok()
-        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
-        .map_or_else(|| "0".to_owned(), |since| since.as_nanos().to_string());
+    let modified = modified(&metadata);
     let version = |sha256| {
         Some(WorkspaceFileVersion {
             modified: modified.clone(),
@@ -274,6 +270,15 @@ pub(crate) fn read_worktree(root: &Root, relative: &str, read: Read) -> Outcome 
             reason: Failure::Unavailable,
         },
     }
+}
+
+/// A file's modification time in nanoseconds since the Unix epoch, in decimal; `0` when unknown.
+pub(crate) fn modified(metadata: &std::fs::Metadata) -> String {
+    metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map_or_else(|| "0".to_owned(), |since| since.as_nanos().to_string())
 }
 
 pub(crate) fn absent() -> Outcome {
@@ -342,7 +347,7 @@ pub(crate) fn chunk(
     })
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     use std::fmt::Write as _;
     bytes
         .iter()

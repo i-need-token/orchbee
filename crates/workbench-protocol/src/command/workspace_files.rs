@@ -1,7 +1,8 @@
-//! Read-only Workspace file and Git facts for the right bar: one directory listing, one chunk of a
-//! file's content from the working tree, the index or `HEAD`, or the Workspace's change list; or,
-//! as a State stream, how far what the right bar shows has changed since. Paths
-//! are Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
+//! Workspace file and Git facts for the right bar: one directory listing, one chunk of a file's
+//! content from the working tree, the index or `HEAD`, or the Workspace's change list; or, as a
+//! State stream, how far what the right bar shows has changed since. One operation writes: it
+//! saves a working-tree file only while the file is still the version the client read. Paths are
+//! Workspace-relative and `/`-separated; the Server resolves the Workspace's own directory, so a
 //! client never names an absolute path.
 use crate::{
     ContractError, ProtocolVersion, SessionId, WorkbenchRequestId, WorkbenchRevision,
@@ -12,6 +13,9 @@ use serde::{Deserialize, Serialize};
 /// The encoded request stays small: one relative path and a closed operation, or the paths a
 /// watch follows.
 pub const MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES: usize = 64 * 1024;
+/// An encoded `write-file` request: the largest editable text, room for its JSON escapes, and the
+/// identity around it. A client checks the encoded size before it asks.
+pub const MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES: usize = 24 * 1024 * 1024;
 /// The encoded result fits the general Workbench response budget.
 pub const MAXIMUM_WORKSPACE_FILES_RESULT_BYTES: usize = 8 * 1024 * 1024;
 /// Workspace-relative path bytes.
@@ -78,6 +82,15 @@ pub enum WorkspaceFilesOperation {
         directories: Vec<String>,
         files: Vec<String>,
     },
+    /// Replaces a working-tree file's whole content with `text`, but only while the file is still
+    /// the one the client read: `expected` is that read's SHA-256, or null for a file that must
+    /// not exist yet. Any other file answers `conflict` and is left as it was.
+    WriteFile {
+        path: String,
+        text: String,
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        expected: Option<String>,
+    },
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -111,9 +124,34 @@ impl WorkspaceFilesOperation {
             {
                 Ok(())
             }
-            Self::ListDirectory { .. } | Self::ReadFile { .. } | Self::Watch { .. } => {
-                Err(ContractError::InvalidDocument)
+            Self::WriteFile {
+                path,
+                text,
+                expected,
+            } if is_relative_path(path)
+                && text.len() as u64 <= MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES
+                && expected.as_deref().is_none_or(is_sha256) =>
+            {
+                Ok(())
             }
+            Self::ListDirectory { .. }
+            | Self::ReadFile { .. }
+            | Self::Watch { .. }
+            | Self::WriteFile { .. } => Err(ContractError::InvalidDocument),
+        }
+    }
+    /// Whether the operation changes the Workspace, which needs more than reading permission.
+    #[must_use]
+    pub fn writes(&self) -> bool {
+        matches!(self, Self::WriteFile { .. })
+    }
+    /// The encoded size a request carrying this operation may reach.
+    #[must_use]
+    pub fn request_byte_limit(&self) -> usize {
+        if self.writes() {
+            MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES
+        } else {
+            MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
         }
     }
 }
@@ -261,6 +299,17 @@ pub enum WorkspaceFilesOutcome {
         repository: WorkbenchRevision,
         state: WorkspaceFilesWatchState,
     },
+    /// The file now holds the written text; `version` is what a later write expects, and always
+    /// carries its SHA-256.
+    Written {
+        version: WorkspaceFileVersion,
+    },
+    /// The file is no longer the version the write expected, so nothing was written; `version` is
+    /// what it is now, or null when no file is there.
+    Conflict {
+        #[serde(deserialize_with = "super::json_fields::deserialize_nullable")]
+        version: Option<WorkspaceFileVersion>,
+    },
     Failed {
         reason: WorkspaceFilesFailure,
     },
@@ -306,6 +355,8 @@ impl WorkspaceFilesOutcome {
                             && entry.original_path.as_deref().is_none_or(is_relative_path)
                     })
             }
+            Self::Written { version } => is_version(version) && version.sha256.is_some(),
+            Self::Conflict { version } => version.as_ref().is_none_or(is_version),
             Self::Watching { .. } | Self::Failed { .. } => true,
         };
         if valid {
@@ -348,6 +399,10 @@ impl WorkspaceFilesOutcome {
                     WorkspaceFilesOperation::GitStatus {}
                 )
                 | (Self::Watching { .. }, WorkspaceFilesOperation::Watch { .. })
+                | (
+                    Self::Written { .. } | Self::Conflict { .. },
+                    WorkspaceFilesOperation::WriteFile { .. }
+                )
         )
     }
 }
@@ -432,12 +487,15 @@ fn is_version(version: &WorkspaceFileVersion) -> bool {
     !version.modified.is_empty()
         && version.modified.len() <= 39
         && version.modified.bytes().all(|byte| byte.is_ascii_digit())
-        && version.sha256.as_deref().is_none_or(|hash| {
-            hash.len() == 64
-                && hash
-                    .bytes()
-                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
-        })
+        && version.sha256.as_deref().is_none_or(is_sha256)
+}
+
+/// Lowercase hexadecimal SHA-256.
+fn is_sha256(hash: &str) -> bool {
+    hash.len() == 64
+        && hash
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 fn is_branch(branch: &str) -> bool {

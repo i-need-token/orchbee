@@ -29,6 +29,11 @@ type FilesConnection = Pick<ServerConnection, 'subscribe'>;
 
 /** One read's budget: the Server's own five and a half seconds and the carrier's way back. */
 const READ_MILLISECONDS = 7_000;
+/**
+ * One save's budget: the Server waits twenty-one and a half seconds for a save, which is never cut
+ * short once it starts writing, and the carrier needs a little more for a large text.
+ */
+const SAVE_MILLISECONDS = 24_000;
 /** A watch stream the Server closed opens again after this long. */
 const REOPEN_MILLISECONDS = 2000;
 
@@ -48,6 +53,8 @@ function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperat
 			}
 			return true;
 		}
+		case 'write-file':
+			return outcome.kind === 'written' || outcome.kind === 'conflict';
 		case 'watch':
 			return outcome.kind === 'watching';
 	}
@@ -208,44 +215,52 @@ function watchWorkspace(
 }
 
 /**
- * `workbench.workspace-files` reads and watches for the right bar. Nothing is read until the bar
- * asks, and the Server starts its file service only then.
+ * `workbench.workspace-files` reads, saves and watches for the right bar. Nothing is read until the
+ * bar asks, and the Server starts its file service only then.
  */
 export function createServerWorkspaceFiles(
 	session: FilesSession,
 	connection: FilesConnection,
 ): WorkbenchWorkspaceFilesSource {
+	/** One request and its answer; null when none arrived or it does not answer the operation. */
+	async function ask(
+		workspaceId: string,
+		operation: WorkspaceFilesOperation,
+		milliseconds: number,
+	): Promise<WorkspaceFilesOutcome | null> {
+		// Only a Workspace the Session shows is asked about; its own identity names it.
+		const workspace = session.snapshot.navigation.workspaces.find(
+			(candidate) => candidate.workspaceId === workspaceId,
+		);
+		if (workspace === undefined) return { kind: 'failed', reason: 'not-found' };
+		const requestId = createWorkbenchRequestId();
+		const answer = await session.ask(
+			{
+				kind: 'workbench.workspace-files',
+				operation,
+				protocolVersion: WORKBENCH_PROTOCOL_VERSION,
+				requestId,
+				sessionId: session.snapshot.sessionId,
+				workspaceId: workspace.workspaceId,
+			},
+			milliseconds,
+		);
+		if (
+			answer.kind !== 'answered' ||
+			answer.response.kind !== 'workbench.workspace-files.result' ||
+			answer.response.requestId !== requestId ||
+			!answers(answer.response.outcome, operation)
+		) {
+			return null;
+		}
+		return answer.response.outcome;
+	}
 	return {
-		async read(
-			workspaceId: string,
-			operation: WorkspaceFilesOperation,
-		): Promise<WorkspaceFilesOutcome | null> {
-			// Only a Workspace the Session shows is asked about; its own identity names it.
-			const workspace = session.snapshot.navigation.workspaces.find(
-				(candidate) => candidate.workspaceId === workspaceId,
-			);
-			if (workspace === undefined) return { kind: 'failed', reason: 'not-found' };
-			const requestId = createWorkbenchRequestId();
-			const answer = await session.ask(
-				{
-					kind: 'workbench.workspace-files',
-					operation,
-					protocolVersion: WORKBENCH_PROTOCOL_VERSION,
-					requestId,
-					sessionId: session.snapshot.sessionId,
-					workspaceId: workspace.workspaceId,
-				},
-				READ_MILLISECONDS,
-			);
-			if (
-				answer.kind !== 'answered' ||
-				answer.response.kind !== 'workbench.workspace-files.result' ||
-				answer.response.requestId !== requestId ||
-				!answers(answer.response.outcome, operation)
-			) {
-				return null;
-			}
-			return answer.response.outcome;
+		read(workspaceId, operation) {
+			return ask(workspaceId, operation, READ_MILLISECONDS);
+		},
+		save(workspaceId, path, text, expected) {
+			return ask(workspaceId, { expected, kind: 'write-file', path, text }, SAVE_MILLISECONDS);
 		},
 		watch(workspaceId, scope, onReport) {
 			return watchWorkspace(connection, session, workspaceId, scope, onReport);

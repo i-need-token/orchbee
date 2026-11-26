@@ -308,7 +308,9 @@ fn read_frame(reader: &mut impl Read, request: bool) -> Result<(u16, Vec<u8>), W
     } else if matches!(kind, 49 | 50) {
         crate::MAXIMUM_WORKSPACE_GIT_BYTES
     } else if kind == 83 {
-        crate::MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
+        // The largest request this frame carries, a `write-file`; parsing checks each
+        // operation's own limit.
+        crate::MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES
     } else if kind == 84 {
         crate::MAXIMUM_WORKSPACE_FILES_RESULT_BYTES
     } else if matches!(kind, 65 | 66) {

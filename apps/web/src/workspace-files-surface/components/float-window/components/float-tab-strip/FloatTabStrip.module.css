@@ -72,7 +72,42 @@
 	visibility: visible;
 }
 
+.closeIcon {
+	display: flex;
+}
+
+/* An unsaved tab keeps its close button's place visible as a dot, which hover turns back into the
+   button. */
+.tab[data-dirty] .close {
+	visibility: visible;
+}
+
+.tab[data-dirty]:not(:hover) .closeIcon {
+	display: none;
+}
+
+.tab[data-dirty]:hover .dirtyDot {
+	display: none;
+}
+
+.dirtyDot {
+	inline-size: var(--ob-ref-space-1-5);
+	block-size: var(--ob-ref-space-1-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-icon-secondary);
+}
+
 .close:hover {
 	background: var(--ob-sys-color-surface-hovered);
 	color: var(--ob-sys-color-icon-primary);
+}
+
+.srOnly {
+	position: absolute;
+	inline-size: var(--ob-ref-border-width-default);
+	block-size: var(--ob-ref-border-width-default);
+	padding: var(--ob-ref-space-0);
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
 }

@@ -140,3 +140,30 @@ fn workspace_files_frame_budget_is_rejected_before_reading_a_body() {
         Err(WorkbenchWireError::Contract(ContractError::EncodedValueTooLarge { maximum, .. })) if maximum == MAXIMUM_WORKSPACE_FILES_RESULT_BYTES
     ));
 }
+
+#[test]
+fn workspace_files_only_a_write_carries_a_large_request() {
+    let encode = |operation| {
+        serde_json::to_vec(&WorkbenchRequest::WorkspaceFiles(request(operation))).unwrap()
+    };
+    // Past the reading limit, a watch is refused while a write of the same size passes.
+    let text = "x".repeat(MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES);
+    let write = |text: &str| WorkspaceFilesOperation::WriteFile {
+        path: "src/main.rs".into(),
+        text: text.into(),
+        expected: None,
+    };
+    assert!(parse_workbench_request(&encode(write(&text))).is_ok());
+    let watch = WorkspaceFilesOperation::Watch {
+        directories: vec![text.clone()],
+        files: Vec::new(),
+    };
+    assert!(matches!(
+        parse_workbench_request(&encode(watch)),
+        Err(ContractError::EncodedValueTooLarge { maximum, .. }) if maximum == MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES
+    ));
+    // The text itself stops at the editable size, whatever room its encoding leaves.
+    let largest = "x".repeat(MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES as usize);
+    assert!(parse_workbench_request(&encode(write(&largest))).is_ok());
+    assert!(parse_workbench_request(&encode(write(&(largest + "x")))).is_err());
+}

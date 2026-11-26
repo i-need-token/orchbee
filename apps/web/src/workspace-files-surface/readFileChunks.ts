@@ -5,8 +5,8 @@ import type {
 	WorkspaceFileVersion,
 } from '@orchbee/workbench-client-protocol';
 
-import type { WorkbenchWorkspaceFilesSource } from '../../../../../workbench';
-import { readWorkspaceFiles } from '../../../../readWorkspaceFiles';
+import type { WorkbenchWorkspaceFilesSource } from '../workbench';
+import { readWorkspaceFiles } from './readWorkspaceFiles';
 
 /** A whole file joined from its chunks, or the outcome that stopped the read. */
 export type WholeFile =

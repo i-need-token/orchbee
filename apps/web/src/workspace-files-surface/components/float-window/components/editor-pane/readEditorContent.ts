@@ -1,16 +1,16 @@
-import type {
-	WorkspaceFileSource,
-	WorkspaceFilesOutcome,
+import {
+	MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES,
+	type WorkspaceFileSource,
+	type WorkspaceFilesOutcome,
+	type WorkspaceFileVersion,
 } from '@orchbee/workbench-client-protocol';
 
 import type { WorkbenchWorkspaceFilesSource } from '../../../../../workbench';
 import type { FloatTarget } from '../../../../float-tabs';
-import { readFileChunks, type WholeFile } from './readFileChunks';
+import { readFileChunks, type WholeFile } from '../../../../readFileChunks';
 
 /** The largest file the Server opens as text, as `workbench.workspace-files` sets it. */
 const MAXIMUM_TEXT_BYTES = 50 * 1024 * 1024;
-/** The largest image, and the largest index or `HEAD` side of a diff, the Server reads. */
-const MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES = 10 * 1024 * 1024;
 
 /** Images the pane shows as pictures, by extension, with the type they load as. */
 const IMAGE_TYPES: Readonly<Record<string, string>> = {
@@ -31,7 +31,13 @@ type EditorNote =
 /** What one tab holds once read: a file's text, an image, both sides of a diff, or a note. */
 export type EditorContent =
 	| ({ readonly kind: 'note' } & EditorNote)
-	| { readonly kind: 'file'; readonly text: string; readonly byteLength: number }
+	| {
+			readonly kind: 'file';
+			readonly text: string;
+			readonly byteLength: number;
+			/** What a save checks the file is still at; its hash is null above the editable size. */
+			readonly version: WorkspaceFileVersion | null;
+	  }
 	| {
 			readonly kind: 'image';
 			readonly url: string;
@@ -43,6 +49,8 @@ export type EditorContent =
 			readonly before: string;
 			readonly after: string;
 			readonly byteLength: number;
+			/** The working-tree side's version, which makes that side editable; null otherwise. */
+			readonly afterVersion: WorkspaceFileVersion | null;
 	  };
 
 const NO_TEXT: WholeFile = { byteLength: 0, kind: 'text', text: '', version: null };
@@ -98,12 +106,20 @@ function sideOf(
 	whole: WholeFile,
 	path: string,
 	limit: number,
-): { readonly kind: 'side'; readonly text: string; readonly byteLength: number } | EditorContent {
-	if (whole.kind === 'text')
-		return { byteLength: whole.byteLength, kind: 'side', text: whole.text };
+):
+	| {
+			readonly kind: 'side';
+			readonly text: string;
+			readonly byteLength: number;
+			readonly version: WorkspaceFileVersion | null;
+	  }
+	| EditorContent {
+	if (whole.kind === 'text') {
+		return { byteLength: whole.byteLength, kind: 'side', text: whole.text, version: whole.version };
+	}
 	if (whole.kind === 'bytes') return NO_NOTE;
 	if (whole.outcome.kind === 'file' && whole.outcome.content.kind === 'absent') {
-		return { byteLength: 0, kind: 'side', text: '' };
+		return { byteLength: 0, kind: 'side', text: '', version: null };
 	}
 	return noteFor(whole.outcome, path, limit) ?? NO_NOTE;
 }
@@ -143,7 +159,12 @@ export async function readEditorContent(
 		}
 		const whole = await readFileChunks(source, workspaceId, path, 'worktree', 'text');
 		if (whole.kind === 'text') {
-			return { byteLength: whole.byteLength, kind: 'file', text: whole.text };
+			return {
+				byteLength: whole.byteLength,
+				kind: 'file',
+				text: whole.text,
+				version: whole.version,
+			};
 		}
 		if (whole.kind === 'stopped')
 			return noteFor(whole.outcome, path, MAXIMUM_TEXT_BYTES) ?? NO_NOTE;
@@ -162,6 +183,7 @@ export async function readEditorContent(
 	if (beforeSide.kind !== 'side') return beforeSide;
 	return {
 		after: afterSide.text,
+		afterVersion: item.after === 'worktree' ? afterSide.version : null,
 		before: beforeSide.text,
 		byteLength: Math.max(beforeSide.byteLength, afterSide.byteLength),
 		kind: 'diff',

@@ -25,6 +25,7 @@ function watches(): {
 		scopes,
 		source: {
 			read: () => Promise.resolve(null),
+			save: () => Promise.resolve(null),
 			watch(_workspaceId, scope, receive) {
 				scopes.push(scope);
 				onReport = receive;

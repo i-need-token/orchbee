@@ -463,6 +463,91 @@
 					"state": "unavailable"
 				}
 			}
+		},
+		{
+			"name": "write-over-read-version",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "src/main.rs",
+					"text": "fn main() {}\n",
+					"expected": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+				}
+			}
+		},
+		{
+			"name": "write-new-file",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "notes/工作.md",
+					"text": "",
+					"expected": null
+				}
+			}
+		},
+		{
+			"name": "written",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "written",
+					"version": {
+						"modified": "1764100000000000000",
+						"sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+					}
+				}
+			}
+		},
+		{
+			"name": "conflict-newer-file",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "conflict",
+					"version": {
+						"modified": "1764100000000000001",
+						"sha256": null
+					}
+				}
+			}
+		},
+		{
+			"name": "conflict-no-file",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "conflict",
+					"version": null
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -1343,6 +1428,93 @@
 					"files": 1,
 					"repository": "1",
 					"state": "watching"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "write-uppercase-expected",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "a.txt",
+					"text": "a",
+					"expected": "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "write-without-expected",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "a.txt",
+					"text": "a"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "write-outside-workspace",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "write-file",
+					"path": "../a.txt",
+					"text": "a",
+					"expected": null
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "written-without-hash",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "written",
+					"version": {
+						"modified": "1",
+						"sha256": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "conflict-without-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "conflict"
 				}
 			},
 			"boundary": "schema"

@@ -892,3 +892,173 @@ impl std::io::Write for LineSink {
         Ok(())
     }
 }
+
+fn write(root: &str, path: &str, text: &str, expected: Option<&str>) -> WorkspaceFilesOutcome {
+    let outcome = answer(
+        root,
+        &WorkspaceFilesOperation::WriteFile {
+            path: path.into(),
+            text: text.into(),
+            expected: expected.map(str::to_owned),
+        },
+        &BlobCache::default(),
+        deadline(),
+    );
+    outcome.validate().unwrap();
+    outcome
+}
+
+fn hash(text: &str) -> String {
+    sha2::Sha256::digest(text.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
+
+#[test]
+fn saves_only_over_the_version_that_was_read() {
+    let scratch = Scratch::new("write");
+    let root = scratch.root();
+    scratch.write("src/main.rs", "one\n");
+    let read_hash = version(&read(&root, "src/main.rs", WorkspaceFileSource::Worktree))
+        .and_then(|version| version.sha256.clone())
+        .unwrap();
+    // The written version is what the next read reports, so the next save expects it.
+    let WorkspaceFilesOutcome::Written { version: saved } =
+        write(&root, "src/main.rs", "two\n", Some(&read_hash))
+    else {
+        panic!("not written");
+    };
+    assert_eq!(saved.sha256.as_deref(), Some(hash("two\n").as_str()));
+    let reread = read(&root, "src/main.rs", WorkspaceFileSource::Worktree);
+    assert_eq!(text(&reread), Some("two\n"));
+    assert_eq!(version(&reread), Some(&saved));
+    // A save from the older read finds the newer file and leaves it.
+    let WorkspaceFilesOutcome::Conflict { version: Some(now) } =
+        write(&root, "src/main.rs", "three\n", Some(&read_hash))
+    else {
+        panic!("not a conflict");
+    };
+    assert_eq!(now.sha256, saved.sha256);
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("src/main.rs")).unwrap(),
+        "two\n"
+    );
+    // No temporary copy stays behind.
+    let names: Vec<_> = std::fs::read_dir(scratch.0.join("src"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect();
+    assert_eq!(names, ["main.rs"]);
+}
+
+#[test]
+fn creates_only_a_file_that_is_not_there() {
+    let scratch = Scratch::new("create");
+    let root = scratch.root();
+    scratch.write("notes/a.md", "a\n");
+    assert!(matches!(
+        write(&root, "notes/新.md", "新\n", None),
+        WorkspaceFilesOutcome::Written { .. }
+    ));
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("notes/新.md")).unwrap(),
+        "新\n"
+    );
+    // An existing file is never replaced by a create, and a file read before is gone.
+    let WorkspaceFilesOutcome::Conflict { version: Some(now) } =
+        write(&root, "notes/a.md", "b\n", None)
+    else {
+        panic!("not a conflict");
+    };
+    assert_eq!(now.sha256.as_deref(), Some(hash("a\n").as_str()));
+    assert_eq!(
+        write(&root, "notes/gone.md", "x", Some(&hash("x"))),
+        WorkspaceFilesOutcome::Conflict { version: None }
+    );
+    // A save creates no directory.
+    assert_eq!(
+        write(&root, "missing/a.md", "x", None),
+        WorkspaceFilesOutcome::Failed {
+            reason: WorkspaceFilesFailure::NotFound
+        }
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn saves_nothing_outside_the_workspace_or_into_a_read_only_file() {
+    use std::os::unix::fs::{PermissionsExt as _, symlink};
+    let scratch = Scratch::new("write-escape");
+    let outside = Scratch::new("write-outside");
+    let root = scratch.root();
+    outside.write("secret.txt", "no\n");
+    symlink(&outside.0, scratch.0.join("escape")).unwrap();
+    symlink(outside.0.join("secret.txt"), scratch.0.join("leak.txt")).unwrap();
+    symlink(scratch.0.join("nowhere"), scratch.0.join("dangling.txt")).unwrap();
+    let denied = WorkspaceFilesOutcome::Failed {
+        reason: WorkspaceFilesFailure::Denied,
+    };
+    let no = hash("no\n");
+    assert_eq!(write(&root, "escape/secret.txt", "x", Some(&no)), denied);
+    assert_eq!(write(&root, "escape/new.txt", "x", None), denied);
+    assert_eq!(write(&root, "leak.txt", "x", Some(&no)), denied);
+    assert_eq!(write(&root, "dangling.txt", "x", None), denied);
+    assert!(!scratch.0.join("nowhere").exists());
+    assert_eq!(
+        std::fs::read_to_string(outside.0.join("secret.txt")).unwrap(),
+        "no\n"
+    );
+    // A link inside the Workspace is written through and stays a link.
+    scratch.write("real.txt", "a\n");
+    symlink(scratch.0.join("real.txt"), scratch.0.join("alias.txt")).unwrap();
+    assert!(matches!(
+        write(&root, "alias.txt", "b\n", Some(&hash("a\n"))),
+        WorkspaceFilesOutcome::Written { .. }
+    ));
+    assert!(
+        std::fs::symlink_metadata(scratch.0.join("alias.txt"))
+            .unwrap()
+            .is_symlink()
+    );
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("real.txt")).unwrap(),
+        "b\n"
+    );
+    scratch.write("locked.txt", "a\n");
+    let locked = scratch.0.join("locked.txt");
+    std::fs::set_permissions(&locked, std::fs::Permissions::from_mode(0o444)).unwrap();
+    assert_eq!(
+        write(&root, "locked.txt", "b\n", Some(&hash("a\n"))),
+        denied
+    );
+    assert_eq!(std::fs::read_to_string(&locked).unwrap(), "a\n");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_save_keeps_the_file_mode_and_its_other_links() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let scratch = Scratch::new("write-keep");
+    let root = scratch.root();
+    scratch.write("run.sh", "echo a\n");
+    let script = scratch.0.join("run.sh");
+    std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o750)).unwrap();
+    assert!(matches!(
+        write(&root, "run.sh", "echo b\n", Some(&hash("echo a\n"))),
+        WorkspaceFilesOutcome::Written { .. }
+    ));
+    let mode = std::fs::metadata(&script).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o750);
+    // A hard-linked file is written in place, so the other name sees the save too.
+    scratch.write("a.txt", "a\n");
+    std::fs::hard_link(scratch.0.join("a.txt"), scratch.0.join("b.txt")).unwrap();
+    assert!(matches!(
+        write(&root, "a.txt", "c\n", Some(&hash("a\n"))),
+        WorkspaceFilesOutcome::Written { .. }
+    ));
+    assert_eq!(
+        std::fs::read_to_string(scratch.0.join("b.txt")).unwrap(),
+        "c\n"
+    );
+}

@@ -1,11 +1,11 @@
 # Workbench Right Bar
 
-| Field             | Value                                                                                                                                                           |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Draft; phase 1, the float window, chunked versioned reads and change following are implemented on `feat/right-bar-v1`; the rest remains future                  |
-| Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                           |
-| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md` |
-| Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                      |
+| Field             | Value                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Draft; phase 1, the float window, chunked versioned reads, change following, and editing and saving are implemented on `feat/right-bar-v1`; the rest remains future |
+| Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                               |
+| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md`     |
+| Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                          |
 
 ## Goal
 
@@ -15,9 +15,9 @@ it and without slowing terminal work.
 
 ## Phase 1, as implemented
 
-- **Protocol.** `workbench.workspace-files` (frames 83 and 84) is one read-only request with three
-  operations: `list-directory`, `read-file` (worktree, index or `HEAD`) and `git-status`. It is gated
-  by the `workspace-files` capability. Results are bounded (entry count, chunk size, result bytes) and
+- **Protocol.** `workbench.workspace-files` (frames 83 and 84) is one request whose first three
+  operations read: `list-directory`, `read-file` (worktree, index or `HEAD`) and `git-status`;
+  `watch` and `write-file` follow below. It is gated by the `workspace-files` capability. Results are bounded (entry count, chunk size, result bytes) and
   carry closed failure reasons. The JSON Schema, the conformance corpus, the Rust records and the
   TypeScript schemas agree.
 - **Server.** The Server resolves the Workspace's primary directory from its own snapshot, checks the
@@ -52,7 +52,7 @@ it and without slowing terminal work.
   modification time changes between them. Files above 1 MB open as plain text; above 50 MB, or
   above 10 MB for an index or `HEAD` side, the pane names the size and the limit instead. A
   working-tree file's first chunk carries its modification time and, up to 10 MB, the SHA-256 of
-  the whole file, which saving will check.
+  the whole file, which saving checks.
 - **Images.** PNG, JPEG, GIF, WebP and SVG files up to 10 MB show as pictures, with their pixel size;
   another binary file shows its extension and size.
 - **Diff.** Monaco's diff editor: side by side where the window is at least 900 px wide, inline
@@ -84,13 +84,43 @@ it and without slowing terminal work.
 - **Platform watcher.** The watcher behind the lane, `notify` with its debouncer, is a new dependency
   awaiting admission, so the lane currently reports every Workspace as `unavailable`.
 
+## Editing and saving, as implemented
+
+- **What edits.** A working-tree file read whole with its SHA-256, up to 10 MB, is editable in its
+  own tab and on the right side of a diff against the working tree; both edit the same text, as VS
+  Code keeps one model per file. Larger files, files read without a hash, and the index or `HEAD`
+  side stay read-only and say why when typed into. Undo, find and replace, and indentation are
+  Monaco's own.
+- **Keeping edits.** The text of each edited file lives outside the editor, per Workspace and path,
+  so edits survive collapsing the window, switching tabs and switching Workspaces. It is released,
+  edits and all, only when no tab shows the file, and closing such a tab asks first: Save, Don't
+  save or Cancel. A tab with unsaved edits shows a dot where its close button sits; the first edit
+  keeps a preview tab. Quitting the window does not yet ask.
+- **Saving.** `Cmd+S` / `Ctrl+S` while the keyboard is in the float window, or the window's Save
+  button, sends `write-file` with the whole text and the SHA-256 the file was read or last saved
+  at. Outside the window the key stays the terminal's. The service writes only while the file
+  still hashes to that value, through a temporary file renamed over it, keeping its permissions;
+  where a rename would lose hard links, owner or group, or the directory takes no new file, it
+  writes in place. A file that must not exist yet is created exclusively. A save never creates
+  directories, never writes through a symbolic link that leads outside the Workspace or nowhere,
+  and leaves a read-only file unwritten. The Server waits 20 seconds for a save, which the service
+  never cuts short, and answers it only to a connection that may also start and end terminals.
+- **Conflicts.** A read that started before the latest save does not land. When the file changed
+  on disk under unsaved edits, or a save finds it changed, a notice above the editor offers
+  Compare (a diff of the disk text against the edits), Overwrite (a save over the version just
+  seen, or Save when the file is gone) and Discard my edits (read the disk again, which Undo can
+  bring back). A file whose disk text matches the edits counts as saved. Failed saves say whether
+  the file or folder refused writing, the folder is gone, the Server could not save, or no answer
+  came, which leaves unknown whether it saved.
+
 ## Deviations from the design discussion
 
 - **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
   and signing are unchanged. Under [native runtime topology](../platform/native-runtime-topology.md)
   the Worker should own filesystem and Git effects; moving the service behind the Worker is open.
-- **Read-only editor.** The editor and the diff's right side are read-only until saving with a
-  version precondition lands.
+- **Saving.** Files are saved whole rather than as edits, up to 10 MB, with the version check done
+  by SHA-256 of the content. There is no unsaved-edit recovery after the window closes, no prompt
+  when the window itself closes with unsaved edits, and no auto save.
 - **Encodings.** Text that is not UTF-8 shows as binary rather than read-only text.
 - **Refresh.** Change following is built end to end, but until a platform watcher is admitted the
   bar refreshes on open, on switching view, on the refresh button, on window focus and when a
@@ -102,14 +132,18 @@ it and without slowing terminal work.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
   (6.4 KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current
   architecture loads eagerly; chunked reads added about 0.2 KB gzip more and change following
-  about 0.8 KB gzip. The bar and float window chunk is about 7.5 KB gzip; the editor pane is about 6 KB gzip; Monaco is about 800 KB gzip and
-  loads only with the first open file.
+  about 0.8 KB gzip. Editing and saving added about 24 KB raw (5.2 KB gzip), nearly all of it
+  message descriptors and both locales' strings, which the application loads eagerly with their
+  translator descriptions; the right bar's descriptors alone are about 13 KB raw. Together this
+  puts the right bar about 2.5 KB gzip over the design's 10 KB budget for the main bundle; loading
+  the right bar's messages with its chunk, or dropping descriptions from the built catalog, would
+  bring it back under. The bar and float window chunk is about 10.7 KB gzip; the editor pane is
+  about 7.3 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
 
 ## Later phases
 
-1. Simple editing and saving, with a version precondition and a conflict notice.
-2. Search across the Workspace (filename and content), reusing the unified search surface where it
+1. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
-3. Git actions: stage, unstage, discard, commit, with explicit confirmation for destructive ones.
-4. A platform watcher behind the watch lane, once admitted.
-5. Persisted open state, width and expanded folders per Workspace across restarts.
+2. Git actions: stage, unstage, discard, commit, with explicit confirmation for destructive ones.
+3. A platform watcher behind the watch lane, once admitted.
+4. Persisted open state, width and expanded folders per Workspace across restarts.

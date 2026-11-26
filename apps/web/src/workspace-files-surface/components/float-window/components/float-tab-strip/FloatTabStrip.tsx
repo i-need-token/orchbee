@@ -10,6 +10,8 @@ import styles from './FloatTabStrip.module.css';
 interface FloatTabStripProps {
 	readonly tabs: readonly FloatTab[];
 	readonly activeId: string;
+	/** Tabs whose file has edits not yet saved. */
+	readonly dirtyIds: ReadonlySet<string>;
 	readonly onActivate: (id: string) => void;
 	readonly onKeep: (id: string) => void;
 	readonly onClose: (id: string) => void;
@@ -22,11 +24,13 @@ function pathOf(tab: FloatTab): string {
 /**
  * The float window's own tabs. A preview tab's name is italic; double-clicking keeps it. Arrow
  * keys move focus across the tabs without switching, as in the Tab strip above, and Enter or Space
- * switches; a middle click or Delete closes the focused tab.
+ * switches; a middle click or Delete closes the focused tab. A tab with unsaved edits shows a dot
+ * where its close button sits, which turns back into the button on hover.
  */
 export function FloatTabStrip({
 	tabs,
 	activeId,
+	dirtyIds,
 	onActivate,
 	onKeep,
 	onClose,
@@ -87,6 +91,8 @@ export function FloatTabStrip({
 				const path = pathOf(tab);
 				const { name } = splitPath(path);
 				const selected = tab.id === activeId;
+				const dirty = dirtyIds.has(tab.id);
+				const unsaved = intl.formatMessage(workbenchMessages.rightBarFloatUnsaved);
 				const suffix =
 					tab.target.kind === 'diff'
 						? intl.formatMessage(
@@ -99,6 +105,7 @@ export function FloatTabStrip({
 					<div
 						aria-selected={selected}
 						className={styles['tab']}
+						data-dirty={dirty || undefined}
 						data-preview={tab.preview || undefined}
 						key={tab.id}
 						onAuxClick={(event) => {
@@ -117,11 +124,12 @@ export function FloatTabStrip({
 						}}
 						role='tab'
 						tabIndex={tab.id === roving ? 0 : -1}
-						title={
+						title={[
 							tab.preview
 								? intl.formatMessage(workbenchMessages.rightBarFloatPreviewTitle, { path })
-								: path
-						}
+								: path,
+							...(dirty ? [unsaved] : []),
+						].join(' · ')}
 					>
 						<span className={styles['icon']}>
 							<ProductIcon name={tab.target.kind === 'diff' ? 'diff' : 'file'} />
@@ -138,8 +146,12 @@ export function FloatTabStrip({
 							tabIndex={-1}
 							type='button'
 						>
-							<ProductIcon name='close' />
+							<span className={styles['closeIcon']}>
+								<ProductIcon name='close' />
+							</span>
+							{dirty ? <span aria-hidden='true' className={styles['dirtyDot']} /> : null}
 						</button>
+						{dirty ? <span className={styles['srOnly']}>{unsaved}</span> : null}
 					</div>
 				);
 			})}

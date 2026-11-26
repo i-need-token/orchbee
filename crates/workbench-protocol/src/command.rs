@@ -207,10 +207,11 @@ pub use workspace_files::{
     MAXIMUM_WORKSPACE_FILE_OPEN_BYTES, MAXIMUM_WORKSPACE_FILE_PATH_BYTES,
     MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES,
     MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES, MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
-    WORKSPACE_FILE_CHUNK_BYTES, WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent,
-    WorkspaceFileEncoding, WorkspaceFileSource, WorkspaceFileVersion, WorkspaceFilesFailure,
-    WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest, WorkspaceFilesResult,
-    WorkspaceFilesWatchState, WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
+    MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES, WORKSPACE_FILE_CHUNK_BYTES,
+    WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileEncoding,
+    WorkspaceFileSource, WorkspaceFileVersion, WorkspaceFilesFailure, WorkspaceFilesOperation,
+    WorkspaceFilesOutcome, WorkspaceFilesRequest, WorkspaceFilesResult, WorkspaceFilesWatchState,
+    WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
     is_relative_path as is_workspace_relative_path,
 };
 pub use workspace_git::{
@@ -1645,7 +1646,8 @@ pub fn parse_workbench_request(encoded: &[u8]) -> Result<WorkbenchRequest, Contr
         encoded,
         MAXIMUM_ENCODED_CLIENT_LAYOUT_BYTES
             .max(crate::MAXIMUM_ENCODED_LAYOUT_COMMAND_BYTES)
-            .max(MAXIMUM_GRAPHICS_REQUEST_BYTES),
+            .max(MAXIMUM_GRAPHICS_REQUEST_BYTES)
+            .max(MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES),
     )?;
     let request: WorkbenchRequest =
         serde_json::from_slice(encoded).map_err(|_error| ContractError::InvalidDocument)?;
@@ -1834,8 +1836,8 @@ fn request_byte_limit(request: &WorkbenchRequest) -> usize {
     if matches!(request, WorkbenchRequest::Configuration(_)) {
         return MAXIMUM_CONFIGURATION_BYTES;
     }
-    if matches!(request, WorkbenchRequest::WorkspaceFiles(_)) {
-        return MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES;
+    if let WorkbenchRequest::WorkspaceFiles(request) = request {
+        return request.operation.request_byte_limit();
     }
     if matches!(
         request,

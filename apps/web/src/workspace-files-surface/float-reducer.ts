@@ -7,6 +7,7 @@ import {
 	type FloatState,
 	type FloatTarget,
 	keepFloatTab,
+	keepFloatTabsShowing,
 	openFloatTab,
 } from './float-tabs';
 
@@ -19,9 +20,16 @@ export type FloatEvent =
 			readonly workspaceId: string;
 			readonly target: FloatTarget;
 			readonly preview: boolean;
+			/** Paths with unsaved edits, whose preview is kept rather than replaced. */
+			readonly unsaved: ReadonlySet<string>;
 	  }
 	| { readonly kind: 'activate'; readonly workspaceId: string; readonly id: string }
 	| { readonly kind: 'keep'; readonly workspaceId: string; readonly id: string }
+	| {
+			readonly kind: 'keep-unsaved';
+			readonly workspaceId: string;
+			readonly paths: ReadonlySet<string>;
+	  }
 	| { readonly kind: 'close'; readonly workspaceId: string; readonly ids: ReadonlySet<string> }
 	| { readonly kind: 'collapse'; readonly workspaceId: string }
 	| { readonly kind: 'expand'; readonly workspaceId: string };
@@ -35,13 +43,19 @@ export function reduceFloatWindows(windows: FloatWindows, event: FloatEvent): Fl
 	let next: FloatState;
 	switch (event.kind) {
 		case 'open':
-			next = openFloatTab(current, event.target, { preview: event.preview });
+			next = openFloatTab(current, event.target, {
+				preview: event.preview,
+				unsaved: event.unsaved,
+			});
 			break;
 		case 'activate':
 			next = activateFloatTab(current, event.id);
 			break;
 		case 'keep':
 			next = keepFloatTab(current, event.id);
+			break;
+		case 'keep-unsaved':
+			next = keepFloatTabsShowing(current, event.paths);
 			break;
 		case 'close':
 			next = closeFloatTabs(current, event.ids);

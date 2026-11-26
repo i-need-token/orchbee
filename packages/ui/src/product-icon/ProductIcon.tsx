@@ -43,6 +43,7 @@ export type ProductIconName =
 	| 'refresh'
 	| 'remove'
 	| 'restore'
+	| 'save'
 	| 'screen-full'
 	| 'screen-normal'
 	| 'search'
@@ -107,6 +108,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'refresh' && styles['refresh'],
 				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
+				name === 'save' && styles['save'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],
 				name === 'search' && styles['search'],

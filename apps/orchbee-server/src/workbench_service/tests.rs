@@ -71,7 +71,8 @@ fn workspace_git_requires_only_read_grant_and_never_changes_canonical_state() {
 }
 
 #[test]
-fn workspace_files_requires_read_and_answers_without_starting_anything_for_unknown_workspaces() {
+fn workspace_files_requires_read_saving_more_and_answers_without_starting_anything_for_unknown_workspaces()
+ {
     use orchbee_workbench_protocol::{
         SessionId, WorkbenchWorkspaceId, WorkspaceFileSource, WorkspaceFilesFailure,
         WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest,
@@ -133,6 +134,17 @@ fn workspace_files_requires_read_and_answers_without_starting_anything_for_unkno
             snapshot.session_id.clone(),
             read_file("../outside"),
             WorkspaceFilesFailure::Malformed,
+        ),
+        // Reading is not enough to save: that needs the rights to start and end terminals.
+        (
+            true,
+            snapshot.session_id.clone(),
+            WorkspaceFilesOperation::WriteFile {
+                path: "README.md".into(),
+                text: "x".into(),
+                expected: None,
+            },
+            WorkspaceFilesFailure::Denied,
         ),
     ] {
         let request = WorkspaceFilesRequest {

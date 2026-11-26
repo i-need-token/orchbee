@@ -14,8 +14,13 @@ function run(...events: readonly FloatEvent[]): FloatWindows {
 	return events.reduce(reduceFloatWindows, new Map());
 }
 
-function open(target: FloatTarget, preview: boolean, workspaceId = WORKSPACE): FloatEvent {
-	return { kind: 'open', preview, target, workspaceId };
+function open(
+	target: FloatTarget,
+	preview: boolean,
+	workspaceId = WORKSPACE,
+	unsaved: ReadonlySet<string> = new Set(),
+): FloatEvent {
+	return { kind: 'open', preview, target, unsaved, workspaceId };
 }
 
 function shown(windows: FloatWindows, workspaceId = WORKSPACE): readonly string[] {
@@ -50,6 +55,19 @@ describe('float window tabs', () => {
 			open(file('b.ts'), true),
 		);
 		expect(shown(kept)).toEqual(['file:a.ts', 'file:b.ts (preview)']);
+	});
+
+	it('never lets a preview with unsaved edits be replaced, which would drop them without asking', () => {
+		const unsaved = new Set(['a.ts']);
+		const replacing = run(open(file('a.ts'), true), open(file('b.ts'), true, WORKSPACE, unsaved));
+		expect(shown(replacing)).toEqual(['file:a.ts', 'file:b.ts (preview)']);
+
+		const edited = run(open(file('a.ts'), true), {
+			kind: 'keep-unsaved',
+			paths: unsaved,
+			workspaceId: WORKSPACE,
+		});
+		expect(shown(edited)).toEqual(['file:a.ts']);
 	});
 
 	it('does not turn a kept tab back into a preview when it is previewed again', () => {

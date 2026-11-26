@@ -20,6 +20,15 @@ export interface FloatState {
 	readonly open: boolean;
 }
 
+/**
+ * The working-tree file a target edits: a file's own, or a diff's later side when that is the
+ * working tree. One file's tab and its diffs against the disk edit the same text.
+ */
+export function documentPathOf(target: FloatTarget): string | null {
+	if (target.kind === 'file') return target.path;
+	return target.item.after === 'worktree' ? target.item.path : null;
+}
+
 export const EMPTY_FLOAT: FloatState = { activeId: null, open: false, tabs: [] };
 
 /**
@@ -40,7 +49,11 @@ function floatTabId(target: FloatTarget): string {
 export function openFloatTab(
 	state: FloatState,
 	target: FloatTarget,
-	options: { readonly preview: boolean },
+	options: {
+		readonly preview: boolean;
+		/** Paths with unsaved edits: a preview showing one is kept rather than replaced. */
+		readonly unsaved?: ReadonlySet<string>;
+	},
 ): FloatState {
 	const id = floatTabId(target);
 	const existing = state.tabs.find((tab) => tab.id === id);
@@ -52,13 +65,18 @@ export function openFloatTab(
 	}
 	const created: FloatTab = { id, preview: options.preview, target };
 	const previewIndex = options.preview ? state.tabs.findIndex((tab) => tab.preview) : -1;
-	if (previewIndex !== -1) {
+	const replaced = state.tabs[previewIndex];
+	const replacedPath = replaced === undefined ? null : documentPathOf(replaced.target);
+	if (
+		replaced !== undefined &&
+		(replacedPath === null || options.unsaved?.has(replacedPath) !== true)
+	) {
 		const tabs = state.tabs.slice();
 		tabs[previewIndex] = created;
 		return { activeId: id, open: true, tabs };
 	}
 	const activeIndex = state.tabs.findIndex((tab) => tab.id === state.activeId);
-	const tabs = state.tabs.slice();
+	const tabs = state.tabs.map((tab) => (tab === replaced ? { ...tab, preview: false } : tab));
 	tabs.splice(activeIndex === -1 ? tabs.length : activeIndex + 1, 0, created);
 	return { activeId: id, open: true, tabs };
 }
@@ -75,6 +93,19 @@ export function keepFloatTab(state: FloatState, id: string): FloatState {
 	return {
 		...state,
 		tabs: state.tabs.map((tab) => (tab.id === id ? { ...tab, preview: false } : tab)),
+	};
+}
+
+/** Keeps every preview tab that shows one of `paths`, the files with unsaved edits. */
+export function keepFloatTabsShowing(state: FloatState, paths: ReadonlySet<string>): FloatState {
+	const shows = (tab: FloatTab): boolean => {
+		const path = documentPathOf(tab.target);
+		return tab.preview && path !== null && paths.has(path);
+	};
+	if (!state.tabs.some(shows)) return state;
+	return {
+		...state,
+		tabs: state.tabs.map((tab) => (shows(tab) ? { ...tab, preview: false } : tab)),
 	};
 }
 

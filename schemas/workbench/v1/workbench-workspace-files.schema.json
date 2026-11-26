@@ -1,6 +1,6 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
-	"title": "Workspace files and Git change reads",
+	"title": "Workspace files and Git change reads, and saving a working-tree file",
 	"oneOf": [
 		{
 			"type": "object",
@@ -121,6 +121,37 @@
 										"maxLength": 4096,
 										"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
 									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "path", "text", "expected"],
+							"properties": {
+								"kind": {
+									"const": "write-file"
+								},
+								"path": {
+									"type": "string",
+									"minLength": 1,
+									"maxLength": 4096,
+									"pattern": "^(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+(?:/(?!\\.\\.?(?:/|$))[^/\\\\\\u0000-\\u001f\\u007f-\\u009f]+)*$"
+								},
+								"text": {
+									"type": "string",
+									"maxLength": 10485760
+								},
+								"expected": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "string",
+											"pattern": "^[0-9a-f]{64}$"
+										}
+									]
 								}
 							}
 						}
@@ -432,6 +463,70 @@
 								},
 								"state": {
 									"enum": ["starting", "watching", "unavailable"]
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "version"],
+							"properties": {
+								"kind": {
+									"const": "written"
+								},
+								"version": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": ["modified", "sha256"],
+									"properties": {
+										"modified": {
+											"type": "string",
+											"pattern": "^[0-9]{1,39}$"
+										},
+										"sha256": {
+											"type": "string",
+											"pattern": "^[0-9a-f]{64}$"
+										}
+									}
+								}
+							}
+						},
+						{
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["kind", "version"],
+							"properties": {
+								"kind": {
+									"const": "conflict"
+								},
+								"version": {
+									"oneOf": [
+										{
+											"type": "null"
+										},
+										{
+											"type": "object",
+											"additionalProperties": false,
+											"required": ["modified", "sha256"],
+											"properties": {
+												"modified": {
+													"type": "string",
+													"pattern": "^[0-9]{1,39}$"
+												},
+												"sha256": {
+													"oneOf": [
+														{
+															"type": "null"
+														},
+														{
+															"type": "string",
+															"pattern": "^[0-9a-f]{64}$"
+														}
+													]
+												}
+											}
+										}
+									]
 								}
 							}
 						},

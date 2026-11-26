@@ -43,8 +43,10 @@ export type {
 	WorkbenchTerminalContext,
 } from './workbench-protocol';
 export {
+	MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+	WORKSPACE_FILES_WRITE_REQUEST_BYTES,
 } from './workbench-protocol';
 export type {
 	WorkspaceDirectoryEntry,

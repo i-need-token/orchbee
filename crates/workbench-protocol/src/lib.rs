@@ -91,11 +91,11 @@ pub use command::{
     MAXIMUM_WORKSPACE_FILE_OPEN_BYTES, MAXIMUM_WORKSPACE_FILE_PATH_BYTES,
     MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES,
     MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES, MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
-    WORKSPACE_FILE_CHUNK_BYTES, WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent,
-    WorkspaceFileEncoding, WorkspaceFileSource, WorkspaceFileVersion, WorkspaceFilesFailure,
-    WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest, WorkspaceFilesResult,
-    WorkspaceFilesWatchState, WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
-    is_workspace_relative_path,
+    MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES, WORKSPACE_FILE_CHUNK_BYTES,
+    WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileEncoding,
+    WorkspaceFileSource, WorkspaceFileVersion, WorkspaceFilesFailure, WorkspaceFilesOperation,
+    WorkspaceFilesOutcome, WorkspaceFilesRequest, WorkspaceFilesResult, WorkspaceFilesWatchState,
+    WorkspaceGitStatusCode, WorkspaceGitStatusEntry, is_workspace_relative_path,
 };
 pub use command::{
     TerminalRuntimeFailure, TerminalRuntimeOutcome, TerminalRuntimeRequest, TerminalRuntimeResult,

@@ -1,4 +1,5 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { TabModel } from '@orchbee/tab-strip/model';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
@@ -6,8 +7,9 @@ import { createPortal } from 'react-dom';
 import type { WorkbenchAgentSource, WorkbenchWorkspaceFilesSource } from '../workbench';
 import type { DiffOptions } from './components/float-window/components/editor-pane/EditorPane';
 import { FloatWindow } from './components/float-window/FloatWindow';
+import { EditorDocuments } from './EditorDocuments';
 import { floatOf, reduceFloatWindows } from './float-reducer';
-import type { FloatTarget } from './float-tabs';
+import { documentPathOf, type FloatTarget } from './float-tabs';
 import { type AutoRefresh, RightBar } from './components/right-bar/RightBar';
 import { useAgentSettled } from './hooks/useAgentSettled';
 import { type WorkspaceFilesChange, useWorkspaceFilesWatch } from './hooks/useWorkspaceFilesWatch';
@@ -26,6 +28,8 @@ export interface WorkspaceFilesSurfaceProps {
 	readonly tabModel: TabModel | null;
 	readonly onCloseBar: () => void;
 	readonly closeShortcutLabel?: string | undefined;
+	/** The platform the float window's own shortcuts match and show for. */
+	readonly shortcutPlatform: KeyboardShortcutPlatform;
 	/** Hands the keyboard back to the terminal when the float window collapses or closes. */
 	readonly onReturnFocus: () => void;
 }
@@ -64,9 +68,34 @@ export function WorkspaceFilesSurface({
 	tabModel,
 	onCloseBar,
 	closeShortcutLabel,
+	shortcutPlatform,
 	onReturnFocus,
 }: WorkspaceFilesSurfaceProps): React.ReactNode {
 	const [windows, dispatch] = React.useReducer(reduceFloatWindows, new Map());
+	// The files the float windows edit, one model each, kept while any tab shows them so edits
+	// survive collapsing the window or switching Workspace.
+	const [documents] = React.useState(() => new EditorDocuments());
+	React.useEffect(() => () => documents.dispose(), [documents]);
+	React.useEffect(() => {
+		documents.retain(
+			new Map(
+				[...windows].map(([id, state]) => [
+					id,
+					new Set(state.tabs.flatMap((tab) => documentPathOf(tab.target) ?? [])),
+				]),
+			),
+		);
+	}, [documents, windows]);
+	// The first edit keeps a preview tab, so opening another file does not replace it.
+	React.useEffect(
+		() =>
+			documents.subscribe(() => {
+				for (const [id, paths] of documents.dirtyByWorkspace()) {
+					dispatch({ kind: 'keep-unsaved', paths, workspaceId: id });
+				}
+			}),
+		[documents],
+	);
 	const [refreshCount, setRefreshCount] = React.useState(0);
 	const [diffOptions, setDiffOptions] = React.useState(DEFAULT_DIFF_OPTIONS);
 	const float = floatOf(windows, workspaceId);
@@ -84,7 +113,10 @@ export function WorkspaceFilesSurface({
 	}, [activeTabId, workspaceId]);
 
 	const open = useMemoizedFn((target: FloatTarget, preview: boolean) => {
-		if (workspaceId !== null) dispatch({ kind: 'open', preview, target, workspaceId });
+		if (workspaceId !== null) {
+			const unsaved = documents.dirtyPaths(workspaceId);
+			dispatch({ kind: 'open', preview, target, unsaved, workspaceId });
+		}
 	});
 	const refresh = useMemoizedFn(() => setRefreshCount((count) => count + 1));
 
@@ -161,6 +193,7 @@ export function WorkspaceFilesSurface({
 				: createPortal(
 						<FloatWindow
 							diffOptions={diffOptions}
+							documents={documents}
 							key={workspaceId}
 							onActivate={(id) => dispatch({ id, kind: 'activate', workspaceId })}
 							onClose={(ids) => dispatch({ ids, kind: 'close', workspaceId })}
@@ -168,8 +201,10 @@ export function WorkspaceFilesSurface({
 							onDiffOptionsChange={setDiffOptions}
 							onExpand={() => dispatch({ kind: 'expand', workspaceId })}
 							onKeep={(id) => dispatch({ id, kind: 'keep', workspaceId })}
+							onOpenFile={(path) => open({ kind: 'file', path }, false)}
 							onReturnFocus={onReturnFocus}
 							refreshCount={refreshCount}
+							shortcutPlatform={shortcutPlatform}
 							source={source}
 							state={float}
 							workspaceId={workspaceId}

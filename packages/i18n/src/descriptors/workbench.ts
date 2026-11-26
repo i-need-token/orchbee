@@ -2045,4 +2045,133 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Shown after a file name on a tab that compares the file on disk with the staged or committed one.',
 	},
+	rightBarFloatSave: {
+		id: 'workbench.rightBar.float.save',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.save'],
+		description:
+			'Saves the file the floating window edits; also the Save choice when closing edited files.',
+	},
+	rightBarFloatSaving: {
+		id: 'workbench.rightBar.float.saving',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.saving'],
+		description: 'Shown while a file the floating window edits is being saved.',
+	},
+	rightBarFloatUnsaved: {
+		id: 'workbench.rightBar.float.unsaved',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.float.unsaved'],
+		description:
+			'Accessible name and tooltip of the dot on a tab whose file has edits that are not saved.',
+	},
+	rightBarEditReadOnlyLarge: {
+		id: 'workbench.rightBar.edit.readOnlyLarge',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.edit.readOnlyLarge'],
+		description: 'Shown when typing into a file too large to save. limit is a size such as 10 MB.',
+	},
+	rightBarEditReadOnlySide: {
+		id: 'workbench.rightBar.edit.readOnlySide',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.edit.readOnlySide'],
+		description: 'Shown when typing into a side of a diff that is not the working-tree file.',
+	},
+	rightBarNoticeConflict: {
+		id: 'workbench.rightBar.notice.conflict',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.conflict'],
+		description: 'Notice above an edited file whose copy on disk changed since it was read.',
+	},
+	rightBarNoticeDeleted: {
+		id: 'workbench.rightBar.notice.deleted',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.deleted'],
+		description: 'Notice above an edited file that was deleted on disk.',
+	},
+	rightBarNoticeConflictTooLarge: {
+		id: 'workbench.rightBar.notice.conflictTooLarge',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.conflictTooLarge'],
+		description:
+			'Notice above an edited file whose copy on disk changed and grew past the size a save can check. limit is a size such as 10 MB.',
+	},
+	rightBarNoticeDenied: {
+		id: 'workbench.rightBar.notice.denied',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.denied'],
+		description: 'Notice after a save the file system refused.',
+	},
+	rightBarNoticeNotFound: {
+		id: 'workbench.rightBar.notice.notFound',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.notFound'],
+		description: 'Notice after a save whose folder is gone.',
+	},
+	rightBarNoticeUnavailable: {
+		id: 'workbench.rightBar.notice.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.unavailable'],
+		description: 'Notice after a save that failed for another reason.',
+	},
+	rightBarNoticeUnconfirmed: {
+		id: 'workbench.rightBar.notice.unconfirmed',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.unconfirmed'],
+		description: 'Notice after a save that got no answer, so it may or may not have been written.',
+	},
+	rightBarNoticeTooLarge: {
+		id: 'workbench.rightBar.notice.tooLarge',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.tooLarge'],
+		description: 'Notice when edited text is too large to save. limit is a size such as 10 MB.',
+	},
+	rightBarNoticeCompare: {
+		id: 'workbench.rightBar.notice.compare',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.compare'],
+		description: 'Shows the file as it is on disk beside the edits.',
+	},
+	rightBarNoticeStopComparing: {
+		id: 'workbench.rightBar.notice.stopComparing',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.stopComparing'],
+		description: 'Goes back from comparing to editing the file.',
+	},
+	rightBarNoticeOverwrite: {
+		id: 'workbench.rightBar.notice.overwrite',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.overwrite'],
+		description: 'Saves the edits over the newer file on disk.',
+	},
+	rightBarNoticeDiscard: {
+		id: 'workbench.rightBar.notice.discard',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.discard'],
+		description: 'Throws the edits away and shows the file as it is on disk.',
+	},
+	rightBarNoticeDismiss: {
+		id: 'workbench.rightBar.notice.dismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.notice.dismiss'],
+		description: 'Closes a notice about a failed save.',
+	},
+	rightBarSideDisk: {
+		id: 'workbench.rightBar.side.disk',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.disk'],
+		description: 'One side of a comparison: the file as it is on disk now.',
+	},
+	rightBarSideEdits: {
+		id: 'workbench.rightBar.side.edits',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.side.edits'],
+		description: 'One side of a comparison: the text as edited, not yet saved.',
+	},
+	rightBarCloseTitleOne: {
+		id: 'workbench.rightBar.close.titleOne',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.titleOne'],
+		description:
+			'Title of the question asked before closing a file with unsaved edits. name is the file name.',
+	},
+	rightBarCloseTitleMany: {
+		id: 'workbench.rightBar.close.titleMany',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.titleMany'],
+		description: 'Title of the question asked before closing several files with unsaved edits.',
+	},
+	rightBarCloseDescription: {
+		id: 'workbench.rightBar.close.description',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.description'],
+		description: 'Explains what closing without saving does.',
+	},
+	rightBarCloseDiscard: {
+		id: 'workbench.rightBar.close.discard',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.discard'],
+		description: 'Closes the files and throws their unsaved edits away.',
+	},
+	rightBarCloseCancel: {
+		id: 'workbench.rightBar.close.cancel',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.close.cancel'],
+		description: 'Keeps the files open.',
+	},
 });

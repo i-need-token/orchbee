@@ -16,6 +16,12 @@ export const MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES = 256;
 export const MAXIMUM_WORKSPACE_FILES_WATCHED_FILES = 64;
 /** Content bytes one read returns; a larger file is read chunk by chunk. */
 const WORKSPACE_FILE_CHUNK_BYTES = 256 * 1024;
+/** The largest working-tree file that opens for editing and saves. */
+export const MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES = 10 * 1024 * 1024;
+/** An encoded request that reads or watches. */
+export const WORKSPACE_FILES_REQUEST_BYTES = 64 * 1024;
+/** An encoded `write-file` request: the largest editable text with its escapes. */
+export const WORKSPACE_FILES_WRITE_REQUEST_BYTES = 24 * 1024 * 1024;
 const encoder = new TextEncoder();
 const byteLength = (value: string): number => encoder.encode(value).length;
 const isEntryName = (name: string): boolean =>
@@ -38,6 +44,7 @@ const identity = {
 };
 
 const OffsetSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+const Sha256Schema = z.string().regex(/^[0-9a-f]{64}$/u);
 const WorkspaceFileSourceSchema = z.enum(['worktree', 'index', 'head']);
 const WorkspaceFileEncodingSchema = z.enum(['text', 'bytes']);
 const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
@@ -65,6 +72,16 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 				.max(MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES)
 				.readonly(),
 			files: z.array(RelativePathSchema).max(MAXIMUM_WORKSPACE_FILES_WATCHED_FILES).readonly(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('write-file'),
+			path: RelativePathSchema,
+			// Bytes, not UTF-16 units: the cap is the file size the Server accepts.
+			text: z.string().refine((text) => byteLength(text) <= MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES),
+			/** The SHA-256 the file was read at, or null for a file that must not exist yet. */
+			expected: Sha256Schema.nullable(),
 		})
 		.readonly(),
 ]);
@@ -121,10 +138,7 @@ const WorkspaceFileContentSchema = z.discriminatedUnion('kind', [
 const WorkspaceFileVersionSchema = z
 	.strictObject({
 		modified: z.string().regex(/^[0-9]{1,39}$/u),
-		sha256: z
-			.string()
-			.regex(/^[0-9a-f]{64}$/u)
-			.nullable(),
+		sha256: Sha256Schema.nullable(),
 	})
 	.readonly();
 /**
@@ -217,6 +231,18 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 			files: WorkbenchRevisionSchema,
 			repository: WorkbenchRevisionSchema,
 			state: WorkspaceFilesWatchStateSchema,
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('written'),
+			version: WorkspaceFileVersionSchema.refine(({ sha256 }) => sha256 !== null),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('conflict'),
+			version: WorkspaceFileVersionSchema.nullable(),
 		})
 		.readonly(),
 	z

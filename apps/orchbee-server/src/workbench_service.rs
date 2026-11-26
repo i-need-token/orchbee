@@ -149,7 +149,9 @@ impl WorkbenchService {
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => self.policy.manage_navigation,
             },
-            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::WorkspaceFiles(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
+            // Saving a file can change what a terminal runs, so it needs the same rights as a plugin that changes things.
+            WorkbenchRequest::WorkspaceFiles(request) => self.policy.read && (!request.operation.writes() || (self.policy.create_terminal && self.policy.manage_terminal_lifecycle)),
+            WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Read { .. } => self.policy.read,
                 orchbee_workbench_protocol::WorkspaceMetadataAction::Report { .. } => self.policy.manage_navigation,

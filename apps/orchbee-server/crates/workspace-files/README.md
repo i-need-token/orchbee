@@ -1,13 +1,14 @@
 # orchbee-server-workspace-files
 
-The read-only Workspace file service behind the window's right bar. The Server runs it in a
+The Workspace file service behind the window's right bar. The Server runs it in a
 separate process of its own executable (`orchbee-server --workspace-files`) only after a Client
 first sends `workbench.workspace-files`, so a Session whose windows never open the right bar starts
 nothing. The process exits after ten idle minutes or when its standard input closes.
 
 It reads one directory listing, one file from the working tree, the index or `HEAD`, or the change
-list of `git status`, always beneath the Workspace directory the Server names. It writes nothing:
-Git runs with optional locks off, so a status read never refreshes the index.
+list of `git status`, always beneath the Workspace directory the Server names, and saves one
+working-tree file. Reads write nothing: Git runs with optional locks off, so a status read never
+refreshes the index.
 
 The same executable also runs the watch lane (`orchbee-server --workspace-files-watch`), a second
 process the Server starts only when a Client first watches what its right bar shows. Watching
@@ -32,6 +33,23 @@ collected over 100 ms. `files` means an entry of a named directory or a named fi
 changed. Objects, logs and lock files inside `.git` count for neither. A lost or overflowing event
 queue reports both.
 
+## Saving
+
+`write-file` replaces a file only while its whole content still hashes to the `expected` SHA-256,
+and creates one with a null `expected` only where nothing is there yet; anything else answers
+`conflict` with the file's current version and writes nothing. A save never creates a directory,
+never writes through a symbolic link that leaves the root or leads nowhere, and refuses a file
+whose permissions make it read-only.
+
+A replacement is written to a temporary file beside the target (`.<name>.<pid>-<time>.orchbee-save`),
+given the target's permissions, synced and renamed over it, so no reader sees half of it; the
+directory is synced on Unix. Just before the rename the target's size and modification time are
+checked again, so a change since hashing answers `conflict`. Where a rename would lose something
+the target has (another hard link, or on Unix an owner or group the service would not keep), where
+the directory takes no new file, or where the platform refuses the rename, the file is truncated
+and rewritten in place instead. A new file is created exclusively and written directly. A save is
+never cut short inside the service; the Server waits up to 20 seconds for it.
+
 ## Limits
 
 - Paths must stay beneath the canonical root; a symbolic link that leaves it is `denied`.
@@ -46,5 +64,6 @@ queue reports both.
   10 MiB, and the last blob read is kept so its later chunks do not run Git again.
 - A watch set names at most 64 roots, each with at most 256 directories and 64 files, and the
   Server keeps the whole set under 4 MiB. The lane exits after ten minutes with nothing to watch.
+- A save carries at most 10 MiB of text, so a request line may reach 24 MiB.
 - Each Git command has a four-second deadline and bounded output; Git's own environment variables
   are cleared, terminal prompts are off and `core.fsmonitor` is disabled.

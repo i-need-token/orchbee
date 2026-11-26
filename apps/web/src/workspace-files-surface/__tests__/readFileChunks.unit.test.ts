@@ -4,7 +4,7 @@ import type {
 } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
-import type { WorkbenchWorkspaceFilesSource } from '../../../../../../workbench';
+import type { WorkbenchWorkspaceFilesSource } from '../../workbench';
 import { readFileChunks } from '../readFileChunks';
 
 /** A file the fake serves in chunks of `size` characters, at the modification time `modified`. */

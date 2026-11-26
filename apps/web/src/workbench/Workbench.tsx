@@ -718,6 +718,7 @@ export function Workbench({
 							floatHost={floatHost}
 							onCloseBar={view.closeRightBar}
 							onReturnFocus={view.returnFocusToTerminal}
+							shortcutPlatform={shortcutPlatform}
 							source={workspaceFilesSource}
 							tabModel={terminalContext?.tabModel ?? null}
 							workspaceId={view.activeWorkspaceId}

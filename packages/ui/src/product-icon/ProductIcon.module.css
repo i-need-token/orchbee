@@ -139,6 +139,10 @@
 	composes: codicon-discard from global;
 }
 
+.save {
+	composes: codicon-save from global;
+}
+
 .search {
 	composes: codicon-search from global;
 }

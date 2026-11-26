@@ -924,15 +924,17 @@ vocabulary, the member bounds and distinct Presentations in Rust, TypeScript and
 request keeps the 16 KiB intent cap and the result its exact bound for the most members. The
 [Server](../../apps/orchbee-server/docs/terminal-tab-close.md#workspace-idle-check) owns the evidence.
 
-## Workspace file reads
+## Workspace files
 
 [`workbench-workspace-files.schema.json`](v1/workbench-workspace-files.schema.json) owns
 `workbench.workspace-files` and its `.result`, OBWP kinds 83/84: the facts the window's right bar
 shows for one Workspace. The request names the Session, the Workspace and one `operation`:
 `list-directory` of a Workspace-relative path (empty for the Workspace's own directory),
 `read-file` of one chunk of a path from the `worktree`, the `index` or `head` at a byte `offset` as
-`text` or `bytes`, `git-status`, or `watch` with the `directories` shown (the empty path naming the
-Workspace) and the `files` open, at most 256 and 64. Paths are `/`-separated names, none empty, `.`
+`text` or `bytes`, `git-status`, `watch` with the `directories` shown (the empty path naming the
+Workspace) and the `files` open, at most 256 and 64, or `write-file` of a working-tree path with
+the whole new `text`, at most 10 MiB, and the `expected` SHA-256 the file was read at, null for a
+file that must not exist yet. Paths are `/`-separated names, none empty, `.`
 or `..`, with no backslash or control character, so a Client never names a path outside the
 Workspace; the Server resolves the Workspace's directory itself.
 
@@ -942,7 +944,9 @@ a file up to 10 MiB, its SHA-256) and `content`, which is a `text` or `bytes` ch
 256 KiB with its `offset` and nullable `nextOffset`, or `binary`, `too-large` or `absent`;
 `git-status` with the nullable `branch`, at most 5000 change `entries` and `truncated`; `watching`
 with the `files` and `repository` revisions and the watch `state` (`starting`, `watching` or
-`unavailable`); or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`
+`unavailable`); `written` with the saved file's `version`, which always carries its SHA-256;
+`conflict` with the file's current nullable `version` when it is not the one `expected`, in
+which case nothing was written; or `failed` with `denied`, `unavailable`, `not-found`, `not-repository`, `timeout`
 or `malformed`. A `watch` is sent only as a State stream: the Server sends a new frame when a
 revision moves, and only a value that differs from the previous frame means a change.
 
@@ -950,7 +954,9 @@ A Client sends the request only to a Server whose `client-server` answer lists t
 [`workspace-files` capability](../connection/README.md#generation-registry). The
 [shared corpus](v1/workbench-workspace-files-conformance-v1.json) checks closed shapes, the path
 grammar, the vocabularies, the watch limits and each chunk's bounds in Rust, TypeScript and JSON
-Schema; the request keeps a 64 KiB cap and the result the 8 MiB response cap.
+Schema. A request keeps a 64 KiB cap except `write-file`, which may reach 24 MiB, the most kind 83
+carries; the result keeps the 8 MiB response cap. A Server answers `write-file` only to a
+connection that may also start and end terminals.
 
 ## Agent integration jobs
 

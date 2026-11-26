@@ -1,0 +1,37 @@
+/* A notice spans the pane above the editor, so the edits it is about stay in view below it. */
+.root {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2) var(--ob-ref-space-1) var(--ob-ref-space-3);
+	border-block-end: var(--ob-ref-border-width-default) solid
+		var(--ob-sys-color-status-warning-border);
+	background: var(--ob-sys-color-status-warning-surface);
+	color: var(--ob-sys-color-status-warning-text);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.root[data-tone='danger'] {
+	border-block-end-color: var(--ob-sys-color-status-danger-border);
+	background: var(--ob-sys-color-status-danger-surface);
+	color: var(--ob-sys-color-status-danger-text);
+}
+
+.icon {
+	display: inline-flex;
+	flex: none;
+}
+
+.text {
+	flex: 1 1 auto;
+	min-inline-size: var(--ob-ref-space-0);
+	margin: var(--ob-ref-space-0);
+}
+
+.actions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}

@@ -1,15 +1,17 @@
-//! The read-only Workspace file service behind `workbench.workspace-files`. The Server runs it in a
-//! child process of its own executable only once a Client asks, and talks to it over standard
-//! input and output, one JSON object per line; a second child, the watch lane, follows changes.
-//! See this crate's README.
+//! The Workspace file service behind `workbench.workspace-files`: it reads, and saves a file only
+//! while it is still the version a client read. The Server runs it in a child process of its own
+//! executable only once a Client asks, and talks to it over standard input and output, one JSON
+//! object per line; a second child, the watch lane, follows changes. See this crate's README.
 mod files;
 mod git;
 mod status;
 mod watch;
+mod write;
 
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, WorkspaceFileSource, WorkspaceFilesFailure as Failure,
-    WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome,
+    MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
+    WorkspaceFileSource, WorkspaceFilesFailure as Failure, WorkspaceFilesOperation,
+    WorkspaceFilesOutcome as Outcome,
 };
 use serde::{Deserialize, Serialize};
 pub use status::BlobCache;
@@ -24,14 +26,18 @@ pub use watch::{
 
 /// The command-line flag that turns the Server's executable into this service.
 pub const SERVICE_FLAG: &str = "--workspace-files";
-/// How long one request may run inside the service; the Server waits a little longer.
+/// How long one read may run inside the service; the Server waits a little longer.
 pub const OPERATION_DEADLINE: Duration = Duration::from_secs(4);
+/// How long the Server waits for a save, which writes and syncs up to the editable size and is
+/// never cut short inside the service, so a slow disk does not report a save that then lands.
+pub const WRITE_DEADLINE: Duration = Duration::from_secs(20);
 /// The service exits after this long without a request.
 pub const IDLE_EXIT: Duration = Duration::from_secs(10 * 60);
 /// Room the result's identity fields take beside the outcome.
 const ENVELOPE_BYTES: usize = 4 * 1024;
-/// One request line's bytes; a request is one relative path, a root and a closed operation.
-const MAXIMUM_REQUEST_LINE_BYTES: u64 = 64 * 1024;
+/// One request line's bytes: the largest request, a save, and the root beside it.
+const MAXIMUM_REQUEST_LINE_BYTES: u64 =
+    MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES as u64 + 8 * 1024;
 
 /// One request line.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -88,6 +94,11 @@ pub fn answer(
                     }
                 }
                 WorkspaceFilesOperation::GitStatus {} => status::git_status(&root, deadline),
+                WorkspaceFilesOperation::WriteFile {
+                    path,
+                    text,
+                    expected,
+                } => write::write_worktree(&root, path, text, expected.as_deref()),
                 // The Server answers a watch itself from what the watch lane reports.
                 WorkspaceFilesOperation::Watch { .. } => Outcome::Failed {
                     reason: Failure::Malformed,

@@ -553,6 +553,39 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.diff.next': 'Next change',
 	'workbench.rightBar.diff.suffixStaged': '(staged)',
 	'workbench.rightBar.diff.suffixWorktree': '(changes)',
+	'workbench.rightBar.float.save': 'Save',
+	'workbench.rightBar.float.saving': 'Saving…',
+	'workbench.rightBar.float.unsaved': 'Unsaved changes',
+	'workbench.rightBar.edit.readOnlyLarge':
+		"This file is larger than {limit}, so it can't be edited here.",
+	'workbench.rightBar.edit.readOnlySide': 'Only the working copy can be edited here.',
+	'workbench.rightBar.notice.conflict':
+		'This file changed on disk after you opened it. Saving now would overwrite that change.',
+	'workbench.rightBar.notice.deleted':
+		'This file was deleted on disk. Saving creates it again with your edits.',
+	'workbench.rightBar.notice.conflictTooLarge':
+		"This file changed on disk and is now larger than {limit}, so your edits can't be saved over it.",
+	'workbench.rightBar.notice.denied':
+		"Couldn't save: the file or its folder doesn't allow writing.",
+	'workbench.rightBar.notice.notFound': "Couldn't save: the file's folder no longer exists.",
+	'workbench.rightBar.notice.unavailable': "Couldn't save this file. Try again.",
+	'workbench.rightBar.notice.unconfirmed':
+		"No answer came, so it isn't known whether the file was saved. Save again to be sure.",
+	'workbench.rightBar.notice.tooLarge':
+		"Your edits make this file larger than {limit}, so it can't be saved here.",
+	'workbench.rightBar.notice.compare': 'Compare',
+	'workbench.rightBar.notice.stopComparing': 'Stop comparing',
+	'workbench.rightBar.notice.overwrite': 'Overwrite',
+	'workbench.rightBar.notice.discard': 'Discard my edits',
+	'workbench.rightBar.notice.dismiss': 'Dismiss',
+	'workbench.rightBar.side.disk': 'on disk',
+	'workbench.rightBar.side.edits': 'your edits',
+	'workbench.rightBar.close.titleOne': 'Save changes to {name}?',
+	'workbench.rightBar.close.titleMany':
+		'{count, plural, one {Save changes to # file?} other {Save changes to # files?}}',
+	'workbench.rightBar.close.description': "Your edits are lost if you don't save them.",
+	'workbench.rightBar.close.discard': "Don't save",
+	'workbench.rightBar.close.cancel': 'Cancel',
 } as const;
 
 export type WorkbenchMessageId = keyof typeof enUSWorkbenchMessages;

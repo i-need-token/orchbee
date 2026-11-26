@@ -1,12 +1,14 @@
-//! `workbench.workspace-files`: the right bar's read-only file and Git facts for one Workspace.
-//! The Server resolves the Workspace's own directory and asks a separate process of its own
+//! `workbench.workspace-files`: the right bar's file and Git facts for one Workspace, and saving
+//! one of its files. The Server resolves the Workspace's own directory and asks a separate process of its own
 //! executable, started only on the first request, so a Session whose windows never open the right
 //! bar starts nothing and terminal work never waits on a file read. A watch is answered here, from
 //! what the watch lane last reported; see [`watch`].
 mod watch;
 
 use super::LocalTerminalService;
-use orchbee_server_workspace_files::{Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG};
+use orchbee_server_workspace_files::{
+    Answer, OPERATION_DEADLINE, Request, SERVICE_FLAG, WRITE_DEADLINE,
+};
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchResponse, WorkerId, WorkspaceFilesFailure as Failure,
     WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome, WorkspaceFilesRequest,
@@ -21,6 +23,8 @@ use std::time::{Duration, Instant};
 
 /// How long the Server waits for one answer: the service's own deadline and a margin to start.
 const ANSWER_DEADLINE: Duration = OPERATION_DEADLINE.saturating_add(Duration::from_millis(1500));
+/// How long the Server waits for a save, which the service never cuts short.
+const WRITE_ANSWER_DEADLINE: Duration = WRITE_DEADLINE.saturating_add(Duration::from_millis(1500));
 /// One answer line's bytes: the result cap and its envelope.
 const MAXIMUM_ANSWER_LINE_BYTES: u64 = 9 * 1024 * 1024;
 
@@ -126,7 +130,12 @@ impl Running {
             .write_all(&line)
             .and_then(|()| self.stdin.flush())
             .map_err(|_| Failure::Unavailable)?;
-        let deadline = Instant::now() + ANSWER_DEADLINE;
+        let deadline = Instant::now()
+            + if operation.writes() {
+                WRITE_ANSWER_DEADLINE
+            } else {
+                ANSWER_DEADLINE
+            };
         loop {
             let left = deadline.saturating_duration_since(Instant::now());
             match self.answers.recv_timeout(left) {
@@ -149,8 +158,10 @@ impl WorkspaceFilesProcesses {
     fn ask(&self, root: &str, operation: &WorkspaceFilesOperation) -> Result<Outcome, Failure> {
         let lane = match operation {
             WorkspaceFilesOperation::GitStatus {} => &self.changes,
+            // A save runs in order with reads, so a read after it sees what it wrote.
             WorkspaceFilesOperation::ListDirectory { .. }
-            | WorkspaceFilesOperation::ReadFile { .. } => &self.files,
+            | WorkspaceFilesOperation::ReadFile { .. }
+            | WorkspaceFilesOperation::WriteFile { .. } => &self.files,
             // A watch belongs to a Client connection, which answers it with `watch_workspace_files`.
             WorkspaceFilesOperation::Watch { .. } => return Err(Failure::Unavailable),
         };

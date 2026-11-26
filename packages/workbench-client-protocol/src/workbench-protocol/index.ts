@@ -38,8 +38,10 @@ export type {
 	SettingsSnapshot,
 } from './workbench-settings-contract';
 export {
+	MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES,
 	MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
+	WORKSPACE_FILES_WRITE_REQUEST_BYTES,
 } from './workbench-workspace-files-contract';
 /** @internal The file state, for Web fixtures that publish one. */
 export type { SettingsFile } from './workbench-settings-contract';
