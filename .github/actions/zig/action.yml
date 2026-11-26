@@ -9,7 +9,7 @@ description: >-
 runs:
   using: composite
   steps:
-    # One row per runner the workflows use. Update the version, the four names and their digests
+    # One row per runner the workflows use. Update the version, the five names and their digests
     # together; the cache key holds the digest, so a new archive never meets an old entry.
     - name: Select the Zig archive
       id: archive
@@ -20,6 +20,10 @@ runs:
           Linux-X64)
             name="zig-x86_64-linux-$version.tar.xz"
             sha256=70e49664a74374b48b51e6f3fdfbf437f6395d42509050588bd49abe52ba3d00
+            ;;
+          Linux-ARM64)
+            name="zig-aarch64-linux-$version.tar.xz"
+            sha256=ea4b09bfb22ec6f6c6ceac57ab63efb6b46e17ab08d21f69f3a48b38e1534f17
             ;;
           Windows-X64)
             name="zig-x86_64-windows-$version.zip"
