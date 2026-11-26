@@ -304,6 +304,7 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
+            workspace_files: None,
         },
     );
     let noted = crate::diagnostic_events::take_noted();
@@ -443,6 +444,7 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
+            workspace_files: None,
         },
     );
     assert!(outcome.is_err());

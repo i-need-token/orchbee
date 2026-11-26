@@ -1,21 +1,20 @@
 //! Workspace file watches: what each window's right bar follows, joined per Workspace directory
-//! and handed to the watch lane, a separate process of this executable that the Server starts with
-//! the first watch. What the lane reports advances each directory's revisions and wakes the watch
-//! streams, which reread them; a lane that ends is started again while any watch remains.
+//! and handed to the watch lane, a Workspace files service the Server starts with the first watch.
+//! What the lane reports advances each directory's revisions and wakes the watch streams, which
+//! reread them; a lane that ends is started again while any watch remains. A lane starts on a
+//! thread of its own, so a watch is answered at once, as starting, and never waits for it.
+use super::launch::{Connection, Launcher};
+use orchbee_capability_node_protocol::WorkspaceFilesService;
 use orchbee_server::{SessionChangeSignal, SessionChangeSource};
-use orchbee_server_workspace_files::{
-    MAXIMUM_WATCHED_ROOTS, WATCH_FLAG, WatchEvent, WatchRoot, WatchSet,
-};
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILES_WATCHED_DIRECTORIES, MAXIMUM_WORKSPACE_FILES_WATCHED_FILES,
     WorkbenchRevision, WorkbenchWorkspaceId, WorkspaceFilesOutcome as Outcome,
     WorkspaceFilesWatchState as State,
 };
+use orchbee_workspace_files::{MAXIMUM_WATCHED_ROOTS, WatchEvent, WatchRoot, WatchSet};
 use std::collections::{BTreeMap, BTreeSet};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::num::NonZeroU64;
-use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
@@ -47,20 +46,12 @@ struct Followed {
     state: State,
 }
 
-/// The running lane; dropping it ends the process.
+/// The running lane; dropping it ends the service.
 struct Lane {
-    child: Child,
-    stdin: ChildStdin,
+    connection: Connection,
     /// Tells this lane's reader apart from a later one's.
     incarnation: u64,
     started: Instant,
-}
-
-impl Drop for Lane {
-    fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _reaped = self.child.wait();
-    }
 }
 
 #[derive(Default)]
@@ -71,14 +62,14 @@ struct Registry {
     /// The set the running lane was last given.
     sent: Option<WatchSet>,
     incarnations: u64,
-    /// A restart waits to happen; no other start runs meanwhile.
-    waiting: bool,
+    /// A start, or the wait before one, is under way; no other start runs meanwhile.
+    starting: bool,
     /// The last wait before a restart.
     backoff: Option<Duration>,
 }
 
 struct Shared {
-    executable: Option<PathBuf>,
+    launcher: Arc<Launcher>,
     registry: Mutex<Registry>,
     changes: SessionChangeSource,
 }
@@ -86,17 +77,15 @@ struct Shared {
 /// Every window's watches, and the lane that follows them.
 pub(super) struct Watches(Arc<Shared>);
 
-impl Default for Watches {
-    fn default() -> Self {
+impl Watches {
+    pub(super) fn new(launcher: Arc<Launcher>) -> Self {
         Self(Arc::new(Shared {
-            executable: std::env::current_exe().ok(),
+            launcher,
             registry: Mutex::new(Registry::default()),
             changes: SessionChangeSource::default(),
         }))
     }
-}
 
-impl Watches {
     /// Wakes `signal` whenever a watched directory's revisions or state change.
     pub(super) fn subscribe(&self, signal: &Arc<SessionChangeSignal>) {
         self.0.changes.watch(signal);
@@ -208,7 +197,8 @@ fn desired(registry: &Registry) -> WatchSet {
 }
 
 /// Brings the lane in line with the watches: starts it for the first one, hands it a changed set,
-/// and leaves it to exit on its own once nothing is watched.
+/// and leaves it to exit on its own once nothing is watched. A lane that has to start is handed the
+/// set once it runs.
 fn sync(shared: &Arc<Shared>, registry: &mut Registry) {
     let set = desired(registry);
     let names: BTreeSet<&str> = set.roots.iter().map(|root| root.root.as_str()).collect();
@@ -228,31 +218,30 @@ fn sync(shared: &Arc<Shared>, registry: &mut Registry) {
     if registry.sent.as_ref() == Some(&set) {
         return;
     }
-    if registry.lane.is_none() {
-        if set.roots.is_empty() || registry.waiting {
-            // Nothing to follow, or a restart is already waiting to happen.
-            return;
+    let Some(lane) = &registry.lane else {
+        if !set.roots.is_empty() && !registry.starting {
+            registry.starting = true;
+            let starter = Arc::clone(shared);
+            let spawned = std::thread::Builder::new()
+                .name("orchbee-server-workspace-files-watch-start".into())
+                .spawn(move || starts(&starter, None));
+            if spawned.is_err() {
+                registry.starting = false;
+                unavailable(registry);
+            }
         }
-        if start(shared, registry).is_err() {
-            unavailable(registry);
-            return;
-        }
-    }
+        return;
+    };
     let Ok(mut line) = serde_json::to_vec(&set) else {
         return;
     };
     line.push(b'\n');
-    let written = registry.lane.as_mut().is_some_and(|lane| {
-        lane.stdin
-            .write_all(&line)
-            .and_then(|()| lane.stdin.flush())
-            .is_ok()
-    });
-    if written {
+    if lane.connection.write_line(&line).is_ok() {
         registry.sent = Some(set);
     } else {
-        // The lane's reader sees it end and starts another.
+        // A lane that cannot take its set is shut down; its reader sees that and starts another.
         registry.sent = None;
+        lane.connection.close();
     }
 }
 
@@ -262,48 +251,74 @@ fn unavailable(registry: &mut Registry) {
     }
 }
 
-fn start(shared: &Arc<Shared>, registry: &mut Registry) -> Result<(), ()> {
-    let executable = shared.executable.as_ref().ok_or(())?;
-    let mut command = Command::new(executable);
-    command
-        .arg(WATCH_FLAG)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: the windowless Server's child opens no console.
-        command.creation_flags(0x0800_0000);
+/// Starts a lane, after `wait` when given, and starts again after a growing wait while each start
+/// fails and any watch remains. The caller has marked the registry as starting.
+fn starts(shared: &Arc<Shared>, mut wait: Option<Duration>) {
+    loop {
+        if let Some(wait) = wait {
+            std::thread::sleep(wait);
+        }
+        {
+            let mut registry = shared.lock();
+            if registry.watches.is_empty() || registry.lane.is_some() {
+                registry.starting = false;
+                return;
+            }
+        }
+        // The registry is not held while the service starts, so watches are answered meanwhile.
+        let launched = shared.launcher.launch(WorkspaceFilesService::Watch);
+        let mut registry = shared.lock();
+        let installed = match launched {
+            Ok(connection) if !registry.watches.is_empty() => {
+                install(shared, &mut registry, connection)
+            }
+            // Nothing is watched any longer; the service ends with its connection.
+            Ok(_unneeded) => {
+                registry.starting = false;
+                return;
+            }
+            Err(_) => false,
+        };
+        if installed {
+            registry.starting = false;
+            sync(shared, &mut registry);
+            wait = None;
+        } else {
+            unavailable(&mut registry);
+            wait = Some(grow(&mut registry));
+        }
+        drop(registry);
+        shared.changes.notify_workspace_files();
+        if wait.is_none() {
+            return;
+        }
     }
-    let mut child = command.spawn().map_err(|_| ())?;
-    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
-        let _killed = child.kill();
-        let _reaped = child.wait();
-        return Err(());
+}
+
+/// Makes `connection` the running lane, with a thread that reads its reports.
+fn install(shared: &Arc<Shared>, registry: &mut Registry, connection: Connection) -> bool {
+    let Ok(reports) = connection.reader() else {
+        return false;
     };
     registry.incarnations += 1;
     let incarnation = registry.incarnations;
     let reader = Arc::clone(shared);
     let spawned = std::thread::Builder::new()
         .name("orchbee-server-workspace-files-watch".into())
-        .spawn(move || read_reports(&reader, stdout, incarnation));
+        .spawn(move || read_reports(&reader, reports, incarnation));
     if spawned.is_err() {
-        let _killed = child.kill();
-        let _reaped = child.wait();
-        return Err(());
+        return false;
     }
     for followed in registry.followed.values_mut() {
         followed.state = State::Starting;
     }
     registry.lane = Some(Lane {
-        child,
-        stdin,
+        connection,
         incarnation,
         started: Instant::now(),
     });
     registry.sent = None;
-    Ok(())
+    true
 }
 
 /// Applies each report of one lane until it ends, then starts another after a wait while any
@@ -359,12 +374,13 @@ fn read_reports(shared: &Arc<Shared>, stdout: impl Read, incarnation: u64) {
 /// A lane ended: every directory reads unavailable, and while any watch remains another lane
 /// starts after a wait that grows while lanes keep ending or failing to start quickly.
 fn ended(shared: &Arc<Shared>, incarnation: u64) {
-    let mut wait = {
+    let wait = {
         let mut registry = shared.lock();
         let Some(lane) = registry
             .lane
             .take_if(|lane| lane.incarnation == incarnation)
         else {
+            // The lane was replaced or ended on purpose; whoever did that brought the rest in line.
             return;
         };
         let steady = lane.started.elapsed() >= STEADY;
@@ -374,31 +390,16 @@ fn ended(shared: &Arc<Shared>, incarnation: u64) {
         if steady {
             registry.backoff = None;
         }
-        if registry.watches.is_empty() || registry.waiting {
+        if registry.watches.is_empty() || registry.starting {
             None
         } else {
-            registry.waiting = true;
+            registry.starting = true;
             Some(grow(&mut registry))
         }
     };
     shared.changes.notify_workspace_files();
-    while let Some(next) = wait {
-        std::thread::sleep(next);
-        let mut registry = shared.lock();
-        registry.waiting = false;
-        wait = if registry.watches.is_empty() || registry.lane.is_some() {
-            None
-        } else {
-            sync(shared, &mut registry);
-            if registry.lane.is_some() {
-                None
-            } else {
-                registry.waiting = true;
-                Some(grow(&mut registry))
-            }
-        };
-        drop(registry);
-        shared.changes.notify_workspace_files();
+    if let Some(wait) = wait {
+        starts(shared, Some(wait));
     }
 }
 

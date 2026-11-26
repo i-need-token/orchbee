@@ -4,7 +4,7 @@
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Status            | Draft; phase 1, the float window, chunked versioned reads, change following with a platform watcher, and editing and saving are implemented on `feat/right-bar-v1`; the rest remains future |
 | Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                                                       |
-| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md`                             |
+| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `crates/workspace-files/README.md`                                                 |
 | Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                                                  |
 
 ## Goal
@@ -21,10 +21,11 @@ it and without slowing terminal work.
   carry closed failure reasons. The JSON Schema, the conformance corpus, the Rust records and the
   TypeScript schemas agree.
 - **Server.** The Server resolves the Workspace's primary directory from its own snapshot, checks the
-  Session and that the directory belongs to this machine's Worker, then asks a child process of its
-  own executable (`--workspace-files`). The child starts on the first request only, keeps two lanes
-  (files, Git status) so a slow `git status` never holds up a listing, answers each request within
-  4 seconds, and exits after 10 idle minutes. Git runs with `GIT_*` variables removed, fsmonitor off,
+  Session and that the directory belongs to this machine's Worker, then asks a Workspace files
+  service that the Worker starts for it (`orchbee-worker --workspace-files`). A service starts on
+  the first request only, files and Git status run in separate services so a slow `git status`
+  never holds up a listing, each request is answered within 4 seconds, and a service exits after
+  10 idle minutes. Git runs with `GIT_*` variables removed, fsmonitor off,
   no pager and capped output. Paths are confined beneath the canonical root; symbolic links that lead
   outside are refused.
 - **Web.** The right bar is a separate lazily loaded chunk. Only a window whose Server offers the
@@ -71,8 +72,7 @@ it and without slowing terminal work.
   `repository` (anything in the working tree, or the index, `HEAD` and references), and the watch
   state. A new scope opens its stream before the old one closes.
 - **Server.** The Server unions the watches of every connection per Workspace directory and hands the
-  set to a watch lane, a second child process of its own executable (`--workspace-files-watch`)
-  started on the first watch. The lane collects platform events over 100 ms and reports which
+  set to a watch lane, a second Workspace files service started on the first watch. The lane collects platform events over 100 ms and reports which
   revisions moved; Git's own objects, logs and lock files move neither. A lane that exits restarts
   with backoff while any watch remains, and each Workspace reads as `unavailable` meanwhile.
 - **Web.** Reports are read one second after the last change, and at least every five seconds during
@@ -168,9 +168,11 @@ it and without slowing terminal work.
 
 ## Deviations from the design discussion
 
-- **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
-  and signing are unchanged. Under [native runtime topology](../platform/native-runtime-topology.md)
-  the Worker should own filesystem and Git effects; moving the service behind the Worker is open.
+- **Process.** The services are the Worker's own binary re-executed, not a new artifact, so
+  packaging and signing are unchanged. The Worker only starts them, through the
+  [Workspace files capability](../platform/native-runtime-topology.md#workspace-files-capability);
+  the work travels on a connection between each service and the Server, never on the Worker's
+  terminal carrier, so a long read or commit holds up no terminal request.
 - **Saving.** Files are saved whole rather than as edits, up to 10 MB, with the version check done
   by SHA-256 of the content. There is no unsaved-edit recovery after the window closes, no prompt
   when the window itself closes with unsaved edits, and no auto save.

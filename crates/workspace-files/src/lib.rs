@@ -1,10 +1,11 @@
 //! The Workspace file service behind `workbench.workspace-files`: it reads, and saves a file only
-//! while it is still the version a client read. The Server runs it in a child process of its own
-//! executable only once a Client asks, and talks to it over standard input and output, one JSON
-//! object per line; a second child, the watch lane, follows changes, and a third, the search
-//! lane, searches file contents. The service itself replaces what a search found. See this
+//! while it is still the version a client read. The Worker starts it as a process of its own
+//! executable once the Server asks, and the process connects back to the Server, which talks to it
+//! one JSON object per line; a second process, the watch lane, follows changes, and a third, the
+//! search lane, searches file contents. The service itself replaces what a search found. See this
 //! crate's README.
 mod change;
+mod connection;
 mod files;
 mod git;
 mod replace;
@@ -14,14 +15,15 @@ mod system_trash;
 mod watch;
 mod write;
 
+pub use connection::{HELLO_BYTES, hello, read_hello};
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, MAXIMUM_WORKSPACE_FILES_WRITE_REQUEST_BYTES,
     WorkspaceFileSource, WorkspaceFilesFailure as Failure, WorkspaceFilesOperation,
     WorkspaceFilesOutcome as Outcome,
 };
 pub use search::{
-    MAXIMUM_RUNNING_SEARCHES, MAXIMUM_SEARCH_REPORT_LINE_BYTES, SEARCH_FLAG, SearchCommand,
-    SearchReport, serve_search, serve_search_stdio,
+    MAXIMUM_RUNNING_SEARCHES, MAXIMUM_SEARCH_REPORT_LINE_BYTES, SearchCommand, SearchReport,
+    serve_search,
 };
 use serde::{Deserialize, Serialize};
 pub use status::BlobCache;
@@ -30,12 +32,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 pub use watch::{
-    Backend, COALESCE, Coalescer, MAXIMUM_WATCHED_ROOTS, Notice, WATCH_FLAG, WatchEvent, WatchRoot,
-    WatchSet, serve_watch, serve_watch_stdio,
+    Backend, COALESCE, Coalescer, MAXIMUM_WATCHED_ROOTS, Notice, WatchEvent, WatchRoot, WatchSet,
+    serve_platform_watch, serve_watch,
 };
 
-/// The command-line flag that turns the Server's executable into this service.
-pub const SERVICE_FLAG: &str = "--workspace-files";
 /// How long one read may run inside the service; the Server waits a little longer.
 pub const OPERATION_DEADLINE: Duration = Duration::from_secs(4);
 /// How long the Server waits for a save, which writes and syncs up to the editable size and is
@@ -233,27 +233,37 @@ fn handle(
         .is_ok()
 }
 
-/// The service process: serves standard input until it closes, or exits after [`IDLE_EXIT`]
-/// without a request.
-pub fn serve_stdio() {
+/// The service process's work: answers `input` until it ends, and after [`IDLE_EXIT`] without a
+/// request calls `close`, which ends it.
+pub fn serve_operations(
+    input: impl BufRead,
+    output: impl Write,
+    close: impl FnOnce() + Send + 'static,
+) {
     let activity = Arc::new(AtomicU64::new(0));
     let watched = Arc::clone(&activity);
-    std::thread::spawn(move || {
-        let mut seen = watched.load(Ordering::Relaxed);
-        let mut quiet_since = Instant::now();
-        loop {
-            std::thread::sleep(Duration::from_secs(5));
-            let now = watched.load(Ordering::Relaxed);
-            // An odd count is a request still being answered.
-            if now != seen || now % 2 == 1 {
-                seen = now;
-                quiet_since = Instant::now();
-            } else if quiet_since.elapsed() >= IDLE_EXIT {
-                std::process::exit(0);
+    let watchdog = std::thread::Builder::new()
+        .name("orchbee-workspace-files-idle".into())
+        .spawn(move || {
+            let mut seen = watched.load(Ordering::Relaxed);
+            let mut quiet_since = Instant::now();
+            loop {
+                std::thread::sleep(Duration::from_secs(5));
+                let now = watched.load(Ordering::Relaxed);
+                // An odd count is a request still being answered.
+                if now != seen || now % 2 == 1 {
+                    seen = now;
+                    quiet_since = Instant::now();
+                } else if quiet_since.elapsed() >= IDLE_EXIT {
+                    close();
+                    return;
+                }
             }
-        }
-    });
-    serve(std::io::stdin().lock(), std::io::stdout().lock(), &activity);
+        });
+    // Without its watchdog the process would outlive its use, so it serves nothing.
+    if watchdog.is_ok() {
+        serve(input, output, &activity);
+    }
 }
 
 #[cfg(test)]

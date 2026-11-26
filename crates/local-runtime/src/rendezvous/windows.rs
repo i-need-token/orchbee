@@ -127,6 +127,13 @@ impl ModeCheckedLocalSessionRendezvous {
         let ticket: String = ticket.iter().map(|byte| format!("{byte:02x}")).collect();
         endpoint(&self.runtime, &format!("worker-{ticket}"))
     }
+    /// The pipe the Server creates for one Workspace files service process, named by the ticket
+    /// the process presents; the pipe ends with the Server's listener, once the process connected
+    /// or failed to. Pure path math.
+    pub fn workspace_files_socket_path(runtime: &Path, ticket: [u8; 16]) -> PathBuf {
+        let ticket: String = ticket.iter().map(|byte| format!("{byte:02x}")).collect();
+        endpoint(runtime, &format!("files-{ticket}"))
+    }
     pub fn host_runtime_directory(runtime: &Path) -> PathBuf {
         runtime.join(HOST_SCOPE_NAME)
     }

@@ -19,6 +19,7 @@ orchbee-capability-node-protocol = { path = "../../crates/capability-node-protoc
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }
 orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
+orchbee-workspace-files = { path = "../../crates/workspace-files" }
 
 [target.'cfg(unix)'.dependencies]
 nix = { workspace = true, features = ["fs", "poll", "signal", "socket", "user"] }

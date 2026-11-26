@@ -25,6 +25,7 @@ members = [
 	"crates/terminal-protocol",
 	"crates/windows-console-host",
 	"crates/workbench-protocol",
+	"crates/workspace-files",
 ]
 
 [workspace.package]

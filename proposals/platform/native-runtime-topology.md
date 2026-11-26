@@ -34,7 +34,8 @@ The accepted direction is:
 - Terminal Host as a separate node-local process and the sole PTY/VT authority; and
 - a narrow Worker baseline for code-agnostic Terminal launch, with Agent runtime effects admitted
   only as an optional capability extension, not a generic Files, Git, remote shell, or
-  arbitrary-command service.
+  arbitrary-command service; the right bar's file and Git work runs in node-local services the
+  Worker only starts, under the narrow [Workspace files capability](#workspace-files-capability).
 
 Terminal creation does not depend on a Project, repository, Checkout, or Worktree. The baseline
 launch contract selects one Worker and carries an optional node-local starting working directory;
@@ -114,7 +115,8 @@ This proposal does not:
   delivered merely because its additive foundations exist;
 - treat the current Terminal Host wire as the Client-Server or Server-Worker contract, or define a
   durable storage schema, complete public command grammar, or complete UI design;
-- authorize a generic Files, Git, filesystem, remote-shell, or arbitrary-command Worker capability;
+- authorize a generic Files, Git, filesystem, remote-shell, or arbitrary-command Worker capability
+  beyond the bounded [Workspace files capability](#workspace-files-capability);
 - require a Project, repository, Checkout, or Worktree before a terminal can be created;
 - require Agent Bridge, Agent orchestration, or managed Worktree in a terminal-only cohort;
 - select production TLS, Internet relay, NAT traversal, multi-user tenancy, high availability, or
@@ -242,7 +244,8 @@ Server is the unique Session control plane. It owns:
 
 Server does not directly access a node's PTY, Terminal Host endpoint, Agent hook endpoint,
 node-local files or directories, Git process, or unrestricted shell. Its terminal relay never
-becomes a VT, history, or terminal-content authority.
+becomes a VT, history, or terminal-content authority. It exchanges bounded right-bar requests with
+the Workspace files services a local Worker starts, and never reads those files itself.
 
 ### Worker
 
@@ -258,14 +261,37 @@ Worker represents one execution node to one Session. It owns:
   Terminal Host;
 - the sole broker relationship with the node-local Terminal Host;
 - optional bounded Agent executor lifecycle and whichever local hook ingress is separately accepted
-  when that capability is installed; and
+  when that capability is installed;
+- starting a Workspace files service when Server asks, under the
+  [Workspace files capability](#workspace-files-capability); and
 - reconciliation of Host inventory and active execution observations after reconnect.
 
 Accepting a starting `cwd` is not a filesystem API. Worker may validate that exact launch input but
-does not enumerate directories, proxy ordinary file reads, or infer Git meaning from the path. A
+does not enumerate directories, proxy ordinary file reads, or infer Git meaning from the path; a
+Workspace files service it starts does that work, not Worker's request loop. A
 shell or Agent process uses normal operating-system access after launch. Worker does not parse a
 user's `git` command, mutate canonical Workbench state, authorize human Clients, schedule other
 Workers, or offer a generic remote command escape hatch.
+
+### Workspace files capability
+
+The right bar reads, saves, searches and watches a Workspace's files and changes its Git index
+through Workspace files services: processes of the Worker's own executable, one per lane, that
+Worker starts on Server's versioned request and does not otherwise serve. The capability is narrow
+and explicit:
+
+- Server asks with the exact Worker identity, generation, which service, and a fresh one-time
+  ticket; Worker fences the request, starts the service and answers whether it started, nothing
+  more.
+- The service connects back to an endpoint Server bound for that ticket, presents it, and serves a
+  closed, bounded protocol: paths confined beneath the Workspace directory Server names, capped
+  results, fixed Git commands with literal pathspecs, and no shell, environment injection or
+  arbitrary argument vector.
+- That work never travels on the Server-Worker carrier, so it neither enlarges its records nor
+  waits on, or holds up, terminal requests.
+- Server uses it only for a Workspace directory owned by its own machine's Worker, over a local
+  same-user endpoint. A remote Worker would need an attachment design of its own, which this
+  proposal does not make.
 
 ### Terminal Host
 
@@ -752,7 +778,9 @@ automatically.
 - Worker accepts only explicitly versioned capabilities. A launch operation may carry one starting
   `cwd` and one separately authorized transient environment overlay, but Worker exposes no generic
   directory enumeration, file read/write, unrestricted environment-variable injection, command
-  dispatch, raw shell text, arbitrary argument vector, or implicit Files/Git API.
+  dispatch, raw shell text, arbitrary argument vector, or implicit Files/Git API; the
+  [Workspace files capability](#workspace-files-capability) is explicit, starts only its own
+  services and exposes only their bounded protocol.
 - Terminal content, credentials, hook payloads, and secrets do not enter diagnostics or audit by
   default.
 - Same-user process separation limits ownership and crash coupling but is not claimed as a hostile

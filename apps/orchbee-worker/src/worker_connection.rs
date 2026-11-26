@@ -83,7 +83,7 @@ pub(crate) fn run(
                 arguments
                     .next()
                     .as_deref()
-                    .and_then(parse_hex_identity)
+                    .and_then(crate::worker_identity::parse_hex_identity)
                     .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid ticket"))?,
             ),
             Some(_) => return Err(io::Error::from(io::ErrorKind::InvalidInput).into()),
@@ -166,27 +166,7 @@ pub(crate) fn run(
 /// zero.
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn parse_worker_id(text: &std::ffi::OsStr) -> Option<WorkerId> {
-    parse_hex_identity(text).map(WorkerId::from_bytes)
-}
-
-/// Sixteen bytes as 32 lowercase hexadecimal digits, not all zero: a Worker id or a restart's
-/// ticket.
-#[cfg(any(target_os = "linux", target_os = "macos", windows))]
-fn parse_hex_identity(text: &std::ffi::OsStr) -> Option<[u8; 16]> {
-    let text = text.to_str()?.as_bytes();
-    if text.len() != 32 {
-        return None;
-    }
-    let digit = |byte: u8| match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        _ => None,
-    };
-    let mut bytes = [0_u8; 16];
-    for (byte, pair) in bytes.iter_mut().zip(text.chunks_exact(2)) {
-        *byte = (digit(pair[0])? << 4) | digit(pair[1])?;
-    }
-    bytes.iter().any(|byte| *byte != 0).then_some(bytes)
+    crate::worker_identity::parse_hex_identity(text).map(WorkerId::from_bytes)
 }
 
 fn connect_to_server(

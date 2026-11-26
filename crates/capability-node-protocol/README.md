@@ -599,7 +599,7 @@ is still answered and never ends the Worker or its terminals. The body after the
 request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
 8 Worktree Job, 9 Agent drain, 10 shutdown, 11 Worktree mutation, 12 titles, 13 handoff, 14 Agent
 integration job, 15 Agent probe job, 16 Host query, 17 title changes, 18 plugin job, 19 graphics
-decode, 20 AdoptHost, 21 move turn) and its 16-byte identity: the request or operation ID it carries, the Launch
+decode, 20 AdoptHost, 21 move turn, 22 Workspace files service) and its 16-byte identity: the request or operation ID it carries, the Launch
 or Start authorization's operation ID, an AdoptHost page's adoption ID, or for an Agent drain its
 token and acknowledged sequence, each a big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
 Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
@@ -674,6 +674,21 @@ as now, which name one creation under two epochs; 2 Waiting, when a later turn m
 Done, after which no turn moves any. A result is at most 154 payload bytes. The Worker owns the
 move ([several Hosts](../../apps/orchbee-worker/README.md#several-hosts)) and the Server its turns
 and the rebinding, as the [H3 design](../../proposals/platform/host-handover.md#h3-design) decides.
+Hand-derived golden bytes and malformed bounds verify this representation, and the pair follows
+this protocol's exact-cohort rule.
+
+## Workspace files service messages
+
+Kind 45 `WorkspaceFilesServiceRequest` and kind 46 `WorkspaceFilesServiceResult` ask a Worker to
+start one Workspace files service process and carry its answer, under frame version 1 with no
+capability name. A request's body after its kind is the operation ID (16), Worker ID (16), positive
+Worker generation (`u64`, big-endian), a service tag (1 operations, 2 watch, 3 search) and a nonzero
+16-byte ticket, 58 payload bytes in all. A result echoes them, then an outcome tag: 1 Started, 2
+NotStarted, or 3 WorkerUnavailable for a request fenced to another Worker or generation. The ticket
+names the endpoint the started process connects back to; the files and Git work travels on that
+connection and never on this carrier, which stays sized for terminal requests. The Worker owns the
+start, the Server the endpoint and the service's admission, as the
+[Server's Workspace files](../../apps/orchbee-server/README.md#workspace-files) describe.
 Hand-derived golden bytes and malformed bounds verify this representation, and the pair follows
 this protocol's exact-cohort rule.
 

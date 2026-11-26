@@ -1,5 +1,5 @@
 [package]
-name = "orchbee-server-workspace-files"
+name = "orchbee-workspace-files"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -21,7 +21,7 @@ grep-regex = { version = "0.1.15", default-features = false }
 grep-searcher = { version = "0.1.18", default-features = false }
 # The system trash (Recycle Bin, macOS Trash, freedesktop trash), where discarding puts new files.
 trash = { version = "5.4.0", default-features = false }
-orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
+orchbee-workbench-protocol = { path = "../workbench-protocol" }
 
 [target.'cfg(unix)'.dependencies]
 # Stops a Git command that changes the repository, with its hooks, at its deadline.

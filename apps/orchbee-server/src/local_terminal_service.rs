@@ -191,7 +191,7 @@ impl LocalTerminalService {
                 Self::tab_duplicate_turn,
             ),
             worktree_discovery: worktree_list::DiscoveryGate::default(),
-            workspace_files: workspace_files::WorkspaceFilesProcesses::default(),
+            workspace_files: workspace_files::WorkspaceFilesProcesses::new(Arc::clone(&workers)),
             terminal_output: std::sync::OnceLock::new(),
             terminal_runtime: Arc::default(),
             workers,
@@ -447,6 +447,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
         Ok(WorkerOperationResult::Titles(_))
         | Ok(WorkerOperationResult::TitleChanges(_))
         | Ok(WorkerOperationResult::HostQuery(_))
+        | Ok(WorkerOperationResult::WorkspaceFilesService(_))
         | Ok(WorkerOperationResult::AdoptHost(_))
         | Ok(WorkerOperationResult::AgentDrain(_)) => Completion::Unknown,
         Err(WorkerRequestError::Backpressure) => Completion::Busy,

@@ -465,6 +465,7 @@ fn take_over(
         let (handle, mut terminals, pending) =
             adopting.restore(registry, Some(capture), configuration)?;
         terminals.configure_graphics_files(session.runtime_directory());
+        terminals.configure_workspace_files(session.runtime_directory());
         kept.write_bindings_exact(&terminals, &stop::checkpoint_worker(&handle)?)?;
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();

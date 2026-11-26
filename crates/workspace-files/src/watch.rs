@@ -14,8 +14,6 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
-/// The command-line flag that turns the Server's executable into the watch lane.
-pub const WATCH_FLAG: &str = "--workspace-files-watch";
 /// How long changes collect before the lane reports them, so a burst is one report.
 pub const COALESCE: Duration = Duration::from_millis(100);
 /// The lane exits after this long with nothing to watch.
@@ -371,12 +369,8 @@ fn run(inputs: &Receiver<Input>, output: &mut impl Write, backend: &mut impl Bac
     }
 }
 
-/// The watch lane process: serves standard input until it closes, following changes with the
+/// The watch lane process's work: serves `input` until it closes, following changes with the
 /// platform's own watcher.
-pub fn serve_watch_stdio() {
-    serve_watch(
-        std::io::BufReader::new(std::io::stdin()),
-        std::io::stdout().lock(),
-        platform::Platform::start,
-    );
+pub fn serve_platform_watch(input: impl BufRead + Send + 'static, output: impl Write) {
+    serve_watch(input, output, platform::Platform::start);
 }

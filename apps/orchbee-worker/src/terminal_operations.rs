@@ -95,6 +95,7 @@ pub(crate) fn run(
             mutation_slot: &mutation_slot,
             plugin_jobs: &plugin_jobs,
             session_runtime: None,
+            workspace_files: None,
         },
     );
     background_jobs::BackgroundJobs {
@@ -109,8 +110,9 @@ pub(crate) fn run(
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
 /// drain, this generation's System shell resolution, the WorktreeJob discovery
-/// slot, and the managed session runtime directory (`None` for unmanaged
-/// launches).
+/// slot, the managed session runtime directory (`None` for unmanaged
+/// launches), and what starts Workspace files services, which needs that
+/// runtime directory (`None` without one).
 pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) system_shell: &'a SystemShell,
@@ -120,6 +122,7 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
     pub(crate) session_runtime: Option<&'a std::path::Path>,
+    pub(crate) workspace_files: Option<&'a crate::workspace_files_service::WorkspaceFilesStarts>,
 }
 
 /// Owns the admitted Server wire and preserves its physical owners across an explicit handoff.
@@ -461,6 +464,21 @@ fn serve(
                 &server,
                 primary,
                 &CapabilityNodeMessage::TerminalCwdValidationResult(result),
+            )?;
+            continue;
+        }
+        if let CapabilityNodeMessage::WorkspaceFilesServiceRequest(request) = request {
+            // A launch without a runtime directory has nowhere to name the service's endpoint.
+            let Some(starts) = aux.workspace_files else {
+                let message = CapabilityNodeMessage::WorkspaceFilesServiceRequest(request);
+                decline(&server, Some(primary), &message, DeclineCause::Unserved)?;
+                continue;
+            };
+            let result = starts.start(request, worker_id, generation);
+            answer(
+                &server,
+                primary,
+                &CapabilityNodeMessage::WorkspaceFilesServiceResult(result),
             )?;
             continue;
         }

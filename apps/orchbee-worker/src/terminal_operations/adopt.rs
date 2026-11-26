@@ -73,6 +73,8 @@ pub(crate) fn run(
     // The Agent Drain queue belongs to the admitted Server connection and exists before the Host
     // connection that appends to it.
     let drain = Rc::new(RefCell::new(AgentDrain::new()));
+    let workspace_files =
+        crate::workspace_files_service::WorkspaceFilesStarts::new(cohort, runtime);
     let worktree_slot = crate::worktree_discovery_job::WorktreeDiscoverySlot::new();
     let agent_integrations = crate::agent_integration_jobs::AgentIntegrationJobs::new();
     let agent_probes = crate::agent_probe_jobs::AgentProbeJobs::new();
@@ -141,6 +143,7 @@ pub(crate) fn run(
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
+                    workspace_files: Some(&workspace_files),
                 },
                 #[cfg(windows)]
                 super::handoff::Handoff::new(Some(runtime)),

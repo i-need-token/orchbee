@@ -37,6 +37,8 @@ pub(crate) fn run(
     // exists before any Host: pre-Launch requests get a truthful empty page,
     // and the same watermarks survive into the admitted loop unchanged.
     let drain = Rc::new(RefCell::new(AgentDrain::new()));
+    let workspace_files =
+        crate::workspace_files_service::WorkspaceFilesStarts::new(cohort, runtime);
     let mut kernel = AuthorizedHostOperationKernel::new(worker_id, generation)?;
     // The discovery slot outlives the pre-Host phase: jobs admitted here stay
     // owned across the first Launch instead of being orphaned at handoff.
@@ -251,6 +253,16 @@ pub(crate) fn run(
                 )?;
                 continue;
             }
+            if let CapabilityNodeMessage::WorkspaceFilesServiceRequest(request) = request {
+                // Starting a service needs no Host, so the right bar works before any terminal.
+                let result = workspace_files.start(request, worker_id, generation);
+                let _no_host = server_transport::send(
+                    &server,
+                    None,
+                    &CapabilityNodeMessage::WorkspaceFilesServiceResult(result),
+                )?;
+                continue;
+            }
             let CapabilityNodeMessage::AuthorizedTerminalLaunch(mut launch) = request else {
                 // No binding exists before the first Launch, so any other terminal request is
                 // declined and cannot acquire Host-start authority.
@@ -380,6 +392,7 @@ pub(crate) fn run(
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
                     session_runtime: Some(runtime),
+                    workspace_files: Some(&workspace_files),
                 },
                 #[cfg(windows)]
                 handoff,

@@ -1,23 +1,22 @@
 //! Workspace searches and file listings: each window's search or listing of a Workspace runs in
-//! the search lane, a separate process of this executable that the Server starts with the first of
-//! them, and what it finds is held here until that window's stream reads it a page at a time. A
-//! window has one search and one listing of a Workspace at once: a new one replaces the one of its
-//! kind, and closing its stream or its connection stops it. A lane that ends ends what it ran as
-//! unavailable; the next search or listing starts another.
+//! the search lane, a Workspace files service the Server starts with the first of them, and what
+//! it finds is held here until that window's stream reads it a page at a time. A window has one
+//! search and one listing of a Workspace at once: a new one replaces the one of its kind, and
+//! closing its stream or its connection stops it. A lane that ends ends what it ran as
+//! unavailable; the next search or listing starts another. A lane starts on a thread of its own:
+//! what is asked meanwhile waits there and is handed to it once it runs.
+use super::launch::{Connection, Launcher};
+use orchbee_capability_node_protocol::WorkspaceFilesService;
 use orchbee_server::{SessionChangeSignal, SessionChangeSource};
-use orchbee_server_workspace_files::{
-    MAXIMUM_SEARCH_REPORT_LINE_BYTES, SEARCH_FLAG, SearchCommand, SearchReport,
-};
 use orchbee_workbench_protocol::{
     MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_LIST_PAGE, WorkbenchRequestId,
     WorkbenchWorkspaceId, WorkspaceFileListQuery, WorkspaceFilesOutcome as Outcome,
     WorkspaceSearchFile, WorkspaceSearchQuery, WorkspaceSearchState as State,
 };
+use orchbee_workspace_files::{MAXIMUM_SEARCH_REPORT_LINE_BYTES, SearchCommand, SearchReport};
 use std::collections::{BTreeMap, VecDeque};
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Read};
 use std::num::NonZeroU64;
-use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Searches and listings the Server holds at once, across every window and Workspace; the lane
@@ -69,8 +68,10 @@ struct Search {
     request_id: WorkbenchRequestId,
     /// The search's identity in the lane.
     lane_id: u64,
-    /// The lane it runs in.
+    /// The lane it runs in; 0 while it waits for one.
     incarnation: u64,
+    /// What starts it in the lane, while it waits for one to start.
+    waiting: Option<SearchCommand>,
     /// What the lane found that no page has carried yet.
     held: Held,
     /// Entries earlier pages carried.
@@ -81,30 +82,24 @@ struct Search {
     last: Option<Outcome>,
 }
 
-/// The running lane; dropping it ends the process.
+/// The running lane; dropping it ends the service.
 struct Lane {
-    child: Child,
-    stdin: ChildStdin,
+    connection: Connection,
     incarnation: u64,
-}
-
-impl Drop for Lane {
-    fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _reaped = self.child.wait();
-    }
 }
 
 #[derive(Default)]
 struct Registry {
     searches: BTreeMap<(NonZeroU64, WorkbenchWorkspaceId, Kind), Search>,
     lane: Option<Lane>,
+    /// A lane is starting; no other start runs meanwhile.
+    starting: bool,
     incarnations: u64,
     next_id: u64,
 }
 
 struct Shared {
-    executable: Option<PathBuf>,
+    launcher: Arc<Launcher>,
     registry: Mutex<Registry>,
     changes: SessionChangeSource,
 }
@@ -112,17 +107,15 @@ struct Shared {
 /// Every window's searches and listings, and the lane that runs them.
 pub(super) struct Searches(Arc<Shared>);
 
-impl Default for Searches {
-    fn default() -> Self {
+impl Searches {
+    pub(super) fn new(launcher: Arc<Launcher>) -> Self {
         Self(Arc::new(Shared {
-            executable: std::env::current_exe().ok(),
+            launcher,
             registry: Mutex::new(Registry::default()),
             changes: SessionChangeSource::default(),
         }))
     }
-}
 
-impl Searches {
     /// Wakes `signal` whenever a search or listing finds more or ends.
     pub(super) fn subscribe(&self, signal: &Arc<SessionChangeSignal>) {
         self.0.changes.watch(signal);
@@ -286,8 +279,8 @@ const fn state_of(page: &Outcome) -> Option<State> {
     }
 }
 
-/// Starts a search or listing in the lane, starting the lane first if none runs. One the lane
-/// cannot take has already ended as unavailable.
+/// Starts a search or listing in the lane, or holds it until a lane starts. One that cannot be
+/// started has already ended as unavailable.
 fn start(
     shared: &Arc<Shared>,
     registry: &mut Registry,
@@ -297,27 +290,6 @@ fn start(
 ) -> Search {
     registry.next_id = registry.next_id.wrapping_add(1);
     let lane_id = registry.next_id;
-    let mut search = Search {
-        request_id: request_id.clone(),
-        lane_id,
-        incarnation: 0,
-        held: Held::new(query.kind()),
-        delivered: 0,
-        ended: None,
-        last: None,
-    };
-    // A lane that exited on its own, after its idle time, is replaced.
-    if registry
-        .lane
-        .as_mut()
-        .is_some_and(|lane| !matches!(lane.child.try_wait(), Ok(None)))
-    {
-        registry.lane = None;
-    }
-    if registry.lane.is_none() && start_lane(shared, registry).is_err() {
-        search.ended = Some(State::Unavailable);
-        return search;
-    }
     let command = match query {
         Query::Search(query) => SearchCommand::Start {
             id: lane_id,
@@ -330,77 +302,117 @@ fn start(
             query: query.clone(),
         },
     };
+    let mut search = Search {
+        request_id: request_id.clone(),
+        lane_id,
+        incarnation: 0,
+        waiting: None,
+        held: Held::new(query.kind()),
+        delivered: 0,
+        ended: None,
+        last: None,
+    };
     if let Some(incarnation) = send(registry, &command) {
         search.incarnation = incarnation;
-    } else {
-        search.ended = Some(State::Unavailable);
+        return search;
+    }
+    // No lane runs, or the one that ran could not take it.
+    search.waiting = Some(command);
+    if !registry.starting {
+        registry.starting = true;
+        let starter = Arc::clone(shared);
+        let spawned = std::thread::Builder::new()
+            .name("orchbee-server-workspace-files-search-start".into())
+            .spawn(move || start_lane(&starter));
+        if spawned.is_err() {
+            registry.starting = false;
+            search.waiting = None;
+            search.ended = Some(State::Unavailable);
+        }
     }
     search
 }
 
 /// Stops a search or listing the lane may still be running.
 fn cancel(registry: &mut Registry, search: &Search) {
-    if search.ended.is_none() {
+    if search.ended.is_none() && search.waiting.is_none() {
         let _sent = send(registry, &SearchCommand::Cancel { id: search.lane_id });
     }
 }
 
 /// Writes one command to the running lane, and names that lane; a lane that cannot take it is
-/// ended, and its reader ends its searches.
+/// shut down, and its reader ends its searches.
 fn send(registry: &mut Registry, command: &SearchCommand) -> Option<u64> {
     let mut line = serde_json::to_vec(command).ok()?;
     line.push(b'\n');
-    let lane = registry.lane.as_mut()?;
-    let written = lane
-        .stdin
-        .write_all(&line)
-        .and_then(|()| lane.stdin.flush())
-        .is_ok();
-    if written {
-        Some(lane.incarnation)
+    let lane = registry.lane.take()?;
+    if lane.connection.write_line(&line).is_ok() {
+        let incarnation = lane.incarnation;
+        registry.lane = Some(lane);
+        Some(incarnation)
     } else {
-        registry.lane = None;
+        // Dropping the lane shuts it down; its reader ends what it ran.
         None
     }
 }
 
-fn start_lane(shared: &Arc<Shared>, registry: &mut Registry) -> Result<(), ()> {
-    let executable = shared.executable.as_ref().ok_or(())?;
-    let mut command = Command::new(executable);
-    command
-        .arg(SEARCH_FLAG)
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::null());
-    #[cfg(windows)]
-    {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW: the windowless Server's child opens no console.
-        command.creation_flags(0x0800_0000);
+/// Starts a lane and hands it every search and listing waiting for one; if it cannot start, they
+/// end as unavailable.
+fn start_lane(shared: &Arc<Shared>) {
+    // The registry is not held while the service starts, so pages are answered meanwhile.
+    let launched = shared.launcher.launch(WorkspaceFilesService::Search);
+    let mut registry = shared.lock();
+    registry.starting = false;
+    let waiting = registry
+        .searches
+        .values()
+        .any(|search| search.waiting.is_some());
+    if waiting {
+        if let Ok(connection) = launched {
+            install(shared, &mut registry, connection);
+        }
+        let mut commands = Vec::new();
+        for search in registry.searches.values_mut() {
+            if let Some(command) = search.waiting.take() {
+                commands.push((search.lane_id, command));
+            }
+        }
+        for (lane_id, command) in commands {
+            let incarnation = send(&mut registry, &command);
+            if let Some(search) = registry
+                .searches
+                .values_mut()
+                .find(|search| search.lane_id == lane_id)
+            {
+                match incarnation {
+                    Some(incarnation) => search.incarnation = incarnation,
+                    None => search.ended = Some(State::Unavailable),
+                }
+            }
+        }
     }
-    let mut child = command.spawn().map_err(|_| ())?;
-    let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
-        let _killed = child.kill();
-        let _reaped = child.wait();
-        return Err(());
+    // Without a search or listing waiting, a started service ends with its connection here.
+    drop(registry);
+    shared.changes.notify_workspace_files();
+}
+
+/// Makes `connection` the running lane, with a thread that reads its reports.
+fn install(shared: &Arc<Shared>, registry: &mut Registry, connection: Connection) {
+    let Ok(reports) = connection.reader() else {
+        return;
     };
-    registry.incarnations = registry.incarnations.wrapping_add(1);
+    registry.incarnations = registry.incarnations.wrapping_add(1).max(1);
     let incarnation = registry.incarnations;
     let reader = Arc::clone(shared);
     let spawned = std::thread::Builder::new()
         .name("orchbee-server-workspace-files-search".into())
-        .spawn(move || read_reports(&reader, stdout, incarnation));
-    if spawned.is_err() {
-        let _killed = child.kill();
-        let _reaped = child.wait();
-        return Err(());
+        .spawn(move || read_reports(&reader, reports, incarnation));
+    if spawned.is_ok() {
+        registry.lane = Some(Lane {
+            connection,
+            incarnation,
+        });
     }
-    registry.lane = Some(Lane {
-        child,
-        stdin,
-        incarnation,
-    });
-    Ok(())
 }
 
 /// Holds each report of one lane for its search or listing until the lane ends, then ends every

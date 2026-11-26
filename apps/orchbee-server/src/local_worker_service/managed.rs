@@ -189,6 +189,7 @@ pub(super) fn run(
             let (handle, mut terminals, pending) =
                 adopting.restore(&registry, checkpoint, &configuration)?;
             terminals.configure_graphics_files(runtime);
+            terminals.configure_workspace_files(runtime);
             return Ok((handle, Arc::new(terminals), pending));
         }
         let handle = registry
@@ -202,6 +203,7 @@ pub(super) fn run(
             &configuration,
         )?;
         terminals.configure_graphics_files(runtime);
+        terminals.configure_workspace_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
     #[cfg(any(windows, target_os = "macos"))]

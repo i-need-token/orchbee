@@ -18,6 +18,7 @@ pub(super) enum ReplyKey {
     Shutdown(OperationId),
     CwdValidation(OperationId),
     HostQuery(OperationId),
+    WorkspaceFilesService(OperationId),
     Lifecycle {
         request_id: OperationId,
         close_operation_id: OperationId,
@@ -59,6 +60,9 @@ impl ReplyKey {
                 Self::CwdValidation(request.operation_id)
             }
             WorkerOperationRequest::HostQuery(request) => Self::HostQuery(request.request_id),
+            WorkerOperationRequest::WorkspaceFilesService(request) => {
+                Self::WorkspaceFilesService(request.operation_id)
+            }
             WorkerOperationRequest::Lifecycle(request) => Self::Lifecycle {
                 request_id: request.request_id,
                 close_operation_id: request.close_operation_id,
@@ -118,6 +122,9 @@ impl ReplyKey {
             }
             (Self::HostQuery(id), Message::HostQueryResult(result)) => {
                 result.request.request_id == id
+            }
+            (Self::WorkspaceFilesService(id), Message::WorkspaceFilesServiceResult(result)) => {
+                result.request.operation_id == id
             }
             (
                 Self::Lifecycle {
@@ -194,6 +201,7 @@ impl ReplyKey {
             Self::Shutdown(id) => (Kind::Shutdown, id),
             Self::CwdValidation(id) => (Kind::CwdValidation, id),
             Self::HostQuery(id) => (Kind::HostQuery, id),
+            Self::WorkspaceFilesService(id) => (Kind::WorkspaceFilesService, id),
             Self::Lifecycle { request_id, .. } => (Kind::Lifecycle, request_id),
             Self::Control(id) => (Kind::Control, id),
             Self::Viewer(id) => (Kind::Viewer, id),

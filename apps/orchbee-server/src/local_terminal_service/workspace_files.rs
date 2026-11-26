@@ -1,37 +1,41 @@
 //! `workbench.workspace-files`: the right bar's file and Git facts for one Workspace, saving one of
 //! its files, staging, discarding and committing its changes, and searching its contents. The
-//! Server resolves the Workspace's own directory and asks a separate process of its own
-//! executable, started only on the first request, so a Session whose windows never open the right
-//! bar starts nothing and terminal work never waits on a file read. A watch and a search are
-//! answered here, from what their lanes last reported; see [`watch`] and [`search`].
+//! Server resolves the Workspace's own directory and asks a Workspace files service, which its
+//! Worker starts only on the first request, so a Session whose windows never open the right bar
+//! starts nothing and terminal work never waits on a file read. A watch and a search are answered
+//! here, from what their lanes last reported; see [`watch`] and [`search`], and [`launch`] for how
+//! a service starts.
+mod launch;
 mod search;
 mod watch;
 
 use super::LocalTerminalService;
-use orchbee_server_workspace_files::{Answer, Request, SERVICE_FLAG, answer_time};
+use crate::worker_registry::WorkerRegistry;
+use launch::{Connection, Launcher};
+use orchbee_capability_node_protocol::WorkspaceFilesService;
 use orchbee_workbench_protocol::{
     ProtocolVersion, WorkbenchResponse, WorkerId, WorkspaceFilesFailure as Failure,
     WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome, WorkspaceFilesRequest,
     WorkspaceFilesResult, serialize_workbench_response,
 };
-use std::io::{BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
-use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::Mutex;
-use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
+use orchbee_workspace_files::{Answer, Request, answer_time};
+use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, TryRecvError};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// How much longer than the service's own time for an operation the Server waits for its answer:
-/// room to start the process and carry the answer.
+/// room to carry the request and the answer.
 const ANSWER_MARGIN: Duration = Duration::from_millis(1500);
 /// One answer line's bytes: the result cap and its envelope.
 const MAXIMUM_ANSWER_LINE_BYTES: u64 = 9 * 1024 * 1024;
 
-/// The service processes: file reads, change lists and long changes run in separate lanes, so a
-/// slow `git status` in a large repository never holds up a directory listing, and a commit whose
-/// hooks run for a minute, or a replacement across many files, holds up neither.
+/// The services: file reads, change lists and long changes run in separate lanes, so a slow
+/// `git status` in a large repository never holds up a directory listing, and a commit whose hooks
+/// run for a minute, or a replacement across many files, holds up neither.
 pub(super) struct WorkspaceFilesProcesses {
-    executable: Option<PathBuf>,
+    launcher: Arc<Launcher>,
     files: Mutex<Option<Running>>,
     changes: Mutex<Option<Running>>,
     git: Mutex<Option<Running>>,
@@ -39,62 +43,40 @@ pub(super) struct WorkspaceFilesProcesses {
     searches: search::Searches,
 }
 
-impl Default for WorkspaceFilesProcesses {
-    fn default() -> Self {
+impl WorkspaceFilesProcesses {
+    pub(super) fn new(workers: Arc<Mutex<WorkerRegistry>>) -> Self {
+        let launcher = Arc::new(Launcher::new(workers));
         Self {
-            executable: std::env::current_exe().ok(),
+            watches: watch::Watches::new(Arc::clone(&launcher)),
+            searches: search::Searches::new(Arc::clone(&launcher)),
+            launcher,
             files: Mutex::new(None),
             changes: Mutex::new(None),
             git: Mutex::new(None),
-            watches: watch::Watches::default(),
-            searches: search::Searches::default(),
         }
     }
 }
 
-/// One running service process; dropping it ends the process.
+/// One running operations service; dropping it ends the service.
 struct Running {
-    child: Child,
-    stdin: ChildStdin,
+    connection: Connection,
+    /// Disconnects once the service's connection ends.
     answers: Receiver<Vec<u8>>,
     next: u64,
 }
 
-impl Drop for Running {
-    fn drop(&mut self) {
-        let _killed = self.child.kill();
-        let _reaped = self.child.wait();
-    }
-}
-
 impl Running {
-    fn start(executable: &PathBuf) -> Result<Self, Failure> {
-        let mut command = Command::new(executable);
-        command
-            .arg(SERVICE_FLAG)
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            // CREATE_NO_WINDOW: the windowless Server's child opens no console.
-            command.creation_flags(0x0800_0000);
-        }
-        let mut child = command.spawn().map_err(|_| Failure::Unavailable)?;
-        let (Some(stdin), Some(stdout)) = (child.stdin.take(), child.stdout.take()) else {
-            let _killed = child.kill();
-            let _reaped = child.wait();
-            return Err(Failure::Unavailable);
-        };
+    fn start(launcher: &Launcher) -> Result<Self, Failure> {
+        let connection = launcher.launch(WorkspaceFilesService::Operations)?;
+        let reader = connection.reader().map_err(|_| Failure::Unavailable)?;
         let (sender, answers) = mpsc::channel();
-        let reader = std::thread::Builder::new()
+        std::thread::Builder::new()
             .name("orchbee-server-workspace-files".into())
             .spawn(move || {
-                let mut stdout = BufReader::new(stdout);
+                let mut reader = BufReader::new(reader);
                 loop {
                     let mut line = Vec::new();
-                    match (&mut stdout)
+                    match (&mut reader)
                         .take(MAXIMUM_ANSWER_LINE_BYTES)
                         .read_until(b'\n', &mut line)
                     {
@@ -106,18 +88,25 @@ impl Running {
                         }
                     }
                 }
-            });
-        if reader.is_err() {
-            let _killed = child.kill();
-            let _reaped = child.wait();
-            return Err(Failure::Unavailable);
-        }
+            })
+            .map_err(|_| Failure::Unavailable)?;
         Ok(Self {
-            child,
-            stdin,
+            connection,
             answers,
             next: 0,
         })
+    }
+
+    /// Whether the service's connection has ended, as after its idle time. An answer still
+    /// waiting here belongs to an earlier request, which has stopped waiting for it.
+    fn ended(&self) -> bool {
+        loop {
+            match self.answers.try_recv() {
+                Ok(_late) => {}
+                Err(TryRecvError::Empty) => return false,
+                Err(TryRecvError::Disconnected) => return true,
+            }
+        }
     }
 
     fn ask(&mut self, root: &str, operation: &WorkspaceFilesOperation) -> Result<Outcome, Failure> {
@@ -130,9 +119,8 @@ impl Running {
         })
         .map_err(|_| Failure::Malformed)?;
         line.push(b'\n');
-        self.stdin
-            .write_all(&line)
-            .and_then(|()| self.stdin.flush())
+        self.connection
+            .write_line(&line)
             .map_err(|_| Failure::Unavailable)?;
         let deadline = Instant::now() + answer_time(operation).saturating_add(ANSWER_MARGIN);
         loop {
@@ -152,7 +140,12 @@ impl Running {
 }
 
 impl WorkspaceFilesProcesses {
-    /// Asks the lane `operation` belongs to, starting its process if none runs. A process that
+    /// Names the Session's runtime folder, beside which services connect to this Server.
+    fn configure(&self, runtime: &Path) {
+        self.launcher.configure(runtime);
+    }
+
+    /// Asks the lane `operation` belongs to, starting its service if none runs. A service that
     /// fails to answer is ended, and the next request starts a fresh one.
     fn ask(&self, root: &str, operation: &WorkspaceFilesOperation) -> Result<Outcome, Failure> {
         let lane = match operation {
@@ -176,17 +169,14 @@ impl WorkspaceFilesProcesses {
                 return Err(Failure::Unavailable);
             }
         };
+        // The lane stays held while its service starts: its next request waits for that service.
         let mut running = lane.lock().map_err(|_| Failure::Unavailable)?;
-        // A process that exited on its own, after its idle time, is replaced.
-        if running
-            .as_mut()
-            .is_some_and(|process| !matches!(process.child.try_wait(), Ok(None)))
-        {
+        // A service that ended on its own, after its idle time, is replaced.
+        if running.as_ref().is_some_and(Running::ended) {
             *running = None;
         }
         if running.is_none() {
-            let executable = self.executable.as_ref().ok_or(Failure::Unavailable)?;
-            *running = Some(Running::start(executable)?);
+            *running = Some(Running::start(&self.launcher)?);
         }
         let process = running.as_mut().ok_or(Failure::Unavailable)?;
         let answer = process.ask(root, operation);
@@ -198,6 +188,11 @@ impl WorkspaceFilesProcesses {
 }
 
 impl LocalTerminalService {
+    /// Names the Session's runtime folder, without which no Workspace files service starts.
+    pub(crate) fn configure_workspace_files(&self, runtime: &Path) {
+        self.workspace_files.configure(runtime);
+    }
+
     /// Wakes `signal` whenever a watched Workspace's revisions or watch state change, or a search
     /// or listing finds more or ends.
     pub(crate) fn subscribe_workspace_files(

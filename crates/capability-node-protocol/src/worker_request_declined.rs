@@ -35,6 +35,7 @@ pub enum DeclinedRequestKind {
     GraphicsDecode,
     AdoptHost,
     MoveTurn,
+    WorkspaceFilesService,
 }
 
 /// A decline: the request's kind and its identity, the request or operation ID it carries, or for
@@ -108,6 +109,9 @@ impl WorkerRequestDeclined {
             }
             Message::AdoptHostRequest(request) => (Kind::AdoptHost, request.key().adoption_id),
             Message::TerminalMoveTurnRequest(request) => (Kind::MoveTurn, request.request_id),
+            Message::WorkspaceFilesServiceRequest(request) => {
+                (Kind::WorkspaceFilesService, request.operation_id)
+            }
             Message::AdoptHostResult(_)
             | Message::TerminalMoveTurnResult(_)
             | Message::WorkerHandoffResult(_)
@@ -133,6 +137,7 @@ impl WorkerRequestDeclined {
             | Message::AgentIntegrationJobResult(_)
             | Message::AgentProbeJobResult(_)
             | Message::HostQueryResult(_)
+            | Message::WorkspaceFilesServiceResult(_)
             | Message::WorkerRequestDeclined(_)
             | Message::WorkerRequestUnreadable => return None,
         };

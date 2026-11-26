@@ -122,6 +122,11 @@ pub use terminal_lifecycle::{
 #[cfg(test)]
 mod tests;
 
+mod workspace_files_service;
+pub use workspace_files_service::{
+    WorkspaceFilesService, WorkspaceFilesServiceOutcome, WorkspaceFilesServiceRequest,
+    WorkspaceFilesServiceResult, WorkspaceFilesTicket,
+};
 mod worktree_job;
 mod worktree_mutation;
 pub use worktree_job::{

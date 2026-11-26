@@ -211,6 +211,7 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
                 session_runtime: None,
+                workspace_files: None,
             }
         )
         .is_err()

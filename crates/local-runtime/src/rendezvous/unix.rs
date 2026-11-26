@@ -123,7 +123,7 @@ impl ModeCheckedLocalSessionRendezvous {
     /// one restart of a Session runs at a time.
     #[cfg(target_os = "macos")]
     pub fn successor_worker_socket_path(&self, ticket: [u8; 16]) -> PathBuf {
-        Self::socket_root_path().join(successor_worker_leaf(&self.paths.endpoint_id, ticket))
+        Self::socket_root_path().join(ticketed_leaf(&self.paths.endpoint_id, "worker", ticket))
     }
 
     /// Removes the Worker endpoint the successor of the restart `ticket` names bound, as a stop
@@ -138,7 +138,7 @@ impl ModeCheckedLocalSessionRendezvous {
         match &self.sockets {
             Some(sockets) => self.remove_leaf(
                 sockets,
-                &successor_worker_leaf(&self.paths.endpoint_id, ticket),
+                &ticketed_leaf(&self.paths.endpoint_id, "worker", ticket),
             ),
             None => Ok(()),
         }
@@ -215,6 +215,18 @@ impl ModeCheckedLocalSessionRendezvous {
     /// address the Worker connects to. Pure path math.
     pub fn host_endpoint_path(runtime_directory: &Path) -> PathBuf {
         socket_path(runtime_directory, SocketRole::Host)
+    }
+
+    /// The endpoint the Server binds for one Workspace files service process, named by the
+    /// ticket the process presents: the process connects to it once, and the Server removes it as
+    /// soon as the process connected or failed to. Four bytes of the ticket keep the path inside a
+    /// socket address; the whole ticket is checked on the connection. Pure path math.
+    pub fn workspace_files_socket_path(runtime_directory: &Path, ticket: [u8; 16]) -> PathBuf {
+        Self::socket_root_path().join(ticketed_leaf(
+            &runtime_endpoint_id(runtime_directory),
+            WORKSPACE_FILES_ROLE,
+            ticket,
+        ))
     }
 
     /// The managed Agent observation endpoint a Session runtime directory derives. Pure path
@@ -550,7 +562,7 @@ impl ModeCheckedLocalSessionRendezvous {
     /// Whether the Worker endpoint the successor of the restart `ticket` names is bound.
     #[cfg(target_os = "macos")]
     pub fn successor_worker_socket_exists(&self, ticket: [u8; 16]) -> std::io::Result<bool> {
-        self.leaf_exists(&successor_worker_leaf(&self.paths.endpoint_id, ticket))
+        self.leaf_exists(&ticketed_leaf(&self.paths.endpoint_id, "worker", ticket))
     }
 
     fn socket_exists(&self, role: SocketRole) -> std::io::Result<bool> {
@@ -580,8 +592,9 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     /// Removes the sockets a Session that ended without its stop left behind: the Client, pending,
-    /// Worker and Agent observation sockets, on macOS the Worker endpoints of restarts' successors,
-    /// and each Host slot's while no Terminal Host holds that slot's lock.
+    /// Worker and Agent observation sockets, the endpoints Workspace files services were to connect
+    /// to, on macOS the Worker endpoints of restarts' successors, and each Host slot's while no
+    /// Terminal Host holds that slot's lock.
     /// Only the Session lifetime owner removes them, before it binds and once more as it stops, so
     /// a socket a live Server or Host still serves is never touched. An entry goes only when it is
     /// a socket of this user; anything else stays and makes the bind fail.
@@ -617,24 +630,26 @@ impl ModeCheckedLocalSessionRendezvous {
         ] {
             self.remove_socket(sockets, role)?;
         }
+        self.remove_ticketed_sockets(sockets, WORKSPACE_FILES_ROLE, None)?;
         #[cfg(target_os = "macos")]
-        self.remove_successor_worker_sockets(sockets, kept)?;
+        self.remove_ticketed_sockets(sockets, "worker", kept)?;
         #[cfg(not(target_os = "macos"))]
         let _ = kept;
         self.remove_free_host_socket(sockets)
     }
 
-    /// Removes the Worker endpoints earlier restarts' successors bound, which a Server a restart
-    /// started serves for its whole life and leaves when it is killed: each socket of this user
-    /// named `<id>-worker-<ticket>.sock` but the one of the restart `kept` names.
-    #[cfg(target_os = "macos")]
-    fn remove_successor_worker_sockets(
+    /// Removes the ticketed endpoints of `role` a killed Server left: on macOS the Worker endpoints
+    /// earlier restarts' successors bound, which a Server a restart started serves for its whole
+    /// life, and everywhere the endpoints Workspace files services were to connect to. Each socket
+    /// of this user named `<id>-<role>-<ticket>.sock` goes but the one of the ticket `kept` names.
+    fn remove_ticketed_sockets(
         &self,
         sockets: &OwnedFd,
+        role: &str,
         kept: Option<[u8; 16]>,
     ) -> std::io::Result<()> {
-        let kept = kept.map(|ticket| successor_worker_leaf(&self.paths.endpoint_id, ticket));
-        let prefix = format!("{}-worker-", self.paths.endpoint_id);
+        let kept = kept.map(|ticket| ticketed_leaf(&self.paths.endpoint_id, role, ticket));
+        let prefix = format!("{}-{role}-", self.paths.endpoint_id);
         for entry in std::fs::read_dir(Self::socket_root_path())? {
             let leaf = entry?.file_name();
             let Some(leaf) = leaf.to_str() else {
@@ -1074,14 +1089,17 @@ fn runtime_endpoint_id(runtime_directory: &Path) -> String {
     endpoint_id(base, &session)
 }
 
-/// The leaf of the Worker endpoint a restart's successor binds for `ticket`.
-#[cfg(target_os = "macos")]
-fn successor_worker_leaf(id: &str, ticket: [u8; 16]) -> String {
+/// The role of the endpoints Workspace files services connect to.
+const WORKSPACE_FILES_ROLE: &str = "files";
+
+/// The leaf of an endpoint bound for one `ticket`: the Worker endpoint a restart's successor binds
+/// (`worker`), or one a Workspace files service connects to (`files`).
+fn ticketed_leaf(id: &str, role: &str, ticket: [u8; 16]) -> String {
     let ticket: String = ticket[..4]
         .iter()
         .map(|byte| format!("{byte:02x}"))
         .collect();
-    format!("{id}-worker-{ticket}.sock")
+    format!("{id}-{role}-{ticket}.sock")
 }
 
 fn socket_path(runtime_directory: &Path, role: SocketRole) -> PathBuf {

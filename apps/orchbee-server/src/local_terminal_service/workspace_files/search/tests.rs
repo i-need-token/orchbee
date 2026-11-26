@@ -25,6 +25,7 @@ fn search() -> Search {
         request_id: WorkbenchRequestId::parse(&format!("{:032x}", 1)).unwrap(),
         lane_id: 1,
         incarnation: 1,
+        waiting: None,
         held: Held::Files(VecDeque::new()),
         delivered: 0,
         ended: None,

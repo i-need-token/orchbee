@@ -80,6 +80,8 @@ pub(crate) enum WorkerOperationRequest {
     Titles(orchbee_capability_node_protocol::TerminalTitlesRequest),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesRequest),
     HostQuery(orchbee_capability_node_protocol::HostQueryRequest),
+    /// Starts one Workspace files service process, which connects back to the Server itself.
+    WorkspaceFilesService(orchbee_capability_node_protocol::WorkspaceFilesServiceRequest),
     /// One page of a replacement Worker's adoption of its Host, its first request.
     AdoptHost(orchbee_capability_node_protocol::AdoptHostRequest),
     /// One turn of a replacement's moves of terminals from older Hosts into its own.
@@ -131,6 +133,7 @@ impl WorkerOperationRequest {
             Self::Titles(request) => (request.worker_id, request.worker_generation),
             Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
+            Self::WorkspaceFilesService(request) => (request.worker_id, request.worker_generation),
             Self::AdoptHost(request) => (request.key().worker_id, request.key().worker_generation),
             #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(request) => (request.worker_id, request.worker_generation),
@@ -155,6 +158,8 @@ impl WorkerOperationRequest {
             Self::AgentDrain(_) | Self::Titles(_) | Self::HostQuery(_) => RequestLane::Low,
             Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
+            // The right bar waits on a start, but no terminal request waits behind one.
+            Self::WorkspaceFilesService(_) => RequestLane::Low,
             // A move holds every request queued behind it, so it never goes ahead of a person's.
             #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(_) => RequestLane::Low,
@@ -212,6 +217,9 @@ impl WorkerOperationRequest {
                 CapabilityNodeMessage::TerminalTitleChangesRequest(*request)
             }
             Self::HostQuery(request) => CapabilityNodeMessage::HostQueryRequest(*request),
+            Self::WorkspaceFilesService(request) => {
+                CapabilityNodeMessage::WorkspaceFilesServiceRequest(*request)
+            }
             Self::AdoptHost(request) => CapabilityNodeMessage::AdoptHostRequest(request.clone()),
             #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(request) => CapabilityNodeMessage::TerminalMoveTurnRequest(*request),
@@ -241,6 +249,7 @@ pub(crate) enum WorkerOperationResult {
     Titles(orchbee_capability_node_protocol::TerminalTitlesResult),
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesResult),
     HostQuery(orchbee_capability_node_protocol::HostQueryResult),
+    WorkspaceFilesService(orchbee_capability_node_protocol::WorkspaceFilesServiceResult),
     AdoptHost(orchbee_capability_node_protocol::AdoptHostResult),
     #[cfg(any(windows, target_os = "macos"))]
     MoveTurn(orchbee_capability_node_protocol::TerminalMoveTurnResult),
@@ -2241,6 +2250,25 @@ fn validate_response(
         }
         (_, CapabilityNodeMessage::HostQueryResult(_))
         | (WorkerOperationRequest::HostQuery(_), _) => Err(WorkerResponseFailure::WrongResultKind),
+        (
+            WorkerOperationRequest::WorkspaceFilesService(expected),
+            CapabilityNodeMessage::WorkspaceFilesServiceResult(actual),
+        ) => {
+            if actual.request.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if actual.request != *expected {
+                return Err(WorkerResponseFailure::MismatchedTarget);
+            }
+            Ok(WorkerOperationResult::WorkspaceFilesService(actual))
+        }
+        (_, CapabilityNodeMessage::WorkspaceFilesServiceRequest(_)) => {
+            Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::WorkspaceFilesServiceResult(_))
+        | (WorkerOperationRequest::WorkspaceFilesService(_), _) => {
+            Err(WorkerResponseFailure::WrongResultKind)
+        }
         // The exchange consumes hints before validating a result.
         (
             _,

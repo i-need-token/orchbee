@@ -12,5 +12,6 @@ mod plugin_terminal_environment;
 mod request_declined;
 mod terminal_titles;
 mod viewer;
+mod workspace_files_service;
 mod worktree_mutation;
 mod worktree_source;

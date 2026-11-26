@@ -41,6 +41,7 @@ mod shutdown;
 mod terminal_titles;
 mod viewer;
 mod worker_handoff;
+mod workspace_files_service;
 mod worktree_job;
 mod worktree_mutation;
 
@@ -110,6 +111,8 @@ pub enum CapabilityNodeMessage {
     AgentProbeJobResult(crate::AgentProbeJobResult),
     HostQueryRequest(crate::HostQueryRequest),
     HostQueryResult(crate::HostQueryResult),
+    WorkspaceFilesServiceRequest(crate::WorkspaceFilesServiceRequest),
+    WorkspaceFilesServiceResult(crate::WorkspaceFilesServiceResult),
     WorkerRequestDeclined(crate::WorkerRequestDeclined),
     /// The Worker's answer to a whole request frame it could not decode, which answers the one
     /// request the Server has outstanding.
@@ -361,6 +364,12 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentProbeJobResult(value) => agent_probe_job::encode_result(value),
         CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
         CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
+        CapabilityNodeMessage::WorkspaceFilesServiceRequest(value) => {
+            workspace_files_service::encode_request(*value)
+        }
+        CapabilityNodeMessage::WorkspaceFilesServiceResult(value) => {
+            workspace_files_service::encode_result(*value)
+        }
         CapabilityNodeMessage::WorkerRequestDeclined(value) => request_declined::encode(*value),
         CapabilityNodeMessage::WorkerRequestUnreadable => request_declined::encode_unreadable(),
     }
@@ -469,6 +478,14 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         }
         Some(move_turn::RESULT_KIND) => {
             move_turn::decode_result(payload).map(CapabilityNodeMessage::TerminalMoveTurnResult)
+        }
+        Some(workspace_files_service::REQUEST_KIND) => {
+            workspace_files_service::decode_request(payload)
+                .map(CapabilityNodeMessage::WorkspaceFilesServiceRequest)
+        }
+        Some(workspace_files_service::RESULT_KIND) => {
+            workspace_files_service::decode_result(payload)
+                .map(CapabilityNodeMessage::WorkspaceFilesServiceResult)
         }
         Some(adopt_host::REQUEST_KIND) => {
             adopt_host::decode_request(payload).map(CapabilityNodeMessage::AdoptHostRequest)

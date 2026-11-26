@@ -1749,6 +1749,40 @@ exact completion, expiry, cancellation and shutdown. On Windows, a real window a
 started New Workspace in the shell's directory after `cd`, and the window's read was answered in
 14 ms.
 
+## Workspace files
+
+`workbench.workspace-files` answers the window's right bar: file and Git reads, saves, Git changes,
+replacements, watches, searches and file listings of a Workspace whose primary directory belongs to
+this Session's active Worker. The Server resolves that directory and hands the work to
+[Workspace files services](../../crates/workspace-files/README.md), which its Worker starts on
+request, so the Server never starts a process of its own for it and a Session whose windows never
+open the right bar starts none.
+
+Five lanes each keep at most one service: file reads and saves, change lists, and long changes
+(Git changes and replacements) run one operations service each, so a slow `git status` or a commit's
+hooks never hold up a listing; one watch service follows every window's watches; one search service
+runs every search and listing. A lane starts its service with its first request. An operations lane
+waits for the start, holding only itself; the watch and search lanes start theirs on a thread of
+their own, answering meanwhile with `starting` or with a search that has found nothing yet, so no
+Client request waits on a start while the registry is held. A watch service that ends is started
+again after a wait that doubles from one second to a minute while starts keep failing or lanes end
+within a minute; a search service that ends ends what it ran as `unavailable`, and the next search
+starts another.
+
+To start a service the Server draws a ticket and an operation ID, binds the endpoint the Session's
+runtime folder and the ticket name (on Unix a socket, mode 0600, in the socket folder, removed once
+the wait ends; on Windows a private pipe), and sends the Worker a
+[Workspace files service request](../../crates/capability-node-protocol/README.md#workspace-files-service-messages)
+on the low lane, reading the Worker's handle from the registry without holding it across the
+request. After `Started` it waits up to five seconds for a connection whose peer is this user and
+whose first 22 bytes present the ticket; any other connection is closed and the wait goes on.
+Without a runtime folder, an active Worker or that connection, the request answers `unavailable`.
+
+The admitted connection is the service's only channel. Dropping a lane shuts the connection down
+in both directions, which ends the service and the thread reading its lines; a line the service
+does not read within ten seconds shuts it down too. An operations lane notices a service that ended
+after its idle time by its reader's end and starts a fresh one for the next request.
+
 ## Panel image ownership
 
 The accepted model and current implementation boundary on Windows and macOS are maintained in [Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.

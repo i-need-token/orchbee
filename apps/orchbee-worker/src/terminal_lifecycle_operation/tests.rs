@@ -578,6 +578,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
             session_runtime: None,
+            workspace_files: None,
         },
     );
     assert!(outcome.is_err());

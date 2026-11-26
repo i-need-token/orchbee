@@ -128,6 +128,7 @@ impl WorkerOperationRequest {
             Self::Titles(_) => "titles",
             Self::TitleChanges(_) => "title-changes",
             Self::HostQuery(_) => "host-query",
+            Self::WorkspaceFilesService(_) => "workspace-files-service",
             Self::AdoptHost(_) => "adopt-host",
             #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(_) => "move-turn",

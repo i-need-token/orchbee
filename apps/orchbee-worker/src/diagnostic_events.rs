@@ -706,6 +706,7 @@ fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -
         Kind::GraphicsDecode => "graphics-decode",
         Kind::AdoptHost => "adopt-host",
         Kind::MoveTurn => "move-turn",
+        Kind::WorkspaceFilesService => "workspace-files-service",
     }
 }
 

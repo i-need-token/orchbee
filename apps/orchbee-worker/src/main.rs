@@ -53,6 +53,8 @@ mod worker_identity;
 #[cfg(any(unix, windows))]
 mod worker_options;
 #[cfg(any(unix, windows))]
+mod workspace_files_service;
+#[cfg(any(unix, windows))]
 mod worktree_discovery_job;
 #[cfg(any(unix, windows))]
 mod worktree_job_operation;
@@ -68,6 +70,15 @@ use std::env;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    // A Workspace files service reads no data root and keeps no log.
+    #[cfg(any(unix, windows))]
+    if env::args_os().nth(1).as_deref() == Some(std::ffi::OsStr::new(workspace_files_service::FLAG))
+    {
+        return match workspace_files_service::run(env::args_os().skip(2)) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(_) => ExitCode::FAILURE,
+        };
+    }
     // A root whose layout this build cannot read is refused before anything in it is read, the
     // log included; the Client that started this process names the refusal to the person.
     if orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))

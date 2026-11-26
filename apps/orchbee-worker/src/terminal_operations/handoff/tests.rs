@@ -494,6 +494,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,
                 session_runtime: Some(&runtime),
+                workspace_files: None,
             }
         )
         .is_err(),

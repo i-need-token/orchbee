@@ -1296,6 +1296,24 @@ supported local Linux filesystem cohort. Unit tests exercise a real directory, s
 symlink lookup, regular and missing paths, and Worker identity/generation rejection without a Host
 dependency.
 
+## Workspace files services
+
+The lazy loop, before any Host, and the integrated request loop both handle
+`WorkspaceFilesServiceRequest`, which needs no Host. A request fenced to another Worker or
+generation answers `WorkerUnavailable`. Otherwise the Worker starts its own cohort executable as
+`orchbee-worker --workspace-files <operations|watch|search> --runtime-directory <session-runtime>
+--ticket <32-lowercase-hex>` with the retained-process launcher and answers `Started`, or
+`NotStarted` when the spawn fails; it does not wait for the process, which it reaps when it exits.
+An explicit-endpoint launch has no Session runtime folder and declines the request as unserved.
+
+That invocation is checked before the data root, so the process reads no data root and keeps no
+log. It connects to the endpoint `ModeCheckedLocalSessionRendezvous::workspace_files_socket_path`
+names for the runtime folder and ticket, writes the 22-byte hello and then serves one
+[Workspace files](../../crates/workspace-files/README.md) program on that connection until the
+Server closes it or the program's idle time ends; a malformed invocation or a failed connection
+exits with status `1`. The [Server's Workspace files](../orchbee-server/README.md#workspace-files)
+section owns the endpoint and admission.
+
 ## Ownership
 
 The [`orchbee-local-worker-protocol`](../../crates/local-worker-protocol/README.md) crate owns the

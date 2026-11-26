@@ -46,6 +46,8 @@ type TestResult<T = ()> = Result<T, Box<dyn Error>>;
 
 #[path = "process/terminal_operations.rs"]
 mod terminal_operations;
+#[path = "process/workspace_files_service.rs"]
+mod workspace_files_service;
 
 #[test]
 fn rejects_every_invalid_private_invocation_without_output() -> TestResult {

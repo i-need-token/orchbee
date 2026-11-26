@@ -1,35 +1,44 @@
-# orchbee-server-workspace-files
+# orchbee-workspace-files
 
-The Workspace file service behind the window's right bar. The Server runs it in a
-separate process of its own executable (`orchbee-server --workspace-files`) only after a Client
-first sends `workbench.workspace-files`, so a Session whose windows never open the right bar starts
-nothing. The process exits after ten idle minutes or when its standard input closes.
+The Workspace file service behind the window's right bar. It runs as a Workspace files service:
+a process of the Worker's executable that the Worker starts when the Server asks
+(`orchbee-worker --workspace-files <operations|watch|search>`), only after a Client first needs
+it, so a Session whose windows never open the right bar starts nothing. Each process connects to
+the endpoint the Server bound for its ticket, presents that ticket, and then serves one of three
+programs on that connection. The [Server's Workspace files](../../apps/orchbee-server/README.md#workspace-files)
+section describes how it is started and admitted.
 
 It reads one directory listing, one file from the working tree, the index or `HEAD`, or the change
 list of `git status`, always beneath the Workspace directory the Server names, saves one
 working-tree file, replaces what a search found, and stages, unstages, discards or commits. Reads write nothing: Git runs with optional locks off, so a status read never
 refreshes the index.
 
-The same executable also runs the watch lane (`orchbee-server --workspace-files-watch`), a second
-process the Server starts only when a Client first watches what its right bar shows. It follows
+The operations service answers these requests and exits after ten idle minutes or when its
+connection closes.
+
+The watch service is a second process, started only when a Client first watches what its right
+bar shows. It follows
 each root with the platform's own watcher through `notify`: one recursive watch per root on macOS
 (FSEvents) and Windows, and on Linux one inotify watch per directory, leaving out `.git`, what Git
 ignores (unless a directory holds a tracked file or is shown), and anything past 65,536 watched
 directories, which reports the root `unavailable` rather than following part of it.
 
-A third process, the search lane (`orchbee-server --workspace-files-search`), starts with a
-Client's first search or file listing and searches file contents, or lists file paths, with
+A third process, the search service, starts with a Client's first search or file listing and searches file contents, or lists file paths, with
 ripgrep's own crates, so a long search delays neither the service's requests nor the watch.
 
 ## Protocol
 
-Standard input and output carry one JSON object per line. A request is
+A service connects to the endpoint that
+`ModeCheckedLocalSessionRendezvous::workspace_files_socket_path` names for the Session's runtime
+folder and its ticket, and first writes a 22-byte hello: `OBWF`, version 1 as a big-endian `u16`,
+and the 16-byte ticket. Nothing answers it; a Server that does not admit the ticket closes the
+connection. After the hello the connection carries one JSON object per line in each direction. A request is
 `{"id": 1, "root": "/abs/workspace", "operation": {...}}`, where `operation` is the
 `workbench.workspace-files` operation; the answer is `{"id": 1, "outcome": {...}}`, a
 `workbench.workspace-files` outcome. Requests are answered in order. A `watch`, `search` or
 `list-files` operation answers `failed` with `malformed`, because the Server serves them itself.
 
-The watch lane reads one watch set per line,
+The watch service reads one watch set per line,
 `{"roots": [{"root": "/abs/workspace", "directories": [""], "files": ["a.txt"]}]}`, each replacing
 the last, and writes one report per line: `{"kind": "state", "root": ..., "state": "watching"}`
 once per root when it starts or its state changes, and
@@ -41,7 +50,7 @@ the user's excludes file, with `core.ignorecase`, and a tracked file is never ig
 logs and lock files inside Git's directories count for neither. A lost or overflowing event queue
 reports both; a root that is removed or moved reports `unavailable`.
 
-The search lane reads `{"kind": "start", "id": 1, "root": "/abs/workspace", "query": {...}}` and
+The search service reads `{"kind": "start", "id": 1, "root": "/abs/workspace", "query": {...}}` and
 `{"kind": "cancel", "id": 1}` and writes `{"kind": "found", "id": 1, "files": [...]}` with the
 `workbench.workspace-files` search entries, in order, and finally
 `{"kind": "ended", "id": 1, "state": "complete"}`. A cancelled search still ends with a report. A
@@ -49,7 +58,7 @@ search walks the root on up to eight threads, one fewer than the machine has, an
 lines at a time, or what it has after 50 ms. `{"kind": "list", "id": 2, "root": ..., "query": {...}}`
 lists files instead, with a `list-files` query, and writes `{"kind": "listed", "id": 2, "paths":
 [...]}` with at most 512 Workspace-relative paths at a time, or what it has after 50 ms, before
-its `ended` report; searches and listings share the lane's identities and its limit.
+its `ended` report; searches and listings share the service's identities and its limit.
 
 ## Searching
 
@@ -141,12 +150,12 @@ only Git itself is stopped.
   carries the SHA-256 of the whole file. Index and `HEAD` blobs carry no version, are read up to
   10 MiB, and the last blob read is kept so its later chunks do not run Git again.
 - A watch set names at most 64 roots, each with at most 256 directories and 64 files, and the
-  Server keeps the whole set under 4 MiB. The lane exits after ten minutes with nothing to watch.
+  Server keeps the whole set under 4 MiB. The service exits after ten minutes with nothing to watch.
 - A save carries at most 10 MiB of text, so a request line may reach 24 MiB.
 - A search stops at 20,000 matches as `limit-reached`, and skips a line or multi-line match
-  needing more than 64 MiB of memory. The lane runs eight searches at once and answers one more
+  needing more than 64 MiB of memory. The service runs eight searches at once and answers one more
   `unavailable`; the Server holds 64 across all windows, and a window's new search of a Workspace
-  cancels its last. Its report lines stay under 4 MiB. The lane exits after ten idle minutes.
+  cancels its last. Its report lines stay under 4 MiB. The service exits after ten idle minutes.
 - A listing stops at 100,000 files as `limit-reached`. It counts against the same eight running
   and 64 held as searches, and a window's new listing of a Workspace cancels its last listing,
   not its search.

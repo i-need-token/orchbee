@@ -22,8 +22,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
-/// The command-line flag that turns the Server's executable into the search lane.
-pub const SEARCH_FLAG: &str = "--workspace-files-search";
 /// The longest report line the lane writes, its line feed included; a batch of
 /// [`BATCH_LINES`] preview lines stays far below it.
 pub const MAXIMUM_SEARCH_REPORT_LINE_BYTES: usize = 4 * 1024 * 1024;
@@ -356,14 +354,6 @@ fn reports_of(entries: Vec<WorkspaceSearchFile>) -> Vec<Vec<WorkspaceSearchFile>
         reports.push(current);
     }
     reports
-}
-
-/// The search lane process: serves standard input until it closes.
-pub fn serve_search_stdio() {
-    serve_search(
-        std::io::BufReader::new(std::io::stdin()),
-        std::io::stdout().lock(),
-    );
 }
 
 #[cfg(test)]
