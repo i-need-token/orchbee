@@ -124,6 +124,7 @@ export type {
 export type {
 	WorkbenchWorkspaceFilesSource,
 	WorkspaceFileListReport,
+	WorkspaceFileOpenRequest,
 	WorkspaceGitChange,
 	WorkspaceFilesWatch,
 	WorkspaceFilesWatchReport,

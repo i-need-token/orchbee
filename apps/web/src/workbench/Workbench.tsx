@@ -49,6 +49,7 @@ import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresenta
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
+import { useWorkspaceFilesQuickOpen } from './hooks/useWorkspaceFilesQuickOpen';
 import type { WorkbenchAuthority } from './types/workbench-authority';
 import type { WorkbenchClientUpdate } from './types/workbench-client-update';
 import type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
@@ -214,10 +215,27 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
-	// The right bar's code loads the first time it opens, then stays, so its float window and the
-	// files in it outlive closing the bar.
+	const quickOpen = useWorkspaceFilesQuickOpen({
+		runtime: actionRuntime,
+		searchOpen: view.searchState.kind !== 'closed',
+		source: workspaceFilesSource,
+		workspaceId: view.activeWorkspaceId,
+	});
+	const allSearchProviders = React.useMemo(
+		() =>
+			quickOpen.providers.length === 0
+				? searchProviders
+				: [...searchProviders, ...quickOpen.providers],
+		[quickOpen.providers, searchProviders],
+	);
+	// The right bar's code loads the first time it opens or quick open opens a file, then stays, so
+	// its float window and the files in it outlive closing the bar.
 	const [workspaceFilesLoaded, setWorkspaceFilesLoaded] = React.useState(false);
-	if (!workspaceFilesLoaded && view.isRightBarVisible && workspaceFilesSource !== undefined) {
+	if (
+		!workspaceFilesLoaded &&
+		(view.isRightBarVisible || quickOpen.openRequest !== null) &&
+		workspaceFilesSource !== undefined
+	) {
 		setWorkspaceFilesLoaded(true);
 	}
 	const agentPresentation = useWorkbenchAgentPresentation({
@@ -717,7 +735,9 @@ export function Workbench({
 							closeShortcutLabel={view.rightBarShortcutLabel}
 							floatHost={floatHost}
 							onCloseBar={view.closeRightBar}
+							onFileOpened={quickOpen.onFileOpened}
 							onReturnFocus={view.returnFocusToTerminal}
+							openRequest={quickOpen.openRequest}
 							shortcutPlatform={shortcutPlatform}
 							source={workspaceFilesSource}
 							tabModel={terminalContext?.tabModel ?? null}
@@ -732,7 +752,7 @@ export function Workbench({
 					actionScope={view.actionScope}
 					argumentPickerForAction={view.searchArgumentPickerForAction}
 					filters={view.searchFilters}
-					providers={searchProviders}
+					providers={allSearchProviders}
 					reportActionOutcome={view.reportActionOutcome}
 					shortcutLabelForAction={shortcutLabelForAction}
 					state={view.searchState}

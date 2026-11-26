@@ -1034,6 +1034,17 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.settings'],
 		description: 'Empty state for the Settings unified-search filter.',
 	},
+	searchEmptyFiles: {
+		id: 'workbench.search.empty.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.files'],
+		description: 'Empty state for the Files unified-search filter when a query matches no file.',
+	},
+	searchEmptyFilesPrompt: {
+		id: 'workbench.search.empty.filesPrompt',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.empty.filesPrompt'],
+		description:
+			'Empty state for the Files unified-search filter before anything is typed and with no recently opened file.',
+	},
 	searchFilterActions: {
 		id: 'workbench.search.filters.actions',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.actions'],
@@ -1058,6 +1069,11 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.search.filters.settings',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.settings'],
 		description: 'Settings filter in unified search.',
+	},
+	searchFilterFiles: {
+		id: 'workbench.search.filters.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.filters.files'],
+		description: 'Files filter in unified search, which finds Workspace files by name.',
 	},
 	searchFooterBack: {
 		id: 'workbench.search.footer.back',
@@ -1089,6 +1105,17 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.groups.settings'],
 		description: 'Unified-search group containing settings destinations.',
 	},
+	searchGroupFiles: {
+		id: 'workbench.search.groups.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.groups.files'],
+		description: 'Unified-search group containing Workspace files whose names match.',
+	},
+	searchGroupRecentFiles: {
+		id: 'workbench.search.groups.recentFiles',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.groups.recentFiles'],
+		description:
+			'Unified-search group containing the files opened most recently in this Workspace.',
+	},
 	searchInputActions: {
 		id: 'workbench.search.input.actions',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.input.actions'],
@@ -1109,6 +1136,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.input.settings'],
 		description: 'Input placeholder while the Settings unified-search filter is selected.',
 	},
+	searchInputFiles: {
+		id: 'workbench.search.input.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.input.files'],
+		description: 'Input placeholder while the Files unified-search filter is selected.',
+	},
 	searchProviderFailed: {
 		id: 'workbench.search.providers.failed',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.failed'],
@@ -1123,6 +1155,12 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.search.providers.retry',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.retry'],
 		description: 'Button label for retrying one failed unified-search provider.',
+	},
+	searchProviderFiles: {
+		id: 'workbench.search.providers.files',
+		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.files'],
+		description:
+			'Name of the Workspace files search source, inserted into the searching and failed statuses.',
 	},
 	searchResultsCount: {
 		id: 'workbench.search.results.count',
@@ -1814,6 +1852,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.actions.toggle'],
 		description:
 			"Action that shows or hides the right bar with the Workspace's files and Git changes.",
+	},
+	openWorkspaceFile: {
+		id: 'workbench.rightBar.actions.openFile',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.actions.openFile'],
+		description: 'Action that opens one Workspace file in the float window, as a kept tab.',
 	},
 	rightBarLabel: {
 		id: 'workbench.rightBar.label',

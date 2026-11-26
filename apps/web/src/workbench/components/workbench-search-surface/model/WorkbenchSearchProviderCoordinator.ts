@@ -336,6 +336,9 @@ function normalizeProviderResult(
 		availability: result.availability,
 		canonicalLabel: result.canonicalLabel,
 		...(result.description === undefined ? {} : { description: result.description }),
+		...(result.descriptionMatches === undefined
+			? {}
+			: { descriptionMatches: result.descriptionMatches }),
 		groupId: `${provider.id}:${section.id}`,
 		groupLabel: section.label,
 		groupOrder: section.order,
@@ -344,6 +347,7 @@ function normalizeProviderResult(
 		invocation: result.invocation,
 		keywords: [...result.keywords],
 		label: result.label,
+		...(result.labelMatches === undefined ? {} : { labelMatches: result.labelMatches }),
 		providerId: provider.id,
 		providerPriority: provider.priority,
 		recommended: result.recommended ?? false,

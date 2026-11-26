@@ -6,7 +6,10 @@ import * as React from 'react';
 
 import type { WorkbenchAuthorityNoticeView } from '../../../hooks/useWorkbenchAuthorityNotice';
 import type { WorkbenchSearchFilter } from '../../../types/workbench-search';
-import type { WorkbenchSearchProvider } from '../../../types/workbench-search-provider';
+import type {
+	WorkbenchSearchProvider,
+	WorkbenchSearchTextRange,
+} from '../../../types/workbench-search-provider';
 import { revealInScrollOwner } from '../../../utils/revealInScrollOwner';
 import { formatWorkbenchActionMessage } from '../model/project-workbench-search-catalog';
 import {
@@ -49,6 +52,7 @@ interface WorkbenchSearchFilterView {
 
 interface WorkbenchSearchRowView {
 	readonly description?: string | undefined;
+	readonly descriptionMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly disabled: boolean;
 	readonly disabledReason?: string | undefined;
 	readonly elementId: string;
@@ -56,6 +60,7 @@ interface WorkbenchSearchRowView {
 	readonly icon: ProductIconName;
 	readonly id: string;
 	readonly label: string;
+	readonly labelMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly onInvoke: () => void;
 	readonly onPointerDown: React.PointerEventHandler<HTMLDivElement>;
 	readonly onPointerMove: () => void;
@@ -312,6 +317,9 @@ export function useWorkbenchSearchSurface({
 				const disabledReason = workbenchSearchDisabledReason(intl, result);
 				return {
 					...(result.description === undefined ? {} : { description: result.description }),
+					...(result.descriptionMatches === undefined
+						? {}
+						: { descriptionMatches: result.descriptionMatches }),
 					disabled: !isWorkbenchSearchResultEnabled(result),
 					...(disabledReason === undefined ? {} : { disabledReason }),
 					elementId: `workbench-search-option-${state.sessionId}-${result.id}`,
@@ -325,6 +333,7 @@ export function useWorkbenchSearchSurface({
 					icon: result.icon,
 					id: result.id,
 					label: result.label,
+					...(result.labelMatches === undefined ? {} : { labelMatches: result.labelMatches }),
 					onInvoke: () => invokeBrowsingResult(result),
 					onPointerDown: (event) => event.preventDefault(),
 					onPointerMove: () => update({ resultId: result.id, type: 'highlight' }),
@@ -406,6 +415,7 @@ export function useWorkbenchSearchSurface({
 		actions: intl.formatMessage(workbenchMessages.searchFilterActions),
 		agents: intl.formatMessage(workbenchMessages.searchFilterAgents),
 		all: intl.formatMessage(workbenchMessages.searchFilterAll),
+		files: intl.formatMessage(workbenchMessages.searchFilterFiles),
 		settings: intl.formatMessage(workbenchMessages.searchFilterSettings),
 	};
 	const filterIds = offeredFilters;
@@ -450,12 +460,18 @@ export function useWorkbenchSearchSurface({
 		actions: intl.formatMessage(workbenchMessages.searchEmptyActions),
 		agents: intl.formatMessage(workbenchMessages.searchEmptyAgents),
 		all: intl.formatMessage(workbenchMessages.searchEmptyAll),
+		files: intl.formatMessage(
+			searchSnapshot.query.trim().length === 0
+				? workbenchMessages.searchEmptyFilesPrompt
+				: workbenchMessages.searchEmptyFiles,
+		),
 		settings: intl.formatMessage(workbenchMessages.searchEmptySettings),
 	};
 	const placeholders = {
 		actions: intl.formatMessage(workbenchMessages.searchInputActions),
 		agents: intl.formatMessage(workbenchMessages.searchInputAgents),
 		all: intl.formatMessage(workbenchMessages.searchInputAll),
+		files: intl.formatMessage(workbenchMessages.searchInputFiles),
 		settings: intl.formatMessage(workbenchMessages.searchInputSettings),
 	};
 

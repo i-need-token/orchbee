@@ -60,6 +60,7 @@ type KeyboardShortcutName =
 	| 'copy-selection'
 	| 'decrease-terminal-font-size'
 	| 'equalize-panels'
+	| 'files-search'
 	| 'find'
 	| 'focus-next-region'
 	| 'focus-panel-down'
@@ -609,6 +610,16 @@ export const KEYBOARD_SHORTCUT_CATALOG = Object.freeze([
 		name: 'shortcuts',
 		scope: 'workbench',
 		shortcutId: WORKBENCH_SHORTCUTS.shortcuts.shortcutId,
+	}),
+	Object.freeze({
+		actionId: WORKBENCH_SHORTCUTS.filesSearch.id,
+		actionInput: WORKBENCH_SHORTCUTS.filesSearch.input,
+		availability: 'always-in-workbench',
+		defaults: WORKBENCH_SHORTCUTS.filesSearch.defaults,
+		feature: 'workbench',
+		name: 'files-search',
+		scope: 'workbench',
+		shortcutId: WORKBENCH_SHORTCUTS.filesSearch.shortcutId,
 	}),
 	Object.freeze({
 		actionId: WORKBENCH_SHORTCUTS.toggleRightBar.id,

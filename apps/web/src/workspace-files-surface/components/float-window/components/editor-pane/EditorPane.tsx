@@ -547,11 +547,13 @@ export function EditorPane({
 		else if (shownView?.kind === 'diff') codeEditor = diff.current?.getModifiedEditor() ?? null;
 		if (codeEditor === null || codeEditor.getModel() !== shownView?.model) return;
 		revealed.current = reveal.serial;
-		codeEditor.setSelection(reveal.range);
-		codeEditor.revealRangeInCenterIfOutsideViewport(
-			reveal.range,
-			monaco.editor.ScrollType.Immediate,
-		);
+		if (reveal.range !== null) {
+			codeEditor.setSelection(reveal.range);
+			codeEditor.revealRangeInCenterIfOutsideViewport(
+				reveal.range,
+				monaco.editor.ScrollType.Immediate,
+			);
+		}
 		if (reveal.focus) codeEditor.focus();
 	}, [activeTarget, reveal, shownView]);
 

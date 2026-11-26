@@ -5,6 +5,7 @@ import type {
 	WorkbenchSearchProviderArgumentPicker,
 	WorkbenchSearchProviderArgumentRead,
 	WorkbenchSearchProviderResultInvocation,
+	WorkbenchSearchTextRange,
 } from '../../../types/workbench-search-provider';
 
 export type WorkbenchSearchArgumentOption = WorkbenchSearchProviderArgumentOption;
@@ -20,6 +21,7 @@ export interface WorkbenchSearchResult {
 	readonly availability: ActionAvailability;
 	readonly canonicalLabel: string;
 	readonly description?: string | undefined;
+	readonly descriptionMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly groupId: string;
 	readonly groupLabel: string;
 	readonly groupOrder: number;
@@ -28,6 +30,7 @@ export interface WorkbenchSearchResult {
 	readonly invocation: WorkbenchSearchResultInvocation;
 	readonly keywords: readonly string[];
 	readonly label: string;
+	readonly labelMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly providerId: string;
 	readonly providerPriority?: number | undefined;
 	readonly recommended: boolean;

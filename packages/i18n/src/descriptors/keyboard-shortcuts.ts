@@ -74,6 +74,7 @@ export const keyboardShortcutMessages = defineMessages({
 	splitRight: message('keyboard.shortcuts.actions.splitRight'),
 	swapPanelVisible: message('keyboard.shortcuts.actions.swapPanelVisible'),
 	toggleRightBar: message('keyboard.shortcuts.actions.toggleRightBar'),
+	filesSearch: message('keyboard.shortcuts.actions.filesSearch'),
 	toggleSidebar: message('keyboard.shortcuts.actions.toggleSidebar'),
 	availabilityActivePanel: message('keyboard.shortcuts.availability.activePanel'),
 	availabilityActiveTerminal: message('keyboard.shortcuts.availability.activeTerminal'),

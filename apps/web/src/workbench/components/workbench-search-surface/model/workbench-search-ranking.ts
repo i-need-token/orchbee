@@ -21,6 +21,11 @@ export function selectWorkbenchSearchSections({
 	query,
 	recentResultIds = [],
 }: SelectWorkbenchSearchSectionsOptions): readonly WorkbenchSearchSection[] {
+	// Files are ranked by their provider, which matches whole paths; ranking them again by label
+	// would drop the matches in folder names.
+	if (filter === 'files') {
+		return providerSections;
+	}
 	const normalizedQuery = normalizeSearchText(query);
 	let localResults: readonly WorkbenchSearchResult[];
 	if (filter === 'settings') {

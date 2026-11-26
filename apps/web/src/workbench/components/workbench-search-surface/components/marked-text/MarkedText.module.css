@@ -1,0 +1,5 @@
+.match {
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-status-warning-surface);
+	color: inherit;
+}

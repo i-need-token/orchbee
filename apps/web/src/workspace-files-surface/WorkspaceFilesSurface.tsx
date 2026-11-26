@@ -4,7 +4,11 @@ import type { TabModel } from '@orchbee/tab-strip/model';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 
-import type { WorkbenchAgentSource, WorkbenchWorkspaceFilesSource } from '../workbench';
+import type {
+	WorkbenchAgentSource,
+	WorkbenchWorkspaceFilesSource,
+	WorkspaceFileOpenRequest,
+} from '../workbench';
 import type { DiffOptions } from './components/float-window/components/editor-pane/EditorPane';
 import { FloatWindow } from './components/float-window/FloatWindow';
 import { EditorDocuments } from './EditorDocuments';
@@ -35,6 +39,10 @@ export interface WorkspaceFilesSurfaceProps {
 	readonly shortcutPlatform: KeyboardShortcutPlatform;
 	/** Hands the keyboard back to the terminal when the float window collapses or closes. */
 	readonly onReturnFocus: () => void;
+	/** A file quick open asks for; each new serial opens it once, in its own Workspace only. */
+	readonly openRequest?: WorkspaceFileOpenRequest | null | undefined;
+	/** Says which file a Workspace's float window opened, for quick open's recent files. */
+	readonly onFileOpened?: ((workspaceId: string, path: string) => void) | undefined;
 }
 
 /** VS Code's defaults: side by side where it fits, and leading or trailing whitespace ignored. */
@@ -83,6 +91,8 @@ export function WorkspaceFilesSurface({
 	closeShortcutLabel,
 	shortcutPlatform,
 	onReturnFocus,
+	openRequest = null,
+	onFileOpened,
 }: WorkspaceFilesSurfaceProps): React.ReactNode {
 	const [windows, dispatch] = React.useReducer(reduceFloatWindows, new Map());
 	// The files the float windows edit, one model each, kept while any tab shows them so edits
@@ -129,6 +139,7 @@ export function WorkspaceFilesSurface({
 		if (workspaceId !== null) {
 			const unsaved = documents.dirtyPaths(workspaceId);
 			dispatch({ kind: 'open', preview, target, unsaved, workspaceId });
+			if (target.kind === 'file') onFileOpened?.(workspaceId, target.path);
 		}
 	});
 	const refresh = useMemoizedFn(() => setRefreshCount((count) => count + 1));
@@ -149,6 +160,32 @@ export function WorkspaceFilesSurface({
 			workspaceId,
 		}));
 	});
+	// Quick open's file opens as a kept tab and takes the keyboard, at its line where it names one.
+	const requested = React.useRef<number | null>(null);
+	React.useEffect(() => {
+		if (openRequest === null || openRequest.serial === requested.current) return;
+		requested.current = openRequest.serial;
+		if (openRequest.workspaceId !== workspaceId) return;
+		const { line, column, path } = openRequest;
+		open({ kind: 'file', path }, false);
+		setReveal((previous) => ({
+			match: {
+				focus: true,
+				path,
+				range:
+					line === undefined
+						? null
+						: {
+								endColumn: column ?? 1,
+								endLineNumber: line,
+								startColumn: column ?? 1,
+								startLineNumber: line,
+							},
+				serial: (previous?.match.serial ?? 0) + 1,
+			},
+			workspaceId,
+		}));
+	}, [open, openRequest, workspaceId]);
 	const stepSearch = useMemoizedFn((direction: 1 | -1) => {
 		if (workspaceId === null) return;
 		const next = searches.step(workspaceId, direction);

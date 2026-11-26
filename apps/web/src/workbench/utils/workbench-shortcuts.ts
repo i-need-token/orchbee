@@ -59,7 +59,7 @@ interface WorkbenchShortcutDefinition {
 		| typeof WORKBENCH_ACTION_IDS.toggleRightBar
 		| typeof WORKBENCH_ACTION_IDS.toggleSidebar;
 	readonly input:
-		| { readonly filter: 'actions' | 'all' }
+		| { readonly filter: 'actions' | 'all' | 'files' }
 		| { readonly groupId: null }
 		| WorkbenchPanelPositionInput
 		| WorkbenchTabPositionInput
@@ -108,6 +108,19 @@ export const WORKBENCH_SHORTCUTS = {
 		id: WORKBENCH_ACTION_IDS.equalizeActivePanels,
 		input: undefined,
 		shortcutId: WORKBENCH_ACTION_IDS.equalizeActivePanels,
+	},
+	/**
+	 * Finds a Workspace file by name. On macOS it takes Command-P, which a browser tab would print
+	 * with, as editors do; elsewhere Control-P stays the shell's previous-command key.
+	 */
+	filesSearch: {
+		defaults: {
+			apple: chord('KeyP', ['mod']),
+			standard: chord('KeyP', ['alt', 'control']),
+		},
+		id: WORKBENCH_ACTION_IDS.openSearch,
+		input: { filter: 'files' },
+		shortcutId: 'workbench.search.files.open',
 	},
 	focusActivePanelDown: {
 		defaults: {
@@ -497,6 +510,7 @@ const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([
 	'closeActiveTerminal',
 	'decreaseTerminalFontSize',
 	'equalizePanels',
+	'filesSearch',
 	'focusActivePanelDown',
 	'focusActivePanelLeft',
 	'focusPanel1',
@@ -730,6 +744,8 @@ function defaultBindingsFor(platform: WorkbenchShortcutPlatform): WorkbenchShort
 			WORKBENCH_SHORTCUTS.decreaseTerminalFontSize.defaults[platform],
 		[WORKBENCH_SHORTCUTS.equalizePanels.shortcutId]:
 			WORKBENCH_SHORTCUTS.equalizePanels.defaults[platform],
+		[WORKBENCH_SHORTCUTS.filesSearch.shortcutId]:
+			WORKBENCH_SHORTCUTS.filesSearch.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelDown.shortcutId]:
 			WORKBENCH_SHORTCUTS.focusActivePanelDown.defaults[platform],
 		[WORKBENCH_SHORTCUTS.focusActivePanelLeft.shortcutId]:

@@ -10,6 +10,7 @@ import type {
 	WorkbenchSearchProviderArgumentPicker,
 } from '../../types/workbench-search-provider';
 import type { WorkbenchSearchEvent, WorkbenchSearchState } from './model/workbench-search-state';
+import { MarkedText } from './components/marked-text/MarkedText';
 import { useWorkbenchSearchSurface } from './hooks/useWorkbenchSearchSurface';
 import styles from './WorkbenchSearchSurface.module.css';
 
@@ -198,11 +199,17 @@ export function WorkbenchSearchSurface({
 												<ProductIcon name={row.icon} />
 											</span>
 											<span className={styles['rowContent']}>
-												<span className={styles['rowLabel']}>{row.label}</span>
-												{(row.disabledReason ?? row.description) !== undefined && (
-													<span className={styles['rowDescription']}>
-														{row.disabledReason ?? row.description}
-													</span>
+												<span className={styles['rowLabel']}>
+													<MarkedText ranges={row.labelMatches} text={row.label} />
+												</span>
+												{row.disabledReason === undefined ? (
+													row.description !== undefined && (
+														<span className={styles['rowDescription']}>
+															<MarkedText ranges={row.descriptionMatches} text={row.description} />
+														</span>
+													)
+												) : (
+													<span className={styles['rowDescription']}>{row.disabledReason}</span>
 												)}
 											</span>
 											<span className={styles['rowTrailing']}>

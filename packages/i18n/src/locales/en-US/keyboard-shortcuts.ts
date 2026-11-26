@@ -58,6 +58,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.splitRight': 'Split right',
 	'keyboard.shortcuts.actions.swapPanelVisible': 'Visually swap panel',
 	'keyboard.shortcuts.actions.toggleRightBar': 'Toggle right bar',
+	'keyboard.shortcuts.actions.filesSearch': 'Search files by name',
 	'keyboard.shortcuts.actions.toggleSidebar': 'Toggle sidebar',
 	'keyboard.shortcuts.availability.activePanel': 'When an active terminal panel is available',
 	'keyboard.shortcuts.availability.activeTerminal': 'When a terminal tab is active',

@@ -61,15 +61,25 @@ export type WorkbenchSearchProviderResultInvocation =
 			readonly unbound: UnboundActionInvocation;
 	  };
 
+/** A span of a row's text the query matched, in UTF-16 offsets, from `start` up to `end`. */
+export interface WorkbenchSearchTextRange {
+	readonly end: number;
+	readonly start: number;
+}
+
 export interface WorkbenchSearchProviderResult {
 	readonly availability: ActionAvailability;
 	readonly canonicalLabel: string;
 	readonly description?: string | undefined;
+	/** What the query matched in the description, ascending and apart; the row marks them. */
+	readonly descriptionMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly icon: ProductIconName;
 	readonly id: string;
 	readonly invocation: WorkbenchSearchProviderResultInvocation;
 	readonly keywords: readonly string[];
 	readonly label: string;
+	/** What the query matched in the label, ascending and apart; the row marks them. */
+	readonly labelMatches?: readonly WorkbenchSearchTextRange[] | undefined;
 	readonly recommended?: boolean | undefined;
 	readonly shortcut?: string | undefined;
 	readonly surfaceDisabled?: true | undefined;

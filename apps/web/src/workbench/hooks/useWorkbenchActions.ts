@@ -632,6 +632,7 @@ export function useWorkbenchActions({
 					return true;
 				}
 				case 'actionsSearch':
+				case 'filesSearch':
 				case 'search': {
 					const definition = WORKBENCH_SHORTCUTS[binding.action];
 					if (

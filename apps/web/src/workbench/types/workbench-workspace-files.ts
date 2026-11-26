@@ -64,6 +64,18 @@ export interface WorkspaceFileListReport {
 	readonly state: Exclude<WorkspaceSearchState, 'invalid-pattern'>;
 }
 
+/**
+ * A file the window asks the right bar to open as a kept tab, and where in it, counted from 1 in
+ * lines and UTF-16 columns; no line opens it where it was. Each ask has its own serial.
+ */
+export interface WorkspaceFileOpenRequest {
+	readonly serial: number;
+	readonly workspaceId: string;
+	readonly path: string;
+	readonly line?: number | undefined;
+	readonly column?: number | undefined;
+}
+
 /** What became of one file a replacement named. */
 export interface WorkspaceReplaceReport {
 	readonly path: string;

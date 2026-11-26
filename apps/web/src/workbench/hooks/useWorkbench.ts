@@ -159,6 +159,10 @@ import {
 
 /** A window that withholds Search keeps the Actions filter, the TUI's action menu counterpart. */
 const ACTION_SEARCH_FILTERS: readonly WorkbenchSearchFilter[] = ['actions'];
+/** Search across Agents, Actions and Settings; Files joins it where the right bar reads files. */
+const GENERAL_SEARCH_FILTERS: readonly WorkbenchSearchFilter[] = WORKBENCH_SEARCH_FILTERS.filter(
+	(filter) => filter !== 'files',
+);
 
 const ACTIVE_TAB_UNAVAILABLE = { code: 'active-tab-unavailable', kind: 'blocked' } as const;
 
@@ -544,7 +548,10 @@ export function useWorkbench({
 		| null
 	>(null);
 	const automaticNamePlaceholder = nameEditor?.unnamed === true ? nameEditor.title : undefined;
-	const searchFilters = searchOffered ? WORKBENCH_SEARCH_FILTERS : ACTION_SEARCH_FILTERS;
+	const searchFilters = React.useMemo<readonly WorkbenchSearchFilter[]>(() => {
+		const offered = searchOffered ? GENERAL_SEARCH_FILTERS : ACTION_SEARCH_FILTERS;
+		return rightBarOffered ? [...offered, 'files'] : offered;
+	}, [rightBarOffered, searchOffered]);
 	const openSearch = useMemoizedFn((input: { readonly filter: WorkbenchSearchFilter }) => {
 		searchHasOpened.current = true;
 		if (

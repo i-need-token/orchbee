@@ -147,6 +147,25 @@ it and without slowing terminal work.
   change has 60 seconds, after which its whole process group is stopped (on Windows, only Git
   itself); the Server answers it only to a connection that may also start and end terminals.
 
+## Quick open, as implemented
+
+- **Where.** Search gains a Files filter in a window whose Server reads Workspace files, opened
+  with `Cmd+P` on macOS and `Ctrl+Alt+P` elsewhere, where `Ctrl+P` stays the shell's. Files are
+  not mixed into the All filter.
+- **Listing.** The first query loads the right bar's chunk and lists the Workspace's files with
+  `list-files`, honouring ignore files, up to the operation's 100,000-path limit. Results show while
+  the listing still arrives and refresh as more paths come. The list is let go when Search closes,
+  so nothing stays in memory between uses; a listing that fails with nothing found offers Retry.
+- **Matching.** Every space-separated piece must match in order as a subsequence; a piece without
+  a slash is tried against the file name first. Scoring favours word and path-segment starts,
+  camel case, letters together and the file name, then shorter paths. A longer query searches only
+  what the shorter one kept. The best 50 show, with the matched letters marked in the name and
+  folder.
+- **Opening.** Enter opens the file in the float window as a kept tab with the keyboard in the
+  editor. A trailing `:line` or `:line:column` places the cursor there. With an empty query the
+  filter lists the files opened in this window, newest first, up to 20 per Workspace; this list is
+  not persisted.
+
 ## Deviations from the design discussion
 
 - **Process.** The service is the Server's own binary re-executed, not a new artifact, so packaging
@@ -162,7 +181,7 @@ it and without slowing terminal work.
   terminal", rows and group headers have no context menu, and the header and row buttons are reached
   by pointer only (the keyboard path is Space and Enter). Staging a conflict that still holds
   conflict markers does not warn. Discard All lists only the changes shown when the list was cut at 5000. Git 2.25 or later is needed.
-- **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
+- **State.** Open state, width and quick open's recently opened files are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw (6.4
   KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current architecture
@@ -174,14 +193,15 @@ it and without slowing terminal work.
   to the trash added about 3.9 KB raw (0.7 KB gzip), all messages in both locales. Content search
   added about 2.2 KB gzip for its protocol, and the Search view about 14 KB raw (3.0 KB gzip), again
   nearly all messages. Replacing added about 7.3 KB raw (1.6 KB gzip), its messages and protocol
-  operation. Against the branch point the initial JavaScript and CSS now grow
-  by about 99 KB raw (22.0 KB gzip). The main-bundle budget was raised from 10 KB to 16 KB gzip
-  rather than loading messages on demand, and the right bar is about 6.0 KB gzip over it; loading
-  the right bar's messages with its chunk, or dropping descriptions from the built catalog, would
-  bring it back under. The bar and float window chunk is about 15.8 KB gzip, the Search view
+  operation. Quick open added about 8.7 KB raw (2.3 KB gzip): its messages, shortcut, Action input
+  schema and the hook that loads matching with the right bar's chunk. Against the branch point the
+  initial JavaScript and CSS now grow by about 108 KB raw (24.3 KB gzip). The main-bundle budget was
+  raised from 10 KB to 16 KB gzip rather than loading messages on demand, and the right bar is about
+  8.3 KB gzip over it; loading the right bar's messages with its chunk, or dropping descriptions
+  from the built catalog, would bring it back under. The bar and float window chunk, which now
+  holds quick open's matching, is about 19.6 KB gzip, the Search view
   about 6.7 KB gzip and the editor pane about 7.4 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
 
 ## Later phases
 
-1. Quick open by filename, reusing the unified search surface where it fits.
-2. Persisted open state, width and expanded folders per Workspace across restarts.
+1. Persisted open state, width and expanded folders per Workspace across restarts.

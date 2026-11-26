@@ -47,8 +47,13 @@ export interface SearchMatchTarget {
 	readonly range: EditorRange;
 }
 
-/** A match the float window's editor shows and selects; each ask has its own serial. */
-export interface MatchReveal extends SearchMatchTarget {
+/**
+ * A place the float window's editor shows and selects, or, with no range, a file it only takes the
+ * keyboard in where it was; each ask has its own serial.
+ */
+export interface MatchReveal {
+	readonly path: string;
+	readonly range: EditorRange | null;
 	/** Whether the editor takes the keyboard, or it stays where it was. */
 	readonly focus: boolean;
 	readonly serial: number;

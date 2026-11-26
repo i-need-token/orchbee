@@ -58,6 +58,7 @@ export const WORKBENCH_ACTION_IDS = {
 	openAgentStart: 'workbench.agent.start',
 	startAgent: 'workbench.agent.start-provider',
 	openSearch: 'workbench.search.open',
+	openWorkspaceFile: 'workbench.workspace-files.open',
 	openSettings: 'workbench.settings.open',
 	openShortcuts: 'workbench.shortcuts.open',
 	updateClient: 'workbench.client.update',
@@ -274,6 +275,14 @@ export interface WorkbenchSearchOpenInput {
 	readonly filter: WorkbenchSearchFilter;
 }
 
+/** A Workspace file to open, and where in it, counted from 1; no line opens it at the top. */
+export interface WorkbenchWorkspaceFileOpenInput {
+	readonly workspaceId: string;
+	readonly path: string;
+	readonly line?: number | undefined;
+	readonly column?: number | undefined;
+}
+
 export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
@@ -351,6 +360,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRightBar]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.openWorkspaceFile]: ActionSignature<WorkbenchWorkspaceFileOpenInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.updateWorkspace]: ActionSignature<WorkbenchWorkspaceUpdateInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorktree]: ActionSignature<
@@ -421,7 +431,13 @@ function isRecord(input: unknown): input is Readonly<Record<string, unknown>> {
 }
 
 function isWorkbenchSearchFilter(input: unknown): input is WorkbenchSearchFilter {
-	return input === 'all' || input === 'agents' || input === 'actions' || input === 'settings';
+	return (
+		input === 'all' ||
+		input === 'agents' ||
+		input === 'actions' ||
+		input === 'settings' ||
+		input === 'files'
+	);
 }
 
 export const workbenchTerminalCreateInput: ActionInputValidation<WorkbenchTerminalCreateInput> = {
@@ -686,6 +702,24 @@ export const workbenchProjectInput: ActionInputValidation<WorkbenchProjectInput>
 			? { success: true, data: { projectId: input['projectId'] } }
 			: { success: false, code: 'expected-workbench-project-input' },
 };
+
+const workspaceFileOpenSchema = z.strictObject({
+	column: z.number().int().positive().optional(),
+	line: z.number().int().positive().optional(),
+	path: z.string().min(1),
+	workspaceId: z.string().min(1),
+});
+
+export const workbenchWorkspaceFileOpenInput: ActionInputValidation<WorkbenchWorkspaceFileOpenInput> =
+	{
+		name: 'WorkbenchWorkspaceFileOpenInput',
+		parse: (input) => {
+			const result = workspaceFileOpenSchema.safeParse(input);
+			return result.success
+				? { data: result.data, success: true }
+				: { code: 'expected-workbench-workspace-file-open-input', success: false };
+		},
+	};
 
 const workspaceActivationSchema = z
 	.object({

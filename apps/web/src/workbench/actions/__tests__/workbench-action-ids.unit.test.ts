@@ -290,7 +290,7 @@ describe('workbench action contracts', () => {
 			success: true,
 			data: { filter: 'actions' },
 		});
-		expect(workbenchSearchOpenInput.parse({ filter: 'files' })).toEqual({
+		expect(workbenchSearchOpenInput.parse({ filter: 'symbols' })).toEqual({
 			success: false,
 			code: 'expected-workbench-search-filter',
 		});

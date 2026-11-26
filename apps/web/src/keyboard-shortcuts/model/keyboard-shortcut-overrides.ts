@@ -202,6 +202,9 @@ export function createKeyboardShortcutBindings(
 		[WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.swapActivePanelVisible.shortcutId,
 		),
+		[WORKBENCH_SHORTCUTS.filesSearch.shortcutId]: bindingFor(
+			WORKBENCH_SHORTCUTS.filesSearch.shortcutId,
+		),
 		[WORKBENCH_SHORTCUTS.toggleRightBar.shortcutId]: bindingFor(
 			WORKBENCH_SHORTCUTS.toggleRightBar.shortcutId,
 		),
