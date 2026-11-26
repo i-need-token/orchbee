@@ -6,16 +6,16 @@ Select the smallest evidence that can judge the changed claims. Use of async wor
 gestures, or several files does not by itself require a stronger method; a real ordering, ownership,
 or durability risk does, however local the change looks.
 
-| The change has                                                                                     | It carries                                                                                           |
-| -------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| Local presentation without new domain state or transitions                                         | The existing component contract and tests admitted under [`TESTING.md`](TESTING.md)                  |
-| Local completion, cancellation, or retry under one established owner with bounded effects          | Types and focused tests for stale results, cancellation, failure, and cleanup                        |
-| Owned domain state, interacting transitions, persistence, or process coordination                  | Explicit state, events, outputs, and invariants in types, with deterministic tests of the core       |
-| Combinations or sequences that named examples cannot bound                                         | Property-based or model-based exploration with shrinking and a replayable failure                    |
-| A cross-process protocol that passes the [TLA+ admission bar](#tla)                                | A TLA+ model with safety and applicable progress checks, and evidence tying it to the implementation |
-| A critical pure transformation that needs a claim over all inputs                                  | A Lean theorem                                                                                       |
-| A source-compatible port or behavioral replica                                                     | A pinned reference, a stated parity scope, and differential checks inside that scope                 |
-| Timing, geometry, focus, gestures, or platform behavior that cannot be judged at the core boundary | Controlled adapter or system traces at the lowest faithful boundary                                  |
+| The change has                                                                                     | It carries                                                                                       |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Local presentation without new domain state or transitions                                         | The existing component contract and tests admitted under [`TESTING.md`](TESTING.md)              |
+| Local completion, cancellation, or retry under one established owner with bounded effects          | Types and focused tests for stale results, cancellation, failure, and cleanup                    |
+| Owned domain state, interacting transitions, persistence, or process coordination                  | Explicit state, events, outputs, and invariants in types, with deterministic tests of the core   |
+| Combinations or sequences that named examples cannot bound                                         | Property-based or model-based exploration with shrinking and a replayable failure                |
+| A cross-process protocol that passes the [TLA+ admission bar](#tla)                                | Implementation tests of its harmful orders; a TLA+ model only when they cannot settle the design |
+| A critical pure transformation that needs a claim over all inputs                                  | A Lean theorem                                                                                   |
+| A source-compatible port or behavioral replica                                                     | A pinned reference, a stated parity scope, and differential checks inside that scope             |
+| Timing, geometry, focus, gestures, or platform behavior that cannot be judged at the core boundary | Controlled adapter or system traces at the lowest faithful boundary                              |
 
 - Types, transitions, and behavior tests are the model. Add prose only for a decision, assumption,
   or boundary they do not explain, under [package documents](DOCUMENTATION.md#package-documents);
@@ -75,7 +75,8 @@ techniques: success, failure, cancellation, and the intentional no-op.
 ## TLA+
 
 A TLA+ model is a design aid for a protocol, not a regression net: implementation tests carry
-regressions. Admit a new model only when all three hold, and when in doubt, do not add it:
+regressions, and no change is required to add a model. Add one only when it is necessary to settle
+a protocol's design, which needs all three to hold; when in doubt, do not add it:
 
 - independently ordered processes share a handover, commit, recovery, or ownership protocol;
 - a wrong order would end every terminal, lose user data, or leave two owners of one resource; and
