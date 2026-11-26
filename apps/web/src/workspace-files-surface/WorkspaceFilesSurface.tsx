@@ -3,15 +3,18 @@ import type { TabModel } from '@orchbee/tab-strip/model';
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 
-import type { WorkbenchWorkspaceFilesSource } from '../workbench';
+import type { WorkbenchAgentSource, WorkbenchWorkspaceFilesSource } from '../workbench';
 import type { DiffOptions } from './components/float-window/components/editor-pane/EditorPane';
 import { FloatWindow } from './components/float-window/FloatWindow';
 import { floatOf, reduceFloatWindows } from './float-reducer';
 import type { FloatTarget } from './float-tabs';
 import { RightBar } from './components/right-bar/RightBar';
+import { useAgentSettled } from './hooks/useAgentSettled';
 
 export interface WorkspaceFilesSurfaceProps {
 	readonly source: WorkbenchWorkspaceFilesSource;
+	/** The terminal Agents; one that stops working refreshes what shows. */
+	readonly agentSource?: WorkbenchAgentSource | undefined;
 	/** The Workspace whose files show; null shows a note in the bar and no float window. */
 	readonly workspaceId: string | null;
 	/** Where the right bar draws; null while it is closed. */
@@ -43,6 +46,7 @@ const NO_ACTIVE_TAB = (): null => null;
  */
 export function WorkspaceFilesSurface({
 	source,
+	agentSource,
 	workspaceId,
 	barHost,
 	floatHost,
@@ -72,6 +76,16 @@ export function WorkspaceFilesSurface({
 		if (workspaceId !== null) dispatch({ kind: 'open', preview, target, workspaceId });
 	});
 	const refresh = useMemoizedFn(() => setRefreshCount((count) => count + 1));
+	// Reads what shows again when the files likely changed: the open bar reads its view and the
+	// float window with it; with the bar closed, only an expanded float window reads. Nothing reads
+	// while neither shows, or while the window is hidden, which reads again when it comes back.
+	const [barRefreshCount, setBarRefreshCount] = React.useState(0);
+	const invalidate = useMemoizedFn(() => {
+		if (document.hidden) return;
+		if (barHost !== null) setBarRefreshCount((count) => count + 1);
+		else if (float.open) refresh();
+	});
+	useAgentSettled(agentSource, invalidate);
 
 	return (
 		<>
@@ -80,6 +94,7 @@ export function WorkspaceFilesSurface({
 				: createPortal(
 						<RightBar
 							activeTarget={float.open ? (activeTab?.target ?? null) : null}
+							autoRefreshCount={barRefreshCount}
 							closeShortcutLabel={closeShortcutLabel}
 							key={workspaceId ?? ''}
 							onClose={onCloseBar}

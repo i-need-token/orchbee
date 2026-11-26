@@ -33,6 +33,28 @@ export interface FloatWindowProps {
 	readonly onReturnFocus: () => void;
 }
 
+/** One of the window's icon actions, labelled for screen readers and on hover. */
+function iconButton(
+	label: string,
+	icon: React.ComponentProps<typeof ProductIcon>['name'],
+	onClick: () => void,
+	pressed?: boolean,
+): React.ReactNode {
+	return (
+		<Button
+			aria-label={label}
+			aria-pressed={pressed}
+			className={styles['action']}
+			onClick={onClick}
+			size='icon-xs'
+			title={label}
+			variant='ghost'
+		>
+			<ProductIcon name={icon} />
+		</Button>
+	);
+}
+
 /**
  * The float window: files and diffs opened from the right bar, shown over the Tab's terminals
  * without resizing them. It has its own tab strip; Esc or choosing a Tab above collapses it to a
@@ -98,24 +120,6 @@ export function FloatWindow({
 	const toggle = (key: keyof DiffOptions): void => {
 		onDiffOptionsChange({ ...diffOptions, [key]: !diffOptions[key] });
 	};
-	const iconButton = (
-		label: string,
-		icon: React.ComponentProps<typeof ProductIcon>['name'],
-		onClick: () => void,
-		pressed?: boolean,
-	): React.ReactNode => (
-		<Button
-			aria-label={label}
-			aria-pressed={pressed}
-			className={styles['action']}
-			onClick={onClick}
-			size='icon-xs'
-			title={label}
-			variant='ghost'
-		>
-			<ProductIcon name={icon} />
-		</Button>
-	);
 	return (
 		<section
 			aria-label={intl.formatMessage(workbenchMessages.rightBarFloatLabel, { name })}

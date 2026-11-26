@@ -712,6 +712,7 @@ export function Workbench({
 				{workspaceFilesLoaded && workspaceFilesSource !== undefined ? (
 					<React.Suspense fallback={null}>
 						<LazyWorkspaceFilesSurface
+							agentSource={agentObservationSource}
 							barHost={view.isRightBarVisible ? rightBarHost : null}
 							closeShortcutLabel={view.rightBarShortcutLabel}
 							floatHost={floatHost}

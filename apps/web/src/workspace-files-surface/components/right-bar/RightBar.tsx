@@ -25,6 +25,8 @@ export interface RightBarProps {
 	readonly onOpen: (target: FloatTarget, preview: boolean) => void;
 	/** Tells the float window that the files may have changed. */
 	readonly onRefresh: () => void;
+	/** Changes when the files likely changed, which reads the shown view again. */
+	readonly autoRefreshCount: number;
 }
 
 type View = 'files' | 'changes';
@@ -69,7 +71,8 @@ function changeRows(outcome: Extract<WorkspaceFilesOutcome, { kind: 'git-status'
 
 /**
  * The right bar: the Workspace's files as a tree and its Git changes, both read on demand and read
- * again on Refresh, on switching views and when the window comes back to the front. Nothing polls.
+ * again on Refresh, on switching views, when the window comes back to the front and when a terminal
+ * Agent stops working. Nothing polls.
  */
 export function RightBar({
 	source,
@@ -77,6 +80,7 @@ export function RightBar({
 	onClose,
 	closeShortcutLabel,
 	activeTarget,
+	autoRefreshCount,
 	onOpen,
 	onRefresh,
 }: RightBarProps): React.ReactNode {
@@ -137,7 +141,7 @@ export function RightBar({
 	});
 	React.useEffect(() => {
 		refresh();
-	}, [refresh, view, workspaceId]);
+	}, [autoRefreshCount, refresh, view, workspaceId]);
 	React.useEffect(() => {
 		window.addEventListener('focus', refresh);
 		return () => window.removeEventListener('focus', refresh);
