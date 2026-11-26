@@ -62,6 +62,10 @@ export interface RightBarProps {
 	readonly onOpenMatch: (target: SearchMatchTarget, how: OpenMatchHow) => void;
 	/** Hands the keyboard back to the terminal. */
 	readonly onReturnFocus: () => void;
+	/** A Workspace's files open with edits not saved, which a replacement leaves out. */
+	readonly unsavedPaths: (workspaceId: string) => ReadonlySet<string>;
+	/** Reads again what shows, after a replacement may have written files. */
+	readonly onFilesWritten: () => void;
 }
 
 /** One automatic refresh: its count, and what may have changed. */
@@ -101,6 +105,8 @@ export function RightBar({
 	openPaths,
 	onOpenMatch,
 	onReturnFocus,
+	unsavedPaths,
+	onFilesWritten,
 }: RightBarProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [view, setView] = React.useState<View>('files');
@@ -241,6 +247,7 @@ export function RightBar({
 				}
 			>
 				<LazySearchView
+					onFilesWritten={onFilesWritten}
 					onOpenMatch={onOpenMatch}
 					onReturnFocus={onReturnFocus}
 					onReveal={revealInTree}
@@ -249,6 +256,7 @@ export function RightBar({
 					searches={searches}
 					shortcutPlatform={shortcutPlatform}
 					source={source}
+					unsavedPaths={() => unsavedPaths(workspaceId)}
 					workspaceId={workspaceId}
 				/>
 			</React.Suspense>

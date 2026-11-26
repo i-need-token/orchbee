@@ -566,9 +566,9 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.git.discardMixedDescription':
 		'已跟踪的文件会恢复为已暂存的版本，没有暂存的则恢复为上次提交的版本，此操作无法撤销。{count} 个新文件会移到系统回收站，可以从那里恢复。',
 	'workbench.rightBar.git.discardTrashConfirm': '移到回收站',
-	'workbench.rightBar.git.discardMore': '以及另外 {count} 个文件',
+	'workbench.rightBar.confirm.more': '以及另外 {count} 个文件',
 	'workbench.rightBar.git.discardConfirm': '放弃',
-	'workbench.rightBar.git.cancel': '取消',
+	'workbench.rightBar.confirm.cancel': '取消',
 	'workbench.rightBar.git.failed.commit': '提交失败',
 	'workbench.rightBar.git.failed.stage': '暂存失败',
 	'workbench.rightBar.git.failed.unstage': '取消暂存失败',
@@ -617,6 +617,22 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.search.results': '搜索结果',
 	'workbench.rightBar.search.lineTitle': '第 {line} 行',
 	'workbench.rightBar.search.dismiss': '移除',
+	'workbench.rightBar.search.toggleReplace': '切换替换',
+	'workbench.rightBar.search.replace': '替换',
+	'workbench.rightBar.search.preserveCase': '保留大小写',
+	'workbench.rightBar.search.replaceAll': '全部替换',
+	'workbench.rightBar.search.replaceQuestion':
+		'{empty, select, true {要删除 {files} 个文件中的 {matches} 处匹配吗？} other {要将 {files} 个文件中的 {matches} 处匹配替换为“{replacement}”吗？}}',
+	'workbench.rightBar.search.replacing': '正在替换…',
+	'workbench.rightBar.search.replaced': '已替换 {files} 个文件中的 {matches} 处匹配。',
+	'workbench.rightBar.search.replaceUnsaved':
+		'{count} 个文件有未保存的更改，未替换。请先保存或还原。',
+	'workbench.rightBar.search.replaceChanged':
+		'{count} 个文件在搜索后有改动，已保持原样并重新搜索。',
+	'workbench.rightBar.search.replaceNotEditable':
+		'{count} 个文件是二进制、非 UTF-8 编码或过大，无法替换。',
+	'workbench.rightBar.search.replaceFailed':
+		'{count} 个文件未能替换或没有收到回应。请重新搜索以查看当前状态。',
 	'workbench.rightBar.search.excludeFolder': '排除文件夹',
 	'workbench.rightBar.search.excludeType': '排除 {pattern} 文件',
 	'workbench.rightBar.search.includeType': '仅搜索 {pattern} 文件',

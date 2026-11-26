@@ -243,6 +243,7 @@ export function WorkspaceFilesSurface({
 								);
 							}}
 							onCommitted={committed}
+							onFilesWritten={() => watch.notify(EVERYTHING)}
 							onDismissNote={() => {
 								if (workspaceId !== null) {
 									setNoteDismissed((previous) => new Set(previous).add(workspaceId));
@@ -261,6 +262,7 @@ export function WorkspaceFilesSurface({
 							searches={searches}
 							shortcutPlatform={shortcutPlatform}
 							source={source}
+							unsavedPaths={(id) => documents.dirtyPaths(id)}
 							watchState={watch.state}
 							workspaceId={workspaceId}
 						/>,

@@ -6,6 +6,72 @@
 	padding: var(--ob-ref-space-1) var(--ob-ref-space-2) var(--ob-ref-space-0-5);
 }
 
+/* The search and replace boxes, with the toggle that shows the replace box at their start. */
+.texts {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.fields {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+	min-width: var(--ob-ref-space-0);
+}
+
+/* As tall as a one-line box, so its chevron sits beside the search text. */
+.replaceToggle {
+	display: flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-md);
+	height: calc(1lh + 2 * var(--ob-ref-space-1) + 2 * var(--ob-ref-border-width-default));
+	padding: var(--ob-ref-space-0);
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	cursor: pointer;
+}
+
+.replaceToggle:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.replaceToggle:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+}
+
+.replaceRow {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ob-ref-space-0-5);
+}
+
+.replaceRow > .box {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+}
+
+/* The Replace All button lines up with the replace box's first line. */
+.replaceRow > .option {
+	margin-block-start: var(--ob-ref-space-1);
+}
+
+.option:disabled {
+	color: var(--ob-sys-color-icon-disabled);
+	cursor: default;
+}
+
+.option:disabled:hover {
+	background: transparent;
+}
+
 /* A box and the options inside its end, outlined together while either has the keyboard. */
 .box {
 	display: flex;

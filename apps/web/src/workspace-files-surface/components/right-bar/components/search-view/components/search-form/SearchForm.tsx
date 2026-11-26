@@ -66,6 +66,13 @@ const PREVIOUS_INPUT_SHORTCUT = {
 	code: 'ArrowUp',
 	modifiers: ['mod'],
 } as const satisfies KeyboardShortcutChord;
+/** Replaces every match shown, as an editor's Replace All does. */
+const REPLACE_ALL_SHORTCUT = {
+	code: 'Enter',
+	modifiers: ['mod', 'alt'],
+} as const satisfies KeyboardShortcutChord;
+/** Alt+P toggles keeping the case, and Cmd+Option+P on a Mac, beside the other options. */
+const PRESERVE_CASE_CODE = 'KeyP';
 
 export interface SearchFormProps {
 	readonly draft: SearchDraft;
@@ -73,7 +80,11 @@ export interface SearchFormProps {
 	readonly history: readonly string[];
 	readonly shortcutPlatform: KeyboardShortcutPlatform;
 	readonly patternReference: React.RefObject<HTMLTextAreaElement | null>;
+	/** Whether every match shown can be replaced now. */
+	readonly canReplaceAll: boolean;
 	readonly onChange: (change: Partial<SearchDraft>) => void;
+	/** Asks to replace every match shown. */
+	readonly onReplaceAll: () => void;
 	/** Searches now, without waiting for typing to pause. */
 	readonly onRun: () => void;
 	/** Moves the keyboard into the results; false when there are none. */
@@ -83,22 +94,26 @@ export interface SearchFormProps {
 }
 
 /**
- * The search view's boxes: the text with its three options, and, behind the details toggle, the
- * files to include and exclude with their own options. Enter searches at once; typing searches
- * once it pauses. ↑ on the first line and ↓ on the last walk through earlier searches, ↓ on the
- * last line otherwise moves into the results, and Mod+↑ and Mod+↓ move between the boxes.
+ * The search view's boxes: the text with its three options, behind the replace toggle what each
+ * match becomes, and, behind the details toggle, the files to include and exclude with their own
+ * options. Enter searches at once; typing searches once it pauses. ↑ on the first line and ↓ on
+ * the last walk through earlier searches, ↓ on the last line otherwise moves into the results,
+ * Mod+↑ and Mod+↓ move between the boxes, and Mod+Alt+Enter replaces every match.
  */
 export function SearchForm({
 	draft,
 	history,
 	shortcutPlatform,
 	patternReference,
+	canReplaceAll,
 	onChange,
+	onReplaceAll,
 	onRun,
 	onFocusResults,
 	onEscape,
 }: SearchFormProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
+	const replaceReference = React.useRef<HTMLTextAreaElement | null>(null);
 	const includesReference = React.useRef<HTMLInputElement | null>(null);
 	const excludesReference = React.useRef<HTMLInputElement | null>(null);
 	// Where ↑ and ↓ are in the history, and the text typed before walking into it.
@@ -107,9 +122,12 @@ export function SearchForm({
 	);
 
 	const boxes = (): readonly (HTMLTextAreaElement | HTMLInputElement)[] =>
-		[patternReference.current, includesReference.current, excludesReference.current].flatMap(
-			(box) => (box === null ? [] : [box]),
-		);
+		[
+			patternReference.current,
+			replaceReference.current,
+			includesReference.current,
+			excludesReference.current,
+		].flatMap((box) => (box === null ? [] : [box]));
 	/** Moves the keyboard to the box after or before `from`, or past the last into the results. */
 	const moveFrom = (from: HTMLTextAreaElement | HTMLInputElement, direction: 1 | -1): void => {
 		const all = boxes();
@@ -132,6 +150,22 @@ export function SearchForm({
 				)
 			) {
 				onChange(flipped(draft, toggle.key));
+				return true;
+			}
+		}
+		if (draft.replacing) {
+			if (
+				matchesKeyboardShortcutChord(
+					native,
+					toggleShortcut(PRESERVE_CASE_CODE, shortcutPlatform),
+					shortcutPlatform,
+				)
+			) {
+				onChange({ preserveCase: !draft.preserveCase });
+				return true;
+			}
+			if (matchesKeyboardShortcutChord(native, REPLACE_ALL_SHORTCUT, shortcutPlatform)) {
+				if (canReplaceAll) onReplaceAll();
 				return true;
 			}
 		}
@@ -197,6 +231,16 @@ export function SearchForm({
 			}
 		}
 	};
+	const onReplaceKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>): void => {
+		const box = event.currentTarget;
+		if (matchesKeyboardShortcutChord(event.nativeEvent, NEW_LINE_SHORTCUT, shortcutPlatform)) {
+			event.preventDefault();
+			box.setRangeText('\n', box.selectionStart, box.selectionEnd, 'end');
+			onChange({ replacement: box.value });
+			return;
+		}
+		if (sharedKeys(event)) event.preventDefault();
+	};
 	const onGlobKeyDown = (event: React.KeyboardEvent<HTMLInputElement>): void => {
 		if (sharedKeys(event)) event.preventDefault();
 	};
@@ -223,38 +267,88 @@ export function SearchForm({
 
 	const searchLabel = intl.formatMessage(workbenchMessages.rightBarSearchInput);
 	const detailsLabel = intl.formatMessage(workbenchMessages.rightBarSearchDetails);
+	const toggleReplaceLabel = intl.formatMessage(workbenchMessages.rightBarSearchToggleReplace);
+	const replaceLabel = intl.formatMessage(workbenchMessages.rightBarSearchReplace);
+	const replaceAllLabel = `${intl.formatMessage(workbenchMessages.rightBarSearchReplaceAll)} (${formatKeyboardShortcutChord(REPLACE_ALL_SHORTCUT, shortcutPlatform)})`;
+	const preserveCaseLabel = `${intl.formatMessage(workbenchMessages.rightBarSearchPreserveCase)} (${formatKeyboardShortcutChord(toggleShortcut(PRESERVE_CASE_CODE, shortcutPlatform), shortcutPlatform)})`;
 	return (
 		<div className={styles['root']}>
-			<div className={styles['box']}>
-				<textarea
-					aria-label={searchLabel}
-					className={styles['pattern']}
-					onChange={(event) => {
-						// Text typed over a recalled one is the new draft.
-						setWalk(null);
-						onChange({ pattern: event.target.value });
-					}}
-					onKeyDown={onPatternKeyDown}
-					placeholder={searchLabel}
-					ref={patternReference}
-					rows={1}
-					spellCheck={false}
-					title={intl.formatMessage(workbenchMessages.rightBarSearchInputTitle, {
-						newLine: formatKeyboardShortcutChord(NEW_LINE_SHORTCUT, shortcutPlatform),
-					})}
-					value={draft.pattern}
-				/>
-				<div className={styles['options']}>
-					{TOGGLES.map((toggle) => {
-						const label = intl.formatMessage(toggle.message);
-						const shortcut = formatKeyboardShortcutChord(
-							toggleShortcut(toggle.code, shortcutPlatform),
-							shortcutPlatform,
-						);
-						return option(`${label} (${shortcut})`, toggle.icon, draft[toggle.key], () =>
-							onChange(flipped(draft, toggle.key)),
-						);
-					})}
+			<div className={styles['texts']}>
+				<button
+					aria-expanded={draft.replacing}
+					aria-label={toggleReplaceLabel}
+					className={styles['replaceToggle']}
+					onClick={() => onChange({ replacing: !draft.replacing })}
+					title={toggleReplaceLabel}
+					type='button'
+				>
+					<ProductIcon name={draft.replacing ? 'chevron-down' : 'chevron-right'} />
+				</button>
+				<div className={styles['fields']}>
+					<div className={styles['box']}>
+						<textarea
+							aria-label={searchLabel}
+							className={styles['pattern']}
+							onChange={(event) => {
+								// Text typed over a recalled one is the new draft.
+								setWalk(null);
+								onChange({ pattern: event.target.value });
+							}}
+							onKeyDown={onPatternKeyDown}
+							placeholder={searchLabel}
+							ref={patternReference}
+							rows={1}
+							spellCheck={false}
+							title={intl.formatMessage(workbenchMessages.rightBarSearchInputTitle, {
+								newLine: formatKeyboardShortcutChord(NEW_LINE_SHORTCUT, shortcutPlatform),
+							})}
+							value={draft.pattern}
+						/>
+						<div className={styles['options']}>
+							{TOGGLES.map((toggle) => {
+								const label = intl.formatMessage(toggle.message);
+								const shortcut = formatKeyboardShortcutChord(
+									toggleShortcut(toggle.code, shortcutPlatform),
+									shortcutPlatform,
+								);
+								return option(`${label} (${shortcut})`, toggle.icon, draft[toggle.key], () =>
+									onChange(flipped(draft, toggle.key)),
+								);
+							})}
+						</div>
+					</div>
+					{draft.replacing ? (
+						<div className={styles['replaceRow']}>
+							<div className={styles['box']}>
+								<textarea
+									aria-label={replaceLabel}
+									className={styles['pattern']}
+									onChange={(event) => onChange({ replacement: event.target.value })}
+									onKeyDown={onReplaceKeyDown}
+									placeholder={replaceLabel}
+									ref={replaceReference}
+									rows={1}
+									spellCheck={false}
+									value={draft.replacement}
+								/>
+								<div className={styles['options']}>
+									{option(preserveCaseLabel, 'preserve-case', draft.preserveCase, () =>
+										onChange({ preserveCase: !draft.preserveCase }),
+									)}
+								</div>
+							</div>
+							<button
+								aria-label={replaceAllLabel}
+								className={styles['option']}
+								disabled={!canReplaceAll}
+								onClick={onReplaceAll}
+								title={replaceAllLabel}
+								type='button'
+							>
+								<ProductIcon name='replace-all' />
+							</button>
+						</div>
+					) : null}
 				</div>
 			</div>
 			<div className={styles['detailsRow']}>

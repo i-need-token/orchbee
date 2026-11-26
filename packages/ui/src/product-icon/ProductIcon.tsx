@@ -45,10 +45,13 @@ export type ProductIconName =
 	| 'new-folder'
 	| 'panels'
 	| 'pin'
+	| 'preserve-case'
 	| 'question'
 	| 'refresh'
 	| 'regex'
 	| 'remove'
+	| 'replace'
+	| 'replace-all'
 	| 'restore'
 	| 'save'
 	| 'screen-full'
@@ -119,10 +122,13 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
+				name === 'preserve-case' && styles['preserveCase'],
 				name === 'question' && styles['question'],
 				name === 'refresh' && styles['refresh'],
 				name === 'regex' && styles['regex'],
 				name === 'remove' && styles['remove'],
+				name === 'replace' && styles['replace'],
+				name === 'replace-all' && styles['replaceAll'],
 				name === 'restore' && styles['restore'],
 				name === 'save' && styles['save'],
 				name === 'screen-full' && styles['screenFull'],

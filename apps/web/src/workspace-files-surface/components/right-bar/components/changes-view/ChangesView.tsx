@@ -26,10 +26,7 @@ import {
 	CommitBox,
 	type CommitRequest,
 } from './components/commit-box/CommitBox';
-import {
-	type ChangeQuestion,
-	ConfirmChangeDialog,
-} from './components/confirm-change-dialog/ConfirmChangeDialog';
+import { type ConfirmQuestion, ConfirmDialog } from '../confirm-dialog/ConfirmDialog';
 
 import styles from './ChangesView.module.css';
 
@@ -38,7 +35,7 @@ type Doing = 'commit' | 'stage' | 'unstage' | 'discard';
 
 /** A question waiting for the person, and what a yes does. */
 interface Pending {
-	readonly question: ChangeQuestion;
+	readonly question: ConfirmQuestion;
 	readonly proceed: () => void;
 }
 
@@ -301,7 +298,7 @@ export function ChangesView({
 				onToggle={toggle}
 				selectedKey={selectedKey}
 			/>
-			<ConfirmChangeDialog
+			<ConfirmDialog
 				onCancel={() => setPending(null)}
 				onConfirm={() => {
 					if (pending === null) return;

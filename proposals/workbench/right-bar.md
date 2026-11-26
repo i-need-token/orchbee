@@ -173,15 +173,15 @@ it and without slowing terminal work.
   (2.4 KB gzip), again nearly all messages and the protocol's new operations. Moving untracked files
   to the trash added about 3.9 KB raw (0.7 KB gzip), all messages in both locales. Content search
   added about 2.2 KB gzip for its protocol, and the Search view about 14 KB raw (3.0 KB gzip), again
-  nearly all messages. Against the branch point the initial JavaScript and CSS now grow
-  by about 92 KB raw (20.4 KB gzip). The main-bundle budget was raised from 10 KB to 16 KB gzip
-  rather than loading messages on demand, and the right bar is about 4.4 KB gzip over it; loading
+  nearly all messages. Replacing added about 7.3 KB raw (1.6 KB gzip), its messages and protocol
+  operation. Against the branch point the initial JavaScript and CSS now grow
+  by about 99 KB raw (22.0 KB gzip). The main-bundle budget was raised from 10 KB to 16 KB gzip
+  rather than loading messages on demand, and the right bar is about 6.0 KB gzip over it; loading
   the right bar's messages with its chunk, or dropping descriptions from the built catalog, would
   bring it back under. The bar and float window chunk is about 15.8 KB gzip, the Search view
-  about 5.5 KB gzip and the editor pane about 7.4 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
+  about 6.7 KB gzip and the editor pane about 7.4 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
 
 ## Later phases
 
-1. Replace across the Workspace, and quick open by filename, reusing the unified search surface
-   where it fits.
+1. Quick open by filename, reusing the unified search surface where it fits.
 2. Persisted open state, width and expanded folders per Workspace across restarts.

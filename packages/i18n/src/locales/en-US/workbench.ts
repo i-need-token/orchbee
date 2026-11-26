@@ -617,10 +617,10 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.git.discardMixedDescription':
 		"{count, plural, one {Tracked files go back to their staged version, or to their last commit if nothing of them is staged, and that can't be undone. The new file goes to the system trash, where you can restore it.} other {Tracked files go back to their staged version, or to their last commit if nothing of them is staged, and that can't be undone. The # new files go to the system trash, where you can restore them.}}",
 	'workbench.rightBar.git.discardTrashConfirm': 'Move to Trash',
-	'workbench.rightBar.git.discardMore':
+	'workbench.rightBar.confirm.more':
 		'{count, plural, one {and # more file} other {and # more files}}',
 	'workbench.rightBar.git.discardConfirm': 'Discard',
-	'workbench.rightBar.git.cancel': 'Cancel',
+	'workbench.rightBar.confirm.cancel': 'Cancel',
 	'workbench.rightBar.git.failed.commit': 'Commit failed',
 	'workbench.rightBar.git.failed.stage': "Couldn't stage",
 	'workbench.rightBar.git.failed.unstage': "Couldn't unstage",
@@ -673,6 +673,23 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.search.results': 'Search results',
 	'workbench.rightBar.search.lineTitle': 'Line {line}',
 	'workbench.rightBar.search.dismiss': 'Dismiss',
+	'workbench.rightBar.search.toggleReplace': 'Toggle Replace',
+	'workbench.rightBar.search.replace': 'Replace',
+	'workbench.rightBar.search.preserveCase': 'Preserve Case',
+	'workbench.rightBar.search.replaceAll': 'Replace All',
+	'workbench.rightBar.search.replaceQuestion':
+		'{empty, select, true {Replace {matches, plural, one {# occurrence} other {# occurrences}} across {files, plural, one {# file} other {# files}} with nothing?} other {Replace {matches, plural, one {# occurrence} other {# occurrences}} across {files, plural, one {# file} other {# files}} with “{replacement}”?}}',
+	'workbench.rightBar.search.replacing': 'Replacing…',
+	'workbench.rightBar.search.replaced':
+		'Replaced {matches, plural, one {# occurrence} other {# occurrences}} in {files, plural, one {# file} other {# files}}.',
+	'workbench.rightBar.search.replaceUnsaved':
+		'{count, plural, one {# file has unsaved changes and was left out. Save or revert it first.} other {# files have unsaved changes and were left out. Save or revert them first.}}',
+	'workbench.rightBar.search.replaceChanged':
+		'{count, plural, one {# file changed since the search, so it was left as it is and searched again.} other {# files changed since the search, so they were left as they are and searched again.}}',
+	'workbench.rightBar.search.replaceNotEditable':
+		'{count, plural, one {# file is binary, not UTF-8 or too large to replace in.} other {# files are binary, not UTF-8 or too large to replace in.}}',
+	'workbench.rightBar.search.replaceFailed':
+		'{count, plural, one {# file could not be replaced, or no answer came. Search again to see where it stands.} other {# files could not be replaced, or no answer came. Search again to see where they stand.}}',
 	'workbench.rightBar.search.excludeFolder': 'Exclude Folder',
 	'workbench.rightBar.search.excludeType': 'Exclude {pattern} Files',
 	'workbench.rightBar.search.includeType': 'Search Only {pattern} Files',

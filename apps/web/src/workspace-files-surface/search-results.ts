@@ -1,4 +1,8 @@
-import type { WorkspaceSearchFile, WorkspaceSearchState } from '@orchbee/workbench-client-protocol';
+import type {
+	WorkspaceReplaceFile,
+	WorkspaceSearchFile,
+	WorkspaceSearchState,
+} from '@orchbee/workbench-client-protocol';
 
 type SearchLine = WorkspaceSearchFile['lines'][number];
 
@@ -205,13 +209,18 @@ export function stepSearchMatch(
 export interface PreviewPart {
 	readonly text: string;
 	readonly match: boolean;
+	/** What a match becomes while replacing, where that is known without the file. */
+	readonly replacement?: string | undefined;
 }
 
 /**
  * A line's preview as drawn: its first line only, without the indentation before its first match,
  * and an ellipsis where the preview starts within the line or goes on past what shows.
  */
-export function previewParts(line: SearchLine): readonly PreviewPart[] {
+export function previewParts(
+	line: SearchLine,
+	replacement: ((matched: string) => string) | null = null,
+): readonly PreviewPart[] {
 	const lineEnd = line.preview.indexOf('\n');
 	const shown = (lineEnd === -1 ? line.preview : line.preview.slice(0, lineEnd)).replace(/\r$/, '');
 	const firstMatch = line.matches[0]?.start ?? 0;
@@ -223,7 +232,12 @@ export function previewParts(line: SearchLine): readonly PreviewPart[] {
 		if (range.start >= shown.length) break;
 		if (range.start > at) parts.push({ match: false, text: shown.slice(at, range.start) });
 		const end = Math.min(range.end, shown.length);
-		parts.push({ match: true, text: shown.slice(range.start, end) });
+		const text = shown.slice(range.start, end);
+		parts.push({
+			match: true,
+			replacement: replacement?.(line.preview.slice(range.start, range.end)),
+			text,
+		});
 		at = end;
 	}
 	if (at < shown.length) parts.push({ match: false, text: shown.slice(at) });
@@ -267,4 +281,138 @@ export function searchResultsText(files: readonly SearchResultFile[]): string {
 export function searchLineText(line: SearchLine): string {
 	const lineEnd = line.preview.indexOf('\n');
 	return (lineEnd === -1 ? line.preview : line.preview.slice(0, lineEnd)).trim();
+}
+
+/** What a replacement names: a file, one of its lines, or everything shown. */
+export interface ReplaceTarget {
+	readonly path: string;
+	/** The line's key, or null for every line of the file. */
+	readonly key: string | null;
+}
+
+/** The files and lines a replacement names, in the order shown. */
+export function replacedLines(
+	results: SearchResults,
+	target: ReplaceTarget | null,
+): readonly SearchResultFile[] {
+	if (target === null) return results.files;
+	const file = results.files.find((candidate) => candidate.path === target.path);
+	if (file === undefined) return [];
+	if (target.key === null) return [file];
+	const lines = file.lines.filter((line) => line.key === target.key);
+	if (lines.length === 0) return [];
+	return [
+		{
+			lines,
+			matches: lines.reduce((total, line) => total + line.matches.length, 0),
+			path: file.path,
+		},
+	];
+}
+
+/**
+ * Where each match of `file` starts, as a replacement names it: its line and the UTF-16 code units
+ * of that line before it, in order and once each.
+ */
+export function replaceFileOf(file: SearchResultFile): WorkspaceReplaceFile {
+	const starts = new Map<string, { readonly line: number; readonly column: number }>();
+	for (const line of file.lines) {
+		for (const range of line.matches) {
+			const column = line.previewStart + range.start;
+			starts.set(`${line.line}:${column}`, { column, line: line.line });
+		}
+	}
+	const matches = [...starts.values()].sort(
+		(left, right) => left.line - right.line || left.column - right.column,
+	);
+	return { matches, path: file.path };
+}
+
+/**
+ * The results with the files a later search of `paths` found in place of what they held; a file
+ * it found nothing in goes, and one it found that was not shown is left out.
+ */
+export function researchedFiles(
+	results: SearchResults,
+	paths: ReadonlySet<string>,
+	found: readonly SearchResultFile[],
+): SearchResults {
+	const byPath = new Map(found.map((file) => [file.path, file]));
+	const files: SearchResultFile[] = [];
+	let matches = 0;
+	for (const file of results.files) {
+		const next = paths.has(file.path) ? byPath.get(file.path) : file;
+		if (next === undefined) continue;
+		files.push(next);
+		matches += next.matches;
+	}
+	return { ...results, files, matches };
+}
+
+/**
+ * What a replacement inserts for every match when that is known without the file: the text as it
+ * stands, or, for a regular expression, with its escapes read, unless it inserts a group. Null when
+ * it inserts one. Read as the Server reads it.
+ */
+export function fixedReplacement(replacement: string, regex: boolean): string | null {
+	if (!regex) return replacement;
+	let text = '';
+	for (let index = 0; index < replacement.length; index += 1) {
+		const character = replacement[index] ?? '';
+		const next = replacement[index + 1];
+		if (character === '\\') {
+			if (next === undefined) {
+				text += '\\';
+				continue;
+			}
+			index += 1;
+			if (next === '\\') text += '\\';
+			else if (next === 'n') text += '\n';
+			else if (next === 't') text += '\t';
+			else if (!'ulUL'.includes(next)) text += `\\${next}`;
+		} else if (character === '$') {
+			const rest = replacement.slice(index + 1);
+			if (/^(?:[&0-9]|\{[\p{L}\p{N}_]+\}|<[\p{L}\p{N}_]+>)/u.test(rest)) return null;
+			text += '$';
+			if (next === '$') index += 1;
+		} else {
+			text += character;
+		}
+	}
+	return text;
+}
+
+/** Whether both texts hold `separator` and as many parts around it. */
+function sameParts(matched: string, replacement: string, separator: string): boolean {
+	return (
+		matched.includes(separator) &&
+		replacement.includes(separator) &&
+		matched.split(separator).length === replacement.split(separator).length
+	);
+}
+
+/**
+ * `replacement` in the case of `matched`, as the Server keeps it: all upper or all lower where it
+ * is, a capital or small first letter where it starts so, and part by part where both hold the
+ * same number of hyphens, or of underscores, and not the other.
+ */
+export function withCaseOf(matched: string, replacement: string): string {
+	if (matched.length === 0) return replacement;
+	const hyphens = sameParts(matched, replacement, '-');
+	const underscores = sameParts(matched, replacement, '_');
+	if (hyphens !== underscores) {
+		const separator = hyphens ? '-' : '_';
+		const wanted = replacement.split(separator);
+		return matched
+			.split(separator)
+			.map((part, index) => withCaseOf(part, wanted[index] ?? ''))
+			.join(separator);
+	}
+	if (matched.toUpperCase() === matched) return replacement.toUpperCase();
+	if (matched.toLowerCase() === matched) return replacement.toLowerCase();
+	const [first = ''] = matched;
+	const [head = '', ...tail] = replacement;
+	if (first !== first.toLowerCase()) return head.toUpperCase() + tail.join('');
+	if (first !== first.toUpperCase()) return head.toLowerCase() + tail.join('');
+	return replacement;
 }

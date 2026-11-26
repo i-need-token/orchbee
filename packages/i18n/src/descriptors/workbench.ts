@@ -2308,20 +2308,20 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardTrashConfirm'],
 		description: 'Confirms moving the untracked files to the system trash.',
 	},
-	rightBarGitDiscardMore: {
-		id: 'workbench.rightBar.git.discardMore',
-		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardMore'],
-		description: 'Ends the list of files a discard affects when it is too long to show.',
+	rightBarConfirmMore: {
+		id: 'workbench.rightBar.confirm.more',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.confirm.more'],
+		description: 'Ends the list of files a confirmation names when it is too long to show.',
 	},
 	rightBarGitDiscardConfirm: {
 		id: 'workbench.rightBar.git.discardConfirm',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.discardConfirm'],
 		description: 'Confirms discarding the changes.',
 	},
-	rightBarGitCancel: {
-		id: 'workbench.rightBar.git.cancel',
-		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.cancel'],
-		description: 'Leaves the changes as they are.',
+	rightBarConfirmCancel: {
+		id: 'workbench.rightBar.confirm.cancel',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.confirm.cancel'],
+		description: 'Closes a confirmation, leaving the files as they are.',
 	},
 	rightBarGitFailedCommit: {
 		id: 'workbench.rightBar.git.failed.commit',
@@ -2559,6 +2559,65 @@ export const workbenchMessages = defineMessages({
 		id: 'workbench.rightBar.search.dismiss',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.dismiss'],
 		description: 'Removes a match or a file from the results without changing the file.',
+	},
+	rightBarSearchToggleReplace: {
+		id: 'workbench.rightBar.search.toggleReplace',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.toggleReplace'],
+		description: 'Shows or hides the replace box under the search box.',
+	},
+	rightBarSearchReplace: {
+		id: 'workbench.rightBar.search.replace',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replace'],
+		description:
+			'Names the replace box, and replaces the matches of one line or confirms replacing.',
+	},
+	rightBarSearchPreserveCase: {
+		id: 'workbench.rightBar.search.preserveCase',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.preserveCase'],
+		description: 'Gives the replacement the case of each text it replaces.',
+	},
+	rightBarSearchReplaceAll: {
+		id: 'workbench.rightBar.search.replaceAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceAll'],
+		description: 'Replaces every match shown, or every match of one file.',
+	},
+	rightBarSearchReplaceQuestion: {
+		id: 'workbench.rightBar.search.replaceQuestion',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceQuestion'],
+		description:
+			'Asks before replacing every match shown. empty is true when the replacement is empty, which removes the matches.',
+	},
+	rightBarSearchReplacing: {
+		id: 'workbench.rightBar.search.replacing',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replacing'],
+		description: 'Shows while matches are being replaced.',
+	},
+	rightBarSearchReplaced: {
+		id: 'workbench.rightBar.search.replaced',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaced'],
+		description: 'Says what a replacement changed.',
+	},
+	rightBarSearchReplaceUnsaved: {
+		id: 'workbench.rightBar.search.replaceUnsaved',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceUnsaved'],
+		description:
+			'Says how many files a replacement left out because they are open with unsaved changes.',
+	},
+	rightBarSearchReplaceChanged: {
+		id: 'workbench.rightBar.search.replaceChanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceChanged'],
+		description:
+			'Says how many files a replacement left alone because they changed after the search; their results show again as they are now.',
+	},
+	rightBarSearchReplaceNotEditable: {
+		id: 'workbench.rightBar.search.replaceNotEditable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceNotEditable'],
+		description: 'Says how many files a replacement could not change because of what they hold.',
+	},
+	rightBarSearchReplaceFailed: {
+		id: 'workbench.rightBar.search.replaceFailed',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.replaceFailed'],
+		description: 'Says how many files a replacement could not write, or did not hear back about.',
 	},
 	rightBarSearchExcludeFolder: {
 		id: 'workbench.rightBar.search.excludeFolder',

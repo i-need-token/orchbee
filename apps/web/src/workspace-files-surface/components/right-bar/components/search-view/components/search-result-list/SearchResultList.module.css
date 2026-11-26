@@ -102,6 +102,19 @@
 	color: inherit;
 }
 
+/* While replacing, what a match loses and what it gains; the elements strike and underline them. */
+.removed {
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-status-danger-surface);
+	color: inherit;
+}
+
+.inserted {
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-status-success-surface);
+	color: inherit;
+}
+
 /* A row's actions show on hover, while its menu is open, and on the row the keyboard is on. */
 .actions {
 	display: none;

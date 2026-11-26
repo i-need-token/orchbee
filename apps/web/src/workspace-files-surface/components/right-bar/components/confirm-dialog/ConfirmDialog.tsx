@@ -11,13 +11,13 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import styles from './ConfirmChangeDialog.module.css';
+import styles from './ConfirmDialog.module.css';
 
 /** At most this many files are named; the rest are counted. */
 const LISTED_FILES = 8;
 
-/** A question asked before a change to the repository. */
-export interface ChangeQuestion {
+/** A question asked before a change to the Workspace's files or repository. */
+export interface ConfirmQuestion {
 	readonly title: string;
 	readonly description: string;
 	readonly confirm: string;
@@ -30,19 +30,22 @@ export interface ChangeQuestion {
 	readonly destructive: boolean;
 }
 
-interface ConfirmChangeDialogProps {
+interface ConfirmDialogProps {
 	/** The question; null while nothing asks. */
-	readonly question: ChangeQuestion | null;
+	readonly question: ConfirmQuestion | null;
 	readonly onConfirm: () => void;
 	readonly onCancel: () => void;
 }
 
-/** Asks before discarding changes, or before committing everything when nothing is staged. */
-export function ConfirmChangeDialog({
+/**
+ * Asks before a change the right bar makes: discarding changes, committing everything when nothing
+ * is staged, or replacing every match a search found.
+ */
+export function ConfirmDialog({
 	question,
 	onConfirm,
 	onCancel,
-}: ConfirmChangeDialogProps): React.ReactNode {
+}: ConfirmDialogProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const cancelButton = React.useRef<HTMLButtonElement>(null);
 	const confirmButton = React.useRef<HTMLButtonElement>(null);
@@ -75,7 +78,7 @@ export function ConfirmChangeDialog({
 							))}
 							{more > 0 ? (
 								<li className={styles['more']}>
-									{intl.formatMessage(workbenchMessages.rightBarGitDiscardMore, { count: more })}
+									{intl.formatMessage(workbenchMessages.rightBarConfirmMore, { count: more })}
 								</li>
 							) : null}
 						</ul>
@@ -83,7 +86,7 @@ export function ConfirmChangeDialog({
 				</AlertDialogHeader>
 				<AlertDialogFooter className={styles['footer']}>
 					<AlertDialogCancel ref={cancelButton}>
-						{intl.formatMessage(workbenchMessages.rightBarGitCancel)}
+						{intl.formatMessage(workbenchMessages.rightBarConfirmCancel)}
 					</AlertDialogCancel>
 					<AlertDialogAction
 						onClick={onConfirm}

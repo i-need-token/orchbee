@@ -18,6 +18,7 @@ import * as React from 'react';
 import { splitPath } from '../../../../../../change-groups';
 import {
 	previewParts,
+	type ReplaceTarget,
 	type SearchActive,
 	type SearchResultFile,
 	type SearchResultLine,
@@ -52,12 +53,24 @@ export interface SearchResultListProps {
 	readonly onReveal: (path: string) => void;
 	/** Hands the keyboard back to the search box. */
 	readonly onEscape: () => void;
+	/** Whether the replace box shows, which offers replacing on each row and marks what goes. */
+	readonly replacing: boolean;
+	/** Whether a row's matches can be replaced now. */
+	readonly canReplace: boolean;
+	/** What a match becomes, where that is known without the file. */
+	readonly replacementOf: ((matched: string) => string) | null;
+	readonly onReplace: (target: ReplaceTarget) => void;
 }
 
 /** Cmd+Backspace on a Mac dismisses, as Delete does elsewhere. */
 const DISMISS_SHORTCUT = {
 	code: 'Backspace',
 	modifiers: ['mod'],
+} as const satisfies KeyboardShortcutChord;
+/** Replaces the matches of the row the keyboard is on, as an editor's search results do. */
+const REPLACE_SHORTCUT = {
+	code: 'Digit1',
+	modifiers: ['mod', 'shift'],
 } as const satisfies KeyboardShortcutChord;
 
 /** Where the keyboard is when it is on `row`, keeping the match F4 reached on its line. */
@@ -90,7 +103,8 @@ function dismissedSpan(rows: readonly SearchRow[], index: number): { start: numb
  * The files and lines a search found, as a tree: a file's header with its count, then each line with
  * its matches marked. A click previews a match and keeps the keyboard here; Enter opens it in the
  * editor and a double click keeps its tab. Arrow keys move through the rows, ← and → fold and
- * unfold a file, Delete removes a row, and Esc goes back to the search box.
+ * unfold a file, Delete removes a row, Mod+Shift+1 replaces its matches while replacing, and Esc
+ * goes back to the search box.
  */
 export function SearchResultList({
 	files,
@@ -106,6 +120,10 @@ export function SearchResultList({
 	onInclude,
 	onReveal,
 	onEscape,
+	replacing,
+	canReplace,
+	replacementOf,
+	onReplace,
 }: SearchResultListProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const identity = React.useId();
@@ -134,7 +152,8 @@ export function SearchResultList({
 		if (row.kind === 'file') onToggleFile(row.file.path);
 		else onOpen(row.file.path, row.line, activeOf(row, active).match, how);
 	};
-	const dismiss = (index: number): void => {
+	/** Takes a row out of the results, by dismissing it or replacing its matches. */
+	const remove = (index: number, how: 'dismiss' | 'replace'): void => {
 		const row = rows[index];
 		if (row === undefined) return;
 		// The keyboard moves to the row after what goes, or before it at the end.
@@ -145,7 +164,13 @@ export function SearchResultList({
 			revealed.current = nextActive;
 			onActiveChange(nextActive);
 		}
-		onDismiss(row.file.path, row.kind === 'file' ? null : row.line.key);
+		const key = row.kind === 'file' ? null : row.line.key;
+		if (how === 'dismiss') onDismiss(row.file.path, key);
+		else onReplace({ key, path: row.file.path });
+	};
+	const dismiss = (index: number): void => remove(index, 'dismiss');
+	const replace = (index: number): void => {
+		if (replacing && canReplace) remove(index, 'replace');
 	};
 
 	const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
@@ -159,6 +184,15 @@ export function SearchResultList({
 		) {
 			event.preventDefault();
 			dismiss(activeIndex);
+			return;
+		}
+		if (
+			row !== undefined &&
+			replacing &&
+			matchesKeyboardShortcutChord(event.nativeEvent, REPLACE_SHORTCUT, shortcutPlatform)
+		) {
+			event.preventDefault();
+			replace(activeIndex);
 			return;
 		}
 		if (event.altKey || event.ctrlKey || event.metaKey) return;
@@ -211,6 +245,13 @@ export function SearchResultList({
 	const copy = (text: string): void => {
 		void navigator.clipboard.writeText(text).catch(() => undefined);
 	};
+	/** A file's matches are all replaced, a line's are replaced together. */
+	const replaceLabel = (row: SearchRow): string =>
+		intl.formatMessage(
+			row.kind === 'file'
+				? workbenchMessages.rightBarSearchReplaceAll
+				: workbenchMessages.rightBarSearchReplace,
+		);
 	const menuItem = (
 		label: string,
 		icon: React.ComponentProps<typeof ProductIcon>['name'],
@@ -250,6 +291,15 @@ export function SearchResultList({
 		}
 		return (
 			<ContextMenuContent finalFocus={listReference}>
+				{replacing ? (
+					<ContextMenuItem disabled={!canReplace} onClick={() => replace(index)}>
+						<ProductIcon
+							name={row.kind === 'file' ? 'replace-all' : 'replace'}
+							size='menu-leading'
+						/>
+						{replaceLabel(row)}
+					</ContextMenuItem>
+				) : null}
 				{menuItem(intl.formatMessage(workbenchMessages.rightBarSearchDismiss), 'close', () =>
 					dismiss(index),
 				)}
@@ -281,6 +331,25 @@ export function SearchResultList({
 		);
 	};
 
+	const replaceButton = (row: SearchRow, index: number): React.ReactNode =>
+		replacing ? (
+			<Button
+				aria-label={replaceLabel(row)}
+				className={styles['action']}
+				disabled={!canReplace}
+				onClick={(event) => {
+					event.stopPropagation();
+					replace(index);
+				}}
+				onDoubleClick={(event) => event.stopPropagation()}
+				size='icon-xs'
+				tabIndex={-1}
+				title={replaceLabel(row)}
+				variant='ghost'
+			>
+				<ProductIcon name={row.kind === 'file' ? 'replace-all' : 'replace'} />
+			</Button>
+		) : null;
 	const dismissLabel = intl.formatMessage(workbenchMessages.rightBarSearchDismiss);
 	const dismissButton = (index: number): React.ReactNode => (
 		<Button
@@ -317,7 +386,10 @@ export function SearchResultList({
 					</span>
 					<span className={styles['entryName']}>{name}</span>
 					<span className={styles['folder']}>{folder}</span>
-					<span className={styles['actions']}>{dismissButton(index)}</span>
+					<span className={styles['actions']}>
+						{replaceButton(row, index)}
+						{dismissButton(index)}
+					</span>
 					<span className={styles['count']}>{row.file.matches}</span>
 				</>
 			);
@@ -325,17 +397,32 @@ export function SearchResultList({
 			content = (
 				<>
 					<span className={styles['preview']}>
-						{previewParts(row.line).map((part, at) =>
-							part.match ? (
-								<mark className={styles['match']} key={at}>
-									{part.text}
-								</mark>
-							) : (
-								<React.Fragment key={at}>{part.text}</React.Fragment>
-							),
-						)}
+						{previewParts(row.line, replacing ? replacementOf : null).map((part, at) => {
+							if (!part.match) return <React.Fragment key={at}>{part.text}</React.Fragment>;
+							if (!replacing) {
+								return (
+									<mark className={styles['match']} key={at}>
+										{part.text}
+									</mark>
+								);
+							}
+							// What goes is struck through, and what comes in follows it where it is known.
+							return (
+								<React.Fragment key={at}>
+									<del className={styles['removed']}>{part.text}</del>
+									{part.replacement === undefined || part.replacement.length === 0 ? null : (
+										<ins className={styles['inserted']}>
+											{part.replacement.replaceAll('\n', '↵')}
+										</ins>
+									)}
+								</React.Fragment>
+							);
+						})}
 					</span>
-					<span className={styles['actions']}>{dismissButton(index)}</span>
+					<span className={styles['actions']}>
+						{replaceButton(row, index)}
+						{dismissButton(index)}
+					</span>
 				</>
 			);
 		}

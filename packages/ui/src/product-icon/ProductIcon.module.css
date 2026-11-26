@@ -250,3 +250,15 @@
 .filter {
 	composes: codicon-filter from global;
 }
+
+.preserveCase {
+	composes: codicon-preserve-case from global;
+}
+
+.replace {
+	composes: codicon-replace from global;
+}
+
+.replaceAll {
+	composes: codicon-replace-all from global;
+}
