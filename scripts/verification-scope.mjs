@@ -318,11 +318,27 @@ function validateGraph(graph) {
 	for (const entry of graph) visit(entry.root, new Set());
 }
 
+const vendored = (graph, root) =>
+	graph.some((entry) => entry.root === root && entry.kind === 'vendored');
+
+const names = (graph, kind, roots) =>
+	graph
+		.filter((entry) => entry.kind === kind && roots.has(entry.root))
+		.map((entry) => entry.name)
+		.toSorted();
+
 export function selectVerificationScope(graph, paths) {
 	const tla = paths.some(tlaInput);
 	try {
 		validateGraph(graph);
 		const selected = new Set();
+		// The owners a changed path selects itself, before consumers, foreign edges and witnesses join;
+		// the local gate runs only their suites.
+		const owned = new Set();
+		const own = (root) => {
+			selected.add(root);
+			owned.add(root);
+		};
 		const tooling = new Set();
 		const reasons = [];
 		let completeRustLint = false;
@@ -358,11 +374,11 @@ export function selectVerificationScope(graph, paths) {
 			if (manager !== undefined) {
 				// A manifest or lockfile change reaches no further than every owner of its package
 				// manager; consumer closure below carries it across reviewed foreign edges.
-				for (const entry of graph) if (entry.kind === manager) selected.add(entry.root);
+				for (const entry of graph) if (entry.kind === manager) own(entry.root);
 				reasons.push(`every ${manager === 'pnpm' ? 'pnpm' : 'Cargo'} workspace <- ${changed}`);
 				const owner = owners.find((entry) => changed.startsWith(`${entry.root}/`));
 				if (owner) {
-					selected.add(owner.root);
+					own(owner.root);
 					reasons.push(`${owner.root} <- ${changed}`);
 				}
 				continue;
@@ -388,7 +404,7 @@ export function selectVerificationScope(graph, paths) {
 				]) {
 					if (!graph.some((entry) => entry.root === root))
 						throw new Error(`Missing terminal contract consumer ${root}`);
-					selected.add(root);
+					own(root);
 					reasons.push(`${root} <- ${changed}`);
 				}
 				continue;
@@ -398,14 +414,14 @@ export function selectVerificationScope(graph, paths) {
 				for (const root of contractConsumers) {
 					if (!graph.some((entry) => entry.root === root))
 						throw new Error(`Missing shared contract consumer ${root}`);
-					selected.add(root);
+					own(root);
 					reasons.push(`${root} <- ${changed}`);
 				}
 				continue;
 			}
 			const owner = owners.find((entry) => changed.startsWith(`${entry.root}/`));
 			if (!owner) throw new Error(`Unknown or shared input: ${changed}`);
-			selected.add(owner.root);
+			own(owner.root);
 			reasons.push(`${owner.root} <- ${changed}`);
 			for (const [input, consumer] of foreignPaths) {
 				if (!matchesInput(changed, input)) continue;
@@ -426,6 +442,11 @@ export function selectVerificationScope(graph, paths) {
 				}
 			}
 		} while (selected.size !== size);
+		// A vendored package has no suite: the members that resolve it test it.
+		for (const entry of graph) {
+			if (entry.dependencies.some((root) => owned.has(root) && vendored(graph, root)))
+				owned.add(entry.root);
+		}
 		for (const [witness, provider] of testWitnesses) {
 			if (!selected.has(provider) || selected.has(witness)) continue;
 			if (!graph.some((entry) => entry.root === witness))
@@ -447,6 +468,10 @@ export function selectVerificationScope(graph, paths) {
 					.map((entry) => entry.name)
 					.toSorted(),
 			),
+			owners: Object.freeze({
+				pnpm: Object.freeze(names(graph, 'pnpm', owned)),
+				cargo: Object.freeze(names(graph, 'cargo', owned)),
+			}),
 			// A vendored owner has no suite to leave unexecuted.
 			unaffected: Object.freeze(
 				graph
@@ -486,11 +511,12 @@ export function resolveVerificationScope(root, reference) {
 }
 
 export function verificationOptions(args) {
-	const options = { verbose: false, plan: false, changedSince: undefined };
+	const options = { verbose: false, plan: false, local: false, changedSince: undefined };
 	const values = args.filter((value) => value !== '--');
 	for (let index = 0; index < values.length; index += 1) {
 		if (values[index] === '--verbose') options.verbose = true;
 		else if (values[index] === '--plan') options.plan = true;
+		else if (values[index] === '--local') options.local = true;
 		else if (
 			values[index] === '--changed-since' &&
 			options.changedSince === undefined &&
@@ -502,5 +528,7 @@ export function verificationOptions(args) {
 	}
 	if (options.plan && options.changedSince === undefined)
 		throw new Error('--plan requires --changed-since');
+	if (options.local && options.changedSince === undefined)
+		throw new Error('--local requires --changed-since');
 	return options;
 }

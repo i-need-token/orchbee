@@ -3,7 +3,7 @@ import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { checkVerbose, runChecks } from './check-output.mjs';
-import { testParts as rustTestParts } from './rust-test-parts.mjs';
+import { clientPackage, testParts as rustTestParts } from './rust-test-parts.mjs';
 import {
 	resolveVerificationScope,
 	toolingSuiteNames,
@@ -93,6 +93,15 @@ function rustNativeSteps(part, platform) {
 }
 
 export function checkSteps(task, scope, platform = process.platform, rustPart) {
+	if (task === 'verify:local') {
+		if (scope === undefined) throw new Error('The local gate needs --changed-since');
+		return withChangedModels(
+			scope.all
+				? checkSteps('verify', undefined, platform)
+				: changedVerifySteps(scope, platform, localTestSteps(scope, platform)),
+			scope,
+		);
+	}
 	if (task === 'verify:full') {
 		return checkSteps('verify', undefined, platform).flatMap((step) => {
 			if (step.name === 'build:packages') return [pnpmStep('build:full')];
@@ -166,29 +175,32 @@ export function checkSteps(task, scope, platform = process.platform, rustPart) {
 	if (steps === undefined) {
 		throw new Error(`Unknown check task: ${task ?? '<missing>'}`);
 	}
-	if (scope !== undefined && task === 'verify') {
-		const verifySteps = scope.all ? steps : changedVerifySteps(scope, platform);
-		// No other gate runs TLA+: only a change to a model or its tooling runs the changed models.
-		return scope.tla
-			? [
-					...verifySteps,
-					nodeStep('changed TLA+ models', [
-						'scripts/tla/run-models.mjs',
-						'--changed-since',
-						scope.base ?? 'HEAD',
-					]),
-				]
-			: verifySteps;
-	}
+	if (scope !== undefined && task === 'verify')
+		return withChangedModels(scope.all ? steps : changedVerifySteps(scope, platform), scope);
 	if (scope !== undefined && !scope.all && task === 'test')
 		return changedTestSteps(scope, platform);
 	return steps;
 }
 
+// No other gate runs TLA+: only a change to a model or its tooling runs the changed models.
+function withChangedModels(steps, scope) {
+	return scope.tla
+		? [
+				...steps,
+				nodeStep('changed TLA+ models', [
+					'scripts/tla/run-models.mjs',
+					'--changed-since',
+					scope.base ?? 'HEAD',
+				]),
+			]
+		: steps;
+}
+
 // The changed gate. Format, build, lint and type checks of TypeScript, styles and dependencies
 // always run complete, because their inputs cross every workspace; the scope narrows the Rust
-// checks, the root tooling suites, the test suites and the export check.
-function changedVerifySteps(scope, platform) {
+// checks, the root tooling suites, the test suites and the export check. The local gate keeps these
+// checks, Clippy over consumers included, and runs fewer tests.
+function changedVerifySteps(scope, platform, tests = changedTestSteps(scope, platform)) {
 	const packages = scope.cargo.flatMap((name) => ['--package', name]);
 	let rustLint = [];
 	if (scope.completeRustLint) rustLint = [pnpmStep('lint:rust')];
@@ -201,7 +213,7 @@ function changedVerifySteps(scope, platform) {
 		pnpmStep('build:packages'),
 		...scriptSteps('lint').flatMap((step) => (step.name === 'lint:rust' ? rustLint : [step])),
 		pnpmStep('typecheck'),
-		...changedTestSteps(scope, platform),
+		...tests,
 		...(scope.packageExports ? [pnpmStep('test:exports')] : []),
 	];
 }
@@ -230,23 +242,63 @@ function changedTestSteps(scope, platform) {
 					]),
 				]
 			: []),
-		// The host suite compiles the Terminal Host for its own system only. Compiling its tests for
-		// the two POSIX release systems catches a break there before CI does.
-		...(scope.posixCompile
-			? ['x86_64-linux-gnu', 'aarch64-macos'].map((target) =>
-					pnpmStep(`Terminal Host test compilation for ${target}`, [
-						'--filter',
-						'@orchbee/terminal-host',
-						'exec',
-						'zig',
-						'build',
-						'test-compile',
-						'-j2',
-						`-Dtarget=${target}`,
-					]),
-				)
-			: []),
+		...posixCompileSteps(scope),
 	];
+}
+
+// The local gate's tests: the changed owners' own suites, not their consumers' or witnesses'. The
+// terminal client's test targets start real Sessions, so the Rust runner leaves them to CI and only
+// Worker witnesses need the Host built.
+function localTestSteps(scope, platform) {
+	const { pnpm, cargo } = scope.owners;
+	return [
+		{
+			concurrent: [repositorySuite, ...scope.tooling].map((name) => pnpmStep(name)),
+		},
+		...(pnpm.length
+			? [
+					pnpmStep('changed workspace tests', [
+						'-r',
+						...pnpm.flatMap((name) => ['--filter', name]),
+						'test',
+					]),
+				]
+			: []),
+		...(cargo.length
+			? [
+					...nativeTestPreparation(
+						{ all: false, cargo: cargo.filter((name) => name !== clientPackage) },
+						platform,
+					),
+					nodeStep('changed Rust tests', [
+						rustRunner,
+						'test',
+						'--local',
+						...cargo.flatMap((name) => ['--package', name]),
+					]),
+				]
+			: []),
+		...posixCompileSteps(scope),
+	];
+}
+
+// The host suite compiles the Terminal Host for its own system only. Compiling its tests for the two
+// POSIX release systems catches a break there before CI does.
+function posixCompileSteps(scope) {
+	return scope.posixCompile
+		? ['x86_64-linux-gnu', 'aarch64-macos'].map((target) =>
+				pnpmStep(`Terminal Host test compilation for ${target}`, [
+					'--filter',
+					'@orchbee/terminal-host',
+					'exec',
+					'zig',
+					'build',
+					'test-compile',
+					'-j2',
+					`-Dtarget=${target}`,
+				]),
+			)
+		: [];
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -264,15 +316,18 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
 			options.changedSince === undefined
 				? undefined
 				: resolveVerificationScope(root, options.changedSince);
+		let mode = options.local ? 'local' : 'affected';
+		if (scope?.all) mode = 'conservative-full';
 		if (scope !== undefined)
 			process.stdout.write(
-				`VERIFY_PLAN ${JSON.stringify({ ...scope, reasons: scope.reasons.slice(0, 30), omittedReasons: Math.max(0, scope.reasons.length - 30), unaffected: scope.unaffected, mode: scope.all ? 'conservative-full' : 'affected' })}\n`,
+				`VERIFY_PLAN ${JSON.stringify({ ...scope, reasons: scope.reasons.slice(0, 30), omittedReasons: Math.max(0, scope.reasons.length - 30), unaffected: scope.unaffected, mode })}\n`,
 			);
+		const task = options.local ? 'verify:local' : name;
 		process.exitCode = options.plan
 			? 0
 			: await runChecks({
-					name,
-					steps: checkSteps(name, scope, undefined, rustPart),
+					name: task,
+					steps: checkSteps(task, scope, undefined, rustPart),
 					verbose: options.verbose,
 					cwd: root,
 				});

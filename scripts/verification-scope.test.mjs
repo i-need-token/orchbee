@@ -549,20 +549,30 @@ test('Git selection covers committed, staged, dirty, untracked, removed and rena
 });
 
 test('verification CLI rejects incomplete/duplicate scope and preserves verbose parsing', () => {
-	assert.deepEqual(verificationOptions(['--verbose']), {
+	const fields = ({ verbose, plan, local, changedSince }) => ({
+		verbose,
+		plan,
+		local,
+		changedSince,
+	});
+	assert.deepEqual(fields(verificationOptions(['--verbose'])), {
 		verbose: true,
 		plan: false,
+		local: false,
 		changedSince: undefined,
 	});
-	assert.deepEqual(verificationOptions(['--changed-since', 'main', '--', '--plan']), {
+	assert.deepEqual(fields(verificationOptions(['--changed-since', 'main', '--', '--plan'])), {
 		verbose: false,
 		plan: true,
+		local: false,
 		changedSince: 'main',
 	});
+	assert.equal(verificationOptions(['--local', '--changed-since', '--', 'main']).local, true);
 	for (const args of [
 		['--changed-since'],
 		['--changed-since', '--plan'],
 		['--plan'],
+		['--local'],
 		['--all'],
 		['--changed-since', 'main', '--changed-since', 'HEAD'],
 	])
@@ -597,6 +607,34 @@ test('affected gate preserves check prerequisites and Node-before-Rust ordering 
 	assert.doesNotMatch(JSON.stringify(steps), /test:cross|build:full/u);
 	assert.deepEqual(checkSteps('verify', { all: true }), checkSteps('verify'));
 	assert.equal(checkSteps('test', selectVerificationScope(graph, [])).length, 1);
+});
+
+test('the local gate tests the changed owners only and keeps Clippy over their consumers', () => {
+	const selected = selectVerificationScope(graph, ['crates/protocol/src/lib.rs']);
+	assert.deepEqual(selected.owners, { pnpm: [], cargo: ['rust-protocol'] });
+	assert.deepEqual(selected.cargo, ['client', 'rust-protocol', 'server', 'worker']);
+	const steps = checkSteps('verify:local', selected, 'win32');
+	const step = (name) => steps.find((entry) => entry.name === name);
+	assert.deepEqual(step('changed Rust tests').args, [
+		'scripts/run-rust-workspace.mjs',
+		'test',
+		'--local',
+		'--package',
+		'rust-protocol',
+	]);
+	assert.ok(step('affected Rust lint').args.includes('client'));
+	assert.equal(step('affected Rust workspace tests'), undefined);
+	// A foreign consumer joins the plan, not the owners whose suites the local gate runs.
+	const actual = readVerificationGraph(path.resolve(import.meta.dirname, '..'));
+	const host = selectVerificationScope(actual, [
+		'apps/terminal-host/src/core/attachment_projection.zig',
+	]);
+	assert.deepEqual(host.owners, { pnpm: ['@orchbee/terminal-host'], cargo: [] });
+	assert.ok(host.cargo.length > 0);
+	assert.deepEqual(
+		checkSteps('verify:local', { all: true }, 'win32'),
+		checkSteps('verify', undefined, 'win32'),
+	);
 });
 
 test('native test prerequisites follow their real consumers and host platform even in scoped or fallback runs', () => {

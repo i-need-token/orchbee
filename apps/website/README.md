@@ -174,6 +174,6 @@ The site stores nothing in the browser. Production has no cookies, third-party f
 
 ## Verification
 
-Run the affected root gate in [Verification](../../docs/VERIFICATION.md), plus `pnpm website:build` when changing pages, static generation, fonts, or delivery. `pnpm --filter @orchbee/website test` checks the server-free rendering rules for every page in both languages and both release states: one headline, no `style` attribute, same-origin resources only, each release state's calls to action, and the canonical and language links of each page.
+Run the applicable root gate in [Verification](../../docs/VERIFICATION.md), plus `pnpm website:build` when changing pages, static generation, fonts, or delivery. `pnpm --filter @orchbee/website test` checks the server-free rendering rules for every page in both languages and both release states: one headline, no `style` attribute, same-origin resources only, each release state's calls to action, and the canonical and language links of each page.
 
 Review the generated site through `pnpm website:preview` in a real browser: full-page pictures at desktop and narrow widths in both languages, the published and unpublished states, and the 404 pages. Also check keyboard focus, the menu at narrow widths, copy buttons, language links, reduced motion, disabled JavaScript, and the absence of requests to other origins. These browser checks are manual evidence, not covered by the unit suite.

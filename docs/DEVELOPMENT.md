@@ -66,9 +66,9 @@ everything independent of it, and report the decision with a recommendation and 
    [`DOCUMENTATION.md`](DOCUMENTATION.md) assigns them to.
 2. Remove temporary artifacts, superseded proposals, and duplicate models whose consumers have
    finished.
-3. Run the applicable root gate in [`VERIFICATION.md`](VERIFICATION.md) on the final inputs. Reuse a
-   valid result while its inputs are unchanged; a report, commit, or handoff alone is not a reason
-   to run a check again.
+3. Run the applicable root gate in [`VERIFICATION.md`](VERIFICATION.md#merge-gate): the local gate
+   on the final inputs, then the pushed commit's Verify run on `main`. Reuse a valid result while
+   its inputs are unchanged; a report, commit, or handoff alone is not a reason to run a check again.
 4. Report the delivered outcome, what was run, what was sampled, what was not checked, and the
    unresolved risks. Never imply a review, a check, or independence that did not happen.
 

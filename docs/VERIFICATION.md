@@ -2,7 +2,7 @@
 
 ## Merge gate
 
-`pnpm verify` is the host verification gate; CI runs its stages across the jobs of the [CI contract](#ci-contract). Run the applicable root gate from the repository root before committing a completed change. It prepares check inputs without a full application build or cross-compilation, in this order:
+`pnpm verify` is the host verification gate. It prepares check inputs without a full application build or cross-compilation, in this order:
 
 1. `pnpm format:check`
 2. `pnpm build:packages`
@@ -11,12 +11,16 @@
 5. `pnpm test`
 6. `pnpm test:exports`
 
-A focused command is useful while iterating, but completion requires the applicable root gate.
-Use the daily affected gate below for a scoped completed change; use all host suites when required
-explicitly, including CI, or when scope cannot be resolved. Passing the applicable gate satisfies
-a repository or package requirement for the root gate; do not run both forms solely because another
-standard spells the command as `pnpm verify`. Other standards should reference this section rather
-than define a second root-gate policy.
+CI runs these stages across the jobs of the [CI contract](#ci-contract) for every commit pushed to
+`main`, on Linux, Windows and macOS; that Verify run is the merge gate. The applicable root gate for
+a completed change is the [local gate](#local-gate) on its final inputs from the repository root
+before the push, then a passing Verify run for the pushed commit. Its author repairs a Verify failure
+on `main`, or reverts the change, before landing other work. A focused command is useful while
+iterating. Run the [affected gate](#affected-verification) or all host suites locally when required
+explicitly, or when a change needs its consumers' evidence before the push; either satisfies the
+local gate. Passing the applicable gate satisfies a repository or package requirement for the root
+gate; do not run both forms solely because another standard spells the command as `pnpm verify`.
+Other standards should reference this section rather than define a second root-gate policy.
 
 Routine edits and merges do not require a separate application build. `pnpm build` aliases
 `pnpm build:packages`, producing only shared library artifacts consumed by checks. Use an owning
@@ -28,10 +32,29 @@ for deliberate full build/platform validation, not the routine merge gate. Unkno
 selects all host tests, never these optional full-build or cross-compilation stages. A merge whose
 checked inputs are unchanged does not need a duplicate gate or build.
 
+### Local gate
+
+`pnpm verify:local -- <base>` is the daily local gate. Several checkouts share one development
+machine, and every suite a change can reach would occupy it for half an hour, so the local gate
+runs the checks that find most breaks in minutes and leaves the rest to Verify. From the
+[affected plan](#affected-verification) it runs:
+
+- every check under [What always runs](#what-always-runs), and the root tooling suites, changed
+  TLA+ models, Terminal Host test compilation and export check the plan selects;
+- rustfmt and Clippy for the selected Cargo members, consumers included, so a consumer that no
+  longer compiles fails before the push; and
+- the test suites of the changed owners only, without their consumers or test witnesses; a
+  vendored package is tested by the members that resolve it. The terminal client's test targets
+  start real Sessions, so of the `orchbee` package only the unit tests in its binaries run.
+
+A scope that cannot be resolved runs the complete `pnpm verify`. When a change alters behavior a
+consumer's suite or a client test target witnesses, run that target with a focused command too.
+
 ## Affected verification
 
-`pnpm verify:changed -- <base>` is the daily root gate. `pnpm verify --changed-since <base>` is
-equivalent; add `--plan` to print the plan without running checks. `scripts/verification-scope.mjs`
+`pnpm verify:changed -- <base>` is the affected gate: every check and suite the plan selects,
+consumers and test witnesses included; CI selects its native jobs with the same plan.
+`pnpm verify --changed-since <base>` is equivalent; add `--plan` to print the plan without running checks. `scripts/verification-scope.mjs`
 computes one immutable plan from the changed paths and the current pnpm and Cargo workspace graphs,
 and `scripts/run-checks.mjs` turns it into steps. `pnpm verify`, `pnpm test` and CI run every host
 check and suite and catch what a mapping here leaves out.
@@ -178,7 +201,8 @@ results remain unchanged.
 | Command                          | Contract                                                                                                                                                                                                                                           |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `verify`                         | The complete host gate: the stages under [Merge gate](#merge-gate), in order.                                                                                                                                                                      |
-| `verify:changed -- <base>`       | The daily gate under [Affected verification](#affected-verification).                                                                                                                                                                              |
+| `verify:local -- <base>`         | The daily gate under [Local gate](#local-gate).                                                                                                                                                                                                    |
+| `verify:changed -- <base>`       | The affected gate under [Affected verification](#affected-verification).                                                                                                                                                                           |
 | `format:check`                   | Oxfmt-managed files match `.oxfmtrc.json`, and rustfmt plus every application-owned native formatter accepts its owned files.                                                                                                                      |
 | `build`, `build:packages`        | Shared library workspaces produce the artifacts consumed by lint, type checking, tests and export checks.                                                                                                                                          |
 | `lint`                           | Runs `lint:code` (blocking oxlint diagnostics), `lint:rust-modules`, `lint:rust`, `lint:styles`, `lint:storage` and `lint:dependencies`. [Linting](LINTING.md#enforcement-boundary) says what each one enforces.                                   |
@@ -253,7 +277,7 @@ results remain unchanged.
 ## TLA+ models
 
 No gate runs TLA+ by default: `pnpm verify` and CI never start TLC or provision Java. An unchanged
-model needs no run. `pnpm verify:changed -- <base>` adds one step, `changed TLA+ models`, only when
+model needs no run. The local and affected gates add one step, `changed TLA+ models`, only when
 a file under a `formal/tla/` directory or `scripts/tla/` changed; that step runs
 `pnpm test:tla:changed -- <base>`. Run it yourself when you change a model outside that gate.
 

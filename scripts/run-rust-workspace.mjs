@@ -82,6 +82,7 @@ const task = process.argv[2];
 const selectedPackages = [];
 const presentationArguments = [];
 let part;
+let local = false;
 const taskArguments = process.argv.slice(3).filter((argument) => argument !== '--');
 for (let index = 0; index < taskArguments.length; index += 1) {
 	if (taskArguments[index] === '--package') {
@@ -93,6 +94,9 @@ for (let index = 0; index < taskArguments.length; index += 1) {
 		)
 			throw new Error('--package requires a Cargo package name and the test or lint task');
 		selectedPackages.push(name);
+	} else if (taskArguments[index] === '--local') {
+		if (task !== 'test') throw new Error('--local requires the test task');
+		local = true;
 	} else if (taskArguments[index] === '--part') {
 		part = taskArguments[++index];
 		if (task !== 'test' || !testParts.includes(part))
@@ -101,6 +105,8 @@ for (let index = 0; index < taskArguments.length; index += 1) {
 }
 if (part !== undefined && selectedPackages.length > 0)
 	throw new Error('--part and --package select tests in different ways; pass only one');
+if (part !== undefined && local)
+	throw new Error('--part and --local select tests in different ways; pass only one');
 const verbose = checkVerbose(presentationArguments);
 const commands = new Map([
 	['build', ['build', '--workspace', '--all-targets', '--all-features', '--locked']],
@@ -228,11 +234,15 @@ if (metadata.packages.length === 0) {
 	process.exitCode = await runChecks({
 		name: `rust:${task}`,
 		steps: [
-			{
-				name: `cargo ${task}`,
-				command: 'cargo',
-				args: part === undefined ? scopedCommand : testPartCommand(part),
-			},
+			...(local
+				? localTestCommands()
+				: [
+						{
+							name: `cargo ${task}`,
+							command: 'cargo',
+							args: part === undefined ? scopedCommand : testPartCommand(part),
+						},
+					]),
 			...(task === 'lint'
 				? [{ name: 'cargo lint product targets', command: 'cargo', args: scoped(productLint) }]
 				: []),
@@ -252,6 +262,44 @@ if (metadata.packages.length === 0) {
 		cwd: repositoryRoot,
 		verbose,
 	});
+}
+
+// The local gate's tests. The terminal client's test targets start real Sessions, which several
+// checkouts sharing one machine cannot afford for every change, so of the client only the unit tests
+// in its binaries run; CI runs every target.
+function localTestCommands() {
+	const shared = ['--all-features', '--locked', '--no-fail-fast'];
+	const packages = selectedPackages.length
+		? [...new Set(selectedPackages)]
+		: metadata.packages
+				.filter((entry) => metadata.workspace_members.includes(entry.id))
+				.map((entry) => entry.name);
+	const others = packages.filter((name) => name !== clientPackage);
+	return [
+		...(others.length
+			? [
+					{
+						name: 'cargo test',
+						command: 'cargo',
+						args: [
+							'test',
+							...others.flatMap((name) => ['--package', name]),
+							'--all-targets',
+							...shared,
+						],
+					},
+				]
+			: []),
+		...(packages.includes(clientPackage)
+			? [
+					{
+						name: `cargo test ${clientPackage} binaries`,
+						command: 'cargo',
+						args: ['test', '--package', clientPackage, '--bins', ...shared],
+					},
+				]
+			: []),
+	];
 }
 
 function testPartCommand(name) {
