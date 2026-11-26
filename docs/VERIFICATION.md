@@ -349,9 +349,7 @@ complete clean search that took every required action, followed by its mutation 
   the release workflow's `macos-x86_64` row.
 - The `rust-linux` job runs the same parts of `pnpm verify:rust-native` on `ubuntu-latest` in
   the three jobs `rust-macos` has, its `client-commands` job with `client-long-commands` and the
-  native Terminal Host tests. Linux joined the release platforms with Cargo test suites that no CI
-  job had run, so until every part is green the job is `continue-on-error`: a red Linux part
-  shows in the run without failing it. Remove that line once the parts pass on `main`.
+  native Terminal Host tests.
 - Every job that needs Zig, here and in the release workflow, installs it with the local action
   `.github/actions/zig`, which holds the pinned version and each runner's archive digest. The
   archive comes from the Actions cache when an earlier run kept it, otherwise from ziglang.org,

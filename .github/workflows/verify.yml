@@ -308,9 +308,6 @@ jobs:
     name: Rust native (ubuntu-latest, ${{ matrix.label }})
     needs: scope
     if: ${{ needs.scope.outputs.rust == 'true' }}
-    # Linux joins the release platforms, and its Cargo test suites were never run in CI; until every
-    # part is green, a red Linux part reports without failing the run.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:

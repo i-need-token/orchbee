@@ -817,10 +817,11 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     // process reads, and on macOS the Workspace list and get also join the Workspace reports only
     // its Server serves; this snapshot-only peer fakes none of them, and the Windows Agent focus
     // suite witnesses those documents. Each keeps its place, empty.
-    let enriched = |arguments: &[&str]| match arguments {
-        ["tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..] => true,
-        ["workspace", "list" | "get", ..] => cfg!(target_os = "macos"),
-        _ => false,
+    let enriched = |arguments: &[&str]| {
+        matches!(
+            arguments,
+            ["tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..]
+        ) || cfg!(target_os = "macos") && matches!(arguments, ["workspace", "list" | "get", ..])
     };
     let derived = queries
         .iter()
