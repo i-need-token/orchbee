@@ -76,8 +76,40 @@ fn workspace_files_distinct_carriers_and_operation_correlation() {
     let read = request(WorkspaceFilesOperation::ReadFile {
         path: "src".into(),
         source: WorkspaceFileSource::Worktree,
+        offset: 0,
+        encoding: WorkspaceFileEncoding::Text,
     });
     assert!(!result.answers(&read));
+    // A chunk answers only the read of its own offset and encoding, so a late answer to an
+    // earlier chunk cannot be stitched in at the wrong place.
+    let chunk = WorkspaceFilesResult {
+        outcome: WorkspaceFilesOutcome::File {
+            byte_length: 4,
+            version: None,
+            content: WorkspaceFileContent::Text {
+                offset: 0,
+                text: "abcd".into(),
+                next_offset: None,
+            },
+        },
+        ..result
+    };
+    assert!(chunk.validate().is_ok());
+    assert!(chunk.answers(&read));
+    let later = request(WorkspaceFilesOperation::ReadFile {
+        path: "src".into(),
+        source: WorkspaceFileSource::Worktree,
+        offset: 2,
+        encoding: WorkspaceFileEncoding::Text,
+    });
+    assert!(!chunk.answers(&later));
+    let as_bytes = request(WorkspaceFilesOperation::ReadFile {
+        path: "src".into(),
+        source: WorkspaceFileSource::Worktree,
+        offset: 0,
+        encoding: WorkspaceFileEncoding::Bytes,
+    });
+    assert!(!chunk.answers(&as_bytes));
 }
 
 #[test]
@@ -87,6 +119,8 @@ fn workspace_files_rejects_escaping_paths_before_any_effect() {
             WorkspaceFilesOperation::ReadFile {
                 path: path.into(),
                 source: WorkspaceFileSource::Head,
+                offset: 0,
+                encoding: WorkspaceFileEncoding::Text,
             },
         )))
         .unwrap();

@@ -2,7 +2,7 @@
 
 | Field             | Value                                                                                                                                                           |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Draft; phase 1 (read-only files and changes) and the float window with Monaco preview and diff are implemented on `feat/right-bar-v1`; the rest remains future  |
+| Status            | Draft; phase 1, the float window with Monaco preview and diff, and chunked, versioned reads are implemented on `feat/right-bar-v1`; the rest remains future     |
 | Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                           |
 | Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md` |
 | Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                      |
@@ -17,7 +17,7 @@ it and without slowing terminal work.
 
 - **Protocol.** `workbench.workspace-files` (frames 83 and 84) is one read-only request with three
   operations: `list-directory`, `read-file` (worktree, index or `HEAD`) and `git-status`. It is gated
-  by the `workspace-files` capability. Results are bounded (entry count, text size, result bytes) and
+  by the `workspace-files` capability. Results are bounded (entry count, chunk size, result bytes) and
   carry closed failure reasons. The JSON Schema, the conformance corpus, the Rust records and the
   TypeScript schemas agree.
 - **Server.** The Server resolves the Workspace's primary directory from its own snapshot, checks the
@@ -46,7 +46,15 @@ it and without slowing terminal work.
 - **Editor.** Monaco loads in its own chunk the first time the window shows a file, with only the
   editor features the window uses, no language-service workers and languages registered lazily.
   Its theme is derived from the current named theme's system tokens and follows theme changes; the
-  icon font is the application's own codicon font. Files above 1 MB open as plain text.
+  icon font is the application's own codicon font.
+- **Large files.** A read names an offset and returns at most 256 KiB; text chunks end on a whole
+  character. The pane joins the chunks and starts over, up to three times, when the file's size or
+  modification time changes between them. Files above 1 MB open as plain text; above 50 MB, or
+  above 10 MB for an index or `HEAD` side, the pane names the size and the limit instead. A
+  working-tree file's first chunk carries its modification time and, up to 10 MB, the SHA-256 of
+  the whole file, which saving will check.
+- **Images.** PNG, JPEG, GIF, WebP and SVG files up to 10 MB show as pictures, with their pixel size;
+  another binary file shows its extension and size.
 - **Diff.** Monaco's diff editor: side by side where the window is at least 900 px wide, inline
   otherwise or on request; leading and trailing whitespace ignored by default; unchanged regions
   can be collapsed; previous and next change. A meta line shows added and removed lines, the number
@@ -59,14 +67,16 @@ it and without slowing terminal work.
   the Worker should own filesystem and Git effects; moving the service behind the Worker is open.
 - **Read-only editor.** The editor and the diff's right side are read-only until saving with a
   version precondition lands.
+- **Encodings.** Text that is not UTF-8 shows as binary rather than read-only text.
 - **Refresh.** No file watching or polling: views refresh on open, on switching view, on the refresh
   button and on window focus.
 - **State.** Open state and width are not persisted. The bar is hidden in the mobile layout.
 - **Convert to tab.** Moving float tabs into the terminal tab bar waits on the unified tab bar.
 - **Bundle.** Against the branch point, the initial JavaScript and CSS grow by about 33 KB raw
   (6.4 KB gzip), mostly protocol schemas, messages and shortcut descriptors that the current
-  architecture loads eagerly. The bar and float window chunk is about 6.5 KB gzip; the editor pane
-  is about 5 KB gzip; Monaco is about 800 KB gzip and loads only with the first open file.
+  architecture loads eagerly; chunked reads added about 0.2 KB gzip more. The bar and float window
+  chunk is about 6.5 KB gzip; the editor pane is about 6 KB gzip; Monaco is about 800 KB gzip and
+  loads only with the first open file.
 
 ## Later phases
 

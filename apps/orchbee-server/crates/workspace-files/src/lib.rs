@@ -6,10 +6,11 @@ mod git;
 mod status;
 
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, WorkspaceFileContent, WorkspaceFileSource,
-    WorkspaceFilesFailure as Failure, WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome,
+    MAXIMUM_WORKSPACE_FILES_RESULT_BYTES, WorkspaceFileSource, WorkspaceFilesFailure as Failure,
+    WorkspaceFilesOperation, WorkspaceFilesOutcome as Outcome,
 };
 use serde::{Deserialize, Serialize};
+pub use status::BlobCache;
 use std::io::{BufRead, Read, Write};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -46,7 +47,12 @@ pub struct Answer {
 
 /// Answers one operation beneath `root`. The outcome always validates and fits the result cap.
 #[must_use]
-pub fn answer(root: &str, operation: &WorkspaceFilesOperation, deadline: Instant) -> Outcome {
+pub fn answer(
+    root: &str,
+    operation: &WorkspaceFilesOperation,
+    cache: &BlobCache,
+    deadline: Instant,
+) -> Outcome {
     let outcome = if operation.validate().is_err() {
         Outcome::Failed {
             reason: Failure::Malformed,
@@ -60,10 +66,20 @@ pub fn answer(root: &str, operation: &WorkspaceFilesOperation, deadline: Instant
                 }
                 WorkspaceFilesOperation::ReadFile {
                     path,
-                    source: WorkspaceFileSource::Worktree,
-                } => files::read_worktree(&root, path),
-                WorkspaceFilesOperation::ReadFile { path, source } => {
-                    status::read_blob(&root, path, *source, deadline)
+                    source,
+                    offset,
+                    encoding,
+                } => {
+                    let read = files::Read {
+                        offset: *offset,
+                        encoding: *encoding,
+                    };
+                    match source {
+                        WorkspaceFileSource::Worktree => files::read_worktree(&root, path, read),
+                        WorkspaceFileSource::Index | WorkspaceFileSource::Head => {
+                            status::read_blob(&root, path, *source, read, cache, deadline)
+                        }
+                    }
                 }
                 WorkspaceFilesOperation::GitStatus {} => status::git_status(&root, deadline),
             },
@@ -72,24 +88,18 @@ pub fn answer(root: &str, operation: &WorkspaceFilesOperation, deadline: Instant
     bounded(outcome)
 }
 
-/// An outcome that breaks its record or would not fit the result cap answers as far as it can:
-/// text that escapes past the cap is too large, anything else malformed.
+/// An outcome that breaks its record or would not fit the result cap answers as malformed. A
+/// chunk escapes to at most six times its size, far inside the cap.
 fn bounded(outcome: Outcome) -> Outcome {
     let fits = serde_json::to_vec(&outcome).is_ok_and(|encoded| {
         encoded.len() + ENVELOPE_BYTES <= MAXIMUM_WORKSPACE_FILES_RESULT_BYTES
     });
-    match outcome {
-        _ if fits && outcome.validate().is_ok() => outcome,
-        Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::Text { .. },
-        } if outcome.validate().is_ok() => Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::TooLarge {},
-        },
-        _ => Outcome::Failed {
+    if fits && outcome.validate().is_ok() {
+        outcome
+    } else {
+        Outcome::Failed {
             reason: Failure::Malformed,
-        },
+        }
     }
 }
 
@@ -97,6 +107,7 @@ fn bounded(outcome: Outcome) -> Outcome {
 /// skipped, since it names no identity to answer. `activity` is odd while a line is handled.
 pub fn serve(input: impl BufRead, mut output: impl Write, activity: &AtomicU64) {
     let mut input = input;
+    let cache = BlobCache::default();
     loop {
         let mut line = Vec::new();
         match (&mut input)
@@ -107,7 +118,7 @@ pub fn serve(input: impl BufRead, mut output: impl Write, activity: &AtomicU64) 
             Ok(_) => {}
         }
         activity.fetch_add(1, Ordering::Relaxed);
-        let open = handle(&mut input, &mut output, &line);
+        let open = handle(&mut input, &mut output, &line, &cache);
         activity.fetch_add(1, Ordering::Relaxed);
         if !open {
             return;
@@ -116,7 +127,12 @@ pub fn serve(input: impl BufRead, mut output: impl Write, activity: &AtomicU64) 
 }
 
 /// Handles one line; false once input or output has closed.
-fn handle(input: &mut impl BufRead, output: &mut impl Write, line: &[u8]) -> bool {
+fn handle(
+    input: &mut impl BufRead,
+    output: &mut impl Write,
+    line: &[u8],
+    cache: &BlobCache,
+) -> bool {
     if line.last() != Some(&b'\n') {
         // An overlong line: drop the rest of it.
         let mut rest = Vec::new();
@@ -130,6 +146,7 @@ fn handle(input: &mut impl BufRead, output: &mut impl Write, line: &[u8]) -> boo
     let outcome = answer(
         &request.root,
         &request.operation,
+        cache,
         Instant::now() + OPERATION_DEADLINE,
     );
     let Ok(mut encoded) = serde_json::to_vec(&Answer {

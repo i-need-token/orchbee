@@ -9,7 +9,8 @@ import {
 const MAXIMUM_PATH_BYTES = 4096;
 const MAXIMUM_NAME_BYTES = 1024;
 const MAXIMUM_ENTRIES = 5000;
-const MAXIMUM_TEXT_BYTES = 2 * 1024 * 1024;
+/** Content bytes one read returns; a larger file is read chunk by chunk. */
+const WORKSPACE_FILE_CHUNK_BYTES = 256 * 1024;
 const encoder = new TextEncoder();
 const byteLength = (value: string): number => encoder.encode(value).length;
 const isEntryName = (name: string): boolean =>
@@ -31,7 +32,9 @@ const identity = {
 	workspaceId: WorkbenchWorkspaceIdSchema,
 };
 
+const OffsetSchema = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
 const WorkspaceFileSourceSchema = z.enum(['worktree', 'index', 'head']);
+const WorkspaceFileEncodingSchema = z.enum(['text', 'bytes']);
 const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
@@ -44,6 +47,8 @@ const WorkspaceFilesOperationSchema = z.discriminatedUnion('kind', [
 			kind: z.literal('read-file'),
 			path: RelativePathSchema,
 			source: WorkspaceFileSourceSchema,
+			offset: OffsetSchema,
+			encoding: WorkspaceFileEncodingSchema,
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('git-status') }).readonly(),
@@ -64,17 +69,65 @@ const WorkspaceDirectoryEntrySchema = z
 		ignored: z.boolean(),
 	})
 	.readonly();
+const BASE64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u;
+/** The byte count standard padded base64 decodes to. */
+const base64Length = (encoded: string): number => {
+	const padding = encoded.length - encoded.replace(/=+$/u, '').length;
+	return (encoded.length / 4) * 3 - padding;
+};
 const WorkspaceFileContentSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('text'),
-			text: z.string().refine((text) => byteLength(text) <= MAXIMUM_TEXT_BYTES),
+			offset: OffsetSchema,
+			text: z.string().max(WORKSPACE_FILE_CHUNK_BYTES),
+			nextOffset: OffsetSchema.nullable(),
+		})
+		.readonly(),
+	z
+		.strictObject({
+			kind: z.literal('bytes'),
+			offset: OffsetSchema,
+			base64: z
+				.string()
+				.max(Math.ceil(WORKSPACE_FILE_CHUNK_BYTES / 3) * 4)
+				.regex(BASE64),
+			nextOffset: OffsetSchema.nullable(),
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('binary') }).readonly(),
 	z.strictObject({ kind: z.literal('too-large') }).readonly(),
 	z.strictObject({ kind: z.literal('absent') }).readonly(),
 ]);
+/**
+ * The version a working-tree file was read at: its modification time in nanoseconds, and, on the
+ * first chunk of a file small enough to edit, the SHA-256 of the whole file.
+ */
+const WorkspaceFileVersionSchema = z
+	.strictObject({
+		modified: z.string().regex(/^[0-9]{1,39}$/u),
+		sha256: z
+			.string()
+			.regex(/^[0-9a-f]{64}$/u)
+			.nullable(),
+	})
+	.readonly();
+/**
+ * A chunk of `length` bytes at `offset`: at most one chunk long, inside the file, and either its
+ * end or followed by the next chunk exactly where it stops.
+ */
+const isChunk = (
+	fileLength: number,
+	offset: number,
+	length: number,
+	nextOffset: number | null,
+): boolean => {
+	const end = offset + length;
+	if (length > WORKSPACE_FILE_CHUNK_BYTES || end > fileLength) return false;
+	return nextOffset === null
+		? end === fileLength
+		: nextOffset === end && length > 0 && nextOffset < fileLength;
+};
 const WorkspaceGitStatusCodeSchema = z.enum([
 	'unmodified',
 	'modified',
@@ -106,12 +159,27 @@ const WorkspaceFilesOutcomeSchema = z.discriminatedUnion('kind', [
 	z
 		.strictObject({
 			kind: z.literal('file'),
-			byteLength: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+			byteLength: OffsetSchema,
+			version: WorkspaceFileVersionSchema.nullable(),
 			content: WorkspaceFileContentSchema,
 		})
-		.refine((file) => {
-			if (file.content.kind === 'text') return byteLength(file.content.text) === file.byteLength;
-			return file.content.kind !== 'absent' || file.byteLength === 0;
+		.refine(({ byteLength: fileLength, content, version }) => {
+			switch (content.kind) {
+				case 'text':
+					return isChunk(fileLength, content.offset, byteLength(content.text), content.nextOffset);
+				case 'bytes':
+					return isChunk(
+						fileLength,
+						content.offset,
+						base64Length(content.base64),
+						content.nextOffset,
+					);
+				case 'absent':
+					return fileLength === 0 && version === null;
+				case 'binary':
+				case 'too-large':
+					return true;
+			}
 		})
 		.readonly(),
 	z
@@ -154,5 +222,7 @@ type WorkspaceFilesResult = z.infer<typeof WorkspaceFilesResultSchema>;
 export type WorkspaceFilesOutcome = WorkspaceFilesResult['outcome'];
 export type WorkspaceDirectoryEntry = z.infer<typeof WorkspaceDirectoryEntrySchema>;
 export type WorkspaceFileSource = z.infer<typeof WorkspaceFileSourceSchema>;
+export type WorkspaceFileEncoding = z.infer<typeof WorkspaceFileEncodingSchema>;
+export type WorkspaceFileVersion = z.infer<typeof WorkspaceFileVersionSchema>;
 export type WorkspaceGitStatusEntry = z.infer<typeof WorkspaceGitStatusEntrySchema>;
 export type WorkspaceGitStatusCode = z.infer<typeof WorkspaceGitStatusCodeSchema>;

@@ -202,12 +202,14 @@ mod workspace_files;
 mod workspace_git;
 mod workspace_metadata;
 pub use workspace_files::{
+    MAXIMUM_WORKSPACE_FILE_BYTES_READ, MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES,
     MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_NAME_BYTES,
-    MAXIMUM_WORKSPACE_FILE_PATH_BYTES, MAXIMUM_WORKSPACE_FILE_TEXT_BYTES,
+    MAXIMUM_WORKSPACE_FILE_OPEN_BYTES, MAXIMUM_WORKSPACE_FILE_PATH_BYTES,
     MAXIMUM_WORKSPACE_FILES_REQUEST_BYTES, MAXIMUM_WORKSPACE_FILES_RESULT_BYTES,
-    WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileSource,
-    WorkspaceFilesFailure, WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest,
-    WorkspaceFilesResult, WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
+    WORKSPACE_FILE_CHUNK_BYTES, WorkspaceDirectoryEntry, WorkspaceEntryKind, WorkspaceFileContent,
+    WorkspaceFileEncoding, WorkspaceFileSource, WorkspaceFileVersion, WorkspaceFilesFailure,
+    WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceFilesRequest, WorkspaceFilesResult,
+    WorkspaceGitStatusCode, WorkspaceGitStatusEntry,
     is_relative_path as is_workspace_relative_path,
 };
 pub use workspace_git::{

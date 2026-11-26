@@ -2,10 +2,11 @@
 use crate::files::{self, Root};
 use crate::git::{self, Run};
 use orchbee_workbench_protocol::{
-    MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_TEXT_BYTES, WorkspaceFileContent,
+    MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES, MAXIMUM_WORKSPACE_FILE_ENTRIES, WorkspaceFileContent,
     WorkspaceFileSource, WorkspaceFilesFailure as Failure, WorkspaceFilesOutcome as Outcome,
     WorkspaceGitStatusCode as Code, WorkspaceGitStatusEntry, is_workspace_relative_path,
 };
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 /// Raw `git status` output read before the change list reports truncation.
@@ -35,10 +36,35 @@ fn prefix(root: &Root, deadline: Instant) -> Result<String, Failure> {
     }
 }
 
+/// The last blob read, by object name, so the chunks of one diff side read Git once.
+#[derive(Default)]
+pub struct BlobCache {
+    last: Mutex<Option<(String, Arc<Vec<u8>>)>>,
+}
+
+impl BlobCache {
+    fn get(&self, object: &str) -> Option<Arc<Vec<u8>>> {
+        let last = self.last.lock().ok()?;
+        last.as_ref()
+            .filter(|(name, _)| name == object)
+            .map(|(_, bytes)| Arc::clone(bytes))
+    }
+
+    fn put(&self, object: String, bytes: Arc<Vec<u8>>) {
+        if let Ok(mut last) = self.last.lock() {
+            *last = Some((object, bytes));
+        }
+    }
+}
+
+/// One chunk of a file as the index or `HEAD` holds it. A blob reads whole, up to the editable
+/// size, and later chunks of the same blob come from the cache.
 pub(crate) fn read_blob(
     root: &Root,
     relative: &str,
     source: WorkspaceFileSource,
+    read: files::Read,
+    cache: &BlobCache,
     deadline: Instant,
 ) -> Outcome {
     if let Err(reason) = prefix(root, deadline) {
@@ -47,25 +73,30 @@ pub(crate) fn read_blob(
     let object = match source {
         WorkspaceFileSource::Index => format!(":./{relative}"),
         WorkspaceFileSource::Head => format!("HEAD:./{relative}"),
-        WorkspaceFileSource::Worktree => return files::read_worktree(root, relative),
+        WorkspaceFileSource::Worktree => return files::read_worktree(root, relative, read),
     };
-    let size = match git::run(
+    let mut line = object.into_bytes();
+    line.push(b'\n');
+    let described = match git::run(
         root.path(),
-        &["cat-file", "-s", &object],
-        None,
-        64,
+        &[
+            "cat-file",
+            "--batch-check=%(objectname) %(objecttype) %(objectsize)",
+        ],
+        Some(line),
+        8 * 1024,
         deadline,
     ) {
         Run::Exited {
             status: Some(0),
             stdout,
             truncated: false,
-        } => std::str::from_utf8(&stdout)
-            .ok()
-            .and_then(|size| size.trim().parse::<u64>().ok()),
-        // No such object: an untracked file has no index or `HEAD` content, nor anything before
-        // the first commit.
-        Run::Exited { .. } => return files::absent(),
+        } => stdout,
+        Run::Exited { .. } => {
+            return Outcome::Failed {
+                reason: Failure::Malformed,
+            };
+        }
         Run::TimedOut => {
             return Outcome::Failed {
                 reason: Failure::Timeout,
@@ -77,40 +108,78 @@ pub(crate) fn read_blob(
             };
         }
     };
-    let Some(byte_length) = size else {
+    let described = String::from_utf8_lossy(&described);
+    let mut fields = described.trim_end().split(' ');
+    let (Some(name), Some(kind), Some(size)) = (fields.next(), fields.next(), fields.next()) else {
+        // `<object> missing`: an untracked file has no index or `HEAD` content, nor anything
+        // before the first commit.
+        return files::absent();
+    };
+    if kind != "blob" {
+        // A path naming a tree or submodule commit has no blob to show.
+        return Outcome::Failed {
+            reason: Failure::NotFound,
+        };
+    }
+    let Ok(byte_length) = size.parse::<u64>() else {
         return Outcome::Failed {
             reason: Failure::Malformed,
         };
     };
-    if byte_length > MAXIMUM_WORKSPACE_FILE_TEXT_BYTES as u64 {
+    if byte_length > MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES.min(read.limit()) {
         return Outcome::File {
             byte_length,
+            version: None,
             content: WorkspaceFileContent::TooLarge {},
         };
     }
-    match git::run(
-        root.path(),
-        &["cat-file", "blob", &object],
-        None,
-        MAXIMUM_WORKSPACE_FILE_TEXT_BYTES + 1,
-        deadline,
-    ) {
-        Run::Exited {
-            status: Some(0),
-            stdout,
-            truncated: false,
-        } => files::file_outcome(stdout),
-        // A path naming a tree or submodule commit has no blob to show.
-        Run::Exited { .. } => Outcome::Failed {
-            reason: Failure::NotFound,
-        },
-        Run::TimedOut => Outcome::Failed {
-            reason: Failure::Timeout,
-        },
-        Run::Unavailable => Outcome::Failed {
-            reason: Failure::Unavailable,
-        },
+    if read.offset > byte_length {
+        return Outcome::Failed {
+            reason: Failure::Malformed,
+        };
     }
+    let bytes = if let Some(bytes) = cache.get(name) {
+        bytes
+    } else {
+        let Ok(cap) = usize::try_from(byte_length) else {
+            return Outcome::Failed {
+                reason: Failure::Malformed,
+            };
+        };
+        match git::run(
+            root.path(),
+            &["cat-file", "blob", name],
+            None,
+            cap + 1,
+            deadline,
+        ) {
+            Run::Exited {
+                status: Some(0),
+                stdout,
+                truncated: false,
+            } if stdout.len() as u64 == byte_length => {
+                let bytes = Arc::new(stdout);
+                cache.put(name.to_owned(), Arc::clone(&bytes));
+                bytes
+            }
+            Run::Exited { .. } => {
+                return Outcome::Failed {
+                    reason: Failure::Malformed,
+                };
+            }
+            Run::TimedOut => {
+                return Outcome::Failed {
+                    reason: Failure::Timeout,
+                };
+            }
+            Run::Unavailable => {
+                return Outcome::Failed {
+                    reason: Failure::Unavailable,
+                };
+            }
+        }
+    };
+    files::chunk(byte_length, None, read, 0, &bytes)
 }
 
 pub(crate) fn git_status(root: &Root, deadline: Instant) -> Outcome {

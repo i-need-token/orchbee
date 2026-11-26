@@ -1893,12 +1893,19 @@ export const workbenchMessages = defineMessages({
 	rightBarPreviewBinary: {
 		id: 'workbench.rightBar.preview.binary',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.binary'],
-		description: 'File preview text for a binary file.',
+		description:
+			'File preview text for a binary file. {type} is the file extension in capitals, or none; {size} is the formatted file size.',
 	},
 	rightBarPreviewTooLarge: {
 		id: 'workbench.rightBar.preview.tooLarge',
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.preview.tooLarge'],
-		description: 'File preview text for a file over the size limit.',
+		description:
+			'File preview text for a file over the size limit. {size} is the file size and {limit} the limit, both formatted.',
+	},
+	rightBarImageSize: {
+		id: 'workbench.rightBar.imageSize',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.imageSize'],
+		description: 'An image preview’s width and height in pixels.',
 	},
 	rightBarPreviewAbsent: {
 		id: 'workbench.rightBar.preview.absent',

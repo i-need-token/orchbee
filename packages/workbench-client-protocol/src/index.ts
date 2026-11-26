@@ -44,7 +44,9 @@ export type {
 } from './workbench-protocol';
 export type {
 	WorkspaceDirectoryEntry,
+	WorkspaceFileEncoding,
 	WorkspaceFileSource,
+	WorkspaceFileVersion,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceGitStatusCode,

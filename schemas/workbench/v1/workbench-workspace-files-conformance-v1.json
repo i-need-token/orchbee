@@ -43,7 +43,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "src/main.rs",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			}
 		},
@@ -59,7 +61,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "README.md",
-					"source": "head"
+					"source": "head",
+					"offset": 0,
+					"encoding": "text"
 				}
 			}
 		},
@@ -75,7 +79,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "a b/c..d",
-					"source": "index"
+					"source": "index",
+					"offset": 0,
+					"encoding": "text"
 				}
 			}
 		},
@@ -162,9 +168,15 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 8,
+					"version": {
+						"modified": "1764115200123456789",
+						"sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+					},
 					"content": {
 						"kind": "text",
-						"text": "测试\n\t"
+						"offset": 0,
+						"text": "测试\n\t",
+						"nextOffset": null
 					}
 				}
 			}
@@ -181,6 +193,7 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 4096,
+					"version": null,
 					"content": {
 						"kind": "binary"
 					}
@@ -199,6 +212,7 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 99999999,
+					"version": null,
 					"content": {
 						"kind": "too-large"
 					}
@@ -217,6 +231,7 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 0,
+					"version": null,
 					"content": {
 						"kind": "absent"
 					}
@@ -300,6 +315,71 @@
 					"reason": "not-repository"
 				}
 			}
+		},
+		{
+			"name": "read-bytes-chunk",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "assets/logo.png",
+					"source": "worktree",
+					"offset": 262144,
+					"encoding": "bytes"
+				}
+			}
+		},
+		{
+			"name": "first-of-chunks",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 300000,
+					"version": {
+						"modified": "0",
+						"sha256": null
+					},
+					"content": {
+						"kind": "text",
+						"offset": 0,
+						"text": "ab",
+						"nextOffset": 2
+					}
+				}
+			}
+		},
+		{
+			"name": "bytes-last-chunk",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 6,
+					"version": null,
+					"content": {
+						"kind": "bytes",
+						"offset": 3,
+						"base64": "AAEC",
+						"nextOffset": null
+					}
+				}
+			}
 		}
 	],
 	"invalid": [
@@ -315,7 +395,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "/etc/passwd",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -348,7 +430,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "./a",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -381,7 +465,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "a\\b",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -398,7 +484,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "a\nb",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -415,7 +503,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "",
-					"source": "worktree"
+					"source": "worktree",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -432,7 +522,9 @@
 				"operation": {
 					"kind": "read-file",
 					"path": "a",
-					"source": "stash"
+					"source": "stash",
+					"offset": 0,
+					"encoding": "text"
 				}
 			},
 			"boundary": "schema"
@@ -540,9 +632,12 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 3,
+					"version": null,
 					"content": {
 						"kind": "text",
-						"text": "abcd"
+						"offset": 0,
+						"text": "abcd",
+						"nextOffset": null
 					}
 				}
 			},
@@ -560,6 +655,7 @@
 				"outcome": {
 					"kind": "file",
 					"byteLength": 3,
+					"version": null,
 					"content": {
 						"kind": "absent"
 					}
@@ -651,6 +747,161 @@
 				}
 			},
 			"boundary": "schema"
+		},
+		{
+			"name": "read-without-encoding",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "src/main.rs",
+					"source": "worktree",
+					"offset": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "negative-offset",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.workspace-files",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"operation": {
+					"kind": "read-file",
+					"path": "src/main.rs",
+					"source": "worktree",
+					"offset": -1,
+					"encoding": "text"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "uppercase-hash",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 8,
+					"version": {
+						"modified": "1",
+						"sha256": "9F86D081884C7D659A2FEAA0C55AD015A3BF4F1B2B0B822CD15D6C15B0F00A08"
+					},
+					"content": {
+						"kind": "text",
+						"offset": 0,
+						"text": "测试\n\t",
+						"nextOffset": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "malformed-base64",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 3,
+					"version": null,
+					"content": {
+						"kind": "bytes",
+						"offset": 0,
+						"base64": "AA=E",
+						"nextOffset": null
+					}
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "next-offset-gap",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 10,
+					"version": null,
+					"content": {
+						"kind": "text",
+						"offset": 0,
+						"text": "ab",
+						"nextOffset": 5
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "ends-before-file",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 10,
+					"version": null,
+					"content": {
+						"kind": "text",
+						"offset": 0,
+						"text": "ab",
+						"nextOffset": null
+					}
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "absent-with-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.workspace-files.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"workspaceId": "00000000000000000000000000000003",
+				"outcome": {
+					"kind": "file",
+					"byteLength": 0,
+					"version": {
+						"modified": "1",
+						"sha256": null
+					},
+					"content": {
+						"kind": "absent"
+					}
+				}
+			},
+			"boundary": "semantic"
 		}
 	]
 }

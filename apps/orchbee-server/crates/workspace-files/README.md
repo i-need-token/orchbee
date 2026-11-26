@@ -20,7 +20,13 @@ Standard input and output carry one JSON object per line. A request is
 
 - Paths must stay beneath the canonical root; a symbolic link that leaves it is `denied`.
 - A listing or change list carries at most 5000 entries and reports `truncated`.
-- A file over 2 MiB answers `too-large`; one with a NUL byte in its first 8 KiB, or that is not
-  UTF-8, answers `binary`.
+- A file is read in chunks of at most 256 KiB from the offset a request names; a text chunk ends
+  before a character it would cut, so the next chunk starts where it ended.
+- A text read opens files up to 50 MiB and a byte read up to 10 MiB; a larger file answers
+  `too-large` with its size. A text file with a NUL byte in its first 8 KiB, or that is not UTF-8,
+  answers `binary`.
+- A working-tree file carries its modification time; the first chunk of a file up to 10 MiB also
+  carries the SHA-256 of the whole file. Index and `HEAD` blobs carry no version, are read up to
+  10 MiB, and the last blob read is kept so its later chunks do not run Git again.
 - Each Git command has a four-second deadline and bounded output; Git's own environment variables
   are cleared, terminal prompts are off and `core.fsmonitor` is disabled.

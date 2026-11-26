@@ -479,8 +479,10 @@ export const zhCNWorkbenchMessages = {
 	'workbench.rightBar.changes.conflicts': '合并冲突',
 	'workbench.rightBar.changes.staged': '已暂存的更改',
 	'workbench.rightBar.changes.unstaged': '更改',
-	'workbench.rightBar.preview.binary': '这是二进制文件，无法显示。',
-	'workbench.rightBar.preview.tooLarge': '文件过大，无法显示。',
+	'workbench.rightBar.preview.binary':
+		'{type, select, none {二进制文件，{size}，无法以文本显示。} other {{type} 文件，{size}，无法以文本显示。}}',
+	'workbench.rightBar.preview.tooLarge': '文件大小为 {size}，超过 {limit}，不在这里打开。',
+	'workbench.rightBar.imageSize': '{width} × {height}',
 	'workbench.rightBar.preview.absent': '此文件已不存在。',
 	'workbench.rightBar.side.head': '上次提交',
 	'workbench.rightBar.side.index': '暂存区',

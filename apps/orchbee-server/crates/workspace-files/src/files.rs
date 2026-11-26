@@ -1,14 +1,18 @@
 //! Directory listings and working-tree reads, confined beneath the Workspace's canonical root.
 use crate::git::{self, Run};
+use base64::Engine as _;
 use orchbee_workbench_protocol::{
+    MAXIMUM_WORKSPACE_FILE_BYTES_READ, MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES,
     MAXIMUM_WORKSPACE_FILE_ENTRIES, MAXIMUM_WORKSPACE_FILE_NAME_BYTES,
-    MAXIMUM_WORKSPACE_FILE_TEXT_BYTES, WorkspaceDirectoryEntry, WorkspaceEntryKind,
-    WorkspaceFileContent, WorkspaceFilesFailure as Failure, WorkspaceFilesOutcome as Outcome,
+    MAXIMUM_WORKSPACE_FILE_OPEN_BYTES, WORKSPACE_FILE_CHUNK_BYTES, WorkspaceDirectoryEntry,
+    WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileEncoding as Encoding,
+    WorkspaceFileVersion, WorkspaceFilesFailure as Failure, WorkspaceFilesOutcome as Outcome,
 };
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
-use std::io::Read;
+use std::io::{Read as _, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::time::{Instant, UNIX_EPOCH};
 
 /// Bytes of a file's start that are looked at for a NUL before it counts as text.
 const BINARY_PROBE_BYTES: usize = 8 * 1024;
@@ -176,7 +180,26 @@ fn ignored_names(
     }
 }
 
-pub(crate) fn read_worktree(root: &Root, relative: &str) -> Outcome {
+/// Where a read starts and how it returns content.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Read {
+    pub(crate) offset: u64,
+    pub(crate) encoding: Encoding,
+}
+
+impl Read {
+    /// The largest file this read opens at all.
+    pub(crate) fn limit(self) -> u64 {
+        match self.encoding {
+            Encoding::Text => MAXIMUM_WORKSPACE_FILE_OPEN_BYTES,
+            Encoding::Bytes => MAXIMUM_WORKSPACE_FILE_BYTES_READ,
+        }
+    }
+}
+
+/// One chunk of a working-tree file, with the version it was read at. The first chunk of a file
+/// small enough to edit reads it whole to hash it, then answers its start.
+pub(crate) fn read_worktree(root: &Root, relative: &str, read: Read) -> Outcome {
     let path = match root.resolve(relative) {
         Ok(path) => path,
         // A file deleted from the tree reads as absent, so its diff shows it removed.
@@ -192,21 +215,58 @@ pub(crate) fn read_worktree(root: &Root, relative: &str) -> Outcome {
         };
     }
     let byte_length = metadata.len();
-    if usize::try_from(byte_length)
-        .map_or(true, |length| length > MAXIMUM_WORKSPACE_FILE_TEXT_BYTES)
-    {
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|time| time.duration_since(UNIX_EPOCH).ok())
+        .map_or_else(|| "0".to_owned(), |since| since.as_nanos().to_string());
+    let version = |sha256| {
+        Some(WorkspaceFileVersion {
+            modified: modified.clone(),
+            sha256,
+        })
+    };
+    if byte_length > read.limit() {
         return Outcome::File {
             byte_length,
+            version: version(None),
             content: WorkspaceFileContent::TooLarge {},
         };
     }
-    let mut bytes = Vec::new();
-    let read = std::fs::File::open(&path).and_then(|file| {
-        file.take(MAXIMUM_WORKSPACE_FILE_TEXT_BYTES as u64 + 1)
-            .read_to_end(&mut bytes)
+    if read.offset > byte_length {
+        return Outcome::Failed {
+            reason: Failure::Malformed,
+        };
+    }
+    let whole = read.offset == 0 && byte_length <= MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES;
+    let bytes = std::fs::File::open(&path).and_then(|mut file| {
+        let mut bytes = Vec::new();
+        if whole {
+            file.take(MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES + 1)
+                .read_to_end(&mut bytes)?;
+        } else {
+            file.seek(SeekFrom::Start(read.offset))?;
+            file.take(WORKSPACE_FILE_CHUNK_BYTES as u64)
+                .read_to_end(&mut bytes)?;
+        }
+        Ok(bytes)
     });
-    match read {
-        Ok(_) => file_outcome(bytes),
+    match bytes {
+        // The file may have changed since its size was read; answer what was read, and hash it
+        // only while it is still small enough to edit.
+        Ok(bytes) if whole && bytes.len() as u64 <= MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES => {
+            let byte_length = bytes.len() as u64;
+            let sha256 = hex(&Sha256::digest(&bytes));
+            chunk(byte_length, version(Some(sha256)), read, 0, &bytes)
+        }
+        Ok(bytes) if whole => chunk(
+            byte_length.max(bytes.len() as u64),
+            version(None),
+            read,
+            0,
+            &bytes,
+        ),
+        Ok(bytes) => chunk(byte_length, version(None), read, read.offset, &bytes),
         Err(error) if error.kind() == std::io::ErrorKind::PermissionDenied => Outcome::Failed {
             reason: Failure::Denied,
         },
@@ -219,33 +279,75 @@ pub(crate) fn read_worktree(root: &Root, relative: &str) -> Outcome {
 pub(crate) fn absent() -> Outcome {
     Outcome::File {
         byte_length: 0,
+        version: None,
         content: WorkspaceFileContent::Absent {},
     }
 }
 
-/// What a file's bytes come to on the wire.
-pub(crate) fn file_outcome(bytes: Vec<u8>) -> Outcome {
-    let byte_length = bytes.len() as u64;
-    if bytes.len() > MAXIMUM_WORKSPACE_FILE_TEXT_BYTES {
-        return Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::TooLarge {},
+/// The chunk at `read.offset` of a file of `byte_length`, from `bytes`, which hold the file from
+/// `start`, at or before the offset.
+pub(crate) fn chunk(
+    byte_length: u64,
+    version: Option<WorkspaceFileVersion>,
+    read: Read,
+    start: u64,
+    bytes: &[u8],
+) -> Outcome {
+    let file = |content| Outcome::File {
+        byte_length,
+        version: version.clone(),
+        content,
+    };
+    let Some(window) = read
+        .offset
+        .checked_sub(start)
+        .and_then(|skip| usize::try_from(skip).ok())
+        .and_then(|skip| bytes.get(skip..))
+    else {
+        return Outcome::Failed {
+            reason: Failure::Malformed,
         };
+    };
+    let mut take = window.len().min(WORKSPACE_FILE_CHUNK_BYTES);
+    if read.encoding == Encoding::Text {
+        if read.offset == 0 && window[..window.len().min(BINARY_PROBE_BYTES)].contains(&0) {
+            return file(WorkspaceFileContent::Binary {});
+        }
+        let ends = read.offset + take as u64 >= byte_length;
+        match std::str::from_utf8(&window[..take]) {
+            Ok(_) => {}
+            // A chunk that would stop inside a character stops before it instead, so every
+            // chunk is whole text and the next starts on a character.
+            Err(error) if error.error_len().is_none() && !ends && error.valid_up_to() > 0 => {
+                take = error.valid_up_to();
+            }
+            // Bytes that are not UTF-8 anywhere in the file make the whole file binary.
+            Err(_) => return file(WorkspaceFileContent::Binary {}),
+        }
     }
-    if bytes[..bytes.len().min(BINARY_PROBE_BYTES)].contains(&0) {
-        return Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::Binary {},
-        };
-    }
-    match String::from_utf8(bytes) {
-        Ok(text) => Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::Text { text },
+    let end = read.offset + take as u64;
+    let next_offset = (end < byte_length).then_some(end);
+    let taken = &window[..take];
+    file(match read.encoding {
+        Encoding::Text => WorkspaceFileContent::Text {
+            offset: read.offset,
+            text: String::from_utf8_lossy(taken).into_owned(),
+            next_offset,
         },
-        Err(_) => Outcome::File {
-            byte_length,
-            content: WorkspaceFileContent::Binary {},
+        Encoding::Bytes => WorkspaceFileContent::Bytes {
+            offset: read.offset,
+            base64: base64::engine::general_purpose::STANDARD.encode(taken),
+            next_offset,
         },
-    }
+    })
+}
+
+fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes
+        .iter()
+        .fold(String::with_capacity(64), |mut hex, byte| {
+            let _ = write!(hex, "{byte:02x}");
+            hex
+        })
 }

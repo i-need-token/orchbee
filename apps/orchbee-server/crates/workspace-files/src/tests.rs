@@ -1,8 +1,12 @@
-use super::{Answer, Request, answer, serve};
+use super::{Answer, BlobCache, Request, answer, serve};
+use base64::Engine as _;
 use orchbee_workbench_protocol::{
-    WorkspaceEntryKind, WorkspaceFileContent, WorkspaceFileSource, WorkspaceFilesFailure,
-    WorkspaceFilesOperation, WorkspaceFilesOutcome, WorkspaceGitStatusCode as Code,
+    WORKSPACE_FILE_CHUNK_BYTES, WorkspaceEntryKind, WorkspaceFileContent,
+    WorkspaceFileEncoding as Encoding, WorkspaceFileSource, WorkspaceFileVersion,
+    WorkspaceFilesFailure, WorkspaceFilesOperation, WorkspaceFilesOutcome,
+    WorkspaceGitStatusCode as Code,
 };
+use sha2::Digest as _;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -90,29 +94,118 @@ fn list(root: &str, path: &str) -> WorkspaceFilesOutcome {
     answer(
         root,
         &WorkspaceFilesOperation::ListDirectory { path: path.into() },
+        &BlobCache::default(),
         deadline(),
     )
 }
 
-fn read(root: &str, path: &str, source: WorkspaceFileSource) -> WorkspaceFilesOutcome {
-    answer(
+fn read_at(
+    root: &str,
+    path: &str,
+    source: WorkspaceFileSource,
+    offset: u64,
+    encoding: Encoding,
+    cache: &BlobCache,
+) -> WorkspaceFilesOutcome {
+    let outcome = answer(
         root,
         &WorkspaceFilesOperation::ReadFile {
             path: path.into(),
             source,
+            offset,
+            encoding,
         },
+        cache,
         deadline(),
-    )
+    );
+    outcome.validate().unwrap();
+    outcome
 }
 
+fn read(root: &str, path: &str, source: WorkspaceFileSource) -> WorkspaceFilesOutcome {
+    read_at(root, path, source, 0, Encoding::Text, &BlobCache::default())
+}
+
+/// The text of a file that fits one chunk.
 fn text(outcome: &WorkspaceFilesOutcome) -> Option<&str> {
     match outcome {
         WorkspaceFilesOutcome::File {
-            content: WorkspaceFileContent::Text { text },
+            content:
+                WorkspaceFileContent::Text {
+                    text,
+                    next_offset: None,
+                    ..
+                },
             ..
         } => Some(text),
         _ => None,
     }
+}
+
+/// Every chunk of a file, followed from offset to next offset, and the bytes they join to.
+fn chunks(
+    root: &str,
+    path: &str,
+    source: WorkspaceFileSource,
+    encoding: Encoding,
+) -> (Vec<WorkspaceFilesOutcome>, Vec<u8>) {
+    let cache = BlobCache::default();
+    let mut outcomes = Vec::new();
+    let mut joined = Vec::new();
+    let mut offset = Some(0);
+    while let Some(at) = offset {
+        let outcome = read_at(root, path, source, at, encoding, &cache);
+        offset = match &outcome {
+            WorkspaceFilesOutcome::File {
+                content:
+                    WorkspaceFileContent::Text {
+                        offset,
+                        text,
+                        next_offset,
+                    },
+                ..
+            } => {
+                assert_eq!(*offset, at);
+                joined.extend_from_slice(text.as_bytes());
+                *next_offset
+            }
+            WorkspaceFilesOutcome::File {
+                content:
+                    WorkspaceFileContent::Bytes {
+                        offset,
+                        base64,
+                        next_offset,
+                    },
+                ..
+            } => {
+                assert_eq!(*offset, at);
+                joined.extend(
+                    base64::engine::general_purpose::STANDARD
+                        .decode(base64)
+                        .unwrap(),
+                );
+                *next_offset
+            }
+            other => panic!("not a chunk: {other:?}"),
+        };
+        outcomes.push(outcome);
+    }
+    (outcomes, joined)
+}
+
+fn version(outcome: &WorkspaceFilesOutcome) -> Option<&WorkspaceFileVersion> {
+    match outcome {
+        WorkspaceFilesOutcome::File { version, .. } => version.as_ref(),
+        _ => None,
+    }
+}
+
+/// A file of `length` bytes that occupies no disk, for size limits.
+fn sparse(scratch: &Scratch, relative: &str, length: u64) {
+    std::fs::File::create(scratch.0.join(relative))
+        .unwrap()
+        .set_len(length)
+        .unwrap();
 }
 
 #[test]
@@ -221,6 +314,7 @@ fn reads_the_worktree_index_and_head() {
     );
     let absent = WorkspaceFilesOutcome::File {
         byte_length: 0,
+        version: None,
         content: WorkspaceFileContent::Absent {},
     };
     assert_eq!(read(&root, "added.txt", WorkspaceFileSource::Head), absent);
@@ -232,21 +326,14 @@ fn reads_the_worktree_index_and_head() {
         text(&read(&root, "gone.txt", WorkspaceFileSource::Head)),
         Some("bye\n")
     );
-    assert_eq!(
+    assert!(matches!(
         read(&root, "build/out.bin", WorkspaceFileSource::Worktree),
         WorkspaceFilesOutcome::File {
             byte_length: 3,
+            version: Some(_),
             content: WorkspaceFileContent::Binary {}
         }
-    );
-    scratch.write("big.txt", vec![b'a'; 2 * 1024 * 1024 + 1]);
-    assert_eq!(
-        read(&root, "big.txt", WorkspaceFileSource::Worktree),
-        WorkspaceFilesOutcome::File {
-            byte_length: 2 * 1024 * 1024 + 1,
-            content: WorkspaceFileContent::TooLarge {}
-        }
-    );
+    ));
     assert_eq!(
         read(&root, "src", WorkspaceFileSource::Worktree),
         WorkspaceFilesOutcome::Failed {
@@ -256,21 +343,161 @@ fn reads_the_worktree_index_and_head() {
 }
 
 #[test]
-fn text_whose_escapes_pass_the_result_cap_is_too_large() {
-    let scratch = Scratch::new("escapes");
-    // Each control byte encodes as six bytes of JSON.
-    scratch.write("controls.txt", vec![0x01_u8; 2 * 1024 * 1024]);
+fn reads_large_text_in_chunks_that_end_on_whole_characters() {
+    let scratch = Scratch::new("chunks");
+    let root = scratch.root();
+    // Push a three-byte character across the first chunk boundary.
+    let mut original = vec![b'a'; WORKSPACE_FILE_CHUNK_BYTES - 2];
+    original.extend_from_slice("\u{6587}".as_bytes());
+    for line in 0..40_000 {
+        original.extend_from_slice(format!("{line} \u{6587}\n").as_bytes());
+    }
+    scratch.write("big.txt", &original);
+    let (outcomes, joined) = chunks(
+        &root,
+        "big.txt",
+        WorkspaceFileSource::Worktree,
+        Encoding::Text,
+    );
+    assert_eq!(joined, original);
+    assert!(outcomes.len() > 2);
+    let WorkspaceFilesOutcome::File {
+        content: WorkspaceFileContent::Text { next_offset, .. },
+        ..
+    } = &outcomes[0]
+    else {
+        unreachable!();
+    };
+    assert_eq!(*next_offset, Some(WORKSPACE_FILE_CHUNK_BYTES as u64 - 2));
+    // The first chunk names the whole file's hash; every chunk names the same modification.
+    let first = version(&outcomes[0]).unwrap();
+    assert_eq!(first.sha256.as_ref().map(String::len), Some(64));
+    for outcome in &outcomes[1..] {
+        let later = version(outcome).unwrap();
+        assert_eq!(
+            (later.modified.as_str(), &later.sha256),
+            (first.modified.as_str(), &None)
+        );
+    }
+    // A chunk of control characters escapes to six times its size and still fits the result cap.
+    scratch.write(
+        "controls.txt",
+        vec![0x01_u8; 2 * WORKSPACE_FILE_CHUNK_BYTES],
+    );
+    let (_, joined) = chunks(
+        &root,
+        "controls.txt",
+        WorkspaceFileSource::Worktree,
+        Encoding::Text,
+    );
+    assert_eq!(joined.len(), 2 * WORKSPACE_FILE_CHUNK_BYTES);
+}
+
+#[test]
+fn hashes_only_what_can_be_edited_and_opens_nothing_past_its_limit() {
+    let scratch = Scratch::new("limits");
+    let root = scratch.root();
+    let editable = orchbee_workbench_protocol::MAXIMUM_WORKSPACE_FILE_EDITABLE_BYTES;
+    scratch.write("small.txt", "same\n");
+    let expected: String = sha2::Sha256::digest(b"same\n")
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
     assert_eq!(
-        read(
-            &scratch.root(),
-            "controls.txt",
-            WorkspaceFileSource::Worktree
+        version(&read(&root, "small.txt", WorkspaceFileSource::Worktree))
+            .and_then(|version| version.sha256.as_deref()),
+        Some(expected.as_str())
+    );
+    scratch.write(
+        "read-only.txt",
+        vec![b'a'; usize::try_from(editable).unwrap() + 1],
+    );
+    let read_only = read(&root, "read-only.txt", WorkspaceFileSource::Worktree);
+    assert!(matches!(
+        read_only,
+        WorkspaceFilesOutcome::File {
+            content: WorkspaceFileContent::Text { .. },
+            ..
+        }
+    ));
+    assert_eq!(version(&read_only).unwrap().sha256, None);
+    let open = orchbee_workbench_protocol::MAXIMUM_WORKSPACE_FILE_OPEN_BYTES;
+    sparse(&scratch, "huge.txt", open + 1);
+    assert!(matches!(
+        read(&root, "huge.txt", WorkspaceFileSource::Worktree),
+        WorkspaceFilesOutcome::File {
+            content: WorkspaceFileContent::TooLarge {},
+            version: Some(_),
+            ..
+        }
+    ));
+    let bytes = orchbee_workbench_protocol::MAXIMUM_WORKSPACE_FILE_BYTES_READ;
+    sparse(&scratch, "image.png", bytes + 1);
+    assert!(matches!(
+        read_at(
+            &root,
+            "image.png",
+            WorkspaceFileSource::Worktree,
+            0,
+            Encoding::Bytes,
+            &BlobCache::default()
         ),
         WorkspaceFilesOutcome::File {
-            byte_length: 2 * 1024 * 1024,
-            content: WorkspaceFileContent::TooLarge {}
+            content: WorkspaceFileContent::TooLarge {},
+            ..
+        }
+    ));
+    assert_eq!(
+        read_at(
+            &root,
+            "small.txt",
+            WorkspaceFileSource::Worktree,
+            6,
+            Encoding::Text,
+            &BlobCache::default()
+        ),
+        WorkspaceFilesOutcome::Failed {
+            reason: WorkspaceFilesFailure::Malformed
         }
     );
+}
+
+#[test]
+fn reads_bytes_and_committed_blobs_in_chunks() {
+    let scratch = Scratch::new("blobs");
+    let root = scratch.root();
+    git(&scratch.0, &["init", "-q"]);
+    let image: Vec<u8> = (0..WORKSPACE_FILE_CHUNK_BYTES * 2 + 7)
+        .map(|index| u8::try_from(index % 251).unwrap())
+        .collect();
+    scratch.write("image.png", &image);
+    let committed = "line\n".repeat(WORKSPACE_FILE_CHUNK_BYTES / 4);
+    scratch.write("long.txt", &committed);
+    git(&scratch.0, &["add", "-A"]);
+    git(&scratch.0, &["commit", "-q", "-m", "first"]);
+    scratch.write("long.txt", "short\n");
+    let (outcomes, joined) = chunks(
+        &root,
+        "image.png",
+        WorkspaceFileSource::Worktree,
+        Encoding::Bytes,
+    );
+    assert_eq!((outcomes.len(), joined), (3, image.clone()));
+    assert!(matches!(
+        read(&root, "image.png", WorkspaceFileSource::Worktree),
+        WorkspaceFilesOutcome::File {
+            content: WorkspaceFileContent::Binary {},
+            ..
+        }
+    ));
+    for source in [WorkspaceFileSource::Head, WorkspaceFileSource::Index] {
+        let (outcomes, joined) = chunks(&root, "long.txt", source, Encoding::Text);
+        assert_eq!(joined, committed.as_bytes());
+        assert!(outcomes.len() > 1);
+        assert!(outcomes.iter().all(|outcome| version(outcome).is_none()));
+        let (_, joined) = chunks(&root, "image.png", source, Encoding::Bytes);
+        assert_eq!(joined, image);
+    }
 }
 
 #[test]
@@ -283,6 +510,7 @@ fn reports_the_change_list_relative_to_the_workspace() {
     } = answer(
         &scratch.root(),
         &WorkspaceFilesOperation::GitStatus {},
+        &BlobCache::default(),
         deadline(),
     )
     else {
@@ -321,6 +549,7 @@ fn reports_the_change_list_relative_to_the_workspace() {
     let WorkspaceFilesOutcome::GitStatus { entries, .. } = answer(
         &format!("{}/src", scratch.root()),
         &WorkspaceFilesOperation::GitStatus {},
+        &BlobCache::default(),
         deadline(),
     ) else {
         panic!("not a change list");
@@ -347,6 +576,7 @@ fn a_plain_directory_lists_but_has_no_git_facts() {
         answer(
             &scratch.root(),
             &WorkspaceFilesOperation::GitStatus {},
+            &BlobCache::default(),
             deadline()
         ),
         not_repository
@@ -398,6 +628,8 @@ fn serves_lines_in_order_and_skips_what_is_not_a_request() {
             operation: WorkspaceFilesOperation::ReadFile {
                 path: path.into(),
                 source: WorkspaceFileSource::Worktree,
+                offset: 0,
+                encoding: Encoding::Text,
             },
         })
         .unwrap();

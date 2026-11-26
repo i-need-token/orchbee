@@ -41,7 +41,9 @@ export type {
 export type { SettingsFile } from './workbench-settings-contract';
 export type {
 	WorkspaceDirectoryEntry,
+	WorkspaceFileEncoding,
 	WorkspaceFileSource,
+	WorkspaceFileVersion,
 	WorkspaceFilesOperation,
 	WorkspaceFilesOutcome,
 	WorkspaceGitStatusCode,

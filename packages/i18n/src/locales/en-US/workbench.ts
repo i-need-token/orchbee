@@ -520,8 +520,11 @@ export const enUSWorkbenchMessages = {
 	'workbench.rightBar.changes.conflicts': 'Merge conflicts',
 	'workbench.rightBar.changes.staged': 'Staged changes',
 	'workbench.rightBar.changes.unstaged': 'Changes',
-	'workbench.rightBar.preview.binary': "This file is binary and can't be shown.",
-	'workbench.rightBar.preview.tooLarge': 'This file is too large to show.',
+	'workbench.rightBar.preview.binary':
+		"{type, select, none {Binary file, {size}. It can't be shown as text.} other {{type} file, {size}. It can't be shown as text.}}",
+	'workbench.rightBar.preview.tooLarge':
+		"This file is {size}, larger than {limit}, so it doesn't open here.",
+	'workbench.rightBar.imageSize': '{width} × {height}',
 	'workbench.rightBar.preview.absent': 'This file no longer exists.',
 	'workbench.rightBar.side.head': 'last commit',
 	'workbench.rightBar.side.index': 'staged',

@@ -75,13 +75,48 @@ interface DiffStat {
 	readonly changes: number;
 }
 
-const NOTE_MESSAGES = {
-	absent: workbenchMessages.rightBarPreviewAbsent,
-	binary: workbenchMessages.rightBarPreviewBinary,
-	failed: workbenchMessages.rightBarFailed,
-	'not-repository': workbenchMessages.rightBarNotRepository,
-	'too-large': workbenchMessages.rightBarPreviewTooLarge,
-} as const;
+type Intl = ReturnType<typeof useOrchbeeIntl>;
+
+/** A byte count as a short size, such as 1.2 MB. */
+function formatSize(intl: Intl, byteLength: number): string {
+	return intl.formatNumber(byteLength, {
+		maximumFractionDigits: 1,
+		notation: 'compact',
+		style: 'unit',
+		unit: 'byte',
+		unitDisplay: 'narrow',
+	});
+}
+
+/** Why the tab shows no content, with the size and limit the note names. */
+function noteText(intl: Intl, content: Extract<EditorContent, { kind: 'note' }>): string {
+	switch (content.note) {
+		case 'binary':
+			return intl.formatMessage(workbenchMessages.rightBarPreviewBinary, {
+				size: formatSize(intl, content.byteLength),
+				type: content.type ?? 'none',
+			});
+		case 'too-large':
+			return intl.formatMessage(workbenchMessages.rightBarPreviewTooLarge, {
+				limit: formatSize(intl, content.limit),
+				size: formatSize(intl, content.byteLength),
+			});
+		case 'absent':
+			return intl.formatMessage(workbenchMessages.rightBarPreviewAbsent);
+		case 'not-repository':
+			return intl.formatMessage(workbenchMessages.rightBarNotRepository);
+		case 'failed':
+			return intl.formatMessage(workbenchMessages.rightBarFailed);
+	}
+}
+
+/** An image type's short name, such as PNG or SVG. */
+function imageTypeName(type: string): string {
+	return type
+		.slice(type.indexOf('/') + 1)
+		.replace(/\+.*$/u, '')
+		.toUpperCase();
+}
 
 const SIDE_MESSAGES = {
 	head: workbenchMessages.rightBarSideHead,
@@ -167,6 +202,12 @@ export function EditorPane({
 	const readFor = React.useRef(new Map<string, number>());
 	const [loaded, setLoaded] = React.useState<ReadonlyMap<string, Loaded>>(() => new Map());
 	const [diffStat, setDiffStat] = React.useState<DiffStat | null>(null);
+	// The pixel size of the image shown, once it loads, named by its address.
+	const [imageSize, setImageSize] = React.useState<{
+		readonly url: string;
+		readonly width: number;
+		readonly height: number;
+	} | null>(null);
 
 	React.useEffect(() => {
 		const editorElement = editorHost.current;
@@ -309,6 +350,7 @@ export function EditorPane({
 			if (read.kind === 'file') {
 				if (existing?.kind === 'file') {
 					updateText(existing.model, read.text);
+					monaco.editor.setModelLanguage(existing.model, languageFor(path, read.byteLength));
 					return existing;
 				}
 				const created: TabModels = {
@@ -325,8 +367,11 @@ export function EditorPane({
 			}
 			if (read.kind !== 'diff' || tab.target.kind !== 'diff') return null;
 			if (existing?.kind === 'diff') {
+				const language = languageFor(path, read.byteLength);
 				updateText(existing.original, read.before);
 				updateText(existing.modified, read.after);
+				monaco.editor.setModelLanguage(existing.original, language);
+				monaco.editor.setModelLanguage(existing.modified, language);
 				return existing;
 			}
 			const { item } = tab.target;
@@ -361,14 +406,18 @@ export function EditorPane({
 				count: content.text === '' ? 1 : content.text.split('\n').length,
 			}),
 		);
-		meta.push(
-			intl.formatNumber(content.byteLength, {
-				notation: 'compact',
-				style: 'unit',
-				unit: 'byte',
-				unitDisplay: 'narrow',
-			}),
-		);
+		meta.push(formatSize(intl, content.byteLength));
+	} else if (content.kind === 'image') {
+		meta.push(imageTypeName(content.type));
+		if (imageSize !== null && imageSize.url === content.url) {
+			meta.push(
+				intl.formatMessage(workbenchMessages.rightBarImageSize, {
+					height: imageSize.height,
+					width: imageSize.width,
+				}),
+			);
+		}
+		meta.push(formatSize(intl, content.byteLength));
 	} else if (content.kind === 'diff' && active.target.kind === 'diff') {
 		const { item } = active.target;
 		if (diffStat !== null) {
@@ -409,7 +458,20 @@ export function EditorPane({
 					<p className={styles['note']}>{intl.formatMessage(workbenchMessages.rightBarLoading)}</p>
 				) : null}
 				{content.kind === 'note' ? (
-					<p className={styles['note']}>{intl.formatMessage(NOTE_MESSAGES[content.note])}</p>
+					<p className={styles['note']}>{noteText(intl, content)}</p>
+				) : null}
+				{content.kind === 'image' ? (
+					<div className={styles['image']}>
+						<img
+							alt={name}
+							key={content.url}
+							onLoad={(event) => {
+								const { naturalHeight, naturalWidth } = event.currentTarget;
+								setImageSize({ height: naturalHeight, url: content.url, width: naturalWidth });
+							}}
+							src={content.url}
+						/>
+					</div>
 				) : null}
 			</div>
 		</div>

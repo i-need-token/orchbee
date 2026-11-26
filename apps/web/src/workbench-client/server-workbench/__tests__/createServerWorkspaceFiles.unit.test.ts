@@ -78,6 +78,31 @@ describe('createServerWorkspaceFiles', () => {
 		}
 	});
 
+	it('reads as no answer when a file chunk is not the one asked for', async () => {
+		const chunk = (offset: number) => ({
+			byteLength: 10,
+			content: { kind: 'text', nextOffset: offset === 0 ? 5 : null, offset, text: 'abcde' },
+			kind: 'file',
+			version: null,
+		});
+		const read = {
+			encoding: 'text',
+			kind: 'read-file',
+			offset: 5,
+			path: 'a.txt',
+			source: 'worktree',
+		} as const;
+		const elsewhere = createServerWorkspaceFiles(
+			sessionAnswering((request) => filesResult(request.requestId, chunk(0))),
+		);
+		await expect(elsewhere.read(WORKSPACE, read)).resolves.toBeNull();
+		const asked = createServerWorkspaceFiles(
+			sessionAnswering((request) => filesResult(request.requestId, chunk(5))),
+		);
+		await expect(asked.read(WORKSPACE, read)).resolves.toEqual(chunk(5));
+		await expect(asked.read(WORKSPACE, { ...read, encoding: 'bytes' })).resolves.toBeNull();
+	});
+
 	it('asks nothing about a Workspace the Session does not show', async () => {
 		const requests: Request[] = [];
 		const source = createServerWorkspaceFiles(

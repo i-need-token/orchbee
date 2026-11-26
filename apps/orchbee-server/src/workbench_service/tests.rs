@@ -106,6 +106,8 @@ fn workspace_files_requires_read_and_answers_without_starting_anything_for_unkno
     let read_file = |path: &str| WorkspaceFilesOperation::ReadFile {
         path: path.into(),
         source: WorkspaceFileSource::Worktree,
+        offset: 0,
+        encoding: orchbee_workbench_protocol::WorkspaceFileEncoding::Text,
     };
     for (read, session, operation, reason) in [
         (

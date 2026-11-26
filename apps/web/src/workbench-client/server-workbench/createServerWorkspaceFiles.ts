@@ -13,6 +13,25 @@ type FilesSession = Pick<ServerWorkbenchSession, 'ask' | 'snapshot'>;
 /** One read's budget: the Server's own five and a half seconds and the carrier's way back. */
 const READ_MILLISECONDS = 7_000;
 
+/** Whether an outcome is one the operation can have: its kind, and a chunk's offset and encoding. */
+function answers(outcome: WorkspaceFilesOutcome, operation: WorkspaceFilesOperation): boolean {
+	if (outcome.kind === 'failed') return true;
+	switch (operation.kind) {
+		case 'list-directory':
+			return outcome.kind === 'directory';
+		case 'git-status':
+			return outcome.kind === 'git-status';
+		case 'read-file': {
+			if (outcome.kind !== 'file') return false;
+			const { content } = outcome;
+			if (content.kind === 'text' || content.kind === 'bytes') {
+				return content.kind === operation.encoding && content.offset === operation.offset;
+			}
+			return true;
+		}
+	}
+}
+
 /**
  * `workbench.workspace-files` reads for the right bar. Nothing is read until the bar asks, and the
  * Server starts its file service only then.
@@ -43,7 +62,8 @@ export function createServerWorkspaceFiles(session: FilesSession): WorkbenchWork
 			if (
 				answer.kind !== 'answered' ||
 				answer.response.kind !== 'workbench.workspace-files.result' ||
-				answer.response.requestId !== requestId
+				answer.response.requestId !== requestId ||
+				!answers(answer.response.outcome, operation)
 			) {
 				return null;
 			}

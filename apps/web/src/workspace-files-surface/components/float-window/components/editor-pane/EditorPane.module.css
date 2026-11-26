@@ -69,3 +69,18 @@
 	color: var(--ob-sys-color-text-muted);
 	text-align: center;
 }
+
+.image {
+	position: absolute;
+	inset: 0;
+	display: grid;
+	place-items: center;
+	overflow: auto;
+	padding: var(--ob-ref-space-6);
+}
+
+.image img {
+	max-inline-size: 100%;
+	max-block-size: 100%;
+	object-fit: contain;
+}
