@@ -73,9 +73,10 @@ repository>`. Print each public half with the command in
    smoke-tests the release identity of the version the commit records on every row with `build`
    set, presses Update in a real Test window of each of those rows, runs the release gate's paths a
    tag run would select, joins the rows the way a tag run would, and publishes nothing; a newer
-   commit's candidate replaces one still waiting to start. A tag of that commit reuses its joined
-   files for a week: the tag run checks them again and publishes minutes after the tag, and a tag
-   pushed while the candidate is still building waits for it. A tag of a commit with no passed
+   commit's candidate replaces one still waiting to start. A tag of that commit reuses the files of
+   the rows it publishes for a week: the tag run checks and joins them again and publishes minutes
+   after the tag, leaving out a row the candidate built without publishing, and a tag pushed while
+   the candidate is still building waits for it. A tag of a commit with no passed
    candidate builds everything. Never install a candidate's files: unless a tag reuses them, the
    release is another build of the same version. A rehearsal does the same by hand: Actions ›
    Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or

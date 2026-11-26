@@ -11,7 +11,7 @@
 //   node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>
 //   node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>
-//   node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --repository <owner/name>
+//   node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --platforms <list> --repository <owner/name>
 //   node scripts/release-publish.mjs verified --commit <sha> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs candidate --repository <owner/name>
 //
@@ -47,11 +47,11 @@
 //   <artifacts>, as the repository's Latest release and not a pre-release; a published release is
 //   only confirmed.
 //
-// - reuse: the run of the release workflow whose joined files this run of <commit> and <version>
-//   reuses (reuseDecision), read through the GitHub API, waiting up to an hour while an earlier run
-//   of the commit is still building; writes its id as `reuse`, or an empty `reuse` to build: when
-//   no run qualifies, or when a platform row builds without publishing, whose files a rehearsal
-//   joins but a tag must not publish.
+// - reuse: the run of the release workflow whose files of the comma-separated <list> of platform
+//   rows this run of <commit> and <version> joins instead of building (reuseDecision), read through
+//   the GitHub API, waiting up to an hour while an earlier run of the commit is still building;
+//   writes its id as `reuse`, or an empty `reuse` to build when no run qualifies. A candidate's
+//   rows that a tag does not publish stay out of the tag's join.
 // - verified: waits until a Verify run for <commit> passed (verifyState). A failed Verify, or none
 //   within ten minutes, fails with the commands that fix it.
 // - candidate: writes `unreleased`, true while no tag v<version> exists for the version the
@@ -87,7 +87,7 @@ const usage =
 	'       node scripts/release-publish.mjs github <artifacts> --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>\n' +
 	'       node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>\n' +
-	'       node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --repository <owner/name>\n' +
+	'       node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --platforms <list> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs verified --commit <sha> --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs candidate --repository <owner/name>';
 
@@ -609,8 +609,9 @@ function githubReleaseList(repositoryName, gh = (argv) => run('gh', argv)) {
 
 /**
  * What a run of `version` from `commit` does with the release workflow's other runs of that commit,
- * by the run names the workflow gives them: `{ reuse }`, the newest passed one that still holds its
- * joined files; else `{ wait }`, the newest one started earlier and still running, which may pass;
+ * by the run names the workflow gives them: `{ reuse }`, the newest passed one that still holds the
+ * files of every row this run joins (`joined`); else `{ wait }`, the newest one started earlier and
+ * still running, which may pass;
  * else `{}` to build. A run of another commit never qualifies, so a tag publishes only files built,
  * signed and gated from its own commit, and a candidate's name needs no version because every run
  * checks its commit's version sources against its version. Waiting only for an earlier run keeps
@@ -644,15 +645,15 @@ export function verifyState(runs) {
 	return runs.length === 0 ? 'missing' : 'failed';
 }
 
-function apiLines(gh, endpoint, filter) {
-	return gh(['api', endpoint, '--jq', filter])
+function apiLines(gh, endpoint, filter, flags = []) {
+	return gh(['api', ...flags, endpoint, '--jq', filter])
 		.stdout.split('\n')
 		.filter((line) => line.trim() !== '')
 		.map((line) => JSON.parse(line));
 }
 
 async function reusableRun(
-	{ version, commit, current, repositoryName },
+	{ version, commit, current, platforms, repositoryName },
 	gh = (argv) => run('gh', argv),
 ) {
 	const deadline = Date.now() + 60 * 60_000;
@@ -663,17 +664,26 @@ async function reusableRun(
 			'.workflow_runs[] | {id, title: .display_title, headSha: .head_sha, status, conclusion}',
 		);
 		const decision = reuseDecision({
-			// Only a passed run costs an artifact query.
-			runs: runs.map((entry) => ({
-				...entry,
-				joined:
-					entry.conclusion === 'success' &&
+			// Only a passed run costs an artifact query: each row's files and feed signature.
+			runs: runs.map((entry) => {
+				if (entry.conclusion !== 'success') return { ...entry, joined: false };
+				const kept = new Set(
 					apiLines(
 						gh,
-						`repos/${repositoryName}/actions/runs/${entry.id}/artifacts?name=release-joined`,
-						'.artifacts[] | select(.expired | not) | {id}',
-					).length > 0,
-			})),
+						`repos/${repositoryName}/actions/runs/${entry.id}/artifacts?per_page=100`,
+						'.artifacts[] | select(.expired | not) | .name | tojson',
+						['--paginate'],
+					),
+				);
+				return {
+					...entry,
+					joined: platforms.every(
+						(platform) =>
+							kept.has(`release-assets-${platform}`) &&
+							kept.has(`release-feed-signature-${platform}`),
+					),
+				};
+			}),
 			version,
 			commit,
 			current,
@@ -1096,38 +1106,35 @@ async function main(argv) {
 		return;
 	}
 	if (command === 'reuse') {
-		const { positional, options } = parseOptions(rest, ['version', 'commit', 'run', 'repository']);
+		const { positional, options } = parseOptions(rest, [
+			'version',
+			'commit',
+			'run',
+			'platforms',
+			'repository',
+		]);
+		const platforms = (options.platforms ?? '').split(',');
 		if (
 			positional.length > 0 ||
 			!SEMVER.test(options.version ?? '') ||
 			!/^[\da-f]{40}$/u.test(options.commit ?? '') ||
 			!/^\d+$/u.test(options.run ?? '') ||
+			!platforms.every((platform) => /^[a-z]+-[a-z0-9_]+$/u.test(platform)) ||
 			options.repository === undefined
 		)
 			throw new UsageError(usage);
-		let platforms;
-		try {
-			platforms = JSON.parse(process.env.RELEASE_PLATFORMS ?? '');
-		} catch {
-			throw new StepFailure('RELEASE_PLATFORMS is not JSON');
-		}
-		const unpublished = platforms.find((row) => row.build && !row.publish);
-		const reuse = unpublished
-			? undefined
-			: await reusableRun({
-					version: options.version,
-					commit: options.commit,
-					current: Number(options.run),
-					repositoryName: options.repository,
-				});
-		if (unpublished)
-			log(`${unpublished.platform} builds without publishing; this run builds every row.`);
-		else
-			log(
-				reuse === undefined
-					? `No passed run of ${options.version} from ${options.commit} to reuse; this run builds.`
-					: `Reusing the joined files of run ${reuse}.`,
-			);
+		const reuse = await reusableRun({
+			version: options.version,
+			commit: options.commit,
+			current: Number(options.run),
+			platforms,
+			repositoryName: options.repository,
+		});
+		log(
+			reuse === undefined
+				? `No passed run of ${options.version} from ${options.commit} holds ${platforms.join(', ')}; this run builds.`
+				: `Joining the files of ${platforms.join(', ')} from run ${reuse}.`,
+		);
 		writeOutputs({ reuse: reuse === undefined ? '' : String(reuse) });
 		return;
 	}

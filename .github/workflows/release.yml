@@ -15,9 +15,10 @@ name: Release
 # permissions or the npm token, and it runs only for a `push` event whose plan says `publish`.
 # Once Verify passed for the newest commit of main, a release candidate rehearses that commit at the
 # version main records, with no human step.
-# A run whose commit a passed rehearsal, candidate or tag run already built, gated and joined reuses
-# that run's joined files instead of building again, unless a manual run asks to rebuild, and a run
-# that finds such a run still building waits for it; a tag after its candidate publishes in minutes.
+# A run whose commit a passed rehearsal, candidate or tag run already built, gated and joined takes
+# that run's files of its own rows and joins them instead of building again, unless a manual run
+# asks to rebuild, and a run that finds such a run still building waits for it; a tag after its
+# candidate publishes in minutes, and a row the candidate built without publishing stays out.
 # A tag publishes only once Verify passed for its commit.
 # Rules for changing this file: docs/VERIFICATION.md#release-and-update-check-workflows; the owner's
 # steps: docs/RELEASING.md. The comments here are the description of each job.
@@ -302,7 +303,7 @@ jobs:
       actions: read
       contents: read
     outputs:
-      # The id of the passed run whose joined files this run reuses, or empty to build.
+      # The id of the passed run whose row files this run joins instead of building, or empty.
       reuse: ${{ steps.reuse.outputs.reuse }}
       version: ${{ steps.plan.outputs.version }}
       tag: ${{ steps.plan.outputs.tag }}
@@ -366,7 +367,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.plan.outputs.version }}
-        run: node scripts/release-publish.mjs reuse --version "$RELEASE_VERSION" --commit "$GITHUB_SHA" --run "$GITHUB_RUN_ID" --repository "$GITHUB_REPOSITORY"
+          ROWS: ${{ steps.plan.outputs.matrix }}
+        run: |
+          platforms=$(jq -r '[.include[].platform] | join(",")' <<< "$ROWS")
+          node scripts/release-publish.mjs reuse --version "$RELEASE_VERSION" --commit "$GITHUB_SHA" --run "$GITHUB_RUN_ID" --platforms "$platforms" --repository "$GITHUB_REPOSITORY"
 
   release-preconditions:
     name: Release preconditions
@@ -833,8 +837,8 @@ jobs:
       - name: Collect the release artifacts
         run: node scripts/release-artifacts.mjs collect --profile release --output "$env:RUNNER_TEMP\release-artifacts"
 
-      # A tag run keeps them long enough to run a failed publication again; a rehearsal only for
-      # its smoke.
+      # A tag run keeps them long enough to run a failed publication again; another run keeps
+      # every row's files a week, for a tag of the same commit to join the rows it publishes.
       - name: Upload the release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -843,7 +847,7 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           # The release gate and join can start after a retry of the macOS notarization wait.
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
 
       # The feed job receives only the feed document it signs. A tag run keeps it as long as the
       # release artifacts, so a failed feed job can run again.
@@ -1089,7 +1093,7 @@ jobs:
           path: ${{ runner.temp }}/release-artifacts
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
 
       - name: Upload the feed to sign
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1146,7 +1150,7 @@ jobs:
           path: ${{ runner.temp }}/release-artifacts
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
 
       - name: Upload the feed to sign
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1204,14 +1208,15 @@ jobs:
           node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/feed/$FEED_NAME" --key-env ORCHBEE_RELEASE_SIGNING_KEY
           node scripts/sign-release-manifest.mjs "$RUNNER_TEMP/feed/$GATE_FEED_NAME" --key-env ORCHBEE_RELEASE_SIGNING_KEY
 
-      # A tag run keeps both as long as the release artifacts, for a re-run of a later job.
+      # A tag run keeps both as long as the release artifacts, for a re-run of a later job; another
+      # run keeps the feed signature as long as them, for a tag of the same commit to reuse.
       - name: Upload the feed signature
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: release-feed-signature-${{ matrix.platform }}
           path: ${{ runner.temp }}/feed/${{ env.FEED_NAME }}.sig
           if-no-files-found: error
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
 
       - name: Upload the signed gate copy
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1668,12 +1673,21 @@ jobs:
   # into the one set `release-publish` publishes: one row unchanged, several with one main npm
   # package listing every row's platform package and one SHA256SUMS. A rehearsal runs it too, so it
   # proves the set a tag with the same rows publishes. No secret, no environment.
+  # Joins this run's rows, or, in a run that reuses another, the files of this run's rows from that
+  # run, whose builds, smoke tests, window Updates and gate paths passed; it checks every row again
+  # either way.
   release-join:
-    name: Release join
-    needs: [release-plan, release-feed]
-    if: ${{ !cancelled() && needs.release-feed.result == 'success' }}
+    name: ${{ needs.release-plan.outputs.reuse != '' && format('Release join from run {0}', needs.release-plan.outputs.reuse) || 'Release join' }}
+    needs: [release-plan, release-preconditions, release-feed]
+    if: >-
+      ${{ !cancelled() && (needs.release-feed.result == 'success' ||
+      needs.release-plan.outputs.reuse != '' && needs.release-preconditions.result == 'success') }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      # actions: read downloads the files of the run this one reuses.
+      actions: read
+      contents: read
     steps:
       - name: Check out repository
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -1690,15 +1704,19 @@ jobs:
         with:
           pattern: release-assets-*
           path: ${{ runner.temp }}/release
+          run-id: ${{ needs.release-plan.outputs.reuse || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Download the feed signatures
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: release-feed-signature-*
           path: ${{ runner.temp }}/feed-signatures
+          run-id: ${{ needs.release-plan.outputs.reuse || github.run_id }}
+          github-token: ${{ github.token }}
 
-      # Every row of the plan, each checked with its signature beside the feed; SHA256SUMS does not
-      # list the signature.
+      # Every row of this run's plan, each checked with its signature beside the feed; SHA256SUMS
+      # does not list the signature. A reused run's other rows stay out.
       - name: Check every row and join them
         env:
           ROWS: ${{ needs.release-plan.outputs.matrix }}
@@ -1712,8 +1730,8 @@ jobs:
           done
           node scripts/release-artifacts.mjs join --output "$RUNNER_TEMP/release-joined" "${rows[@]}"
 
-      # A tag run keeps it as long as the row artifacts, for a re-run of the publication; a rehearsal
-      # keeps it a week, for a tag of the same commit to reuse.
+      # A tag run keeps it as long as the row artifacts, for a re-run of the publication; a tag of
+      # the same commit joins its own rows again, so another run keeps it a day.
       - name: Upload the joined release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -1721,49 +1739,7 @@ jobs:
           path: ${{ runner.temp }}/release-joined
           if-no-files-found: error
           include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
-
-  # A reusing run takes the joined files of the run release-plan found, checks every feed against
-  # its signature and archive again, and keeps them under this run's name for release-publish.
-  release-reuse:
-    name: Reuse the files of run ${{ needs.release-plan.outputs.reuse }}
-    needs: [release-plan, release-preconditions]
-    if: needs.release-plan.outputs.reuse != ''
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: 22
-
-      - name: Download the reused run's joined release artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: release-joined
-          path: ${{ runner.temp }}/release-joined
-          run-id: ${{ needs.release-plan.outputs.reuse }}
-          github-token: ${{ github.token }}
-
-      - name: Check the reused release artifacts
-        run: node scripts/release-artifacts.mjs check "$RUNNER_TEMP/release-joined"
-
-      - name: Keep the joined release artifacts under this run
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: release-joined
-          path: ${{ runner.temp }}/release-joined
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 7 }}
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
   # Tag runs only: waits, beside the build, until Verify passed for the tagged commit; the Verify
   # run on main that checks the commit is the merge gate the release stands on.
@@ -1797,8 +1773,8 @@ jobs:
   # release. GitHub first, as a draft; then npm, because a published npm version can never be
   # replaced; then the draft becomes the Latest release, so a failed npm step leaves it a draft.
   # Run again, the job finishes a partial publication. The condition names the `push` event as well
-  # as the plan's `publish`, so no manual run reaches it. Verify must have passed for the commit, and
-  # either the reused files passed their check or every needed job must have passed: the macOS smoke
+  # as the plan's `publish`, so no manual run reaches it. Verify must have passed for the commit and
+  # the join, and unless the run reuses another, every needed job must have passed: the macOS smoke
   # and window Update check may be skipped only when the plan has no macOS row, the Linux smoke only
   # when it has no Linux row, and the release gate only when the plan selected no path.
   release-publish:
@@ -1815,14 +1791,13 @@ jobs:
         release-window-update-macos,
         release-gate,
         release-gate-macos,
-        release-reuse,
         release-verified,
       ]
     if: >-
       ${{ !cancelled() && github.event_name == 'push' && needs.release-plan.outputs.publish == 'true' &&
       needs.release-verified.result == 'success' &&
-      (needs.release-reuse.result == 'success' ||
-      needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
+      needs.release-join.result == 'success' && (needs.release-plan.outputs.reuse != '' ||
+      needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
       (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
       (needs.release-smoke-linux.result == 'success' || needs.release-plan.outputs.linux == 'false') &&
