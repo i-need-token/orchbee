@@ -7,14 +7,23 @@ import * as React from 'react';
 
 import type { WorkbenchWorkspaceFilesSource } from '../../../workbench';
 import type { FloatTarget } from '../../float-tabs';
+import type { SearchMatchTarget } from '../../search-results';
+import type { SearchSessions } from '../../SearchSessions';
 import { changeRows, type Changes } from './changeRows';
 import { ChangesView } from './components/changes-view/ChangesView';
+import type { OpenMatchHow } from './components/search-view/components/search-result-list/SearchResultList';
 import { flattenTree, type Listing, parentPath, type TreeRow } from './file-tree';
 import { useWindowedRows } from './hooks/useWindowedRows';
 import type { WorkspaceFilesChange } from '../../hooks/useWorkspaceFilesWatch';
 import { readWorkspaceFiles } from '../../readWorkspaceFiles';
 
 import styles from './RightBar.module.css';
+
+const LazySearchView = React.lazy(() =>
+	import('./components/search-view/SearchView').then((module) => ({
+		default: module.SearchView,
+	})),
+);
 
 export interface RightBarProps {
 	readonly source: WorkbenchWorkspaceFilesSource;
@@ -45,6 +54,14 @@ export interface RightBarProps {
 	readonly commitHistory: readonly string[];
 	readonly onCommitted: (workspaceId: string, message: string) => void;
 	readonly shortcutPlatform: KeyboardShortcutPlatform;
+	/** Every Workspace's search, which outlives the bar. */
+	readonly searches: SearchSessions;
+	/** The files the float window has open, which a search can keep to. */
+	readonly openPaths: readonly string[];
+	/** Opens a match in the float window and puts the editor's selection on it. */
+	readonly onOpenMatch: (target: SearchMatchTarget, how: OpenMatchHow) => void;
+	/** Hands the keyboard back to the terminal. */
+	readonly onReturnFocus: () => void;
 }
 
 /** One automatic refresh: its count, and what may have changed. */
@@ -52,14 +69,14 @@ export interface AutoRefresh extends WorkspaceFilesChange {
 	readonly count: number;
 }
 
-type View = 'files' | 'changes';
+type View = 'files' | 'search' | 'changes';
 
 /**
- * The right bar: the Workspace's files as a tree and its Git changes, both read on demand, and the
- * staging and committing of those changes. Each view
- * reads again on Refresh, on switching to it, and when a change it shows arrives. While changes are
- * not followed, coming back to the window reads again too, and a note says Refresh is needed; a
- * change list cut short is not followed either. Nothing polls.
+ * The right bar: the Workspace's files as a tree, a search of their text, and its Git changes, read
+ * on demand, with the staging and committing of those changes. The tree and the change list read
+ * again on Refresh, on switching to them, and when a change they show arrives; the search runs again
+ * only on Refresh. While changes are not followed, coming back to the window reads again too, and a
+ * note says Refresh is needed; a change list cut short is not followed either. Nothing polls.
  */
 export function RightBar({
 	source,
@@ -80,6 +97,10 @@ export function RightBar({
 	commitHistory,
 	onCommitted,
 	shortcutPlatform,
+	searches,
+	openPaths,
+	onOpenMatch,
+	onReturnFocus,
 }: RightBarProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [view, setView] = React.useState<View>('files');
@@ -89,6 +110,10 @@ export function RightBar({
 	const reads = React.useRef(new Map<string, number>());
 	const nextRead = React.useRef(0);
 	const treeReference = React.useRef<HTMLDivElement | null>(null);
+	// Refresh in the Search view searches again; nothing else does.
+	const [searchRefreshCount, setSearchRefreshCount] = React.useState(0);
+	// The file the tree shows and moves the keyboard to, as Reveal in File Tree asks.
+	const [treeReveal, setTreeReveal] = React.useState<TreeReveal | null>(null);
 
 	const begin = (key: string): (() => boolean) => {
 		nextRead.current += 1;
@@ -131,13 +156,18 @@ export function RightBar({
 		if (view === 'files') {
 			loadFolder('');
 			for (const folder of expanded) loadFolder(folder);
-		} else {
+		} else if (view === 'changes') {
 			loadChanges();
 		}
 	});
-	const refresh = useMemoizedFn(() => {
+	/** Reads again what shows, and the float window's file, as coming back to the window does. */
+	const refreshShown = useMemoizedFn(() => {
 		reload();
 		onRefresh();
+	});
+	const refresh = useMemoizedFn(() => {
+		if (view === 'search') setSearchRefreshCount((count) => count + 1);
+		refreshShown();
 	});
 	React.useEffect(() => {
 		reload();
@@ -146,14 +176,20 @@ export function RightBar({
 	React.useEffect(() => {
 		if (autoRefreshed.current === autoRefresh.count) return;
 		autoRefreshed.current = autoRefresh.count;
-		if (view === 'files' ? autoRefresh.files : autoRefresh.repository && !changesCut) reload();
+		if (
+			view === 'files'
+				? autoRefresh.files
+				: view === 'changes' && autoRefresh.repository && !changesCut
+		) {
+			reload();
+		}
 	}, [autoRefresh, changesCut, reload, view]);
 	const followed = watchState === 'watching' || watchState === 'starting';
 	React.useEffect(() => {
 		if (followed) return;
-		window.addEventListener('focus', refresh);
-		return () => window.removeEventListener('focus', refresh);
-	}, [followed, refresh]);
+		window.addEventListener('focus', refreshShown);
+		return () => window.removeEventListener('focus', refreshShown);
+	}, [followed, refreshShown]);
 
 	const toggleFolder = useMemoizedFn((path: string) => {
 		const next = new Set(expanded);
@@ -165,6 +201,17 @@ export function RightBar({
 			loadFolder(path);
 		}
 		onExpandedChange(next);
+	});
+
+	/** Shows a file in the tree, opening the folders above it. */
+	const revealInTree = useMemoizedFn((path: string) => {
+		const next = new Set(expanded);
+		for (let folder = parentPath(path); folder.length > 0; folder = parentPath(folder)) {
+			next.add(folder);
+		}
+		onExpandedChange(next);
+		setTreeReveal((previous) => ({ path, serial: (previous?.serial ?? 0) + 1 }));
+		setView('files');
 	});
 
 	const rows = React.useMemo(() => flattenTree(listings, expanded), [expanded, listings]);
@@ -180,10 +227,31 @@ export function RightBar({
 				expanded={expanded}
 				onOpenFile={(path, preview) => onOpen({ kind: 'file', path }, preview)}
 				onToggleFolder={toggleFolder}
+				reveal={treeReveal}
 				rows={rows}
 				selectedPath={activeTarget?.kind === 'file' ? activeTarget.path : null}
 				treeReference={treeReference}
 			/>
+		);
+	} else if (view === 'search') {
+		body = (
+			<React.Suspense
+				fallback={
+					<p className={styles['note']}>{intl.formatMessage(workbenchMessages.rightBarLoading)}</p>
+				}
+			>
+				<LazySearchView
+					onOpenMatch={onOpenMatch}
+					onReturnFocus={onReturnFocus}
+					onReveal={revealInTree}
+					openPaths={openPaths}
+					refreshCount={searchRefreshCount}
+					searches={searches}
+					shortcutPlatform={shortcutPlatform}
+					source={source}
+					workspaceId={workspaceId}
+				/>
+			</React.Suspense>
 		);
 	} else {
 		body = (
@@ -224,6 +292,7 @@ export function RightBar({
 			<div className={styles['header']} data-slot='workbench-right-bar-header'>
 				<div className={styles['viewTabs']} role='tablist'>
 					{tab('files', intl.formatMessage(workbenchMessages.rightBarFiles))}
+					{tab('search', intl.formatMessage(workbenchMessages.rightBarSearch))}
 					{tab('changes', intl.formatMessage(workbenchMessages.rightBarChanges))}
 				</div>
 				<Button
@@ -277,8 +346,15 @@ export function RightBar({
 	);
 }
 
+/** A file the tree is asked to show; each ask has its own serial. */
+interface TreeReveal {
+	readonly path: string;
+	readonly serial: number;
+}
+
 interface FileTreeProps {
 	readonly rows: readonly TreeRow[];
+	readonly reveal: TreeReveal | null;
 	readonly expanded: ReadonlySet<string>;
 	readonly selectedPath: string | null;
 	readonly onToggleFolder: (path: string) => void;
@@ -288,6 +364,7 @@ interface FileTreeProps {
 
 function FileTree({
 	rows,
+	reveal,
 	expanded,
 	selectedPath,
 	onToggleFolder,
@@ -302,6 +379,20 @@ function FileTree({
 		0,
 		rows.findIndex((row) => row.kind === 'entry' && row.path === activePath),
 	);
+	// A revealed file is shown once the folders above it are read, and the keyboard moves to it.
+	const revealed = React.useRef(0);
+	const { revealRow } = windowed;
+	React.useEffect(() => {
+		if (reveal === null || reveal.serial === revealed.current) return;
+		const index = rows.findIndex((row) => row.kind === 'entry' && row.path === reveal.path);
+		// Once nothing is being read, a file still missing is gone, and the ask with it.
+		if (index < 0 && rows.some((row) => row.kind === 'note' && row.note === 'loading')) return;
+		revealed.current = reveal.serial;
+		if (index < 0) return;
+		setActivePath(reveal.path);
+		revealRow(index);
+		treeReference.current?.focus();
+	}, [reveal, revealRow, rows, treeReference]);
 	const activate = (row: TreeRow, preview: boolean): void => {
 		if (row.kind !== 'entry') return;
 		if (row.entry.entryKind === 'directory') onToggleFolder(row.path);

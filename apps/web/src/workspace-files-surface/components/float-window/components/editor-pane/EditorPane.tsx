@@ -8,6 +8,7 @@ import { splitPath } from '../../../../change-groups';
 import type { EditorDocuments } from '../../../../EditorDocuments';
 import { documentPathOf, type FloatTab } from '../../../../float-tabs';
 import { readFileChunks } from '../../../../readFileChunks';
+import type { MatchReveal } from '../../../../search-results';
 import { DocumentNoticeBar } from './components/document-notice-bar/DocumentNoticeBar';
 import { languageForPath } from './languageForPath';
 import { EDITOR_THEME } from './monaco-theme';
@@ -47,6 +48,8 @@ export interface EditorPaneProps {
 	/** Opens a file's own tab, where comparing its edits with the disk shows. */
 	readonly onOpenFile: (path: string) => void;
 	readonly handleRef: React.Ref<EditorPaneHandle>;
+	/** A search match to select in the active file once its text shows. */
+	readonly reveal: MatchReveal | null;
 }
 
 /** A tab's read, stamped with when it started so an older read never undoes a save. */
@@ -204,6 +207,7 @@ export function EditorPane({
 	documents,
 	onOpenFile,
 	handleRef,
+	reveal,
 }: EditorPaneProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const editorHost = React.useRef<HTMLDivElement | null>(null);
@@ -529,6 +533,27 @@ export function EditorPane({
 			return { key: `diff:${tab.id}`, kind: 'diff', modified, original: owned.original };
 		}
 	}, [active, read, compared, comparesNow, documents, workspaceId]);
+
+	// Selects a search match once its file's text shows; a tab changed meanwhile drops it.
+	const revealed = React.useRef(0);
+	React.useEffect(() => {
+		if (reveal === null || reveal.serial === revealed.current) return;
+		if (activeTarget.kind !== 'file' || activeTarget.path !== reveal.path) {
+			revealed.current = reveal.serial;
+			return;
+		}
+		let codeEditor: MonacoApi.editor.ICodeEditor | null = null;
+		if (shownView?.kind === 'file') codeEditor = editor.current;
+		else if (shownView?.kind === 'diff') codeEditor = diff.current?.getModifiedEditor() ?? null;
+		if (codeEditor === null || codeEditor.getModel() !== shownView?.model) return;
+		revealed.current = reveal.serial;
+		codeEditor.setSelection(reveal.range);
+		codeEditor.revealRangeInCenterIfOutsideViewport(
+			reveal.range,
+			monaco.editor.ScrollType.Immediate,
+		);
+		if (reveal.focus) codeEditor.focus();
+	}, [activeTarget, reveal, shownView]);
 
 	// Counts the shown text's lines as it is edited.
 	React.useEffect(() => {

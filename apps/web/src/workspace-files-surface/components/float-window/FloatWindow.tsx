@@ -8,6 +8,7 @@ import type { WorkbenchWorkspaceFilesSource } from '../../../workbench';
 import { splitPath } from '../../change-groups';
 import type { EditorDocuments } from '../../EditorDocuments';
 import { documentPathOf, type FloatState } from '../../float-tabs';
+import type { MatchReveal } from '../../search-results';
 import {
 	formatFloatWindowShortcut,
 	matchesFloatWindowShortcut,
@@ -43,6 +44,10 @@ export interface FloatWindowProps {
 	readonly onExpand: () => void;
 	/** Hands the keyboard back to the terminal the window covered. */
 	readonly onReturnFocus: () => void;
+	/** A search match the editor selects. */
+	readonly reveal: MatchReveal | null;
+	/** Opens the next or previous search match, as F4 and Shift+F4 do. */
+	readonly onStepSearch: (direction: 1 | -1) => void;
 }
 
 /** One of the window's icon actions, labelled for screen readers and on hover. */
@@ -90,6 +95,8 @@ export function FloatWindow({
 	onCollapse,
 	onExpand,
 	onReturnFocus,
+	reveal,
+	onStepSearch,
 }: FloatWindowProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const pane = React.useRef<EditorPaneHandle | null>(null);
@@ -178,16 +185,29 @@ export function FloatWindow({
 			save();
 			return;
 		}
+		if (event.key === 'F4' && !event.altKey && !event.ctrlKey && !event.metaKey) {
+			event.preventDefault();
+			onStepSearch(event.shiftKey ? -1 : 1);
+			return;
+		}
 		// The editor takes Esc first, to close its find or suggestion widgets.
 		if (event.key !== 'Escape' || event.defaultPrevented) return;
 		event.preventDefault();
 		event.stopPropagation();
 		collapse();
 	});
-	// A window that opens or changes tab takes the keyboard, so Esc and the editor work at once.
+	// A window that opens or changes tab takes the keyboard, so Esc and the editor work at once. A
+	// match opened from the search results leaves the keyboard there, and one opened to be edited
+	// is focused by the editor once its text shows.
+	const revealed = React.useRef(reveal?.serial ?? null);
 	React.useEffect(() => {
-		if (state.open) root.current?.focus({ preventScroll: true });
-	}, [state.open, state.activeId]);
+		if (!state.open) return;
+		if (reveal !== null && reveal.serial !== revealed.current) {
+			revealed.current = reveal.serial;
+			if (!reveal.focus || root.current?.contains(document.activeElement) === true) return;
+		}
+		root.current?.focus({ preventScroll: true });
+	}, [state.open, state.activeId, reveal]);
 
 	if (active === undefined) return null;
 	if (!state.open) {
@@ -314,6 +334,7 @@ export function FloatWindow({
 						handleRef={pane}
 						onOpenFile={onOpenFile}
 						refreshCount={refreshCount}
+						reveal={reveal}
 						source={source}
 						tabs={state.tabs}
 						workspaceId={workspaceId}

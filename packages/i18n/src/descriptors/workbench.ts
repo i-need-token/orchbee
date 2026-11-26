@@ -2394,4 +2394,205 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.git.outputDismiss'],
 		description: 'Hides what went wrong.',
 	},
+	rightBarSearch: {
+		id: 'workbench.rightBar.search',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search'],
+		description: 'The right bar view that searches file contents.',
+	},
+	rightBarSearchInput: {
+		id: 'workbench.rightBar.search.input',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.input'],
+		description: 'Names and fills the box for the text to search for.',
+	},
+	rightBarSearchInputTitle: {
+		id: 'workbench.rightBar.search.inputTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.inputTitle'],
+		description: 'Hover text of the search box; names the shortcut that adds a line.',
+	},
+	rightBarSearchMatchCase: {
+		id: 'workbench.rightBar.search.matchCase',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.matchCase'],
+		description: 'Toggle that makes the search tell capitals from small letters.',
+	},
+	rightBarSearchWholeWord: {
+		id: 'workbench.rightBar.search.wholeWord',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.wholeWord'],
+		description: 'Toggle that matches only whole words.',
+	},
+	rightBarSearchRegex: {
+		id: 'workbench.rightBar.search.regex',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.regex'],
+		description: 'Toggle that reads the search text as a regular expression.',
+	},
+	rightBarSearchDetails: {
+		id: 'workbench.rightBar.search.details',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.details'],
+		description: 'Shows or hides the boxes for files to include and exclude.',
+	},
+	rightBarSearchIncludes: {
+		id: 'workbench.rightBar.search.includes',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.includes'],
+		description: 'Label of the box naming file patterns to search.',
+	},
+	rightBarSearchIncludesPlaceholder: {
+		id: 'workbench.rightBar.search.includes.placeholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.includes.placeholder'],
+		description: 'Example patterns shown in the empty include box.',
+	},
+	rightBarSearchExcludes: {
+		id: 'workbench.rightBar.search.excludes',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.excludes'],
+		description: 'Label of the box naming file patterns to leave out.',
+	},
+	rightBarSearchExcludesPlaceholder: {
+		id: 'workbench.rightBar.search.excludes.placeholder',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.excludes.placeholder'],
+		description: 'Example patterns shown in the empty exclude box.',
+	},
+	rightBarSearchOnlyOpen: {
+		id: 'workbench.rightBar.search.onlyOpen',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.onlyOpen'],
+		description: 'Toggle that limits the search to files open in the float window.',
+	},
+	rightBarSearchOnlyChanged: {
+		id: 'workbench.rightBar.search.onlyChanged',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.onlyChanged'],
+		description: 'Toggle that limits the search to files Git reports as changed.',
+	},
+	rightBarSearchUseIgnore: {
+		id: 'workbench.rightBar.search.useIgnore',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.useIgnore'],
+		description:
+			'Toggle that leaves out node_modules, bower_components and what ignore files name.',
+	},
+	rightBarSearchSummary: {
+		id: 'workbench.rightBar.search.summary',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.summary'],
+		description: 'How many matches the search found, and in how many files.',
+	},
+	rightBarSearchSearching: {
+		id: 'workbench.rightBar.search.searching',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.searching'],
+		description: 'Shown while a search runs and has found nothing yet.',
+	},
+	rightBarSearchNoResults: {
+		id: 'workbench.rightBar.search.noResults',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.noResults'],
+		description: 'The search ended without a match.',
+	},
+	rightBarSearchLimitReached: {
+		id: 'workbench.rightBar.search.limitReached',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.limitReached'],
+		description: 'The search stopped at its limit of matches.',
+	},
+	rightBarSearchInvalidPattern: {
+		id: 'workbench.rightBar.search.invalidPattern',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.invalidPattern'],
+		description: 'The regular expression could not be read.',
+	},
+	rightBarSearchInvalidGlob: {
+		id: 'workbench.rightBar.search.invalidGlob',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.invalidGlob'],
+		description: 'An include or exclude pattern could not be read, or there are too many.',
+	},
+	rightBarSearchTooLong: {
+		id: 'workbench.rightBar.search.tooLong',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.tooLong'],
+		description: 'The search text exceeds what a search request carries.',
+	},
+	rightBarSearchUnavailable: {
+		id: 'workbench.rightBar.search.unavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.unavailable'],
+		description: 'The search stopped before it ended, for example because the connection ended.',
+	},
+	rightBarSearchCancelled: {
+		id: 'workbench.rightBar.search.cancelled',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.cancelled'],
+		description: 'The person stopped the search; what it found so far stays.',
+	},
+	rightBarSearchChangedUnavailable: {
+		id: 'workbench.rightBar.search.changedUnavailable',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.changedUnavailable'],
+		description: 'Searching only changed files needs Git’s change list, which could not be read.',
+	},
+	rightBarSearchStop: {
+		id: 'workbench.rightBar.search.stop',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.stop'],
+		description: 'Stops the running search.',
+	},
+	rightBarSearchClear: {
+		id: 'workbench.rightBar.search.clear',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.clear'],
+		description: 'Empties the search box and its results.',
+	},
+	rightBarSearchCollapseAll: {
+		id: 'workbench.rightBar.search.collapseAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.collapseAll'],
+		description: 'Folds every file’s matches.',
+	},
+	rightBarSearchExpandAll: {
+		id: 'workbench.rightBar.search.expandAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.expandAll'],
+		description: 'Unfolds every file’s matches.',
+	},
+	rightBarSearchMore: {
+		id: 'workbench.rightBar.search.more',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.more'],
+		description: 'Opens a menu of the search view’s other actions.',
+	},
+	rightBarSearchClearHistory: {
+		id: 'workbench.rightBar.search.clearHistory',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.clearHistory'],
+		description: 'Forgets the texts searched for in this Workspace, which ↑ and ↓ bring back.',
+	},
+	rightBarSearchResults: {
+		id: 'workbench.rightBar.search.results',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.results'],
+		description: 'Names the list of matches for screen readers.',
+	},
+	rightBarSearchLineTitle: {
+		id: 'workbench.rightBar.search.lineTitle',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.lineTitle'],
+		description: 'Hover text of a match, naming its line.',
+	},
+	rightBarSearchDismiss: {
+		id: 'workbench.rightBar.search.dismiss',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.dismiss'],
+		description: 'Removes a match or a file from the results without changing the file.',
+	},
+	rightBarSearchExcludeFolder: {
+		id: 'workbench.rightBar.search.excludeFolder',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.excludeFolder'],
+		description: 'Adds the folder of a result to the files to exclude and searches again.',
+	},
+	rightBarSearchExcludeType: {
+		id: 'workbench.rightBar.search.excludeType',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.excludeType'],
+		description: 'Adds a file type pattern such as *.ts to the files to exclude.',
+	},
+	rightBarSearchIncludeType: {
+		id: 'workbench.rightBar.search.includeType',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.includeType'],
+		description: 'Makes a file type pattern such as *.ts the only files to include.',
+	},
+	rightBarSearchCopy: {
+		id: 'workbench.rightBar.search.copy',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.copy'],
+		description: 'Copies a match’s line, or a file with its matches.',
+	},
+	rightBarSearchCopyPath: {
+		id: 'workbench.rightBar.search.copyPath',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.copyPath'],
+		description: 'Copies a result’s path from the Workspace directory.',
+	},
+	rightBarSearchCopyAll: {
+		id: 'workbench.rightBar.search.copyAll',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.copyAll'],
+		description: 'Copies every result.',
+	},
+	rightBarSearchReveal: {
+		id: 'workbench.rightBar.search.reveal',
+		defaultMessage: enUSWorkbenchMessages['workbench.rightBar.search.reveal'],
+		description: 'Shows a result’s file in the Files view.',
+	},
 });

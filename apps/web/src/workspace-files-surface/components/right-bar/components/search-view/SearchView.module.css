@@ -1,0 +1,42 @@
+.root {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: var(--ob-ref-space-0);
+}
+
+/* What the search found, with the actions on its results. */
+.summary {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	min-height: var(--ob-ref-size-control-xs);
+	padding-inline: var(--ob-ref-space-3) var(--ob-ref-space-2);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-xs);
+}
+
+.summaryText {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.action {
+	flex: none;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.action:hover {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.note {
+	flex: none;
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-muted);
+}

@@ -11,6 +11,9 @@ import { EditorDocuments } from './EditorDocuments';
 import { floatOf, reduceFloatWindows } from './float-reducer';
 import { documentPathOf, type FloatTarget } from './float-tabs';
 import { type AutoRefresh, RightBar } from './components/right-bar/RightBar';
+import type { OpenMatchHow } from './components/right-bar/components/search-view/components/search-result-list/SearchResultList';
+import { matchRange, type MatchReveal, type SearchMatchTarget } from './search-results';
+import { SearchSessions } from './SearchSessions';
 import { useAgentSettled } from './hooks/useAgentSettled';
 import { type WorkspaceFilesChange, useWorkspaceFilesWatch } from './hooks/useWorkspaceFilesWatch';
 
@@ -130,6 +133,36 @@ export function WorkspaceFilesSurface({
 	});
 	const refresh = useMemoizedFn(() => setRefreshCount((count) => count + 1));
 
+	// Every Workspace's search, kept while the window lives so its results outlive the bar.
+	const [searches] = React.useState(() => new SearchSessions(source));
+	React.useEffect(() => () => searches.dispose(), [searches]);
+	// The match the float window's editor selects next, for the Workspace that opened it.
+	const [reveal, setReveal] = React.useState<{
+		readonly workspaceId: string;
+		readonly match: MatchReveal;
+	} | null>(null);
+	const openMatch = useMemoizedFn((target: SearchMatchTarget, how: OpenMatchHow) => {
+		if (workspaceId === null) return;
+		open({ kind: 'file', path: target.path }, how.preview);
+		setReveal((previous) => ({
+			match: { ...target, focus: how.focus, serial: (previous?.match.serial ?? 0) + 1 },
+			workspaceId,
+		}));
+	});
+	const stepSearch = useMemoizedFn((direction: 1 | -1) => {
+		if (workspaceId === null) return;
+		const next = searches.step(workspaceId, direction);
+		if (next === null) return;
+		openMatch(
+			{ path: next.path, range: matchRange(next.line, next.match) },
+			{ focus: false, preview: true },
+		);
+	});
+	const openPaths = React.useMemo(
+		() => float.tabs.flatMap((tab) => documentPathOf(tab.target) ?? []),
+		[float.tabs],
+	);
+
 	// Each Workspace keeps its open folders and its dismissed note while the window lives.
 	const [folders, setFolders] = React.useState<ReadonlyMap<string, ReadonlySet<string>>>(
 		() => new Map(),
@@ -221,7 +254,11 @@ export function WorkspaceFilesSurface({
 								}
 							}}
 							onOpen={open}
+							onOpenMatch={openMatch}
 							onRefresh={refresh}
+							onReturnFocus={onReturnFocus}
+							openPaths={openPaths}
+							searches={searches}
 							shortcutPlatform={shortcutPlatform}
 							source={source}
 							watchState={watch.state}
@@ -244,7 +281,9 @@ export function WorkspaceFilesSurface({
 							onKeep={(id) => dispatch({ id, kind: 'keep', workspaceId })}
 							onOpenFile={(path) => open({ kind: 'file', path }, false)}
 							onReturnFocus={onReturnFocus}
+							onStepSearch={stepSearch}
 							refreshCount={refreshCount}
+							reveal={reveal?.workspaceId === workspaceId ? reveal.match : null}
 							shortcutPlatform={shortcutPlatform}
 							source={source}
 							state={float}

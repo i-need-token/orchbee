@@ -29,11 +29,13 @@ export const MAXIMUM_WORKSPACE_GIT_MESSAGE_BYTES = 32 * 1024;
 const MAXIMUM_GIT_OUTPUT_BYTES = 8 * 1024;
 /** An encoded `search` request: a query that may name thousands of files. */
 export const WORKSPACE_FILES_SEARCH_REQUEST_BYTES = 2 * 1024 * 1024;
-const MAXIMUM_SEARCH_PATTERN_BYTES = 8 * 1024;
-const MAXIMUM_SEARCH_GLOBS = 64;
-const MAXIMUM_SEARCH_GLOB_BYTES = 1024;
+/** The encoded search text one search carries. */
+export const MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES = 8 * 1024;
+/** Include globs, and exclude globs, one search carries. */
+export const MAXIMUM_WORKSPACE_SEARCH_GLOBS = 64;
+export const MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES = 1024;
 /** Files one search may name in place of the whole Workspace. */
-const MAXIMUM_SEARCH_PATHS = 5000;
+export const MAXIMUM_WORKSPACE_SEARCH_PATHS = 5000;
 /** UTF-16 code units one preview carries. */
 const MAXIMUM_SEARCH_PREVIEW_UNITS = 1000;
 const encoder = new TextEncoder();
@@ -63,10 +65,11 @@ const GlobListSchema = z
 			.min(1)
 			.refine(
 				(glob) =>
-					byteLength(glob) <= MAXIMUM_SEARCH_GLOB_BYTES && !/[\p{Cc}\uD800-\uDFFF]/u.test(glob),
+					byteLength(glob) <= MAXIMUM_WORKSPACE_SEARCH_GLOB_BYTES &&
+					!/[\p{Cc}\uD800-\uDFFF]/u.test(glob),
 			),
 	)
-	.max(MAXIMUM_SEARCH_GLOBS)
+	.max(MAXIMUM_WORKSPACE_SEARCH_GLOBS)
 	.readonly();
 const WorkspaceSearchQuerySchema = z
 	.strictObject({
@@ -76,7 +79,8 @@ const WorkspaceSearchQuerySchema = z
 			.min(1)
 			.refine(
 				(pattern) =>
-					byteLength(pattern) <= MAXIMUM_SEARCH_PATTERN_BYTES && !/[\uD800-\uDFFF]/u.test(pattern),
+					byteLength(pattern) <= MAXIMUM_WORKSPACE_SEARCH_PATTERN_BYTES &&
+					!/[\uD800-\uDFFF]/u.test(pattern),
 			),
 		regex: z.boolean(),
 		matchCase: z.boolean(),
@@ -92,7 +96,7 @@ const WorkspaceSearchQuerySchema = z
 		/** Whether Git's ignore rules and `.ignore` files leave files out. */
 		useIgnoreFiles: z.boolean(),
 		/** When not null, only these files are searched. */
-		paths: z.array(RelativePathSchema).max(MAXIMUM_SEARCH_PATHS).readonly().nullable(),
+		paths: z.array(RelativePathSchema).max(MAXIMUM_WORKSPACE_SEARCH_PATHS).readonly().nullable(),
 	})
 	.readonly();
 const identity = {

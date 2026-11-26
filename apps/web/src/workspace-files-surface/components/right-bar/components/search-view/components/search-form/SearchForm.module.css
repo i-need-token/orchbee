@@ -1,0 +1,97 @@
+.root {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	gap: var(--ob-ref-space-1);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-2) var(--ob-ref-space-0-5);
+}
+
+/* A box and the options inside its end, outlined together while either has the keyboard. */
+.box {
+	display: flex;
+	box-sizing: border-box;
+	align-items: flex-start;
+	gap: var(--ob-ref-space-0-5);
+	padding-inline-end: var(--ob-ref-space-0-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+}
+
+.box:focus-within {
+	border-color: var(--ob-sys-color-border-focus);
+}
+
+/* One line at rest, growing with a text of several lines to six, then scrolling. */
+.pattern,
+.glob {
+	flex: 1;
+	box-sizing: border-box;
+	min-width: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1-5);
+	border: none;
+	background: transparent;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	outline: none;
+}
+
+.pattern {
+	max-height: calc(6lh + 2 * var(--ob-ref-space-1));
+	field-sizing: content;
+	resize: none;
+}
+
+.pattern::placeholder,
+.glob::placeholder {
+	color: var(--ob-sys-color-text-muted);
+}
+
+.options {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	padding-block: var(--ob-ref-space-0-5);
+}
+
+.option {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	padding: var(--ob-ref-space-0);
+	border: var(--ob-ref-border-width-default) solid transparent;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: transparent;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: pointer;
+}
+
+.option:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.option:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+}
+
+.option[aria-pressed='true'] {
+	border-color: var(--ob-sys-color-border-selected);
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.detailsRow {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.globLabel {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-0-5);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-label-xs);
+}

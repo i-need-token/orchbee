@@ -214,3 +214,39 @@
 .goToFile {
 	composes: codicon-go-to-file from global;
 }
+
+.book {
+	composes: codicon-book from global;
+}
+
+.caseSensitive {
+	composes: codicon-case-sensitive from global;
+}
+
+.collapseAll {
+	composes: codicon-collapse-all from global;
+}
+
+.exclude {
+	composes: codicon-exclude from global;
+}
+
+.expandAll {
+	composes: codicon-expand-all from global;
+}
+
+.regex {
+	composes: codicon-regex from global;
+}
+
+.searchStop {
+	composes: codicon-search-stop from global;
+}
+
+.wholeWord {
+	composes: codicon-whole-word from global;
+}
+
+.filter {
+	composes: codicon-filter from global;
+}
