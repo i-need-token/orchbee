@@ -1168,6 +1168,7 @@ dependencies = [
  "orchbee-workbench-protocol",
  "process-wrap",
  "regex",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",

@@ -35,6 +35,10 @@ orchbee-workbench-protocol = { path = "../../crates/workbench-protocol" }
 nix = { workspace = true, features = ["dir", "fs", "poll", "process", "user"] }
 signal-hook.workspace = true
 
+# `renameat2` for every Linux C library: nix offers it with glibc only.
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { workspace = true, features = ["fs"] }
+
 [target.'cfg(windows)'.dependencies]
 # Owned inbox-curl Jobs reuse the workspace-pinned, patched child-settlement adapter.
 process-wrap.workspace = true

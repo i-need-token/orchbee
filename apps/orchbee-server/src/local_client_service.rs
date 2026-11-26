@@ -148,7 +148,8 @@ pub(crate) type ManagedEndpoint<'a> = &'a Path;
 /// endpoint, and renamed onto it once private, so the endpoint appears ready in one step.
 #[cfg(target_os = "linux")]
 fn bind_managed((endpoint, pending): ManagedEndpoint<'_>) -> io::Result<UnixListener> {
-    use nix::fcntl::{OFlag, RenameFlags, open, renameat2};
+    use nix::fcntl::{OFlag, open};
+    use rustix::fs::{RenameFlags, renameat_with};
     let parent = endpoint.parent().ok_or(io::ErrorKind::InvalidInput)?;
     let name = endpoint.file_name().ok_or(io::ErrorKind::InvalidInput)?;
     let pending_name = pending.file_name().ok_or(io::ErrorKind::InvalidInput)?;
@@ -163,12 +164,12 @@ fn bind_managed((endpoint, pending): ManagedEndpoint<'_>) -> io::Result<UnixList
     let listener = UnixListener::bind(pending)?;
     #[cfg(unix)]
     fs::set_permissions(pending, fs::Permissions::from_mode(0o600))?;
-    renameat2(
+    renameat_with(
         &directory,
         pending_name,
         &directory,
         name,
-        RenameFlags::RENAME_NOREPLACE,
+        RenameFlags::NOREPLACE,
     )?;
     Ok(listener)
 }
