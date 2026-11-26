@@ -13,6 +13,10 @@ inputs:
     description: "'build' for the Rust test preparation's build, 'test' for the Terminal Host tests, 'release' for the release workflow's staging builds"
     required: false
     default: build
+  target:
+    description: "The release platform a build targets when the runner's own platform does not say it, such as an Intel build on Apple silicon"
+    required: false
+    default: ''
   save:
     description: "'true' saves the caches unless this run restored them under the exact key"
     required: false
@@ -47,9 +51,9 @@ runs:
       uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
       with:
         path: ${{ steps.paths.outputs.paths }}
-        key: terminal-host-${{ inputs.entry }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-${{ hashFiles('apps/terminal-host/build.zig', 'apps/terminal-host/build/**', 'apps/terminal-host/src/**', 'apps/terminal-host/scripts/**', 'scripts/stage-native-windows.mjs') }}
+        key: terminal-host-${{ inputs.entry }}${{ inputs.target != '' && format('-{0}', inputs.target) || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-${{ hashFiles('apps/terminal-host/build.zig', 'apps/terminal-host/build/**', 'apps/terminal-host/src/**', 'apps/terminal-host/scripts/**', 'scripts/stage-native-windows.mjs') }}
         restore-keys: |
-          terminal-host-${{ inputs.entry }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-
+          terminal-host-${{ inputs.entry }}${{ inputs.target != '' && format('-{0}', inputs.target) || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/zig/action.yml', 'apps/terminal-host/build.zig.zon') }}-
 
     - name: Remember the restored key
       if: inputs.save != 'true'

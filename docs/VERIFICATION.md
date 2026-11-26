@@ -359,13 +359,16 @@ complete clean search that took every required action, followed by its mutation 
   anyway, so a cached entry changes how long a build takes, never what it compiles. Only runs on
   `main` save entries, so a pull request reads them and never displaces them.
 - The release workflow's release builds and Test window builds restore entries of the same two
-  kinds: third-party crates, one entry per platform row (`release-<platform>`), and the Terminal
-  Host's Zig build caches (entry `release`). Only the release builds of runs on `main`, candidates
-  and rehearsals, save them, and a tag run reads what they saved. Compiling took most of each build
-  before: on the Intel Mac row 14 minutes of Rust and 4 of Zig in both builds, on Windows 10 and 6
-  (measured 2026-11-25). As in Verify, workspace crates are always compiled and Zig checks every
-  cached result against its inputs, so an entry changes how long a build takes, never what it
-  compiles.
+  kinds: third-party crates, one entry per platform row and runner (`release-<platform>`), and the
+  Terminal Host's Zig build caches (entry `release`, per macOS row). Runs on `main`, candidates and
+  rehearsals, save them from the release builds and from the Intel row's window Update, whose
+  release build runs on Apple silicon; a tag run reads what they saved. Compiling took most of each
+  build before: on the Intel Mac row 14 minutes of Rust and 4 of Zig in both builds, on Windows 10
+  and 6. With the entries, the Windows build fell from 18 to 13 minutes and the Apple silicon build
+  from 11.5 to 8.5, while the Intel Mac build stayed at 20, 15 of them compiling workspace crates
+  that took 6 on Apple silicon (measured 2026-11-25). As in Verify, workspace crates are always
+  compiled and Zig checks every cached result against its inputs, so an entry changes how long a
+  build takes, never what it compiles.
 - The Rust parts restore the Terminal Host's Zig build caches with the local action
   `.github/actions/terminal-host-build-cache`, and the workspace part saves them on `main`;
   `terminal-host-native` keeps an entry of its own for the test builds, which took about 9 of its

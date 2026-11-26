@@ -331,10 +331,12 @@ if (
 	process.argv[1] !== undefined &&
 	path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
-	const [cohort, channel, version, buildId, extra] = process.argv.slice(2);
+	const [cohort, channel, version, buildId, platform, extra] = process.argv.slice(2);
 	if (!cohort || !channel || !version || !buildId || extra !== undefined)
 		throw new Error(
-			'Usage: node scripts/package-native-release.mjs <absolute-cohort> <stable|preview> <version> <build-id>',
+			'Usage: node scripts/package-native-release.mjs <absolute-cohort> <stable|preview> <version> <build-id> [<platform>]',
 		);
-	process.stdout.write(packageRelease(cohort, channel, version, buildId) + '\n');
+	process.stdout.write(
+		packageRelease(cohort, channel, version, buildId, platform ? { platform } : {}) + '\n',
+	);
 }

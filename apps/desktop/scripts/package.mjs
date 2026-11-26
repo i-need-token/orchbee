@@ -136,6 +136,9 @@ await Promise.all([
 const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
 const stagingRoot = path.join(packageWorkspace, 'application');
 const cohortRoot = path.join(packageWorkspace, cohortDirectoryName);
+// The packaged Electron's architecture: the host's, or a signed macOS cohort's platform, which a
+// Mac of the other architecture may package.
+let packagedArchitecture;
 try {
 	if (packaging.cohort === undefined) {
 		// The window's Session runs this cohort, so the application carries all of it: the Client,
@@ -158,6 +161,11 @@ try {
 			throw new Error(
 				`The signed cohort is version ${String(manifest?.version)}, not the workspace version ${productVersion}.`,
 			);
+		}
+		if (process.platform === 'darwin') {
+			packagedArchitecture = { 'macos-aarch64': 'arm64', 'macos-x86_64': 'x64' }[manifest.platform];
+			if (packagedArchitecture === undefined)
+				throw new Error(`The signed cohort is for ${String(manifest.platform)}, not macOS.`);
 		}
 	}
 	await access(path.join(cohortRoot, 'cohort.json'));
@@ -204,6 +212,7 @@ try {
 	);
 	const outputs = await packager({
 		appBundleId: distributionProfile.bundleIdentifier,
+		...(packagedArchitecture === undefined ? {} : { arch: packagedArchitecture }),
 		asar: true,
 		dir: stagingRoot,
 		electronVersion: electronPackage.version,

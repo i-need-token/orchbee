@@ -659,7 +659,9 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	const built = path.join(repository, 'apps', 'desktop', 'out', profile);
 	const application = single(
 		built,
-		(entry) => entry.isDirectory() && entry.name.endsWith(`-${process.platform}-${process.arch}`),
+		(entry) =>
+			entry.isDirectory() &&
+			['x64', 'arm64'].some((arch) => entry.name.endsWith(`-${process.platform}-${arch}`)),
 		'packaged application',
 	);
 	// macOS keeps the runtime inside the one application bundle the packager wrote.
@@ -687,6 +689,8 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 		throw new Error(`Collecting the ${platform} release is not built`);
 	if (release.platform.os !== process.platform)
 		throw new Error(`The bundled runtime is for ${platform}, not this host`);
+	if (!application.endsWith(`-${release.platform.cpu}`))
+		throw new Error(`${application} is not packaged for ${platform}`);
 	const installer = windows
 		? single(
 				path.join(built, 'installer'),

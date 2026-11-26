@@ -28,6 +28,11 @@ const CAPSULE_DIRECTORY = 'agent-observation-adapters';
 // The Host gives zsh and bash their managed startup from these scripts beside its executable.
 const SHELL_INTEGRATION_DIRECTORY = 'shell-integration';
 const CAPSULE_CONTRACT_VERSION = 1;
+// A Mac stages either architecture's cohort; the other one builds with Cargo's and Zig's targets.
+const MACOS_TARGETS = new Map([
+	['macos-aarch64', { arch: 'arm64', rust: 'aarch64-apple-darwin', zig: 'aarch64-macos' }],
+	['macos-x86_64', { arch: 'x64', rust: 'x86_64-apple-darwin', zig: 'x86_64-macos' }],
+]);
 const MAX_CAPSULE_ENTRIES = 128;
 const MAX_CAPSULE_DEPTH = 8;
 const MAX_CAPSULE_FILE_BYTES = 512 * 1024;
@@ -166,11 +171,13 @@ export function options(args, platform = process.platform) {
 	const result = {};
 	for (let i = 0; i < args.length; i += 2) {
 		if (
-			!['--wsl', '--output', '--cargo-target-dir', '--artifact-stem'].includes(args[i]) ||
+			!['--wsl', '--output', '--cargo-target-dir', '--artifact-stem', '--platform'].includes(
+				args[i],
+			) ||
 			!args[i + 1]
 		) {
 			throw new Error(
-				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY] [--artifact-stem STEM]',
+				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY] [--artifact-stem STEM] [--platform macos-aarch64|macos-x86_64]',
 			);
 		}
 		if (result[args[i]] !== undefined) throw new Error('Duplicate staging option');
@@ -187,6 +194,11 @@ export function options(args, platform = process.platform) {
 	const artifactStem = result['--artifact-stem'];
 	if (artifactStem !== undefined && !ARTIFACT_STEM_PATTERN.test(artifactStem))
 		throw new Error('--artifact-stem must be orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>');
+	if (
+		result['--platform'] !== undefined &&
+		(platform !== 'darwin' || !MACOS_TARGETS.has(result['--platform']))
+	)
+		throw new Error('--platform is macos-aarch64 or macos-x86_64, on a macOS host');
 	if (!['darwin', 'linux', 'win32'].includes(platform))
 		throw new Error('Local startup staging currently supports macOS, Windows and Linux');
 	return result;
@@ -248,6 +260,9 @@ function main() {
 	// A macOS cohort also carries the window launcher, which a window version's bundle runs to
 	// replace the application when the window relaunches (apps/orchbee-desktop-launcher/README.md).
 	const windowLauncher = process.platform === 'darwin' ? 'orchbee-desktop-launcher' : undefined;
+	const macosTarget = MACOS_TARGETS.get(selected['--platform'] ?? '');
+	const cross = macosTarget?.arch === process.arch ? undefined : macosTarget;
+	const built = cross === undefined ? 'release' : path.posix.join(cross.rust, 'release');
 	let temporary;
 	let outputCreated = false;
 	try {
@@ -267,6 +282,7 @@ function main() {
 				'-p',
 				'orchbee-worker',
 				...(windowLauncher === undefined ? [] : ['-p', windowLauncher]),
+				...(cross === undefined ? [] : ['--target', cross.rust]),
 			],
 			false,
 			{ ORCHBEE_ARTIFACT_STEM: artifactStem },
@@ -285,6 +301,7 @@ function main() {
 				throw new Error('Windows cross-staging currently requires x86_64 Linux');
 			zigArguments.push('-Dtarget=x86_64-linux-musl');
 		}
+		if (cross !== undefined) zigArguments.push(`-Dtarget=${cross.zig}`);
 		execFileSync('zig', zigArguments, {
 			cwd: path.join(root, 'apps', 'terminal-host'),
 			stdio: 'inherit',
@@ -296,7 +313,7 @@ function main() {
 			const source =
 				artifact === 'orchbee-terminal-host'
 					? path.join(hostPrefix, 'bin', artifact)
-					: accessible(path.posix.join(target, 'release', artifact));
+					: accessible(path.posix.join(target, built, artifact));
 			// Cargo and Zig name the sources; the staged cohort carries the environment stem.
 			const stagedName = artifactStem + artifact.slice('orchbee'.length);
 			const staged = path.join(destination, stagedName);
@@ -308,7 +325,7 @@ function main() {
 			// No cohort role, so `cohort.json` does not list it; the release manifest inventories it.
 			const stagedName = `${artifactStem}-desktop-launcher`;
 			copyFileSync(
-				accessible(path.posix.join(target, 'release', windowLauncher)),
+				accessible(path.posix.join(target, built, windowLauncher)),
 				path.join(destination, stagedName),
 				constants.COPYFILE_EXCL,
 			);

@@ -220,8 +220,10 @@ repository>`. Print each public half with the command in
 ## Release directory per platform
 
 Each platform row stages its cohort with `--artifact-stem orchbee` and writes `release.json` with
-`scripts/package-native-release.mjs` on a runner of that platform: the manifest's `platform` is the
-runner's own token, such as `windows-x86_64` or `macos-aarch64`, never an argument. A Windows
+`scripts/package-native-release.mjs`. On Windows the manifest's `platform` is the runner's own
+token, such as `windows-x86_64`; a macOS row passes its token, since an Apple silicon Mac builds,
+signs, notarizes and packages the Intel row with Cargo's and Zig's `x86_64` targets. The Intel
+row's smoke test and window Update run its files on an Intel Mac. A Windows
 directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
 directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
 adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row and

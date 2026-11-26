@@ -72,13 +72,15 @@ env:
   # One row per release platform token. `build` builds, packages and smoke-tests the row on its
   # runner, in a rehearsal and, for Windows rows, in the dry run; a tag takes the rows with `build`
   # and `publish`. Windows and macOS rows have jobs. The macOS rows publish since the rehearsal for
-  # 0.1.0-beta.14 passed, so a macOS failure stops the whole tag.
+  # 0.1.0-beta.14 passed, so a macOS failure stops the whole tag. A macOS row's `build-runner` builds,
+  # signs, notarizes and packages it, since GitHub's Intel Macs take about 2.5 times as long; the
+  # smoke test and the window Update still run its files on `runner`.
   RELEASE_PLATFORMS: >-
     [
     {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": true},
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
     {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": true},
-    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build": true, "publish": true},
+    {"platform": "macos-x86_64", "runner": "macos-15-intel", "build-runner": "macos-15", "build": true, "publish": true},
     {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": false, "publish": false},
     {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": false, "publish": false}
     ]
@@ -485,7 +487,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 90
     defaults:
       run:
@@ -504,8 +506,12 @@ jobs:
           node-version: 22
 
       - name: Set up Rust
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
           rustup toolchain install --profile minimal
+          # The row's own standard library, which an Apple silicon build of an Intel row needs.
+          rustup target add "$(if [ "$PLATFORM" = macos-x86_64 ]; then echo x86_64; else echo aarch64; fi)-apple-darwin"
           rustc --version
           cargo --version
 
@@ -527,9 +533,12 @@ jobs:
         uses: ./.github/actions/terminal-host-build-cache
         with:
           entry: release
+          target: ${{ matrix.platform }}
 
       - name: Stage the release cohort
-        run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee --platform "$PLATFORM"
 
       # The release build keeps the platform's entries for later runs on main; a tag run reads them.
       - name: Save the Terminal Host build cache
@@ -537,6 +546,7 @@ jobs:
         uses: ./.github/actions/terminal-host-build-cache
         with:
           entry: release
+          target: ${{ matrix.platform }}
           save: 'true'
 
       - name: Upload the staged cohort
@@ -557,7 +567,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
     environment: release
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 15
     defaults:
       run:
@@ -589,9 +599,10 @@ jobs:
 
       - name: Describe the signed release cohort
         env:
+          PLATFORM: ${{ matrix.platform }}
           RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
           BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
-        run: node scripts/package-native-release.mjs "$RUNNER_TEMP/cohort" stable "$RELEASE_VERSION" "$BUILD_ID"
+        run: node scripts/package-native-release.mjs "$RUNNER_TEMP/cohort" stable "$RELEASE_VERSION" "$BUILD_ID" "$PLATFORM"
 
       - name: Upload the cohort for packaging
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -753,7 +764,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 60
     defaults:
       run:
@@ -821,7 +832,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
     environment: release
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 20
     defaults:
       run:
@@ -887,7 +898,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
     environment: release
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 60
     defaults:
       run:
@@ -942,7 +953,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.macos-matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.build-runner || matrix.runner }}
     timeout-minutes: 15
     defaults:
       run:
@@ -1307,13 +1318,13 @@ jobs:
           rustc --version
           cargo --version
 
-      # Third-party crates, one entry per platform that this job and the platform's other build
-      # share; see docs/VERIFICATION.md#ci-contract.
+      # Third-party crates, one entry per platform and runner. A row whose build runs on its own
+      # runner shares the build's entry; a row with a `build-runner` keeps its own from here.
       - name: Restore the Rust dependency cache
         uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           shared-key: release-${{ matrix.platform }}
-          save-if: false
+          save-if: ${{ github.ref == 'refs/heads/main' && matrix.build-runner != null }}
 
       - name: Set up Zig
         uses: ./.github/actions/zig
@@ -1325,12 +1336,21 @@ jobs:
         uses: ./.github/actions/terminal-host-build-cache
         with:
           entry: release
+          target: ${{ matrix.platform }}
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Build the Test window
         run: pnpm desktop:package:test --build-id "${{ github.sha }}.${{ github.run_number }}"
+
+      - name: Save the Terminal Host build cache
+        if: github.ref == 'refs/heads/main' && matrix.build-runner != null
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+          target: ${{ matrix.platform }}
+          save: 'true'
 
       - name: Press Update in the real window
         run: |

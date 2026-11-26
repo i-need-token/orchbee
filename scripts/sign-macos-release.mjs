@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { macDiskImageName, writeMacDiskImage } from '../apps/desktop/scripts/mac-disk-image.mjs';
-import { hostReleasePlatform, releaseFiles } from './package-native-release.mjs';
+import { releaseFiles } from './package-native-release.mjs';
 
 const security = '/usr/bin/security';
 const codesign = '/usr/bin/codesign';
@@ -146,7 +146,7 @@ async function withDeveloperIdentity(action) {
 	});
 }
 
-async function signNative(cohort) {
+async function signNative(cohort, platform) {
 	const files = new Map(releaseFiles(cohort).map((file) => [file.path, file.sha256]));
 	const manifestPath = path.join(cohort, 'cohort.json');
 	const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
@@ -162,7 +162,7 @@ async function signNative(cohort) {
 			execFileSync('/usr/bin/lipo', [
 				filename,
 				'-verify_arch',
-				process.arch === 'arm64' ? 'arm64' : 'x86_64',
+				platform === 'macos-aarch64' ? 'arm64' : 'x86_64',
 			]);
 			sign(filename, ['--options', 'runtime']);
 			execFileSync(codesign, ['--verify', '--strict', filename], { stdio: 'inherit' });
@@ -184,7 +184,10 @@ function isMachO(filename) {
 }
 
 function desktopPaths(root, version, platform) {
-	const applicationDirectory = path.join(root, `Orchbee-darwin-${process.arch}`);
+	const applicationDirectory = path.join(
+		root,
+		`Orchbee-darwin-${platform === 'macos-aarch64' ? 'arm64' : 'x64'}`,
+	);
 	const application = path.join(applicationDirectory, 'Orchbee.app');
 	const cohort = path.join(application, 'Contents', 'Resources', 'cohort');
 	const image = path.join(root, 'installer', macDiskImageName('Orchbee', version, platform));
@@ -318,11 +321,11 @@ try {
 		process.platform !== 'darwin' ||
 		!root ||
 		!path.isAbsolute(root) ||
-		platform !== hostReleasePlatform() ||
+		!['macos-aarch64', 'macos-x86_64'].includes(platform) ||
 		rest.length > 0
 	)
-		throw new Error('Expected an absolute release directory and this Mac host’s release platform');
-	if (command === 'native' && version === undefined) await signNative(root);
+		throw new Error('Expected an absolute release directory and a macOS release platform');
+	if (command === 'native' && version === undefined) await signNative(root, platform);
 	else if (command === 'desktop' && version) await signDesktop(root, version, platform);
 	else if (command === 'submit' && version) await submitDesktop(root, version, platform);
 	else if (command === 'notarize' && version) await notarizeDesktop(root, version, platform);
