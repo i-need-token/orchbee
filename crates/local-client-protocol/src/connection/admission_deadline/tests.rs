@@ -184,6 +184,7 @@ fn expiration_after_blocking_restoration_closes_the_candidate() -> TestResult {
             generation,
             orchbee_connection_handshake::Generation::new(1).unwrap(),
             orchbee_connection_handshake::CapabilitySet::default(),
+            orchbee_connection_handshake::ProductVersion::new("0.1.0").unwrap(),
             deadline
         ),
         Err(ConnectClientError::Io(error)) if error.kind() == io::ErrorKind::TimedOut
