@@ -22,8 +22,9 @@ use std::{
 
 /// The single sampler checks the frozen file at most this often.
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(1);
-/// An edit waits this long for another reload or edit to finish before it is refused as busy.
-const EDIT_ADMISSION_WAIT: Duration = Duration::from_millis(500);
+/// An explicit reload or an edit waits this long for another reload or edit to finish before it is
+/// refused as busy.
+const WAITING_ADMISSION: Duration = Duration::from_millis(500);
 const ADMISSION_RETRY: Duration = Duration::from_millis(10);
 
 #[derive(Default)]
@@ -310,10 +311,11 @@ impl Registry {
         ))
     }
 
-    /// Admission for an edit: a person is waiting, so another reload or edit gets a moment to
-    /// finish before the edit is refused as busy.
+    /// Admission for an explicit reload or an edit: a person is waiting, so another reload or edit
+    /// gets a moment to finish before the request is refused as busy. Saving the file starts a
+    /// sampled reload within a second, which a `config reload` right after the save would meet.
     fn admit_waiting(&self) -> Result<(FrozenState, ReloadAdmission<'_>), Failure> {
-        let deadline = Instant::now() + EDIT_ADMISSION_WAIT;
+        let deadline = Instant::now() + WAITING_ADMISSION;
         loop {
             match self.admit() {
                 Err(Failure::Busy) if Instant::now() < deadline => {
@@ -329,7 +331,11 @@ impl Registry {
         publication: Publication,
         load: impl FnOnce(Option<&Path>, bool) -> Result<UserSettingsLoad, SettingsError>,
     ) -> Result<Committed, Rejection> {
-        let (frozen, admission) = self.admit()?;
+        let (frozen, admission) = if publication == Publication::Explicit {
+            self.admit_waiting()?
+        } else {
+            self.admit()?
+        };
         // File I/O and TOML preparation run without the committed-state mutex.
         let loaded = load(frozen.current.path.as_deref(), frozen.current.explicit);
         self.commit(admission, frozen, publication, loaded)
