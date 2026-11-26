@@ -1776,14 +1776,9 @@
 	);
 }
 
+/* An active status symbol keeps breathing under reduced motion: the breath is how the state reads. */
 @keyframes agent-breath {
 	50% {
 		opacity: var(--ob-ref-opacity-50);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.ct-tab-icon[data-status-adornment='active'] .ct-tab-icon__status-symbol {
-		animation: none;
 	}
 }

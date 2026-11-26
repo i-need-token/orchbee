@@ -76,15 +76,10 @@
 	}
 }
 
+/* Working's breath and attention's pulse keep running under reduced motion: they are how those
+   states read at a glance, not decoration. */
 @keyframes agent-attention {
 	50% {
 		opacity: var(--ob-sys-opacity-disabled);
-	}
-}
-
-@media (prefers-reduced-motion: reduce) {
-	.glyph[data-tone='attention'],
-	.glyph[data-tone='working'] {
-		animation: none;
 	}
 }
