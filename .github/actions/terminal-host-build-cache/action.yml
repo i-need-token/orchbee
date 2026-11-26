@@ -1,15 +1,16 @@
 name: Terminal Host build cache
 description: >-
   Restores, or with `save: 'true'` saves, the Zig caches that a Terminal Host build fills: the
-  release build of the Rust test preparation (apps/terminal-host/scripts/build-host.mjs), or with
-  `entry: test` the Terminal Host's own test builds. Zig checks every cached result against the
+  release build of the Rust test preparation (apps/terminal-host/scripts/build-host.mjs), with
+  `entry: test` the Terminal Host's own test builds, or with `entry: release` the release
+  workflow's staging builds (scripts/stage-local-runtime.mjs) of the release and Test identities. Zig checks every cached result against the
   content of its inputs, so an entry never makes a build use stale code; the key only decides how
   much an entry still saves. Run it after `zig-packages`, whose package archives under the global
   cache's `p` stay that action's own entry.
 
 inputs:
   entry:
-    description: "'build' for the Rust test preparation's build, 'test' for the Terminal Host tests"
+    description: "'build' for the Rust test preparation's build, 'test' for the Terminal Host tests, 'release' for the release workflow's staging builds"
     required: false
     default: build
   save:
@@ -26,7 +27,7 @@ runs:
       env:
         ENTRY: ${{ inputs.entry }}
       run: |
-        case "$ENTRY" in build | test) ;; *) echo "Unknown Terminal Host cache entry: $ENTRY" >&2; exit 1 ;; esac
+        case "$ENTRY" in build | test | release) ;; *) echo "Unknown Terminal Host cache entry: $ENTRY" >&2; exit 1 ;; esac
         if [ "$RUNNER_OS" = Windows ]; then global="$LOCALAPPDATA\\zig"; else global="${XDG_CACHE_HOME:-$HOME/.cache}/zig"; fi
         {
           echo 'paths<<ORCHBEE_PATHS'

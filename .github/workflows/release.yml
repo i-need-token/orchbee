@@ -415,14 +415,35 @@ jobs:
           rustc --version
           cargo --version
 
+      # Third-party crates, one entry per platform that this job and the platform's other build
+      # share; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Set up Zig
         uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
 
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+
       - name: Stage the release cohort
         run: node scripts/stage-local-runtime.mjs --output "$env:RUNNER_TEMP\cohort" --artifact-stem orchbee
+
+      # The release build keeps the platform's entries for later runs on main; a tag run reads them.
+      - name: Save the Terminal Host build cache
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+          save: 'true'
 
       - name: Describe the release cohort
         env:
@@ -481,14 +502,35 @@ jobs:
           rustc --version
           cargo --version
 
+      # Third-party crates, one entry per platform that this job and the platform's other build
+      # share; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
       - name: Set up Zig
         uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
 
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+
       - name: Stage the release cohort
         run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee
+
+      # The release build keeps the platform's entries for later runs on main; a tag run reads them.
+      - name: Save the Terminal Host build cache
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+          save: 'true'
 
       - name: Upload the staged cohort
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -1182,11 +1224,24 @@ jobs:
           rustc --version
           cargo --version
 
+      # Third-party crates, one entry per platform that this job and the platform's other build
+      # share; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-${{ matrix.platform }}
+          save-if: false
+
       - name: Set up Zig
         uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
+
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -1245,11 +1300,24 @@ jobs:
           rustc --version
           cargo --version
 
+      # Third-party crates, one entry per platform that this job and the platform's other build
+      # share; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-${{ matrix.platform }}
+          save-if: false
+
       - name: Set up Zig
         uses: ./.github/actions/zig
 
       - name: Fetch the Zig packages
         uses: ./.github/actions/zig-packages
+
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
