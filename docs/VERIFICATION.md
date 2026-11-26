@@ -264,7 +264,8 @@ results remain unchanged.
   platform behavior still requires a native runner.
 - `verify:rust-native` reuses the same Rust runner tasks and native test preparation as `lint` and
   `test`. It adds no step of its own, so a Windows host gate and the Windows CI jobs cannot drift
-  from the Linux root gate. Run it on Windows when a change touches platform-gated Rust code.
+  from the Linux root gate. Run it on Windows, and on Linux through WSL where the owner allows it,
+  when a change touches platform-gated Rust code.
   `--part <name>` runs one test part instead of the whole test task, for CI's parallel jobs:
   `workspace` is the lint task, the tests of every package except the terminal client `orchbee`,
   and every documentation test; `client` is that package's unit tests and its `integration`
@@ -298,11 +299,9 @@ complete clean search that took every required action, followed by its mutation 
 
 - `.github/workflows/verify.yml` installs the frozen lockfile and runs for pull requests, pushes to `main`, and manual runs.
 - The Linux `verify` job runs `pnpm verify:no-rust-tests`: every stage of `pnpm verify` except the
-  Cargo test suites and their native prerequisites. Linux is not a release platform yet and several
-  of its Cargo test targets fail, so that stage made every run red and hid the other results. Rust
-  lint stays in the job and keeps the Linux configuration compiling. Its `lint` stage is also the
-  only CI run of the Rust module graph check, which reads source text for every platform and so
-  needs no native runner. Restore `pnpm verify` in this job when Linux support resumes.
+  Cargo test suites and their native prerequisites, which the native Rust jobs run on each
+  platform. Its `lint` stage is also the only CI run of the Rust module graph check, which reads
+  source text for every platform and so needs no native runner.
 - A push to `main` never cancels the run in progress. A complete run outlasts the gap between
   pushes, so cancelling on every push left `main` without one finished run. GitHub keeps
   one waiting run per concurrency group: the newest commit is verified next, and that run covers
@@ -311,7 +310,7 @@ complete clean search that took every required action, followed by its mutation 
   [Affected verification](#affected-verification) against the last verified commit: for a pull
   request the base its merge commit was made on, and for a push to `main` the newest earlier commit
   whose Verify run passed, so a commit whose run failed or never finished stays in the comparison.
-  The Rust parts on Windows and macOS run when the plan selects a Cargo member, which a Terminal
+  The Rust parts on Linux, Windows and macOS run when the plan selects a Cargo member, which a Terminal
   Host change does through the process cohort; `terminal-host-native` runs when it selects the
   Terminal Host; a root tooling input runs both. A plan that falls back to the complete gate, a
   manual run, a re-run of a passed run, or no passed run among the last 50 runs every job. The
@@ -329,7 +328,7 @@ complete clean search that took every required action, followed by its mutation 
   Linux `verify` job never compiles. It runs as four parallel jobs, one per test part of
   [Required tasks](#required-tasks): as one job it ran for about an hour, 41 minutes of that in
   tests and most of those in the terminal client's process tests, and a run ends with its slowest
-  job. They and `rust-macos` are the only jobs that run the Cargo test suites. Formatting, documentation
+  job. They, `rust-macos` and `rust-linux` are the only jobs that run the Cargo test suites. Formatting, documentation
   and TypeScript checks are platform-independent and stay in `verify`. The Windows TUI process
   tests that share `apps/orchbee/tests/support/windows_tui_session.rs` take turns inside their test
   binary: four of their real Session pairs at once saturate the four-vCPU runner, and shells then
@@ -348,6 +347,11 @@ complete clean search that took every required action, followed by its mutation 
   failed although nothing ran; when every other job passed, the `macos-runner-shortage` job ends
   that run as cancelled instead. No Verify job runs on an Intel Mac runner; Intel macOS is left to
   the release workflow's `macos-x86_64` row.
+- The `rust-linux` job runs the same parts of `pnpm verify:rust-native` on `ubuntu-latest` in
+  the three jobs `rust-macos` has, its `client-commands` job with `client-long-commands` and the
+  native Terminal Host tests. Linux joined the release platforms with Cargo test suites that no CI
+  job had run, so until every part is green the job is `continue-on-error`: a red Linux part
+  shows in the run without failing it. Remove that line once the parts pass on `main`.
 - Every job that needs Zig, here and in the release workflow, installs it with the local action
   `.github/actions/zig`, which holds the pinned version and each runner's archive digest. The
   archive comes from the Actions cache when an earlier run kept it, otherwise from ziglang.org,
@@ -385,8 +389,7 @@ complete clean search that took every required action, followed by its mutation 
   included; `zig build --fetch` leaves those to the build. Package downloads on hosted runners fail
   now and then mid-transfer, and each such failure turned a run red before any test ran. Zig checks
   every downloaded package against its pinned hash before it enters the archive store.
-- Platform exclusions are explicit. Linux stays parked: its Cargo test suites run in no job, as
-  the `verify` job above describes. No job runs `test:cross`; cross-compilation stays explicit.
+- Platform exclusions are explicit. No job runs `test:cross`; cross-compilation stays explicit.
 - No job runs TLA+ model checking, TLC or any TLA+ tooling, and no job provisions Java. A changed
   model runs locally, as [TLA+ models](#tla-models) describes.
 - The workflow installs every exact compiler version required by a tracked native workspace through

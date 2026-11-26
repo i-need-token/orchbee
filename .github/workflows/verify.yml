@@ -100,7 +100,7 @@ jobs:
             echo "### Native jobs"
             echo
             echo "- Compared with: ${BASE:-nothing, so every job runs}"
-            echo "- Rust parts on Windows and macOS: $rust"
+            echo "- Rust parts on Linux, Windows and macOS: $rust"
             echo "- Terminal Host on Windows: $host"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -146,9 +146,8 @@ jobs:
       - name: Install Linux test dependencies
         run: sudo apt-get update && sudo apt-get install --yes zsh
 
-      # Every stage of `pnpm verify` except the Cargo test suites: Linux is not a release platform
-      # yet and several of its Cargo test targets fail, which made every run red. The Windows job
-      # below runs those suites. Restore `pnpm verify` here when Linux support resumes.
+      # Every stage of `pnpm verify` except the Cargo test suites, which the native jobs below run
+      # on Linux, Windows and macOS.
       - name: Verify repository
         run: pnpm verify:no-rust-tests --verbose
 
@@ -304,6 +303,93 @@ jobs:
       - name: Check native Terminal Host formatting
         if: ${{ matrix.host && !cancelled() }}
         run: pnpm --filter @orchbee/terminal-host format:check
+
+  rust-linux:
+    name: Rust native (ubuntu-latest, ${{ matrix.label }})
+    needs: scope
+    if: ${{ needs.scope.outputs.rust == 'true' }}
+    # Linux joins the release platforms, and its Cargo test suites were never run in CI; until every
+    # part is green, a red Linux part reports without failing the run.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        # The same test parts as `rust-macos`: the long command targets are Windows process tests,
+        # empty here, and they and the native Terminal Host tests share the shortest part's job.
+        include:
+          - part: workspace
+            label: workspace
+          - part: client
+            label: client
+          - part: client-commands
+            also: client-long-commands
+            label: client-commands, client-long-commands, Terminal Host
+            host: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Set up Rust
+        run: |
+          rustup toolchain install --profile minimal --component clippy,rustfmt
+          rustc --version
+          cargo --version
+
+      # Third-party crates only. The client parts build one package and share an entry, which the
+      # client part saves; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: rust-native-${{ matrix.part == 'workspace' && 'workspace' || 'client' }}
+          cache-on-failure: true
+          save-if: ${{ github.ref == 'refs/heads/main' && (matrix.part == 'workspace' || matrix.part == 'client') }}
+
+      - name: Set up Zig
+        uses: ./.github/actions/zig
+
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
+
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The shells the installed-shell and login-shell tests start.
+      - name: Install Linux test dependencies
+        run: sudo apt-get update && sudo apt-get install --yes zsh
+
+      - name: Verify the Rust workspace natively
+        run: pnpm verify:rust-native --part ${{ matrix.part }} --verbose
+
+      # Runs after a red Rust part too, so a run reports both.
+      - name: Verify the shared Rust test part natively
+        if: ${{ matrix.also && !cancelled() }}
+        run: pnpm verify:rust-native --part ${{ matrix.also }} --verbose
+
+      # Every part builds the same Host; the workspace part keeps it for later runs on main.
+      - name: Save the Terminal Host build cache
+        if: ${{ github.ref == 'refs/heads/main' && matrix.part == 'workspace' && !cancelled() }}
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          save: 'true'
+
+      # Runs after a red Rust part too, so a run reports both.
+      - name: Test native Terminal Host
+        if: ${{ matrix.host && !cancelled() }}
+        run: pnpm --filter @orchbee/terminal-host test
 
   terminal-host-native:
     name: Terminal Host native (windows-latest)
