@@ -23,10 +23,14 @@ name: Release
 # steps: docs/RELEASING.md. The comments here are the description of each job.
 
 # The run name says what a run built: a later run of the same commit finds it by name. Every run
-# checks each version source against its version, so a candidate's commit names its version.
+# checks each version source against its version, so a candidate's commit names its version. A
+# finished Verify run that cannot start a candidate (it failed, was cancelled, checked a pull request
+# or a commit main has moved past) leaves a run named "Release candidate skipped" that builds nothing.
 run-name: >-
   ${{ github.event_name == 'push' && format('Release {0}', github.ref_name) ||
-  github.event_name == 'workflow_run' && 'Release candidate' ||
+  github.event_name == 'workflow_run' && (github.event.workflow_run.conclusion == 'success' &&
+  github.event.workflow_run.event == 'push' && github.event.workflow_run.head_sha == github.sha &&
+  'Release candidate' || 'Release candidate skipped') ||
   inputs.version != '' && format('Release {0} rehearsal', inputs.version) || 'Release dry run' }}
 
 on:
@@ -56,9 +60,12 @@ permissions:
   contents: read
 
 # Rehearsals and candidates of main share a group: one runs, and the newest waiting run replaces an
-# older waiting one.
+# older waiting one. A skipped candidate takes a group of its own, so it never replaces a waiting one.
 concurrency:
-  group: release-${{ github.ref }}
+  group: >-
+    ${{ github.event_name == 'workflow_run' && !(github.event.workflow_run.conclusion == 'success' &&
+    github.event.workflow_run.event == 'push' && github.event.workflow_run.head_sha == github.sha) &&
+    format('release-skipped-{0}', github.run_id) || format('release-{0}', github.ref) }}
   cancel-in-progress: false
 
 env:
