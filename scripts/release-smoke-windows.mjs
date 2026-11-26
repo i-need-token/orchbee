@@ -856,9 +856,10 @@ const windowsPort = {
 		return terminal;
 	},
 	// The Session's Keepers that run version `version`'s Terminal Host program: `keep` starts one.
+	// The Worker quotes every argument it passes, so the command line reads `"<program>" "keep" …`.
 	keepers: (storeRoot, version) =>
 		processesIn(path.join(storeRoot, 'versions', version)).filter(({ commandLine }) =>
-			/\skeep\s/u.test(commandLine),
+			/^(?:"[^"]*"|\S+)\s+"?keep"?(?:\s|$)/u.test(commandLine),
 		),
 	finishGateSession({ sessionStarted, stem, olderClient, newClient, olderEnv }) {
 		// A test build's Session ends here; a release build asks a person to type its name, and the
