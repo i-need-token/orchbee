@@ -68,17 +68,23 @@ repository>`. Print each public half with the command in
 1. On `main`, set the version and commit it: `node scripts/release-version.mjs set 0.1.0-beta.1`,
    then `node scripts/release-version.mjs check v0.1.0-beta.1`. Tags ascend in SemVer order and a
    pre-release is `<version>-beta.<n>`.
-2. Optional rehearsal: Actions › Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
-   `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`. It builds, signs and smoke-tests
-   the release identity on every row with `build` set, presses Update in a real Test window of each
-   of those rows, runs
-   the release gate's paths a tag run would select, joins the rows the way a tag run would, and
-   publishes nothing. A tag of the same commit then reuses its joined files for a week: the tag run
-   checks them again and publishes them minutes after the tag instead of building. A tag of another
-   commit builds everything, and so does a rehearsal run with `rebuild` set
-   (`-f rebuild=true`). Start a run that builds once the newest Verify run on `main` has finished: both workflows use
-   macOS runners, GitHub runs at most five macOS jobs of this account at once, and a rehearsal
-   started beside Verify waited 17 minutes for its macOS builds (2026-11-25).
+2. Wait for the release candidate. Once Verify passed for the newest commit on `main`, the Release
+   workflow starts a run named "Release candidate" for that commit by itself. It builds, signs and
+   smoke-tests the release identity of the version the commit records on every row with `build`
+   set, presses Update in a real Test window of each of those rows, runs the release gate's paths a
+   tag run would select, joins the rows the way a tag run would, and publishes nothing; a newer
+   commit's candidate replaces one still waiting to start. A tag of that commit reuses its joined
+   files for a week: the tag run checks them again and publishes minutes after the tag, and a tag
+   pushed while the candidate is still building waits for it. A tag of a commit with no passed
+   candidate builds everything. Never install a candidate's files: unless a tag reuses them, the
+   release is another build of the same version. A rehearsal does the same by hand: Actions ›
+   Release › Run workflow on `main` with `version` `0.1.0-beta.1`, or
+   `gh workflow run release.yml --ref main -f version=0.1.0-beta.1`; `-f rebuild=true` builds even
+   when a passed run can be reused. Start a rehearsal that builds once the newest Verify run on
+   `main` has finished: both workflows use macOS runners, GitHub runs at most five macOS jobs of
+   this account at once, and a rehearsal started beside Verify waited 17 minutes for its macOS
+   builds (2026-11-25). A candidate starts when Verify finishes, so it shares them only with the
+   Verify run of a later push.
 3. Write the release notes in Markdown in a file outside the repository, with their own headings;
    they follow the generated Install section verbatim. Tag the commit with them and push the tag:
    `git tag -a v0.1.0-beta.1 --cleanup=verbatim -F <notes file>`, then

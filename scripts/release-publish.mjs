@@ -13,6 +13,7 @@
 //   node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>
 //   node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --repository <owner/name>
 //   node scripts/release-publish.mjs verified --commit <sha> --tag v<version> --repository <owner/name>
+//   node scripts/release-publish.mjs candidate --repository <owner/name>
 //
 // - plan: a pushed tag `v<version>` releases and publishes that version from the rows with `build`
 //   and `publish`; a manual run names the version to rehearse, takes every row with `build`, and
@@ -46,15 +47,18 @@
 //   <artifacts>, as the repository's Latest release and not a pre-release; a published release is
 //   only confirmed.
 //
-// - reuse: the newest other passed run of the release workflow for <commit> and <version> whose
-//   joined files have not expired (selectReusableRun), read through the GitHub API; writes its id as
-//   `reuse`, or an empty `reuse` when there is none or when a platform row builds without
-//   publishing, whose files a rehearsal joins but a tag must not publish.
+// - reuse: the run of the release workflow whose joined files this run of <commit> and <version>
+//   reuses (reuseDecision), read through the GitHub API, waiting up to an hour while an earlier run
+//   of the commit is still building; writes its id as `reuse`, or an empty `reuse` to build: when
+//   no run qualifies, or when a platform row builds without publishing, whose files a rehearsal
+//   joins but a tag must not publish.
 // - verified: waits until a Verify run for <commit> passed (verifyState). A failed Verify, or none
 //   within ten minutes, fails with the commands that fix it.
+// - candidate: writes `unreleased`, true while no tag v<version> exists for the version the
+//   checkout records.
 //
-// notes, gate-paths, github, publish, reuse and verified run `gh` with the token in GH_TOKEN. <artifacts> is a directory
-// `node scripts/release-artifacts.mjs collect --profile release` wrote.
+// notes, gate-paths, github, publish, reuse, verified and candidate run `gh` with the token in GH_TOKEN.
+// <artifacts> is a directory `node scripts/release-artifacts.mjs collect --profile release` wrote.
 // Exit codes: 0 done; 1 a step failed or a check found a problem; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import { createHash, createPrivateKey, createPublicKey } from 'node:crypto';
@@ -64,7 +68,7 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
 import { feedName } from './release-feed.mjs';
-import { compareVersions, SEMVER } from './release-version.mjs';
+import { compareVersions, SEMVER, workspaceVersion } from './release-version.mjs';
 import { FEED_DOMAIN, keyTable, verifySignature } from './sign-release-manifest.mjs';
 
 const repository = fileURLToPath(new URL('..', import.meta.url));
@@ -84,7 +88,8 @@ const usage =
 	'       node scripts/release-publish.mjs npm <artifacts> --version <version> --repository-url <https URL>\n' +
 	'       node scripts/release-publish.mjs publish <artifacts> --tag v<version> --repository <owner/name>\n' +
 	'       node scripts/release-publish.mjs reuse --version <version> --commit <sha> --run <id> --repository <owner/name>\n' +
-	'       node scripts/release-publish.mjs verified --commit <sha> --tag v<version> --repository <owner/name>';
+	'       node scripts/release-publish.mjs verified --commit <sha> --tag v<version> --repository <owner/name>\n' +
+	'       node scripts/release-publish.mjs candidate --repository <owner/name>';
 
 class UsageError extends Error {}
 class StepFailure extends Error {}
@@ -107,7 +112,8 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 		if (requested !== undefined && requested !== '')
 			throw new StepFailure('A tag run takes its version from the tag; give no version');
 		version = tag[1];
-	} else if (event === 'workflow_dispatch') {
+	} else if (event === 'workflow_dispatch' || event === 'workflow_run') {
+		// A candidate (workflow_run) rehearses the version its commit records.
 		if (requested === undefined || !SEMVER.test(requested))
 			throw new StepFailure(
 				`A rehearsal names a version such as 0.1.0-beta.1, without the v, not ${JSON.stringify(requested ?? '')}`,
@@ -601,23 +607,32 @@ function githubReleaseList(repositoryName, gh = (argv) => run('gh', argv)) {
 }
 
 /**
- * The run whose joined files a run of `version` from `commit` reuses: the newest passed run of the
- * release workflow other than `current` that built the same commit and version, by the run name
- * the workflow gives it, and still holds its joined files. A run of another commit or version never
- * qualifies, so a tag publishes only files built, signed and gated from its own commit.
+ * What a run of `version` from `commit` does with the release workflow's other runs of that commit,
+ * by the run names the workflow gives them: `{ reuse }`, the newest passed one that still holds its
+ * joined files; else `{ wait }`, the newest one started earlier and still running, which may pass;
+ * else `{}` to build. A run of another commit never qualifies, so a tag publishes only files built,
+ * signed and gated from its own commit, and a candidate's name needs no version because every run
+ * checks its commit's version sources against its version. Waiting only for an earlier run keeps
+ * two runs from waiting for each other.
  */
-export function selectReusableRun({ runs, version, commit, current }) {
-	const names = new Set([`Release v${version}`, `Release ${version} rehearsal`]);
-	return runs
-		.filter(
-			(entry) =>
-				entry.id !== current &&
-				entry.headSha === commit &&
-				entry.conclusion === 'success' &&
-				names.has(entry.title) &&
-				entry.joined,
-		)
-		.toSorted((left, right) => right.id - left.id)[0]?.id;
+export function reuseDecision({ runs, version, commit, current }) {
+	const names = new Set([
+		`Release v${version}`,
+		`Release ${version} rehearsal`,
+		'Release candidate',
+	]);
+	const newest = (entries) => entries.toSorted((left, right) => right.id - left.id)[0]?.id;
+	const same = runs.filter(
+		(entry) => entry.id !== current && entry.headSha === commit && names.has(entry.title),
+	);
+	const reuse = newest(
+		same.filter(
+			(entry) => entry.status === 'completed' && entry.conclusion === 'success' && entry.joined,
+		),
+	);
+	if (reuse !== undefined) return { reuse };
+	const wait = newest(same.filter((entry) => entry.status !== 'completed' && entry.id < current));
+	return wait === undefined ? {} : { wait };
 }
 
 /** Whether Verify passed for a commit, from its runs: `passed`, `running`, `failed` or `missing`. */
@@ -635,32 +650,41 @@ function apiLines(gh, endpoint, filter) {
 		.map((line) => JSON.parse(line));
 }
 
-function reusableRun({ version, commit, current, repositoryName }, gh = (argv) => run('gh', argv)) {
-	const runs = apiLines(
-		gh,
-		`repos/${repositoryName}/actions/workflows/release.yml/runs?head_sha=${commit}&status=success&per_page=100`,
-		'.workflow_runs[] | {id, title: .display_title, headSha: .head_sha, conclusion}',
-	);
-	// Only a run that could qualify costs an artifact query.
-	const candidates = runs.filter(
-		(entry) =>
-			selectReusableRun({ runs: [{ ...entry, joined: true }], version, commit, current }) !==
-			undefined,
-	);
-	return selectReusableRun({
-		runs: candidates.map((entry) => ({
-			...entry,
-			joined:
-				apiLines(
-					gh,
-					`repos/${repositoryName}/actions/runs/${entry.id}/artifacts?name=release-joined`,
-					'.artifacts[] | select(.expired | not) | {id}',
-				).length > 0,
-		})),
-		version,
-		commit,
-		current,
-	});
+async function reusableRun(
+	{ version, commit, current, repositoryName },
+	gh = (argv) => run('gh', argv),
+) {
+	const deadline = Date.now() + 60 * 60_000;
+	for (;;) {
+		const runs = apiLines(
+			gh,
+			`repos/${repositoryName}/actions/workflows/release.yml/runs?head_sha=${commit}&per_page=100`,
+			'.workflow_runs[] | {id, title: .display_title, headSha: .head_sha, status, conclusion}',
+		);
+		const decision = reuseDecision({
+			// Only a passed run costs an artifact query.
+			runs: runs.map((entry) => ({
+				...entry,
+				joined:
+					entry.conclusion === 'success' &&
+					apiLines(
+						gh,
+						`repos/${repositoryName}/actions/runs/${entry.id}/artifacts?name=release-joined`,
+						'.artifacts[] | select(.expired | not) | {id}',
+					).length > 0,
+			})),
+			version,
+			commit,
+			current,
+		});
+		if (decision.wait === undefined) return decision.reuse;
+		if (Date.now() > deadline) {
+			log(`Run ${decision.wait} is still building ${commit} after an hour; this run builds.`);
+			return undefined;
+		}
+		log(`Run ${decision.wait} is building ${commit}; waiting for it instead of building again.`);
+		await new Promise((resolve) => setTimeout(resolve, 60_000));
+	}
 }
 
 async function waitForVerify({ commit, tag, repositoryName }, gh = (argv) => run('gh', argv)) {
@@ -939,7 +963,11 @@ async function main(argv) {
 		} catch {
 			throw new StepFailure('RELEASE_PLATFORMS is not JSON');
 		}
-		const plan = planRelease({ ...options, platforms });
+		const plan = planRelease({
+			...options,
+			version: options.event === 'workflow_run' ? workspaceVersion(repository) : options.version,
+			platforms,
+		});
 		log(
 			`${plan.publish ? 'Release' : 'Rehearsal'} of ${plan.version}: ${plan.matrix.include.map((row) => row.platform).join(', ')}; npm dist-tag ${plan.distTag}.`,
 		);
@@ -1083,7 +1111,7 @@ async function main(argv) {
 		const unpublished = platforms.find((row) => row.build && !row.publish);
 		const reuse = unpublished
 			? undefined
-			: reusableRun({
+			: await reusableRun({
 					version: options.version,
 					commit: options.commit,
 					current: Number(options.run),
@@ -1114,6 +1142,23 @@ async function main(argv) {
 			tag: options.tag,
 			repositoryName: options.repository,
 		});
+		return;
+	}
+	if (command === 'candidate') {
+		const { positional, options } = parseOptions(rest, ['repository']);
+		if (positional.length > 0 || options.repository === undefined) throw new UsageError(usage);
+		const version = workspaceVersion(repository);
+		const released = apiLines(
+			(ghArguments) => run('gh', ghArguments),
+			`repos/${options.repository}/git/matching-refs/tags/v${version}`,
+			'.[] | {ref}',
+		).some((entry) => entry.ref === `refs/tags/v${version}`);
+		log(
+			released
+				? `v${version} is already tagged; main has no candidate until its version changes.`
+				: `A candidate of ${version}.`,
+		);
+		writeOutputs({ unreleased: String(!released) });
 		return;
 	}
 	throw new UsageError(usage);

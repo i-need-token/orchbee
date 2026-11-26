@@ -1,6 +1,6 @@
 name: Release
 
-# Two ways in. Started by hand without a version: the dry run builds every Windows platform row
+# Three ways in. Started by hand without a version: the dry run builds every Windows platform row
 # marked `build` with the TEST identity, signs its manifest with the repository's test key, proves
 # the result on fresh runners, and publishes nothing. A pushed tag v<version>, or a manual run naming
 # a version (a rehearsal): the release path builds the rows with the release identity, signs in the
@@ -13,14 +13,20 @@ name: Release
 # release as Latest, and starts the Update check. A lightweight tag or an empty tag message stops it
 # before the build. A rehearsal cannot publish: `release-publish` is the only job with write
 # permissions or the npm token, and it runs only for a `push` event whose plan says `publish`.
-# A run whose commit and version a passed run already built, gated and joined reuses that run's
-# joined files instead of building again, unless a manual run asks to rebuild; a tag run then
-# publishes minutes after the tag. A tag publishes only once Verify passed for its commit.
+# Once Verify passed for the newest commit of main, a release candidate rehearses that commit at the
+# version main records, with no human step.
+# A run whose commit a passed rehearsal, candidate or tag run already built, gated and joined reuses
+# that run's joined files instead of building again, unless a manual run asks to rebuild, and a run
+# that finds such a run still building waits for it; a tag after its candidate publishes in minutes.
+# A tag publishes only once Verify passed for its commit.
 # Rules for changing this file: docs/VERIFICATION.md#release-and-update-check-workflows; the owner's
 # steps: docs/RELEASING.md. The comments here are the description of each job.
-# The run name says what a run built: a later run of the same commit and version finds it by name.
+
+# The run name says what a run built: a later run of the same commit finds it by name. Every run
+# checks each version source against its version, so a candidate's commit names its version.
 run-name: >-
   ${{ github.event_name == 'push' && format('Release {0}', github.ref_name) ||
+  github.event_name == 'workflow_run' && 'Release candidate' ||
   inputs.version != '' && format('Release {0} rehearsal', inputs.version) || 'Release dry run' }}
 
 on:
@@ -39,10 +45,18 @@ on:
   push:
     tags:
       - 'v*'
+  # A candidate. Its run is the default branch's newest commit, so release-start goes on only
+  # when that is the commit a passed Verify of a push checked; a newer commit's Verify starts its own.
+  workflow_run:
+    workflows: [Verify]
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
 
+# Rehearsals and candidates of main share a group: one runs, and the newest waiting run replaces an
+# older waiting one.
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
@@ -228,11 +242,51 @@ jobs:
   # The release path. Each job fails early and definitely; only `release-preconditions`,
   # `release-sign`, `release-feed` and `release-publish` use the environment `release`, and each maps
   # every secret into the one step that needs it.
-  release-plan:
-    name: Release version
-    if: github.event_name == 'push' || inputs.version != ''
+  #
+  # Whether the release path runs: a tag and a rehearsal always go on, and the dry run never does. A
+  # candidate goes on only for the commit a passed Verify of a push checked, and only while no tag
+  # has released the version that commit records: the commits between a release and the version
+  # change after it would only rebuild a published version. It runs for every event, because a
+  # skipped job skips every job after it.
+  release-start:
+    name: Release start
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    env:
+      CANDIDATE: >-
+        ${{ github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' && github.event.workflow_run.head_sha == github.sha }}
+    outputs:
+      start: >-
+        ${{ github.event_name == 'push' || github.event_name == 'workflow_dispatch' && inputs.version != '' ||
+        steps.candidate.outputs.unreleased == 'true' }}
+    steps:
+      - name: Check out repository
+        if: env.CANDIDATE == 'true'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        if: env.CANDIDATE == 'true'
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Check that no tag released the recorded version
+        id: candidate
+        if: env.CANDIDATE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-publish.mjs candidate --repository "$GITHUB_REPOSITORY"
+
+  release-plan:
+    name: Release version
+    needs: release-start
+    if: needs.release-start.outputs.start == 'true'
+    runs-on: ubuntu-latest
+    # Waiting for an earlier run of the same commit takes up to an hour.
+    timeout-minutes: 70
     permissions:
       # actions: read finds an earlier run to reuse.
       actions: read
@@ -294,7 +348,7 @@ jobs:
           MACOS_AARCH64: ${{ steps.plan.outputs.macos-aarch64 }}
         run: node scripts/release-publish.mjs gate-paths --version "$RELEASE_VERSION" --repository "$GITHUB_REPOSITORY" --macos-aarch64 "$MACOS_AARCH64"
 
-      - name: Find a passed run of this commit and version to reuse
+      - name: Find a passed run of this commit to reuse, or wait for one building it
         id: reuse
         if: inputs.rebuild != true
         env:

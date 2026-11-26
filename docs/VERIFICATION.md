@@ -398,8 +398,8 @@ and why; the owner's steps are in [Releasing](RELEASING.md). Three rules bind ev
 - Secrets reach only the step that needs them, by environment variable: never an argument, a log
   line, or an artifact. A job that holds a secret installs no dependencies and runs only repository
   scripts that use Node built-ins, plus `gh` and `npm` in `release-publish`.
-- Only `release-publish` holds write permissions, and it runs only for a pushed tag. A rehearsal
-  and a dry run publish nothing.
+- Only `release-publish` holds write permissions, and it runs only for a pushed tag. A rehearsal,
+  a candidate and a dry run publish nothing.
 - The Windows smoke, gate and update steps install and remove for real: run them only on a
   disposable Windows machine. The macOS steps touch nothing outside their work folder.
 

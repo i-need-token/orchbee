@@ -17,7 +17,7 @@ import {
 	releaseTable,
 	selectGatePaths,
 	selectMacosGatePaths,
-	selectReusableRun,
+	reuseDecision,
 	tagNotes,
 	verifyState,
 } from './release-publish.mjs';
@@ -645,18 +645,27 @@ test('parseGateArguments and probeFacts validate gate inputs and gapless probe o
 	);
 });
 
-test('a run reuses only a passed run of its own commit and version that still holds its files', () => {
+test('a run reuses a passed run of its own commit, or waits only for an earlier one building it', () => {
 	const commit = 'a'.repeat(40);
 	const passed = {
 		id: 7,
 		title: 'Release 0.1.0-beta.25 rehearsal',
 		headSha: commit,
+		status: 'completed',
 		conclusion: 'success',
 		joined: true,
 	};
-	const select = (runs) =>
-		selectReusableRun({ runs, version: '0.1.0-beta.25', commit, current: 9 });
-	assert.equal(select([passed, { ...passed, id: 8, title: 'Release v0.1.0-beta.25' }]), 8);
+	const decide = (runs) => reuseDecision({ runs, version: '0.1.0-beta.25', commit, current: 9 });
+	const running = { status: 'in_progress', conclusion: null, joined: false };
+	assert.deepEqual(
+		decide([
+			passed,
+			{ ...passed, id: 8, title: 'Release candidate' },
+			{ ...passed, id: 6, ...running },
+		]),
+		{ reuse: 8 },
+	);
+	assert.deepEqual(decide([{ ...passed, title: 'Release v0.1.0-beta.25' }]), { reuse: 7 });
 	for (const other of [
 		{ headSha: 'b'.repeat(40) },
 		{ title: 'Release 0.1.0-beta.24 rehearsal' },
@@ -665,7 +674,9 @@ test('a run reuses only a passed run of its own commit and version that still ho
 		{ joined: false },
 		{ id: 9 },
 	])
-		assert.equal(select([{ ...passed, ...other }]), undefined, JSON.stringify(other));
+		assert.deepEqual(decide([{ ...passed, ...other }]), {}, JSON.stringify(other));
+	assert.deepEqual(decide([{ ...passed, ...running }]), { wait: 7 });
+	assert.deepEqual(decide([{ ...passed, ...running, id: 10 }]), {});
 });
 
 test('Verify counts as passed once any run of the commit passed', () => {

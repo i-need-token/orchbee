@@ -97,6 +97,13 @@ const CHECK_FORM =
 	'expected: node scripts/release-version.mjs check v<version>, for example v0.1.0';
 const USAGE = 'expected: node scripts/release-version.mjs set <version> or check v<version>';
 
+/** The product version the root Cargo.toml records under [workspace.package]. */
+export function workspaceVersion(root = REPOSITORY_ROOT) {
+	const [found] = findTomlVersion(readSource(root, CARGO_MANIFEST, new Map()), 'workspace.package');
+	if (found === undefined) throw new Error(`${CARGO_MANIFEST}: no [workspace.package] version`);
+	return found.value;
+}
+
 // Writes `version` into every recorded place. Nothing is written unless every place is found.
 export function setVersion(root, version) {
 	const sources = new Map();
