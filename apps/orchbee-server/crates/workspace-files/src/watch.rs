@@ -1,6 +1,11 @@
 //! The watch lane: a separate service process that follows changes beneath the Workspaces the
 //! Server names and reports, per root, whether what the right bar shows or the change list may
 //! differ. It reports no paths, so a burst of changes costs one line per root per interval.
+mod platform;
+mod repository;
+#[cfg(test)]
+mod tests;
+
 use orchbee_workbench_protocol::{WorkspaceFilesWatchState, is_workspace_relative_path};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -64,13 +69,17 @@ pub enum WatchEvent {
     },
 }
 
-/// A change a platform watcher reports: an absolute path, or a note that it lost events.
+/// A change a platform watcher reports. Paths are canonical, as the platform reports them.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Notice {
-    Path(PathBuf),
-    /// The platform dropped events beneath this watched path; everything there may have changed.
+    /// Something changed at `path` in a working tree; `repository` is false when the change cannot
+    /// change the change list, at a path Git ignores and does not track.
+    Path { path: PathBuf, repository: bool },
+    /// The index, `HEAD` or a reference changed in the repository of the root at this path.
+    Repository(PathBuf),
+    /// The platform dropped events for the root at this path; everything there may have changed.
     Overflow(PathBuf),
-    /// The platform stopped watching beneath this watched path.
+    /// The platform stopped following the root at this path.
     Lost(PathBuf),
 }
 
@@ -80,25 +89,11 @@ pub trait Backend {
     fn watch(&mut self, roots: &[WatchRoot]) -> Vec<(String, WorkspaceFilesWatchState)>;
 }
 
-/// A backend that follows nothing: every root it is given is unavailable, so Clients refresh
-/// only when asked.
-#[derive(Debug, Default)]
-pub struct Unwatched;
-
-impl Backend for Unwatched {
-    fn watch(&mut self, roots: &[WatchRoot]) -> Vec<(String, WorkspaceFilesWatchState)> {
-        roots
-            .iter()
-            .map(|root| (root.root.clone(), WorkspaceFilesWatchState::Unavailable))
-            .collect()
-    }
-}
-
-/// What one path's change means for the root it is beneath.
+/// What a change means for one root.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Effect {
-    pub files: bool,
-    pub repository: bool,
+struct Effect {
+    files: bool,
+    repository: bool,
 }
 
 impl Effect {
@@ -111,7 +106,10 @@ impl Effect {
 /// One watched root with the paths it names, kept relative and `/`-separated.
 #[derive(Debug)]
 struct Watched {
-    root: PathBuf,
+    /// The root as the Server names it, which its reports carry.
+    root: String,
+    /// The root as the platform reports paths beneath it.
+    canonical: PathBuf,
     directories: BTreeSet<String>,
     files: BTreeSet<String>,
 }
@@ -119,7 +117,9 @@ struct Watched {
 impl Watched {
     fn new(root: &WatchRoot) -> Self {
         Self {
-            root: PathBuf::from(&root.root),
+            root: root.root.clone(),
+            canonical: std::fs::canonicalize(&root.root)
+                .unwrap_or_else(|_| PathBuf::from(&root.root)),
             directories: root
                 .directories
                 .iter()
@@ -135,36 +135,18 @@ impl Watched {
         }
     }
 
-    /// What a change at `relative` means: a shown directory's entry or an open file is something
-    /// shown, and any change in the working tree may change the change list. Inside `.git` only
-    /// the index, `HEAD` and references count; objects, logs and lock files are Git at work.
-    fn effect(&self, relative: &str) -> Effect {
-        if let Some(inside) = relative
-            .strip_prefix(".git/")
-            .or_else(|| (relative == ".git").then_some(""))
-        {
-            let repository = inside == "index"
-                || inside == "HEAD"
-                || inside == "packed-refs"
-                || inside == "refs"
-                || inside.starts_with("refs/") && !inside.ends_with(".lock");
-            return Effect {
-                files: false,
-                repository,
-            };
-        }
+    /// Whether a change at `relative` changes something shown: an entry of a shown directory,
+    /// the shown directory itself, or an open file.
+    fn shows(&self, relative: &str) -> bool {
         let parent = relative.rsplit_once('/').map_or("", |(parent, _)| parent);
-        Effect {
-            files: self.directories.contains(parent)
-                || self.directories.contains(relative)
-                || self.files.contains(relative),
-            repository: true,
-        }
+        self.directories.contains(parent)
+            || self.directories.contains(relative)
+            || self.files.contains(relative)
     }
 
     /// `path` relative to the root with `/` separators, or none when it is not beneath it.
     fn relative(&self, path: &Path) -> Option<String> {
-        let rest = path.strip_prefix(&self.root).ok()?;
+        let rest = path.strip_prefix(&self.canonical).ok()?;
         let mut names = Vec::new();
         for component in rest.components() {
             match component {
@@ -194,25 +176,39 @@ impl Coalescer {
     /// Records one notice against every root it is beneath; a nested Workspace sees a change in
     /// itself and in the Workspace around it.
     pub fn record(&mut self, notice: &Notice) {
-        let path = match notice {
-            Notice::Path(path) | Notice::Overflow(path) | Notice::Lost(path) => path,
-        };
         for watched in &self.watched {
-            let Some(relative) = watched.relative(path) else {
-                continue;
-            };
             let effect = match notice {
-                Notice::Path(_) => watched.effect(&relative),
-                Notice::Overflow(_) | Notice::Lost(_) => Effect::EVERYTHING,
+                Notice::Path { path, repository } => match watched.relative(path) {
+                    Some(relative) => Effect {
+                        files: watched.shows(&relative),
+                        repository: *repository,
+                    },
+                    None => continue,
+                },
+                Notice::Repository(root) if watched.canonical == *root => Effect {
+                    files: false,
+                    repository: true,
+                },
+                Notice::Overflow(path) | Notice::Lost(path) if watched.relative(path).is_some() => {
+                    Effect::EVERYTHING
+                }
+                Notice::Repository(_) | Notice::Overflow(_) | Notice::Lost(_) => continue,
             };
             if effect == Effect::default() {
                 continue;
             }
-            let root = watched.root.to_string_lossy().into_owned();
-            let pending = self.pending.entry(root).or_default();
+            let pending = self.pending.entry(watched.root.clone()).or_default();
             pending.files |= effect.files;
             pending.repository |= effect.repository;
         }
+    }
+
+    /// The roots, as the Server names them, followed at the canonical `path`.
+    fn named(&self, path: &Path) -> impl Iterator<Item = &str> {
+        self.watched
+            .iter()
+            .filter(move |watched| watched.canonical == path)
+            .map(|watched| watched.root.as_str())
     }
 
     /// The reports collected since the last drain, one per root that changed.
@@ -334,11 +330,13 @@ fn run(inputs: &Receiver<Input>, output: &mut impl Write, backend: &mut impl Bac
             }
             Ok(Input::Notice(notice)) => {
                 if let Notice::Lost(path) = &notice {
-                    for (root, state) in &mut states {
-                        if Path::new(root).starts_with(path) || path.starts_with(root) {
+                    for root in coalescer.named(path) {
+                        if let Some(state) = states.get_mut(root)
+                            && *state != WorkspaceFilesWatchState::Unavailable
+                        {
                             *state = WorkspaceFilesWatchState::Unavailable;
                             reports.push(WatchEvent::State {
-                                root: root.clone(),
+                                root: root.to_owned(),
                                 state: *state,
                             });
                         }
@@ -373,11 +371,12 @@ fn run(inputs: &Receiver<Input>, output: &mut impl Write, backend: &mut impl Bac
     }
 }
 
-/// The watch lane process: serves standard input until it closes.
+/// The watch lane process: serves standard input until it closes, following changes with the
+/// platform's own watcher.
 pub fn serve_watch_stdio() {
     serve_watch(
         std::io::BufReader::new(std::io::stdin()),
         std::io::stdout().lock(),
-        |_notices| Unwatched,
+        platform::Platform::start,
     );
 }

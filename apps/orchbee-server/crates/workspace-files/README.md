@@ -11,9 +11,11 @@ working-tree file, and stages, unstages, discards or commits. Reads write nothin
 refreshes the index.
 
 The same executable also runs the watch lane (`orchbee-server --workspace-files-watch`), a second
-process the Server starts only when a Client first watches what its right bar shows. Watching
-waits on a platform watcher that is not yet admitted, so for now every root reports `unavailable`
-and the right bar refreshes only when asked.
+process the Server starts only when a Client first watches what its right bar shows. It follows
+each root with the platform's own watcher through `notify`: one recursive watch per root on macOS
+(FSEvents) and Windows, and on Linux one inotify watch per directory, leaving out `.git`, what Git
+ignores (unless a directory holds a tracked file or is shown), and anything past 65,536 watched
+directories, which reports the root `unavailable` rather than following part of it.
 
 ## Protocol
 
@@ -29,9 +31,11 @@ the last, and writes one report per line: `{"kind": "state", "root": ..., "state
 once per root when it starts or its state changes, and
 `{"kind": "changed", "root": ..., "files": true, "repository": false}` for the changes it
 collected over 100 ms. `files` means an entry of a named directory or a named file changed;
-`repository` means anything in the working tree, or the repository's index, `HEAD` or references,
-changed. Objects, logs and lock files inside `.git` count for neither. A lost or overflowing event
-queue reports both.
+`repository` means a working-tree path Git does not ignore, or the repository's index, `HEAD` or
+references, changed. Ignore rules are Git's own: each directory's `.gitignore`, `info/exclude` and
+the user's excludes file, with `core.ignorecase`, and a tracked file is never ignored. Objects,
+logs and lock files inside Git's directories count for neither. A lost or overflowing event queue
+reports both; a root that is removed or moved reports `unavailable`.
 
 ## Saving
 

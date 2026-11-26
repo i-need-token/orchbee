@@ -10,11 +10,19 @@ base64.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+# Git's ignore rules, so the watch lane neither watches nor reports what Git ignores.
+ignore = { version = "0.4.35", default-features = false }
+# The platform's own file watcher (inotify, FSEvents, ReadDirectoryChangesW) behind the watch lane.
+notify = { version = "9.0.0", default-features = false }
 orchbee-workbench-protocol = { path = "../../../../crates/workbench-protocol" }
 
 [target.'cfg(unix)'.dependencies]
 # Stops a Git command that changes the repository, with its hooks, at its deadline.
 nix = { workspace = true, features = ["process", "signal"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# FSEvents follows a whole tree with one stream; without it notify falls back to polling.
+notify = { version = "9.0.0", default-features = false, features = ["macos_fsevent"] }
 
 [lints]
 workspace = true

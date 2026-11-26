@@ -21,8 +21,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 pub use watch::{
-    Backend, COALESCE, Coalescer, Effect, MAXIMUM_WATCHED_ROOTS, Notice, Unwatched, WATCH_FLAG,
-    WatchEvent, WatchRoot, WatchSet, serve_watch, serve_watch_stdio,
+    Backend, COALESCE, Coalescer, MAXIMUM_WATCHED_ROOTS, Notice, WATCH_FLAG, WatchEvent, WatchRoot,
+    WatchSet, serve_watch, serve_watch_stdio,
 };
 
 /// The command-line flag that turns the Server's executable into this service.

@@ -1,11 +1,11 @@
 # Workbench Right Bar
 
-| Field             | Value                                                                                                                                                               |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status            | Draft; phase 1, the float window, chunked versioned reads, change following, and editing and saving are implemented on `feat/right-bar-v1`; the rest remains future |
-| Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                               |
-| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md`     |
-| Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                          |
+| Field             | Value                                                                                                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Draft; phase 1, the float window, chunked versioned reads, change following with a platform watcher, and editing and saving are implemented on `feat/right-bar-v1`; the rest remains future |
+| Owner             | `@orchbee/web` Workbench maintainers and `orchbee-server` maintainers                                                                                                                       |
+| Current authority | This proposal, [`schemas/workbench/v1`](../../schemas/workbench/v1) for `workbench.workspace-files`, and `apps/orchbee-server/crates/workspace-files/README.md`                             |
+| Exit condition    | Accept or revise the remaining phases, move maintained facts into the owning application guides, then delete this proposal                                                                  |
 
 ## Goal
 
@@ -81,8 +81,11 @@ it and without slowing terminal work.
   shows the change, and the float window only a tab that shows it. A change list cut short at 5000
   entries is not followed, and while changes are not followed the bar says once that Refresh is the
   way to see them and also reads again when the window comes to the front.
-- **Platform watcher.** The watcher behind the lane, `notify` with its debouncer, is a new dependency
-  awaiting admission, so the lane currently reports every Workspace as `unavailable`.
+- **Platform watcher.** The lane watches through `notify` without its debouncer, since the lane
+  already collects over 100 ms: one recursive watch per root on macOS and Windows, and on Linux one
+  inotify watch per directory that skips `.git` and directories Git ignores, up to 65,536
+  directories, past which the Workspace reads as `unavailable`. Git's ignore rules come from
+  `ignore`, with tracked files never ignored, so build output moves no change list.
 
 ## Editing and saving, as implemented
 
@@ -151,11 +154,8 @@ it and without slowing terminal work.
   by SHA-256 of the content. There is no unsaved-edit recovery after the window closes, no prompt
   when the window itself closes with unsaved edits, and no auto save.
 - **Encodings.** Text that is not UTF-8 shows as binary rather than read-only text.
-- **Refresh.** Change following is built end to end, but until a platform watcher is admitted the
-  bar refreshes on open, on switching view, on the refresh button, on window focus and when a
-  terminal Agent stops working. Ignored paths such as build output still move `repository`
-  until an ignore matcher is admitted, and Git status stops following at 5000 entries rather than
-  the design's 10,000, because that is where its list is cut.
+- **Refresh.** Git status stops following at 5000 entries rather than the design's 10,000, because
+  that is where its list is cut.
 - **Git actions.** Untracked files cannot be discarded, a running commit cannot be cancelled, a
   failed commit offers no "view in terminal", rows and group headers have no context menu, and the
   header and row buttons are reached by pointer only (the keyboard path is Space and Enter).
@@ -180,6 +180,5 @@ it and without slowing terminal work.
 
 1. Search across the Workspace (filename and content), reusing the unified search surface where it
    fits.
-2. A platform watcher behind the watch lane, once admitted.
-3. Moving untracked files to the trash on discard, once a trash dependency is admitted.
-4. Persisted open state, width and expanded folders per Workspace across restarts.
+2. Moving untracked files to the trash on discard, once a trash dependency is admitted.
+3. Persisted open state, width and expanded folders per Workspace across restarts.

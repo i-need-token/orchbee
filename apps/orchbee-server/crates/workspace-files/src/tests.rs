@@ -672,8 +672,15 @@ fn changed(root: &str, files: bool, repository: bool) -> WatchEvent {
     }
 }
 
+fn path(path: PathBuf) -> Notice {
+    Notice::Path {
+        path,
+        repository: true,
+    }
+}
+
 #[test]
-fn a_change_moves_what_it_can_change_and_git_at_work_moves_nothing() {
+fn a_change_moves_what_it_can_change() {
     let workspace = Path::new("/work/app");
     let root = workspace.to_string_lossy().into_owned();
     let nested = workspace.join("packages/lib");
@@ -683,62 +690,60 @@ fn a_change_moves_what_it_can_change_and_git_at_work_moves_nothing() {
         watch_root(&root, &["", "src"], &["docs/guide.md"]),
         watch_root(&nested_root, &[], &[]),
     ]);
-    let after = |coalescer: &mut Coalescer, relative: &str| {
-        coalescer.record(&Notice::Path(workspace.join(relative)));
+    let after = |coalescer: &mut Coalescer, notice: Notice| {
+        coalescer.record(&notice);
         coalescer.drain()
     };
     // An entry of a shown directory, the shown directory itself, and an open file are shown.
     for relative in ["README.md", "src/main.rs", "src", "docs/guide.md"] {
         assert_eq!(
-            after(&mut coalescer, relative),
+            after(&mut coalescer, path(workspace.join(relative))),
             [changed(&root, true, true)],
             "{relative}"
         );
     }
     // A file in a directory nobody shows changes only the change list.
     assert_eq!(
-        after(&mut coalescer, "docs/other.md"),
+        after(&mut coalescer, path(workspace.join("docs/other.md"))),
         [changed(&root, false, true)]
     );
-    // The index, HEAD and references change the change list; Git's other work changes nothing.
-    for relative in [
-        ".git/index",
-        ".git/HEAD",
-        ".git/refs/heads/main",
-        ".git/packed-refs",
-    ] {
-        assert_eq!(
-            after(&mut coalescer, relative),
-            [changed(&root, false, true)],
-            "{relative}"
-        );
-    }
-    for relative in [
-        ".git/objects/ab/cdef",
-        ".git/index.lock",
-        ".git/refs/heads/main.lock",
-        ".git/logs/HEAD",
-        ".git",
-    ] {
-        assert_eq!(after(&mut coalescer, relative), [], "{relative}");
-    }
-    // A path outside every root is nobody's change; one inside a nested Workspace is both roots'.
-    coalescer.record(&Notice::Path(PathBuf::from("/work/other/file")));
-    assert_eq!(coalescer.drain(), []);
+    // A path Git ignores changes what shows it, and nothing anywhere else.
+    let ignored = |relative: &str| Notice::Path {
+        path: workspace.join(relative),
+        repository: false,
+    };
     assert_eq!(
-        after(&mut coalescer, "packages/lib/index.ts"),
+        after(&mut coalescer, ignored("src/debug.log")),
+        [changed(&root, true, false)]
+    );
+    assert_eq!(after(&mut coalescer, ignored("build/out.bin")), []);
+    // The repository's own state changes that root's change list alone.
+    assert_eq!(
+        after(&mut coalescer, Notice::Repository(workspace.to_path_buf())),
+        [changed(&root, false, true)]
+    );
+    // A path outside every root is nobody's change; one inside a nested Workspace is both roots'.
+    assert_eq!(
+        after(&mut coalescer, path(PathBuf::from("/work/other/file"))),
+        []
+    );
+    assert_eq!(
+        after(
+            &mut coalescer,
+            path(workspace.join("packages/lib/index.ts"))
+        ),
         [
             changed(&root, false, true),
             changed(&nested_root, false, true)
         ]
     );
     // Lost events may hide anything, and a burst is one report per root.
-    coalescer.record(&Notice::Path(workspace.join("docs/other.md")));
-    coalescer.record(&Notice::Overflow(workspace.join("src")));
-    coalescer.record(&Notice::Path(workspace.join("src/lib.rs")));
+    coalescer.record(&path(workspace.join("docs/other.md")));
+    coalescer.record(&Notice::Overflow(workspace.to_path_buf()));
+    coalescer.record(&path(workspace.join("src/lib.rs")));
     assert_eq!(coalescer.drain(), [changed(&root, true, true)]);
     // Pending changes of a root no longer watched are dropped; the root still watched keeps its.
-    coalescer.record(&Notice::Path(nested.join("a")));
+    coalescer.record(&path(nested.join("a")));
     coalescer.replace(&[watch_root(&root, &[""], &[])]);
     assert_eq!(coalescer.drain(), [changed(&root, false, true)]);
 }
@@ -820,17 +825,13 @@ fn the_watch_lane_reports_each_root_once_then_coalesced_changes() {
     let sender = notices.recv_timeout(Duration::from_secs(5)).unwrap();
     let started = Instant::now();
     for name in ["a", "b", "c"] {
-        sender
-            .send(Notice::Path(Path::new(&root).join(name)))
-            .unwrap();
+        sender.send(path(Path::new(&root).join(name))).unwrap();
     }
     assert_eq!(next(), changed(&root, true, true));
     assert!(started.elapsed() >= COALESCE);
     // The same set again reports nothing new; a root that stops being watched is simply dropped.
     std::io::Write::write_all(&mut writer, &set(vec![watch_root(&root, &[""], &[])])).unwrap();
-    sender
-        .send(Notice::Path(Path::new(&root).join("d")))
-        .unwrap();
+    sender.send(path(Path::new(&root).join("d"))).unwrap();
     assert_eq!(next(), changed(&root, true, true));
     drop(writer);
     lane.join().unwrap();
