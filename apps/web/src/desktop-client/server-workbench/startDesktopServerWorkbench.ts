@@ -68,7 +68,7 @@ import { DesktopWorkbench } from '../desktop-workbench';
 import { receiveDesktopFileDrops } from '../file-drop';
 import { DesktopProjectFolderAcquisitionClient } from '../project-folder-acquisition';
 import { SessionDisconnectedStatus } from '../session-disconnected-status';
-import { SessionUnavailable } from '../session-unavailable';
+import { SessionUnavailable, type DesktopSystem } from '../session-unavailable';
 import { WorkbenchFailure } from '../workbench-failure';
 import { followDesktopWindowCaption } from '../window-caption';
 import { forwardDesktopWindowFaults } from '../window-fault';
@@ -206,7 +206,7 @@ function showSessionUnavailable(
 	reactRoot: Root,
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
-	shortcutPlatform: WorkbenchShortcutPlatform,
+	system: DesktopSystem,
 	refusal: DesktopSessionRefusal | null,
 ): void {
 	const locale = resolveOrchbeeLocale(preferredLocales);
@@ -222,8 +222,7 @@ function showSessionUnavailable(
 			createElement(SessionUnavailable, {
 				onTryAgain: () => targetWindow.location.reload(),
 				refusal,
-				// Desktop runs on Windows and macOS, the platform the shortcuts read as Apple.
-				system: shortcutPlatform === 'apple' ? 'macos' : 'windows',
+				system,
 			}),
 		),
 	);
@@ -235,6 +234,7 @@ async function run(
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
+	system: DesktopSystem,
 	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): Promise<void> {
@@ -275,7 +275,7 @@ async function run(
 			reactRoot,
 			documentElement,
 			preferredLocales,
-			shortcutPlatform,
+			system,
 			bootstrap.sessionRefusal,
 		);
 		return;
@@ -598,6 +598,7 @@ export function startDesktopServerWorkbench(
 	documentElement: DocumentElement,
 	preferredLocales: readonly string[],
 	shortcutPlatform: WorkbenchShortcutPlatform,
+	system: DesktopSystem,
 	ctrlCCopiesSelection: boolean,
 	storage: DesktopServerWorkbenchStorage,
 ): void {
@@ -615,6 +616,7 @@ export function startDesktopServerWorkbench(
 		documentElement,
 		preferredLocales,
 		shortcutPlatform,
+		system,
 		ctrlCCopiesSelection,
 		storage,
 	).catch(() => {
@@ -623,7 +625,7 @@ export function startDesktopServerWorkbench(
 			reactRoot,
 			documentElement,
 			preferredLocales,
-			shortcutPlatform,
+			system,
 			null,
 		);
 	});

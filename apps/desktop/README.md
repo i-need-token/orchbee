@@ -211,11 +211,11 @@ Test build.
 ## Session update
 
 A `sessionVersion` of lower precedence than the window's own means the Session's Server runs an
-older version, as after the person replaced the application while its Session kept running. On
-Windows and macOS Main then moves the Session onto the window's version by itself once the document
-has its connection, with nothing to confirm: it runs the bundled Client's
-`server restart --format json` whatever the Session's restart tier says, because that tier reads
-the store's active version, which an application copied from the disk image may still be installing.
+older version, as after the person replaced the application while its Session kept running. Main
+then moves the Session onto the window's version by itself once the document has its connection,
+with nothing to confirm: it runs the bundled Client's `server restart --format json` whatever the
+Session's restart tier says, because that tier reads the store's active version, which an
+application copied from the disk image may still be installing.
 The restart's new Server runs from the store's folder of this version once that version is active.
 Meanwhile the page's notice says the Session is updating, and Update hides. The restart ends the
 document's connection as any Server end does, and the window reloads once the new Server serves the
@@ -232,12 +232,12 @@ offered, takes Update's place. The diagnostic log records each outcome as
 `session-update-restarted`, `session-update-waiting`, `session-update-refused`, or
 `session-update-host-replaced`.
 
-A start refused with `session-too-old` on Windows and macOS runs the same restart first and starts
-again, so a Session the window cannot join at all moves too where its Server can hand over its
-terminals. Only a refusal that remains reaches the page, which names no command: it says Orchbee
-could not update the Session and that restarting the computer, or ending the Session's Orchbee
-processes in Activity Monitor or Task Manager, ends it with its terminals, and Try Again runs the
-start, and so the restart, again.
+A start refused with `session-too-old` runs the same restart first and starts again, so a Session
+the window cannot join at all moves too where its Server can hand over its terminals. Only a
+refusal that remains reaches the page: it says Orchbee could not update the Session and that
+restarting the computer, or ending the Session's Orchbee processes in Activity Monitor, in Task
+Manager or with `kill` on Linux, ends it with its terminals, and Try Again runs the start, and so
+the restart, again.
 
 ## Window
 

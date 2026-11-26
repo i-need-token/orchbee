@@ -91,8 +91,6 @@ const DesktopSessionRefusalSchema = z.discriminatedUnion('reason', [
 	z.strictObject({
 		desktopVersion: ProductVersionSchema,
 		reason: z.literal('session-too-old'),
-		/** `orchbee server restart` can replace the Session's Server here, keeping its terminals. */
-		restartable: z.boolean(),
 		sessionVersion: ProductVersionSchema.nullable(),
 	}),
 	z.strictObject({ reason: z.literal('other-environment') }),

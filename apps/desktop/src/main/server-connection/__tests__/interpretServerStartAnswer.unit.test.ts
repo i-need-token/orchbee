@@ -35,7 +35,6 @@ describe('interpretServerStartAnswer', () => {
 			refusal: {
 				desktopVersion: '1.2.0',
 				reason: 'session-too-old',
-				restartable: false,
 				sessionVersion: '1.6.0',
 			},
 		});
@@ -55,7 +54,6 @@ describe('interpretServerStartAnswer', () => {
 			refusal: {
 				desktopVersion: '1.2.0',
 				reason: 'session-too-old',
-				restartable: false,
 				sessionVersion: null,
 			},
 		});

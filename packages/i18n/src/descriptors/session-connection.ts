@@ -28,7 +28,7 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableRecoveryBlocked: message(
 		'session.connection.unavailable.recoveryBlocked',
-		'A process an earlier start left running keeps the Session from recovering. Matches the TUI and CLI refusal word for word. role is server, worker or terminal-host, whose names Server, Worker and Terminal Host stay in English; program is its program file name and processId its process ID, neither translated. system is macos or windows and picks the tool the system ends a process with: Activity Monitor on macOS, Task Manager on Windows.',
+		'A process an earlier start left running keeps the Session from recovering. Matches the TUI and CLI refusal word for word. role is server, worker or terminal-host, whose names Server, Worker and Terminal Host stay in English; program is its program file name and processId its process ID, neither translated. system is linux, macos or windows and picks how the system ends a process: kill with the process ID on Linux, Activity Monitor on macOS, Task Manager on Windows. command marks the kill command, which stays as written.',
 	),
 	unavailableRecoveryRequired: message(
 		'session.connection.unavailable.recoveryRequired',
@@ -40,7 +40,7 @@ export const sessionConnectionMessages = defineMessages({
 	),
 	unavailableSessionTooOld: message(
 		'session.connection.unavailable.sessionTooOld',
-		`The running Session is too old for this Desktop, which could not update it: without a version it predates version checks. Where restartable is true (Windows and macOS), Desktop already tried to restart it keeping every terminal, so trying again may still work; otherwise the Session ends only with the computer's restart or its processes ended. Server, Worker and Terminal Host stay in English. system is macos or windows and picks the tool the system ends a process with: Activity Monitor on macOS, Task Manager on Windows. ${REFUSED_VERSIONS}`,
+		`The running Session is too old for this Desktop, which could not update it: without a version it predates version checks. Desktop already tried to restart it keeping every terminal, so trying again may still work. Server, Worker and Terminal Host stay in English. system is linux, macos or windows and picks how the system ends a process: kill on Linux, Activity Monitor on macOS, Task Manager on Windows. command marks the kill command, which stays as written. ${REFUSED_VERSIONS}`,
 	),
 	unavailableTitle: message('session.connection.unavailable.title'),
 	unavailableTryAgain: message('session.connection.unavailable.tryAgain'),

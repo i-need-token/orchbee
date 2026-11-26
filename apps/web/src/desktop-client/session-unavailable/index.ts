@@ -1,1 +1,1 @@
-export { SessionUnavailable } from './SessionUnavailable';
+export { SessionUnavailable, type DesktopSystem } from './SessionUnavailable';

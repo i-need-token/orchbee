@@ -177,8 +177,6 @@ function interpretRefusal(document: unknown, platform: NodeJS.Platform): ServerR
 				refusal: {
 					desktopVersion: details.clientVersion,
 					reason: 'session-too-old',
-					// Only Windows and macOS restart a Session's Server while its terminals run.
-					restartable: platform === 'win32' || platform === 'darwin',
 					sessionVersion: details.sessionVersion ?? null,
 				},
 			};

@@ -212,7 +212,6 @@ export class DesktopWindowUpdate {
 		if (
 			restore.kind !== 'refused' ||
 			restore.refusal.reason !== 'session-too-old' ||
-			!restore.refusal.restartable ||
 			this.#checking ||
 			this.#disposed
 		) {
@@ -405,8 +404,7 @@ export class DesktopWindowUpdate {
 
 	/**
 	 * Whether `restart` moved the Session onto this window's version, recorded in the diagnostic log.
-	 * Otherwise the move is offered with why it waits; a platform that restarts no Session while
-	 * terminals run offers nothing.
+	 * Otherwise the move is offered with why it waits; a move nothing asks for offers nothing.
 	 */
 	#settleSession(sessionVersion: string, restart: UpdateRestart): boolean {
 		if (

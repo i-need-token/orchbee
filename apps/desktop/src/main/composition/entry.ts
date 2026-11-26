@@ -366,7 +366,6 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 				sessionArguments,
 				resolveClientEnvironment(),
 				request,
-				process.platform,
 			),
 		restartSession: (request) =>
 			restartForUpdate(
@@ -374,7 +373,6 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 				sessionArguments,
 				resolveClientEnvironment(),
 				request,
-				process.platform,
 			),
 		startVersionClient: (root, version) =>
 			readServerStartAnswer(

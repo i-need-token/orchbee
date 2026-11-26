@@ -9,12 +9,15 @@ import type { ReactNode } from 'react';
 
 import styles from './SessionUnavailable.module.css';
 
+/** The system a Desktop window and its Session run on. */
+export type DesktopSystem = 'linux' | 'macos' | 'windows';
+
 export interface SessionUnavailableProps {
 	readonly onTryAgain: () => void;
 	/** Why starting the Session was refused, or null when nothing says why the window cannot reach it. */
 	readonly refusal: DesktopSessionRefusal | null;
-	/** The system this window and its Session run on, whose own tool the copy names to end a process. */
-	readonly system: 'macos' | 'windows';
+	/** The system this window and its Session run on, whose own way to end a process the copy names. */
+	readonly system: DesktopSystem;
 }
 
 /** A command the copy names stays on one line, so it reads and copies as written. */
@@ -53,6 +56,7 @@ function describe(
 			return refusal.blockingProcess === undefined
 				? intl.formatMessage(sessionConnectionMessages.unavailableRecoveryRequired, { command })
 				: intl.formatMessage(sessionConnectionMessages.unavailableRecoveryBlocked, {
+						command,
 						processId: String(refusal.blockingProcess.processId),
 						program: refusal.blockingProcess.program,
 						role: refusal.blockingProcess.role,
@@ -71,9 +75,9 @@ function describe(
 			});
 		case 'session-too-old':
 			return intl.formatMessage(sessionConnectionMessages.unavailableSessionTooOld, {
+				command,
 				desktopVersion: refusal.desktopVersion,
 				hasSessionVersion: String(refusal.sessionVersion !== null),
-				restartable: String(refusal.restartable),
 				sessionVersion: refusal.sessionVersion ?? '',
 				system,
 			});
