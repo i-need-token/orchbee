@@ -7,6 +7,7 @@
 
 mod action_menus;
 mod agent_attention;
+mod agent_completion;
 mod agent_confirmations;
 mod agent_not_resumed;
 mod agent_start_failure;
@@ -1535,6 +1536,7 @@ pub(super) struct WorkbenchClientUi {
     duplication: tab_duplication::Duplication,
     held_restore: held_restore::HeldRestore,
     agent_confirmations: agent_confirmations::AgentConfirmations,
+    completion_acknowledgements: agent_completion::CompletionAcknowledgements,
     /// The Server's resume facts this Client already decided to show or not.
     agent_not_resumed: agent_not_resumed::AgentNotResumedNotices,
     /// The Server's start facts this Client already decided to show or not.
@@ -1676,6 +1678,7 @@ impl WorkbenchClientUi {
             .chain(self.duplication.wake())
             .chain(self.held_restore.wake())
             .chain(self.agent_confirmations.wake())
+            .chain(self.completion_acknowledgements.wake())
             .chain(self.held_intent_wake())
             .chain(self.find_wake())
             .min()
@@ -1731,6 +1734,7 @@ impl WorkbenchClientUi {
             duplication: tab_duplication::Duplication::default(),
             held_restore: held_restore::HeldRestore::default(),
             agent_confirmations: agent_confirmations::AgentConfirmations::default(),
+            completion_acknowledgements: agent_completion::CompletionAcknowledgements::default(),
             agent_not_resumed: agent_not_resumed::AgentNotResumedNotices::default(),
             agent_start_failure: agent_start_failure::AgentStartFailureNotices::default(),
             notice_timer: Default::default(),
@@ -2275,6 +2279,7 @@ impl WorkbenchClientUi {
             changed |= self.drive_duplication();
             changed |= self.drive_held_restore();
             changed |= self.drive_agent_confirmations();
+            self.completion_acknowledgements.drive(self.clock.now());
             changed |= self.attention.tick();
             changed |= self.drive_completion_reminders();
             {

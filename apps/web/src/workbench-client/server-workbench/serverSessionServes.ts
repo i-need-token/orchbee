@@ -7,12 +7,15 @@
 
 /** A window action that only a Session listing a certain capability can serve. */
 type ServerSessionAction =
+	| 'acknowledge-agent-completion'
 	| 'check-for-updates'
 	| 'follow-agent-confirmations'
 	| 'follow-terminal-runtime';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
+	// A double-click marks a finished Agent's turn as seen only where it is listed.
+	['agent-completion-acknowledge', ['acknowledge-agent-completion']],
 	// The window reads and changes how the Server answers Agent confirmations only where it is listed.
 	['agent-confirmation', ['follow-agent-confirmations']],
 	// Only the CLI's recent Agent read asks for the input area.

@@ -167,7 +167,11 @@ impl Trace {
                 let words = row.split('│').next().unwrap().split_whitespace();
                 words.collect::<Vec<_>>().join(" ")
             };
-            let step = format!("{} / {}", cell(&rows[name]), cell(&rows[name + 1]));
+            let step = format!(
+                "{} / {}",
+                cell(past_workspace_mark(&rows[name])),
+                cell(&rows[name + 1])
+            );
             if painted.last() != Some(&step) {
                 painted.push(step);
             }

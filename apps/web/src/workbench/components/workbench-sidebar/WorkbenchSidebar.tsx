@@ -7,6 +7,7 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import * as React from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../project-workspace';
 import type { WorkbenchAgentNavigationInput } from '../../model/project-workbench-agent-overview';
@@ -60,6 +61,9 @@ interface WorkbenchSidebarProps {
 		  }
 		| undefined;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly acknowledgeAgentCompletion?:
+		| ((presentationId: TerminalPresentationId) => void)
+		| undefined;
 	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
@@ -125,6 +129,7 @@ export const WorkbenchSidebar = React.memo(function WorkbenchSidebar({
 	createWorkspaceProject,
 	deleteWorkspace,
 	environmentMarker,
+	acknowledgeAgentCompletion,
 	chooseAgentConfirmation,
 	closeAgentPanel,
 	navigateAgent,
@@ -334,6 +339,7 @@ export const WorkbenchSidebar = React.memo(function WorkbenchSidebar({
 										workspaceActivation.cancel();
 										navigateAgent(input);
 									}}
+									acknowledgeAgentCompletion={acknowledgeAgentCompletion}
 									chooseAgentConfirmation={chooseAgentConfirmation}
 									closeAgentPanel={closeAgentPanel}
 									renameAgentPanel={renameAgentPanel}

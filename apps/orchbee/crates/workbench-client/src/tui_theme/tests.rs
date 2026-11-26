@@ -214,134 +214,145 @@ fn composite_rgb(foreground: [u8; 3], background: [u8; 3], opacity: u16) -> [u8;
 }
 
 #[test]
-fn host_color_precedence_unknown_and_disabled_levels_are_explicit() {
-    use super::resolve_color_level as resolve;
-    for (inputs, expected) in [
-        ([None, None, None, None], ColorLevel::Ansi16),
+fn host_colors_default_to_truecolor_below_explicit_requests_and_known_lesser_hosts() {
+    use super::{HostColorEnvironment as Host, resolve_color_level as resolve};
+    let unknown = Host::default();
+    // Explicit requests decide in order: NO_COLOR, then FORCE_COLOR, then COLORTERM.
+    for (host, expected) in [
         (
-            [
-                Some("1"),
-                Some("3"),
-                Some("truecolor"),
-                Some("xterm-256color"),
-            ],
+            Host {
+                no_color: Some("1"),
+                force_color: Some("3"),
+                color_term: Some("truecolor"),
+                ..unknown
+            },
             ColorLevel::Monochrome,
         ),
         (
-            [Some(""), Some("0"), Some("truecolor"), None],
-            ColorLevel::Monochrome,
+            Host {
+                no_color: Some(""),
+                force_color: Some("2"),
+                ..unknown
+            },
+            ColorLevel::Ansi256,
         ),
         (
-            [None, Some("1"), Some("truecolor"), Some("xterm-256color")],
+            Host {
+                force_color: Some("1"),
+                color_term: Some("truecolor"),
+                ..unknown
+            },
             ColorLevel::Ansi16,
         ),
         (
-            [None, Some("2"), Some("truecolor"), None],
-            ColorLevel::Ansi256,
-        ),
-        ([None, Some("3"), None, Some("dumb")], ColorLevel::Truecolor),
-        (
-            [
-                None,
-                Some("invalid"),
-                Some("truecolor"),
-                Some("xterm-256color"),
-            ],
-            ColorLevel::Ansi16,
-        ),
-        ([None, None, Some("TRUECOLOR"), None], ColorLevel::Truecolor),
-        (
-            [None, None, Some("24bit"), Some("dumb")],
+            Host {
+                force_color: Some("3"),
+                term: Some("dumb"),
+                ..unknown
+            },
             ColorLevel::Truecolor,
         ),
         (
-            [None, None, Some("unknown"), Some("XTERM-256COLOR")],
-            ColorLevel::Ansi256,
-        ),
-        ([None, None, None, Some("dumb")], ColorLevel::Monochrome),
-        ([None, None, None, Some("unknown")], ColorLevel::Ansi16),
-    ] {
-        assert_eq!(
-            resolve(inputs[0], inputs[1], inputs[2], inputs[3], None, false),
-            expected
-        );
-    }
-    let oversized = format!("{}256color", "x".repeat(129));
-    assert_eq!(
-        resolve(None, None, None, Some(&oversized), None, false),
-        ColorLevel::Ansi16
-    );
-}
-
-#[test]
-fn windows_terminal_color_capability_respects_explicit_descriptors_and_multiplexers() {
-    use super::resolve_color_level as resolve;
-    let session = "5720ee6d-6474-47b0-88db-fa7e10e60d37";
-    for indicator in [session, "5720EE6D-6474-47B0-88DB-FA7E10E60D37"] {
-        assert_eq!(
-            resolve(None, None, None, None, Some(indicator), false),
-            ColorLevel::Truecolor
-        );
-        assert_eq!(
-            resolve(None, None, Some(""), Some(""), Some(indicator), false),
-            ColorLevel::Truecolor
-        );
-    }
-    for (inputs, expected) in [
-        ([Some("1"), None, None, None], ColorLevel::Monochrome),
-        ([None, Some("0"), None, None], ColorLevel::Monochrome),
-        ([None, Some("1"), None, None], ColorLevel::Ansi16),
-        ([None, Some("2"), None, None], ColorLevel::Ansi256),
-        ([None, Some("3"), None, None], ColorLevel::Truecolor),
-        ([None, Some("invalid"), None, None], ColorLevel::Ansi16),
-        ([None, None, Some("truecolor"), None], ColorLevel::Truecolor),
-        (
-            [None, None, Some("24bit"), Some("dumb")],
+            Host {
+                color_term: Some("24bit"),
+                term: Some("dumb"),
+                ..unknown
+            },
             ColorLevel::Truecolor,
         ),
-        ([None, None, Some("unknown"), None], ColorLevel::Ansi16),
-        ([None, None, None, Some("dumb")], ColorLevel::Monochrome),
         (
-            [None, None, None, Some("xterm-256color")],
+            Host {
+                color_term: Some("TRUECOLOR"),
+                term_program: Some("Apple_Terminal"),
+                term_program_version: Some("455"),
+                ..unknown
+            },
+            ColorLevel::Truecolor,
+        ),
+    ] {
+        assert_eq!(resolve(host), expected, "{host:?}");
+    }
+    // Without a request, only a host known to draw fewer colors lowers truecolor.
+    for (term, term_program, version, screen_session, expected) in [
+        (None, None, None, false, ColorLevel::Truecolor),
+        (
+            Some("xterm-256color"),
+            None,
+            None,
+            false,
+            ColorLevel::Truecolor,
+        ),
+        (
+            Some("tmux-256color"),
+            None,
+            None,
+            false,
+            ColorLevel::Truecolor,
+        ),
+        (Some("DUMB"), None, None, false, ColorLevel::Monochrome),
+        (Some("linux"), None, None, false, ColorLevel::Ansi16),
+        (Some("vt220"), None, None, false, ColorLevel::Ansi16),
+        (
+            Some("screen-256color"),
+            None,
+            None,
+            false,
             ColorLevel::Ansi256,
         ),
-        ([None, None, None, Some("unknown")], ColorLevel::Ansi16),
+        (
+            Some("xterm-256color"),
+            None,
+            None,
+            true,
+            ColorLevel::Ansi256,
+        ),
+        (
+            Some("xterm-256color"),
+            Some("Apple_Terminal"),
+            Some("455.1"),
+            false,
+            ColorLevel::Ansi256,
+        ),
+        (
+            Some("xterm-256color"),
+            Some("Apple_Terminal"),
+            None,
+            false,
+            ColorLevel::Ansi256,
+        ),
+        (
+            Some("xterm-256color"),
+            Some("Apple_Terminal"),
+            Some("470"),
+            false,
+            ColorLevel::Truecolor,
+        ),
     ] {
-        assert_eq!(
-            resolve(
-                inputs[0],
-                inputs[1],
-                inputs[2],
-                inputs[3],
-                Some(session),
-                false
-            ),
-            expected
-        );
+        let host = Host {
+            term,
+            term_program,
+            term_program_version: version,
+            screen_session,
+            ..unknown
+        };
+        assert_eq!(resolve(host), expected, "{host:?}");
     }
+    // tmux sets `TERM=screen*` too, and carries truecolor itself.
     assert_eq!(
-        resolve(None, None, None, None, Some(session), true),
-        ColorLevel::Ansi16
+        resolve(Host {
+            term: Some("screen-256color"),
+            tmux_session: true,
+            ..unknown
+        }),
+        ColorLevel::Truecolor
     );
-    for indicator in [
-        None,
-        Some(""),
-        Some("Windows Terminal"),
-        Some("{5720ee6d-6474-47b0-88db-fa7e10e60d37}"),
-        Some("5720ee6d-6474-47b0-88db-fa7e10e60d3"),
-        Some("5720ee6d-6474-47b0-88db-fa7e10e60d3z"),
-        Some("5720ee6d_6474-47b0-88db-fa7e10e60d37"),
-        Some("5720ee6d-6474-47b0-88db-fa7e10e60d37\n"),
-    ] {
-        assert_eq!(
-            resolve(None, None, None, None, indicator, false),
-            ColorLevel::Ansi16
-        );
-    }
-    let oversized = session.repeat(1024);
+    let oversized = format!("{}dumb", "x".repeat(129));
     assert_eq!(
-        resolve(None, None, None, None, Some(&oversized), false),
-        ColorLevel::Ansi16
+        resolve(Host {
+            term: Some(&oversized),
+            ..unknown
+        }),
+        ColorLevel::Truecolor
     );
 }
 
@@ -1181,31 +1192,23 @@ fn every_agent_state_glyph_keeps_one_cell_in_every_glyph_set_and_color_level() {
         ] {
             let theme = theme.with_glyphs(glyphs);
             for state in [Working, Blocked, Done, Error, Idle, Unknown] {
-                for selected in [false, true] {
-                    let glyph = theme.agent_glyph(state, selected);
-                    assert_eq!(crate::terminal_text::display_width(glyph), 1, "{glyph}");
-                }
+                let glyph = theme.agent_glyph(state);
+                assert_eq!(crate::terminal_text::display_width(glyph), 1, "{glyph}");
             }
             for frame in glyphs.working_frames {
                 assert_eq!(crate::terminal_text::display_width(frame), 1, "{frame}");
             }
         }
     }
-    // Where color names the state, the glyph's fill says selection; without color, its shape
-    // says the state alone, so outcomes stay apart and selection changes nothing.
+    // Where color names the state, the shape says only whether the Agent is at rest, as the GUI's
+    // does; without color, the shape says the state alone, so outcomes stay apart.
     let colored = Theme::orchbee_dark();
+    let active = [Working, Blocked, Done, Error].map(|state| colored.agent_glyph(state));
+    assert!(active.iter().all(|glyph| *glyph == active[0]), "{active:?}");
+    assert_ne!(colored.agent_glyph(Idle), active[0]);
+    assert_ne!(colored.agent_glyph(Unknown), active[0]);
     let plain = Theme::terminal_native().with_no_color(true);
-    for state in [Working, Blocked, Done, Error, Idle, Unknown] {
-        assert_ne!(
-            colored.agent_glyph(state, true),
-            colored.agent_glyph(state, false)
-        );
-        assert_eq!(
-            plain.agent_glyph(state, true),
-            plain.agent_glyph(state, false)
-        );
-    }
-    let outcomes = [Blocked, Done, Error].map(|state| plain.agent_glyph(state, false));
+    let outcomes = [Blocked, Done, Error].map(|state| plain.agent_glyph(state));
     assert!(outcomes[0] != outcomes[1] && outcomes[1] != outcomes[2] && outcomes[0] != outcomes[2]);
 }
 
@@ -1331,6 +1334,8 @@ fn themes_carry_uniform_corners_and_resolved_glyphs() {
         GlyphSet::ASCII.navigation_marker,
         GlyphSet::ASCII.disclosure_open,
         GlyphSet::ASCII.disclosure_closed,
+        GlyphSet::ASCII.workspace_mark,
+        GlyphSet::ASCII.workspace_mark_current,
         GlyphSet::ASCII.tree_guide,
         GlyphSet::ASCII.tree_guide_current,
     ] {

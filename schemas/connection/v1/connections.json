@@ -4,6 +4,7 @@
 			"generations": { "lowest": 1, "highest": 1 },
 			"superseded": [],
 			"capabilities": [
+				{ "name": "agent-completion-acknowledge", "addedIn": "0.1.0-beta.25" },
 				{ "name": "agent-confirmation", "addedIn": "0.1.0-beta.23" },
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
@@ -338,6 +339,9 @@
 		{
 			"path": "schemas/workbench/v1/workbench-notification-conformance-v1.json",
 			"sha256": "77ad864db5814ab38df414b3ae644656fc6aad28c41bb335020e94c3aa075d0b"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-panel-agent-completion-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-panel-agent-confirmation-conformance-v1.json"

@@ -114,7 +114,7 @@ enabling.
 
 | Capability           | Source                                                                                                                                                                                              | Unknown means                                     |
 | -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| Color level          | `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, `TERM`, and terminfo in that precedence; documented vendor fallback without explicit descriptors or a multiplexer                                           | 16 colors                                         |
+| Color level          | `NO_COLOR`, `FORCE_COLOR` and `COLORTERM` in that precedence; then only a host known to draw fewer colors, by `TERM`, Terminal.app's version, or GNU screen, lowers it                              | Truecolor                                         |
 | Default colors       | One ordered OSC `10`/`11` query; classify a valid OSC `11` background; if none arrives by the deadline, use `AppsUseLightTheme` on Windows or `AppleInterfaceStyle` on macOS outside a remote login | Appearance unknown; System uses `terminal-native` |
 | Appearance changes   | DEC `2031` reports, accepted only after a successful appearance query                                                                                                                               | No live theme switching                           |
 | Keyboard enhancement | The keyboard-protocol capability query with a bounded reply deadline                                                                                                                                | Legacy decoding only                              |
@@ -158,8 +158,11 @@ enabling.
 - A documented vendor color indicator may supply a capability only when explicit color descriptors
   are absent and no multiplexer is detected. Validate its bounded format before using it; an
   inherited outer-host indicator never overrides an explicit descriptor or multiplexer.
-- Unknown is a real state. It never defaults to the dark or light polarity, to truecolor, or to
-  enhanced keyboard support. Pointer any-motion has three outcomes: admitted, unavailable, and
+- Unknown is a real state. It never defaults to the dark or light polarity or to enhanced keyboard
+  support. Color level is the exception: nearly every terminal in use draws truecolor, so an unknown
+  host is taken as truecolor and only a host known to draw fewer colors lowers it.
+  `TERM=xterm-256color` says nothing either way: most truecolor terminals set it, and SSH carries
+  it without `COLORTERM`. Pointer any-motion has three outcomes: admitted, unavailable, and
   unknown. Both unavailable and unknown use `1002` with `1006` outside the scoped capturing-menu
   request in [`mouse-input.md`](mouse-input.md#capture-policy); that request does not promote the
   global capability and never re-arms released capture.

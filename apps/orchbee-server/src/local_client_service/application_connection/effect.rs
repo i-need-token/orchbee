@@ -178,7 +178,8 @@ pub(super) fn workbench(request: &WorkbenchRequest) -> Effect {
             PanelAgentAction::ReportPresentation { .. }
             | PanelAgentAction::Report { .. }
             | PanelAgentAction::ConfirmationChoose { .. }
-            | PanelAgentAction::ConfirmationDecline { .. } => Intent,
+            | PanelAgentAction::ConfirmationDecline { .. }
+            | PanelAgentAction::CompletionAcknowledge { .. } => Intent,
         },
         WorkbenchRequest::PanelMetadata(request) => {
             match request.action {

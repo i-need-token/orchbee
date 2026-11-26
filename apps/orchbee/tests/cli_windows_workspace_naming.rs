@@ -11,7 +11,7 @@
 mod session;
 
 use serde_json::Value;
-use session::{Fixture, OBSERVATION};
+use session::{Fixture, OBSERVATION, is_sidebar_row, sidebar_label};
 use std::{
     fs,
     process::Command,
@@ -284,12 +284,20 @@ fn repository(fixture: &Fixture, directory: &str, branch: &str) {
 }
 
 /// The line below `label`'s sidebar row, with a folder reduced to its last component, which middle
-/// truncation keeps. Anything else, a marker included, stays as painted.
+/// truncation keeps. Anything else, a marker included, stays as painted. A row draws no line that
+/// would repeat its name, so a row followed by a gap, another Workspace or the sidebar's end reads
+/// as its name.
 fn location_line(screen: &str, label: &str) -> Option<String> {
-    let cells = |line: &'_ str| line.split('│').next().unwrap_or_default().trim().to_owned();
     let mut lines = screen.lines();
-    lines.find(|line| cells(line).starts_with(label))?;
-    let line = cells(lines.next()?);
+    lines.find(|line| is_sidebar_row(line, label))?;
+    let line = lines
+        .next()
+        .map(|line| line.split('│').next().unwrap_or_default().trim())
+        .unwrap_or_default();
+    if line.is_empty() || sidebar_label(line) != line {
+        return Some(label.to_owned());
+    }
+    let line = line.to_owned();
     Some(match line.rsplit(['\\', '/']).next() {
         Some(last) if line.contains(['\\', '/']) => last.to_owned(),
         _ => line,
@@ -371,27 +379,13 @@ fn directory_of(fixture: &Fixture, workspace: &Value) -> String {
 
 /// Whether a sidebar row, the screen's first column, starts with `label`.
 fn sidebar_shows(screen: &str, label: &str) -> bool {
-    screen.lines().any(|line| {
-        line.split('│')
-            .next()
-            .and_then(|cell| cell.trim().strip_prefix(label))
-            .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-    })
+    screen.lines().any(|line| is_sidebar_row(line, label))
 }
 
 /// Whether the Workspace row named `label` has a folder line reading `folder`: outside Git the
 /// second line names only the folder's last component.
 fn sidebar_folder_is(screen: &str, label: &str, folder: &str) -> bool {
-    let cells: Vec<&str> = screen
-        .lines()
-        .map(|line| line.split('│').next().unwrap_or_default().trim())
-        .collect();
-    cells.windows(2).any(|pair| {
-        pair[0]
-            .strip_prefix(label)
-            .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-            && pair[1] == folder
-    })
+    location_line(screen, label).as_deref() == Some(folder)
 }
 
 /// Polls `observed` until it holds or `bound` passes.

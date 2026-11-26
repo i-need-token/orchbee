@@ -137,6 +137,7 @@ impl Reader<'_> {
             | PanelAgentOutcome::PresentationTitles { .. }
             | PanelAgentOutcome::Confirmations { .. }
             | PanelAgentOutcome::ConfirmationChosen { .. }
+            | PanelAgentOutcome::CompletionAcknowledged { .. }
             | PanelAgentOutcome::PresentationsRead { .. }
             | PanelAgentOutcome::Explained { .. }
             | PanelAgentOutcome::Identified { .. }

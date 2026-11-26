@@ -102,6 +102,8 @@
 	overflow-x: clip;
 	overflow-y: auto;
 	scrollbar-width: none;
+	/* A Workspace's row that stays at the top keeps its layer inside the list, under the edge hairline. */
+	isolation: isolate;
 }
 
 /* A hairline shows only where rows have scrolled out of sight. */

@@ -630,7 +630,7 @@ fn no_worktree_rows(fixture: &Fixture, tui: &Tui) {
 
 /// Right-clicks the sidebar row of `label`.
 fn open_menu(fixture: &Fixture, tui: &Tui, control: &mut Control, label: &str) {
-    let row = sidebar_row(fixture, tui, label);
+    let row = fixture.sidebar_row(tui, label);
     control.input(format!("\x1b[<35;3;{row}M\x1b[<2;3;{row}M").as_bytes());
     thread::sleep(HOLD);
     control.input(format!("\x1b[<2;3;{row}m").as_bytes());
@@ -1036,20 +1036,4 @@ fn grouped(fixture: &Fixture, workspace: &str) {
         );
         thread::sleep(Duration::from_millis(250));
     }
-}
-
-/// The one-based screen row of `label` in the sidebar, which may show a hovered row's affordance
-/// after the label.
-fn sidebar_row(fixture: &Fixture, tui: &Tui, label: &str) -> usize {
-    let screen = fixture.screen(&tui.terminal);
-    screen
-        .lines()
-        .position(|line| {
-            line.split('│')
-                .next()
-                .and_then(|cell| cell.trim().strip_prefix(label))
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-        })
-        .map(|index| index + 1)
-        .unwrap_or_else(|| panic!("no sidebar row for {label}:\n{screen}"))
 }

@@ -7,6 +7,7 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { PointerEvent, ReactNode } from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type { ProjectWorkspaceState, WorkbenchProject } from '../../../../../project-workspace';
 import type { WorkbenchMachineMark } from '../../../../types/workbench-other-machines';
@@ -76,6 +77,9 @@ interface ProjectNavigationItemProps {
 	readonly heldWorkspaceId: string | null;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly acknowledgeAgentCompletion?:
+		| ((presentationId: TerminalPresentationId) => void)
+		| undefined;
 	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
@@ -137,6 +141,7 @@ export function ProjectNavigationItem({
 	openOtherWorkspace,
 	otherRows,
 	heldWorkspaceId,
+	acknowledgeAgentCompletion,
 	chooseAgentConfirmation,
 	closeAgentPanel,
 	messages,
@@ -372,6 +377,7 @@ export function ProjectNavigationItem({
 							menuFocus={menuFocus}
 							messages={messages}
 							navigateAgent={navigateAgent}
+							acknowledgeAgentCompletion={acknowledgeAgentCompletion}
 							chooseAgentConfirmation={chooseAgentConfirmation}
 							closeAgentPanel={closeAgentPanel}
 							renameAgentPanel={renameAgentPanel}

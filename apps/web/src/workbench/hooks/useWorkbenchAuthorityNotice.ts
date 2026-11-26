@@ -270,11 +270,16 @@ export function useWorkbenchAuthorityNotice(
 			return execution;
 		},
 	);
-	const reportingAuthority = React.useMemo<WorkbenchAuthority>(
+	// Every field is named, the optional ones too, so a new one cannot quietly drop out here.
+	const reportingAuthority = React.useMemo<Required<WorkbenchAuthority>>(
 		() => ({
 			minimumSplitPercent: authority.minimumSplitPercent,
+			acknowledgeAgentCompletion: authority.acknowledgeAgentCompletion,
 			agentCatalog: authority.agentCatalog,
 			agentConfirmations: authority.agentConfirmations,
+			// This hook shows their notices itself, so no one below subscribes to them again.
+			agentResumeNotices: undefined,
+			agentStartNotices: undefined,
 			change: async (context, change) => {
 				setNotice(null);
 				const result = await authority.change(context, change);

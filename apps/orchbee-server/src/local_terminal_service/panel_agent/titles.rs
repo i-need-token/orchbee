@@ -58,7 +58,8 @@ fn state_context(
             Ok((workbench_revision, report_revision, presentations))
         }
         PanelAgentOutcome::Failed { reason } => Err(reason),
-        PanelAgentOutcome::Titles { .. }
+        PanelAgentOutcome::CompletionAcknowledged { .. }
+        | PanelAgentOutcome::Titles { .. }
         | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::Confirmations { .. }
         | PanelAgentOutcome::ConfirmationChosen { .. }

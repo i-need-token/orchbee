@@ -167,6 +167,7 @@ fn read_presentation_agent<G: Guard>(
         | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::Confirmations { .. }
         | PanelAgentOutcome::ConfirmationChosen { .. }
+        | PanelAgentOutcome::CompletionAcknowledged { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }
@@ -214,6 +215,7 @@ fn fence_presentation_agent<G: Guard>(
         | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::Confirmations { .. }
         | PanelAgentOutcome::ConfirmationChosen { .. }
+        | PanelAgentOutcome::CompletionAcknowledged { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }

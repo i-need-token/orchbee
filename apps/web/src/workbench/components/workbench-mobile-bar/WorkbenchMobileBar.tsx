@@ -111,7 +111,6 @@ export function WorkbenchMobileBar({
 								type='button'
 							>
 								<TabIcon
-									active
 									identityIcon={identityIcons?.get(current.id)}
 									statusAdornment={statusAdornments?.get(current.id)}
 									tab={current}

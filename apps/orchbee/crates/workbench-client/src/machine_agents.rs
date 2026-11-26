@@ -103,6 +103,7 @@ fn states(
         | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::Confirmations { .. }
         | PanelAgentOutcome::ConfirmationChosen { .. }
+        | PanelAgentOutcome::CompletionAcknowledged { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::Explained { .. }
         | PanelAgentOutcome::Identified { .. }

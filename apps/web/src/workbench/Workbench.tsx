@@ -247,6 +247,7 @@ export function Workbench({
 				deleteWorkspace={view.deleteWorkspace}
 				environmentMarker={environmentMarkerView}
 				navigateAgent={view.navigateAgent}
+				acknowledgeAgentCompletion={view.authority.acknowledgeAgentCompletion}
 				chooseAgentConfirmation={chooseAgentConfirmationFromMenu}
 				closeAgentPanel={view.closeAgentPanel}
 				renameAgentPanel={view.renameAgentPanel}

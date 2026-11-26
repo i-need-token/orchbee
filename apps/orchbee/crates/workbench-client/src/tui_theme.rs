@@ -17,7 +17,7 @@ mod name;
 mod shipped;
 mod source;
 mod tab_groups;
-pub use host_colors::resolve_color_level;
+pub use host_colors::{HostColorEnvironment, resolve_color_level};
 pub use name::ThemeName;
 pub(crate) use source::{ColorPreferences, named_themes_available};
 #[cfg(test)]
@@ -27,10 +27,6 @@ pub(crate) use tab_groups::TabGroupPalette;
 /// One semantic color role. Rendering code references roles only;
 /// `Color::Rgb`, `Color::Indexed`, and named ANSI variants appear only here
 /// and in shipped theme values.
-/// The share of full color a pointer's preview takes: the solid glyph and the guide stretch a click
-/// would give, drawn faintly on the pointed row.
-pub(crate) const PREVIEW_STRENGTH: f64 = 0.5;
-
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Role {
     TextPrimary,
@@ -222,6 +218,11 @@ pub struct GlyphSet {
     /// Project disclosure, with one-cell ASCII fallbacks.
     pub(crate) disclosure_open: &'static str,
     pub(crate) disclosure_closed: &'static str,
+    /// A Workspace without Agents, which has no disclosure, leads its name with this mark in the
+    /// disclosure's place, as the GUI gives every Workspace its folder; the current Workspace's is
+    /// solid.
+    pub(crate) workspace_mark: &'static str,
+    pub(crate) workspace_mark_current: &'static str,
     /// One-cell vertical guide connecting sibling Agents to their Workspace and running down an
     /// expanded Tab Group's members in the Tab list, and the strip's member mark where no group
     /// color shows.
@@ -258,6 +259,8 @@ impl GlyphSet {
         scrollbar_thumb: "┃",
         disclosure_open: "▾",
         disclosure_closed: "▸",
+        workspace_mark: "▫",
+        workspace_mark_current: "▪",
         tree_guide: "│",
         tree_guide_current: "┃",
         sidebar_hide: "«",
@@ -285,6 +288,8 @@ impl GlyphSet {
         scrollbar_thumb: "#",
         disclosure_open: "v",
         disclosure_closed: ">",
+        workspace_mark: "o",
+        workspace_mark_current: "@",
         tree_guide: "|",
         tree_guide_current: "#",
         sidebar_hide: "<",
@@ -607,30 +612,28 @@ impl Theme {
         Some((u32::from(r) << 16) | (u32::from(g) << 8) | u32::from(b))
     }
 
-    /// Whether Agent state glyphs show selection: where color carries the state, the glyph is solid
-    /// for the current Agent, Tab or pane and hollow elsewhere. Without color or UTF-8, the glyph's
-    /// shape is the only thing that tells states apart, so it shows the state alone.
-    pub(crate) fn agent_glyphs_show_selection(&self) -> bool {
+    /// Whether color tells Agent states apart, so the glyph's shape only says whether the Agent is
+    /// at rest. Without color or UTF-8, the shape alone tells every state apart.
+    pub(crate) fn agent_glyphs_show_color(&self) -> bool {
         self.glyphs.ellipsis != ".." && !self.no_color && self.color_level != ColorLevel::Monochrome
     }
 
-    /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark, and an
-    /// unknown state draws the status bullet or `◦` U+25E6. Where color shows, color names the
-    /// state and `selected` picks the solid or hollow form; otherwise each state keeps its own
-    /// shape. The hexagons and `◦` are East Asian Neutral, so they keep one cell even on hosts that
-    /// widen ambiguous-width text.
+    /// The filled `⬢` U+2B22 and hollow `⬡` U+2B21 hexagons echo the honeycomb mark. Where color
+    /// shows, color names the state and the shape says whether the Agent is at rest, as the GUI's
+    /// glyph does: an idle Agent is hollow, an unknown state the status bullet, and every other
+    /// state solid, wherever the glyph stands. Otherwise each state keeps its own shape. The
+    /// hexagons are East Asian Neutral, so they keep one cell even on hosts that widen
+    /// ambiguous-width text.
     pub(crate) fn agent_glyph(
         &self,
         state: orchbee_workbench_protocol::MetadataState,
-        selected: bool,
     ) -> &'static str {
         use orchbee_workbench_protocol::MetadataState::*;
-        if self.agent_glyphs_show_selection() {
-            return match (state, selected) {
-                (Unknown, true) => self.glyphs.status_bullet,
-                (Unknown, false) => "◦",
-                (_, true) => "⬢",
-                (_, false) => "⬡",
+        if self.agent_glyphs_show_color() {
+            return match state {
+                Idle => "⬡",
+                Unknown => self.glyphs.status_bullet,
+                Working | Blocked | Done | Error => "⬢",
             };
         }
         let ascii = self.glyphs.ellipsis == "..";
@@ -673,17 +676,6 @@ impl Theme {
         state: orchbee_workbench_protocol::MetadataState,
         frame: usize,
     ) -> Style {
-        self.agent_style_at(state, frame, 1.0)
-    }
-
-    /// The state's style at `strength` of its full color, its motion included. A pointer's preview
-    /// of the solid glyph a click would give takes [`PREVIEW_STRENGTH`].
-    pub(crate) fn agent_style_at(
-        &self,
-        state: orchbee_workbench_protocol::MetadataState,
-        frame: usize,
-        strength: f64,
-    ) -> Style {
         let style = self.style(Self::agent_role(state));
         use orchbee_workbench_protocol::MetadataState::{Blocked, Working};
         if self.no_color || self.color_level == ColorLevel::Monochrome {
@@ -701,13 +693,7 @@ impl Theme {
             | orchbee_workbench_protocol::MetadataState::Error
             | orchbee_workbench_protocol::MetadataState::Unknown => 1.0,
         };
-        self.faded(style, motion * strength, state == Working || strength < 1.0)
-    }
-
-    /// A pointer's faint foretaste of `style`, such as the current Agent's guide stretch on the row
-    /// a click would make current.
-    pub(crate) fn preview_style(&self, style: Style) -> Style {
-        self.faded(style, PREVIEW_STRENGTH, true)
+        self.faded(style, motion, state == Working)
     }
 
     /// Blends `style`'s foreground toward the canvas to `intensity` of its strength. Without RGB

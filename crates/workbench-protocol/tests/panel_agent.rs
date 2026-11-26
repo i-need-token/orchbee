@@ -69,6 +69,9 @@ fn panel_agent_shared_corpus_and_carrier_bounds() {
         include_str!(
             "../../../schemas/workbench/v1/workbench-panel-agent-confirmation-conformance-v1.json"
         ),
+        include_str!(
+            "../../../schemas/workbench/v1/workbench-panel-agent-completion-conformance-v1.json"
+        ),
     ]
     .into_iter()
     .map(|source| serde_json::from_str(source).unwrap())

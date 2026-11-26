@@ -200,9 +200,11 @@ pickers. The native theme pairs ANSI gray with black body text, without DIM on h
 named themes use the resolver's neutral current fill against chrome and retain their
 primary/secondary text colors, so the persistent row remains visible while input belongs to a
 terminal. This fill remains quieter than keyboard
-selection and preserves readable text contrast. A current Workspace and its visible active
-Agent share this one fill rather than two neighboring shades; folding the Agents leaves the fill
-on the Workspace alone. The fill alone
+selection and preserves readable text contrast. The current Agent's row takes this fill; while
+that row shows beneath its Workspace, the Workspace leaves the fill to it and names itself in primary
+text, and folding the Agents returns the fill to the Workspace. A Workspace that is neither current,
+above its current Agent, nor navigated names itself in secondary text, rising to primary under the
+pointer; its second line is muted and is left out when it only repeats the name. The fill alone
 marks the current sidebar row in the named themes: names keep their normal weight and no marker is
 added; status glyphs and explicit token colors remain semantic. Terminal-native keeps the ANSI gray
 fill and also underlines the complete current row, as Monochrome does, because ANSI 7 can sit
@@ -219,16 +221,14 @@ apply after the focus style. This does not infer host polarity or change a termi
 ## Color capabilities
 
 The Shell samples color environment inputs once before drawing. A pure resolver
-uses this order: nonempty `NO_COLOR`, `FORCE_COLOR`, `COLORTERM`, then `TERM`.
-`NO_COLOR` and `FORCE_COLOR=0` suppress chrome colors. Force values `1`, `2`, and
-`3` select 16 colors, 256 colors, and truecolor. An invalid force value is unknown,
-which means 16 colors. `COLORTERM=truecolor` or `24bit` selects truecolor; a TERM
-containing `256color` selects 256 colors, and `TERM=dumb` suppresses colors.
-When `COLORTERM` and `TERM` are absent or empty, a plain GUID-shaped `WT_SESSION`
-identifies Windows Terminal and selects truecolor. Presence of `TMUX`, `ZELLIJ`
-or `STY` prevents this outer-host fallback. Explicit descriptors, including unknown
-ones, retain their existing decisions; malformed session indicators remain unknown
-and use 16 colors. Values are not logged. This is a color capability decision,
+decides explicit requests first: nonempty `NO_COLOR` and `FORCE_COLOR=0` suppress chrome colors;
+force values `1`, `2` and `3` select 16 colors, 256 colors and truecolor, and any other force value
+16 colors; `COLORTERM=truecolor` or `24bit` selects truecolor. Otherwise the level is truecolor,
+and only a host known to draw fewer colors lowers it: `TERM=dumb` suppresses colors; `TERM=linux`,
+`ansi` and `vt*` select 16 colors; Terminal.app (`TERM_PROGRAM=Apple_Terminal`) below version 460,
+which macOS 26 passes, and GNU screen (`STY`, or a `screen*` TERM outside tmux) select 256 colors.
+A TERM containing `256color` says nothing either way. tmux also sets `TERM=screen*` and passes
+truecolor through or reduces it itself. Values are not logged. This is a color capability decision,
 not an appearance or background-polarity decision.
 
 Real-host comparisons record these descriptors alongside the image. An automation-launched preview
@@ -236,9 +236,7 @@ can inherit tool-only `NO_COLOR=1` or `TERM=dumb`; clear only those preview-loca
 reviewing ordinary color capability, and keep intentional monochrome runs as separate evidence.
 Never change the user's persistent environment to prepare a preview.
 
-Windows Terminal sets its [plain session GUID](https://github.com/microsoft/terminal/blob/main/src/cascadia/TerminalConnection/ConptyConnection.cpp)
-when launching a connection. A host without that indicator retains the conservative
-fallback; no terminal query or per-frame environment read is added.
+No terminal query or per-frame environment read is added.
 
 Theme role quantization runs when an admitted theme is installed, outside rendering. It uses
 the existing canonical xterm palette and perceptual distance. Text roles exclude

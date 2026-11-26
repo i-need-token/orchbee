@@ -181,6 +181,13 @@ pub enum PanelAgentAction {
         presentation_id: TerminalPresentationId,
         expected_binding: PresentationBinding,
     },
+    /// Acknowledges the finished turn of the Agent in the Presentation's terminal, as typed input
+    /// accepted there does: its completion stops awaiting input until the Agent's state changes.
+    /// Provider status and its unread sequence stay unchanged.
+    CompletionAcknowledge {
+        presentation_id: TerminalPresentationId,
+        expected_binding: PresentationBinding,
+    },
 }
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -257,7 +264,8 @@ impl PanelAgentRequest {
                 }
             }
             PanelAgentAction::ConfirmationChoose { .. }
-            | PanelAgentAction::ConfirmationDecline { .. } => Ok(()),
+            | PanelAgentAction::ConfirmationDecline { .. }
+            | PanelAgentAction::CompletionAcknowledge { .. } => Ok(()),
         }
     }
 }
@@ -427,6 +435,13 @@ pub enum PanelAgentOutcome {
     ConfirmationChosen {
         presentation: Box<PresentationConfirmationRow>,
     },
+    /// The Presentation's terminal after a completion acknowledgement; `changed` is false when no
+    /// completion awaited input there.
+    CompletionAcknowledged {
+        presentation_id: TerminalPresentationId,
+        binding: PresentationBinding,
+        changed: bool,
+    },
     Failed {
         reason: PanelAgentFailure,
     },
@@ -526,7 +541,9 @@ impl PanelAgentResult {
                     && presentations.iter().all(PresentationConfirmationRow::valid)
             }
             PanelAgentOutcome::ConfirmationChosen { presentation } => presentation.valid(),
-            PanelAgentOutcome::Failed { .. } => true,
+            PanelAgentOutcome::CompletionAcknowledged { .. } | PanelAgentOutcome::Failed { .. } => {
+                true
+            }
         };
         if valid {
             Ok(())
@@ -628,6 +645,17 @@ impl PanelAgentResult {
                     expected_binding,
                 } => {
                     matches!(&self.outcome, PanelAgentOutcome::ConfirmationChosen { presentation } if &presentation.presentation_id == presentation_id && presentation.binding.as_ref() == Some(expected_binding))
+                        || shared_failure
+                }
+                PanelAgentAction::CompletionAcknowledge {
+                    presentation_id,
+                    expected_binding,
+                } => {
+                    matches!(&self.outcome, PanelAgentOutcome::CompletionAcknowledged {
+                            presentation_id: actual,
+                            binding,
+                            ..
+                        } if presentation_id == actual && expected_binding == binding)
                         || shared_failure
                 }
             }

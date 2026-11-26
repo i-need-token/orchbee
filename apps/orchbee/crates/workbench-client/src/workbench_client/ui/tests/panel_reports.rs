@@ -191,7 +191,7 @@ fn completion_state_cells_use_server_facts_even_without_a_client_working_observa
                 let text: String = (0..120).map(|x| buffer[(x, y)].symbol()).collect();
                 let prefix = &text[..text.find(panel_title.as_ref())?];
                 let title_x = crate::terminal_text::display_width(prefix);
-                let glyph = theme.agent_glyph(expected, false);
+                let glyph = theme.agent_glyph(expected);
                 Some((
                     y,
                     u16::try_from(title_x - crate::terminal_text::display_width(glyph) - 1)
@@ -460,8 +460,8 @@ fn split_panel_titles_paint_reports_and_reject_stale_workbench_scope() {
                 // The state glyph leads the title; state words stay in the sidebar.
                 assert!(!text.contains("Review needed"), "{width}x{height}: {text}");
                 if width == 120 {
-                    let glyph = theme
-                        .agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked, false);
+                    let glyph =
+                        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Blocked);
                     assert!(text.contains(glyph), "{text}");
                     assert!(text.contains("branch=test"), "{text}");
                     assert!(text.contains("Approval title"), "{text}");

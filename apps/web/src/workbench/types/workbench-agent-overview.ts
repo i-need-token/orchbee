@@ -25,6 +25,8 @@ interface WorkbenchWorkspaceAgentRowView {
 		| undefined;
 	/** Whether this Agent's terminal is the focused Panel's in the open Workspace. */
 	readonly current: boolean;
+	/** Whether the row shows the Agent's turn as finished, which a double-click marks as seen. */
+	readonly finished: boolean;
 	/** The Panel holding the Agent's terminal; Rename and Close name it. */
 	readonly panelId: string;
 	readonly presentationId: TerminalPresentationId;
@@ -46,9 +48,7 @@ interface WorkbenchWorkspaceAgentFoldedStatusView {
 	 * Every Agent's state, keyed by its terminal Presentation. The line shows as many leading glyphs
 	 * as it has room for and counts the rest as `+N`.
 	 */
-	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'figure' | 'status' | 'tone'> & {
-		/** Whether this is the current Agent, as its expanded row's `current` says; its glyph is solid. */
-		readonly current: boolean;
+	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'status' | 'tone'> & {
 		/** The Agent's identity as its expanded row shows it: its title and provider. */
 		readonly identity: string;
 		readonly presentationId: TerminalPresentationId;

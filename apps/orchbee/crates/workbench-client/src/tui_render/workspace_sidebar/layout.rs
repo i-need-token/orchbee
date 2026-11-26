@@ -6,11 +6,8 @@ use ratatui::layout::Rect;
 const NAVIGATION_WIDTH: u16 = 1;
 const DISCLOSURE_WIDTH: u16 = 1;
 const DISCLOSURE_GAP: u16 = 1;
-/// A single vertical guide runs down the list edge, before the Agents' state column.
+/// A single vertical guide runs down under the Workspace's disclosure, before the Agents' state.
 const GUIDE_WIDTH: u16 = 1;
-/// A filled blank cell separates each Agent surface edge from its state, and a Workspace's list
-/// edge from its disclosure.
-const ROW_LEADING_PADDING: u16 = 1;
 const STATE_WIDTH: u16 = 1;
 const UNREAD_WIDTH: u16 = 1;
 /// One blank cell separates the identity from a trailing auxiliary control.
@@ -23,10 +20,11 @@ pub(super) enum RowKind {
     /// A Project or Recents heading: the navigation cell at the list edge, then the label, and the
     /// disclosure after it.
     Group,
-    /// A Workspace: the navigation cell at the list edge, then a padded disclosure in the Agents'
-    /// state column, a blank cell, and the name in their title column.
+    /// A Workspace: the navigation cell at the list edge, then the disclosure in the heading
+    /// label's column, a blank cell, and the name.
     Owner,
-    /// An Agent: vertical guide at the list edge, then padded state, navigation and title.
+    /// An Agent, one level in: the vertical guide under the Workspace's disclosure, then the state
+    /// in the Workspace name's column, navigation and the title.
     Agent,
 }
 
@@ -149,11 +147,11 @@ impl Tracks {
         );
         let content_y = band.y.saturating_add(leading_gap);
         let (guide, state, navigation) = if kind == RowKind::Agent {
-            // The guide takes the list edge; the padded state follows.
-            let guide = clipped_track(band, band.x, GUIDE_WIDTH);
+            // The guide takes the Workspace disclosure's column and the state its name's.
+            let guide = clipped_track(band, band.x.saturating_add(NAVIGATION_WIDTH), GUIDE_WIDTH);
             let state = clipped_track(
                 band,
-                guide.right().saturating_add(ROW_LEADING_PADDING),
+                guide.right().saturating_add(DISCLOSURE_GAP),
                 STATE_WIDTH,
             );
             (
@@ -167,15 +165,10 @@ impl Tracks {
             let empty = Rect::new(navigation.right(), band.y, 0, band.height);
             (empty, empty, navigation)
         };
-        // A Workspace's disclosure leads its name in the Agents' state column, so the name aligns
-        // with their titles.
-        let leading_disclosure = (kind == RowKind::Owner).then(|| {
-            clipped_track(
-                band,
-                navigation.right().saturating_add(ROW_LEADING_PADDING),
-                DISCLOSURE_WIDTH,
-            )
-        });
+        // A Workspace's disclosure stands over its Agents' guide, so its name aligns with their
+        // state glyphs.
+        let leading_disclosure = (kind == RowKind::Owner)
+            .then(|| clipped_track(band, navigation.right(), DISCLOSURE_WIDTH));
         let primary_x = match leading_disclosure {
             Some(disclosure) => disclosure.right().saturating_add(DISCLOSURE_GAP),
             None => navigation.right(),
@@ -215,14 +208,9 @@ impl Tracks {
         self.density
     }
 
-    /// Agent surfaces include their leading padding but leave the guide and its gap on chrome.
-    pub(super) fn surface(self) -> Rect {
-        let x = if self.guide.is_empty() {
-            self.band.x
-        } else {
-            self.state.x.saturating_sub(ROW_LEADING_PADDING)
-        };
-        Rect::new(x, self.band.y, self.band.right() - x, self.band.height)
+    /// Every row's surface spans its whole band, an Agent's guide included.
+    pub(super) const fn surface(self) -> Rect {
+        self.band
     }
 
     /// Only a heading's disclosure follows its label and takes cells from its first line.

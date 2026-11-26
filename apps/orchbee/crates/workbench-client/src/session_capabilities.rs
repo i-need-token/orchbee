@@ -4,9 +4,10 @@
 //! owner still checks the answer again at its effect boundary.
 
 use orchbee_connection_handshake::{
-    AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW, CONFIGURED_COMMAND_SOURCE_EXITED,
-    CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT, RECONNECT, STREAM_OUTCOME_UNKNOWN,
-    TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK, WORKSPACE_IDLE,
+    AGENT_COMPLETION_ACKNOWLEDGE, AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW,
+    CONFIGURED_COMMAND_SOURCE_EXITED, CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT,
+    RECONNECT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK,
+    WORKSPACE_IDLE,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -17,10 +18,19 @@ pub(crate) enum SessionAction {
     StartInThisPanel,
     /// About's Check for updates, which asks the Session Server to run its update job now.
     CheckForUpdates,
+    /// A double-click on a finished Agent's sidebar row, which tells the Session the person saw it
+    /// finish, as typing into its terminal does.
+    AcknowledgeAgentCompletion,
 }
 
 /// Every capability this build's `client-server` offer lists, with the TUI actions that need it.
 const NEEDED_BY: &[(&str, &[SessionAction])] = &[
+    // Without it, a double-click on a finished Agent's row only opens the Agent; typing into its
+    // terminal still acknowledges it.
+    (
+        AGENT_COMPLETION_ACKNOWLEDGE,
+        &[SessionAction::AcknowledgeAgentCompletion],
+    ),
     // The confirmations follower reads it itself: without it, the TUI asks for no confirmation
     // rows and shows no offer, menu entry or reason for them.
     (AGENT_CONFIRMATION, &[]),

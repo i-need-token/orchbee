@@ -402,7 +402,7 @@ fn paint_title(
         // The bar names only the current Tab, so its glyph is the solid one.
         let glyph = current
             .agent
-            .map(|agent| state_glyph(agent.state, true, theme, working_frame));
+            .map(|agent| state_glyph(agent.state, theme, working_frame));
         let unread = current.agent.is_some_and(|agent| agent.unread);
         let fixed = 2
             + glyph.map_or(0, |glyph| display_width(glyph) + 1)

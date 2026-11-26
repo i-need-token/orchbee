@@ -17,6 +17,8 @@ import {
 	calculateHorizontalPinnedControlOffset,
 	calculateHorizontalTabChildVisibility,
 	calculateVerticalTabChildVisibility,
+	narrowHorizontalTabChildVisibility,
+	type HorizontalTabChildVisibility,
 } from '../../../../layout/tab-content-layout';
 import { type TabCloseSource } from '../../../../layout/tab-closing-mode';
 import { TabStripOrientation } from '../../../../types/tab-strip-types';
@@ -141,7 +143,7 @@ export const TabButton = memo(function TabButton({
 	const hasStatusSymbol =
 		statusAdornment?.glyph !== undefined || statusAdornment?.mark !== undefined;
 	const horizontalContentsWidth = Math.max(0, renderedWidth - TAB_CONTENT_HORIZONTAL_INSET * 2);
-	const childVisibility =
+	const chromeVisibility =
 		orientation === TabStripOrientation.Horizontal
 			? calculateHorizontalTabChildVisibility({
 					width: renderedWidth,
@@ -169,6 +171,18 @@ export const TabButton = memo(function TabButton({
 					hasAlert,
 					closeAllowed: closeButtonAllowed,
 				});
+	const childVisibility: HorizontalTabChildVisibility =
+		orientation === TabStripOrientation.Horizontal
+			? narrowHorizontalTabChildVisibility(chromeVisibility, {
+					contentsWidth: horizontalContentsWidth,
+					active,
+					pinned: tab.pinned || slotPinTransition === 'unpinning',
+					touchUi,
+					interacted: visualHovered || focused,
+					hasIcon: hasFavicon || hasStatusSymbol,
+					hasUnread: statusAdornment?.unreadLabel !== undefined,
+				})
+			: { ...chromeVisibility, closeOverIcon: false };
 	const pinningControlOffset =
 		orientation === TabStripOrientation.Horizontal && slotPinTransition === 'pinning'
 			? calculateHorizontalPinnedControlOffset({
@@ -217,7 +231,6 @@ export const TabButton = memo(function TabButton({
 			{childVisibility.showFavicon || hasStatusSymbol ? (
 				<TabIcon
 					tab={tab}
-					active={active}
 					availableWidth={Math.max(0, renderedWidth - 18)}
 					identityIcon={identityIcon}
 					statusAdornment={statusAdornment}
@@ -287,8 +300,12 @@ export const TabButton = memo(function TabButton({
 			}
 			data-center-control={childVisibility.centerSingleControl || undefined}
 			data-horizontal-close={
-				(orientation === TabStripOrientation.Horizontal && childVisibility.showClose) || undefined
+				(orientation === TabStripOrientation.Horizontal &&
+					childVisibility.showClose &&
+					!childVisibility.closeOverIcon) ||
+				undefined
 			}
+			data-close-over-icon={childVisibility.closeOverIcon || undefined}
 			data-visible-alert={childVisibility.showAlert || undefined}
 			data-compact-alert-close-gap={
 				(orientation === TabStripOrientation.Horizontal &&

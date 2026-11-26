@@ -1,0 +1,134 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "completion-acknowledge-request",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "completion-acknowledge",
+					"presentationId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "66666666666666666666666666666666"
+					}
+				}
+			}
+		},
+		{
+			"name": "completion-acknowledged-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "completion-acknowledged",
+					"presentationId": "33333333333333333333333333333333",
+					"binding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "66666666666666666666666666666666"
+					},
+					"changed": true
+				}
+			}
+		},
+		{
+			"name": "completion-acknowledged-unchanged",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "completion-acknowledged",
+					"presentationId": "33333333333333333333333333333333",
+					"binding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "66666666666666666666666666666666"
+					},
+					"changed": false
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "completion-acknowledge-without-binding",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "completion-acknowledge",
+					"presentationId": "33333333333333333333333333333333"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "completion-acknowledge-unknown-member",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.panel-agent",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"action": {
+					"kind": "completion-acknowledge",
+					"presentationId": "33333333333333333333333333333333",
+					"expectedBinding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "66666666666666666666666666666666"
+					},
+					"panelId": "55555555555555555555555555555555"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "completion-acknowledged-null-binding",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "completion-acknowledged",
+					"presentationId": "33333333333333333333333333333333",
+					"binding": null,
+					"changed": false
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "completion-acknowledged-without-changed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.panel-agent.result",
+				"protocolVersion": 1,
+				"requestId": "11111111111111111111111111111111",
+				"sessionId": "22222222222222222222222222222222",
+				"outcome": {
+					"kind": "completion-acknowledged",
+					"presentationId": "33333333333333333333333333333333",
+					"binding": {
+						"workerId": "44444444444444444444444444444444",
+						"terminalId": "66666666666666666666666666666666"
+					}
+				}
+			},
+			"boundary": "schema"
+		}
+	]
+}

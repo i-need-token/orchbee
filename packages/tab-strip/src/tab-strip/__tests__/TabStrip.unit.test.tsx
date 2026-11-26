@@ -1528,9 +1528,10 @@ describe('TabStrip', () => {
 		const model = createModel();
 		model.selectTab('loose');
 		render(<TabStrip model={model} tabStripDeclutter={false} />);
-		const close = within(screen.getByRole('tab', { name: /^Loose/ })).getByRole('button', {
-			name: 'Close',
-		});
+		const loose = screen.getByRole('tab', { name: /^Loose/ });
+		// A narrow current Tab shows its close button once focus is on it.
+		act(() => loose.focus());
+		const close = within(loose).getByRole('button', { name: 'Close' });
 
 		fireEvent.pointerDown(close, { button: 0, pointerType: 'touch', clientX: 14, clientY: 14 });
 		fireEvent.click(close);
@@ -1558,9 +1559,9 @@ describe('TabStrip', () => {
 			activeTabId: 'c',
 		});
 		render(<TabStrip model={model} tabStripDeclutter={false} />);
-		const close = within(screen.getByRole('tab', { name: /^C/ })).getByRole('button', {
-			name: 'Close',
-		});
+		const current = screen.getByRole('tab', { name: /^C/ });
+		act(() => current.focus());
+		const close = within(current).getByRole('button', { name: 'Close' });
 
 		fireEvent.pointerDown(close, {
 			button: 0,

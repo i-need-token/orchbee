@@ -73,6 +73,11 @@ pub const TERMINAL_LIMIT_REACHED: &str = "terminal-limit-reached";
 /// `confirmation-decline` Panel Agent actions. A Client without it shows nothing about them.
 pub const AGENT_CONFIRMATION: &str = "agent-confirmation";
 
+/// The `client-server` capability before a Client may send the `completion-acknowledge` Panel
+/// Agent action, which marks an Agent's finished turn as seen without typing into its terminal. A
+/// Client without it leaves a finished turn to typed input.
+pub const AGENT_COMPLETION_ACKNOWLEDGE: &str = "agent-completion-acknowledge";
+
 /// The `client-server` capability that marks a Server giving every new Project a random identity,
 /// unique across machines, and taking one a Client names in `project.create`'s `projectId`. A
 /// Client sends `projectId` only to a Server that lists it, and joins Projects of different Sessions
@@ -194,6 +199,7 @@ impl ConnectionKind {
     pub fn capabilities(self) -> CapabilitySet {
         let names: &[&str] = match self {
             Self::ClientServer => &[
+                AGENT_COMPLETION_ACKNOWLEDGE,
                 AGENT_CONFIRMATION,
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
@@ -232,6 +238,7 @@ impl ConnectionKind {
     pub fn declared_capabilities(self) -> CapabilitySet {
         match self {
             Self::ClientServer => capability_set(&[
+                AGENT_COMPLETION_ACKNOWLEDGE,
                 AGENT_CONFIRMATION,
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,

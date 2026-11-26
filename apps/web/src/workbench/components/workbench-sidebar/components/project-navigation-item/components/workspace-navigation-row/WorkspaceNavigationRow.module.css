@@ -5,6 +5,18 @@
 	gap: var(--ob-ref-space-0-5);
 }
 
+/* While its Agent rows scroll beneath it, the Workspace's row stays at the top of the list, so the
+   list always names whose Agents it shows, until the Workspace's last row pushes it away. It paints
+   the sidebar's own surface, the subtle tint over the raised surface, under the row's fill. */
+.head {
+	position: sticky;
+	top: 0;
+	z-index: var(--ob-ref-layer-sticky);
+	background:
+		linear-gradient(var(--ob-sys-color-surface-subtle), var(--ob-sys-color-surface-subtle)),
+		var(--ob-sys-color-surface-raised);
+}
+
 /* A leading column, the Agent rows' state column, starts where the heading's text does, so the name
    and line 2 align with the Agent titles beneath, and a Workspace no longer reads as its Project.
    38 px = 4 + 18 + 12 + 4: the name line takes its type's full line height and holds the 18 px
@@ -32,9 +44,14 @@
 	color: var(--ob-sys-color-text-primary);
 }
 
-/* Current sits one step above hover. */
+/* Current sits one step above hover. A current Workspace whose current Agent row shows beneath it
+   leaves the fill to that row, so one row alone is filled; its name and folder stay primary. */
 .row[data-current] {
 	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.row[data-current-agent-below] {
 	color: var(--ob-sys-color-text-primary);
 }
 
@@ -146,7 +163,7 @@
 	color: var(--ob-sys-color-icon-secondary);
 }
 
-.row[data-current] .folder {
+.row:is([data-current], [data-current-agent-below]) .folder {
 	color: var(--ob-sys-color-icon-primary);
 }
 

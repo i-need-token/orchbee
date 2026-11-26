@@ -6,14 +6,7 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
-import {
-	useId,
-	useState,
-	type AnimationEvent,
-	type CSSProperties,
-	type MouseEvent,
-	type ReactNode,
-} from 'react';
+import { useId, type MouseEvent, type ReactNode } from 'react';
 
 import type {
 	WorkbenchAgentConfirmationChooseInput,
@@ -33,6 +26,9 @@ import { SidebarTruncationTooltip } from '../../../sidebar-truncation-tooltip/Si
 import styles from './WorkspaceAgentList.module.css';
 
 interface WorkspaceAgentListProps {
+	readonly acknowledgeAgentCompletion?:
+		| ((presentationId: TerminalPresentationId) => void)
+		| undefined;
 	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly messages: WorkbenchProjectNavigationMessages;
@@ -44,15 +40,15 @@ interface WorkspaceAgentListProps {
 /**
  * A Workspace's Agents, one line each as in the TUI: the state glyph, the title, the unread dot, and
  * the provider's product mark at the row's end, or its name where it has no mark. The current Agent's
- * glyph is solid and every other one hollow; under the pointer a hollow glyph fills faintly, and the
- * glyph of the Agent a click opens pops as it turns solid. The list's one stretch of the guide
- * slides to the current row. The glyph names
+ * row takes the current fill across its whole width, as the Workspace above it does. The glyph names
  * its state under the pointer, with why a confirmation waits where one does, the mark names its
- * product, and the dot says Unread. A right-click opens the Agent's menu: Rename, which only a Panel's
+ * product, and the dot says Unread. A double-click on a finished Agent marks its turn as seen, as
+ * typing into it does, where the Server takes that. A right-click opens the Agent's menu: Rename, which only a Panel's
  * primary terminal offers, Allow confirmations where the Server answers them for this Agent, then
  * Close, which asks first.
  */
 export function WorkspaceAgentList({
+	acknowledgeAgentCompletion,
 	chooseAgentConfirmation,
 	closeAgentPanel,
 	messages,
@@ -61,20 +57,8 @@ export function WorkspaceAgentList({
 	renameAgentPanel,
 }: WorkspaceAgentListProps): ReactNode {
 	const markPrefix = useId();
-	// The Agent a click is opening, whose glyph pops once it turns current.
-	const [opening, setOpening] = useState<TerminalPresentationId | null>(null);
-	const currentRow = overview.rows.findIndex((row) => row.current);
 	return (
-		<ul
-			className={styles['list']}
-			data-current-row={currentRow < 0 ? undefined : ''}
-			data-slot='workbench-sidebar-workspace-agents'
-			style={
-				{
-					'--ob-comp-workbench-agent-list-current-row': Math.max(currentRow, 0),
-				} satisfies CSSProperties
-			}
-		>
+		<ul className={styles['list']} data-slot='workbench-sidebar-workspace-agents'>
 			{overview.rows.map((row, index) => {
 				const title = row.titleLabel === '' ? row.agentLabel : row.titleLabel;
 				const provider = row.titleLabel === '' ? null : row.agentLabel;
@@ -142,14 +126,13 @@ export function WorkspaceAgentList({
 					},
 				];
 				// Portaled tooltips are not inside the row, so only a click within it opens the Agent.
+				const within = (event: MouseEvent<HTMLLIElement>) =>
+					event.target instanceof Node && event.currentTarget.contains(event.target);
 				const open = (event: MouseEvent<HTMLLIElement>) => {
-					if (event.target instanceof Node && event.currentTarget.contains(event.target)) {
-						setOpening(row.current ? null : row.presentationId);
-						navigateAgent(row.presentationId);
-					}
+					if (within(event)) navigateAgent(row.presentationId);
 				};
-				const settle = (event: AnimationEvent<HTMLSpanElement>) => {
-					if (event.target === event.currentTarget) setOpening(null);
+				const acknowledge = (event: MouseEvent<HTMLLIElement>) => {
+					if (row.finished && within(event)) acknowledgeAgentCompletion?.(row.presentationId);
 				};
 				return (
 					<ContextMenu key={row.presentationId}>
@@ -157,12 +140,12 @@ export function WorkspaceAgentList({
 							render={
 								<li
 									className={styles['row']}
-									data-agent-glyph-preview=''
 									data-current={row.current || undefined}
 									data-first={index === 0 || undefined}
 									data-last={index === overview.rows.length - 1 || undefined}
 									data-navigation-reorder-excluded='true'
 									onClick={open}
+									onDoubleClick={acknowledge}
 								/>
 							}
 						>
@@ -180,16 +163,8 @@ export function WorkspaceAgentList({
 								type='button'
 							/>
 							<Tooltip>
-								<TooltipTrigger
-									render={
-										<span
-											className={styles['glyph']}
-											data-pop={(row.current && opening === row.presentationId) || undefined}
-											onAnimationEnd={settle}
-										/>
-									}
-								>
-									<WorkbenchAgentStateGlyph selected={row.current} status={row.status} />
+								<TooltipTrigger render={<span className={styles['glyph']} />}>
+									<WorkbenchAgentStateGlyph status={row.status} />
 								</TooltipTrigger>
 								<TooltipContent side='bottom'>
 									{row.statusReason ?? row.status.status}

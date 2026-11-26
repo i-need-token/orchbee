@@ -108,7 +108,10 @@ impl LocalTerminalService {
                 | orchbee_workbench_protocol::PanelAgentAction::Report { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::Confirmations { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
-                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => false,
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::CompletionAcknowledge { .. } => {
+                    false
+                }
             };
             if !valid {
                 return unavailable;

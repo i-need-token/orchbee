@@ -15,19 +15,18 @@ fn group_owner_and_agent_tracks_align_the_tree_across_width_modes() {
         assert_eq!(owner.density(), density);
         assert_eq!(owner.auxiliary.width, auxiliary);
         assert_eq!(owner.content_y, 5);
-        // Headings and Workspaces share the edge marker cell and fill the whole band.
+        // Headings and Workspaces share the edge marker cell.
         for tracks in [group, owner] {
             assert_eq!(tracks.navigation, Rect::new(band.x, 4, 1, 3));
             assert!(tracks.state.is_empty() && tracks.guide.is_empty());
+        }
+        // Agents sit one level in: their guide runs under the Workspace's disclosure and their
+        // state stands in its name's column. Every row fills its whole band.
+        assert_eq!(owner.disclosure, Rect::new(agent.guide.x, 5, 1, 1));
+        assert_eq!(owner.primary.x, agent.state.x);
+        for tracks in [group, owner, agent] {
             assert_eq!(tracks.surface(), band);
         }
-        // A Workspace's disclosure stands in its Agents' state column and its name in their title
-        // column; the guide stays on chrome, before the padded Agent surface.
-        assert_eq!(owner.disclosure, Rect::new(agent.state.x, 5, 1, 1));
-        assert_eq!(owner.primary.x, agent.primary.x);
-        assert!(agent.guide.right() <= agent.surface().x);
-        assert!(agent.surface().x < agent.state.x);
-        assert_eq!(agent.surface().right(), band.right());
         assert_eq!(group.navigation.right(), group.primary.x);
         assert_eq!(agent.navigation.right(), agent.primary.x);
         assert!(group.disclosure.is_empty() && agent.disclosure.is_empty());

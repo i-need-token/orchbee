@@ -7,6 +7,7 @@ import {
 	TooltipTrigger,
 } from '@orchbee/ui/components';
 import type { MouseEvent, PointerEvent, ReactNode } from 'react';
+import type { TerminalPresentationId } from '@orchbee/workbench-client-protocol';
 
 import type {
 	ProjectWorkspaceState,
@@ -81,6 +82,9 @@ interface WorkspaceNavigationRowProps {
 	readonly menuFocus: ProjectNavigationMenuFocus;
 	readonly messages: WorkbenchProjectNavigationMessages;
 	readonly navigateAgent: (input: WorkbenchAgentNavigationInput) => void;
+	readonly acknowledgeAgentCompletion?:
+		| ((presentationId: TerminalPresentationId) => void)
+		| undefined;
 	readonly chooseAgentConfirmation: (input: WorkbenchAgentConfirmationChooseInput) => void;
 	readonly closeAgentPanel: (input: WorkbenchPanelTargetInput) => void;
 	readonly renameAgentPanel: (input: WorkbenchPanelTargetInput) => void;
@@ -113,6 +117,7 @@ export function WorkspaceNavigationRow({
 	location,
 	menuFocus,
 	messages,
+	acknowledgeAgentCompletion,
 	chooseAgentConfirmation,
 	closeAgentPanel,
 	navigateAgent,
@@ -132,6 +137,10 @@ export function WorkspaceNavigationRow({
 	// A folded Workspace's second line lists its Agents' states in place of its location, and its
 	// end area repeats their unread marker while the Agent rows are hidden.
 	const folded = agentOverview !== undefined && !expanded;
+	// A held Workspace tucks away its Agent rows until the drag ends.
+	const agentsShown = agentOverview !== undefined && expanded && !dragging;
+	// A current Workspace leaves the current fill to its current Agent's row while that row shows.
+	const currentAgentBelow = active && agentsShown && agentOverview.rows.some((row) => row.current);
 	const unread = folded && agentOverview.unreadLabel !== undefined;
 	// A row whose directory just moved keeps its old name until its new location settles.
 	const name = location?.heldName ?? workspace.name;
@@ -190,197 +199,201 @@ export function WorkspaceNavigationRow({
 			data-drag-id={workspace.id}
 			data-workspace-id={workspace.id}
 		>
-			<ContextMenu
-				onOpenChange={(open, details) => {
-					machineMenu?.opened(open);
-					if (open) {
-						refreshWorktrees(workspace.id);
-						agentMenu?.refresh();
-					}
-					menuFocus.onOpenChange(workspace.id, open, details);
-				}}
-			>
-				<ContextMenuTrigger
-					render={
-						<div
-							className={styles['row']}
-							data-agent-launch={agentMenu === undefined ? undefined : ''}
-							data-current={active || undefined}
-							data-navigation-reorder-row='true'
-							onClick={activate}
-							onContextMenuCapture={suppressDuplicateNavigationContextMenu}
-							onKeyDown={(event) =>
-								handleNavigationRowKeyDown(event, () => showWorkspaceRename(workspace.id))
-							}
-							onPointerDown={onPointerDown}
-						/>
-					}
+			<div className={styles['head']}>
+				<ContextMenu
+					onOpenChange={(open, details) => {
+						machineMenu?.opened(open);
+						if (open) {
+							refreshWorktrees(workspace.id);
+							agentMenu?.refresh();
+						}
+						menuFocus.onOpenChange(workspace.id, open, details);
+					}}
 				>
-					<button
-						aria-current={active ? 'page' : undefined}
-						aria-keyshortcuts={navigationRowAriaKeyShortcuts}
-						aria-label={[
-							name,
-							folded ? null : line,
-							location?.divergenceLabel,
-							agentOverview === undefined ? null : workspaceAgentSummary(agentOverview),
-						]
-							.filter((part) => typeof part === 'string')
-							.join('. ')}
-						className={styles['rowMain']}
-						data-sidebar-nav='workspace'
-						data-slot='workbench-sidebar-workspace'
-						tabIndex={-1}
-						type='button'
-					/>
-					<span className={styles['line1']}>
-						<span className={styles['lead']}>
-							<span className={styles['folder']}>
-								<ProductIcon name={expanded ? 'folder-opened' : 'folder'} />
+					<ContextMenuTrigger
+						render={
+							<div
+								className={styles['row']}
+								data-agent-launch={agentMenu === undefined ? undefined : ''}
+								data-current={(active && !currentAgentBelow) || undefined}
+								data-current-agent-below={currentAgentBelow || undefined}
+								data-navigation-reorder-row='true'
+								onClick={activate}
+								onContextMenuCapture={suppressDuplicateNavigationContextMenu}
+								onKeyDown={(event) =>
+									handleNavigationRowKeyDown(event, () => showWorkspaceRename(workspace.id))
+								}
+								onPointerDown={onPointerDown}
+							/>
+						}
+					>
+						<button
+							aria-current={active ? 'page' : undefined}
+							aria-keyshortcuts={navigationRowAriaKeyShortcuts}
+							aria-label={[
+								name,
+								folded ? null : line,
+								location?.divergenceLabel,
+								agentOverview === undefined ? null : workspaceAgentSummary(agentOverview),
+							]
+								.filter((part) => typeof part === 'string')
+								.join('. ')}
+							className={styles['rowMain']}
+							data-sidebar-nav='workspace'
+							data-slot='workbench-sidebar-workspace'
+							tabIndex={-1}
+							type='button'
+						/>
+						<span className={styles['line1']}>
+							<span className={styles['lead']}>
+								<span className={styles['folder']}>
+									<ProductIcon name={expanded ? 'folder-opened' : 'folder'} />
+								</span>
+								{agentOverview === undefined || dragging ? null : (
+									<Tooltip>
+										<TooltipTrigger
+											render={
+												<button
+													aria-expanded={expanded}
+													aria-label={
+														expanded ? agentOverview.collapseLabel : agentOverview.expandLabel
+													}
+													className={styles['chevron']}
+													data-navigation-reorder-excluded='true'
+													tabIndex={-1}
+													type='button'
+													onClick={() => toggleWorkspaceAgents(workspace.id)}
+												/>
+											}
+										>
+											<span className={styles['chevronIcon']} data-open={expanded || undefined}>
+												<ProductIcon name='chevron-right' size='disclosure' />
+											</span>
+										</TooltipTrigger>
+										<TooltipContent side='bottom'>
+											{expanded ? agentOverview.collapseLabel : agentOverview.expandLabel}
+										</TooltipContent>
+									</Tooltip>
+								)}
 							</span>
-							{agentOverview === undefined || dragging ? null : (
-								<Tooltip>
-									<TooltipTrigger
-										render={
-											<button
-												aria-expanded={expanded}
-												aria-label={
-													expanded ? agentOverview.collapseLabel : agentOverview.expandLabel
-												}
-												className={styles['chevron']}
-												data-navigation-reorder-excluded='true'
-												tabIndex={-1}
-												type='button'
-												onClick={() => toggleWorkspaceAgents(workspace.id)}
-											/>
-										}
-									>
-										<span className={styles['chevronIcon']} data-open={expanded || undefined}>
-											<ProductIcon name='chevron-right' size='disclosure' />
-										</span>
+							<SidebarTruncationTooltip
+								content={name}
+								render={<span className={styles['name']} />}
+								sideOffset={NAME_TOOLTIP_OFFSET}
+							>
+								{name}
+							</SidebarTruncationTooltip>
+							{machineMark === null ? null : <WorkspaceMachineMark mark={machineMark} />}
+						</span>
+						<span className={styles['line2']} data-agent-status={folded ? '' : undefined}>
+							{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}
+							{!folded && line !== null ? (
+								<Tooltip disabled={(location?.directory ?? null) === null}>
+									<TooltipTrigger render={<span className={styles['lineText']} />}>
+										{line}
 									</TooltipTrigger>
-									<TooltipContent side='bottom'>
-										{expanded ? agentOverview.collapseLabel : agentOverview.expandLabel}
+									<TooltipContent align='start' side='bottom'>
+										{location?.directory}
 									</TooltipContent>
 								</Tooltip>
-							)}
+							) : null}
 						</span>
-						<SidebarTruncationTooltip
-							content={name}
-							render={<span className={styles['name']} />}
-							sideOffset={NAME_TOOLTIP_OFFSET}
-						>
-							{name}
-						</SidebarTruncationTooltip>
-						{machineMark === null ? null : <WorkspaceMachineMark mark={machineMark} />}
-					</span>
-					<span className={styles['line2']} data-agent-status={folded ? '' : undefined}>
-						{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}
-						{!folded && line !== null ? (
-							<Tooltip disabled={(location?.directory ?? null) === null}>
-								<TooltipTrigger render={<span className={styles['lineText']} />}>
-									{line}
-								</TooltipTrigger>
-								<TooltipContent align='start' side='bottom'>
-									{location?.directory}
-								</TooltipContent>
-							</Tooltip>
+						{ahead > 0 || behind > 0 || unread ? (
+							// Commits to push read as success and commits to pull as a caution, as in common Git
+							// tools; the arrows tell them apart without color.
+							<span aria-hidden='true' className={styles['endInfo']}>
+								{ahead > 0 ? <span className={styles['ahead']}>↑{ahead}</span> : null}
+								{behind > 0 ? <span className={styles['behind']}>↓{behind}</span> : null}
+								{unread ? <span className={styles['dot']} /> : null}
+							</span>
 						) : null}
-					</span>
-					{ahead > 0 || behind > 0 || unread ? (
-						// Commits to push read as success and commits to pull as a caution, as in common Git
-						// tools; the arrows tell them apart without color.
-						<span aria-hidden='true' className={styles['endInfo']}>
-							{ahead > 0 ? <span className={styles['ahead']}>↑{ahead}</span> : null}
-							{behind > 0 ? <span className={styles['behind']}>↓{behind}</span> : null}
-							{unread ? <span className={styles['dot']} /> : null}
-						</span>
-					) : null}
-					<span className={styles['tools']}>
-						{agentMenu === undefined ? null : (
+						<span className={styles['tools']}>
+							{agentMenu === undefined ? null : (
+								<Tooltip>
+									<WorkspaceAgentLaunchMenu
+										menu={agentMenu}
+										trigger={
+											<TooltipTrigger
+												render={
+													<button
+														aria-label={`${agentMenu.label}: ${name}`}
+														className={styles['tool']}
+														data-navigation-reorder-excluded='true'
+														data-workspace-agent-launch=''
+														tabIndex={-1}
+														type='button'
+													/>
+												}
+											/>
+										}
+										triggerContent={<ProductIcon name='add' />}
+										workspace={startTarget}
+									/>
+									<TooltipContent side='bottom'>{agentMenu.label}</TooltipContent>
+								</Tooltip>
+							)}
 							<Tooltip>
-								<WorkspaceAgentLaunchMenu
-									menu={agentMenu}
+								<WorkbenchSidebarDropdownMenu
+									onOpenChange={(open) => {
+										machineMenu?.opened(open);
+										if (!open) return;
+										refreshWorktrees(workspace.id);
+										agentMenu?.refresh();
+									}}
+									entries={menuEntries}
 									trigger={
 										<TooltipTrigger
 											render={
 												<button
-													aria-label={`${agentMenu.label}: ${name}`}
+													aria-label={`${messages.workspaceOptions}: ${name}`}
+													aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
 													className={styles['tool']}
+													data-navigation-menu-trigger='true'
 													data-navigation-reorder-excluded='true'
-													data-workspace-agent-launch=''
 													tabIndex={-1}
 													type='button'
 												/>
 											}
 										/>
 									}
-									triggerContent={<ProductIcon name='add' />}
-									workspace={startTarget}
+									triggerContent={<ProductIcon name='ellipsis' />}
 								/>
-								<TooltipContent side='bottom'>{agentMenu.label}</TooltipContent>
+								<TooltipContent side='bottom'>{messages.workspaceOptions}</TooltipContent>
 							</Tooltip>
-						)}
-						<Tooltip>
-							<WorkbenchSidebarDropdownMenu
-								onOpenChange={(open) => {
-									machineMenu?.opened(open);
-									if (!open) return;
-									refreshWorktrees(workspace.id);
-									agentMenu?.refresh();
-								}}
-								entries={menuEntries}
-								trigger={
-									<TooltipTrigger
-										render={
-											<button
-												aria-label={`${messages.workspaceOptions}: ${name}`}
-												aria-keyshortcuts={navigationMenuAriaKeyShortcuts}
-												className={styles['tool']}
-												data-navigation-menu-trigger='true'
-												data-navigation-reorder-excluded='true'
-												tabIndex={-1}
-												type='button'
-											/>
-										}
-									/>
-								}
-								triggerContent={<ProductIcon name='ellipsis' />}
-							/>
-							<TooltipContent side='bottom'>{messages.workspaceOptions}</TooltipContent>
-						</Tooltip>
-						<Tooltip>
-							<TooltipTrigger
-								render={
-									<button
-										aria-label={`${messages.workspaceMenuClose}: ${name}`}
-										className={styles['tool']}
-										data-danger=''
-										data-navigation-reorder-excluded='true'
-										tabIndex={-1}
-										type='button'
-										onClick={() => deleteWorkspace(workspace.id)}
-									/>
-								}
-							>
-								<ProductIcon name='close' />
-							</TooltipTrigger>
-							<TooltipContent side='bottom'>{messages.closeWorkspace}</TooltipContent>
-						</Tooltip>
-					</span>
-				</ContextMenuTrigger>
-				<WorkbenchActionContextMenuContent
-					entries={menuEntries}
-					finalFocus={(closeType) => menuFocus.finalFocus(workspace.id, closeType)}
-				/>
-			</ContextMenu>
+							<Tooltip>
+								<TooltipTrigger
+									render={
+										<button
+											aria-label={`${messages.workspaceMenuClose}: ${name}`}
+											className={styles['tool']}
+											data-danger=''
+											data-navigation-reorder-excluded='true'
+											tabIndex={-1}
+											type='button'
+											onClick={() => deleteWorkspace(workspace.id)}
+										/>
+									}
+								>
+									<ProductIcon name='close' />
+								</TooltipTrigger>
+								<TooltipContent side='bottom'>{messages.closeWorkspace}</TooltipContent>
+							</Tooltip>
+						</span>
+					</ContextMenuTrigger>
+					<WorkbenchActionContextMenuContent
+						entries={menuEntries}
+						finalFocus={(closeType) => menuFocus.finalFocus(workspace.id, closeType)}
+					/>
+				</ContextMenu>
+			</div>
 			{/* A held Workspace moves as its row alone; its Agent rows return where it lands. */}
-			{agentOverview !== undefined && expanded && !dragging && (
+			{agentsShown && (
 				<WorkspaceAgentList
 					navigateAgent={(presentationId) =>
 						navigateAgent({ presentationId, workspaceId: workspace.id })
 					}
 					overview={agentOverview}
+					acknowledgeAgentCompletion={acknowledgeAgentCompletion}
 					chooseAgentConfirmation={chooseAgentConfirmation}
 					closeAgentPanel={closeAgentPanel}
 					messages={messages}

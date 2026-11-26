@@ -166,6 +166,12 @@ keyboard move; it never moves keyboard focus or leaves sidebar navigation. Keybo
 focus loss, a modal overlay, the open picker, and a frame that paints another extent
 or no scrollbar each end the drag.
 
+While the window opens inside a Workspace's Agent rows, that Workspace's row stays at the top of the
+list, as the GUI's sticky heading does, so the list always names whose Agents it shows. It takes its
+own lines out of the window rather than covering an Agent, so a current Agent the window follows
+never sits beneath it, and it acts as the Workspace's row does. A list too low to keep more than
+half its lines for the window pins nothing.
+
 The tree shape comes from shared columns. Project, Recents and Workspace rows keep a one-cell
 navigation marker at the list's left edge, followed at the next column by their identity: headings
 use a regular-weight muted label and Workspaces a primary-text name. Workspace rows have no
@@ -451,19 +457,22 @@ lists the complete physical Agent checkpoint, so waiting evidence stays visible 
 Agent filters. Current-Workspace styling remains on the Context and never moves to a folded group
 heading; the active terminal does not change.
 
-Workspace rows carry no state or identity glyph. Their Agents' states appear on the Agent rows, or
-on the status line while folded.
+Workspace rows carry no state glyph. Their Agents' states appear on the Agent rows, or on the status
+line while folded. A Workspace without Agents, which has no disclosure, marks that track with `▫`,
+or `▪` while it is current (`o` and `@` in ASCII), as the GUI gives every Workspace its folder.
 
 Agent, Workspace status-line and Tab state glyphs keep completed turns green after focus or reading; only the
 independent unread marker clears. Accepted terminal text, paste, deletion, completion or line-editing
 input changes the exact observed completion to a Client-local idle presentation. Focus, hover,
 scrolling, cursor movement, copy and rejected input do not. The observation, outcome and notification
 inputs remain canonical; a newer state or terminal incarnation cannot inherit the edited version.
+A double-click on a Done Agent's sidebar row, two clicks on it within 350 ms, also asks this
+computer's Session to acknowledge that exact terminal binding, as the GUI's double-click does; the
+row still opens the Agent, and a Session without that capability is left to typed input.
 Sidebar, Tab and pane-title state glyphs are hexagons echoing the honeycomb mark: color names the
-state and fill names selection. The current Agent's row and status-line glyph, the active Tab's
-glyph, the narrow bar's current Tab included, and the focused pane's title glyph are the filled `⬢`
-(U+2B22); every other glyph is the hollow `⬡` (U+2B21), including those in legend tooltips, which
-name states rather than Agents. A `+N` roster draws its current Agent solid. Working breathes from
+state and the shape says whether the Agent is at rest, as the GUI's glyph does, wherever the glyph
+stands. Idle is the hollow `⬡` (U+2B21) and every other known state the filled `⬢` (U+2B22);
+selection rests on the row's fill, the guide and the title. Working breathes from
 white to gray over two seconds on the shared 100 ms clock; terminal-native Working uses the host
 foreground and adopts the current Tab's paired foreground. Idle is gray; attention, done and
 error use the fixed traffic-light `agent-attention`, `agent-done` and `agent-error` roles, one value
@@ -471,14 +480,13 @@ per polarity in every theme and host (`#FEBC2E`, `#28C840` and `#FF5F57` on a da
 an unknown one, `#AD6F00`, `#009100` and `#E1423E` on a light one), which 16-color hosts show as Yellow,
 Green and Red; their state words keep the status text roles. Opening, from the moment an Agent process is
 seen until its screen is first recognised, draws exactly the Working glyph and breathing; only its
-state word, Starting, differs. Unknown uses secondary-gray `•`, or `◦` (U+25E6) where a hexagon
-would be hollow; the default Workspace identity uses `•`. Attention alternates full and half
+state word, Starting, differs. Unknown uses secondary-gray `•`; the default Workspace identity uses
+`•`. Attention alternates full and half
 intensity every 500 ms. The Picker owns the phase and only advances while observed Agents need
-animation. Rendering stays pure. Without color the fill cannot carry selection, because the shape
-alone tells states apart: no-color and Monochrome hosts draw `⬢` Working, `#` attention, `+` done,
-`x` error, `⬡` idle and `•` unknown whatever the selection, which then rests on the guide and the
-bold title, and keep distinguishable outcomes without color breathing. ASCII uses `-\|/` Working
-frames and `#`, `+`, `x`, `o`, `.`. The hexagons and `◦` are East Asian Neutral, so they measure
+animation. Rendering stays pure. Without color the shape alone tells states apart: no-color and
+Monochrome hosts draw `⬢` Working, `#` attention, `+` done, `x` error, `⬡` idle and `•` unknown,
+and keep distinguishable outcomes without color breathing. ASCII uses `-\|/` Working
+frames and `#`, `+`, `x`, `o`, `.`. The hexagons are East Asian Neutral, so they measure
 one cell even on hosts that widen ambiguous-width text, as circles such as `●` are not. The shared palette is owned by
 [`@orchbee/design-tokens`](../../../packages/design-tokens/README.md): Working is neutral, idle
 retains its GrokNight color, and the TUI's attention, done and error glyphs, like the Web and

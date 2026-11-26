@@ -389,9 +389,11 @@ fn default_agent_rows_prioritize_task_identity_without_repeating_parent_context(
                 })
                 .unwrap();
             assert!(rows[y as usize].contains("Input"), "{rows:?}");
-            assert!(rows[y as usize].contains(
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
-            ));
+            assert!(
+                rows[y as usize].contains(
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                )
+            );
             assert!(!rows.join("\n").contains("Local /"));
             assert!(!rows.join("\n").contains("本地 /"));
             assert!(!rows.join("\n").contains("space /"));
@@ -692,10 +694,9 @@ fn sidebar_renders_complete_rows_at_all_tiers_locales_and_themes() {
                 if visible {
                     assert!(joined.contains(locale.settings_title()), "{rows:?}");
                     assert!(
-                        joined.contains(theme.agent_glyph(
-                            orchbee_workbench_protocol::MetadataState::Working,
-                            false
-                        )),
+                        joined.contains(
+                            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                        ),
                         "{width}x{height} {rows:?}"
                     );
                     let mut inspected = Vec::new();
@@ -1018,6 +1019,49 @@ fn compact_overlay_sidebar_rows_and_fixed_actions_paint_the_hover_band_under_the
     }
 }
 
+/// While the list opens inside a Workspace's Agent rows, the Workspace's row stays pinned above
+/// them, so the list always names whose Agents it shows; the Agents continue beneath it and the
+/// Workspace never shows twice.
+#[test]
+fn a_scrolled_agent_list_keeps_its_workspace_row_pinned_above_it() {
+    let mut view = view(120, 16, 30);
+    let theme = Theme::terminal_native();
+    let list_rows = |hits: &crate::tui_hit_map::FrameHitMap| {
+        (0..16)
+            .filter_map(|y| match hits.hit_target_at(2, y) {
+                Some(HitTarget::MachineWorkspaceRow { window, .. }) => Some((y, true, *window)),
+                Some(HitTarget::MachineAgentRow { window, .. }) => Some((y, false, *window)),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    };
+    let (_, hits) = paint(&view, Locale::EnUs, &theme, 120, 16);
+    let (_, _, window) = list_rows(&hits)[0];
+    assert!(
+        window.end() < window.total,
+        "the list overflows: {window:?}"
+    );
+    // Rows: the Recents heading, the Workspace, then its Agents.
+    for (top, pinned) in [(1, false), (12, true)] {
+        assert!(view.machines.scroll_sidebar_to(window, top));
+        let (rows, hits) = paint(&view, Locale::EnUs, &theme, 120, 16);
+        let painted = list_rows(&hits);
+        let (first, workspace, window) = painted[0];
+        assert!(workspace, "{rows:?}");
+        assert!(rows[usize::from(first)].contains("Workspace"), "{rows:?}");
+        assert_eq!(
+            rows.iter().filter(|row| row.contains("Workspace")).count(),
+            1,
+            "{rows:?}"
+        );
+        assert!(
+            painted[1..].iter().all(|(_, workspace, _)| !workspace),
+            "{rows:?}"
+        );
+        assert_eq!(window.top, if pinned { top } else { 1 }, "{rows:?}");
+    }
+}
+
 fn row_text(buffer: &ratatui::buffer::Buffer, y: u16) -> String {
     (0..buffer.area.width)
         .map(|x| buffer[(x, y)].symbol())
@@ -1060,8 +1104,8 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
                 )
             })
             .unwrap();
-        // The current Agent takes no current fill, which would join the current Workspace's into
-        // one block; its title is bold instead.
+        // The current Agent takes the current fill, which its Workspace right above leaves to it;
+        // its title is bold too.
         for x in (0..120).filter(|x| {
             matches!(
                 hits.hit_target_at(*x, y),
@@ -1071,12 +1115,7 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             let cell = &terminal.backend().buffer()[(x, y)];
             assert_eq!(
                 cell.bg,
-                theme.color(Role::SurfaceChrome),
-                "{} x={x}",
-                theme.name
-            );
-            assert!(
-                !cell.modifier.contains(Modifier::UNDERLINED),
+                theme.color(Role::SurfaceCurrent),
                 "{} x={x}",
                 theme.name
             );
@@ -1109,9 +1148,8 @@ fn sidebar_current_and_pending_rows_use_theme_roles_and_source_failure_stays_exp
             .unwrap();
         let (rows, _) = paint(&view, Locale::EnUs, &theme, 120, 40);
         assert!(
-            rows[y as usize].contains(
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, true)
-            ),
+            rows[y as usize]
+                .contains(theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)),
             "{:?}",
             rows[y as usize]
         );

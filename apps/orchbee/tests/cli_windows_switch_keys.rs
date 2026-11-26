@@ -62,8 +62,8 @@ fn close_after_a_second_click_never_closes_the_earlier_destination() {
             until(|| !refused(&fixture.screen(&tui.terminal))),
             "an earlier refusal stayed on screen"
         );
-        let source_row = sidebar_row(&fixture, &tui, "source");
-        let clicked_row = sidebar_row(&fixture, &tui, "noise");
+        let source_row = fixture.sidebar_row(&tui, "source");
+        let clicked_row = fixture.sidebar_row(&tui, "noise");
         click(&mut control, source_row);
         thread::sleep(gap);
         click(&mut control, clicked_row);
@@ -179,22 +179,6 @@ fn listed(fixture: &Fixture, workspace: &Value) -> bool {
 
 fn selection(fixture: &Fixture, tui: &Tui) -> Value {
     fixture.client(&tui.client)["view"]["selection"]["terminalContextId"].clone()
-}
-
-/// The one-based screen row of `label` in the sidebar, which may show a hovered row's affordance
-/// after the label.
-fn sidebar_row(fixture: &Fixture, tui: &Tui, label: &str) -> usize {
-    let screen = fixture.screen(&tui.terminal);
-    screen
-        .lines()
-        .position(|line| {
-            line.split('│')
-                .next()
-                .and_then(|cell| cell.trim().strip_prefix(label))
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-        })
-        .map(|index| index + 1)
-        .unwrap_or_else(|| panic!("no sidebar row for {label}:\n{screen}"))
 }
 
 /// Polls `observed` until it holds or the landing bound passes.

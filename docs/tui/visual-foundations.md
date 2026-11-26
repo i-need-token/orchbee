@@ -59,9 +59,10 @@ change values.
 Theme rules:
 
 - `frame-guide` is quieter than a region divider. `surface-related` identifies an ancestor of the
-  provisionally selected item with a weaker fill than that item's own surface; a current ancestor
-  keeps `surface-current`, and its current descendant listed directly beneath it takes no second
-  fill, which would join the two into one block, but a stable marker and `BOLD` identity. It never
+  provisionally selected item with a weaker fill than that item's own surface. The current item
+  takes `surface-current`; an ancestor listed directly above its current descendant leaves that fill
+  to the descendant, since a second fill would join the two into one block, and keeps its name in
+  primary text. It never
   transfers focus or selection; direct interaction on that ancestor takes precedence. Unknown-host
   and reduced-color themes may use the base background, retaining hierarchy and independent markers.
 - Every native Client ships a `terminal-native` theme, shown to people as the terminal's own
@@ -264,9 +265,11 @@ combinations and control behavior.
   so a collapsed disclosure never reads as the `+` or `-` of an ASCII status glyph.
 - A checked option, such as a group's applied color in its menu, shows `✓` in its checked track,
   with `*` as its ASCII fallback.
+- A sidebar Workspace without Agents marks its disclosure track with `▫`, and with `▪` while it is
+  current, with `o` and `@` as ASCII fallbacks; a Workspace with Agents shows its disclosure there.
 - One glyph has one meaning across the Client. Document glyph meanings with the owning surface.
   ASCII fallbacks may share a character only when their tracks never coincide: the collapsed
-  disclosure `>` follows a heading's label or leads a Workspace's name in its Agents' state column,
+  disclosure `>` follows a heading's label or stands over a Workspace's Agent guide,
   while the navigation `>` occupies its own navigation track.
 
 ## Display width and text safety

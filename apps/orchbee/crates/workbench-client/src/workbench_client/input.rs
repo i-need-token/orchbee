@@ -369,6 +369,16 @@ pub trait TerminalInputPort {
         None
     }
 
+    /// Tells the Session the person saw this finished Agent, as typing into its terminal does;
+    /// reports whether the request went out. The default sends nothing.
+    fn acknowledge_agent_completion(
+        &mut self,
+        _presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        _terminal: &orchbee_workbench_protocol::PresentationBinding,
+    ) -> bool {
+        false
+    }
+
     /// Validate a completed tab-create click; the ordinary action path owns its effects.
     fn tab_create_action(
         &mut self,

@@ -1005,22 +1005,29 @@ impl Picker {
         }
     }
 
-    /// The name an Agent row shows, which the Agent's row menu is titled with.
-    pub(crate) fn sidebar_agent_title(&self, target: &SidebarTarget) -> Option<String> {
+    /// The Agent a sidebar Agent row shows, and the machine it runs on, while the row is listed.
+    pub(crate) fn sidebar_agent(
+        &self,
+        target: &SidebarTarget,
+    ) -> Option<(&Choice, &crate::machine_agents::checkpoint::Row)> {
         let SidebarTarget::Agent { machine, target } = target else {
             return None;
         };
         self.agent_rows
             .iter()
-            .find(|row| {
-                row.enabled
-                    && &row.choice == machine
-                    && row
-                        .agent
-                        .as_ref()
-                        .is_some_and(|agent| &agent.target == target.as_ref())
+            .filter(|row| row.enabled && &row.choice == machine)
+            .find_map(|row| {
+                row.agent
+                    .as_ref()
+                    .filter(|agent| &agent.target == target.as_ref())
+                    .map(|agent| (&row.choice, agent))
             })
-            .and_then(|row| row.agent.as_ref())
+    }
+
+    /// The name an Agent row shows, which the Agent's row menu is titled with.
+    pub(crate) fn sidebar_agent_title(&self, target: &SidebarTarget) -> Option<String> {
+        self.sidebar_agent(target)
+            .map(|(_, agent)| agent)
             .map(|agent| {
                 agent
                     .identity_title()

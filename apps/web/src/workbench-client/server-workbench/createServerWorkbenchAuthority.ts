@@ -49,6 +49,8 @@ export interface ServerLaunchProfileSource {
 }
 
 interface ServerWorkbenchAuthorityOptions {
+	/** Absent where the Session takes no completion acknowledgement besides typed input. */
+	readonly acknowledgeAgentCompletion?: WorkbenchAuthority['acknowledgeAgentCompletion'];
 	/** The Session's Agent catalog, which Start Agent reads over this window's connection. */
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where the Session does not answer Agent confirmations. */
@@ -255,6 +257,7 @@ function launchPlan(
  * a ratio goes again, when a commit elsewhere moved the revision and left the split as it was.
  */
 export function createServerWorkbenchAuthority({
+	acknowledgeAgentCompletion,
 	agentCatalog,
 	agentConfirmations,
 	configuredCommands,
@@ -267,6 +270,7 @@ export function createServerWorkbenchAuthority({
 }: ServerWorkbenchAuthorityOptions): WorkbenchAuthority {
 	return {
 		...createServerWorkbenchClose(session, leave),
+		...(acknowledgeAgentCompletion === undefined ? {} : { acknowledgeAgentCompletion }),
 		...(agentCatalog === undefined ? {} : { agentCatalog }),
 		...(agentConfirmations === undefined ? {} : { agentConfirmations }),
 		...(configuredCommands === undefined ? {} : { configuredCommands }),

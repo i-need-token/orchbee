@@ -132,7 +132,8 @@ impl WorkbenchService {
                 orchbee_workbench_protocol::PanelAgentAction::Report { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ReportPresentation { .. }
                 | orchbee_workbench_protocol::PanelAgentAction::ConfirmationChoose { .. }
-                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. } => self.policy.manage_navigation,
+                | orchbee_workbench_protocol::PanelAgentAction::ConfirmationDecline { .. }
+                | orchbee_workbench_protocol::PanelAgentAction::CompletionAcknowledge { .. } => self.policy.manage_navigation,
             },
             WorkbenchRequest::WorkspaceGit(_) | WorkbenchRequest::CurrentDirectory(_) | WorkbenchRequest::AgentCatalog(_) | WorkbenchRequest::TerminalRuntime(_) | WorkbenchRequest::WorkspaceIdle(_) => self.policy.read,
             WorkbenchRequest::WorkspaceMetadata(request) => match request.action {

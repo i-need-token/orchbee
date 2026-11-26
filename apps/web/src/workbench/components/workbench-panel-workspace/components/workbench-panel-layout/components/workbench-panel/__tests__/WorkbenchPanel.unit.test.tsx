@@ -258,7 +258,7 @@ describe('WorkbenchPanel', () => {
 
 	it('leads a split Panel title with its Agent state glyph, and shows none without an Agent', () => {
 		const doneStatus: WorkbenchAgentStatusView = {
-			figure: 'hexagon',
+			shape: 'hex',
 			status: 'Done',
 			tone: 'success',
 		};

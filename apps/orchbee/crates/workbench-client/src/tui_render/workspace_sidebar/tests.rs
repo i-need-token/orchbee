@@ -10,6 +10,19 @@ mod creation;
 mod directory_change;
 mod overflow;
 mod states;
+
+/// A painted row's text past the mark, in either glyph set, that leads every Workspace without
+/// Agents.
+fn past_workspace_mark(row: &str) -> &str {
+    use crate::tui_theme::GlyphSet;
+    let row = row.trim_start();
+    [GlyphSet::UTF8, GlyphSet::ASCII]
+        .iter()
+        .flat_map(|glyphs| [glyphs.workspace_mark, glyphs.workspace_mark_current])
+        .find_map(|mark| row.strip_prefix(mark)?.strip_prefix(' '))
+        .unwrap_or(row)
+        .trim_start()
+}
 fn id(n: u64) -> String {
     format!("{n:032x}")
 }
@@ -326,7 +339,7 @@ fn composed_sidebar_has_no_outer_left_padding_and_keeps_nested_rows_and_hits_ali
                 );
                 assert_eq!(
                     buffer[(agent_tracks.state.x, agent_y)].symbol(),
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working, false)
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
                 );
                 // The navigated Agent's surface opens with one blank cell before its state.
                 let padding = agent_tracks.state.x - 1;
@@ -405,7 +418,7 @@ fn workspace_rows_render_real_branch_divergence_and_custom_names_with_exact_hits
                 let exact = sidebar_target_rows(&hits, 30, 40, target);
                 assert_eq!(exact.len(), 3, "{target:?}: {text}");
                 assert!(
-                    rows[usize::from(exact[0])].trim_start().starts_with("same"),
+                    past_workspace_mark(&rows[usize::from(exact[0])]).starts_with("same"),
                     "a configured state icon paints nothing before a Workspace name: {text}"
                 );
                 assert!(exact.windows(2).all(|pair| pair[1] == pair[0] + 1));
@@ -1098,7 +1111,7 @@ fn cut_names_give_their_whole_text_only_when_cut_and_each_cut_line_its_own() {
         // The Workspace's first line gives its name and its second line the branch it cuts.
         let y = painted
             .iter()
-            .position(|row| row.trim_start().starts_with("Checkout"))
+            .position(|row| past_workspace_mark(row).starts_with("Checkout"))
             .unwrap() as u16;
         let read = |y| match hits.tooltip_content_at(4, y) {
             Some(TooltipContent::Describe {
@@ -1808,7 +1821,10 @@ fn duplicate_project_and_workspace_labels_paint_alone_and_stay_separate_rows_whe
                 })
                 .collect();
             assert_eq!(painted.len(), 1, "{painted:?}");
-            assert!(painted[0].trim_start().starts_with("same"), "{painted:?}");
+            assert!(
+                past_workspace_mark(&painted[0]).starts_with("same"),
+                "{painted:?}"
+            );
             assert!(!painted[0].contains('['), "{painted:?}");
         }
         assert!((0..30).any(|y| matches!(
@@ -1927,7 +1943,7 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
             if target == &agent {
                 assert_eq!(
                     candidate[(tracks.state.x, y)].symbol(),
-                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, true)
+                    theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done)
                 );
             }
             // An expanded Workspace leaves the unread cue to its visible Agent row.
@@ -1948,15 +1964,15 @@ fn colored_current_context_and_agent_keep_plain_identity_state_and_unread_cues_i
                 candidate[(identity_x, y)].modifier.contains(Modifier::BOLD),
                 target == &agent
             );
-            // Only the Workspace takes the current fill; the Agent row beneath it stays on chrome,
-            // so the two never join into one block.
+            // The current Agent takes the current fill and its Workspace right above leaves it, so
+            // the two never join into one block.
             for x in 0..120 {
                 assert_eq!(
                     candidate[(x, y)].bg,
                     theme.color(if target == &context {
-                        Role::SurfaceCurrent
-                    } else {
                         Role::SurfaceChrome
+                    } else {
+                        Role::SurfaceCurrent
                     })
                 );
                 assert!(hit_belongs_to_sidebar_target(
@@ -2022,7 +2038,7 @@ fn monochrome_current_workspace_underlines_without_bold_or_text_marker_beside_fo
         assert!((0..26).all(|x| buffer[(x, y)].symbol() != theme.glyphs.active_marker));
         assert_eq!(
             buffer[(tracks.primary.x, y + 1)].symbol(),
-            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, false)
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done)
         );
         assert_eq!(
             buffer[(tracks.unread.x, y)].symbol(),
@@ -2137,13 +2153,10 @@ fn alignment_sidebar_tree_keeps_current_focus_children_and_whole_shell_evidence(
         for y in 0..height {
             for x in 0..width {
                 if before[(x, y)] != after[(x, y)] {
-                    let working = [false, true].map(|selected| {
-                        theme.agent_glyph(
-                            orchbee_workbench_protocol::MetadataState::Working,
-                            selected,
-                        )
-                    });
-                    assert!(working.contains(&before[(x, y)].symbol()));
+                    assert_eq!(
+                        before[(x, y)].symbol(),
+                        theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Working)
+                    );
                     assert_eq!(after[(x, y)].symbol(), before[(x, y)].symbol());
                     assert_ne!(before[(x, y)].style(), after[(x, y)].style());
                     changed += 1;

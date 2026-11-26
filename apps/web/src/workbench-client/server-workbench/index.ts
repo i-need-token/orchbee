@@ -12,6 +12,7 @@ export type {
 	ServerConfiguredCommandSource,
 } from './ServerConfiguredCommands';
 export { ServerAgentCatalog } from './ServerAgentCatalog';
+export { acknowledgeServerAgentCompletion } from './acknowledgeServerAgentCompletion';
 export { ServerAgentConfirmations } from './ServerAgentConfirmations';
 export { ServerAgentNameSource } from './ServerAgentNameSource';
 export { ServerTerminalAgentSource } from './ServerTerminalAgentSource';

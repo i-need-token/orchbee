@@ -1255,6 +1255,15 @@ impl TerminalInputPort for WorkbenchClient {
     ) -> Option<ClientAction> {
         self.backend.native_mut()?.tab_create_action(target)
     }
+    fn acknowledge_agent_completion(
+        &mut self,
+        presentation: &orchbee_workbench_protocol::TerminalPresentationId,
+        terminal: &orchbee_workbench_protocol::PresentationBinding,
+    ) -> bool {
+        self.backend
+            .native_mut()
+            .is_some_and(|native| native.acknowledge_agent_completion(presentation, terminal))
+    }
     fn observe_sidebar_git(
         &mut self,
         directory: Option<orchbee_workbench_protocol::WorkbenchDirectoryPath>,

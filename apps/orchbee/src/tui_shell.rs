@@ -339,23 +339,34 @@ fn run_prepared_surface(
         // A connected Client may paint one provisional local projection while the configuration
         // watcher obtains the Server's authoritative baseline. A later local fatal error cannot
         // invalidate an already admitted Session; Workbench startup still fails on that boundary.
-        let host_colors = ["NO_COLOR", "FORCE_COLOR", "COLORTERM", "TERM", "WT_SESSION"]
-            .map(|name| std::env::var(name).ok());
-        initial_view.configure_no_color(
-            host_colors[0]
-                .as_ref()
-                .is_some_and(|value| !value.is_empty()),
-        );
-        let multiplexed = ["TMUX", "ZELLIJ", "STY"]
-            .iter()
-            .any(|name| std::env::var_os(name).is_some());
+        let [
+            no_color,
+            force_color,
+            color_term,
+            term,
+            term_program,
+            term_program_version,
+        ] = [
+            "NO_COLOR",
+            "FORCE_COLOR",
+            "COLORTERM",
+            "TERM",
+            "TERM_PROGRAM",
+            "TERM_PROGRAM_VERSION",
+        ]
+        .map(|name| std::env::var(name).ok());
+        initial_view.configure_no_color(no_color.as_ref().is_some_and(|value| !value.is_empty()));
         initial_view.configure_color_level(crate::tui_theme::resolve_color_level(
-            host_colors[0].as_deref(),
-            host_colors[1].as_deref(),
-            host_colors[2].as_deref(),
-            host_colors[3].as_deref(),
-            host_colors[4].as_deref(),
-            multiplexed,
+            crate::tui_theme::HostColorEnvironment {
+                no_color: no_color.as_deref(),
+                force_color: force_color.as_deref(),
+                color_term: color_term.as_deref(),
+                term: term.as_deref(),
+                term_program: term_program.as_deref(),
+                term_program_version: term_program_version.as_deref(),
+                screen_session: std::env::var_os("STY").is_some(),
+                tmux_session: std::env::var_os("TMUX").is_some(),
+            },
         ));
     }
     {

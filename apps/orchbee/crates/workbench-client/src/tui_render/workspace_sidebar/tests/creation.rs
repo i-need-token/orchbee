@@ -50,7 +50,11 @@ fn creation_preview_keeps_current_fill_and_shows_only_its_name() {
                     assert_eq!(buffer[(63, 1)].bg, theme.color(surface));
                     // Neither a pending glyph nor progress copy: the row shows its name alone.
                     let row: String = (0..64).map(|x| buffer[(x, 1)].symbol()).collect();
-                    assert_eq!(row.trim(), "Preview", "{locale:?} {phase:?}");
+                    assert_eq!(
+                        past_workspace_mark(row.trim_end()),
+                        "Preview",
+                        "{locale:?} {phase:?}"
+                    );
                 }
             }
         }
@@ -176,40 +180,12 @@ fn assert_creation_member_surface(
 ) -> Vec<u16> {
     let ys = sidebar_target_rows(hits, buffer.area.width, buffer.area.height, target);
     assert!(!ys.is_empty(), "missing creation member {target:?}");
-    // Only a Workspace takes the current fill; a current Agent row stays on chrome.
-    let surface = match (target, surface) {
-        (SidebarTarget::Agent { .. }, Role::SurfaceCurrent) => Role::SurfaceChrome,
-        _ => surface,
-    };
-    // An Agent surface includes leading padding; the guide and its gap stay on chrome.
-    let first = match target {
-        SidebarTarget::Agent { .. } => {
-            layout::Tracks::resolve(
-                Rect::new(0, 0, buffer.area.width, 1),
-                0,
-                layout::AuxiliaryActions::default(),
-                layout::RowKind::Agent,
-            )
-            .unwrap()
-            .surface()
-            .x
-        }
-        _ => 0,
-    };
     for y in &ys {
         for x in 0..buffer.area.width {
-            if x == 0 && first > 0 {
-                continue;
-            }
-            let expected = if x < first {
-                Role::SurfaceChrome
-            } else {
-                surface
-            };
             assert_eq!(
                 buffer[(x, *y)].bg,
-                theme.color(expected),
-                "{target:?}: {expected:?} at {x},{y}"
+                theme.color(surface),
+                "{target:?}: {surface:?} at {x},{y}"
             );
         }
     }
@@ -261,10 +237,11 @@ fn foreground_creation_yields_to_the_admitted_member_after_commit() {
                     &hits,
                     &workspace,
                     &theme,
-                    if pending_current && provisional {
-                        Role::SurfaceChrome
-                    } else {
+                    // The Workspace leaves the current fill to its current Agent beneath it.
+                    if pending_current && !provisional {
                         Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
                     },
                 );
                 assert_creation_member_surface(&buffer, &hits, &alpha, &theme, Role::SurfaceChrome);
@@ -348,7 +325,7 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                         &hits,
                         row,
                         &theme,
-                        if row == current || row == &workspace && current != &other {
+                        if row == current {
                             Role::SurfaceCurrent
                         } else {
                             Role::SurfaceChrome
@@ -380,7 +357,11 @@ fn retained_committed_preview_follows_member_switches_and_collapsed_ancestors() 
                     &hits,
                     &workspace,
                     &theme,
-                    Role::SurfaceCurrent,
+                    if collapsed {
+                        Role::SurfaceCurrent
+                    } else {
+                        Role::SurfaceChrome
+                    },
                 );
                 if collapsed {
                     assert!(sidebar_target_rows(&hits, 64, 20, &alpha).is_empty());
@@ -820,7 +801,7 @@ fn canonical_handoff_then_higher_revision_removal_clears_the_row_and_never_fills
                         .map(|x| buffer[(x, *y)].symbol())
                         .collect();
                     assert!(
-                        label.trim_start().starts_with("created workspace"),
+                        past_workspace_mark(&label).starts_with("created workspace"),
                         "present {present}: {label}"
                     );
                 }

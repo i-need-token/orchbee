@@ -61,6 +61,7 @@ import {
 	serverHostColors,
 	serverTerminalBindingKey,
 	settledServerTerminalLifecycle,
+	acknowledgeServerAgentCompletion,
 	ServerAgentConfirmations,
 	ServerAgentNameSource,
 	ServerAgentCatalog,
@@ -147,6 +148,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 		| TerminalPresentationConfigurationSource
 		| undefined;
 	/**
+	 * Whether the Session's Server takes a completion acknowledgement besides typed input, as its
+	 * handshake answer lists `agent-completion-acknowledge`.
+	 */
+	readonly agentCompletionAcknowledgement?: boolean | undefined;
+	/**
 	 * Whether the Session's Server answers Agent confirmations, as its handshake answer lists
 	 * `agent-confirmation`. Without it, the window neither reads nor changes them.
 	 */
@@ -168,6 +174,7 @@ export interface CreateServerWorkbenchRuntimeOptions {
  * lifetime, so no local Presentation identity is ever consumed and first entry creates nothing.
  */
 export function createServerWorkbenchRuntime({
+	agentCompletionAcknowledgement = false,
 	agentConfirmations = false,
 	applicationLocaleSource,
 	connection,
@@ -320,6 +327,9 @@ export function createServerWorkbenchRuntime({
 		? new ServerAgentConfirmations(connection, session)
 		: undefined;
 	const authority = createServerWorkbenchAuthority({
+		acknowledgeAgentCompletion: agentCompletionAcknowledgement
+			? (presentationId) => acknowledgeServerAgentCompletion(session, presentationId)
+			: undefined,
 		agentCatalog,
 		agentConfirmations: confirmations,
 		configuredCommands: configuredCommands.commands,

@@ -271,6 +271,48 @@ fn invoke(a: &mut WorkbenchAuthority, action: Action, facts: &[TerminalAgentBind
     result.outcome
 }
 #[test]
+fn a_client_acknowledges_completion_only_for_the_terminal_it_expects() {
+    let mut a = owner();
+    let facts = [physical(1, 1)];
+    invoke(&mut a, state("custom", "1"), &facts);
+    invoke(
+        &mut a,
+        report(
+            json!({"kind":"state","source":"custom","agent":"Team Agent",
+        "state":"idle","message":null,"sequence":"2"}),
+        ),
+        &facts,
+    );
+    let presentation =
+        orchbee_workbench_protocol::TerminalPresentationId::parse(&format!("{:032x}", 4)).unwrap();
+    let acknowledge = |expected_binding| Action::CompletionAcknowledge {
+        presentation_id: presentation.clone(),
+        expected_binding,
+    };
+    assert!(matches!(
+        invoke(&mut a, acknowledge(binding(2)), &facts),
+        Outcome::Failed {
+            reason: Failure::BindingChanged
+        }
+    ));
+    assert!(matches!(
+        invoke(&mut a, acknowledge(binding(1)), &facts),
+        Outcome::CompletionAcknowledged { changed: true, .. }
+    ));
+    let checkpoint = Action::States {
+        presentation_ids: vec![presentation.clone()],
+    };
+    let answer = serde_json::to_value(invoke(&mut a, checkpoint, &facts)).unwrap();
+    assert_eq!(
+        answer["presentations"][0]["snapshot"]["completion"],
+        "acknowledged"
+    );
+    assert!(matches!(
+        invoke(&mut a, acknowledge(binding(1)), &facts),
+        Outcome::CompletionAcknowledged { changed: false, .. }
+    ));
+}
+#[test]
 fn reports_read_clear_and_release_preserve_sequence_and_canonical_navigation() {
     let mut a = owner();
     let facts = [physical(1, 1)];

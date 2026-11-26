@@ -162,7 +162,7 @@ fn switches(fixture: &Fixture, tui: &Tui, workspaces: &[Workspace<'_>; 2]) -> Ve
         } else {
             workspaces[0]
         };
-        let row = sidebar_row(fixture, tui, target.label);
+        let row = fixture.sidebar_row(tui, target.label);
         click(fixture, tui, 3, row);
         if !until(|| selection(fixture, tui)["terminalContextId"] == target.context) {
             failures.push(format!("click {round} on {} did not switch", target.label));
@@ -178,7 +178,7 @@ fn chords(fixture: &Fixture, tui: &Tui) -> Vec<String> {
     let mut failures = Vec::new();
     for round in 0..CHORDS {
         // A click on the current Workspace's row, then the prefix, in one write.
-        let row = sidebar_row(fixture, tui, "alpha");
+        let row = fixture.sidebar_row(tui, "alpha");
         let click = format!("\x1b[<0;3;{row}M\x1b[<0;3;{row}m\x02");
         if let Some(failure) = chord(fixture, tui, |fixture, tui| write(fixture, tui, &click)) {
             failures.push(format!(
@@ -469,22 +469,6 @@ fn screen(fixture: &Fixture, tui: &Tui) -> Vec<String> {
         .lines()
         .map(str::to_owned)
         .collect()
-}
-
-/// The one-based screen row of `label` in the sidebar, which may show a hovered row's affordance
-/// after the label.
-fn sidebar_row(fixture: &Fixture, tui: &Tui, label: &str) -> usize {
-    let lines = screen(fixture, tui);
-    lines
-        .iter()
-        .position(|line| {
-            line.split('│')
-                .next()
-                .and_then(|cell| cell.trim().strip_prefix(label))
-                .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
-        })
-        .map(|index| index + 1)
-        .unwrap_or_else(|| panic!("no sidebar row for {label}:\n{}", lines.join("\n")))
 }
 
 /// The one-based column of the divider between the Tab's two Panels and the row of their top

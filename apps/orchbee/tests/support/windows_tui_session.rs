@@ -608,6 +608,16 @@ impl Fixture {
             .to_owned()
     }
 
+    /// The one-based screen row of `label` in `tui`'s sidebar.
+    pub fn sidebar_row(&self, tui: &Tui, label: &str) -> usize {
+        let screen = self.screen(&tui.terminal);
+        screen
+            .lines()
+            .position(|line| is_sidebar_row(line, label))
+            .map(|index| index + 1)
+            .unwrap_or_else(|| panic!("no sidebar row for {label}:\n{screen}"))
+    }
+
     /// Waits until the Client reports `phase` on consecutive reads: a mode holds it, not one
     /// transient step.
     pub fn settle(&self, client: &str, phase: &str) {
@@ -661,6 +671,24 @@ fn current_peer(built: &Path, name: &str) -> PathBuf {
         }
     }
     executable
+}
+
+/// The sidebar text of one screen line: the cells before the divider, without the mark or
+/// disclosure a Workspace row draws before its name.
+pub fn sidebar_label(line: &str) -> &str {
+    let cell = line.split('│').next().unwrap_or_default().trim();
+    ["▪ ", "▫ ", "▾ ", "▸ "]
+        .into_iter()
+        .find_map(|mark| cell.strip_prefix(mark))
+        .unwrap_or(cell)
+}
+
+/// Whether `line` is the sidebar row of `label`, which may show a hovered row's affordance after
+/// the label.
+pub fn is_sidebar_row(line: &str, label: &str) -> bool {
+    sidebar_label(line)
+        .strip_prefix(label)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
 }
 
 /// A program in the Windows system directory.

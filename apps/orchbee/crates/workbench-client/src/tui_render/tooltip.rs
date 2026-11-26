@@ -67,7 +67,7 @@ pub(super) fn legend(
     for state in states {
         if !seen.contains(&state) {
             seen.push(state);
-            items.push(agent_state(state, false, working_frame, locale, theme));
+            items.push(agent_state(state, working_frame, locale, theme));
         }
     }
     if unread {
@@ -101,18 +101,18 @@ pub(super) fn describe(
     (text.is_some() || !legend.is_empty()).then_some(TooltipContent::Describe { text, legend })
 }
 
-/// Hidden Agents, each its state glyph, solid for the current Agent, and word and then its
-/// identity, one per line in the order given; none when there are none.
+/// Hidden Agents, each its state glyph and word and then its identity, one per line in the order
+/// given; none when there are none.
 pub(super) fn roster(
-    agents: impl IntoIterator<Item = (MetadataState, bool, String)>,
+    agents: impl IntoIterator<Item = (MetadataState, String)>,
     working_frame: usize,
     locale: Locale,
     theme: &Theme,
 ) -> Option<TooltipContent> {
     let items: Vec<RosterItem> = agents
         .into_iter()
-        .map(|(state, current, identity)| RosterItem {
-            state: agent_state(state, current, working_frame, locale, theme),
+        .map(|(state, identity)| RosterItem {
+            state: agent_state(state, working_frame, locale, theme),
             identity,
         })
         .collect();
@@ -122,14 +122,12 @@ pub(super) fn roster(
 /// An Agent state glyph and its word, as the sidebar, the Tab strip and pane titles draw it.
 fn agent_state(
     state: MetadataState,
-    selected: bool,
     working_frame: usize,
     locale: Locale,
     theme: &Theme,
 ) -> LegendItem {
     state_item(
         state,
-        selected,
         locale
             .machine_picker_text(super::sidebar_text::state_role(state).0)
             .to_owned(),
@@ -141,13 +139,12 @@ fn agent_state(
 /// A state glyph in the role and style the Agent row draws it with, beside `label`.
 fn state_item(
     state: MetadataState,
-    selected: bool,
     label: String,
     working_frame: usize,
     theme: &Theme,
 ) -> LegendItem {
     LegendItem {
-        glyph: super::sidebar_text::state_glyph(state, selected, theme, working_frame).to_owned(),
+        glyph: super::sidebar_text::state_glyph(state, theme, working_frame).to_owned(),
         role: Theme::agent_role(state),
         style: theme.agent_style(state, working_frame),
         label,

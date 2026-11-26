@@ -10,7 +10,6 @@ use super::{
     Theme, display_width, sidebar_text, tooltip, truncate_display,
 };
 use crate::terminal_text::{line_display_width, sanitize_terminal_text};
-use crate::tui_theme::PREVIEW_STRENGTH;
 use crate::{
     client_view::ClientAction,
     localization::TooltipLabel,
@@ -44,6 +43,9 @@ pub(in crate::tui_render) struct ProjectedSidebarLines {
     names: Vec<(usize, TooltipText)>,
     /// The folder a Workspace's location names, which gives its full directory under the pointer.
     folder: Option<FolderPart>,
+    /// A quiet Workspace name's span on the first line and the primary style the pointer raises it
+    /// to.
+    raise_name: Option<(usize, Style)>,
 }
 
 /// Where a line names a folder, in cells from the line's start, and the directory it stands for.
@@ -73,6 +75,7 @@ impl ProjectedSidebarLines {
             trailing: Vec::new(),
             names: Vec::new(),
             folder: None,
+            raise_name: None,
         }
     }
 
@@ -134,6 +137,9 @@ struct LineShape {
     reserve: usize,
     /// A folded Workspace replaces its second line with its Agents' status line.
     folded: bool,
+    /// A Workspace that is neither current, nor above its current Agent, nor navigated names itself
+    /// in secondary text, as the GUI's does, until the pointer raises it.
+    quiet: bool,
 }
 
 struct Context<'a> {
@@ -195,12 +201,34 @@ impl<'a> Context<'a> {
     fn branch(&self) -> Option<&'a str> {
         self.git()?.branch.as_deref()
     }
+    /// Whether `value` only repeats the Workspace's name: the name itself, or the numbered name the
+    /// Server gives a second Workspace named after the same folder, as `Desktop (2)`.
+    fn repeats_name(&self, value: &str) -> bool {
+        let Some(name) = self.value(Kind::Workspace).map(str::trim) else {
+            return false;
+        };
+        let value = value.trim();
+        name == value
+            || name
+                .strip_prefix(value)
+                .and_then(|rest| rest.strip_prefix(" ("))
+                .and_then(|rest| rest.strip_suffix(')'))
+                .is_some_and(|ordinal| {
+                    !ordinal.is_empty() && ordinal.bytes().all(|byte| byte.is_ascii_digit())
+                })
+    }
     /// The branch a branch or location line shows: none when it repeats the Workspace's name, as a
     /// worktree named after its branch does, so the word appears once. A location line then gives
     /// the folder instead.
     fn distinct_branch(&self) -> Option<&'a str> {
-        let name = self.value(Kind::Workspace).map(str::trim);
-        self.branch().filter(|branch| Some(branch.trim()) != name)
+        self.branch().filter(|branch| !self.repeats_name(branch))
+    }
+    /// The folder a location line shows: none when it repeats the Workspace's name, as a Workspace
+    /// named after its folder does, so that line leaves the row.
+    fn distinct_folder(&self) -> Option<&str> {
+        self.folder
+            .as_deref()
+            .filter(|folder| !self.repeats_name(folder))
     }
     /// Branch text is a name, while a folder location is a path.
     fn shows_branch(&self, kind: Kind<'_>) -> bool {
@@ -238,7 +266,7 @@ impl<'a> Context<'a> {
                     .unwrap_or(self.no_workspace),
             ),
             Kind::Branch => self.distinct_branch(),
-            Kind::Location => self.distinct_branch().or(self.folder.as_deref()),
+            Kind::Location => self.distinct_branch().or(self.distinct_folder()),
             Kind::Custom(key) => self
                 .observed?
                 .tokens
@@ -349,6 +377,12 @@ fn lines(
     let mut slots = Vec::new();
     let mut names = Vec::new();
     let mut folder = None;
+    let mut raise_name = None;
+    let name_role = if shape.quiet {
+        Role::TextSecondary
+    } else {
+        Role::TextPrimary
+    };
     // The span of the identity line that holds the machine's name, painted in its color.
     let mut marker_spans = None;
     for tokens in view.machines.space_settings().rows() {
@@ -452,7 +486,11 @@ fn lines(
             if !spans.is_empty() {
                 spans.push(Span::styled(
                     format!(" {} ", theme.glyphs.middle_dot),
-                    text_style(Role::TextSecondary),
+                    text_style(if lines.is_empty() {
+                        Role::TextSecondary
+                    } else {
+                        Role::TextMuted
+                    }),
                 ));
             }
             if kind == Kind::Location
@@ -468,12 +506,20 @@ fn lines(
                     directory,
                 ));
             }
+            // A location or branch, and every later line, are quiet supporting text under the name.
             let role = match kind {
                 Kind::StateIcon | Kind::StateText => context.role,
-                Kind::Branch | Kind::Location => Role::TextSecondary,
-                _ if !lines.is_empty() => Role::TextSecondary,
+                Kind::Branch | Kind::Location => Role::TextMuted,
+                _ if !lines.is_empty() => Role::TextMuted,
+                Kind::Workspace => name_role,
                 _ => Role::TextPrimary,
             };
+            if kind == Kind::Workspace && lines.is_empty() && shape.quiet {
+                raise_name = Some((
+                    spans.len(),
+                    theme.workspace_token_style(Role::TextPrimary, style, false, false),
+                ));
+            }
             spans.push(Span::styled(
                 text,
                 theme.workspace_token_style(role, style, false, false),
@@ -483,7 +529,7 @@ fn lines(
             {
                 // Regular weight: the name alone reads bold on the current row. The machine's name
                 // takes its color; the blank cell and `@` before it stay plain.
-                let plain = text_style(Role::TextPrimary).remove_modifier(Modifier::BOLD);
+                let plain = text_style(name_role).remove_modifier(Modifier::BOLD);
                 match (marker_color, marker.split_at_checked(2)) {
                     (Some(color), Some((lead, name))) => {
                         spans.push(Span::styled(lead.to_owned(), plain));
@@ -578,6 +624,7 @@ fn lines(
         trailing,
         names,
         folder,
+        raise_name,
     }
 }
 
@@ -649,20 +696,19 @@ struct StatusLine {
 }
 
 /// Paints a folded Workspace's Agent states, most urgent first, as [`fit_status_states`] fits
-/// them to the line, then the secondary `+N` remainder beside them. Each state comes with whether
-/// its Agent is the current one, whose glyph alone is solid. Returns nothing when not even the
-/// remainder fits.
+/// them to the line, then the secondary `+N` remainder beside them. Returns nothing when not even
+/// the remainder fits.
 fn paint_status_line(
     frame: &mut Frame<'_>,
     line: Rect,
-    states: &[(orchbee_workbench_protocol::MetadataState, bool)],
+    states: &[orchbee_workbench_protocol::MetadataState],
     interaction: Option<Role>,
     working_frame: usize,
     theme: &Theme,
 ) -> Option<StatusLine> {
     let fit = fit_status_states(states.len(), usize::from(line.width))?;
-    for (index, (state, current)) in states.iter().take(fit.shown).enumerate() {
-        let glyph = sidebar_text::state_glyph(*state, *current, theme, working_frame);
+    for (index, state) in states.iter().take(fit.shown).enumerate() {
+        let glyph = sidebar_text::state_glyph(*state, theme, working_frame);
         let x = line
             .x
             .saturating_add(u16::try_from(2 * index).unwrap_or(u16::MAX));
@@ -895,13 +941,43 @@ fn render_creation(
         state,
         theme,
     );
-    sidebar_text::compose_lines(
-        &mut lines,
-        winning_surface(PointerPresentation::Rest, false, preview.current),
-        false,
+    let interaction = winning_surface(PointerPresentation::Rest, false, preview.current);
+    sidebar_text::compose_lines(&mut lines, interaction, false, theme);
+    frame.render_widget(Paragraph::new(lines), tracks.primary);
+    paint_workspace_mark(
+        frame,
+        tracks.first_line(tracks.disclosure),
+        preview.current,
+        Role::TextSecondary,
+        interaction,
         theme,
     );
-    frame.render_widget(Paragraph::new(lines), tracks.primary);
+}
+
+/// The mark a Workspace without Agents leads its name with in its disclosure's place, solid and
+/// primary while it is current, otherwise in `role`.
+fn paint_workspace_mark(
+    frame: &mut Frame<'_>,
+    rect: Rect,
+    current: bool,
+    role: Role,
+    interaction: Option<Role>,
+    theme: &Theme,
+) {
+    let (glyph, role) = if current {
+        (theme.glyphs.workspace_mark_current, Role::TextPrimary)
+    } else {
+        (theme.glyphs.workspace_mark, role)
+    };
+    frame.render_widget(
+        Paragraph::new(glyph).style(theme.content_on_surface(
+            Role::SurfaceChrome,
+            interaction,
+            Some(role),
+            theme.style(role),
+        )),
+        rect,
+    );
 }
 
 fn pointer_presentation(pointer: ProjectedPointer) -> PointerPresentation {
@@ -929,19 +1005,6 @@ fn winning_surface(pointer: PointerPresentation, focused: bool, current: bool) -
         PointerPresentation::Hovered => Some(Role::SurfaceHover),
         PointerPresentation::Rest if current => Some(Role::SurfaceCurrent),
         PointerPresentation::Rest => None,
-    }
-}
-
-/// Returns an Agent's leading tree cells to plain chrome after its row surface was composed over
-/// them, leaving the row's leading padding on its interaction surface.
-fn clear_tree_lead(frame: &mut Frame<'_>, lead: Rect, theme: &Theme) {
-    let chrome = theme.style(Role::SurfaceChrome);
-    for y in lead.y..lead.bottom() {
-        for x in lead.x..lead.right() {
-            let cell = &mut frame.buffer_mut()[(x, y)];
-            cell.reset();
-            cell.set_style(chrome);
-        }
     }
 }
 
@@ -1162,13 +1225,17 @@ fn starts_group(rows: &[SidebarRow<'_>], index: usize) -> bool {
     )
 }
 
-/// Blank rows above `index`: an Agent row sits directly under the row above it, groups are always
-/// separated, and a group's first Workspace sits directly under its heading.
+/// Blank rows above `index`: an Agent row sits directly under the row above it, groups and the
+/// entry after an Agent list are always separated, and a group's first Workspace sits directly
+/// under its heading.
 fn gap_before(view: &ClientView, rows: &[SidebarRow<'_>], index: usize, space_gap: u16) -> u16 {
     let row = &rows[index];
     if matches!(row, SidebarRow::Agent { .. }) {
         0
-    } else if starts_group(rows, index) {
+    } else if starts_group(rows, index)
+        || index > 0 && matches!(rows[index - 1], SidebarRow::Agent { .. })
+    {
+        // A blank line also closes a Workspace's Agent list before the next entry.
         space_gap.max(1)
     } else if index > 0
         && starts_group(rows, index - 1)
@@ -1180,21 +1247,22 @@ fn gap_before(view: &ClientView, rows: &[SidebarRow<'_>], index: usize, space_ga
     }
 }
 
-/// The muted guide spans every child line and intervening gap without horizontal branches. Beside
-/// the current Agent's `current` content lines it turns heavy and primary.
-/// `stretch` gives the lines and style of the guide's heavier stretch: the current Agent's in the
-/// selection accent, `accent-focus`, which the GUI's `border-selected` matches, or a pointed
-/// Agent's faint preview of it.
+/// The muted guide spans every child line and intervening gap without horizontal branches.
+/// `stretch` gives the lines and style of the guide's heavier stretch beside the current Agent's
+/// content lines, in the selection accent, `accent-focus`, which the GUI's `border-selected`
+/// matches. The guide sits on the row's `interaction` surface.
 fn paint_tree_guide(
     frame: &mut Frame<'_>,
     band: Rect,
     tracks: layout::Tracks,
     follows_sibling: bool,
     stretch: Option<(u16, Style)>,
+    interaction: Option<Role>,
     theme: &Theme,
 ) {
-    let on_chrome =
-        |role, content| theme.content_on_surface(Role::SurfaceChrome, None, Some(role), content);
+    let on_chrome = |role, content| {
+        theme.content_on_surface(Role::SurfaceChrome, interaction, Some(role), content)
+    };
     let (stretch_height, stretch_style) = stretch.unwrap_or_default();
     let stretch_lines = tracks.content_y..tracks.content_y.saturating_add(stretch_height);
     for y in band.y..band.bottom() {
@@ -1369,11 +1437,12 @@ pub(super) fn render(
     // The list runs down to Settings whether or not it fits; an overflowing list shows where it is
     // with the scrollbar in the trailing padding column, never with a row of its own.
     let body = area;
-    let window = window_in(area.height);
+    let (window, header) = sticky_window(rows, &heights, &gaps, insertion, area.height, window_in);
     let mut y = body.y;
 
-    for index in window.top..window.end() {
-        let leading_gap = if index == window.top {
+    let first = header.unwrap_or(window.top);
+    for index in header.into_iter().chain(window.top..window.end()) {
+        let leading_gap = if index == first {
             0
         } else {
             gaps[index - 1].min(body.bottom().saturating_sub(y))
@@ -1472,12 +1541,17 @@ pub(super) fn render(
         };
         let focused = owns_keyboard && view.machines.sidebar_focused_target() == Some(&target);
         let current = projected_current[row_index];
-        // Only a Workspace takes the current fill. The current Workspace sits right above its
-        // Agents, and a second fill there would join it into one block, so the current Agent shows
-        // in its guide, glyph and title instead. A noncurrent Workspace takes the quieter related
-        // surface while one of its Agents holds keyboard navigation, so that tint never reads as
-        // current.
-        let current_surface = current && !matches!(row, SidebarRow::Agent { .. });
+        // The current row takes the current fill. While the current Agent's row shows beneath its
+        // Workspace, the Workspace leaves the fill to it, since a second fill right above would join
+        // the two into one block. A noncurrent Workspace takes the quieter related surface while
+        // one of its Agents holds keyboard navigation, so that tint never reads as current.
+        let current_agent_below = matches!(row, SidebarRow::Context { .. })
+            && rows[row_index + 1..]
+                .iter()
+                .zip(&projected_current[row_index + 1..])
+                .take_while(|(next, _)| matches!(next, SidebarRow::Agent { .. }))
+                .any(|(_, current)| *current);
+        let current_surface = current && !current_agent_below;
         let related = !current
             && matches!(row, SidebarRow::Context { .. })
             && owns_keyboard
@@ -1533,17 +1607,9 @@ pub(super) fn render(
             }
             _ => Vec::new(),
         };
-        let status_current = |agent: &crate::machine_agents::Row| match row {
-            SidebarRow::Context { row: context, .. } => {
-                view.machines.current_agent(&context.choice, agent)
-            }
-            SidebarRow::Agent { .. } | SidebarRow::Project { .. } | SidebarRow::Recents { .. } => {
-                false
-            }
-        };
         let status_states = status_agents
             .iter()
-            .map(|agent| (agent.display_state(), status_current(agent)))
+            .map(|agent| agent.display_state())
             .collect::<Vec<_>>();
 
         let closeable = source.has_part(&target, SidebarPart::Close);
@@ -1568,6 +1634,7 @@ pub(super) fn render(
                     markers,
                     reserve: if closeable { CLOSE_RESERVE } else { 0 },
                     folded: folded(view, row),
+                    quiet: !current && !current_agent_below && !focused,
                 },
             ),
             SidebarRow::Agent { row, .. } => {
@@ -1587,6 +1654,7 @@ pub(super) fn render(
         };
         let names = std::mem::take(&mut projected_lines.names);
         let folder = projected_lines.folder.take();
+        let raise_name = projected_lines.raise_name.take();
         let (mut row_lines, mut trailing) = projected_lines.into_parts();
         // An Agent title leaves the trailing unread cells only while that marker shows.
         if matches!(row, SidebarRow::Agent { .. }) && markers > 0 {
@@ -1767,13 +1835,8 @@ pub(super) fn render(
         } else {
             row_pointer
         };
-        // A pointed Agent takes no hover fill, as its current state takes none: the guide, glyph
-        // and title preview the current Agent's cues instead. A press still fills it.
         let surface_pointer = match row {
             SidebarRow::Project { .. } | SidebarRow::Recents { .. } => PointerPresentation::Rest,
-            SidebarRow::Agent { .. } if row_paint_pointer == PointerPresentation::Hovered => {
-                PointerPresentation::Rest
-            }
             SidebarRow::Agent { .. } | SidebarRow::Context { .. } => row_paint_pointer,
         };
         // Pointer presence anywhere on a foldable row, the glyph included, lights its disclosure
@@ -1827,23 +1890,8 @@ pub(super) fn render(
         );
         let interaction = winning_surface(surface_pointer, focused, current_surface)
             .or(related.then_some(Role::SurfaceRelated));
-        // Agent surfaces include the blank cell before state; the guide and its gap stay on chrome.
         let surface = tracks.surface();
-        if matches!(row, SidebarRow::Agent { .. }) {
-            clear_tree_lead(
-                frame,
-                Rect::new(
-                    band.x,
-                    band.y,
-                    surface.x.saturating_sub(band.x),
-                    band.height,
-                ),
-                theme,
-            );
-        }
-        // A pointed noncurrent Agent previews the current Agent's cues: its muted title rises to
-        // primary, and where glyphs show selection, its glyph turns solid and its guide stretch
-        // appears, both faint.
+        // A pointed noncurrent Agent's muted title rises to primary over its hover fill.
         let pointed_agent = matches!(row, SidebarRow::Agent { row, .. }
             if !current
                 && row_paint_pointer != PointerPresentation::Rest
@@ -1852,7 +1900,15 @@ pub(super) fn render(
         if pointed_agent {
             agent_tokens::raise_title(&mut row_lines, theme);
         }
-        let preview = pointed_agent && theme.agent_glyphs_show_selection();
+        // The pointer raises a quiet Workspace name to primary, as it does an Agent's title.
+        if let Some((index, style)) = raise_name
+            && row_paint_pointer != PointerPresentation::Rest
+            && let Some(name) = row_lines
+                .first_mut()
+                .and_then(|line| line.spans.get_mut(index))
+        {
+            name.style = style;
+        }
         sidebar_text::compose_lines(
             &mut row_lines,
             interaction,
@@ -1933,11 +1989,27 @@ pub(super) fn render(
             );
         }
 
+        if matches!(
+            row,
+            SidebarRow::Context {
+                has_agents: false,
+                ..
+            }
+        ) {
+            paint_workspace_mark(
+                frame,
+                tracks.first_line(tracks.disclosure),
+                current,
+                disclosure_role,
+                interaction,
+                theme,
+            );
+        }
+
         if let Some(state) = agent_state {
             frame.render_widget(
                 Paragraph::new(super::sidebar_text::state_glyph(
                     state,
-                    current || preview,
                     theme,
                     view.machines.working_frame(),
                 ))
@@ -1945,11 +2017,7 @@ pub(super) fn render(
                     Role::SurfaceChrome,
                     interaction,
                     Some(Theme::agent_role(state)),
-                    theme.agent_style_at(
-                        state,
-                        view.machines.working_frame(),
-                        if preview { PREVIEW_STRENGTH } else { 1.0 },
-                    ),
+                    theme.agent_style(state, view.machines.working_frame()),
                 )),
                 tracks.first_line(tracks.state),
             );
@@ -2008,13 +2076,8 @@ pub(super) fn render(
                 row_index
                     .checked_sub(1)
                     .is_some_and(|previous| matches!(rows[previous], SidebarRow::Agent { .. })),
-                if current {
-                    Some((content_height, guide_accent))
-                } else if preview {
-                    Some((content_height, theme.preview_style(guide_accent)))
-                } else {
-                    None
-                },
+                current.then_some((content_height, guide_accent)),
+                interaction,
                 theme,
             );
             // The guide runs on through the blank line before a sibling Agent.
@@ -2028,6 +2091,7 @@ pub(super) fn render(
                     Rect::new(band.x, band.bottom(), band.width, touch_line),
                     tracks,
                     true,
+                    None,
                     None,
                     theme,
                 );
@@ -2180,7 +2244,7 @@ pub(super) fn render(
                         tooltip::describe(
                             None,
                             tooltip::legend(
-                                status_states.iter().map(|(state, _)| *state),
+                                status_states.iter().copied(),
                                 false,
                                 working_frame,
                                 locale,
@@ -2210,7 +2274,6 @@ pub(super) fn render(
                     status_agents.iter().skip(line.shown).map(|agent| {
                         (
                             agent.display_state(),
-                            status_current(agent),
                             agent_tokens::identity_label(agent, theme),
                         )
                     }),
@@ -2274,6 +2337,63 @@ pub(super) fn render(
         layer,
         hits,
     );
+}
+
+/// The Workspace whose Agent row opens `window`, as an index into the measured entries.
+fn sidebar_header(
+    rows: &[SidebarRow<'_>],
+    insertion: Option<usize>,
+    window: crate::machine_picker::SidebarWindow,
+) -> Option<usize> {
+    let top = window.top;
+    if insertion == Some(top) || top >= window.total {
+        return None;
+    }
+    let row = top - usize::from(insertion.is_some_and(|slot| top > slot));
+    if !matches!(rows.get(row)?, SidebarRow::Agent { .. }) {
+        return None;
+    }
+    let owner = rows[..row]
+        .iter()
+        .rposition(|row| !matches!(row, SidebarRow::Agent { .. }))?;
+    matches!(rows[owner], SidebarRow::Context { .. })
+        .then(|| owner + usize::from(insertion.is_some_and(|slot| owner >= slot)))
+}
+
+/// The window the list paints, and the entry pinned above it: while the window opens inside a
+/// Workspace's Agent rows, that Workspace's row stays at the top of the list, as the GUI's sticky
+/// heading does, so the list always names whose Agents it shows. The header's lines, with the gap
+/// before the first shown Agent, come out of the window, which is measured again in the lines left;
+/// a list too low to keep more than half its lines for the window pins nothing.
+fn sticky_window(
+    rows: &[SidebarRow<'_>],
+    heights: &[u16],
+    gaps: &[u16],
+    insertion: Option<usize>,
+    cells: u16,
+    window_in: impl Fn(u16) -> crate::machine_picker::SidebarWindow,
+) -> (crate::machine_picker::SidebarWindow, Option<usize>) {
+    let full = window_in(cells);
+    let mut window = full;
+    // A window measured under one Workspace's header can open on another's Agents, which measures
+    // once more under that one's.
+    for _ in 0..3 {
+        let Some(header) = sidebar_header(rows, insertion, window) else {
+            break;
+        };
+        let taken = heights[header].saturating_add(gaps[window.top - 1]);
+        if taken.saturating_mul(2) >= cells {
+            break;
+        }
+        let under = window_in(cells - taken);
+        if sidebar_header(rows, insertion, under) == Some(header)
+            && heights[header].saturating_add(gaps[under.top - 1]) == taken
+        {
+            return (under, Some(header));
+        }
+        window = under;
+    }
+    (full, None)
 }
 
 /// While the list overflows, the first trailing padding cell of each list line carries the

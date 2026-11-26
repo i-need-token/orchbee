@@ -668,6 +668,24 @@
 .ct-tab[data-orientation='horizontal'][data-layout-closed] .ct-tab__separator {
 	display: none;
 }
+/* With no title between them, the unread dot's own 4 px keep it beside the icon. */
+.ct-tab[data-orientation='horizontal'] .ct-tab-icon:has(+ .ct-tab__unread) {
+	margin-inline-end: 0;
+}
+/* A narrow current Tab's close button takes its icon's place while the pointer or focus is on the
+   Tab: the icon leaves, and the 28 px button, pulled in 6 px at each side, fills the icon's 16 px
+   and keeps the 8 px before a title, so nothing else moves. */
+.ct-tab[data-orientation='horizontal'][data-close-over-icon] .ct-tab-icon {
+	display: none;
+}
+.ct-tab[data-orientation='horizontal'][data-close-over-icon] .ct-tab__close {
+	order: -1;
+	margin-block: 0;
+	margin-inline: var(--ob-comp-tab-strip-length-negative-6) var(--ob-comp-tab-strip-length-2);
+}
+.ct-tab[data-orientation='horizontal'][data-close-over-icon][data-center-control] .ct-tab__close {
+	margin-inline-end: var(--ob-comp-tab-strip-length-negative-6);
+}
 
 .ct-group-underline {
 	position: absolute;

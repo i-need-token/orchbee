@@ -415,6 +415,10 @@ async function run(
 
 	await userSettings.refresh();
 	runtime = createServerWorkbenchRuntime({
+		agentCompletionAcknowledgement: serverSessionServes(
+			bootstrap.negotiatedCapabilities,
+			'acknowledge-agent-completion',
+		),
 		agentConfirmations: serverSessionServes(
 			bootstrap.negotiatedCapabilities,
 			'follow-agent-confirmations',
@@ -503,6 +507,10 @@ async function run(
 		// folder picker, launch profiles, Quit All and window title stay with this computer's.
 		createRemoteRuntime: (remote) =>
 			createServerWorkbenchRuntime({
+				agentCompletionAcknowledgement: serverSessionServes(
+					remote.capabilities,
+					'acknowledge-agent-completion',
+				),
 				agentConfirmations: serverSessionServes(remote.capabilities, 'follow-agent-confirmations'),
 				applicationLocaleSource: applicationLocaleController,
 				connection: remote.connection,

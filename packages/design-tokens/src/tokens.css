@@ -510,7 +510,6 @@
 	--ob-ref-motion-easing-linear: linear;
 	--ob-ref-motion-easing-step-end: steps(1, end);
 	--ob-ref-motion-easing-breath: ease-in-out;
-	--ob-ref-opacity-30: 0.3;
 	--ob-ref-opacity-50: 0.5;
 	--ob-ref-opacity-72: 0.72;
 	--ob-ref-layer-base: 0;
@@ -842,8 +841,6 @@
 	--ob-sys-focus-ring-offset: var(--ob-ref-space-1);
 	--ob-sys-opacity-disabled: var(--ob-ref-opacity-50);
 	--ob-sys-opacity-muted: var(--ob-ref-opacity-72);
-	/* The faint foretaste of what a click would give, such as the current mark under the pointer. */
-	--ob-sys-opacity-preview: var(--ob-ref-opacity-30);
 	--ob-sys-shadow-raised: var(--ob-ref-shadow-sm);
 	--ob-sys-shadow-overlay: var(--ob-ref-shadow-lg);
 
@@ -872,8 +869,6 @@
 	--ob-comp-workbench-navigation-reorder-inline-size: 0px;
 	--ob-comp-workbench-navigation-reorder-inline-start: 0px;
 	--ob-comp-workbench-navigation-reorder-translate-y: 0px;
-	/* The current Agent row's index in its Workspace's list, which places the guide's current stretch. */
-	--ob-comp-workbench-agent-list-current-row: 0;
 	--ob-comp-workbench-sidebar-overlay-inline-size: 15.625rem;
 	/* A machine's color where its name is written: a --ob-sys-color-machine-* token, or the custom
 	   color as chosen, set on the element that writes it. */

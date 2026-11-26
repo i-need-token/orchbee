@@ -12,6 +12,7 @@ const caseSchema = z.strictObject({
 const corpusFiles = [
 	'workbench-panel-agent-conformance-v1.json',
 	'workbench-panel-agent-confirmation-conformance-v1.json',
+	'workbench-panel-agent-completion-conformance-v1.json',
 ];
 describe('Panel Agent reports', () => {
 	it('rejects unpaired title surrogates while admitting complete Unicode and explicit clear', () => {

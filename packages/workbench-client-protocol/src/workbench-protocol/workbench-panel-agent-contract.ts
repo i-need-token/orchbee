@@ -223,6 +223,14 @@ const PanelAgentActionSchema = z.discriminatedUnion('kind', [
 			expectedBinding: WorkbenchPresentationBindingSchema,
 		})
 		.readonly(),
+	/** Marks the finished turn in the Presentation's terminal as seen, as typed input there does. */
+	z
+		.strictObject({
+			kind: z.literal('completion-acknowledge'),
+			presentationId: TerminalPresentationIdSchema,
+			expectedBinding: WorkbenchPresentationBindingSchema,
+		})
+		.readonly(),
 ]);
 /** Server-owned completion acknowledgement, independent of provider status and Client unread state. */
 const AgentCompletionSchema = z.enum(['none', 'awaiting-input', 'acknowledged']);
@@ -717,6 +725,15 @@ const PanelAgentOutcomeSchema = z.discriminatedUnion('kind', [
 		.strictObject({
 			kind: z.literal('confirmation-chosen'),
 			presentation: PresentationConfirmationRowSchema,
+		})
+		.readonly(),
+	/** `changed` is false when no completion awaited input in that terminal. */
+	z
+		.strictObject({
+			kind: z.literal('completion-acknowledged'),
+			presentationId: TerminalPresentationIdSchema,
+			binding: WorkbenchPresentationBindingSchema,
+			changed: z.boolean(),
 		})
 		.readonly(),
 	z.strictObject({ kind: z.literal('failed'), reason: PanelAgentFailureSchema }).readonly(),

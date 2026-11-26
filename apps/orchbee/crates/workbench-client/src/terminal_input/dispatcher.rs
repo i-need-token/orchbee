@@ -84,6 +84,9 @@ pub struct InputDispatcher {
     /// A visible Client control owns the rest of its decision packet.
     pointer_packet: bool,
     machine_packet: bool,
+    /// The Agent row the last click activated and when, which a second click soon after on the
+    /// same row turns into a double-click.
+    last_agent_click: Option<(crate::machine_picker::SidebarTarget, Instant)>,
     sidebar_packet: bool,
     sidebar_owned: bool,
     sidebar_cancel_capture: bool,
@@ -2173,6 +2176,7 @@ impl InputDispatcher {
                                 InteractionTarget::Sidebar(drawn) => {
                                     use crate::machine_picker::SidebarActivation;
 
+                                    self.acknowledge_on_double_click(view, port, &drawn, now);
                                     let activation = view.machines.sidebar_activation(&drawn);
                                     if let Some(SidebarActivation::CloseWorkspace(workspace)) =
                                         activation
@@ -2677,6 +2681,40 @@ impl InputDispatcher {
         self.sidebar_cancel_capture = true;
         self.keys.capture_pending();
         self.pointer.invalidate_map_with_port(port);
+    }
+
+    /// A second click soon after the first on the same Agent row is a double-click: on a finished
+    /// Agent it also tells the Session the person saw it finish, as the GUI's double-click does.
+    /// The row still opens the Agent as any click does.
+    fn acknowledge_on_double_click(
+        &mut self,
+        view: &ClientView,
+        port: &mut (impl TerminalInputPort + ?Sized),
+        drawn: &crate::machine_picker::DrawnSidebarTarget,
+        now: Instant,
+    ) {
+        use crate::machine_picker::{Choice, SidebarPart, SidebarTarget};
+
+        let previous = self.last_agent_click.take();
+        if drawn.part() != SidebarPart::Primary
+            || !matches!(drawn.target(), SidebarTarget::Agent { .. })
+        {
+            return;
+        }
+        let double = previous.is_some_and(|(target, at)| {
+            &target == drawn.target()
+                && now.saturating_duration_since(at) <= crate::tui_pointer::DOUBLE_CLICK_INTERVAL
+        });
+        if !double {
+            self.last_agent_click = Some((drawn.target().clone(), now));
+            return;
+        }
+        // Only this computer's Session answers through this Client's connection.
+        if let Some((Choice::Local, agent)) = view.machines.sidebar_agent(drawn.target())
+            && agent.display_state() == orchbee_workbench_protocol::MetadataState::Done
+        {
+            port.acknowledge_agent_completion(&agent.target.member, &agent.target.terminal);
+        }
     }
 
     fn reconcile(

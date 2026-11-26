@@ -59,8 +59,10 @@ turn signals completion. The signal is an Idle or Done report that arrives after
 fallback that turns Idle or Done. A signal that a blocker masks completes the turn once the status is visibly
 Idle. The stale status reappearing when a blocker clears is not a signal. A change of Agent ends the stand-in.
 
-Only accepted keys, text or paste **after** `awaiting-input` acknowledge it. Focus, read/unread
-acknowledgements, viewport visibility and mouse reports never do. Semantic Focus/Mouse records are
+Only accepted keys, text or paste **after** `awaiting-input` acknowledge it, besides a Client's
+`completion-acknowledge` for that exact terminal binding, which a person's double-click on a Done
+Agent row sends. Focus, read/unread acknowledgements, viewport visibility and mouse reports never
+do. Semantic Focus/Mouse records are
 excluded explicitly. Raw controller input skips complete focus and mouse reports, including
 concatenated reports; a record with typed bytes as well still counts as typing. This classification
 does not change or drop the bytes delivered to the child. One-shot send uses the same raw-byte

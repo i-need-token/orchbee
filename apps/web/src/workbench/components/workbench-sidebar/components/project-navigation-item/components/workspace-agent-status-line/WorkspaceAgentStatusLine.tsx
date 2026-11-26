@@ -12,9 +12,9 @@ interface WorkspaceAgentStatusLineProps {
 
 /**
  * A folded Workspace's second line: its Agents' states as 12 px glyphs, most urgent first, as many
- * as the line has room for, then `+N` for the rest. Only the current Agent's glyph is solid. The
- * glyphs' tooltip names each state once, hollow since it names no Agent, and the `+N` tooltip lists
- * the Agents it hides in the same order, each with its state word and then its identity.
+ * as the line has room for, then `+N` for the rest. The glyphs' tooltip names each state once, and
+ * the `+N` tooltip lists the Agents it hides in the same order, each with its state word and then
+ * its identity.
  */
 export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineProps): ReactNode {
 	const status = overview.foldedStatus;
@@ -29,18 +29,14 @@ export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineP
 				<Tooltip>
 					<TooltipTrigger render={<span className={styles['glyphs']} />}>
 						{shownGlyphs.map((glyph) => (
-							<WorkbenchAgentStateGlyph
-								key={glyph.presentationId}
-								selected={glyph.current}
-								status={glyph}
-							/>
+							<WorkbenchAgentStateGlyph key={glyph.presentationId} status={glyph} />
 						))}
 					</TooltipTrigger>
 					<TooltipContent align='start' side='bottom'>
 						<span className={styles['legend']}>
 							{status.legend.map((state) => (
 								<span key={state.status} className={styles['legendRow']}>
-									<WorkbenchAgentStateGlyph selected={false} status={state} />
+									<WorkbenchAgentStateGlyph status={state} />
 									{state.status}
 								</span>
 							))}
@@ -67,7 +63,7 @@ export function WorkspaceAgentStatusLine({ overview }: WorkspaceAgentStatusLineP
 						<span className={styles['roster']}>
 							{hiddenGlyphs.map((glyph) => (
 								<span key={glyph.presentationId} className={styles['rosterRow']}>
-									<WorkbenchAgentStateGlyph selected={glyph.current} status={glyph} />
+									<WorkbenchAgentStateGlyph status={glyph} />
 									<span className={styles['rosterState']}>{glyph.status}</span>
 									<span className={styles['rosterIdentity']}>{glyph.identity}</span>
 								</span>

@@ -115,17 +115,17 @@ to common roles as follows; the mapping does not require identical token names o
 | Work in progress                                 | Busy indicator and localized operation text                                                                                    | `status-pending` indicator and localized operation text           |
 | Canvas, persistent chrome, and temporary overlay | `--ob-sys-color-surface-canvas`, `--ob-sys-color-surface-raised`, `--ob-sys-color-surface-overlay` as the surface requires     | `surface-canvas`, `surface-chrome`, `surface-overlay`             |
 
-A current item listed directly beneath its current parent, such as the current Agent under the
-current Workspace, takes no current fill of its own: two fills meeting read as one block. It shows
-itself by a stretch of its guide in the selection accent, the GUI's `--ob-sys-color-border-selected`
-and the TUI's `accent-focus`, stronger primary text and a solid state glyph. Such a row takes no
-hover fill either: under the pointer it previews those cues faintly, a faint stretch and a faintly
-filled glyph, and its title rises to primary text. An Agent state glyph's color names the state in
-both Clients and its fill names selection: solid for the current Agent, the active Tab and the
-focused Panel, and hollow everywhere else, legends included; a pointed row's faint fill only
-foretells the selection a click would give. Where a TUI host shows no color, each state keeps a
-shape of its own instead, selection rests on the guide and the title, and the pointer previews
-nothing.
+The current Agent's row takes the current fill, and a Workspace listed directly above its current
+Agent leaves that fill to it, since two fills meeting read as one block, keeping its name in primary
+text; folding the Agents returns the fill to the Workspace. The current Agent also shows a stretch of
+its guide in the selection accent, the GUI's `--ob-sys-color-border-selected` and the TUI's
+`accent-focus`, and stronger primary text; under the pointer an Agent row takes the hover fill.
+While its Agent rows scroll beneath it, a Workspace's row stays at the top of the list, so the list
+always names whose Agents it shows. A double-click on a Done Agent's row tells the Session the
+person saw it finish, as typing into its terminal does. An Agent state glyph's color names the
+state in both Clients and its shape says whether the Agent is at rest: hollow while idle, a dot
+while the state is unknown, and solid otherwise, wherever it stands and whatever is selected. Where
+a TUI host shows no color, each state keeps a shape of its own instead.
 
 In the sidebar a Workspace's fold control leads its name, in the column of its Agents' state
 glyphs, so the name and its supporting line align with the Agent titles and a Workspace never reads

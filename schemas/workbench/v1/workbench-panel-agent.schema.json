@@ -390,6 +390,22 @@
 						}
 					},
 					"required": ["kind", "presentationId", "expectedBinding"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "completion-acknowledge"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"expectedBinding": {
+							"$ref": "#/$defs/binding"
+						}
+					},
+					"required": ["kind", "presentationId", "expectedBinding"]
 				}
 			]
 		},
@@ -783,6 +799,25 @@
 						}
 					},
 					"required": ["kind", "presentation"]
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"kind": {
+							"const": "completion-acknowledged"
+						},
+						"presentationId": {
+							"$ref": "#/$defs/identity"
+						},
+						"binding": {
+							"$ref": "#/$defs/binding"
+						},
+						"changed": {
+							"type": "boolean"
+						}
+					},
+					"required": ["kind", "presentationId", "binding", "changed"]
 				}
 			]
 		},

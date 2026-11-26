@@ -159,8 +159,9 @@ fn event(report: &Report) -> Result<Event, Failure> {
     })
 }
 impl WorkbenchAuthority {
-    /// Consumes completion only after input was accepted for this exact physical generation.
-    /// Provider status and its unread sequence remain unchanged.
+    /// Consumes completion only after input was accepted for this exact physical generation, or a
+    /// person acknowledged it there with `completion-acknowledge`. Provider status and its unread
+    /// sequence remain unchanged.
     pub fn acknowledge_terminal_agent_input(
         &mut self,
         target: &TerminalAgentBinding,
@@ -371,6 +372,32 @@ impl WorkbenchAuthority {
             | Action::Confirmations { .. }
             | Action::ConfirmationChoose { .. }
             | Action::ConfirmationDecline { .. } => Err(Failure::Unavailable),
+            Action::CompletionAcknowledge {
+                presentation_id,
+                expected_binding,
+            } => {
+                if !membership.owners.contains_key(presentation_id) {
+                    return Err(Failure::NotFound);
+                }
+                let binding = membership
+                    .presentations
+                    .get(presentation_id.as_str())
+                    .ok_or(Failure::NotFound)?
+                    .clone()
+                    .ok_or(Failure::Unbound)?;
+                if &binding != expected_binding {
+                    return Err(Failure::BindingChanged);
+                }
+                let target = (*physical.get(&key(&binding)).ok_or(Failure::Unavailable)?).clone();
+                let outcome = |changed| Outcome::CompletionAcknowledged {
+                    presentation_id: presentation_id.clone(),
+                    binding: binding.clone(),
+                    changed,
+                };
+                admit_result(&outcome(false))?;
+                let changed = self.acknowledge_terminal_agent_input(&target)?;
+                Ok(outcome(changed))
+            }
             Action::States { presentation_ids } => {
                 let outcome = self.agent_states(presentation_ids, &membership, &physical)?;
                 admit_result(&outcome)?;
@@ -467,7 +494,8 @@ impl WorkbenchAuthority {
                     | Action::Report { .. }
                     | Action::Confirmations { .. }
                     | Action::ConfirmationChoose { .. }
-                    | Action::ConfirmationDecline { .. } => None,
+                    | Action::ConfirmationDecline { .. }
+                    | Action::CompletionAcknowledge { .. } => None,
                 };
                 let binding = if let Some(id) = presentation_id {
                     if membership.owners.get(id) != Some(panel_id) {

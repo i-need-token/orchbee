@@ -79,7 +79,7 @@ const PENDING_FOCUS_LIMIT: usize = 16;
 
 /// Maximum interval between two presses on the exact same pane cell that
 /// promotes the second press from cell selection to word selection.
-const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(350);
+pub(crate) const DOUBLE_CLICK_INTERVAL: Duration = Duration::from_millis(350);
 
 /// Cursor-key presses emitted per wheel notch under the alternate-screen
 /// fallback — the pager-friendly amount the mouse standard fixes.

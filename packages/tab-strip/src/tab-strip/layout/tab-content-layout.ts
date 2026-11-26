@@ -169,6 +169,77 @@ export function calculateHorizontalTabChildVisibility(
 	};
 }
 
+/** A title narrower than this is little more than its 12 px fade, so a narrow Tab leaves it out. */
+const HORIZONTAL_TAB_MINIMUM_TITLE_WIDTH = 24;
+const TAB_FAVICON_TITLE_GAP = 8;
+/** The unread dot's cell: the 6 px dot and 4 px on each side. */
+const TAB_UNREAD_DESIGN_WIDTH = 14;
+/** What the stylesheet keeps clear at the content's end for a close button over it. */
+const TAB_CLOSE_RESERVE = 24;
+const TAB_CLOSE_TOUCH_RESERVE = 32;
+
+interface NarrowHorizontalTabInput {
+	contentsWidth: number;
+	active: boolean;
+	pinned: boolean;
+	touchUi?: boolean;
+	interacted: boolean;
+	/** Whether the Tab has a favicon or state glyph to draw. */
+	hasIcon: boolean;
+	hasUnread: boolean;
+}
+
+export interface HorizontalTabChildVisibility extends TabChildVisibility {
+	/** The close button takes the icon's place, which it hides, instead of the far end. */
+	closeOverIcon: boolean;
+}
+
+/**
+ * Orchbee's narrow horizontal Tab, after Chrome's rules. A Tab whose title has no room to read
+ * drops it and centers its icon, with the unread dot beside it. Its close button stops holding a
+ * place of its own: the current Tab's waits for the pointer or focus and then takes the icon's
+ * place, so nothing moves while it shows; any other Tab's is left out, since a button where its
+ * icon was would close a Tab that was only being chosen. A touch has no hover to call the button
+ * up, so a touch Tab keeps Chrome's close button.
+ */
+export function narrowHorizontalTabChildVisibility(
+	visibility: Readonly<TabChildVisibility>,
+	input: Readonly<NarrowHorizontalTabInput>,
+): HorizontalTabChildVisibility {
+	const kept = { ...visibility, closeOverIcon: false };
+	// Chrome lays out nothing below its minimum width, and leaves pinned Tabs and media alerts alone.
+	const laidOut = visibility.showTitle || visibility.centerSingleControl;
+	if (input.pinned || !laidOut || visibility.showAlert || !input.hasIcon) return kept;
+	const fixed =
+		TAB_FAVICON_DESIGN_WIDTH +
+		TAB_FAVICON_TITLE_GAP +
+		TAB_AFTER_TITLE_PADDING +
+		(input.hasUnread ? TAB_UNREAD_DESIGN_WIDTH : 0);
+	const closeReserve = input.touchUi ? TAB_CLOSE_TOUCH_RESERVE : TAB_CLOSE_RESERVE;
+	const chromeRoom = input.contentsWidth - fixed - (visibility.showClose ? closeReserve : 0);
+	if (visibility.showTitle && chromeRoom >= HORIZONTAL_TAB_MINIMUM_TITLE_WIDTH) return kept;
+	if (input.touchUi) {
+		return {
+			...visibility,
+			showFavicon: true,
+			showTitle: false,
+			centerSingleControl: true,
+			closeOverIcon: false,
+		};
+	}
+	const moved = input.active && visibility.showClose;
+	const showTitle =
+		visibility.showTitle && input.contentsWidth - fixed >= HORIZONTAL_TAB_MINIMUM_TITLE_WIDTH;
+	return {
+		showFavicon: true,
+		showAlert: false,
+		showClose: moved && input.interacted,
+		showTitle,
+		centerSingleControl: !showTitle,
+		closeOverIcon: moved && input.interacted,
+	};
+}
+
 const VERTICAL_TAB_HORIZONTAL_INSET = 8;
 const VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH = 45;
 const VERTICAL_TAB_CLOSE_APPEARANCE_THRESHOLD = VERTICAL_TAB_CHILD_UNCOLLAPSED_MIN_WIDTH - 3;

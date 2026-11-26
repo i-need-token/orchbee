@@ -90,7 +90,7 @@ fn move_pointer(pointer: &mut PointerState, view: &mut ClientView, x: u16, y: u1
 }
 
 #[test]
-fn only_the_current_workspace_takes_the_current_fill_and_collapse_keeps_it() {
+fn the_current_agent_takes_the_current_fill_and_its_collapsed_workspace_keeps_it() {
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for theme in [
             Theme::terminal_native(),
@@ -106,14 +106,11 @@ fn only_the_current_workspace_takes_the_current_fill_and_collapse_keeps_it() {
             assert_eq!(owner_rows.len(), 2);
             assert_eq!(agent_rows.len(), 1, "an Agent occupies one identity line");
             assert_eq!(agent_rows[0], owner_rows[1] + 1);
+            // The current Agent takes the current fill and its Workspace right above leaves it, so
+            // the two never join into one block; the heavy stretch of its guide marks it too.
             for y in owner_rows {
-                assert_eq!(buffer[(0, y)].symbol(), " ");
-                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
+                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
             }
-            // The current Agent's row stays on chrome beneath its filled Workspace; the heavy
-            // stretch of its guide marks it instead. Its surface starts one blank cell before
-            // state.
-            let surface_x = agent_surface_x(&view, &agent);
             let guide_x = layout::Tracks::resolve_for_width(
                 Rect::new(0, 0, 40, 1),
                 0,
@@ -125,13 +122,11 @@ fn only_the_current_workspace_takes_the_current_fill_and_collapse_keeps_it() {
             .guide
             .x;
             for y in agent_rows {
-                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceChrome)));
+                assert!((0..40).all(|x| buffer[(x, y)].bg == theme.color(Role::SurfaceCurrent)));
                 assert_eq!(
                     buffer[(guide_x, y)].symbol(),
                     theme.glyphs.tree_guide_current
                 );
-                assert_eq!(buffer[(surface_x, y)].symbol(), " ");
-                assert_ne!(buffer[(surface_x + 1, y)].symbol(), " ");
             }
             assert!(view.machines.toggle_sidebar_context_agents(&workspace));
             let (collapsed, _, hits) = paint_navigation_buffers(&view, locale, &theme, 40, 20);
@@ -186,10 +181,7 @@ fn only_the_current_workspace_takes_the_current_fill_and_collapse_keeps_it() {
                     assert!((0..40).all(|x| focused[(x, y)].bg == theme.color(owner)));
                 }
                 let y = sidebar_target_rows(&hits, 40, 20, &agent)[0];
-                assert_eq!(
-                    focused[(surface_x, y)].bg,
-                    theme.color(Role::SurfaceSelection)
-                );
+                assert_eq!(focused[(0, y)].bg, theme.color(Role::SurfaceSelection));
                 assert_eq!(view.machines.current_context, context);
                 assert!(view.machines.request.is_none());
             }
@@ -233,24 +225,16 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             20,
                             pointer.projection(),
                         );
-                        // A pointed Agent takes no hover fill; a press still fills it.
                         let surface = if pressed {
                             Role::SurfacePressed
                         } else if navigate {
                             Role::SurfaceSelection
-                        } else if owner {
-                            Role::SurfaceHover
                         } else {
-                            Role::SurfaceChrome
+                            Role::SurfaceHover
                         };
                         let expected = theme.style(surface);
                         // A Workspace keeps its branch line; a default Agent occupies one line.
                         assert_eq!(ys.len(), if owner { 2 } else { 1 }, "{target:?}");
-                        let first = if owner {
-                            0
-                        } else {
-                            agent_surface_x(&view, target)
-                        };
                         if owner {
                             let supporting_text: String = (0..40)
                                 .filter(|x| !hidden_by_candidate_wide_glyph(&buffer, *x, ys[1]))
@@ -262,29 +246,18 @@ fn hover_press_and_navigation_compose_one_full_row_without_bolding_supporting_li
                             );
                         }
                         for y in &ys {
-                            // A Workspace opens at its edge marker cell; an Agent surface opens
-                            // with one blank cell before its state.
+                            // A Workspace opens at its edge marker cell; an Agent with a blank cell.
                             let edge = if owner && navigate && *y == ys[0] {
                                 theme.glyphs.navigation_marker
                             } else {
                                 " "
                             };
-                            assert_eq!(buffer[(first, *y)].symbol(), edge);
+                            assert_eq!(buffer[(0, *y)].symbol(), edge);
                             for x in 0..40 {
                                 if hidden_by_candidate_wide_glyph(&buffer, x, *y) {
                                     continue;
                                 }
                                 let cell = &buffer[(x, *y)];
-                                // The guide and its gap stay on chrome; keyboard focus is inside
-                                // the surface, between the state and identity.
-                                if x < first || surface == Role::SurfaceChrome {
-                                    assert_eq!(
-                                        cell.bg,
-                                        theme.color(Role::SurfaceChrome),
-                                        "{x},{y}"
-                                    );
-                                    continue;
-                                }
                                 let band = expected.add_modifier.contains(Modifier::REVERSED);
                                 if band && !cell.modifier.contains(Modifier::REVERSED) {
                                     // A state glyph of a known color keeps it on the contrast
@@ -597,7 +570,7 @@ fn folded_status_line_lists_states_by_urgency_and_fits_the_most_before_the_remai
                 // The blank after a glyph is read only while the line goes on past it.
                 while shown < total
                     && 2 * shown < cells
-                    && symbol(2 * shown) == theme.agent_glyph(expected[shown], false)
+                    && symbol(2 * shown) == theme.agent_glyph(expected[shown])
                 {
                     if 2 * shown + 1 < cells {
                         assert_eq!(symbol(2 * shown + 1), " ", "{width}");
@@ -690,10 +663,7 @@ fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_h
     .concat();
     let tail = &sorted[states.len() - hidden..];
     let glyphs: Vec<&str> = first.iter().map(|item| item.state.glyph.as_str()).collect();
-    let expected: Vec<&str> = tail
-        .iter()
-        .map(|state| theme.agent_glyph(*state, false))
-        .collect();
+    let expected: Vec<&str> = tail.iter().map(|state| theme.agent_glyph(*state)).collect();
     assert_eq!(glyphs, expected);
     // Each row names its state as the legend does, then gives the Agent's identity.
     for (item, state) in first.iter().zip(tail) {
@@ -782,20 +752,6 @@ fn current_sidebar_rows_stay_plain_and_distinguishable_at_every_color_level() {
     }
 }
 
-/// The column where an Agent row's interaction surface starts in a 40-cell navigation paint.
-fn agent_surface_x(view: &ClientView, agent: &SidebarTarget) -> u16 {
-    layout::Tracks::resolve_for_width(
-        Rect::new(0, 0, 40, 1),
-        0,
-        40,
-        auxiliary_actions(&view.machines.sidebar_source(), agent),
-        layout::RowKind::Agent,
-    )
-    .unwrap()
-    .surface()
-    .x
-}
-
 #[test]
 fn only_an_agent_state_glyph_explains_its_state_under_the_pointer() {
     use crate::tui_hit_map::tooltip::Key;
@@ -834,13 +790,13 @@ fn only_an_agent_state_glyph_explains_its_state_under_the_pointer() {
         assert_eq!(
             glyphs,
             [
-                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, true),
+                theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done),
                 theme.glyphs.status_bullet
             ]
         );
-        // A legend names states, not Agents, so it draws the current Agent's state hollow.
+        // A legend draws each state as the rows do.
         for glyph in [
-            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done, false),
+            theme.agent_glyph(orchbee_workbench_protocol::MetadataState::Done),
             theme.glyphs.status_bullet,
         ] {
             assert!(

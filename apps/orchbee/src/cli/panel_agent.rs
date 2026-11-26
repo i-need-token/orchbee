@@ -60,7 +60,8 @@ impl Answer {
                 | PanelAgentOutcome::Titles { .. }
                 | PanelAgentOutcome::PresentationTitles { .. }
                 | PanelAgentOutcome::Confirmations { .. }
-                | PanelAgentOutcome::ConfirmationChosen { .. } => 5,
+                | PanelAgentOutcome::ConfirmationChosen { .. }
+                | PanelAgentOutcome::CompletionAcknowledged { .. } => 5,
                 PanelAgentOutcome::Failed { reason } => match reason {
                     PanelAgentFailure::Denied
                     | PanelAgentFailure::NotFound

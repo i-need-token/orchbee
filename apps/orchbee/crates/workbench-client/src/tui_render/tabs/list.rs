@@ -499,12 +499,9 @@ fn paint_row(
 
     let working_frame = view.machines.working_frame();
     let unread = token.agent.is_some_and(|agent| agent.unread);
-    let glyph = token.agent.map(|agent| {
-        (
-            state_glyph(agent.state, active, theme, working_frame),
-            agent,
-        )
-    });
+    let glyph = token
+        .agent
+        .map(|agent| (state_glyph(agent.state, theme, working_frame), agent));
     let mut cue = PartCue {
         states: &token.states,
         unread,

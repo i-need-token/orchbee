@@ -1,6 +1,7 @@
 import type { ActionExecutionContext, ActionResult } from '@orchbee/actions';
 import type { TabStripArrangementChange } from '@orchbee/tab-strip';
 import type {
+	TerminalPresentationId,
 	UserLaunchProfile,
 	UserLaunchProfileCatalog,
 	WorkbenchAgentStartProvider,
@@ -325,6 +326,13 @@ export interface WorkbenchHeldRestores {
 export interface WorkbenchAuthority {
 	/** The smallest share either side of a split can hold, out of 100. */
 	readonly minimumSplitPercent: number;
+	/**
+	 * Marks the finished turn of the Agent in a Presentation's terminal as seen, as typed input there
+	 * does; absent where the Server takes no other acknowledgement.
+	 */
+	readonly acknowledgeAgentCompletion?:
+		| ((presentationId: TerminalPresentationId) => void)
+		| undefined;
 	/** Absent where no Server publishes the Session's Agent catalog, so no Agent can be started. */
 	readonly agentCatalog?: WorkbenchAgentCatalogSource | undefined;
 	/** Absent where no Server answers Agent confirmations for the person. */

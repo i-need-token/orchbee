@@ -42,6 +42,7 @@ impl WorkbenchAuthority {
             | Outcome::PresentationTitles { .. }
             | Outcome::Confirmations { .. }
             | Outcome::ConfirmationChosen { .. }
+            | Outcome::CompletionAcknowledged { .. }
             | Outcome::PresentationsRead { .. }
             | Outcome::Explained { .. }
             | Outcome::Identified { .. }

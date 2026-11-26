@@ -240,6 +240,7 @@ fn terminal_explanation(
         | PanelAgentOutcome::PresentationTitles { .. }
         | PanelAgentOutcome::Confirmations { .. }
         | PanelAgentOutcome::ConfirmationChosen { .. }
+        | PanelAgentOutcome::CompletionAcknowledged { .. }
         | PanelAgentOutcome::Identified { .. }
         | PanelAgentOutcome::PresentationsRead { .. }
         | PanelAgentOutcome::States { .. }

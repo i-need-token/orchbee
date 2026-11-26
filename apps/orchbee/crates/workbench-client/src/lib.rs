@@ -510,7 +510,9 @@ pub mod application {
     }
 
     pub mod tui_theme {
-        pub use crate::tui_theme::{Theme, ThemeName, cursor_style, resolve_color_level};
+        pub use crate::tui_theme::{
+            HostColorEnvironment, Theme, ThemeName, cursor_style, resolve_color_level,
+        };
     }
 
     #[cfg(windows)]

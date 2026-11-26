@@ -154,8 +154,6 @@ export interface TabStatusAdornment {
 	 * When both are set, `mark` wins.
 	 */
 	readonly mark?: ReactNode | undefined;
-	/** The mark the active Tab draws in place of `mark`; without it, every Tab draws `mark`. */
-	readonly activeMark?: ReactNode | undefined;
 	/** Independent trailing unread indicator; copy is supplied by the host. */
 	readonly unreadLabel?: string | undefined;
 	readonly accessibleLabel: string;
