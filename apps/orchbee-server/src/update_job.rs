@@ -27,7 +27,6 @@ struct State {
 }
 
 /// What woke the schedule.
-#[cfg(any(windows, target_os = "macos", test))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Wake {
     /// The scheduled moment came.
@@ -68,8 +67,7 @@ impl UpdateJob {
     }
 }
 
-/// The schedule's side, which only Servers that keep a release store run.
-#[cfg(any(windows, target_os = "macos", test))]
+/// The schedule's side.
 impl UpdateJob {
     /// Whether the schedule was told to stop; a running helper is ended at its next check.
     pub(crate) fn stopped(&self) -> bool {

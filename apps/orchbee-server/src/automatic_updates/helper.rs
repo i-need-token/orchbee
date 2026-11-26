@@ -1,7 +1,7 @@
 //! One helper run: the store's active Client with `--automatic-update`, named by `active.json`,
 //! at low priority, its standard output bounded and its end bounded by the run limit and the
 //! schedule's stop. On Windows it runs in a below-normal Job that ends with this process; on macOS
-//! in a process group of its own under `nice`, with an empty signal mask. It reads the store only to
+//! and Linux in a process group of its own under `nice`, with an empty signal mask. It reads the store only to
 //! find that Client.
 use super::{UpdateJob, outcome::Outcome};
 use orchbee_local_runtime::{
@@ -69,18 +69,19 @@ fn exchange(client: &Path, job: &UpdateJob) -> Option<CommandOutput> {
 }
 
 /// The system's `nice`, which lowers its own priority and then becomes the helper, so the helper
-/// and everything it starts run at that priority from their first instruction.
-#[cfg(target_os = "macos")]
+/// and everything it starts run at that priority from their first instruction. Linux keeps it at
+/// the same path, as it keeps the `curl` and `tar` the update runs.
+#[cfg(unix)]
 const NICE: &str = "/usr/bin/nice";
 /// The priority increment, `nice`'s own default: the helper yields to every ordinary process.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 const NICENESS: &str = "10";
 
 /// Runs the helper under `nice` in a process group of its own, with an empty signal mask and the
 /// Server's environment; its working folder is the Server's, as a POSIX folder can always be
 /// removed. Settling the group sends `SIGTERM`, which the helper answers by settling its own
 /// downloads, and `SIGKILL` two seconds later.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn exchange(client: &Path, job: &UpdateJob) -> Option<CommandOutput> {
     let mut command = Command::new(NICE);
     command

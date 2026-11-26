@@ -34,9 +34,9 @@ const FIRST_RUN: Duration = Duration::from_secs(60);
 const PERIOD: Duration = Duration::from_secs(60 * 60);
 /// The variable that names another update feed; a test build schedules only while it is set.
 const FEED_VARIABLE: &str = "ORCHBEE_UPDATE_FEED";
-/// The longest a macOS stop waits for a running helper's process group to settle: the settlement's
+/// The longest a POSIX stop waits for a running helper's process group to settle: the settlement's
 /// own budget, which ends the group with `SIGKILL`, with room to spare.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 const HELPER_SETTLEMENT: Duration = Duration::from_secs(6);
 
 /// The running schedule. Dropping it stops the schedule without waiting.
@@ -134,12 +134,12 @@ impl AutomaticUpdates {
     /// Stops the schedule: no run starts after this, and a running helper is ended at the
     /// schedule's next check, within its settlement budget. The helper holds nothing a Session
     /// stop needs, so the stop never fails because of it. On Windows it returns at once, as a
-    /// helper still settling when this process ends is ended by the Job closing with it. macOS has
+    /// helper still settling when this process ends is ended by the Job closing with it. POSIX has
     /// no such Job, so there it waits up to [`HELPER_SETTLEMENT`] for the helper's group to settle
     /// before the Server goes on.
     pub(crate) fn stop(mut self) {
         self.job.end();
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         if let Some(thread) = &self.thread {
             let settled_by = Instant::now() + HELPER_SETTLEMENT;
             while !thread.is_finished() && Instant::now() < settled_by {

@@ -42,6 +42,11 @@ impl super::CliText {
                 "Replaced a link to another Orchbee installation with: ",
                 "已将指向另一个 Orchbee 安装的链接替换为：",
             ),
+            // Linux shells in a desktop terminal read ~/.bashrc or ~/.zshrc; bash is the usual one.
+            "path-not-on-path" if cfg!(target_os = "linux") => (
+                "~/.local/bin is not on your PATH, so a terminal does not find orchbee yet. Add this line to your shell profile, such as ~/.bashrc or ~/.zshrc, then open a new terminal:\nexport PATH=\"$HOME/.local/bin:$PATH\"",
+                "~/.local/bin 不在 PATH 中，终端暂时找不到 orchbee。请把下面这行加入 shell 配置文件（例如 ~/.bashrc 或 ~/.zshrc），然后打开新终端：\nexport PATH=\"$HOME/.local/bin:$PATH\"",
+            ),
             "path-not-on-path" => (
                 "~/.local/bin is not on your PATH, so a terminal does not find orchbee yet. Add this line to your shell profile, such as ~/.zshrc, then open a new terminal:\nexport PATH=\"$HOME/.local/bin:$PATH\"",
                 "~/.local/bin 不在 PATH 中，终端暂时找不到 orchbee。请把下面这行加入 shell 配置文件（例如 ~/.zshrc），然后打开新终端：\nexport PATH=\"$HOME/.local/bin:$PATH\"",

@@ -170,8 +170,8 @@ confirmation policy remain unchanged.
 The global Update row, identity `workbench.client.update` as in the window, has no default key and
 appears only while the
 [Update control](../../../proposals/platform/automatic-updates.md#the-update-control) is Ready:
-the release store, read every ten seconds, names a version newer than this Client active, on Windows
-or macOS in a test or release build that the automatic-update switch admits. Its row carries the control's
+the release store, read every ten seconds, names a version newer than this Client active, on Windows,
+macOS or Linux in a test or release build that the automatic-update switch admits. Its row carries the control's
 sentence, Update · Switch to Orchbee {version}. Terminals keep running. Choosing it checks that the
 new version joins the running Session: the Session's answer lists `compatibility-window` and the
 active manifest's `client` component lists the `client-server` generation this connection
@@ -210,7 +210,9 @@ restart leaves the Session on its version: the status line says why, and the Upd
 offer the move, Update · Update the Session to Orchbee {version}. Terminals keep running. Choosing
 it tries again; a Host that must be replaced asks Restart terminals to update? first, and Restart
 stops the Session through the TUI's own connection and starts it with this version, which the TUI
-rejoins with every terminal restarted. A newer version in the store takes the row's place.
+rejoins with every terminal restarted. A newer version in the store takes the row's place. A Linux
+TUI moves no Session; its Server's [idle move](../../orchbee-server/README.md#idle-move) starts the
+new version once no terminal runs.
 
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;

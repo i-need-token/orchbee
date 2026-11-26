@@ -443,7 +443,6 @@ impl SessionShutdown {
     /// Admits the idle move's stop under `id` only while nothing is admitted at this moment: no
     /// stop, `drain` or `exit` recorded, no restart hold, and no record lease held. Every Client
     /// admission passes this owner's lock first, so a Client admitted afterwards is refused.
-    #[cfg(any(windows, target_os = "macos", test))]
     pub(crate) fn begin_idle(&self, id: StopId) -> bool {
         let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state.entry.is_some()

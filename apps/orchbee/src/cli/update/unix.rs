@@ -2,8 +2,7 @@
 //! and `tar` in `/usr/bin`, owned execution and the distribution capsule check. Every child starts
 //! through the local runtime's `posix_spawn` launch with an empty signal mask, since the update's
 //! signal owner blocks `SIGINT` and `SIGTERM` on the thread that starts it, in its own process
-//! group, which settles before the result. Only macOS admits `update`; Linux compiles these ports
-//! and refuses before them.
+//! group, which settles before the result.
 use super::{Context, acquire::system_proxy::Settings};
 use orchbee_local_runtime::{CommandOutput, SpawnEnvironment, run_unmasked_unix_command};
 use std::{

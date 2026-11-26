@@ -141,7 +141,7 @@ owns catalog encoding, path admission and replacement; the Server owns when shut
 
 ## Automatic update schedule
 
-A managed Windows or macOS Server schedules the
+A managed Server schedules the
 [automatic updates](../../proposals/platform/automatic-updates.md#who-checks-and-installs) of its
 release store when its own folder is a store version folder (`versions/<version>/`) and its build
 runs them: never a development build, a test build only while `ORCHBEE_UPDATE_FEED` names a feed,
@@ -157,18 +157,18 @@ A run finds the store root by the `ORCHBEE_INSTALL_DIR` rule and the active vers
 `<stem> --automatic-update` with the Server's environment, so proxy variables and a feed reach
 it, null standard input, and standard output and error each kept to 64 KiB. On Windows the helper
 runs from the system folder in a Job this process holds, at below-normal priority, which everything
-it starts inherits, and the Job ends it with the Server however the Server ends. On macOS it runs
-through `/usr/bin/nice -n 10` from the Server's working folder, in a process group of its own, with
+it starts inherits, and the Job ends it with the Server however the Server ends. On macOS and Linux
+it runs through `/usr/bin/nice -n 10` from the Server's working folder, in a process group of its own, with
 an empty signal mask and `SIGPIPE` at its default action, so it and everything it starts run at
 that lower priority. The run waits on the schedule's own thread and never on Session work, and it
 is ended after seven hours, past the helper's own longest run. A run that lasts past the next hour
 skips that moment rather than overlapping or catching up. A failed run only writes its
 `automatic-update` record, and the next hour runs again. A Session stop or `exit` stops the schedule
 first, and the stop never fails because of it. On Windows it does not wait: a running helper is
-ended through its Job within its settlement budget. macOS has no such Job, so the stop waits up to
-six seconds while the helper's group settles: `SIGTERM`, which the helper answers by settling its
-own downloads, then `SIGKILL` two seconds later. A macOS Server ended by `SIGKILL` leaves a running
-helper to finish or fail on its own, and the next run cleans up. Installing, verifying and cleaning
+ended through its Job within its settlement budget. macOS and Linux have no such Job, so the stop
+waits up to six seconds while the helper's group settles: `SIGTERM`, which the helper answers by
+settling its own downloads, then `SIGKILL` two seconds later. A POSIX Server ended by `SIGKILL`
+leaves a running helper to finish or fail on its own, and the next run cleans up. Installing, verifying and cleaning
 up stay with the
 [helper](../orchbee/docs/windows-cli-configuration.md#windows-release-installation).
 
@@ -181,7 +181,7 @@ says, and the hourly grid stays where it was. A request made while a run is queu
 that run. `read` never waits: it answers `checking`, the last run's result, scheduled runs included,
 or `idle` before any run finished. Only a helper that exits 0 with error `none` finishes a run, as
 `up-to-date` or, when it made a newer version active, `installed`; every other end is `failed`. A
-Server that schedules nothing, on Linux, outside a store version folder or in a build that does not
+Server that schedules nothing, outside a store version folder or in a build that does not
 run automatic updates, answers `unavailable`, as does one whose schedule stopped or whose thread
 ended, and drops a request it had queued. Another Session's ID is `rejected`, and the Workbench
 service, which never reaches the job, answers `denied`. The Server lists the `update-check`
@@ -189,7 +189,7 @@ capability in every `client-server` handshake answer, whether or not it schedule
 
 ## Idle move
 
-A managed Windows or macOS Server that schedules automatic updates
+A managed Server that schedules automatic updates
 [moves its Session](../../proposals/platform/automatic-updates.md#how-the-session-moves) once it is
 older than the store's active version and the Session has stayed idle for one unbroken minute; the
 switch and the store version folder therefore gate it as they gate the schedule, and
@@ -215,10 +215,9 @@ The stop is the ordinary Session stop under a fresh identity of the Server's own
 it asks nothing and disposes nothing, and its final capture keeps the layout for the next start,
 which runs the active version. Its Stopped record carries `moved_to`, the active version the check
 found, which `status server` reports as `movedTo`; a person's stop or a crash leaves none. A failed attempt is retried at each tick, since a recorded stop
-refuses every Client until it ends; ten seconds after its first failure the Server ends as for an
-[`exit`](#managed-windows-session-shutdown) instead. A plugin hook job started in the moment between the Worker's
-answer and the stop goes unseen and ends with the Worker. The countdown rule names no platform type;
-only the Windows Session wires it.
+refuses every Client until it ends; on Windows, ten seconds after its first failure the Server ends
+as for an [`exit`](#managed-windows-session-shutdown) instead. A plugin hook job started in the moment between the Worker's
+answer and the stop goes unseen and ends with the Worker. The countdown rule names no platform type.
 
 ## Managed Windows Session shutdown
 
@@ -649,9 +648,9 @@ Client exit does not end the Session, and neither does `SIGHUP`. `server stop`, 
 Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
 [managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
 sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks, and
-on macOS the [idle move](#idle-move) stops the Session under the same identity its signals use; on
-Linux it runs also without automatic updates, the idle move, Agent resume, the checkpoint saver, final capture and
-kept terminal output: the Worker shutdown request disposes every terminal, and after the Client
+on macOS and Linux the [idle move](#idle-move) stops the Session under the same identity its signals
+use; on Linux it runs also without Agent resume, the checkpoint saver, final capture and kept
+terminal output: the Worker shutdown request disposes every terminal, and after the Client
 listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
 which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
 final capture in its saved directory, showing its kept output first while

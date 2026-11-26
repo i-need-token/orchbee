@@ -5,8 +5,8 @@
 //! enriched Workbench inspection, which moving a Workspace between machines runs on both ends.
 //! These commands borrow the interrupt-pair port, which captures `SIGINT` and `SIGTERM` on both,
 //! and both admit a declared `terminal send` input source under its own signal watch.
-//! macOS and Linux admit release installation and uninstallation; only macOS admits the update
-//! download, `update` and the automatic helper. macOS admits `server stop`, Worktree operations
+//! macOS and Linux admit release installation and uninstallation, the update download, `update`
+//! and the automatic helper. macOS admits `server stop`, Worktree operations
 //! and source queries, `server restart`, `project close-all`, the unified Agent projection with per-Client
 //! attention, Client control, configured commands, Panel graphics, the runtime status reads
 //! with the processes its managed Session reports, the diagnostic bundle, schema export, the
@@ -21,7 +21,7 @@ use super::{Capability, Unsupported};
 
 pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
     match capability {
-        // The release store and its PATH step need no download; the download runs on macOS.
+        // The release store and its PATH step need no download.
         Capability::ReleaseInstall => Ok(()),
         Capability::ServerStop
         | Capability::ServerRestart
@@ -29,7 +29,6 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::WorkspaceGroupClose
         | Capability::AgentProjection
         | Capability::ClientControl
-        | Capability::ReleaseUpdate
         | Capability::ConfiguredCommands
         | Capability::RuntimeStatus
         | Capability::PaneGraphics
@@ -61,6 +60,7 @@ pub(super) fn admit(capability: Capability) -> Result<(), Unsupported> {
         | Capability::TerminalInputSource
         | Capability::ExtendedCreation
         | Capability::WorkbenchInspection
+        | Capability::ReleaseUpdate
             if cfg!(any(target_os = "linux", target_os = "macos")) =>
         {
             Ok(())

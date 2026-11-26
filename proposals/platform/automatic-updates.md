@@ -1166,7 +1166,7 @@ control while it is Ready. The action adds no second update state, and a Client 
   it, and leaves the hourly grid unchanged.
 - The Server answers at once; About reads the run with `read` while it shows. The answer is
   `checking`, `finished` with `up-to-date`, `installed` or `failed`, `idle`, `unavailable` where
-  the Server runs no job (Linux, development), or a refusal. An installed version still reaches the
+  the Server runs no job (a development build), or a refusal. An installed version still reaches the
   Client through the store's files, so the Update control appears as it does after a scheduled run.
 - Only the Client that asked reports the run's end. A failed scheduled run still changes nothing on
   screen.

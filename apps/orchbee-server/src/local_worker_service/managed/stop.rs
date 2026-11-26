@@ -30,7 +30,6 @@ use std::{
 
 #[cfg(any(windows, target_os = "macos"))]
 mod handover;
-#[cfg(any(windows, target_os = "macos"))]
 mod idle;
 mod worker_loss;
 
@@ -73,7 +72,6 @@ pub(super) struct Owners {
     pub(super) agents: Arc<AgentService>,
     /// The checkpoint this Session keeps; none where the platform keeps none.
     pub(super) checkpoint: Option<super::checkpoint::Kept>,
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) automatic_updates: Option<crate::automatic_updates::AutomaticUpdates>,
     /// What admitted Clients' checks for updates reach, from before the listener opens.
     pub(super) update_job: Arc<crate::update_job::UpdateJob>,
@@ -128,16 +126,10 @@ pub(super) fn run(
     #[cfg(windows)]
     owners.terminals.start_plugin_hooks();
     // The schedule counts from the moment the Session admits Clients.
-    #[cfg(any(windows, target_os = "macos"))]
-    {
-        owners.automatic_updates = crate::automatic_updates::AutomaticUpdates::start(
-            Arc::clone(&owners.terminals),
-            Arc::clone(&owners.update_job),
-        );
-    }
-    // Only Windows and macOS keep a release store, so elsewhere no job ever runs.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    owners.update_job.end();
+    owners.automatic_updates = crate::automatic_updates::AutomaticUpdates::start(
+        Arc::clone(&owners.terminals),
+        Arc::clone(&owners.update_job),
+    );
     let mut worker_completed = false;
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
@@ -146,7 +138,7 @@ pub(super) fn run(
     #[cfg(windows)]
     let mut restart = handover::Restart::default();
     // Every stop a POSIX Server begins uses its one identity, the idle move's too.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let mut idle = idle::IdleMove::under(own);
     #[cfg(target_os = "macos")]
     let mut restart = handover::Restart::under(own);
@@ -180,7 +172,7 @@ pub(super) fn run(
             return handover::leave(owners, clients, &shutdown);
         };
         #[cfg(all(unix, not(target_os = "macos")))]
-        let work = next_work(&mut owners, &shutdown, own, watch);
+        let work = next_work(&mut owners, &shutdown, own, &mut idle, watch);
         let attempt = match work {
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
@@ -251,10 +243,7 @@ pub(super) fn run(
         }
         // A stop the idle move began names the version the Session moved to, so a Client that
         // lost this Server starts that version.
-        #[cfg(any(windows, target_os = "macos"))]
         let moved_to = idle.moved_to(attempt.id);
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let moved_to = None;
         owners
             .session_record
             .complete_moving(attempt.id.bytes(), moved_to)?;
@@ -614,14 +603,15 @@ fn next_work(
     }
 }
 
-/// [`next_work`] on Linux, whose Server answers no restart: each tick looks at the Worker, and a
-/// failed stop this Server began after losing its Worker and Host is tried again once both are
-/// gone.
+/// [`next_work`] on Linux, whose Server answers no restart: each tick looks at the Worker and the
+/// idle move, and a failed stop this Server began after losing its Worker and Host is tried again
+/// once both are gone.
 #[cfg(all(unix, not(target_os = "macos")))]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
     own: StopId,
+    idle: &mut idle::IdleMove,
     mut watch: Watch<'_>,
 ) -> Work {
     loop {
@@ -631,6 +621,7 @@ fn next_work(
         if watch.look(owners, shutdown) {
             begin_own(shutdown, own);
         }
+        idle.tick(owners, shutdown);
     }
 }
 
@@ -795,7 +786,6 @@ fn stop_ingress(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
 /// Worker jobs, so dispatch stops before any Worker owner; admitted hook jobs end with the Worker.
 fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
     // An automatic update holds no Session resource, so its stop never fails.
-    #[cfg(any(windows, target_os = "macos"))]
     if let Some(updates) = owners.automatic_updates.take() {
         updates.stop();
     }

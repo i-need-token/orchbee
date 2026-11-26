@@ -47,8 +47,6 @@ pub(crate) struct Build {
     /// The automatic-update switch, `automatic_updates_live`.
     pub(crate) live: bool,
     pub(crate) kind: EnvironmentKind,
-    /// Whether `orchbee update` writes this platform's release store: Windows and macOS, not Linux.
-    pub(crate) store: bool,
 }
 
 impl Build {
@@ -56,14 +54,13 @@ impl Build {
         Self {
             live: orchbee_local_runtime::automatic_updates_live(),
             kind: orchbee_local_runtime::environment_kind(),
-            store: cfg!(any(windows, target_os = "macos")),
         }
     }
 
-    /// Whether any store state could make the control Ready: never behind the switch, in a
-    /// development build, which has no store, or where no update writes the store.
+    /// Whether any store state could make the control Ready: never behind the switch or in a
+    /// development build, which has no store.
     const fn offers_updates(self) -> bool {
-        self.live && self.store && !matches!(self.kind, EnvironmentKind::Development)
+        self.live && !matches!(self.kind, EnvironmentKind::Development)
     }
 }
 
@@ -253,7 +250,6 @@ impl Updater {
             build: Build {
                 live: true,
                 kind: EnvironmentKind::Test,
-                store: true,
             },
             watcher: None,
             active: None,

@@ -1,4 +1,4 @@
-//! The managed Windows and macOS Session's idle move: each tick of the stop loop looks at the
+//! The managed Session's idle move: each tick of the stop loop looks at the
 //! Session, and a completed countdown begins the ordinary stop under an identity of the Server's
 //! own. A failed idle stop is tried again, as a recorded stop refuses every Client until it ends.
 //! The stop's record names the version the Session moved to, so a connected Client starts it.

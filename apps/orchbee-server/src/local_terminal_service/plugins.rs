@@ -191,7 +191,6 @@ impl LocalTerminalService {
     /// The query only reads. Anything short of a correlated zero answer reads as running: no
     /// Worker or identity, backpressure, a refusal, or a reply that is lost, late or does not
     /// correlate. None of these ends the Worker or its carrier.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn worker_processes_idle(&self) -> bool {
         let identity = self
             .coordinator

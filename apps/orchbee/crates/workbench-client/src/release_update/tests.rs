@@ -5,7 +5,6 @@ use orchbee_local_runtime::EnvironmentKind;
 const RELEASE: Build = Build {
     live: true,
     kind: EnvironmentKind::Release,
-    store: true,
 };
 
 fn ready(version: &str) -> UpdateControl {
@@ -33,8 +32,8 @@ fn the_control_is_ready_only_for_a_newer_active_version() {
     }
 }
 
-/// With the automatic-update switch off, in a development build and where no update writes the store the
-/// control never shows, whatever the store says; a test build shows it as a release build does.
+/// With the automatic-update switch off and in a development build the control never shows,
+/// whatever the store says; a test build shows it as a release build does.
 #[test]
 fn the_control_is_absent_where_the_build_offers_no_update() {
     for build in [
@@ -44,10 +43,6 @@ fn the_control_is_absent_where_the_build_offers_no_update() {
         },
         Build {
             kind: EnvironmentKind::Development,
-            ..RELEASE
-        },
-        Build {
-            store: false,
             ..RELEASE
         },
     ] {

@@ -8,8 +8,6 @@ pub(crate) enum Withheld {
     Plugin,
     Popup,
     Channel,
-    /// `update` on Linux, where no download runs yet; Windows and macOS releases offer it.
-    Update,
 }
 
 impl Withheld {
@@ -19,7 +17,6 @@ impl Withheld {
             Self::Plugin => "plugin",
             Self::Popup => "popup",
             Self::Channel => "channel",
-            Self::Update => "update",
         }
     }
 }
@@ -48,7 +45,6 @@ fn reached(words: &[&str]) -> Option<Withheld> {
         ["plugin", ..] => Some(Withheld::Plugin),
         ["popup", ..] => Some(Withheld::Popup),
         ["channel", ..] => Some(Withheld::Channel),
-        ["update", ..] if cfg!(not(any(windows, target_os = "macos"))) => Some(Withheld::Update),
         _ => None,
     }
 }
