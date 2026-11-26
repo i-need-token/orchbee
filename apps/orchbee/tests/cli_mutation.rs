@@ -281,14 +281,14 @@ fn admit_and_serve_snapshot(stream: &UnixStream) -> orchbee_workbench_protocol::
     request_id
 }
 
-/// Reads the command. macOS runs the extended `tab create` and `panel split`, which first read the
-/// Session's configuration for an omitted directory; Linux's canonical creation does not. That
-/// read is answered with `terminal.new_cwd = "workspace"`, so creation reads nothing more.
+/// Reads the command. The extended `tab create` and `panel split` first read the Session's
+/// configuration for an omitted directory; that read is answered with
+/// `terminal.new_cwd = "workspace"`, so creation reads nothing more.
 fn read_command(stream: &UnixStream) -> WorkbenchCommand {
     loop {
         match read_workbench_request(&mut &*stream) {
             Ok(WorkbenchRequest::Command(command)) => return command,
-            Ok(WorkbenchRequest::Configuration(request)) if cfg!(target_os = "macos") => {
+            Ok(WorkbenchRequest::Configuration(request)) => {
                 configuration_response(stream, request);
             }
             other => panic!("peer expected workbench.command, got {other:?}"),
@@ -296,15 +296,9 @@ fn read_command(stream: &UnixStream) -> WorkbenchCommand {
     }
 }
 
-/// The schema a creation receipt names: macOS runs the extended creation, whose receipt adds the
-/// resolved directory and focus as `orchbee.creation.result`.
-fn creation_schema() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "orchbee.creation.result"
-    } else {
-        "orchbee.mutation.result"
-    }
-}
+/// The schema a creation receipt names: the extended creation's receipt adds the resolved
+/// directory and focus as `orchbee.creation.result`.
+const CREATION_SCHEMA: &str = "orchbee.creation.result";
 
 fn configuration_response(
     stream: &UnixStream,
@@ -591,89 +585,6 @@ fn project_create_commits_under_a_fresh_request() -> TestResult {
     Ok(())
 }
 
-/// Linux's canonical `workspace create`. macOS runs the extended creation, which resolves the new
-/// Workspace's directory and answers `orchbee.workspace.creation`, as the Windows Workspace creation
-/// suite witnesses.
-#[cfg(target_os = "linux")]
-#[test]
-fn workspace_create_commits_under_a_fresh_request() -> TestResult {
-    let base = base_dir("ws-create");
-    let scope = stage_scope(&base);
-    let submitted = Arc::new(Mutex::new(String::new()));
-    let seen = submitted.clone();
-    let peer = spawn_activating_peer(&scope, move |stream| {
-        let snapshot_request = admit_and_serve_snapshot(&stream);
-        let command = read_command(&stream);
-        assert_command_base(&command, snapshot_request.as_str());
-        *seen.lock().unwrap() = command.request_id.as_str().to_owned();
-        let WorkbenchAction::WorkspaceCreate {
-            project_id, label, ..
-        } = &command.action
-        else {
-            panic!("expected workspace.create, got {:?}", command.action)
-        };
-        assert_eq!(
-            project_id.as_ref().unwrap().as_str(),
-            PROJECT,
-            "project label resolved"
-        );
-        assert_eq!(label.as_str(), "api");
-        command_response(
-            &stream,
-            command.request_id,
-            WorkbenchCommandOutcome::WorkspaceCreated {
-                revision: revision(8),
-                workspace_id: orchbee_workbench_protocol::WorkbenchWorkspaceId::parse(&id(0x61))
-                    .unwrap(),
-                terminal_context_id: orchbee_workbench_protocol::WorkbenchTerminalContextId::parse(
-                    &id(0x62),
-                )
-                .unwrap(),
-            },
-        );
-    });
-    let output = run(
-        &base,
-        &[
-            "workspace",
-            "create",
-            "--project",
-            "web",
-            "--label",
-            "api",
-            "--format",
-            "json",
-        ],
-    );
-    peer.join().expect("peer finished");
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "stderr={}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let document = envelope(&output);
-    assert_eq!(document["schema"], "orchbee.mutation.result");
-    assert_eq!(document["version"], 1);
-    assert_eq!(document["source"]["kind"], "workbench-command");
-    assert_eq!(document["source"]["sessionId"], SESSION);
-    assert_eq!(document["source"]["expectedRevision"], "7");
-    assert_eq!(document["result"]["action"], "workspace.create");
-    assert_eq!(document["result"]["outcome"], "committed");
-    assert_eq!(document["result"]["revision"], "8");
-    assert_eq!(document["result"]["projectId"], PROJECT);
-    assert_eq!(document["result"]["workspaceId"], id(0x61));
-    assert_eq!(document["result"]["terminalContextId"], id(0x62));
-    assert_eq!(document["result"]["label"], "api");
-    // The receipt's request id is the submitted command's, not the read's.
-    assert_eq!(
-        document["source"]["requestId"].as_str().unwrap(),
-        submitted.lock().unwrap().as_str()
-    );
-    assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
-    Ok(())
-}
-
 #[test]
 fn workspace_rename_resolves_label_and_reports_unchanged() -> TestResult {
     let base = base_dir("ws-rename");
@@ -837,7 +748,7 @@ fn tab_create_against_standalone_context_reports_terminal() -> TestResult {
     assert_eq!(document["result"]["terminal"]["outcome"], "started");
     assert_eq!(document["result"]["terminal"]["geometry"]["columns"], 80);
     assert_eq!(document["result"]["terminal"]["geometry"]["rows"], 24);
-    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
+    assert!(compiled_schema(&base, CREATION_SCHEMA).is_valid(&document));
     Ok(())
 }
 
@@ -984,7 +895,7 @@ fn tab_create_without_geometry_requests_the_default() -> TestResult {
         document["result"]["terminal"]["geometry"]["cellPixelHeight"],
         0
     );
-    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
+    assert!(compiled_schema(&base, CREATION_SCHEMA).is_valid(&document));
     Ok(())
 }
 
@@ -1117,16 +1028,13 @@ fn tab_rename_move_and_close_each_submit_one_command() -> TestResult {
     Ok(())
 }
 
-/// Whether `panel move --into-tab` submits the canonical `panel.move`. macOS runs the extended
-/// move, which submits `panel.relocate` and answers `orchbee.panel.move`, as the Windows creation
-/// suite witnesses.
-const CANONICAL_PANEL_MOVE: bool = cfg!(target_os = "linux");
-
+/// `panel move` runs the extended move, which submits `panel.relocate` and answers
+/// `orchbee.panel.move`, as the Windows creation suite witnesses.
 #[test]
-fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
+fn panel_split_and_close_each_submit_one_command() -> TestResult {
     let base = base_dir("panel-ops");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 2 + usize::from(CANONICAL_PANEL_MOVE), |stream| {
+    let peer = spawn_peer_n(&scope, 2, |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
         let outcome = match &command.action {
@@ -1198,33 +1106,6 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
                     accepted_revision: revision(6),
                 }
             }
-            WorkbenchAction::PanelMove {
-                terminal_context_id,
-                tab_id,
-                panel_id,
-                target_panel_id,
-                direction,
-            } => {
-                assert_eq!(terminal_context_id.as_str(), CONTEXT);
-                assert_eq!(tab_id.as_str(), LOGS_TAB);
-                assert_eq!(panel_id.as_str(), LEFT_PANEL);
-                assert_eq!(
-                    target_panel_id.as_str(),
-                    RIGHT_PANEL,
-                    "target panel resolves inside the source tab"
-                );
-                assert_eq!(
-                    *direction,
-                    orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Below
-                );
-                WorkbenchCommandOutcome::PanelMoved {
-                    revision: revision(8),
-                    terminal_context_id: terminal_context_id.clone(),
-                    tab_id: tab_id.clone(),
-                    panel_id: panel_id.clone(),
-                    target_panel_id: target_panel_id.clone(),
-                }
-            }
             other => panic!("unexpected action {other:?}"),
         };
         command_response(&stream, command.request_id, outcome);
@@ -1268,7 +1149,7 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     assert_eq!(document["result"]["presentationId"], id(0x75));
     assert_eq!(document["result"]["direction"], "right");
     assert_eq!(document["result"]["terminal"]["outcome"], "started");
-    assert!(compiled_schema(&base, creation_schema()).is_valid(&document));
+    assert!(compiled_schema(&base, CREATION_SCHEMA).is_valid(&document));
 
     let closed = run(
         &base,
@@ -1282,30 +1163,6 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
     assert_eq!(document["result"]["closeRequestId"], id(0x76));
     assert_eq!(document["result"]["panelId"], RIGHT_PANEL);
 
-    if CANONICAL_PANEL_MOVE {
-        let moved = run(
-            &base,
-            &[
-                "panel",
-                "move",
-                LEFT_PANEL,
-                "--into-tab",
-                LOGS_TAB,
-                "--target-panel",
-                RIGHT_PANEL,
-                "--direction",
-                "down",
-                "--format=json",
-            ],
-        );
-        assert_eq!(moved.status.code(), Some(0));
-        let document = envelope(&moved);
-        assert_eq!(document["result"]["action"], "panel.move");
-        assert_eq!(document["result"]["outcome"], "committed");
-        assert_eq!(document["result"]["direction"], "below");
-        assert_eq!(document["result"]["panelId"], LEFT_PANEL);
-        assert_eq!(document["result"]["targetPanelId"], RIGHT_PANEL);
-    }
     peer.join().expect("peer finished");
     Ok(())
 }
@@ -1314,23 +1171,19 @@ fn panel_split_close_and_move_each_submit_one_command() -> TestResult {
 /// the Server's own revision — the same definite arm `workspace rename`
 /// already covers.
 #[test]
-fn tab_and_panel_move_report_unchanged() -> TestResult {
+fn tab_move_reports_unchanged() -> TestResult {
     let base = base_dir("move-unchanged");
     let scope = stage_scope(&base);
-    let peer = spawn_peer_n(&scope, 1 + usize::from(CANONICAL_PANEL_MOVE), |stream| {
+    let peer = spawn_peer(&scope, |stream| {
         admit_and_serve_snapshot(&stream);
         let command = read_command(&stream);
-        match &command.action {
-            WorkbenchAction::TabMove { direction, .. } => assert_eq!(
-                *direction,
-                orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next
-            ),
-            WorkbenchAction::PanelMove { direction, .. } => assert_eq!(
-                *direction,
-                orchbee_workbench_protocol::WorkbenchPanelSplitDirection::Above
-            ),
-            other => panic!("unexpected action {other:?}"),
-        }
+        let WorkbenchAction::TabMove { direction, .. } = &command.action else {
+            panic!("unexpected action {:?}", command.action);
+        };
+        assert_eq!(
+            *direction,
+            orchbee_workbench_protocol::WorkbenchTabMoveDirection::Next
+        );
         command_response(
             &stream,
             command.request_id,
@@ -1353,29 +1206,6 @@ fn tab_and_panel_move_report_unchanged() -> TestResult {
     assert_eq!(document["result"]["tabId"], OPS_TAB);
     assert!(compiled_schema(&base, "orchbee.mutation.result").is_valid(&document));
 
-    if CANONICAL_PANEL_MOVE {
-        let panel_moved = run(
-            &base,
-            &[
-                "panel",
-                "move",
-                LEFT_PANEL,
-                "--into-tab",
-                LOGS_TAB,
-                "--target-panel",
-                RIGHT_PANEL,
-                "--direction",
-                "up",
-                "--format=json",
-            ],
-        );
-        assert_eq!(panel_moved.status.code(), Some(0));
-        let document = envelope(&panel_moved);
-        assert_eq!(document["result"]["action"], "panel.move");
-        assert_eq!(document["result"]["outcome"], "unchanged");
-        assert_eq!(document["result"]["revision"], "7");
-        assert_eq!(document["result"]["direction"], "above");
-    }
     peer.join().expect("peer finished");
     Ok(())
 }

@@ -813,15 +813,14 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         (&["status", "--format", "json"], "orchbee.status"),
         (&["api", "snapshot"], "orchbee.api.snapshot"),
     ];
-    // macOS enriches the Workspace, Tab and Panel lists and gets and the Terminal list with the
-    // Windows Client, Agent and process reads, which this snapshot-only peer does not fake; the
-    // Windows Agent focus suite witnesses those documents. Each keeps its place, empty.
-    let enriched = |arguments: &[&str]| {
-        cfg!(target_os = "macos")
-            && matches!(
-                arguments,
-                ["workspace" | "tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..]
-            )
+    // The Tab and Panel lists and gets and the Terminal list join the Windows Client, Agent and
+    // process reads, and on macOS the Workspace list and get also join the Workspace reports only
+    // its Server serves; this snapshot-only peer fakes none of them, and the Windows Agent focus
+    // suite witnesses those documents. Each keeps its place, empty.
+    let enriched = |arguments: &[&str]| match arguments {
+        ["tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..] => true,
+        ["workspace", "list" | "get", ..] => cfg!(target_os = "macos"),
+        _ => false,
     };
     let derived = queries
         .iter()
@@ -918,95 +917,9 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
             workspace["tabs"],
             serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
         );
-
-        // Every tab row carries its real Workspace owner, including ungrouped Workspaces.
-        let tabs = documents[4]["result"]["tabs"].as_array().unwrap();
-        assert_eq!(tabs.len(), 3);
-        let ws_row = tabs
-            .iter()
-            .find(|row| row["tabId"] == id(0x21))
-            .expect("workspace tab row");
-        assert_eq!(
-            ws_row["context"],
-            serde_json::json!({
-                "kind": "workspace",
-                "terminalContextId": id(0x20),
-                "workspaceId": id(0x12),
-            })
-        );
-        for row in tabs.iter().filter(|row| row["tabId"] != id(0x21)) {
-            assert_eq!(row["context"]["kind"], "workspace", "{row}");
-            assert_eq!(row["context"]["workspaceId"], id(1), "{row}");
-        }
-
-        // `--workspace` by label resolves to exactly the workspace context's tab.
-        let filtered = documents[5]["result"]["tabs"].as_array().unwrap();
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0]["tabId"], id(0x21));
-
-        // `tab get` re-encodes the split PanelNode subtree without semantic loss.
-        let root = &documents[6]["result"]["tab"]["root"];
-        assert_eq!(root["kind"], "split");
-        assert_eq!(root["splitId"], id(0x22));
-        assert_eq!(root["children"].as_array().unwrap().len(), 2);
-
-        // Panels flatten across contexts; the filter keeps only the resolved tab.
-        let panels = documents[7]["result"]["panels"].as_array().unwrap();
-        assert_eq!(panels.len(), 4);
-        let scoped = documents[8]["result"]["panels"].as_array().unwrap();
-        assert_eq!(
-            scoped
-                .iter()
-                .map(|row| row["panelId"].as_str().unwrap().to_owned())
-                .collect::<Vec<_>>(),
-            vec![id(0x24), id(0x27)],
-        );
-        assert!(scoped.iter().all(|row| row["tabId"] == id(0x21)));
-
-        // `panel get` walks the split: slotPath is the slot ids root→leaf and the
-        // context pins the owning workspace.
-        let left = &documents[9]["result"]["panel"];
-        assert_eq!(left["panelId"], id(0x24));
-        assert_eq!(left["slotPath"], serde_json::json!([id(0x23)]));
-        assert_eq!(
-            left["context"],
-            serde_json::json!({
-                "kind": "workspace",
-                "terminalContextId": id(0x20),
-                "workspaceId": id(0x12),
-            })
-        );
-        assert_eq!(left["primaryPresentation"]["presentationId"], id(0x25));
-        assert_eq!(
-            left["primaryPresentation"]["binding"],
-            serde_json::Value::Null
-        );
-        assert_eq!(left["childPresentations"], serde_json::json!([]));
-        let right = &documents[10]["result"]["panel"];
-        assert_eq!(right["panelId"], id(0x27));
-        assert_eq!(right["slotPath"], serde_json::json!([id(0x26)]));
-        assert_eq!(
-            right["primaryPresentation"]["binding"]["terminalId"],
-            id(0x30)
-        );
-        assert_eq!(
-            right["childPresentations"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|row| row["presentationId"].as_str().unwrap().to_owned())
-                .collect::<Vec<_>>(),
-            vec![id(0x29)],
-        );
     }
-
-    // Terminals: both bound ids are listed; `terminal get` answers the
-    // Server's launch-read join — version 4 envelope, its own source kind,
-    // the same routing, and the retained launch fact.
-    if !cfg!(target_os = "macos") {
-        let terminals = documents[11]["result"]["terminals"].as_array().unwrap();
-        assert_eq!(terminals.len(), 2);
-    }
+    // `terminal get` answers the Server's launch-read join — version 4 envelope, its own source
+    // kind, the same routing, and the retained launch fact.
     let get = &documents[12];
     assert_eq!(get["version"], 1);
     assert_eq!(
@@ -1043,13 +956,6 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
     assert_eq!(launch["workerGeneration"], "1");
     assert_eq!(launch["createOutcome"]["kind"], "accepted");
     assert_eq!(launch["geometry"]["columns"], 120);
-    if !cfg!(target_os = "macos") {
-        assert!(
-            documents[11]["result"]["terminals"][0]
-                .get("launch")
-                .is_none()
-        );
-    }
 
     // `status` reports the same snapshot's real counts; `api snapshot`
     // re-encodes the document itself.

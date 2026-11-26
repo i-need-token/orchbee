@@ -107,7 +107,13 @@ fn graphics_draw_publication_uses_the_registered_connection_and_shutdown_interru
                 .map_err(io::Error::other)?;
             }
             reached_tx.send(()).unwrap();
-            assert_eq!(stream.read(&mut [0])?, 0);
+            // The lane closes without reading what it no longer needs, such as the draw's answer;
+            // Linux reports such a close as a reset rather than end of file.
+            match stream.read(&mut [0]) {
+                Ok(0) => {}
+                Err(error) if error.kind() == io::ErrorKind::ConnectionReset => {}
+                other => panic!("the lane must close: {other:?}"),
+            }
             Ok(())
         })
         .unwrap();

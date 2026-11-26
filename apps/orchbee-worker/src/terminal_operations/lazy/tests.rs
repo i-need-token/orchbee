@@ -318,6 +318,19 @@ impl TokenMint {
     }
 }
 
+/// Reads the Worker's next answer to the Server. The Worker also sends unsolicited notes when a
+/// viewer has a record to Poll or terminal titles changed, as a real Host's shell sets its title;
+/// these witnesses Poll explicitly and own no titles, so they read past the notes.
+fn read_answer(server: &mut UnixStream) -> TestResult<CapabilityNodeMessage> {
+    loop {
+        match read_message(server)? {
+            CapabilityNodeMessage::TerminalViewerRecordReady(_)
+            | CapabilityNodeMessage::TerminalTitlesChanged(_) => {}
+            message => return Ok(message),
+        }
+    }
+}
+
 fn drain(
     server: &mut UnixStream,
     mint: &mut TokenMint,
@@ -333,7 +346,7 @@ fn drain(
             acknowledged,
         }),
     )?;
-    let CapabilityNodeMessage::AgentDrainReply(reply) = read_message(server)? else {
+    let CapabilityNodeMessage::AgentDrainReply(reply) = read_answer(server)? else {
         return Err(io::Error::other("missing AgentDrainReply").into());
     };
     assert_eq!(reply.token_echo(), token);
@@ -971,7 +984,7 @@ fn launch_real_terminal(
             None,
         )),
     )?;
-    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(server)? else {
+    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_answer(server)? else {
         return Err(io::Error::other("missing Launch result").into());
     };
     let TerminalLaunchOutcome::HostAccepted(created) = result.outcome() else {
@@ -1141,7 +1154,7 @@ fn send_apc(
             )?)])?,
         }),
     )?;
-    let CapabilityNodeMessage::TerminalSendResult(result) = read_message(server)? else {
+    let CapabilityNodeMessage::TerminalSendResult(result) = read_answer(server)? else {
         return Err(io::Error::other("missing Send result").into());
     };
     Ok(result)
@@ -1288,7 +1301,7 @@ fn launch_fails_before_handoff(server: &mut UnixStream, id: u8) -> TestResult {
             None,
         )),
     )?;
-    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_message(server)? else {
+    let CapabilityNodeMessage::TerminalLaunchResult(result) = read_answer(server)? else {
         return Err(io::Error::other("missing Launch result").into());
     };
     assert_eq!(
