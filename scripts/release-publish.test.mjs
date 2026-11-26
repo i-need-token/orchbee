@@ -79,8 +79,13 @@ test('the release path refuses what it cannot release with a sentence naming it'
 		planRelease({ event: 'push', ref: 'refs/tags/v0.1.0', platforms });
 	assert.throws(plan([rows[1], rows[2]]), /No row/u);
 	assert.throws(plan([{ ...rows[2], publish: true }]), /needs a Windows row/u);
-	const linux = { platform: 'linux-x86_64', runner: 'ubuntu-24.04', build: true, publish: true };
-	assert.throws(plan([rows[0], linux]), /no build jobs for it/u);
+	const freebsd = {
+		platform: 'freebsd-x86_64',
+		runner: 'ubuntu-24.04',
+		build: true,
+		publish: true,
+	};
+	assert.throws(plan([rows[0], freebsd]), /no build jobs for it/u);
 });
 
 test('a pre-release goes to the dist-tag next and only a plain version to latest', () => {

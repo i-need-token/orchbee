@@ -78,7 +78,7 @@ const releaseStem = 'orchbee';
 const platformPackage = /^@orchbee\/cli-[a-z\d]+-[a-z\d]+$/u;
 // The platform token prefixes the release workflow has build, package and smoke jobs for; each
 // family's jobs take its rows, and the signing, feed and join jobs take every row.
-const releaseFamilies = ['windows', 'macos'];
+const releaseFamilies = ['windows', 'macos', 'linux'];
 const usage =
 	'Usage: node scripts/release-publish.mjs plan --event <name> --ref <git ref> [--version <version>]\n' +
 	'       node scripts/release-publish.mjs notes --tag v<version> --repository <owner/name>\n' +
@@ -159,6 +159,8 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 		macosMatrix: { include: rowsOf('macos') },
 		macos: rowsOf('macos').length > 0,
 		macosAarch64: rowsOf('macos').some((row) => row.platform === 'macos-aarch64'),
+		linuxMatrix: { include: rowsOf('linux') },
+		linux: rowsOf('linux').length > 0,
 	};
 }
 
@@ -981,6 +983,8 @@ async function main(argv) {
 			'macos-matrix': JSON.stringify(plan.macosMatrix),
 			macos: String(plan.macos),
 			'macos-aarch64': String(plan.macosAarch64),
+			'linux-matrix': JSON.stringify(plan.linuxMatrix),
+			linux: String(plan.linux),
 		});
 		return;
 	}

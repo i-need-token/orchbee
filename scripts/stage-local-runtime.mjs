@@ -33,6 +33,15 @@ const MACOS_TARGETS = new Map([
 	['macos-aarch64', { arch: 'arm64', rust: 'aarch64-apple-darwin', zig: 'aarch64-macos' }],
 	['macos-x86_64', { arch: 'x64', rust: 'x86_64-apple-darwin', zig: 'x86_64-macos' }],
 ]);
+// A Linux release row links every program statically against musl, on a host of its architecture,
+// so the cohort names no C library and runs on any distribution.
+const LINUX_TARGETS = new Map([
+	['linux-x86_64', { arch: 'x64', rust: 'x86_64-unknown-linux-musl', zig: 'x86_64-linux-musl' }],
+	[
+		'linux-aarch64',
+		{ arch: 'arm64', rust: 'aarch64-unknown-linux-musl', zig: 'aarch64-linux-musl' },
+	],
+]);
 const MAX_CAPSULE_ENTRIES = 128;
 const MAX_CAPSULE_DEPTH = 8;
 const MAX_CAPSULE_FILE_BYTES = 512 * 1024;
@@ -177,7 +186,7 @@ export function options(args, platform = process.platform) {
 			!args[i + 1]
 		) {
 			throw new Error(
-				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY] [--artifact-stem STEM] [--platform macos-aarch64|macos-x86_64]',
+				'Usage: node scripts/stage-local-runtime.mjs --output ABSOLUTE_NEW_DIRECTORY [--wsl DISTRO] [--cargo-target-dir ABSOLUTE_DIRECTORY] [--artifact-stem STEM] [--platform macos-aarch64|macos-x86_64|linux-x86_64|linux-aarch64]',
 			);
 		}
 		if (result[args[i]] !== undefined) throw new Error('Duplicate staging option');
@@ -194,11 +203,14 @@ export function options(args, platform = process.platform) {
 	const artifactStem = result['--artifact-stem'];
 	if (artifactStem !== undefined && !ARTIFACT_STEM_PATTERN.test(artifactStem))
 		throw new Error('--artifact-stem must be orchbee, ob-dev-<16 hex>, or ob-test-<16 hex>');
-	if (
-		result['--platform'] !== undefined &&
-		(platform !== 'darwin' || !MACOS_TARGETS.has(result['--platform']))
-	)
-		throw new Error('--platform is macos-aarch64 or macos-x86_64, on a macOS host');
+	const targets = new Map([
+		['darwin', MACOS_TARGETS],
+		['linux', LINUX_TARGETS],
+	]).get(platform);
+	if (result['--platform'] !== undefined && !targets?.has(result['--platform']))
+		throw new Error(
+			'--platform is macos-aarch64 or macos-x86_64 on a macOS host, or linux-x86_64 or linux-aarch64 on a Linux host',
+		);
 	if (!['darwin', 'linux', 'win32'].includes(platform))
 		throw new Error('Local startup staging currently supports macOS, Windows and Linux');
 	return result;
@@ -261,7 +273,12 @@ function main() {
 	// replace the application when the window relaunches (apps/orchbee-desktop-launcher/README.md).
 	const windowLauncher = process.platform === 'darwin' ? 'orchbee-desktop-launcher' : undefined;
 	const macosTarget = MACOS_TARGETS.get(selected['--platform'] ?? '');
-	const cross = macosTarget?.arch === process.arch ? undefined : macosTarget;
+	const linuxTarget = LINUX_TARGETS.get(selected['--platform'] ?? '');
+	if (linuxTarget !== undefined && linuxTarget.arch !== process.arch)
+		throw new Error(`${selected['--platform']} stages on a host of its own architecture`);
+	// Cargo's and Zig's target when the host's own does not build the row: the other Mac
+	// architecture, or musl on Linux.
+	const cross = linuxTarget ?? (macosTarget?.arch === process.arch ? undefined : macosTarget);
 	const built = cross === undefined ? 'release' : path.posix.join(cross.rust, 'release');
 	let temporary;
 	let outputCreated = false;

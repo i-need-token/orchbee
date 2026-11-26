@@ -231,9 +231,16 @@ both macOS rows build and publish, so a failure on any of them stops the tag. A 
 disk image `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz`, the window archive
 `orchbee-desktop-<version>-macos-<cpu>.zip`, the feed document, and the platform package
 `@orchbee/cli-darwin-<cpu>`. The macOS floor is macOS 13: the Terminal Host and the desktop
-application's `Info.plist` name it as their minimum, whatever release the runner has. A platform
-row is published only after a rehearsal in which its build, package, smoke and join jobs passed;
-then set `"publish": true` on its row of `RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
+application's `Info.plist` name it as their minimum, whatever release the runner has. A Linux row
+builds on a runner of its own architecture with `--platform linux-<cpu>`, which links every program
+statically against musl, so the cohort runs on any distribution; its directory holds what a macOS
+directory holds. It ships no window yet: `release-artifacts.mjs collect --release-directory` makes
+the `.tar.gz`, the feed document without a window archive, and the platform package
+`@orchbee/cli-linux-<cpu>` from the signed release directory, and `release-smoke-linux.mjs` proves
+the archive, install.sh and npm routes. Both Linux rows build, so every rehearsal and candidate
+proves them, and publish nothing yet. A platform row is published only after a rehearsal in which
+its build, package, smoke and join jobs passed; then set `"publish": true` on its row of
+`RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
 
 ## What clients rely on
 

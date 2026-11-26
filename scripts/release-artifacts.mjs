@@ -2,20 +2,22 @@
 // checks such a directory after it has been moved, as the release workflow does between runners.
 //
 //   node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory>
-//     [--repository-url https://<host>/<owner>/<name>]
+//     [--repository-url https://<host>/<owner>/<name>] [--release-directory <absolute directory>]
 //   node scripts/release-artifacts.mjs check <directory>
 //   node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...
 //
 // `collect` runs on Windows or macOS and reads what `pnpm desktop:installer:<profile>` (on macOS,
 // `apps/desktop/scripts/package.mjs --installer`) left under apps/desktop/out/<profile>/: the
 // packaged application with its window file list (on macOS beside the bundle), its bundled runtime,
-// which that build made a signed release directory, and the installer. `<platform>` is the signed
-// manifest's. It writes, without signing the release directory again:
+// which that build made a signed release directory, and the installer. On Linux, which ships no
+// window yet, `--release-directory` names the signed release directory instead, and there is no
+// installer or window archive. `<platform>` is the signed manifest's. It writes, without signing
+// the release directory again:
 //
 //   <stem>-<version>-<platform>/   the signed release directory, every file checked against release.json
 //   <stem>-<version>-<platform>.zip  Windows: that directory as one top-level folder, for the command
 //                                  line alone
-//   <stem>-<version>-<platform>.tar.gz  macOS: the same as a tar.gz (scripts/tar-gzip.mjs); the
+//   <stem>-<version>-<platform>.tar.gz  macOS and Linux: the same as a tar.gz (scripts/tar-gzip.mjs); the
 //                                  programs release.json names record mode 0755, whatever the copy
 //                                  on disk says, since `upload-artifact` drops modes
 //   <stem>-desktop-<version>-<platform>.zip  the window archive (scripts/desktop-files.mjs): one
@@ -125,7 +127,7 @@ const posixNpmPackage = /-cli-(?:darwin|linux)-(?:arm64|x64)-[^/\\]+\.tgz$/u;
 const npmRelease = 'package/release/';
 const npmManifest = 'package/package.json';
 const usage =
-	'Usage: node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory> [--repository-url https://<host>/<owner>/<name>]\n' +
+	'Usage: node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory> [--repository-url https://<host>/<owner>/<name>] [--release-directory <absolute directory>]\n' +
 	'       node scripts/release-artifacts.mjs check <directory>\n' +
 	'       node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...';
 
@@ -653,9 +655,11 @@ function writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, de
 }
 
 /** Gathers the artifacts of the `profile` installer build into `output`. */
-function collect({ profile, output, repositoryUrl = runRepository() }) {
+function collect({ profile, output, repositoryUrl = runRepository(), releaseSource }) {
 	if (!path.isAbsolute(output)) throw new UsageError('The output directory must be absolute');
 	if (existsSync(output)) throw new Error(`Refusing to write into an existing ${output}`);
+	if (releaseSource !== undefined)
+		return collectRelease({ profile, output, repositoryUrl, releaseSource });
 	const built = path.join(repository, 'apps', 'desktop', 'out', profile);
 	const application = single(
 		built,
@@ -686,7 +690,7 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	const { platform } = release.manifest;
 	const windows = release.platform.os === 'win32';
 	if (!windows && release.platform.os !== 'darwin')
-		throw new Error(`Collecting the ${platform} release is not built`);
+		throw new Error(`A ${platform} release is collected with --release-directory`);
 	if (release.platform.os !== process.platform)
 		throw new Error(`The bundled runtime is for ${platform}, not this host`);
 	if (!application.endsWith(`-${release.platform.cpu}`))
@@ -729,6 +733,39 @@ function collect({ profile, output, repositoryUrl = runRepository() }) {
 	};
 	writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, desktop });
 	copyFileSync(installer, path.join(output, path.basename(installer)));
+	return finishCollection(output, version, releaseDirectory);
+}
+
+/**
+ * `collect` for a row that ships no window yet, Linux: the signed release directory
+ * `releaseSource` in place of a packaged application, and no installer or window archive.
+ */
+function collectRelease({ profile, output, repositoryUrl, releaseSource }) {
+	if (!path.isAbsolute(releaseSource))
+		throw new UsageError('The release directory must be absolute');
+	const version = manifestVersion(releaseSource);
+	const release = readRelease(releaseSource, version);
+	if ((profile === 'release') !== (release.stem === 'orchbee'))
+		throw new Error(`The ${profile} profile cannot carry the ${release.stem} programs`);
+	const { platform } = release.manifest;
+	if (release.platform.os !== 'linux')
+		throw new Error(`A ${platform} release is collected from its packaged window`);
+	if (release.platform.os !== process.platform)
+		throw new Error(`The release directory is for ${platform}, not this host`);
+	const releaseName = `${release.stem}-${version}-${platform}`;
+	const archiveName = `${releaseName}.${archiveFormat(platform)}`;
+	const archiveUrl = archiveAddress({ profile, repositoryUrl, version, archiveName });
+	mkdirSync(output, { recursive: true });
+	const copied = path.join(output, releaseName);
+	copyRelease(releaseSource, release, copied);
+	const archive = path.join(output, archiveName);
+	archiveTarGzip(copied, release, archive);
+	writeFeed({ profile, archive, archiveUrl, release, releaseDirectory: copied });
+	return finishCollection(output, version, copied);
+}
+
+/** Packs the npm packages of `releaseDirectory` into `output`, then lists and checks every file. */
+function finishCollection(output, version, releaseDirectory) {
 	// package-npm writes into a new directory; its folders are packed and then dropped.
 	const scratch = mkdtempSync(path.join(tmpdir(), 'orchbee-release-npm-'));
 	try {
@@ -885,7 +922,10 @@ function parseArguments(argv) {
 		const options = {};
 		for (let index = 0; index < rest.length; index += 2) {
 			const [option, value] = [rest[index], rest[index + 1]];
-			if (!['--profile', '--output', '--repository-url'].includes(option) || value === undefined)
+			if (
+				!['--profile', '--output', '--repository-url', '--release-directory'].includes(option) ||
+				value === undefined
+			)
 				throw new UsageError(usage);
 			const key = option.slice(2);
 			if (options[key] !== undefined) throw new UsageError(usage);
@@ -893,8 +933,19 @@ function parseArguments(argv) {
 		}
 		if (!['test', 'release'].includes(options.profile) || options.output === undefined)
 			throw new UsageError(usage);
-		const { profile, output, 'repository-url': repositoryUrl } = options;
-		return { command, profile, output, ...(repositoryUrl === undefined ? {} : { repositoryUrl }) };
+		const {
+			profile,
+			output,
+			'repository-url': repositoryUrl,
+			'release-directory': releaseSource,
+		} = options;
+		return {
+			command,
+			profile,
+			output,
+			...(repositoryUrl === undefined ? {} : { repositoryUrl }),
+			...(releaseSource === undefined ? {} : { releaseSource }),
+		};
 	}
 	throw new UsageError(usage);
 }

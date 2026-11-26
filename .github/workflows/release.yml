@@ -71,18 +71,19 @@ concurrency:
 env:
   # One row per release platform token. `build` builds, packages and smoke-tests the row on its
   # runner, in a rehearsal and, for Windows rows, in the dry run; a tag takes the rows with `build`
-  # and `publish`. Windows and macOS rows have jobs. The macOS rows publish since the rehearsal for
-  # 0.1.0-beta.14 passed, so a macOS failure stops the whole tag. A macOS row's `build-runner` builds,
-  # signs, notarizes and packages it, since GitHub's Intel Macs take about 2.5 times as long; the
-  # smoke test and the window Update still run its files on `runner`.
+  # and `publish`. Windows, macOS and Linux rows have jobs. The macOS rows publish since the rehearsal
+  # for 0.1.0-beta.14 passed, so a macOS failure stops the whole tag. A macOS row's `build-runner`
+  # builds, signs, notarizes and packages it, since GitHub's Intel Macs take about 2.5 times as long;
+  # the smoke test and the window Update still run its files on `runner`. A Linux row ships the
+  # command line alone, linked statically against musl on a runner of its architecture.
   RELEASE_PLATFORMS: >-
     [
     {"platform": "windows-x86_64", "runner": "windows-latest", "build": true, "publish": true},
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
     {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": true},
     {"platform": "macos-x86_64", "runner": "macos-15-intel", "build-runner": "macos-15", "build": true, "publish": true},
-    {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": false, "publish": false},
-    {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": false, "publish": false}
+    {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": true, "publish": false},
+    {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": true, "publish": false}
     ]
 
 jobs:
@@ -307,11 +308,13 @@ jobs:
       tag: ${{ steps.plan.outputs.tag }}
       publish: ${{ steps.plan.outputs.publish }}
       dist-tag: ${{ steps.plan.outputs.dist-tag }}
-      # Every row; the Windows and the macOS rows; whether there is a macOS row.
+      # Every row; the Windows, the macOS and the Linux rows; whether there is a macOS or a Linux row.
       matrix: ${{ steps.plan.outputs.matrix }}
       windows-matrix: ${{ steps.plan.outputs.windows-matrix }}
       macos-matrix: ${{ steps.plan.outputs.macos-matrix }}
       macos: ${{ steps.plan.outputs.macos }}
+      linux-matrix: ${{ steps.plan.outputs.linux-matrix }}
+      linux: ${{ steps.plan.outputs.linux }}
       # Whether the release gate runs a path, and one row per older release it updates from.
       gate: ${{ steps.gate.outputs.gate }}
       gate-matrix: ${{ steps.gate.outputs.gate-matrix }}
@@ -478,6 +481,101 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # The Linux rows' `release-build`, in bash: every program linked statically against musl on a
+  # runner of the row's architecture. Like Windows, the cohort carries no platform signature, so the
+  # build describes it. The Linux jobs run only when the plan has a Linux row.
+  release-build-linux:
+    name: Release build ${{ matrix.platform }}
+    needs: [release-plan, release-preconditions]
+    if: needs.release-plan.outputs.linux == 'true' && needs.release-plan.outputs.reuse == ''
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.linux-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    defaults:
+      run:
+        shell: bash
+    env:
+      ORCHBEE_SOURCE_COMMIT: ${{ github.sha }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Set up Rust
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          rustup toolchain install --profile minimal
+          # The row's musl standard library; the workspace builds no C code, so no musl C toolchain.
+          rustup target add "${PLATFORM#linux-}-unknown-linux-musl"
+          rustc --version
+          cargo --version
+
+      # Third-party crates, one entry per platform; see docs/VERIFICATION.md#ci-contract.
+      - name: Restore the Rust dependency cache
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          shared-key: release-${{ matrix.platform }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Set up Zig
+        uses: ./.github/actions/zig
+
+      - name: Fetch the Zig packages
+        uses: ./.github/actions/zig-packages
+
+      # Its own entry: the musl build shares nothing with Verify's builds on the same runner.
+      - name: Restore the Terminal Host build cache
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+          target: ${{ matrix.platform }}
+
+      - name: Stage the release cohort
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: node scripts/stage-local-runtime.mjs --output "$RUNNER_TEMP/cohort" --artifact-stem orchbee --platform "$PLATFORM"
+
+      - name: Save the Terminal Host build cache
+        if: github.ref == 'refs/heads/main'
+        uses: ./.github/actions/terminal-host-build-cache
+        with:
+          entry: release
+          target: ${{ matrix.platform }}
+          save: 'true'
+
+      - name: Describe the release cohort
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          RELEASE_VERSION: ${{ needs.release-plan.outputs.version }}
+          BUILD_ID: ${{ github.sha }}.${{ github.run_number }}
+        run: node scripts/package-native-release.mjs "$RUNNER_TEMP/cohort" stable "$RELEASE_VERSION" "$BUILD_ID" "$PLATFORM"
+
+      - name: Upload the unsigned cohort
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 1
+
+      - name: Upload the manifest to sign
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-manifest-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort/release.json
+          if-no-files-found: error
+          retention-days: 1
+
   # The macOS rows' `release-build`, in bash. The macOS jobs run only when the plan has a macOS
   # row, since a job with no row fails.
   release-build-macos:
@@ -625,10 +723,11 @@ jobs:
   # family stops the run here.
   release-sign:
     name: Release sign ${{ matrix.platform }}
-    needs: [release-plan, release-build, release-sign-native-macos]
+    needs: [release-plan, release-build, release-sign-native-macos, release-build-linux]
     if: >-
       ${{ !cancelled() && needs.release-build.result == 'success' &&
-      (needs.release-sign-native-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
+      (needs.release-sign-native-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
+      (needs.release-build-linux.result == 'success' || needs.release-plan.outputs.linux == 'false') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
@@ -1000,16 +1099,74 @@ jobs:
           if-no-files-found: error
           retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 1 }}
 
+  # The Linux rows have no window yet: the signed release directory alone makes the archive, the
+  # feed and the npm packages.
+  release-package-linux:
+    name: Release package ${{ matrix.platform }}
+    needs: [release-plan, release-sign]
+    if: ${{ !cancelled() && needs.release-plan.outputs.linux == 'true' && needs.release-sign.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.linux-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the unsigned cohort
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-cohort-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+
+      - name: Download the signature beside it
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-signature-${{ matrix.platform }}
+          path: ${{ runner.temp }}/cohort
+
+      - name: Collect the release artifacts
+        run: node scripts/release-artifacts.mjs collect --profile release --output "$RUNNER_TEMP/release-artifacts" --release-directory "$RUNNER_TEMP/cohort"
+
+      - name: Upload the release artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
+
+      - name: Upload the feed to sign
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-feed-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts/orchbee-${{ needs.release-plan.outputs.version }}-${{ matrix.platform }}.feed.json
+          if-no-files-found: error
+          retention-days: ${{ needs.release-plan.outputs.publish == 'true' && 14 || 3 }}
+
   # Signs the update feed document and the release gate's copy of it, which names the archive by its
   # file name, for every row. Every release-path run signs, so a rehearsal proves this job before a
   # tag does. Like `release-sign`, it runs only scripts that use Node built-ins. Ed25519 is
   # deterministic, so a re-run writes the same signatures.
   release-feed:
     name: Release feed ${{ matrix.platform }}
-    needs: [release-plan, release-package, release-package-macos]
+    needs: [release-plan, release-package, release-package-macos, release-package-linux]
     if: >-
       ${{ !cancelled() && needs.release-package.result == 'success' &&
-      (needs.release-package-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') }}
+      (needs.release-package-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
+      (needs.release-package-linux.result == 'success' || needs.release-plan.outputs.linux == 'false') }}
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.release-plan.outputs.matrix) }}
@@ -1202,6 +1359,50 @@ jobs:
 
       - name: Install, start and uninstall through npm
         run: node scripts/release-smoke-macos.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
+
+  # The Linux rows' smoke on fresh runners with those exact files: the `.tar.gz` through
+  # `orchbee install`, the website's install.sh against a local copy of the row's feed, and the npm
+  # route, each in its own scratch HOME.
+  release-smoke-linux:
+    name: Release smoke ${{ matrix.platform }}
+    needs: [release-plan, release-package-linux]
+    if: ${{ !cancelled() && needs.release-plan.outputs.linux == 'true' && needs.release-package-linux.result == 'success' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.release-plan.outputs.linux-matrix) }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+
+      - name: Download the release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-assets-${{ matrix.platform }}
+          path: ${{ runner.temp }}/release-artifacts
+
+      - name: Check the release artifacts
+        run: node scripts/release-artifacts.mjs check "$RUNNER_TEMP/release-artifacts"
+
+      - name: Install and uninstall the archive
+        run: node scripts/release-smoke-linux.mjs archive "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-archive"
+
+      - name: Install the archive through install.sh
+        run: node scripts/release-smoke-linux.mjs install-script "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-install-script"
+
+      - name: Install, start and uninstall through npm
+        run: node scripts/release-smoke-linux.mjs npm "$RUNNER_TEMP/release-artifacts" --work "$RUNNER_TEMP/smoke-npm"
 
   # The real-window Update check (scripts/release-window-update.mjs) beside the release build, from
   # the plan on: a Test window built here, because a release build never opens the DevTools port the
@@ -1598,8 +1799,8 @@ jobs:
   # Run again, the job finishes a partial publication. The condition names the `push` event as well
   # as the plan's `publish`, so no manual run reaches it. Verify must have passed for the commit, and
   # either the reused files passed their check or every needed job must have passed: the macOS smoke
-  # and window Update check may be skipped only when the plan has no macOS row, and the release gate
-  # only when the plan selected no path.
+  # and window Update check may be skipped only when the plan has no macOS row, the Linux smoke only
+  # when it has no Linux row, and the release gate only when the plan selected no path.
   release-publish:
     name: Publish ${{ needs.release-plan.outputs.tag }}
     needs:
@@ -1609,6 +1810,7 @@ jobs:
         release-smoke,
         release-smoke-npm,
         release-smoke-macos,
+        release-smoke-linux,
         release-window-update,
         release-window-update-macos,
         release-gate,
@@ -1623,6 +1825,7 @@ jobs:
       needs.release-join.result == 'success' && needs.release-smoke.result == 'success' &&
       needs.release-smoke-npm.result == 'success' &&
       (needs.release-smoke-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
+      (needs.release-smoke-linux.result == 'success' || needs.release-plan.outputs.linux == 'false') &&
       needs.release-window-update.result == 'success' &&
       (needs.release-window-update-macos.result == 'success' || needs.release-plan.outputs.macos == 'false') &&
       (needs.release-gate.result == 'success' || needs.release-plan.outputs.gate == 'false') &&
