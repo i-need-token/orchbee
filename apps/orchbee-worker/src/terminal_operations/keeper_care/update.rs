@@ -95,6 +95,13 @@ impl KeeperUpdate {
             Ok(status) if settled(&status) => status,
             _ => return false,
         };
+        // A restart's successor Worker adopts the Hosts a few milliseconds before its Server's
+        // commit names it in the Session record; a new Keeper started before then is refused, and
+        // the update would wait out its spacing.
+        #[cfg(windows)]
+        if !SessionKeeper::may_start(runtime) {
+            return false;
+        }
         let attempt = self.failed + 1;
         self.apply(hosts, keepers, (runtime, executable), &status, attempt, now)
     }

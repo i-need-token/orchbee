@@ -374,6 +374,11 @@ fn restarts_into_other_installations_move_the_terminal_and_a_server_ended_after_
         "the Keeper was updated after the move began: {updated}"
     );
     assert_eq!(updated["fields"]["terminals"], 1, "{updated}");
+    // The restart's successor Worker waits for its Server's commit before it starts the Keeper, so
+    // the update does not fail first and wait out its 30-second spacing.
+    if let Some(failed) = logged(&fixture, "keeper-update-failed") {
+        panic!("the Keeper update failed before it passed: {failed}");
+    }
     // Input reached the Worker after its send began and before it ended, and a move starts only
     // two seconds after the last input it relayed.
     let (relayed, _) = sends

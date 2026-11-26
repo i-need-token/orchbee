@@ -403,15 +403,16 @@ lets that Host end. A stop
 ends the Keeper, and a Keeper still retiring, once every Host is gone.
 
 On Windows an adopted Keeper whose program is not the Worker's own Host program, by canonical path,
-is updated before any move: once every Host that holds in Keepers is attached to it and it holds nothing
-moving, orphaned or unknown, the Worker starts a new Keeper from its own program in the other slot,
-has every such Host attach it, waits up to two seconds until the new Keeper holds every terminal and
-program holding the old one does, by holding id, Host and processes, and commits by making the new
-slot current. The old Keeper then retires: each Host detaches it, at the next care again when a
-detach fails, then the Worker ends it and frees its slot, so no Host reports it lost. A failure
-before the commit retires the new Keeper instead; the next attempt follows 30 seconds later, and
-after three the old Keeper stays. Move turns answer `Waiting` while an update is due and while a
-Keeper retires.
+is updated before any move: once every Host that holds in Keepers is attached to it, it holds
+nothing moving, orphaned or unknown, and the Session record names this Worker, which a restart's
+successor waits for until its Server commits the restart, the Worker starts a new Keeper from its
+own program in the other slot, has every such Host attach it, waits up to two seconds until the new
+Keeper holds every terminal and program holding the old one does, by holding id, Host and processes,
+and commits by making the new slot current. The old Keeper then retires: each Host detaches it, at
+the next care again when a detach fails, then the Worker ends it and frees its slot, so no Host
+reports it lost. A failure before the commit retires the new Keeper instead; the next attempt
+follows 30 seconds later, and after three the old Keeper stays. Move turns answer `Waiting` while an
+update is due and while a Keeper retires.
 
 On macOS such a Keeper, when it offers `reexec`, is updated in place under the same conditions:
 the Worker sends `reexec` naming its own Host program, and the Keeper keeps its process, its

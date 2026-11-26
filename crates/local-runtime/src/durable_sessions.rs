@@ -545,6 +545,29 @@ pub(crate) fn recorded_keepers(
     Ok(keepers_of(&active.processes))
 }
 
+/// Whether the Active generation of the Session at `runtime` names `worker` as its Worker.
+#[cfg(windows)]
+pub(crate) fn names_worker(
+    root: &DataRoot,
+    runtime: &Path,
+    worker: ProcessIdentity,
+) -> io::Result<bool> {
+    let scope = runtime
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or(io::ErrorKind::InvalidInput)?;
+    let directory = Directory::open(root)?.ok_or(io::ErrorKind::NotFound)?;
+    let active = directory.read(scope)?.ok_or(io::ErrorKind::NotFound)?;
+    if active.lifecycle != Lifecycle::Active || !active.uses_runtime(runtime) {
+        return Err(io::ErrorKind::InvalidData.into());
+    }
+    Ok(active
+        .processes
+        .registration(crate::process_registration::ProcessRole::Worker)
+        .identity()
+        == Some(worker))
+}
+
 /// Each Keeper slot's identified Keeper in `processes`, and the current Keeper's slot.
 #[cfg(any(windows, target_os = "macos"))]
 fn keepers_of(

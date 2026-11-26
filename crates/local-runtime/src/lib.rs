@@ -48,6 +48,8 @@ pub use release_store::{
     record_event, release_store_root,
 };
 mod keeper;
+#[cfg(windows)]
+pub use keeper::worker_recorded;
 #[cfg(any(windows, target_os = "macos"))]
 pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,

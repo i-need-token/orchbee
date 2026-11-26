@@ -50,6 +50,23 @@ pub fn recorded_keepers(
     })
 }
 
+/// Whether the Active generation of the Session at `runtime` names this process as its Worker,
+/// which alone may start a Keeper there. A restart's successor Worker is named once its Server
+/// commits the restart, a few milliseconds after the Worker adopted the Hosts.
+///
+/// # Errors
+///
+/// Returns an error when the record cannot be read or no longer names an Active generation in
+/// `runtime`.
+#[cfg(windows)]
+pub fn worker_recorded(root: &crate::DataRoot, runtime: &std::path::Path) -> std::io::Result<bool> {
+    crate::durable_sessions::names_worker(
+        root,
+        runtime,
+        crate::process_observation::current_identity()?,
+    )
+}
+
 /// Ends each Keeper the generation `record` retains records, checked by its process ID and creation
 /// time, and waits until it exited or `deadline` passes: a stop without a Worker ends them once the
 /// Hosts are gone, since a Keeper may hold a program's last handles. A Keeper that is gone, or never

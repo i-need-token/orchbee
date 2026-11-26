@@ -103,6 +103,16 @@ impl HostRefusal {
 }
 
 impl SessionKeeper {
+    /// Whether the Session record at `runtime` already names this Worker, which alone may start a
+    /// Keeper: a restart's successor Worker waits for its Server to commit the restart. A record
+    /// this Worker cannot read lets the start go ahead, which then fails as it would have.
+    #[cfg(windows)]
+    pub(crate) fn may_start(runtime: &Path) -> bool {
+        data_root()
+            .and_then(|root| orchbee_local_runtime::worker_recorded(&root, runtime))
+            .unwrap_or(true)
+    }
+
     /// Starts the Session's Keeper in `slot` from `executable`, the Terminal Host's program, as
     /// this Worker's registered child, and connects to it.
     ///
