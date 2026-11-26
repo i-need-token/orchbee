@@ -151,10 +151,7 @@ fn a_dropped_connection_after_a_remembered_answer_is_not_answered_again_by_the_h
     assert_eq!(received(&transcript), 1, "{transcript}");
     assert!(remembered.held(), "no refusal deletes nothing");
     drop(keeper);
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
 }
 
@@ -204,10 +201,7 @@ fn an_ssh_older_than_8_5_is_never_given_a_remembered_answer() {
         "{result:?}"
     );
     drop(client);
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
 }
 
@@ -249,10 +243,7 @@ fn a_second_key_asking_for_its_passphrase_deletes_nothing() {
     );
     assert!(remembered.held(), "the first key's passphrase stays");
     drop(client);
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
 }
 
@@ -379,9 +370,6 @@ fn a_remembered_password_is_tried_once_per_attempt_and_a_refused_one_is_deleted(
     assert_eq!(removed.code, Some(0), "{removed}");
     assert!(!remembered.held(), "a removed Machine's answer stays");
 
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
 }

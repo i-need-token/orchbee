@@ -17,8 +17,8 @@ use std::{
 mod tests;
 
 /// Prefixed to the application bundle the asking window runs from, as the argument after
-/// `--relaunch-after-v1 <process id>`: the application the launcher replaces.
-const REPLACE_APPLICATION: &str = "--replace-application-v1=";
+/// `--relaunch-after <process id>`: the application the launcher replaces.
+const REPLACE_APPLICATION: &str = "--replace-application=";
 /// The folders from a window version's bundle down to the launcher, outermost first.
 const COHORT: [&str; 3] = ["Contents", "Resources", "cohort"];
 /// The folders from an application bundle down to its program.
@@ -50,8 +50,8 @@ pub(crate) struct Source {
 }
 
 /// The relaunch the launcher at `launcher` serves for `arguments` after the program name, when
-/// `parent` is its parent process: the arguments must start with `--relaunch-after-v1 <parent>`
-/// and then `--replace-application-v1=<application>`, the launcher must sit in a window version's
+/// `parent` is its parent process: the arguments must start with `--relaunch-after <parent>`
+/// and then `--replace-application=<application>`, the launcher must sit in a window version's
 /// bundle in the store, and the application must be an absolute `.app` path outside the store's
 /// `desktop` folder that spells no `.` or `..` component. `None` serves nothing.
 pub(crate) fn relaunch(launcher: &Path, arguments: Vec<OsString>, parent: u32) -> Option<Relaunch> {
@@ -121,7 +121,7 @@ impl Relaunch {
     }
 
     /// The arguments of the window that ran before, started again after `failed` could not
-    /// replace it or failed inside the watch: `--fallback-from-v1=<failed>` first when one is known.
+    /// replace it or failed inside the watch: `--fallback-from=<failed>` first when one is known.
     pub(crate) fn fallback_arguments(&self, failed: Option<&str>) -> Vec<OsString> {
         failed.map_or_else(
             || self.arguments.clone(),

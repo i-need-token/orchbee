@@ -1,5 +1,5 @@
-//! The machine hub `--machine-hub-v1` as real processes under scratch data roots, reached through
-//! the client owner's diagnostic entries `--machine-hub-state-v1` and `--machine-hub-hold-v1` and
+//! The machine hub `--machine-hub` as real processes under scratch data roots, reached through
+//! the client owner's diagnostic entries `--machine-hub-state` and `--machine-hub-hold` and
 //! through the codec on its endpoint: eight attachments at once reach one hub; `presence` holds it,
 //! its leave starts the expiry that a 20-second override ends with `closing` and `bye`, and the next
 //! attachment starts a new hub; a hub killed by its process id after a start-time check is replaced
@@ -184,7 +184,7 @@ fn presence_holds_and_its_leave_expires_into_closing_and_a_new_hub() {
 fn a_killed_hub_is_replaced_by_its_holder_whose_presence_returns() {
     let scratch = Scratch::new("mh4-reattach-", Some(SHORTEST_EXPIRY));
     let mut hold = scratch
-        .client("--machine-hub-hold-v1")
+        .client("--machine-hub-hold")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -227,7 +227,7 @@ fn a_killed_hub_is_replaced_by_its_holder_whose_presence_returns() {
 fn a_holder_whose_hub_is_asked_to_stop_starts_no_hub() {
     let scratch = Scratch::new("mh4-stopped-", None);
     let mut hold = scratch
-        .client("--machine-hub-hold-v1")
+        .client("--machine-hub-hold")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -524,7 +524,7 @@ fn a_live_session_holds_the_hub_through_its_stop_and_a_new_start() {
     let fixture = session::Fixture::new("mh4-session-", &[]);
     let printer = || {
         let output = fixture
-            .command(&["--machine-hub-state-v1"])
+            .command(&["--machine-hub-state"])
             .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000")
             .output()
             .unwrap();
@@ -584,7 +584,7 @@ fn a_live_session_holds_the_hub_through_its_stop_and_a_new_start() {
 fn uninstall_ends_the_hub_a_session_holds() {
     let fixture = session::Fixture::new("mh4-uninstall-", &["tmp"]);
     let output = fixture
-        .command(&["--machine-hub-state-v1"])
+        .command(&["--machine-hub-state"])
         .env("ORCHBEE_MACHINE_HUB_EXPIRY_MS", "120000")
         .output()
         .unwrap();
@@ -1437,7 +1437,7 @@ impl Carried {
     }
 
     fn state(&self) -> State {
-        State::parse(&self.command(&["--machine-hub-state-v1"]).output().unwrap())
+        State::parse(&self.command(&["--machine-hub-state"]).output().unwrap())
     }
 
     fn endpoint(&self) -> PathBuf {
@@ -1610,7 +1610,7 @@ impl Scratch {
     }
 
     fn printer(&self) -> Command {
-        self.client("--machine-hub-state-v1")
+        self.client("--machine-hub-state")
     }
 
     /// The staged client's `entry` in this root only.

@@ -28,7 +28,7 @@ fn a_development_or_test_build_runs_only_its_own_environment_on_the_far_computer
     for release in ["Orchbee", "orchbee.exe"] {
         assert!(!script.contains(&literal(release)), "{script}");
     }
-    let posix = posix("--machine-link-v1");
+    let posix = posix("--machine-link");
     assert!(
         posix.contains(&format!("/.local/share/{stem}}}")),
         "{posix}"
@@ -114,7 +114,7 @@ fn the_launch_line_runs_the_store_client_on_macos_and_linux() {
         let _ = std::fs::remove_file(store.join("active.json"));
         assert_eq!(run(None), (Some(PROGRAM_NOT_FOUND), String::new(), shell));
         std::fs::write(store.join("active.json"), pointer("1.2.3")).unwrap();
-        assert_eq!(run(None), (Some(7), "--machine-link-v1".to_owned(), shell));
+        assert_eq!(run(None), (Some(7), "--machine-link".to_owned(), shell));
         let unsupported = (Some(PLATFORM_UNSUPPORTED), String::new(), shell);
         assert_eq!(run(Some(&other)), unsupported);
         std::fs::write(store.join("active.json"), pointer("1.2.4")).unwrap();

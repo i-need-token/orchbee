@@ -87,15 +87,15 @@ pub(crate) fn parse_selected_request(
     machine_routing::parse(tokens)
 }
 
-/// The window-folder helper `--create-window-folder-v1`, alone, run by Desktop Main through its own
+/// The window-folder helper `--create-window-folder`, alone, run by Desktop Main through its own
 /// bundled Client before its window opens. This helper grammar is permanent; a change adds a new
 /// helper name.
 fn create_window_folder(tokens: &[String]) -> Option<super::Request> {
-    matches!(tokens, [only] if only == "--create-window-folder-v1")
+    matches!(tokens, [only] if only == "--create-window-folder")
         .then_some(super::Request::CreateWindowFolder)
 }
 
-/// The window installer helper `--installer-window-v1`, alone. A build that does not install
+/// The window installer helper `--installer-window`, alone. A build that does not install
 /// window versions does not know it, so there it reaches the grammar as an unknown option. This
 /// helper grammar is permanent; a change adds a new helper name.
 fn installer_window(tokens: &[String]) -> Option<super::Request> {
@@ -104,15 +104,15 @@ fn installer_window(tokens: &[String]) -> Option<super::Request> {
         .then_some(super::Request::InstallerWindow)
 }
 
-/// The window-store cleanup helper `--tend-window-store-v1`, alone, run by Desktop Main through its
+/// The window-store cleanup helper `--tend-window-store`, alone, run by Desktop Main through its
 /// own bundled Client after startup.
 fn tend_window_store(tokens: &[String]) -> Option<super::Request> {
     (orchbee_local_runtime::window_updates_live()
-        && matches!(tokens, [only] if only == "--tend-window-store-v1"))
+        && matches!(tokens, [only] if only == "--tend-window-store"))
     .then_some(super::Request::TendWindowStore)
 }
 
-/// The automatic helper `--automatic-update-v1`, alone. A build that does not run automatic
+/// The automatic helper `--automatic-update`, alone. A build that does not run automatic
 /// updates does not know it, so there it reaches the grammar as an unknown option. This helper
 /// grammar is permanent; a change adds a new helper name.
 fn automatic_update(tokens: &[String]) -> Option<super::Request> {
@@ -121,7 +121,7 @@ fn automatic_update(tokens: &[String]) -> Option<super::Request> {
         .then_some(super::Request::AutomaticUpdate)
 }
 
-/// The Client-failure helper `--record-client-failure-v1 <version>`, with exactly one version. A
+/// The Client-failure helper `--record-client-failure <version>`, with exactly one version. A
 /// build that does not run automatic updates does not know it, so there it reaches the grammar as
 /// an unknown option. This helper grammar is permanent; a change adds a new helper name.
 fn record_client_failure(tokens: &[String]) -> Option<super::Request> {
@@ -136,11 +136,11 @@ fn record_client_failure(tokens: &[String]) -> Option<super::Request> {
     }
 }
 
-/// The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, each flag at
+/// The completion helper `--complete-install [--no-path] [--allow-downgrade]`, each flag at
 /// most once and in any order. This helper grammar is permanent; a change adds a new helper name.
 fn complete_install(tokens: &[String]) -> Option<super::Request> {
     let (first, flags) = tokens.split_first()?;
-    if first != "--complete-install-v1" {
+    if first != "--complete-install" {
         return None;
     }
     let (mut no_path, mut allow_downgrade) = (false, false);
@@ -160,14 +160,12 @@ fn complete_install(tokens: &[String]) -> Option<super::Request> {
     })
 }
 
-/// The uninstaller helper `--installer-uninstall-v1 [--delete-data]`. This helper grammar is
+/// The uninstaller helper `--installer-uninstall [--delete-data]`. This helper grammar is
 /// permanent; a change adds a new helper name.
 fn installer_uninstall(tokens: &[String]) -> Option<super::Request> {
     match tokens {
-        [first] if first == "--installer-uninstall-v1" => Some(false),
-        [first, flag] if first == "--installer-uninstall-v1" && flag == "--delete-data" => {
-            Some(true)
-        }
+        [first] if first == "--installer-uninstall" => Some(false),
+        [first, flag] if first == "--installer-uninstall" && flag == "--delete-data" => Some(true),
         _ => None,
     }
     .map(|delete_data| super::Request::InstallerUninstall { delete_data })

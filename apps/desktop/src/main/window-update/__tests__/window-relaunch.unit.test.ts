@@ -20,33 +20,31 @@ const SESSION_TOO_OLD: DesktopSessionRefusal = {
 describe('window relaunch arguments', () => {
 	it('names the terminal first, else the Workspace, and nothing without a valid place', () => {
 		expect(
-			readRelaunchPlace([
-				'--select-workspace-v1=' + WORKSPACE,
-				'--select-terminal-v1=' + PRESENTATION,
-			]),
+			readRelaunchPlace(['--select-workspace=' + WORKSPACE, '--select-terminal=' + PRESENTATION]),
 		).toEqual({ kind: 'terminal', presentationId: PRESENTATION });
-		expect(readRelaunchPlace(['--select-workspace-v1=' + WORKSPACE])).toEqual({
+		expect(readRelaunchPlace(['--select-workspace=' + WORKSPACE])).toEqual({
 			kind: 'workspace',
 			workspaceId: WORKSPACE,
 		});
 		// A terminal identity that does not parse leaves the Workspace.
-		expect(
-			readRelaunchPlace(['--select-terminal-v1=', '--select-workspace-v1=' + WORKSPACE]),
-		).toEqual({ kind: 'workspace', workspaceId: WORKSPACE });
+		expect(readRelaunchPlace(['--select-terminal=', '--select-workspace=' + WORKSPACE])).toEqual({
+			kind: 'workspace',
+			workspaceId: WORKSPACE,
+		});
 		for (const argumentsList of [
 			[],
-			['--select-workspace-v1=00000000000000000000000000000000'],
-			['--select-workspace-v1=NOT-HEX'],
-			['--select-terminal-v1', PRESENTATION],
-			['--select-terminal-v1=-leading-dash'],
+			['--select-workspace=00000000000000000000000000000000'],
+			['--select-workspace=NOT-HEX'],
+			['--select-terminal', PRESENTATION],
+			['--select-terminal=-leading-dash'],
 		]) {
 			expect(readRelaunchPlace(argumentsList)).toBeNull();
 		}
 	});
 
 	it.each([
-		['a terminal', readRelaunchPlace(['--select-terminal-v1=' + PRESENTATION])],
-		['a Workspace', readRelaunchPlace(['--select-workspace-v1=' + WORKSPACE])],
+		['a terminal', readRelaunchPlace(['--select-terminal=' + PRESENTATION])],
+		['a Workspace', readRelaunchPlace(['--select-workspace=' + WORKSPACE])],
 		['no place', null],
 	])(
 		'puts the launcher switch and the process id first, and %s reads back',
@@ -65,7 +63,7 @@ describe('window relaunch arguments', () => {
 				},
 				versionLauncher: null,
 			});
-			expect(argumentsList.slice(0, 2)).toEqual(['--relaunch-after-v1', '4321']);
+			expect(argumentsList.slice(0, 2)).toEqual(['--relaunch-after', '4321']);
 			// Every place switch is one `=` argument, which the launcher passes on unchanged.
 			expect(argumentsList.slice(2).every((argument) => argument.includes('='))).toBe(true);
 			expect(readRelaunchPlace(argumentsList.slice(2))).toEqual(place);
@@ -125,7 +123,7 @@ describe('relaunch announcement', () => {
 });
 
 describe('relaunchWindow', () => {
-	const place = readRelaunchPlace(['--select-terminal-v1=' + PRESENTATION]);
+	const place = readRelaunchPlace(['--select-terminal=' + PRESENTATION]);
 
 	it('starts the entry beside the version folders from desktop and quits once it started', async () => {
 		const quit = vi.fn<() => void>();
@@ -149,7 +147,7 @@ describe('relaunchWindow', () => {
 		expect(started).toBe(true);
 		expect(start).toHaveBeenCalledWith(
 			'C:\\Orchbee\\desktop\\ob-test-desktop.exe',
-			['--relaunch-after-v1', '77', '--select-terminal-v1=' + PRESENTATION],
+			['--relaunch-after', '77', '--select-terminal=' + PRESENTATION],
 			'C:\\Orchbee\\desktop',
 		);
 		expect(quit).toHaveBeenCalledOnce();
@@ -180,10 +178,10 @@ describe('relaunchWindow', () => {
 		expect(start).toHaveBeenCalledWith(
 			launcher,
 			[
-				'--relaunch-after-v1',
+				'--relaunch-after',
 				'77',
-				'--replace-application-v1=/Applications/Orchbee.app',
-				'--select-terminal-v1=' + PRESENTATION,
+				'--replace-application=/Applications/Orchbee.app',
+				'--select-terminal=' + PRESENTATION,
 			],
 			'/Users/a/.local/share/orchbee/desktop',
 		);

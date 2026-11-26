@@ -313,9 +313,8 @@ the [release gate](automatic-updates.md#the-release-gate) proves the window befo
 - The hub's `machine-link` offer to the remote helper is admitted through the same handshake; one
   side too old reads as the Machine's `needs-update` or `local-needs-update` state. No product
   version, protocol version, or cohort is otherwise compared across machines.
-- The remote helper is `--machine-link-v1`, with no other argument. Its grammar never changes; a
-  change adds a new helper name. The earlier `--machine-tunnel-v1` and `--machine-relay-v1`
-  helpers were removed before any release.
+- The remote helper is `--machine-link`, with no other argument. Its grammar never changes; a
+  change adds a new helper name.
 - The routed command packet and its reply drop `cohort`; their `version` is their generation,
   declared as `machine-route`, and each gains an optional `extensions` object. The remote CLI parses
   the routed arguments under its own grammar and reports usage errors as usual.

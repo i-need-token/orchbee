@@ -14,7 +14,7 @@ use crate::{
     value::{SHARED_RESET_REASONS, name_enum},
 };
 
-/// The `machine-link` connection: initiated by the hub, accepted by `orchbee --machine-link-v1`
+/// The `machine-link` connection: initiated by the hub, accepted by `orchbee --machine-link`
 /// on the remote machine.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Link {}

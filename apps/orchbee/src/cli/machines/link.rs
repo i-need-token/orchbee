@@ -1,4 +1,4 @@
-//! The remote helper `orchbee --machine-link-v1`: the acceptor of one `machine-link` connection on
+//! The remote helper `orchbee --machine-link`: the acceptor of one `machine-link` connection on
 //! standard input and output, carrying several Sessions' byte streams, routed commands, and Session
 //! starts. `docs/machines.md#link-helper` owns the ownership, bounds, and ends kept here; the
 //! contract in `schemas/machine` owns every byte.
@@ -10,7 +10,7 @@ use crate::{cli::Output, localization::Locale, tui_capabilities::Capability};
 
 /// The helper's whole command line after the program name.
 #[cfg(windows)]
-const HELPER: &str = "--machine-link-v1";
+const HELPER: &str = "--machine-link";
 
 /// Admits the helper's token before anything reads Orchbee state; any other command line answers
 /// `None` at once. A token at Medium integrity or below without enabled Administrators continues as

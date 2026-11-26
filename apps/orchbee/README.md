@@ -59,7 +59,7 @@ withholds the whole `channel` family; see [release-withheld surfaces](#release-w
 
 On macOS and Linux `install` and `uninstall` work the same way, with the command link `~/.local/bin/orchbee` as the PATH step (on macOS also two lines in the shell's startup file that put `~/.local/bin` on `PATH`) and the store in `~/.local/share/orchbee`. macOS also runs `update` and the automatic helper, downloading with the system `curl` and unpacking with the system `tar`; nothing downloads on Linux yet, and `channel set` runs only on Windows. See [macOS and Linux release installation](docs/windows-cli-configuration.md#macos-and-linux-release-installation).
 
-The hidden `--create-window-folder-v1`, which Desktop Main runs through its bundled Client on every platform while `<data root>/internal/desktop/` is missing, creates the data root, `internal/` and that folder with `create_private_directory`, the rule by which every Client creates its folders, so the window never makes a folder its Session would refuse. After the data root's layout admission it prints nothing and exits `0`, or answers the shared JSON failure document `check-failed` `{stage:"data-root"}`, whose `refusal` names the item and the rule it breaks when the Client refused one. Help, completion and the `--skill` guide leave it out, and its grammar never changes.
+The hidden `--create-window-folder`, which Desktop Main runs through its bundled Client on every platform while `<data root>/internal/desktop/` is missing, creates the data root, `internal/` and that folder with `create_private_directory`, the rule by which every Client creates its folders, so the window never makes a folder its Session would refuse. After the data root's layout admission it prints nothing and exits `0`, or answers the shared JSON failure document `check-failed` `{stage:"data-root"}`, whose `refusal` names the item and the rule it breaks when the Client refused one. Help, completion and the `--skill` guide leave it out, and its grammar never changes.
 
 Windows `uninstall [--delete-data]` is the inverse: it stops the environment's Sessions, disables
 every Agent integration, removes the user `Path` entry, the installer entries and the store root,
@@ -767,7 +767,7 @@ exit status, and `relay-started` and
 [daily log](../../crates/local-runtime/README.md#diagnostic-log), the remote link helper
 writes `link-rights` with the rights its token runs with or why it refused, its
 `ensure-session` writes the [Session start's records](docs/machines.md#link-helper),
-`session-start-source` and `server-job`, and the machine hub (`--machine-hub-v1`) writes `panicked`
+`session-start-source` and `server-job`, and the machine hub (`--machine-hub`) writes `panicked`
 with its thread role token, `file` stem and `line` before aborting; other commands write none.
 The TUI also writes `machine-hub-loss` (when a protocol violation ends a hub connection, with `loss`,
 `stage` and `class`), `machine-hub-ended` (when attachment ends permanently, with `failure`), and

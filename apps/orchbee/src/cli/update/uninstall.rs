@@ -1,4 +1,4 @@
-//! `uninstall` and the uninstaller helper `--installer-uninstall-v1`: the inverse of install. One
+//! `uninstall` and the uninstaller helper `--installer-uninstall`: the inverse of install. One
 //! run removes this environment's installed release completely, in the contract's order:
 //!
 //! a. list what goes and what stays, with each running Session's open terminals and running
@@ -103,7 +103,7 @@ pub(crate) fn run(
     execute(delete_data, Caller::Person { confirm, format }, locale)
 }
 
-/// `orchbee --installer-uninstall-v1 [--delete-data]`, which a platform uninstaller runs after its
+/// `orchbee --installer-uninstall [--delete-data]`, which a platform uninstaller runs after its
 /// own confirmation; it answers in text.
 pub(crate) fn installer(delete_data: bool, locale: Locale) -> Output {
     execute(delete_data, Caller::Installer, locale)

@@ -11,7 +11,7 @@ import { isNewerProductVersion } from '../product-version';
 
 /** The switch a window launcher adds when it starts the previous window version after a failure. */
 // Cross-build contract: every window launcher from the window self-update release on passes it.
-const FALLBACK_FROM_SWITCH = '--fallback-from-v1=';
+const FALLBACK_FROM_SWITCH = '--fallback-from=';
 const VERSIONS_DIRECTORY = 'versions';
 const DESKTOP_DIRECTORY = 'desktop';
 /** The bounds of the macOS and Linux store root rule (`crates/local-runtime/src/release_store.rs`). */
@@ -145,7 +145,7 @@ export function locateWindowDesktopRoot(input: {
 		: null;
 }
 
-/** The version a `--fallback-from-v1=<version>` argument names, or null without a valid one. */
+/** The version a `--fallback-from=<version>` argument names, or null without a valid one. */
 export function readFallbackFromVersion(argumentsList: readonly string[]): string | null {
 	const argument = argumentsList.find((candidate) => candidate.startsWith(FALLBACK_FROM_SWITCH));
 	if (argument === undefined) return null;

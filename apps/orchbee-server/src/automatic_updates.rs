@@ -1,5 +1,5 @@
 //! The Session Server's automatic-update schedule: a Server that runs from a store version folder
-//! runs the store's active `orchbee --automatic-update-v1` one minute after the Session is ready and
+//! runs the store's active `orchbee --automatic-update` one minute after the Session is ready and
 //! then every hour, reading `update.automatic` before each run. The helper runs at low priority, in
 //! a Job this process holds on Windows and in a process group of its own on macOS, with bounded
 //! output, on the schedule's own thread; no Session work waits on it, its failure only writes the

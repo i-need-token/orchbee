@@ -1,4 +1,4 @@
-//! One helper run: the store's active Client with `--automatic-update-v1`, named by `active.json`,
+//! One helper run: the store's active Client with `--automatic-update`, named by `active.json`,
 //! at low priority, its standard output bounded and its end bounded by the run limit and the
 //! schedule's stop. On Windows it runs in a below-normal Job that ends with this process; on macOS
 //! in a process group of its own under `nice`, with an empty signal mask. It reads the store only to

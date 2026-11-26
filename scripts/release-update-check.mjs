@@ -23,11 +23,12 @@
 // must verify. Its archive, fetched from the address that pair signs and checked against the signed
 // size and SHA-256, is unpacked and installed by its own `install`; when both feeds carry
 // `extensions.desktop`, its window archive is also fetched, verified, unpacked and installed into
-// `<store root>/desktop/` with `--installer-window-v1` (skipped only when an older pre-window
-// release does not recognize that helper). Then the updater runs `update` with `ORCHBEE_UPDATE_FEED`
+// `<store root>/desktop/` with `--installer-window` (skipped only when a test build does not
+// recognize that helper). Then the updater runs `update` with `ORCHBEE_UPDATE_FEED`
 // naming the release's `<stem>-<version>-<platform>.feed.json` in the assets folder, and must
 // activate the release (and the new window version when `desktop/` was seeded). Without a tracked
-// pair, or when the pair already names the release, no older version can update: the release is
+// pair, when the pair already names the release, or when it names a release older than
+// `firstUpdatingRelease`, no older version can update: the release is
 // installed from its own archive and its `update` fills an empty scratch store
 // (`ORCHBEE_INSTALL_DIR`) beside the store root, which still proves feed, download, unpacking,
 // publication and activation. Every request is an anonymous GET with the system curl. The assets
@@ -78,8 +79,9 @@ const handoverSince = '0.1.0-beta.23';
 const handoverDeadline = 120_000;
 // How the Session reaches the new release on a gate path; see `gatePathModes`.
 const gateModes = ['move', 'restart', 'adopt'];
-// Release builds support `--installer-window-v1` and window self-updates from 0.1.0-beta.14 on.
-const firstWindowRelease = '0.1.0-beta.14';
+// The first release whose `update` can install a newer one: an older release runs the newer
+// release's `--complete-install` by a name the newer release does not answer.
+const firstUpdatingRelease = '0.1.0-beta.25';
 const signatureSource = fileURLToPath(
 	new URL('../apps/orchbee/src/cli/update/signature.rs', import.meta.url),
 );
@@ -337,10 +339,10 @@ function unpackWindowDirectory(port, archive, work, name, stem, desktop) {
 }
 
 /**
- * Seeds `<storeRoot>/desktop/` from `olderFeed.extensions.desktop` via `--installer-window-v1` when
- * both `olderFeed` and `offeredFeed` carry `extensions.desktop`. Pre-window releases that exit 2
- * or 4 without an `orchbee.install` document skip pre-seeding gracefully; releases from
- * `firstWindowRelease` (0.1.0-beta.14) on must exit 0 and activate the older window version.
+ * Seeds `<storeRoot>/desktop/` from `olderFeed.extensions.desktop` via `--installer-window` when
+ * both `olderFeed` and `offeredFeed` carry `extensions.desktop`. A test build that exits 2 or 4
+ * without an `orchbee.install` document skips pre-seeding gracefully; a release must exit 0 and
+ * activate the older window version.
  */
 export function seedWindowStore({
 	port,
@@ -373,12 +375,14 @@ export function seedWindowStore({
 		throw new StepFailure(
 			`The unpacked window of ${olderDesktop.version} holds no ${bundledClient}`,
 		);
-	const ran = runInstaller(bundledClient, ['--installer-window-v1'], env);
-	const mustSupport =
-		stem === 'orchbee' && compareVersions(olderFeed.version, firstWindowRelease) >= 0;
-	if (!mustSupport && ran.document?.schema !== 'orchbee.install' && [2, 4].includes(ran.status)) {
+	const ran = runInstaller(bundledClient, ['--installer-window'], env);
+	if (
+		stem !== 'orchbee' &&
+		ran.document?.schema !== 'orchbee.install' &&
+		[2, 4].includes(ran.status)
+	) {
 		log(
-			`Skipping window store pre-seed: ${olderFeed.version} does not support --installer-window-v1 (exited ${ran.status}).`,
+			`Skipping window store pre-seed: ${olderFeed.version} does not support --installer-window (exited ${ran.status}).`,
 		);
 		return { seeded: false };
 	}
@@ -387,7 +391,7 @@ export function seedWindowStore({
 		ran.document?.schema !== 'orchbee.install' ||
 		ran.document?.result?.activated !== true
 	) {
-		throw new StepFailure(documentFailure('--installer-window-v1', ran));
+		throw new StepFailure(documentFailure('--installer-window', ran));
 	}
 	port.expectWindowActive(storeRoot, stem, olderDesktop.version, env);
 	return {
@@ -473,7 +477,11 @@ export function updateCheck(options, progress, port, usage) {
 	const storeRoot = port.storeRoot(stem, env);
 	let updated = { root: storeRoot, env: { ...env, ORCHBEE_UPDATE_FEED: feedAddress } };
 	let windowSeed = { seeded: false };
-	if (current !== undefined && current.version !== version) {
+	const updating =
+		current !== undefined &&
+		current.version !== version &&
+		compareVersions(current.version, firstUpdatingRelease) >= 0;
+	if (updating) {
 		log(`The tracked update pair names ${current.version}, the version people have now.`);
 		progress.stage = `installing ${current.version}, the version people have now`;
 		const archive = fetchArchive(source, current, work, 'current');
@@ -495,11 +503,11 @@ export function updateCheck(options, progress, port, usage) {
 			env,
 		});
 	} else {
-		log(
-			current === undefined
-				? `No update pair is tracked, so no older version can update: ${version} updates an empty store.`
-				: `The tracked update pair already names ${version}: it updates an empty store.`,
-		);
+		let why = `The tracked update pair already names ${version}`;
+		if (current === undefined) why = 'No update pair is tracked, so no older version can update';
+		else if (current.version !== version)
+			why = `The tracked update pair names ${current.version}, older than ${firstUpdatingRelease}, which cannot update to ${version}`;
+		log(`${why}: ${version} updates an empty store.`);
 		progress.stage = `installing ${version} from its own archive`;
 		const archive = fetchArchive(source, offeredFeed, work, 'release');
 		installRelease(port, unpackRelease(port, archive, work, 'release', version), storeRoot, env);
@@ -750,7 +758,7 @@ function verifyGateArchiveBeside(feedPath, member, what) {
 /**
  * Runs one pre-publish release gate path on Windows or macOS: installs `options.older` (and its
  * window version when both feeds carry `extensions.desktop`), starts its Session with a terminal
- * probe, waits for `--automatic-update-v1` to activate the new runtime and window versions, joins
+ * probe, waits for `--automatic-update` to activate the new runtime and window versions, joins
  * with the new Client, and brings the Session to the new release as `options.mode` says. `move`
  * ends the probe, confirms zero gaps, waits for the idle move, and verifies layout preservation on
  * the new Server; `restart` and `adopt` keep the probe running (see `keepProbeAcross`).

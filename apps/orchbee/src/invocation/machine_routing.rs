@@ -41,7 +41,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     // Saved machines are portable: each path admits `Capability::SavedMachines` itself, so only the
     // Desktop's helpers keep the Desktop's platforms.
-    if tokens == ["--machine-link-v1"] {
+    if tokens == ["--machine-link"] {
         return Ok(SelectedRequest {
             availability: Availability::Portable,
             format: None,
@@ -52,18 +52,14 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     // Internal pairings between this program and its own start path, not frozen helpers: a release
     // may rename them.
     for (token, request, availability) in [
+        ("--machine-hub", Request::MachineHub, Availability::Portable),
         (
-            "--machine-hub-v1",
-            Request::MachineHub,
-            Availability::Portable,
-        ),
-        (
-            "--machine-hub-state-v1",
+            "--machine-hub-state",
             Request::MachineHubState,
             Availability::Portable,
         ),
         (
-            "--machine-hub-hold-v1",
+            "--machine-hub-hold",
             Request::MachineHubHold,
             Availability::Portable,
         ),

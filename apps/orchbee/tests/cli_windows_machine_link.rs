@@ -1,4 +1,4 @@
-//! The remote helper `--machine-link-v1` started as a child process with pipes against the real
+//! The remote helper `--machine-link` started as a child process with pipes against the real
 //! scratch runtime: this test speaks the hub's end with the codec, on this computer only. Real CLI
 //! control attachments reach the default Session through `session` channels, a Session endpoint
 //! that floods while its channel is left unread holds no routed command back, `ensure-session`
@@ -291,9 +291,9 @@ fn console_refuses(fixture: &Fixture) {
         &launcher,
         format!(
             // The redirection leads each `echo`: `echo 5>file` would redirect handle 5.
-            "@echo off\r\n\"{client}\" --machine-link-v1\r\n>\"{}\" echo %errorlevel%\r\n\
-             echo x| \"{client}\" --machine-link-v1\r\n>\"{}\" echo %errorlevel%\r\n\
-             \"{client}\" --machine-link-v1 >\"{output}\"\r\n>\"{}\" echo %errorlevel%\r\n",
+            "@echo off\r\n\"{client}\" --machine-link\r\n>\"{}\" echo %errorlevel%\r\n\
+             echo x| \"{client}\" --machine-link\r\n>\"{}\" echo %errorlevel%\r\n\
+             \"{client}\" --machine-link >\"{output}\"\r\n>\"{}\" echo %errorlevel%\r\n",
             report("both"),
             report("output"),
             report("input"),
@@ -415,7 +415,7 @@ impl Hub {
     }
 
     fn spawn(fixture: &Fixture, wrap: impl FnOnce(Command) -> CommandWrap) -> Self {
-        let mut command = fixture.command(&["--machine-link-v1"]);
+        let mut command = fixture.command(&["--machine-link"]);
         command
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

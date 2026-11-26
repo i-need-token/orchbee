@@ -15,9 +15,9 @@ fn strings(arguments: &[&str]) -> Vec<OsString> {
 
 fn asked(application: &str, rest: &[&str]) -> Vec<OsString> {
     let mut arguments = strings(&[
-        "--relaunch-after-v1",
+        "--relaunch-after",
         &PARENT.to_string(),
-        &format!("--replace-application-v1={application}"),
+        &format!("--replace-application={application}"),
     ]);
     arguments.extend(strings(rest));
     arguments
@@ -27,7 +27,7 @@ fn asked(application: &str, rest: &[&str]) -> Vec<OsString> {
 fn a_relaunch_names_the_application_the_program_and_the_place_switches() {
     let served = relaunch(
         LAUNCHER.as_ref(),
-        asked("/Applications/Orchbee.app", &["--select-workspace-v1=w"]),
+        asked("/Applications/Orchbee.app", &["--select-workspace=w"]),
         PARENT,
     )
     .expect("served");
@@ -37,15 +37,15 @@ fn a_relaunch_names_the_application_the_program_and_the_place_switches() {
         PathBuf::from("/Applications/Orchbee.app")
     );
     assert_eq!(served.program, PathBuf::from("Contents/MacOS/Orchbee"));
-    assert_eq!(served.arguments, strings(&["--select-workspace-v1=w"]));
+    assert_eq!(served.arguments, strings(&["--select-workspace=w"]));
     assert_eq!(served.pointer(), PathBuf::from(DESKTOP).join("active.json"));
     assert_eq!(
         served.fallback_arguments(Some("0.3.0")),
-        strings(&["--fallback-from-v1=0.3.0", "--select-workspace-v1=w"])
+        strings(&["--fallback-from=0.3.0", "--select-workspace=w"])
     );
     assert_eq!(
         served.fallback_arguments(None),
-        strings(&["--select-workspace-v1=w"])
+        strings(&["--select-workspace=w"])
     );
 }
 
@@ -56,23 +56,23 @@ fn nothing_is_served_for_another_parent_a_misplaced_launcher_or_an_unsafe_applic
         (
             LAUNCHER,
             strings(&[
-                "--relaunch-after-v1",
+                "--relaunch-after",
                 &other,
-                "--replace-application-v1=/Applications/Orchbee.app",
+                "--replace-application=/Applications/Orchbee.app",
             ]),
         ),
         (
             LAUNCHER,
-            strings(&["--replace-application-v1=/Applications/Orchbee.app"]),
+            strings(&["--replace-application=/Applications/Orchbee.app"]),
         ),
         // The application switch only right after the relaunch pair.
         (
             LAUNCHER,
             strings(&[
-                "--relaunch-after-v1",
+                "--relaunch-after",
                 &PARENT.to_string(),
                 "x",
-                "--replace-application-v1=/Applications/Orchbee.app",
+                "--replace-application=/Applications/Orchbee.app",
             ]),
         ),
         (LAUNCHER, asked("Applications/Orchbee.app", &[])),

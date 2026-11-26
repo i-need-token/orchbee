@@ -20,9 +20,9 @@ mod tests;
 pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH_V1";
 
 /// As the first argument, followed by a process id: wait for that process before starting.
-const RELAUNCH_AFTER: &str = "--relaunch-after-v1";
+const RELAUNCH_AFTER: &str = "--relaunch-after";
 /// Prefixed to a version: the window was started because that version failed.
-const FALLBACK_FROM: &str = "--fallback-from-v1=";
+const FALLBACK_FROM: &str = "--fallback-from=";
 /// The window pointer, in the window store's `desktop` folder.
 pub(crate) const POINTER: &str = "active.json";
 /// The folder of window versions, beside the window pointer.
@@ -56,7 +56,7 @@ pub(crate) struct Start {
 #[cfg(windows)]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Plan {
-    /// The process to wait for before the first start: the one `--relaunch-after-v1` named, only
+    /// The process to wait for before the first start: the one `--relaunch-after` named, only
     /// when it is the launcher's parent.
     pub(crate) wait_for: Option<u32>,
     /// The active window version, with the arguments that remain after the launcher's own.
@@ -121,7 +121,7 @@ pub(crate) fn plan(
     })
 }
 
-/// The process `--relaunch-after-v1` names when it leads `arguments`, and the arguments the window
+/// The process `--relaunch-after` names when it leads `arguments`, and the arguments the window
 /// receives. Only the exact switch in first place is the launcher's; it is always dropped with the
 /// argument after it, which names a process only as a decimal number from 1 without a sign or a
 /// leading zero. Any other argument, the switch elsewhere included, passes on unchanged.
@@ -137,7 +137,7 @@ pub(crate) fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<O
     (process, arguments)
 }
 
-/// The arguments of a start after `active` failed: `--fallback-from-v1=<active>` first, so a reader
+/// The arguments of a start after `active` failed: `--fallback-from=<active>` first, so a reader
 /// that takes the first such argument reads this one, then `arguments`.
 pub(crate) fn fallback_arguments(active: &str, arguments: &[OsString]) -> Vec<OsString> {
     let mut fallback = Vec::with_capacity(arguments.len() + 1);

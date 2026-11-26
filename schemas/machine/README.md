@@ -5,10 +5,10 @@
 This directory is the language-neutral authority for generation 1 of the two negotiated connections
 of remote machines, for the `OBMX` frame both share, and for the answer delivery record.
 
-| Connection     | Initiator                                         | Acceptor                                  | Carrier                                               |
-| -------------- | ------------------------------------------------- | ----------------------------------------- | ----------------------------------------------------- |
-| `machine-link` | The hub                                           | `orchbee --machine-link-v1` on the remote | The helper's standard input and output, through `ssh` |
-| `machine-hub`  | A TUI, a CLI command, or Desktop's bundled Client | The hub, one per user and environment     | The hub's same-user local endpoint                    |
+| Connection     | Initiator                                         | Acceptor                               | Carrier                                               |
+| -------------- | ------------------------------------------------- | -------------------------------------- | ----------------------------------------------------- |
+| `machine-link` | The hub                                           | `orchbee --machine-link` on the remote | The helper's standard input and output, through `ssh` |
+| `machine-hub`  | A TUI, a CLI command, or Desktop's bundled Client | The hub, one per user and environment  | The hub's same-user local endpoint                    |
 
 | File                                           | Content                                                             |
 | ---------------------------------------------- | ------------------------------------------------------------------- |

@@ -104,7 +104,7 @@ page shows its general sentence. A successful start also names the Session's `se
 
 A window that runs from `desktop\versions\<its own version>\` offers Update in the sidebar footer
 while the window pointer `desktop\active.json` names a version of higher precedence than its own,
-unless that is the version a `--fallback-from-v1=<version>` start came back from. A development
+unless that is the version a `--fallback-from=<version>` start came back from. A development
 build, a flat layout, and a build's output folder never offer it. `src/main/window-update/` watches the pointer's folder, because the pointer is replaced by a rename,
 reads at most 16 KiB of it, and pushes the offer, or none, to every document's window-update port
 (and re-reads it directly from disk when an update check settles or a second launch starts). A
@@ -121,9 +121,9 @@ is asked of the focused document, or of the most recently focused one, and no an
 second relaunches with no place. macOS has no Setup marker, so a second launch only brings the
 window forward there. A joinable version is switched to through the window entry
 `desktop\<this window's file name>`: Main starts it detached, with `desktop\` as working folder and
-the arguments `--relaunch-after-v1 <its process id>` followed by the place the asking document shows,
-`--select-terminal-v1=<TerminalPresentationId>` for its displayed terminal or else
-`--select-workspace-v1=<WorkspaceId>` for its Workspace, and then quits as Quit Orchbee, Keep
+the arguments `--relaunch-after <its process id>` followed by the place the asking document shows,
+`--select-terminal=<TerminalPresentationId>` for its displayed terminal or else
+`--select-workspace=<WorkspaceId>` for its Workspace, and then quits as Quit Orchbee, Keep
 Terminals Running does. An entry that cannot start leaves the window running and is recorded. The
 [window launcher](../orchbee-desktop-launcher/README.md) waits for the window to end and starts the
 active version, whose Main strict-parses the place and gives it to its first document only as
@@ -131,7 +131,7 @@ active version, whose Main strict-parses the place and gives it to its first doc
 so nothing it starts inherits it. When the variable named its parent and its first `server start`
 answer, within 90 seconds of its start, refuses with `session-too-old`, Main exits with status 1
 instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task of a window that runs from a version folder names the entry, so it outlives that
-version, and 15 seconds after startup Main runs `--tend-window-store-v1` through its bundled Client
+version, and 15 seconds after startup Main runs `--tend-window-store` through its bundled Client
 so retired window versions and flat-layout leftovers leave disk once any replaced process has
 exited. The maintained design is the
 [automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
@@ -142,7 +142,7 @@ Client reads too (`ORCHBEE_INSTALL_DIR`, or `$HOME/.local/share/<stem>`), unless
 the store's own copies under `desktop/`. Each window version there is
 `desktop/versions/<version>/<name>.app`, and the join check runs the Client in that bundle's
 `Contents/Resources/cohort/`. A joinable version is switched to through the window launcher in that
-same cohort, `<stem>-desktop-launcher`, with `--replace-application-v1=<this window's bundle>` as its
+same cohort, `<stem>-desktop-launcher`, with `--replace-application=<this window's bundle>` as its
 third argument, before the place. Once the window has ended, the launcher replaces the bundle in
 place, or installs into `~/Applications` when its folder cannot be written, and leaves the Session
 running. Window versions reach the macOS store through `orchbee update` and install.sh's
@@ -191,7 +191,7 @@ a terminal with a long-running command open through every step (`ping -t 127.0.0
    sidebar footer shows Update. On Windows, clear Launch Orchbee on Setup's last page: with it ticked,
    Setup's own launch moves the older window to the newer version at once, and steps 2 to 4 cannot
    run. A Start-menu launch only focuses the older window, which keeps its footer Update. On macOS,
-   install the newer build with `orchbee update` or the `--installer-window-v1` install, not with
+   install the newer build with `orchbee update` or the `--installer-window` install, not with
    `install.sh --desktop`, which quits the older window first, and not by copying from the `.dmg`,
    which needs the older app to quit.
 2. Refusal: move the newer version's bundled Client aside (`<stem>.exe` in its
@@ -567,7 +567,7 @@ An install changes exactly this:
    gives Settings › Apps the name, version, publisher `Orchbee`, icon, size and the uninstaller
    `<store root>\unins000.exe`, which Setup writes with `unins000.dat`.
 4. Setup runs the bundled Client, `resources\cohort\<client>.exe` below the unpacked window, as
-   `install --format json` and then as `--installer-window-v1`, with `ORCHBEE_INSTALL_DIR` set to the
+   `install --format json` and then as `--installer-window`, with `ORCHBEE_INSTALL_DIR` set to the
    store root. The window installer helper installs the window as step 1 says whatever `install`
    answered, and a higher window version already active stays active. The store root inherits the access list of
    `%LOCALAPPDATA%\Programs`, which on some profiles lets another account in; that bundled Client
@@ -604,7 +604,7 @@ order:
 1. asks whether to delete the person's data too, naming settings, Sessions and saved passwords,
    with No as the default; a silent removal, or one that finds no Client left, asks nothing and
    keeps the data;
-2. runs `<store root>\bin\<client>.exe --installer-uninstall-v1`, with `--delete-data` after a
+2. runs `<store root>\bin\<client>.exe --installer-uninstall`, with `--delete-data` after a
    Yes, or, when no launcher is left, a flat window's bundled Client or else a window version's,
    and waits for it from `unins000.exe` in the store root; the Client does not count that waiting
    uninstaller as Orchbee running. It ends no terminal: while one is open, or while any other

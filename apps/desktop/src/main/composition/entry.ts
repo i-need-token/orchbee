@@ -85,7 +85,7 @@ const WINDOW_HIDDEN_ENVIRONMENT_KEY = 'ORCHBEE_DESKTOP_WINDOW_HIDDEN';
 /** What the Windows taskbar's Save Diagnostic Bundle task starts Orchbee with. */
 const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
 /**
- * How long after startup Main runs `--tend-window-store-v1` so any replaced window version or
+ * How long after startup Main runs `--tend-window-store` so any replaced window version or
  * moved-aside launcher has finished exiting and released its files.
  */
 const WINDOW_STORE_TEND_DELAY_MILLISECONDS = 15_000;
@@ -584,7 +584,7 @@ let diagnosticBundleRequested = process.argv.includes(SAVE_DIAGNOSTIC_BUNDLE_SWI
 let windowStateSettled = false;
 
 /**
- * Schedules one background `--tend-window-store-v1` run for a packaged window that uses a window
+ * Schedules one background `--tend-window-store` run for a packaged window that uses a window
  * store, so retired window versions and flat-layout leftovers leave disk once any replaced process
  * has exited, without waiting for a future update.
  */
@@ -592,7 +592,7 @@ function scheduleWindowStoreTend(): void {
 	if (windowDesktopRoot === null) return;
 	const timer = setTimeout(() => {
 		windowStoreTendTimer = undefined;
-		const child = spawn(resolveClientExecutable(), ['--tend-window-store-v1'], {
+		const child = spawn(resolveClientExecutable(), ['--tend-window-store'], {
 			cwd: app.getPath('home'),
 			env: resolveClientEnvironment(),
 			stdio: 'ignore',

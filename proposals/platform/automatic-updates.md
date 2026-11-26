@@ -132,11 +132,11 @@ Nothing waits on the owner; each Chosen row stays open to a veto.
   does.
 - Each scheduled run reads `update.automatic` and does nothing when it is off; a run a Client asks
   for ([manual check](#manual-check)) does not read it. Otherwise it starts the active
-  version's `orchbee --automatic-update-v1`, named by `active.json`, in a Job the Server holds, at
+  version's `orchbee --automatic-update`, named by `active.json`, in a Job the Server holds, at
   below-normal priority, with standard output bounded to 64 KiB. The Server never waits on it and
   records the outcome in its diagnostic log: version, phase, and error code, never user content.
   The helper ends with the Server; every update step is crash safe, and the next run cleans up.
-- `--automatic-update-v1` is `update` with three differences: it never adds the `Path` entry,
+- `--automatic-update` is `update` with three differences: it never adds the `Path` entry,
   although it refreshes `bin\orchbee.exe` when that file exists; it installs the window part only
   when `desktop\` exists, from the window self-update release on; and it prints only the
   `orchbee.update` document. Like every helper mode, its grammar never changes.
@@ -346,14 +346,14 @@ it is a few minutes into a move to 0.5.0, and then after that version's fallback
 - From P1b a restart reserves its generation as a Session start does. A restart that fails its
   check, or that the old Server refuses, counts nothing. After the commit, a crash of the new pair
   counts as any Server crash does.
-- `--record-client-failure-v1 <version>` is a hidden helper mode whose grammar never changes, left
+- `--record-client-failure <version>` is a hidden helper mode whose grammar never changes, left
   out of help, completion, and the Agent guide like the other helper modes. It records one Client
   failure of `<version>` in the store it runs from, counted only while `<version>` is the entry of
   the counting `move`, and that write may commit the fallback.
 - A launcher tells a failed start or join from a normal exit after every start it makes, the first
   one or a [relaunch](#tui). When its Client fails, it reads the pointer again; when the pointer
   still names the entry it started, with a counting `move`, `back` true, and a `previous`, it runs
-  `<root>\versions\<previous>\<name>.exe --record-client-failure-v1 <version>`
+  `<root>\versions\<previous>\<name>.exe --record-client-failure <version>`
   outside the Client's Job with null standard streams and waits for it at most 5 s. Then it goes on
   as it would without the record: after a relaunch it starts the version it replaced, and after a
   first start it ends with the Client's status. The previous version runs the helper because
@@ -609,14 +609,14 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
 
 - The window version and the runtime version move separately; any pair that shares a connection
   generation works together, because [versions coexist](versioning-and-upgrade.md#outcomes).
-- The launcher's switches `--relaunch-after-v1`, `--fallback-from-v1`, `--select-terminal-v1`, and
-  `--select-workspace-v1` are a contract between builds, like the helper modes: a change adds a new
+- The launcher's switches `--relaunch-after`, `--fallback-from`, `--select-terminal`, and
+  `--select-workspace` are a contract between builds, like the helper modes: a change adds a new
   name, so every launcher starts every window version from the window self-update release on.
 - The uninstall registration keeps the version of the last Setup run; nothing rewrites it.
 - macOS keeps the same `desktop/` folder under its store root, with one application bundle per
   window version, `desktop/versions/<version>/<name>.app`, and the same pointer. The installed
   bundle is the entry: a window that switches starts the launcher in the new version's bundle with
-  `--replace-application-v1=<its bundle>`, which replaces that bundle in place once the window has
+  `--replace-application=<its bundle>`, which replaces that bundle in place once the window has
   ended, as Squirrel.Mac does, or installs into `~/Applications` when its folder cannot be written,
   and leaves the Session running ([the launcher](../../apps/orchbee-desktop-launcher/README.md#macos)).
   The window's bundled Client hands its Session start to the store as on Windows, so the swap
@@ -693,7 +693,7 @@ programs exist:
 1. The launcher's root is its own folder. It reads `active.json` there and starts
    `versions\<active>\<its own file name>`, as the command launcher resolves its Client
    (`apps/orchbee-launcher/src/resolve.rs:18-37`).
-2. When its first two arguments are `--relaunch-after-v1 <process id>`, it drops them. When that
+2. When its first two arguments are `--relaunch-after <process id>`, it drops them. When that
    process is its parent, confirmed by start times as `ancestors` confirms a parent
    (`apps/orchbee/src/cli/update/uninstall/windows.rs:251-253`), it first waits up to 30 seconds for
    that process to end, because the window's single-instance lock would otherwise hand the new
@@ -705,7 +705,7 @@ programs exist:
 4. When the pointer names a `previous` version whose program exists, it sets the
    [launcher protocol](#tui) variable to its own process id and watches the window for 120 seconds.
    If the window cannot start, or ends within them with a non-zero status, it starts the previous
-   version once, with the same arguments plus `--fallback-from-v1=<active version>` and without the
+   version once, with the same arguments plus `--fallback-from=<active version>` and without the
    variable, as [make before break](#make-before-break) asks. Without such a version it exits once
    the window has started.
 5. When nothing starts, it shows the matching message of the command launcher
@@ -720,7 +720,7 @@ programs exist:
 
 ### Installing a window version
 
-- The window part runs in `update` and `--automatic-update-v1` when `desktop\` exists, after the
+- The window part runs in `update` and `--automatic-update` when `desktop\` exists, after the
   runtime part ends. It installs a window version only when the feed has `extensions.desktop` and
   the store's active runtime version is not lower than that window version, so the window's bundled
   Client hands its Session start to the store
@@ -761,7 +761,7 @@ programs exist:
 - Setup extracts the packaged window into `{tmp}\desktop` instead of `{app}\desktop`
   (`orchbee.iss:76`), so it writes no file under `desktop\` itself.
 - Built (vetoable): Setup keeps no copy of the window switch. Before it installs, it extracts its
-  bundled Client alone and runs it with `--installer-window-v1` from its temporary folder. A build
+  bundled Client alone and runs it with `--installer-window` from its temporary folder. A build
   that installs window versions answers `not-release-directory` with exit 4, because that Client
   sits in no window's bundled cohort there, and changes nothing; a build whose window updates are
   off refuses the word as unknown, and a development build answers `development-build`. Setup then
@@ -771,7 +771,7 @@ programs exist:
   switch.
 - After its files, the bundled Client in `{tmp}\desktop\resources\cohort\` runs
   `install --format json` as today (`orchbee.iss:255-274`) and then the new helper mode
-  `orchbee --installer-window-v1`. That mode installs the window directory two levels above its own
+  `orchbee --installer-window`. That mode installs the window directory two levels above its own
   folder as the window part installs an unpacked archive, then places the entry, moves a flat layout
   on, and cleans up. It answers like `install`: exit 0, or exit 3 with `downgrade-refused` when a
   higher window version is active and stays active, which Setup accepts (`orchbee.iss:266-270`).
@@ -792,7 +792,7 @@ programs exist:
   program runs from it.
 - Uninstall still asks the store's active version through `bin\` and falls back to the flat bundled
   Client (`orchbee.iss:310-331`), then to any window version's bundled Client.
-  `--installer-uninstall-v1` already removes `desktop\` with every version
+  `--installer-uninstall` already removes `desktop\` with every version
   (`windows-cli-configuration.md:355`).
 - The Start menu shortcut, AppUserModelID `com.orchbee.desktop`, the uninstall registration and its
   icon, and Setup's Launch box keep naming `desktop\orchbee-desktop.exe` (`orchbee.iss:31`, `:79`,
@@ -876,7 +876,7 @@ unpacking, and a bundle the launcher swaps at the click.
   lies inside it; runtime versions keep the Windows rule, which macOS cannot tell, and stay.
 - install.sh `--desktop` takes the window archive the feed names in place of the disk image, checks
   its size and SHA-256 as it checks the runtime archive, has the unpacked Client install it with
-  `--installer-window-v1`, and copies the unpacked bundle into the Applications folder as it copied
+  `--installer-window`, and copies the unpacked bundle into the Applications folder as it copied
   the disk image's, so the person's copy has the archive's modes. A release build whose window
   updates are not switched on answers the helper word as a usage error; its bundle is copied alone.
 - Chosen: an application copied from the disk image plays Setup's part at its first start. While
@@ -1028,15 +1028,15 @@ A click switches the Client it is in; other open Clients keep their own control.
    Otherwise [the new Client cannot join](#when-the-new-client-cannot-join), and the diagnostic log
    records why.
 2. It starts the window entry detached, so the entry outlives it, with `desktop\` as working folder
-   and the arguments `--relaunch-after-v1 <its process id>` and its place, then quits the way Quit
+   and the arguments `--relaunch-after <its process id>` and its place, then quits the way Quit
    Orchbee, Keep Terminals Running does (`apps/desktop/docs/window-lifecycle.md:102-103`): the
    Session and every terminal keep running.
 3. The launcher waits for it to end and starts the active window version, which joins the same
    Session, restores its bounds as every start does (`apps/desktop/docs/data-root.md:82-96`), and
    opens at the same place.
 
-- The place: `--select-terminal-v1=<TerminalPresentationId>` names the displayed terminal, the one
-  renderer reload recovery keeps; with none, `--select-workspace-v1=<WorkspaceId>` names the
+- The place: `--select-terminal=<TerminalPresentationId>` names the displayed terminal, the one
+  renderer reload recovery keeps; with none, `--select-workspace=<WorkspaceId>` names the
   selected Workspace; with neither, nothing is passed. Desktop Main strict-parses them with the
   identity schemas (`packages/workbench-client-protocol/src/terminal-presentation-contract.ts:3-10`
   and `src/workbench-protocol/workbench-semantic-contract.ts:27-35` in the same package) and gives
@@ -1054,12 +1054,12 @@ A click switches the Client it is in; other open Clients keep their own control.
   (`apps/desktop/src/main/server-connection/interpretServerStartAnswer.ts:67-77`), it exits with
   status 1 instead of showing the refusal, and the launcher starts the previous window version. The
   window never uses status 75; its relaunch is step 2.
-- A returning window: started with `--fallback-from-v1=<version>`, it offers no Update for that
+- A returning window: started with `--fallback-from=<version>`, it offers no Update for that
   version while it runs, and a newer version as usual. Nothing is stored, so the next start through
   the entry tries the active version again.
 - Ready, for the window: it runs from `desktop\versions\<its own version>\`, the window pointer's
   active version is higher by SemVer precedence, and that version is not the one
-  `--fallback-from-v1` named. A window that runs from anywhere else, such as a flat layout or a test
+  `--fallback-from` named. A window that runs from anywhere else, such as a flat layout or a test
   build's output folder, never shows the control.
 
 ### When the new Client cannot join
@@ -1161,7 +1161,7 @@ control while it is Ready. The action adds no second update state, and a Client 
 
 - A press sends one Client-to-Server request, `workbench.update-check` with `start`, under the
   `update-check` capability. The Server wakes its scheduled job, which runs the same
-  `--automatic-update-v1` helper with the same locks and records; a press while a run is queued or
+  `--automatic-update` helper with the same locks and records; a press while a run is queued or
   running joins that run. A requested run ignores `update.automatic`, since the person asked for
   it, and leaves the hourly grid unchanged.
 - The Server answers at once; About reads the run with `read` while it shows. The answer is

@@ -31,7 +31,7 @@
 // Nothing is downloaded. The packaged Test window is the newer version. Two copies of it whose
 // `app.asar` package version reads 0.0.0-window-update.1 and 0.0.0-window-update.2, each with its
 // `desktop-files.json` written again (on macOS after an ad hoc signature, as packaging signs),
-// stand in for older window versions, and each is installed by its own `--installer-window-v1`
+// stand in for older window versions, and each is installed by its own `--installer-window`
 // into a store root and data root inside the work folder. What the stand-ins cannot prove: that an
 // older published window, whose own code handles the press, hands over to this one, and that a
 // Session refuses an incompatible window, which the moved-aside Client only imitates; the release
@@ -455,13 +455,13 @@ function standIn(built, version, work, port) {
 	return { ...built, directory, version };
 }
 
-/** Installs the window directory `window` into the store with its own `--installer-window-v1`. */
+/** Installs the window directory `window` into the store with its own `--installer-window`. */
 function installWindow(window, context) {
 	const { env, port, storeRoot } = context;
 	const client = port.client(port.cohort(window.directory, window.application), window.stem);
 	expectPassed(
-		run(client, ['--installer-window-v1'], env, { deadline: installDeadline }),
-		`--installer-window-v1 of ${window.version}`,
+		run(client, ['--installer-window'], env, { deadline: installDeadline }),
+		`--installer-window of ${window.version}`,
 	);
 	const pointer = path.join(storeRoot, 'desktop', 'active.json');
 	const active = existsSync(pointer)

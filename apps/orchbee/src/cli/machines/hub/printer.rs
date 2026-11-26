@@ -1,4 +1,4 @@
-//! `orchbee --machine-hub-state-v1`: attaches with `watch` alone, so it holds nothing, starting the
+//! `orchbee --machine-hub-state`: attaches with `watch` alone, so it holds nothing, starting the
 //! hub when none runs, and prints the hub's state, its process id, the catalog revision, and each
 //! Machine's state as localized text.
 

@@ -2,7 +2,7 @@
 //! versions). The window store `<store root>/desktop/` is a second store root with its own
 //! `active.json`, `install.lock` and `versions/<version>/`, each version a window directory that
 //! its `desktop-files.json` lists. `update` and the automatic helper run [`update`] after their
-//! runtime part; `--installer-window-v1` runs [`installer`] on the window directory that Setup or
+//! runtime part; `--installer-window` runs [`installer`] on the window directory that Setup or
 //! install.sh unpacked. Both end in one install: under the store root's `install.lock`, then
 //! `desktop/install.lock`, after `download.lock` when a download came first, it copies exactly the
 //! listed files into a private stage, each checked by size and SHA-256 as it is written and then
@@ -48,7 +48,7 @@ pub(super) const FOLDER: &str = "desktop";
 const PLATFORM: bool = cfg!(any(windows, target_os = "macos"));
 
 /// What one window part did: the `desktop` member of `orchbee.update`, and the facts of
-/// `--installer-window-v1`'s answer.
+/// `--installer-window`'s answer.
 pub(super) struct WindowReport {
     pub phase: &'static str,
     pub published: Option<PathBuf>,
@@ -246,7 +246,7 @@ fn decide(
 /// What a version above the active window version does to an install.
 #[derive(Clone, Copy)]
 enum Lower {
-    /// `--installer-window-v1`: refused as `downgrade-refused`, as `install` refuses.
+    /// `--installer-window`: refused as `downgrade-refused`, as `install` refuses.
     Refuse,
     /// The window part: left alone, up to date.
     Leave,
@@ -566,7 +566,7 @@ pub(super) fn make_store(root: &Path, context: &mut Context) -> Result<(), Error
     acquire(&root.join(FOLDER), context).map(drop)
 }
 
-/// `--tend-window-store-v1`: runs [`layout::tend`] on this build's store root outside development,
+/// `--tend-window-store`: runs [`layout::tend`] on this build's store root outside development,
 /// writes nothing and exits 0. Desktop Main runs it shortly after startup so retired window
 /// versions and flat-layout leftovers whose process has exited leave disk without waiting for a
 /// later update.
@@ -586,7 +586,7 @@ pub(crate) fn tend_store() -> Output {
     }
 }
 
-/// `--installer-window-v1`: installs the window directory the running Client is bundled in, as
+/// `--installer-window`: installs the window directory the running Client is bundled in, as
 /// Setup or install.sh unpacked it, into the window store of this build's store root, creating the
 /// `desktop` folder when it is missing, and makes it the active window version; then, whatever the
 /// install answered, the window store's arrangement follows unless the run was interrupted. It

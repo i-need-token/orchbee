@@ -27,7 +27,7 @@ use orchbee_machine_protocol::hub::HubState;
 
 /// The hub process's hidden entry, an internal pairing between this program and its own start
 /// path; a release may rename it.
-pub const HUB_ENTRY: &str = "--machine-hub-v1";
+pub const HUB_ENTRY: &str = "--machine-hub";
 
 /// What a client is to the hub, as `attach` states it.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

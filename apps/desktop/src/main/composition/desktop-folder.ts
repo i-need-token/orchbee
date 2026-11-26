@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { type DesktopPathRefusal, interpretPathRefusal } from '../server-connection';
 
 // Cross-runtime contract: the bundled Client's hidden helper, permanent under this name.
-const CREATE_WINDOW_FOLDER_HELPER = '--create-window-folder-v1';
+const CREATE_WINDOW_FOLDER_HELPER = '--create-window-folder';
 /** Creating a few folders takes moments; this only bounds a Client that stopped answering. */
 const HELPER_DEADLINE_MILLISECONDS = 20_000;
 

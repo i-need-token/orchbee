@@ -46,7 +46,7 @@ const relaunchLimit = 3;
 const relaunchWindowMilliseconds = 10_000;
 // The helper that records a failed Client through the previous version, `CLIENT_FAILURE_HELPER` in
 // `crates/local-runtime/src/automatic_updates.rs`, and how long the launcher waits for it.
-const clientFailureHelperArgument = '--record-client-failure-v1';
+const clientFailureHelperArgument = '--record-client-failure';
 const clientFailureWaitMilliseconds = 5_000;
 // The platforms whose release store automatic updates write, as the Client's own update control has
 // them; Linux keeps no store yet.

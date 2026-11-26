@@ -14,7 +14,7 @@ pub enum ProcessRole {
     TerminalHost,
     /// The remote-machine hub of one user and environment.
     MachineHub,
-    /// The remote helper `orchbee --machine-link-v1` at the far end of a machine link.
+    /// The remote helper `orchbee --machine-link` at the far end of a machine link.
     MachineLink,
     /// The Keeper, which holds Windows terminals' handles across a Host handover.
     Keeper,

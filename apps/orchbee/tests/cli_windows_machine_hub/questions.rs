@@ -96,10 +96,7 @@ fn each_kind_reaches_the_claimant_in_order_and_only_ssh_receives_the_answers() {
         "started\nasked 1\nright 1\nasked 2\nright 2\nasked 3\nright 3\nasked 4\nright 4\nlinked\n"
     );
     drop(client);
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     search(&carried, &[&printed.stdout, &printed.stderr]);
 }
 
@@ -126,10 +123,7 @@ fn a_refused_answer_leads_to_the_next_question_and_then_to_login_failed() {
         ConnectOutcome::NotOnline(ConnectFailure::AuthFailed)
     );
     assert_eq!(login_end(&mut client), LoginEnd::Failed);
-    let printed = carried
-        .command(&["--machine-hub-state-v1"])
-        .output()
-        .unwrap();
+    let printed = carried.command(&["--machine-hub-state"]).output().unwrap();
     assert_eq!(
         State::parse(&printed).machines,
         [(FIRST.to_owned(), "login failed".to_owned())]

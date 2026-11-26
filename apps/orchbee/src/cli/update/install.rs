@@ -24,7 +24,7 @@ use std::{
 
 /// The helper a published copy runs to complete its own install. Its grammar never changes; a
 /// change adds a new helper name.
-pub(super) const COMPLETION_HELPER: &str = "--complete-install-v1";
+pub(super) const COMPLETION_HELPER: &str = "--complete-install";
 
 /// The cohort's programs, which a stage makes executable where the system asks that of a program.
 const PROGRAMS: [CohortArtifact; 4] = [

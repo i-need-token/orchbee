@@ -40,7 +40,7 @@
 //   `--current` names). It is installed from its published archive by its own `install` into the
 //   store root (`ORCHBEE_INSTALL_DIR`, or the default), and when both feeds carry
 //   `extensions.desktop` its window archive is installed into `<store root>\desktop` with
-//   `--installer-window-v1`; then `<store root>\bin\<stem>.exe update` runs with
+//   `--installer-window`; then `<store root>\bin\<stem>.exe update` runs with
 //   `ORCHBEE_UPDATE_FEED` naming the release's `<stem>-<version>-windows-x86_64.feed.json` in the
 //   assets folder, and must activate the release (and the new window version when `desktop\` was
 //   seeded). Without an older tracked version, the release's `update` fills an empty scratch store
@@ -53,7 +53,7 @@
 //   beside it. The older release's archive, checked against its verified feed, is installed by its
 //   own `install` into a fresh store root and data root (`ORCHBEE_INSTALL_DIR`, `ORCHBEE_HOME`, or
 //   the defaults), and when both feeds carry `extensions.desktop` its window archive is installed
-//   into `<store root>\desktop` with `--installer-window-v1`. Its Client starts the Session with
+//   into `<store root>\desktop` with `--installer-window`. Its Client starts the Session with
 //   `ORCHBEE_UPDATE_FEED` naming the gate copy and opens a Workspace whose cmd.exe runs the probe: a
 //   PowerShell script that prints `probe-<process id>-<n>` every 100 ms and appends
 //   `<process id> <n>` to a record file in the work directory. The older Server's own automatic
@@ -642,7 +642,7 @@ function npm(identity, prefix) {
 	expectVersion(identity, runCommand(identity, ['--version'], env), '--version');
 	// A release build asks a person to type the confirmation, so only its platform uninstaller's
 	// helper removes it without one; a test build takes `--confirm`.
-	const removal = identity.release ? ['--installer-uninstall-v1'] : ['uninstall', '--confirm'];
+	const removal = identity.release ? ['--installer-uninstall'] : ['uninstall', '--confirm'];
 	expectStatus(runCommand(identity, removal, env, setupDeadline), 0, removal.join(' '));
 	const packages = [identity.stem, `@${identity.stem}/cli-win32-${process.arch}`];
 	expectStatus(npmCommand(['rm', ...common, ...packages]), 0, 'npm rm');

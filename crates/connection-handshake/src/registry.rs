@@ -137,7 +137,7 @@ pub enum ConnectionKind {
     Keeper,
     /// A TUI, a CLI command, or Desktop's bundled Client → the remote-machine hub.
     MachineHub,
-    /// The remote-machine hub → `orchbee --machine-link-v1` on a remote machine, through `ssh`.
+    /// The remote-machine hub → `orchbee --machine-link` on a remote machine, through `ssh`.
     MachineLink,
     /// Worker → Terminal Host's broker endpoint.
     WorkerHost,

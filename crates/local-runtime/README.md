@@ -1714,17 +1714,17 @@ half as its own constant, `automaticUpdatesInReleaseBuilds` in
 only where `automatic_updates_live()` holds, and in a release build only once the private
 `WINDOW_IN_RELEASE_BUILDS` constant is set, true from the window self-update release on. While it
 does not hold, `update` and the automatic helper leave the store's `desktop`
-folder alone, and a Client does not know `WINDOW_INSTALLER_HELPER`, `--installer-window-v1`, the
+folder alone, and a Client does not know `WINDOW_INSTALLER_HELPER`, `--installer-window`, the
 word with which Setup or install.sh runs the Client bundled in a window directory to install that
 window version; its spelling never changes. Setup has no copy of the switch: it asks its bundled
 Client that word first and installs the flat window layout of earlier releases when the Client does
 not know it.
 
-`AUTOMATIC_UPDATE_HELPER` is `--automatic-update-v1`, the one argument with which a Session Server
+`AUTOMATIC_UPDATE_HELPER` is `--automatic-update`, the one argument with which a Session Server
 runs the store's active Client for an automatic update and by which that Client recognizes the
 [automatic helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
 A Client answers it only while `automatic_updates_live()` holds, and its spelling never changes.
-`CLIENT_FAILURE_HELPER` is `--record-client-failure-v1`, the word with which either launcher runs
+`CLIENT_FAILURE_HELPER` is `--record-client-failure`, the word with which either launcher runs
 the previous version's Client, followed by the failed version, to record a Client failure for the
 [fallback after a failed move](#fallback-after-a-failed-move); the same switch and the same rule
 apply.

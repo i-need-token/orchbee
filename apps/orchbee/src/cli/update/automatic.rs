@@ -1,4 +1,4 @@
-//! The automatic helper `--automatic-update-v1`, which the Session Server runs on its schedule. It
+//! The automatic helper `--automatic-update`, which the Session Server runs on its schedule. It
 //! is `update` of the selected channel with three differences: it never edits the user `Path`, and
 //! refreshes `bin\<stem>.exe` only where that file already exists; it writes nothing on standard
 //! error; and it prints only the `orchbee.update` document. A build that does not run automatic

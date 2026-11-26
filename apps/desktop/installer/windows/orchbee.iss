@@ -6,11 +6,11 @@
 ; An install writes the Start menu shortcut and the uninstall registration, and unpacks the window
 ; application into Setup's temporary folder. Its bundled Client then runs `orchbee install`, which
 ; publishes the runtime into the store and owns the user `Path` entry, and the window installer
-; helper `orchbee --installer-window-v1`, which installs the window as a version of the store's
+; helper `orchbee --installer-window`, which installs the window as a version of the store's
 ; `desktop\` and places the window entry `desktop\<executable>` the shortcut names. A build whose
 ; window updates are still switched off does not know that helper, so Setup asks it first and, for
 ; such a build, writes the flat `desktop\` of earlier releases itself, as before. A removal runs
-; `orchbee --installer-uninstall-v1`, which removes everything of Orchbee's, the installer's
+; `orchbee --installer-uninstall`, which removes everything of Orchbee's, the installer's
 ; shortcut and registration included, and the person's data only when they choose to, and then
 ; removes the installer's own files. `orchbee uninstall` run in a terminal removes those files too,
 ; by name: the uninstaller stays `{app}\unins000.exe` with `unins000.dat`, Inno Setup's default.
@@ -196,7 +196,7 @@ begin
 end;
 
 // Whether this build installs window versions, asked once of its bundled Client. A build that does
-// not refuses `--installer-window-v1` as an unknown option; one that does answers, from Setup's
+// not refuses `--installer-window` as an unknown option; one that does answers, from Setup's
 // temporary folder, that it does not sit in a window's bundled cohort, and changes nothing.
 function WindowStore: Boolean;
 var
@@ -207,7 +207,7 @@ begin
   begin
     WindowStoreAsked := True;
     ExtractTemporaryFile('{#ClientName}.exe');
-    RunProgram(ExpandConstant('{tmp}\{#ClientName}.exe'), '--installer-window-v1', Code, StdOut);
+    RunProgram(ExpandConstant('{tmp}\{#ClientName}.exe'), '--installer-window', Code, StdOut);
     WindowStoreAnswer := (Code = 4) and (Pos('not-release-directory', StdOut) > 0);
     if WindowStoreAnswer then
       Log('This build installs window versions.')
@@ -374,7 +374,7 @@ var
   StdOut, Detail: String;
 begin
   WizardForm.StatusLabel.Caption := FmtMessage(CustomMessage('InstallingWindow'), ['{#AppName}']);
-  Detail := RunClient(Client, '--installer-window-v1', Code, StdOut);
+  Detail := RunClient(Client, '--installer-window', Code, StdOut);
   if Code = 0 then
     Exit;
   if (Code = 3) and (Pos('downgrade-refused', StdOut) > 0) then
@@ -510,7 +510,7 @@ begin
     Log('No Orchbee Client is left; nothing of Orchbee''s remains to remove.');
     Exit;
   end;
-  Params := '--installer-uninstall-v1';
+  Params := '--installer-uninstall';
   if DeleteDataChosen then
     Params := Params + ' --delete-data';
   Detail := RunClient(Client, Params, Code, StdOut);

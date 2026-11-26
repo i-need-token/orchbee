@@ -84,7 +84,7 @@ fn the_active_version_starts_with_the_launchers_own_name_folder_and_arguments() 
                 first: start("0.3.0-beta.2", &["--flag", "a b"], true),
                 fallback: Some(start(
                     "0.2.0",
-                    &["--fallback-from-v1=0.3.0-beta.2", "--flag", "a b"],
+                    &["--fallback-from=0.3.0-beta.2", "--flag", "a b"],
                     false,
                 )),
             },
@@ -98,7 +98,7 @@ fn the_active_version_starts_with_the_launchers_own_name_folder_and_arguments() 
                 first: start("0.3.0", &["--flag", "a b"], true),
                 fallback: Some(start(
                     "0.2.0",
-                    &["--fallback-from-v1=0.3.0", "--flag", "a b"],
+                    &["--fallback-from=0.3.0", "--flag", "a b"],
                     false,
                 )),
             },
@@ -166,68 +166,68 @@ fn only_a_leading_relaunch_switch_is_the_launchers_and_it_waits_only_for_its_par
     let invalid = OsString::from_wide(&[0xD800]);
     let cases: [(Vec<OsString>, Option<u32>, Vec<OsString>); 12] = [
         (
-            strings(&["--relaunch-after-v1", &parent, "--select-workspace-v1=w"]),
+            strings(&["--relaunch-after", &parent, "--select-workspace=w"]),
             Some(PARENT),
-            strings(&["--select-workspace-v1=w"]),
+            strings(&["--select-workspace=w"]),
         ),
         (
-            strings(&["--relaunch-after-v1", &parent]),
+            strings(&["--relaunch-after", &parent]),
             Some(PARENT),
             Vec::new(),
         ),
         // Another process, or a value that names none, is dropped with the switch and not waited for.
         (
-            strings(&["--relaunch-after-v1", &other, "x"]),
+            strings(&["--relaunch-after", &other, "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            strings(&["--relaunch-after-v1", "0", "x"]),
+            strings(&["--relaunch-after", "0", "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            strings(&["--relaunch-after-v1", "04242", "x"]),
+            strings(&["--relaunch-after", "04242", "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            strings(&["--relaunch-after-v1", "+4242", "x"]),
+            strings(&["--relaunch-after", "+4242", "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            strings(&["--relaunch-after-v1", "4294967296", "x"]),
+            strings(&["--relaunch-after", "4294967296", "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            strings(&["--relaunch-after-v1", "", "x"]),
+            strings(&["--relaunch-after", "", "x"]),
             None,
             strings(&["x"]),
         ),
         (
-            vec![OsString::from("--relaunch-after-v1"), invalid.clone()],
+            vec![OsString::from("--relaunch-after"), invalid.clone()],
             None,
             Vec::new(),
         ),
-        (strings(&["--relaunch-after-v1"]), None, Vec::new()),
+        (strings(&["--relaunch-after"]), None, Vec::new()),
         // Not the exact switch in first place: an ordinary argument.
         (
-            strings(&[&format!("--relaunch-after-v1={PARENT}"), "x"]),
+            strings(&[&format!("--relaunch-after={PARENT}"), "x"]),
             None,
-            strings(&[&format!("--relaunch-after-v1={PARENT}"), "x"]),
+            strings(&[&format!("--relaunch-after={PARENT}"), "x"]),
         ),
         (
             vec![
                 invalid.clone(),
-                OsString::from("--relaunch-after-v1"),
+                OsString::from("--relaunch-after"),
                 OsString::from(&parent),
             ],
             None,
             vec![
                 invalid,
-                OsString::from("--relaunch-after-v1"),
+                OsString::from("--relaunch-after"),
                 OsString::from(&parent),
             ],
         ),
@@ -251,7 +251,7 @@ fn only_a_leading_relaunch_switch_is_the_launchers_and_it_waits_only_for_its_par
     let unknown = plan(
         Path::new(LAUNCHER),
         |_| Some(pointer("0.2.0", None).into_bytes()),
-        strings(&["--relaunch-after-v1", &parent]),
+        strings(&["--relaunch-after", &parent]),
         None,
         |_| true,
     );

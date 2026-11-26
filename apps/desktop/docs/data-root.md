@@ -77,7 +77,7 @@ requesting Electron's single-instance lock. Before it reads anything else in the
 `internal/version.json`: a `layout` above 1, or a record it cannot read, stops startup with the
 localized refusal in an error dialog, and nothing in the root is read, created, or logged. While
 `internal/desktop/` is missing, Main then has its bundled Client create the data root, `internal/`,
-and `internal/desktop/` by running `orchbee --create-window-folder-v1`, so they follow the one rule
+and `internal/desktop/` by running `orchbee --create-window-folder`, so they follow the one rule
 every Orchbee folder follows and the Session never meets a folder of Main's making that it would
 refuse. Main creates none of the three itself, even when the Client fails. A refusal stops startup
 with an error dialog that names the folder and the rule it breaks in the words the TUI and CLI use;

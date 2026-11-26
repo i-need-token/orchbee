@@ -358,7 +358,7 @@ that the real home and the earlier release locations gained nothing.
 | 8. Uninstall               | The cleanup command in both modes, integration disable for every integration, `PATH` entry removal, installer hooks                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | `orchbee`, `orchbee-agent-integration-writer`                                                      | Uninstalling the test package on Windows in both modes, checking what stays                            | 1, 4, ORC-381 installer, ORC-391 |
 
 Phase 8 is built on Windows: `orchbee uninstall` in both modes and the uninstaller helper
-`--installer-uninstall-v1`; the platform uninstaller that runs the helper comes with the installer.
+`--installer-uninstall`; the platform uninstaller that runs the helper comes with the installer.
 
 ORC-328 has moved POSIX runtimes into the root, named POSIX cohort files by the environment stem,
 added the socket directory, and replaced the ext4 and tmpfs list with admission by behaviour; the

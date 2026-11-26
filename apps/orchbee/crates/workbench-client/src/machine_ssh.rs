@@ -117,7 +117,7 @@ pub fn literal(value: &str) -> String {
 /// a remote store's pointer names, with exit 125 when there is none. An unreadable pointer names
 /// none, and nothing is inferred from `PATH`.
 pub fn link_program() -> String {
-    launch("--machine-link-v1")
+    launch("--machine-link")
 }
 /// The remote command that runs the program the remote store's pointer names with `argument`, a
 /// plain option, whichever shell the remote OpenSSH runs it with. Win32-OpenSSH's default

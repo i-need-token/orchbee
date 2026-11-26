@@ -44,7 +44,7 @@ mod platform;
 mod platform;
 
 /// The one argument a stand-in runs with.
-const LINK_ENTRY: &str = "--machine-link-v1";
+const LINK_ENTRY: &str = "--machine-link";
 /// The most standard-error bytes kept to classify an end.
 const STDERR_TAIL: usize = 4 * 1024;
 /// One read of the link.

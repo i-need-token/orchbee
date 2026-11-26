@@ -20,7 +20,7 @@ mod tests;
 
 /// The one start a development or test stand-in makes with the variable set that is not a
 /// question: the far end it runs as the link helper.
-const STAND_IN_ENTRY: &str = "--machine-link-v1";
+const STAND_IN_ENTRY: &str = "--machine-link";
 
 /// What a start with the variable set is.
 #[derive(Debug, Eq, PartialEq)]

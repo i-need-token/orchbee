@@ -1,4 +1,4 @@
-//! `--create-window-folder-v1`: the hidden helper Desktop Main runs through its bundled Client
+//! `--create-window-folder`: the hidden helper Desktop Main runs through its bundled Client
 //! before its window opens, so the data root and Desktop's folder follow the rule every Orchbee
 //! folder follows. It creates `internal/desktop` and each missing folder above it, the data root
 //! among them, as private folders and records the root's layout. A folder another account can

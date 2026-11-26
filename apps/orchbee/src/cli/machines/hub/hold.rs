@@ -1,4 +1,4 @@
-//! `orchbee --machine-hub-hold-v1`: attaches with `presence` and `watch` through the client owner,
+//! `orchbee --machine-hub-hold`: attaches with `presence` and `watch` through the client owner,
 //! starting the hub when none runs, and prints one line per attachment and event until its standard
 //! input ends, holding the hub meanwhile. A diagnostic entry for tests and evidence: its lines use
 //! the contract's names, `attached <process id> <hubs started> <state>`, `reattached` likewise,

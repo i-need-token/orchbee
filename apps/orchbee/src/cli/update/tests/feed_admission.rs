@@ -302,28 +302,25 @@ fn forward_compatible_extensions_in_feed_and_window_file_lists_are_admitted() {
 }
 
 #[test]
-fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
-    const FROZEN_MESSAGE: &str = "cross-build *-v1 helper CLI flags are permanently frozen contracts invoked across older and newer Orchbee binaries and installers; introduce a new *-v2 flag instead of renaming";
+fn cross_build_helper_flags_keep_their_frozen_spelling() {
+    const FROZEN_MESSAGE: &str = "cross-build helper CLI flags are permanently frozen contracts invoked across older and newer Orchbee binaries and installers; introduce a new name instead of renaming";
+    assert_eq!(COMPLETION_HELPER, "--complete-install", "{FROZEN_MESSAGE}");
     assert_eq!(
-        COMPLETION_HELPER, "--complete-install-v1",
+        AUTOMATIC_UPDATE_HELPER, "--automatic-update",
         "{FROZEN_MESSAGE}"
     );
     assert_eq!(
-        AUTOMATIC_UPDATE_HELPER, "--automatic-update-v1",
+        CLIENT_FAILURE_HELPER, "--record-client-failure",
         "{FROZEN_MESSAGE}"
     );
     assert_eq!(
-        CLIENT_FAILURE_HELPER, "--record-client-failure-v1",
-        "{FROZEN_MESSAGE}"
-    );
-    assert_eq!(
-        WINDOW_INSTALLER_HELPER, "--installer-window-v1",
+        WINDOW_INSTALLER_HELPER, "--installer-window",
         "{FROZEN_MESSAGE}"
     );
 
     let cases: [(&[&str], Request, Option<OutputFormat>); 9] = [
         (
-            &["--complete-install-v1"],
+            &["--complete-install"],
             Request::CompleteInstall {
                 no_path: false,
                 allow_downgrade: false,
@@ -331,7 +328,7 @@ fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
             None,
         ),
         (
-            &["--complete-install-v1", "--no-path", "--allow-downgrade"],
+            &["--complete-install", "--no-path", "--allow-downgrade"],
             Request::CompleteInstall {
                 no_path: true,
                 allow_downgrade: true,
@@ -339,35 +336,35 @@ fn cross_build_helper_flags_keep_their_frozen_v1_spelling() {
             None,
         ),
         (
-            &["--installer-uninstall-v1"],
+            &["--installer-uninstall"],
             Request::InstallerUninstall { delete_data: false },
             None,
         ),
         (
-            &["--installer-uninstall-v1", "--delete-data"],
+            &["--installer-uninstall", "--delete-data"],
             Request::InstallerUninstall { delete_data: true },
             None,
         ),
         (
-            &["--automatic-update-v1"],
+            &["--automatic-update"],
             Request::AutomaticUpdate,
             Some(OutputFormat::Json),
         ),
         (
-            &["--record-client-failure-v1", "0.2.0"],
+            &["--record-client-failure", "0.2.0"],
             Request::RecordClientFailure {
                 version: "0.2.0".into(),
             },
             None,
         ),
         (
-            &["--installer-window-v1"],
+            &["--installer-window"],
             Request::InstallerWindow,
             Some(OutputFormat::Json),
         ),
-        (&["--tend-window-store-v1"], Request::TendWindowStore, None),
+        (&["--tend-window-store"], Request::TendWindowStore, None),
         (
-            &["--create-window-folder-v1"],
+            &["--create-window-folder"],
             Request::CreateWindowFolder,
             Some(OutputFormat::Json),
         ),

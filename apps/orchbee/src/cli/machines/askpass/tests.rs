@@ -39,15 +39,12 @@ fn a_start_with_the_variable_never_selects_a_command() {
     let helper = |prompt: &str| Start::Helper(OsString::from(prompt));
     for release in [false, true] {
         let cases: [(&[&str], Start); 9] = [
+            (&["--installer-uninstall"], helper("--installer-uninstall")),
             (
-                &["--installer-uninstall-v1"],
-                helper("--installer-uninstall-v1"),
+                &["--installer-uninstall", "--delete-data"],
+                helper("--installer-uninstall --delete-data"),
             ),
-            (
-                &["--installer-uninstall-v1", "--delete-data"],
-                helper("--installer-uninstall-v1 --delete-data"),
-            ),
-            (&["--complete-install-v1"], helper("--complete-install-v1")),
+            (&["--complete-install"], helper("--complete-install")),
             (&["--version"], helper("--version")),
             (&["--help"], helper("--help")),
             (&["machine", "list"], helper("machine list")),
@@ -56,8 +53,8 @@ fn a_start_with_the_variable_never_selects_a_command() {
                 helper("user@host.invalid's password: "),
             ),
             (
-                &["--machine-link-v1", "--help"],
-                helper("--machine-link-v1 --help"),
+                &["--machine-link", "--help"],
+                helper("--machine-link --help"),
             ),
             (&[], helper("")),
         ];
@@ -66,9 +63,9 @@ fn a_start_with_the_variable_never_selects_a_command() {
         }
     }
     // Only a build that is not a release lets the stand-in's own entry through, and only alone.
-    let entry = arguments(&["--machine-link-v1"]);
+    let entry = arguments(&["--machine-link"]);
     assert_eq!(start(&entry, false), Start::StandIn);
-    assert_eq!(start(&entry, true), helper("--machine-link-v1"));
+    assert_eq!(start(&entry, true), helper("--machine-link"));
 }
 
 #[test]

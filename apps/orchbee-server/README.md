@@ -154,7 +154,7 @@ change applies at the next run.
 
 A run finds the store root by the `ORCHBEE_INSTALL_DIR` rule and the active version by
 `active.json`, pins that version's folder and Client as Session start does, and runs
-`<stem> --automatic-update-v1` with the Server's environment, so proxy variables and a feed reach
+`<stem> --automatic-update` with the Server's environment, so proxy variables and a feed reach
 it, null standard input, and standard output and error each kept to 64 KiB. On Windows the helper
 runs from the system folder in a Job this process holds, at below-normal priority, which everything
 it starts inherits, and the Job ends it with the Server however the Server ends. On macOS it runs

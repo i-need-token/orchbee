@@ -664,7 +664,7 @@ impl Profile {
         let started = Instant::now();
         let output = self
             .command(&launcher)
-            .arg("--installer-uninstall-v1")
+            .arg("--installer-uninstall")
             .output()
             .unwrap();
         assert_eq!(
@@ -700,7 +700,7 @@ impl Profile {
         fs::copy(&shell, &uninstaller).unwrap();
         fs::copy(&shell, &other).unwrap();
         let helper = format!(
-            r#"/d /s /c ""{}" --installer-uninstall-v1""#,
+            r#"/d /s /c ""{}" --installer-uninstall""#,
             launcher.display()
         );
         // The other program waits on its open, empty input and ends once that closes.

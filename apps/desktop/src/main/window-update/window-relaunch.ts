@@ -16,10 +16,10 @@ import { locateApplicationBundle } from './window-update-offer';
 
 // Cross-build contract: every window launcher from the window self-update release on reads the
 // first two and passes the place switches on unchanged; the macOS launcher also reads the third.
-const RELAUNCH_AFTER_SWITCH = '--relaunch-after-v1';
-const REPLACE_APPLICATION_SWITCH = '--replace-application-v1=';
-const SELECT_TERMINAL_SWITCH = '--select-terminal-v1=';
-const SELECT_WORKSPACE_SWITCH = '--select-workspace-v1=';
+const RELAUNCH_AFTER_SWITCH = '--relaunch-after';
+const REPLACE_APPLICATION_SWITCH = '--replace-application=';
+const SELECT_TERMINAL_SWITCH = '--select-terminal=';
+const SELECT_WORKSPACE_SWITCH = '--select-workspace=';
 /** The launcher protocol variable, which carries the announcing launcher's process id. */
 const RELAUNCH_ENVIRONMENT_KEY = 'ORCHBEE_RELAUNCH_V1';
 /** How long after its start an announced window still gives way to the version it replaced. */

@@ -162,6 +162,8 @@ test('macOS gate paths pick the newest published release carrying macos-aarch64 
 		`orchbee-${ver}-macos-aarch64.feed.json`,
 		`orchbee-${ver}-macos-aarch64.feed.json.sig`,
 	];
+	// The window's first version, so beta.12 stays outside it.
+	const firstVersion = '0.1.0-beta.14';
 	const releases = [
 		{
 			tag: 'v0.1.0-beta.12',
@@ -188,22 +190,24 @@ test('macOS gate paths pick the newest published release carrying macos-aarch64 
 			assets: [`orchbee-0.1.0-beta.19-macos-aarch64.feed.json`],
 		},
 	];
-	assert.deepEqual(selectMacosGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow }), [
-		'v0.1.0-beta.17',
-	]);
+	assert.deepEqual(
+		selectMacosGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow, firstVersion }),
+		['v0.1.0-beta.17'],
+	);
 	assert.deepEqual(
 		selectMacosGatePaths({
 			releases,
 			version: '0.1.0-beta.20',
 			now: gateNow,
+			firstVersion,
 			hasMacosRow: false,
 		}),
 		[],
 	);
-	assert.deepEqual(selectGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow }), [
-		'v0.1.0-beta.18',
-		'v0.1.0-beta.17',
-	]);
+	assert.deepEqual(
+		selectGatePaths({ releases, version: '0.1.0-beta.20', now: gateNow, firstVersion }),
+		['v0.1.0-beta.18', 'v0.1.0-beta.17'],
+	);
 });
 
 // Answers the two API reads of tagNotes the way `gh api --jq` prints them.
@@ -519,24 +523,7 @@ test('seedWindowStore pre-seeds desktop/ when supported and fails closed on regr
 		{ seeded: false },
 	);
 
-	// Pre-window release (before 0.1.0-beta.14) exiting 2 without orchbee.install skips gracefully.
-	assert.deepEqual(
-		seedWindowStore({
-			...baseArgs,
-			olderFeed: {
-				version: '0.1.0-beta.12',
-				extensions: { desktop: desktopMember('0.1.0-beta.12') },
-			},
-			offeredFeed: {
-				version: '0.1.0-beta.18',
-				extensions: { desktop: desktopMember('0.1.0-beta.18') },
-			},
-			runInstaller: () => ({ status: 2, stdout: '', stderr: 'unknown option', document: null }),
-		}),
-		{ seeded: false },
-	);
-
-	// Release >= 0.1.0-beta.14 MUST support --installer-window-v1; exit 2 fails closed.
+	// A release MUST support --installer-window; exit 2 fails closed.
 	assert.throws(
 		() =>
 			seedWindowStore({
@@ -554,7 +541,7 @@ test('seedWindowStore pre-seeds desktop/ when supported and fails closed on regr
 		StepFailure,
 	);
 
-	// Supported release seeds desktop/ with exact ['--installer-window-v1'] argv and checks active.json.
+	// Supported release seeds desktop/ with exact ['--installer-window'] argv and checks active.json.
 	let seenArgv;
 	const seeded = seedWindowStore({
 		...baseArgs,
@@ -576,7 +563,7 @@ test('seedWindowStore pre-seeds desktop/ when supported and fails closed on regr
 			};
 		},
 	});
-	assert.deepEqual(seenArgv, ['--installer-window-v1']);
+	assert.deepEqual(seenArgv, ['--installer-window']);
 	assert.deepEqual(seeded, {
 		seeded: true,
 		olderVersion: '0.1.0-beta.17',

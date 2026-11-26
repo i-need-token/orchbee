@@ -33,7 +33,7 @@ pub(super) struct Environment {
 pub(super) enum StandIn {
     /// None is named: carriers run the system `ssh`.
     None,
-    /// An absolute program, run with `--machine-link-v1` alone.
+    /// An absolute program, run with `--machine-link` alone.
     Program(PathBuf),
     /// A value that is not an absolute path: every attempt fails rather than run `ssh`.
     Unusable,

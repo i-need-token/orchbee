@@ -1,4 +1,4 @@
-//! The Client-failure helper `--record-client-failure-v1 <version>`, which either launcher runs
+//! The Client-failure helper `--record-client-failure <version>`, which either launcher runs
 //! through the previous version's Client after a Client of `<version>` failed to start or to join.
 //! It records one Client failure of `<version>` in the store it runs from, counted only while
 //! `<version>` is the entry of the counting move, and that write may commit the fallback. It opens

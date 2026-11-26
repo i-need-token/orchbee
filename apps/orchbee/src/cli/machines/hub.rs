@@ -1,6 +1,6 @@
-//! The machine hub `orchbee --machine-hub-v1`: the one process per data root through which
+//! The machine hub `orchbee --machine-hub`: the one process per data root through which
 //! interfaces reach saved machines over `machine-hub`, and its diagnostic entries
-//! `orchbee --machine-hub-state-v1` and `orchbee --machine-hub-hold-v1`, which reach it through the
+//! `orchbee --machine-hub-state` and `orchbee --machine-hub-hold`, which reach it through the
 //! workbench Client's one client owner. `docs/machines.md#machine-hub` owns the lifetime, the frozen
 //! names, each Machine's carrying, the channels it relays, how it stops a remote Session, the bounds
 //! and the races kept here; the contract in

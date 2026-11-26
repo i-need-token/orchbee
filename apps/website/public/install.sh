@@ -25,7 +25,7 @@
 # 4. With --desktop on macOS, it first downloads the window archive the feed names in
 #    extensions.desktop and checks its size and SHA-256 against the feed; after the install it
 #    unpacks it, has the application's bundled Client add that window version to the store with
-#    --installer-window-v1, so the application can update itself, then copies the application
+#    --installer-window, so the application can update itself, then copies the application
 #    into /Applications when that folder is writable and otherwise into ~/Applications, replacing an
 #    older copy there, and verifies its signature. When the target bundle is already running the
 #    same release, nothing is stopped or replaced; when it runs an older release, the new bundle is
@@ -600,7 +600,7 @@ ob_install_desktop() {
 	# orchbee.install document answers; a build without window updates refuses the word as a usage
 	# error (exit 2) and answers none.
 	ob_window_stored=0
-	ob_answer=$("$ob_helper" --installer-window-v1 </dev/null 2>"$ob_tmp/window.err")
+	ob_answer=$("$ob_helper" --installer-window </dev/null 2>"$ob_tmp/window.err")
 	ob_code=$?
 	case $ob_answer in
 	*'"schema": "orchbee.install"'*)

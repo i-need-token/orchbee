@@ -1,4 +1,4 @@
-//! The completion helper `--complete-install-v1 [--no-path] [--allow-downgrade]`, which a published
+//! The completion helper `--complete-install [--no-path] [--allow-downgrade]`, which a published
 //! copy runs to complete its own install. Under `install.lock` it refuses a version lower than the
 //! active one unless allowed, performs the PATH step unless `--no-path`, and then moves the
 //! pointer, so a failure leaves the pointer where it was. Where automatic updates run, it first

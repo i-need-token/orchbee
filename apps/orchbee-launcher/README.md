@@ -67,7 +67,7 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
 - After any start whose Client failed, before it goes on, the launcher reads the pointer again. When
   the pointer still makes the failed version active through a counting move whose `back` is true
   and names a `previous`, it runs the previous version's Client as
-  `versions\<previous>\<name>.exe --record-client-failure-v1 <version>` outside the Client's Job
+  `versions\<previous>\<name>.exe --record-client-failure <version>` outside the Client's Job
   with null standard streams, which
   [records the failure](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
   for the fallback after a failed move. It waits for that helper at most five seconds and leaves it

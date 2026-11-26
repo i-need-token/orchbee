@@ -53,7 +53,7 @@
 //   SHA-256, is unpacked by the system tar and installed by its own `install` into
 //   `~/.local/share/<stem>` with the link `~/.local/bin/<stem>`, and when both feeds carry
 //   `extensions.desktop` its window archive is unpacked and installed into `<store root>/desktop`
-//   with `--installer-window-v1`; then `update` runs through that link with `ORCHBEE_UPDATE_FEED`
+//   with `--installer-window`; then `update` runs through that link with `ORCHBEE_UPDATE_FEED`
 //   naming the release's `<stem>-<version>-<platform>.feed.json` in the assets folder, and must
 //   activate the release and the new signed window bundle. Without an older tracked version, the
 //   release's `update` fills an empty scratch store beside the store root. TMPDIR is a folder in
@@ -62,7 +62,7 @@
 // - gate: one path of the pre-publish release gate on this Mac's platform, from an older published
 //   macOS release to the release being made, before Publish. Installs the older runtime and window
 //   into the work folder's HOME, starts its Session with `ORCHBEE_UPDATE_FEED` naming `--feed` and
-//   a terminal running a Python probe, waits for `--automatic-update-v1` to activate the new
+//   a terminal running a Python probe, waits for `--automatic-update` to activate the new
 //   runtime and signed `Orchbee.app` window version, joins with the new Client, and reaches the new
 //   Server as `--mode` says, as the Windows gate does: `move`, the default, ends the probe and waits
 //   for the idle move; `restart` and `adopt` keep the probe running across the new release's

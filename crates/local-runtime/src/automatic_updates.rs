@@ -7,17 +7,17 @@ use crate::{EnvironmentKind, environment_kind};
 
 /// The one argument with which a Session Server runs the store's active Client for an automatic
 /// update. Its spelling never changes; a changed helper takes a new name.
-pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update-v1";
+pub const AUTOMATIC_UPDATE_HELPER: &str = "--automatic-update";
 
 /// The argument with which a launcher, after a Client of the moved version failed, runs the
 /// previous version's Client to record that failure, followed by the failed version. Its spelling
 /// never changes; a changed helper takes a new name.
-pub const CLIENT_FAILURE_HELPER: &str = "--record-client-failure-v1";
+pub const CLIENT_FAILURE_HELPER: &str = "--record-client-failure";
 
 /// The one argument with which Setup or install.sh runs the Client bundled in a window directory
 /// to install that window version into the store. Its spelling never changes; a changed helper
 /// takes a new name.
-pub const WINDOW_INSTALLER_HELPER: &str = "--installer-window-v1";
+pub const WINDOW_INSTALLER_HELPER: &str = "--installer-window";
 
 /// The variable through which a launcher announces the relaunch protocol to the Client it starts:
 /// the launcher's own process id in decimal. A Client uses the protocol's statuses only when that
@@ -44,7 +44,7 @@ pub const fn automatic_updates_live() -> bool {
 
 /// Whether release builds install window versions, true from the window self-update release on.
 /// While it is false, a release build's `update` and automatic helper leave the window store alone,
-/// and its Client does not know `--installer-window-v1`.
+/// and its Client does not know `--installer-window`.
 const WINDOW_IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build installs window versions: only where [`automatic_updates_live`] holds, and
