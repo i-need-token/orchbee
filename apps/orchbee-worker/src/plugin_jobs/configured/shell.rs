@@ -32,7 +32,7 @@ pub(super) fn processor() -> Option<(String, Vec<String>)> {
 }
 
 /// The person's login shell, as `command` runs it, with the arguments before the command text.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub(super) fn processor() -> Option<(String, Vec<String>)> {
     let shell = orchbee_local_runtime::resolve_default_interactive_launch().ok()?;
     if !std::path::Path::new(&shell.executable).is_absolute() {
@@ -41,12 +41,6 @@ pub(super) fn processor() -> Option<(String, Vec<String>)> {
     let mut arguments = orchbee_local_runtime::login_shell_command(&shell.executable, "");
     arguments.pop();
     Some((shell.executable, arguments))
-}
-
-/// Terminal Hosts run background programs only on Windows and macOS.
-#[cfg(all(unix, not(target_os = "macos")))]
-pub(super) fn processor() -> Option<(String, Vec<String>)> {
-    None
 }
 
 /// `$SHELL`, else the account's shell, else `/bin/sh`, as for a new terminal, run as a login

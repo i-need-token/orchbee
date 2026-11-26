@@ -42,9 +42,7 @@ fn host(pacing: Pacing) -> TestResult<(HostBrokerConnection, UnixStream)> {
             terminal_lifecycle_read: false,
             screen_gated_send: false,
             screen_gated_prompt: false,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: crate::host_connection::KeeperTerms::default(),
-            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: false,
             program_exits: std::cell::RefCell::default(),

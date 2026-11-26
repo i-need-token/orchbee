@@ -1,12 +1,12 @@
-//! The requests a macOS Keeper link makes as a leader's parent: the `spawn` a terminal's creation
-//! hands it and the `spawn-program` of a background program, the `reap` a terminal asks for once
-//! its leader ended, and the `exited` the Keeper sends. Each runs on the link thread; the thread
-//! that hands it a start only waits for its call.
+//! The requests a macOS or Linux Keeper link makes as a leader's parent: the `spawn` a terminal's
+//! creation hands it and the `spawn-program` of a background program, the `reap` a terminal asks
+//! for once its leader ended, and the `exited` the Keeper sends. Each runs on the link thread; the
+//! thread that hands it a start only waits for its call.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
-const link_module = @import("link_darwin.zig");
+const link_module = @import("link_posix.zig");
 
 const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;

@@ -1,4 +1,4 @@
-//! A replacement Worker's recovery on Windows and macOS (`proposals/platform/host-handover.md`, H2
+//! A replacement Worker's recovery (`proposals/platform/host-handover.md`, H2
 //! design):
 //! the Host ended while the Session's Keeper kept its programs. The replacement adopts that Keeper,
 //! starts a recovery Host in the Host's slot that serves the lost epoch, and recovers each bound

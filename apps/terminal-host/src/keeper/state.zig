@@ -1,9 +1,10 @@
 //! The Keeper's table: its holdings, the Hosts the Worker registered, and the open connections of
-//! each kind. One lock guards all of it and is held across no I/O and no wait, so requests apply one
-//! at a time across every connection and a claim and a resume of one mark never both succeed
-//! (TH-034). A macOS update holds it from its last snapshot through `execve`, once every connection
-//! stopped (`reexec_darwin.zig`). A Host handle the table forgets goes back to the caller, which releases it after the
-//! lock is released, because unregistering its wait can wait for a callback that takes the lock.
+//! each kind. One lock guards all of it and is held across no I/O and no wait, so requests apply
+//! one at a time across every connection and a claim and a resume of one mark never both succeed
+//! (TH-034). A macOS or Linux update holds it from its last snapshot through `execve`, once every
+//! connection stopped (`reexec_posix.zig`). A Host handle the table forgets goes back to the
+//! caller, which releases it after the lock is released, because unregistering its wait can wait
+//! for a callback that takes the lock.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -14,8 +15,8 @@ const monotonic = platform.monotonic;
 const requests = @import("requests.zig");
 
 const windows = builtin.os.tag == .windows;
-pub const handles = if (windows) @import("handles_windows.zig") else @import("handles_darwin.zig");
-pub const content = if (windows) @import("content_windows.zig") else @import("content_darwin.zig");
+pub const handles = if (windows) @import("handles_windows.zig") else @import("handles_posix.zig");
+pub const content = if (windows) @import("content_windows.zig") else @import("content_posix.zig");
 
 const message = keeper_protocol.message;
 const Process = message.Process;
@@ -93,7 +94,7 @@ pub const Mark = struct { id: RandomId, target: Process };
 pub const Claimed = struct { from: Process, mark: RandomId };
 
 /// What a holding holds, with the Keeper's duplicates or descriptors: on Windows a terminal or a
-/// background program, on macOS a PTY.
+/// background program, on macOS and Linux a PTY.
 pub const Content = content.Content;
 
 pub const Holding = struct {
@@ -151,8 +152,8 @@ pub const Table = struct {
         self.settleIdle();
     }
 
-    /// Starts what sees a Host end outside a request: on macOS the watcher thread. The Keeper
-    /// calls it once, after `activate`.
+    /// Starts what sees a Host end outside a request: on macOS and Linux the watcher thread. The
+    /// Keeper calls it once, after `activate`.
     pub fn startWatch(_: *Table) error{SystemResources}!void {
         if (!windows) try handles.startWatcher(endHost, pollLeaders);
     }
@@ -187,8 +188,8 @@ pub const Table = struct {
         return self.connections[slot].wake.?;
     }
 
-    /// Whether the connection in `slot` must end; on macOS an update also ends each connection not
-    /// yet admitted.
+    /// Whether the connection in `slot` must end; on macOS and Linux an update also ends each
+    /// connection not yet admitted.
     pub fn closing(self: *Table, slot: usize) bool {
         if (!windows and self.connections[slot].kind == .pending and self.extra.freeze.stage == .stopping) return true;
         return self.connections[slot].closing or self.lifecycle == .stopping;
@@ -388,7 +389,7 @@ pub fn activate(table: *Table) void {
     active = table;
 }
 
-/// The macOS Keeper's socket; a Windows pipe ends with its process.
+/// The macOS and Linux Keeper's socket; a Windows pipe ends with its process.
 var endpoint_socket: ?[]const u8 = null;
 
 pub fn armEndpointRemoval(path: []const u8) void {
@@ -403,7 +404,7 @@ pub fn exitProcess() noreturn {
 }
 
 /// Runs once a registered Host ends: on a thread-pool thread on Windows, on the watcher thread on
-/// macOS.
+/// macOS and Linux.
 pub const hostEnded = if (windows) hostEndedOnPool else endHost;
 
 fn hostEndedOnPool(context: ?*anyopaque, _: u8) callconv(.winapi) void {
@@ -418,7 +419,7 @@ fn endHost(context: usize) void {
     if (forgotten) |host| host.release(false);
 }
 
-/// Runs on the macOS watcher thread when a leader exits, and once a second.
+/// Runs on the watcher thread when a leader exits, and once a second.
 fn pollLeaders() void {
     const table = active orelse return;
     table.lock();

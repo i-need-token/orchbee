@@ -61,7 +61,7 @@ pub(crate) fn parse_selected_request(
     if let Some(request) = installer_window(&tokens) {
         // Setup and install.sh read its answer, so a refusal before the install is a JSON document.
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::WindowsAndMacos,
+            availability: super::grammar::Availability::Portable,
             format: Some(OutputFormat::Json),
             request,
             session: None,
@@ -69,7 +69,7 @@ pub(crate) fn parse_selected_request(
     }
     if let Some(request) = tend_window_store(&tokens) {
         return Ok(SelectedRequest {
-            availability: super::grammar::Availability::WindowsAndMacos,
+            availability: super::grammar::Availability::Portable,
             format: None,
             request,
             session: None,

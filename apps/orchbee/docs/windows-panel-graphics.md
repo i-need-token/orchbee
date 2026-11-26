@@ -2,7 +2,7 @@
 
 ## Commands and input
 
-`panel graphics set PANEL --spec SPEC`, `clear PANEL [--spec SPEC]`, `info PANEL [--client ID]`, and `stream PANEL [--spec SPEC]` join an existing local Windows or macOS Session; a Linux build answers `unsupported-platform` (exit 4) before any input or Session effect. All four accept `--presentation ID`, `--timeout MS`, and `--format text|json`. An omitted Presentation selects the current primary; explicit IDs must belong to that Panel. No command starts a Session, changes focus, injects terminal input, or replays an uncertain write.
+`panel graphics set PANEL --spec SPEC`, `clear PANEL [--spec SPEC]`, `info PANEL [--client ID]`, and `stream PANEL [--spec SPEC]` join an existing local Session. All four accept `--presentation ID`, `--timeout MS`, and `--format text|json`. An omitted Presentation selects the current primary; explicit IDs must belong to that Panel. No command starts a Session, changes focus, injects terminal input, or replays an uncertain write.
 
 Set SPEC is a closed JSON object with `image` and optional `layerId` (default `primary`) and `zIndex` (default zero). The image is the shared camelCase PNG/RGB/RGBA/BGRA frame including dimensions, canonical `dataBase64` and placement. `@PATH` reads a bounded regular file containing that object or a PNG; `-` reads a noninteractive inherited pipe or regular stdin. A PNG uses its actual IHDR dimensions and default layer/placement. Input is acquired before Session discovery and validated before submission. One-shot raw image input is at most 512 KiB; an encoded JSON document is at most 768 KiB. Inline argv retains the existing 64 KiB argument budget. Clear SPEC admits only optional `layerId`; stream SPEC additionally admits `zIndex`. Info admits no SPEC.
 

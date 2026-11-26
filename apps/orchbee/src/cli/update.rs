@@ -466,7 +466,7 @@ fn start(
 ) -> Result<Context, Box<Output>> {
     super::execution::admit(capability)
         .map_err(|failure| Box::new(failure_output(failure, Some(format), locale)))?;
-    let signals = ArmedSignals::arm_interrupts_except_linux().map_err(|_| {
+    let signals = ArmedSignals::arm_interrupts_latched().map_err(|_| {
         Box::new(failure_output(
             Failure::new(FailureKind::InternalFailure),
             Some(format),

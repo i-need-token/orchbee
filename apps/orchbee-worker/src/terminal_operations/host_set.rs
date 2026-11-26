@@ -1,6 +1,6 @@
 //! The Terminal Hosts one Worker holds (`proposals/platform/versioning-and-upgrade.md`, Host
-//! lifetime): its own Host, from its own cohort, which takes every new terminal and program, and on
-//! Windows and macOS the older Hosts a replacement adopted from another installation, which keep
+//! lifetime): its own Host, from its own cohort, which takes every new terminal and program, and
+//! the older Hosts a replacement adopted from another installation, which keep
 //! serving their terminals. It routes a request to the Host that serves what the request names, starts the
 //! Worker's own Host when a launch needs one, and, while the Worker holds its own Host, drains an
 //! older Host that runs neither a terminal nor a program, then frees its slot once it ends. It
@@ -22,13 +22,10 @@ use crate::{
 };
 
 /// How often an older Host is checked for emptiness between requests.
-#[cfg(any(windows, target_os = "macos"))]
 const DRAIN_CHECK_PERIOD: std::time::Duration = std::time::Duration::from_secs(2);
 /// How long one emptiness check or `drain` request may take.
-#[cfg(any(windows, target_os = "macos"))]
 const DRAIN_BOUND: std::time::Duration = std::time::Duration::from_millis(500);
 /// How long a drained Host that closed its connection may take to exit.
-#[cfg(any(windows, target_os = "macos"))]
 const END_BOUND: std::time::Duration = std::time::Duration::from_secs(2);
 
 /// One Host the Worker holds.
@@ -39,14 +36,11 @@ struct HeldHost {
     managed: Option<ManagedHost>,
     /// It runs this Worker's own cohort Terminal Host, so new terminals and programs go there.
     own: bool,
-    #[cfg(any(windows, target_os = "macos"))]
     watch: super::keeper_care::HostWatch,
-    #[cfg(any(windows, target_os = "macos"))]
     drain: Drain,
 }
 
 /// Where draining an older Host stands.
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy)]
 enum Drain {
     /// It serves, and is next checked for emptiness at this instant.
@@ -56,14 +50,8 @@ enum Drain {
 }
 
 impl HeldHost {
-    #[cfg(any(windows, target_os = "macos"))]
     const fn drained(&self) -> bool {
         matches!(self.drain, Drain::Drained)
-    }
-
-    #[cfg(not(any(windows, target_os = "macos")))]
-    const fn drained(&self) -> bool {
-        false
     }
 
     fn serves(&self, epoch: HostEpoch) -> bool {
@@ -85,20 +73,17 @@ pub(super) struct HostSet<'a> {
     hosts: Vec<HeldHost>,
     starter: Option<Starter<'a>>,
     /// The cohort's Terminal Host program, which an own Host runs and a Keeper starts from.
-    #[cfg(any(windows, target_os = "macos"))]
     host_program: Option<std::path::PathBuf>,
     /// Own Host starts that failed in a row, and whether another may begin.
     failed_starts: u32,
     may_start: bool,
     /// The Session's Keeper this Worker answers for, which a stop ends once every Host is gone.
-    #[cfg(any(windows, target_os = "macos"))]
     keeper: Option<crate::session_keeper::SessionKeeper>,
     /// A Keeper an update replaced or rolled back, or an adoption found beside the current one,
     /// until every Host detached it and it ended.
     #[cfg(windows)]
     retiring: Option<crate::session_keeper::RetiringKeeper>,
     /// The care of the Session's Keeper between requests.
-    #[cfg(any(windows, target_os = "macos"))]
     care: super::keeper_care::KeeperCare,
 }
 
@@ -118,7 +103,6 @@ impl<'a> HostSet<'a> {
 
     fn new(starter: Option<Starter<'a>>) -> Self {
         Self {
-            #[cfg(any(windows, target_os = "macos"))]
             host_program: starter.as_ref().map(|starter| {
                 starter
                     .cohort
@@ -128,19 +112,17 @@ impl<'a> HostSet<'a> {
             hosts: Vec::new(),
             failed_starts: 0,
             may_start: true,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: None,
             #[cfg(windows)]
             retiring: None,
             // The first care is due at once, so a first Keeper starts right after the answer that
             // came before it.
-            #[cfg(any(windows, target_os = "macos"))]
             care: super::keeper_care::KeeperCare::new(Instant::now()),
         }
     }
 
-    /// Adds the Host in `slot` this Worker started or adopted, whose owner is `managed`. On Windows
-    /// and macOS an adopted Host is the Worker's own only when its image is the cohort's Terminal
+    /// Adds the Host in `slot` this Worker started or adopted, whose owner is `managed`. An adopted
+    /// Host is the Worker's own only when its image is the cohort's Terminal
     /// Host, and on Windows `offered` says whether the Session's Keeper this Worker answers for was
     /// attached to it.
     pub(super) fn add(
@@ -150,20 +132,13 @@ impl<'a> HostSet<'a> {
         managed: ManagedHost,
         offered: bool,
     ) {
-        #[cfg(any(windows, target_os = "macos"))]
         let own = self
             .host_program
             .as_deref()
             .is_none_or(|program| managed.runs(program));
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let own = true;
         self.push(slot, connection, Some(managed), own, offered);
     }
 
-    #[cfg_attr(
-        not(any(windows, target_os = "macos")),
-        expect(unused_mut, unused_variables)
-    )]
     fn push(
         &mut self,
         slot: HostSlot,
@@ -172,7 +147,6 @@ impl<'a> HostSet<'a> {
         own: bool,
         offered: bool,
     ) {
-        #[cfg(any(windows, target_os = "macos"))]
         if let Some(first) = self.hosts.first() {
             connection.share_titles(&first.connection);
         }
@@ -181,17 +155,14 @@ impl<'a> HostSet<'a> {
             connection,
             managed,
             own,
-            #[cfg(any(windows, target_os = "macos"))]
             watch: super::keeper_care::HostWatch::new(Instant::now(), offered),
-            #[cfg(any(windows, target_os = "macos"))]
             drain: Drain::Serving(Instant::now()),
         });
     }
 
     /// Keeps `keeper`, the Session's Keeper this Worker started or adopted, and on Windows retires a
     /// live Keeper its adoption found in the other slot.
-    #[cfg(any(windows, target_os = "macos"))]
-    #[cfg_attr(target_os = "macos", expect(unused_mut))]
+    #[cfg_attr(unix, expect(unused_mut))]
     pub(super) fn keep(&mut self, mut keeper: Option<crate::session_keeper::SessionKeeper>) {
         #[cfg(windows)]
         if let Some(other) = keeper
@@ -207,12 +178,11 @@ impl<'a> HostSet<'a> {
 
     /// Whether moves wait for the Session's Keeper: its replacement or update is due or under way,
     /// or a Keeper still retires.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keeper_changing(&self) -> bool {
         #[cfg(windows)]
         let retiring = self.retiring.is_some();
-        // A macOS Keeper retires only once updates arrive with H5's M7.
-        #[cfg(target_os = "macos")]
+        // A macOS or Linux Keeper retires only once updates arrive with H5's M7.
+        #[cfg(unix)]
         let retiring = false;
         self.care.keeper_changing(self.keeper.as_ref(), retiring)
     }
@@ -316,10 +286,7 @@ impl<'a> HostSet<'a> {
         let among = super::server_transport::receive_among(server, &watched, idle)?;
         for index in among.ended.into_iter().rev() {
             let held = self.hosts.remove(index);
-            #[cfg(any(windows, target_os = "macos"))]
             self.end_drained(held);
-            #[cfg(not(any(windows, target_os = "macos")))]
-            drop(held);
         }
         Ok(among.received)
     }
@@ -376,11 +343,11 @@ impl<'a> HostSet<'a> {
                 connection.stream().set_nonblocking(true)?;
                 connection.pacing.begin_request_at(readable);
                 // The Keeper's care has this Host attach the Session's Keeper between requests. A
-                // macOS Keeper parents only a terminal it starts, and one the Host forks itself
-                // loses its exit status once a move lets that Host end, so a macOS Host attaches
-                // it before it starts the terminal this request needs.
+                // macOS or Linux Keeper parents only a terminal it starts, and one the Host forks
+                // itself loses its exit status once a move lets that Host end, so such a Host
+                // attaches it before it starts the terminal this request needs.
                 self.add(slot, connection, ManagedHost::new(child), false);
-                #[cfg(target_os = "macos")]
+                #[cfg(unix)]
                 self.attach_keeper();
                 Ok(self.hosts.len() - 1)
             }
@@ -408,7 +375,6 @@ impl<'a> HostSet<'a> {
                 .filter_map(|held| Some((&held.connection, held.managed.as_mut()?)))
                 .collect(),
             epoch,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: &mut self.keeper,
             #[cfg(windows)]
             retiring: &mut self.retiring,
@@ -416,7 +382,6 @@ impl<'a> HostSet<'a> {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl HostSet<'_> {
     /// The care between requests: the Session's Keeper and, on Windows, each Host's dispatch, then
     /// draining older Hosts. Returns when it began if a Server request became readable while it ran.
@@ -429,8 +394,8 @@ impl HostSet<'_> {
     }
 
     /// Has each Host attach the Session's Keeper at once, starting it when none runs, ahead of the
-    /// care: for a macOS Host this Worker just started for a request.
-    #[cfg(target_os = "macos")]
+    /// care: for a macOS or Linux Host this Worker just started for a request.
+    #[cfg(unix)]
     pub(super) fn attach_keeper(&mut self) {
         self.with_care(|care, cared, keepers| care.attach_now(cared, keepers));
     }
@@ -498,7 +463,6 @@ impl HostSet<'_> {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl HostSet<'_> {
     /// The older Hosts that still serve, which a move empties into the own Host.
     pub(super) fn older(&self) -> Vec<usize> {
@@ -527,7 +491,6 @@ impl HostSet<'_> {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl HostSet<'_> {
     /// Checks the Host left one of its exchanges unanswered once more as the Worker exits, as the
     /// Keeper's care does.

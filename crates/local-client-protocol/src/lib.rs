@@ -26,7 +26,6 @@ pub use connection::{
     ClientConnection, ConnectClientError, ExitReply, UNIX_SOCKET_PATH_CAPACITY,
     unix_socket_path_fits,
 };
-#[cfg(any(windows, target_os = "macos"))]
 pub use connection::{HandoverReply, exchange_handover_before};
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 pub use connection::{

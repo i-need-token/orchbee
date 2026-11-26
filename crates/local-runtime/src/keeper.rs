@@ -5,9 +5,7 @@
 //! (`apps/terminal-host/docs/runtime-model.md`, Keeper).
 use crate::{EnvironmentKind, environment_kind};
 
-#[cfg(any(windows, target_os = "macos"))]
 mod client;
-#[cfg(any(windows, target_os = "macos"))]
 pub use client::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, ProgramHolding,
@@ -16,7 +14,6 @@ pub use client::{
 /// The live Keepers the Active generation of the Session records: the current Keeper's slot, and
 /// each live one with its slot, opened on its recorded identity. Both slots name one only while a
 /// Keeper update runs or after one was cut short.
-#[cfg(any(windows, target_os = "macos"))]
 pub struct RecordedKeepers {
     pub current: crate::KeeperSlot,
     pub live: Vec<(crate::KeeperSlot, crate::ExactProcess)>,
@@ -29,7 +26,6 @@ pub struct RecordedKeepers {
 ///
 /// Returns an error when the record cannot be read, no longer names an Active generation in
 /// `runtime`, or names a Keeper that cannot be proven gone.
-#[cfg(any(windows, target_os = "macos"))]
 pub fn recorded_keepers(
     root: &crate::DataRoot,
     runtime: &std::path::Path,
@@ -75,7 +71,6 @@ pub fn worker_recorded(root: &crate::DataRoot, runtime: &std::path::Path) -> std
 /// # Errors
 ///
 /// Returns an error when the record cannot be read or a Keeper cannot be ended in time.
-#[cfg(any(windows, target_os = "macos"))]
 pub fn end_recorded_keeper(
     record: &crate::RetainedSessionRecord,
     deadline: std::time::Instant,
@@ -90,10 +85,10 @@ pub fn end_recorded_keeper(
 }
 
 /// Whether release builds run the Keeper: on Windows since the recovery acceptance passed there
-/// (`proposals/platform/host-handover.md`, decision 65), and on macOS since the H5 acceptance passed
-/// on the real Mac (decision 92). Development builds follow it, so a development Session never runs
-/// a Keeper that release builds do not.
-const IN_RELEASE_BUILDS: bool = cfg!(any(windows, target_os = "macos"));
+/// (`proposals/platform/host-handover.md`, decision 65), on macOS since the H5 acceptance passed on
+/// the real Mac (decision 92), and on Linux, which runs the macOS Keeper. Development builds follow
+/// it, so a development Session never runs a Keeper that release builds do not.
+const IN_RELEASE_BUILDS: bool = true;
 
 /// Whether this build runs the Keeper. Test builds always do, so tests and acceptance runs drive
 /// it; release and development builds do while `IN_RELEASE_BUILDS` is set. It is a constant
@@ -124,14 +119,14 @@ pub const fn moves_live() -> bool {
 /// Starts the Session's Keeper in `slot` from `executable`, the Terminal Host's program, as the
 /// recorded Worker's registered child in the Host's folder of `runtime`, and waits until its endpoint
 /// listens or `deadline` passes, and answers it with its exact identity, its process ID and
-/// creation time. On macOS its socket sits in the Hosts' endpoint folder, where each Host finds it.
+/// creation time. On macOS and Linux its socket sits in the Hosts' endpoint folder, where each Host
+/// finds it.
 /// A Keeper that exits first, or does not listen in time, fails; one that did not listen in time is
 /// ended first, so no Keeper outlives a failed start.
 ///
 /// # Errors
 ///
 /// Returns an error when the registration, the creation, or the wait fails.
-#[cfg(any(windows, target_os = "macos"))]
 pub fn start_keeper(
     root: &crate::DataRoot,
     runtime: &std::path::Path,
@@ -145,7 +140,7 @@ pub fn start_keeper(
     let directory = Rendezvous::host_runtime_directory(runtime);
     let endpoint_id = Rendezvous::keeper_endpoint_id(runtime, slot);
     let endpoint = Rendezvous::keeper_endpoint_path(runtime, slot);
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let endpoint_directory = Rendezvous::socket_root_path();
     let arguments = [
         OsStr::new("keep"),
@@ -153,9 +148,9 @@ pub fn start_keeper(
         directory.as_os_str(),
         OsStr::new("--endpoint-id"),
         OsStr::new(&endpoint_id),
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         OsStr::new("--endpoint-directory"),
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         endpoint_directory.as_os_str(),
     ];
     let readiness = Readiness::before(&endpoint)?;
@@ -210,14 +205,14 @@ impl<'a> Readiness<'a> {
 /// the Keeper sets once it listens, as a Host does, and not the socket found before the start. A
 /// Keeper that ended without removing its socket leaves it in place until the new one, holding the
 /// endpoint's lifetime lock, replaces it, so only a socket bound after the start counts.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 struct Readiness<'a> {
     endpoint: &'a std::path::Path,
     /// The device and inode of the socket found before the start.
     stale: Option<(u64, u64)>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 impl<'a> Readiness<'a> {
     fn before(endpoint: &'a std::path::Path) -> std::io::Result<Self> {
         use std::os::unix::fs::MetadataExt;

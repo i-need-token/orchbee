@@ -686,11 +686,13 @@ pub fn build(builder: *std.Build) void {
                 .target = target,
                 .optimize = optimize,
             });
-            if (target.result.os.tag == .macos) {
+            if (target.result.os.tag != .freebsd) {
                 platform_module.addCSourceFile(.{
-                    .file = builder.path("src/platform/keeper_darwin.c"),
+                    .file = builder.path("src/platform/keeper_posix.c"),
                     .flags = authored_c_flags,
                 });
+            }
+            if (target.result.os.tag == .macos) {
                 platform_module.linkSystemLibrary("bsm", .{});
                 if (builtin.target.os.tag.isDarwin()) {
                     const libc = std.zig.LibCInstallation.findNative(builder.allocator, builder.graph.io, .{
@@ -1087,11 +1089,11 @@ pub fn build(builder: *std.Build) void {
         );
         handover_black_box_step.dependOn(&run_handover_black_box_tests.step);
     }
-    if (target.result.os.tag == .macos) {
-        // The Host's Keeper link against a real Keeper on macOS: the service runs in the test, and
-        // the Keeper is the built executable.
+    if (target.result.os.tag == .macos or target.result.os.tag == .linux) {
+        // The Host's Keeper link against a real Keeper on macOS and Linux: the service runs in the
+        // test, and the Keeper is the built executable.
         const keeper_link_test_module = builder.createModule(.{
-            .root_source_file = builder.path("src/service/__tests__/keeper_link_darwin_test.zig"),
+            .root_source_file = builder.path("src/service/__tests__/keeper_link_posix_test.zig"),
             .target = target,
             .optimize = optimize,
         });

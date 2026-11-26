@@ -1,19 +1,19 @@
-//! The macOS Keeper's requests that depend on what a holding holds: a Host's `hold-pty` of a PTY
-//! master it forked a leader on and `hold-pipes` of a background program it started, its `spawn`
-//! of a leader and `spawn-program` of a program the Keeper parents, the owner's `reap` of an ended
-//! parented leader, and the inspection, claim, and release of a holding. A spawn applies in three
-//! steps: it reserves its holding under the lock, forks outside it, and inserts the holding under
-//! the lock again, so no fork waits with the lock held.
+//! The macOS and Linux Keeper's requests that depend on what a holding holds: a Host's `hold-pty`
+//! of a PTY master it forked a leader on and `hold-pipes` of a background program it started, its
+//! `spawn` of a leader and `spawn-program` of a program the Keeper parents, the owner's `reap` of
+//! an ended parented leader, and the inspection, claim, and release of a holding. A spawn applies
+//! in three steps: it reserves its holding under the lock, forks outside it, and inserts the
+//! holding under the lock again, so no fork waits with the lock held.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
-const content = @import("content_darwin.zig");
-const handles = @import("handles_darwin.zig");
+const content = @import("content_posix.zig");
+const handles = @import("handles_posix.zig");
 const requests = @import("requests.zig");
 const state = @import("state.zig");
 
-const darwin = platform.keeper.darwin;
+const native = platform.keeper.native;
 const fork_launch = platform.keeper.fork_launch;
 const posix_compat = platform.posix_compat;
 const message = keeper_protocol.message;
@@ -28,7 +28,8 @@ const Effects = state.Effects;
 const refused = requests.refused;
 const posix = std.posix;
 
-/// Whether this Keeper serves a request of `kind` at all; a macOS Keeper holds no Win32 handles.
+/// Whether this Keeper serves a request of `kind` at all; a macOS or Linux Keeper holds no Win32
+/// handles.
 pub fn serves(kind: message.RequestKind) bool {
     return kind != .hold and kind != .hold_program;
 }
@@ -61,8 +62,8 @@ fn holdPty(table: *Table, requester: Process, hold: pty.HoldPty, effects: *Effec
     const stored = content.StoredPtyFacts.store(hold.facts) orelse return refused(.identity_mismatch);
     if (effects.descriptors.count != 1) return refused(.handle_failed);
     const master = effects.descriptors.received[0];
-    if (!darwin.masterOf(master, hold.facts.slave)) return refused(.identity_mismatch);
-    if (darwin.processStart(hold.facts.leader.pid) != hold.facts.leader.created) return refused(.identity_mismatch);
+    if (!native.masterOf(master, hold.facts.slave)) return refused(.identity_mismatch);
+    if (native.processStart(hold.facts.leader.pid) != hold.facts.leader.created) return refused(.identity_mismatch);
     requests.insert(table, position.index, .{
         .id = hold.holding,
         .owner = requester,
@@ -83,8 +84,8 @@ fn holdPipes(table: *Table, requester: Process, hold: pty.HoldPipes, effects: *E
     if (admits(table, hold.holding)) |reason| return refused(reason);
     const count = hold.capture.count();
     if (effects.descriptors.count != count) return refused(.handle_failed);
-    for (effects.descriptors.received[0..count]) |descriptor| if (!darwin.pipeEnd(descriptor, false)) return refused(.identity_mismatch);
-    if (darwin.processStart(hold.facts.process.pid) != hold.facts.process.created) return refused(.identity_mismatch);
+    for (effects.descriptors.received[0..count]) |descriptor| if (!native.pipeEnd(descriptor, false)) return refused(.identity_mismatch);
+    if (native.processStart(hold.facts.process.pid) != hold.facts.process.created) return refused(.identity_mismatch);
     requests.insert(table, position.index, .{
         .id = hold.holding,
         .owner = requester,
@@ -124,7 +125,7 @@ fn reap(table: *Table, requester: Process, id: RandomId) Body {
     const held = holding.content.parent();
     if (!held.parented or held.reaped) return .reap;
     if (held.ended == null) return refused(.running);
-    darwin.reap(holding.content.leader().pid);
+    native.reap(holding.content.leader().pid);
     held.reaped = true;
     return .reap;
 }
@@ -171,7 +172,7 @@ pub fn released(table: *Table, holding: *Holding) ?Reason {
     if (!held.parented or held.reaped) return null;
     const leader = holding.content.leader().pid;
     if (held.ended != null) {
-        darwin.reap(leader);
+        native.reap(leader);
         held.reaped = true;
         return null;
     }
@@ -194,7 +195,7 @@ pub fn spawn(table: *Table, arena: std.mem.Allocator, peer: state.Peer, request:
         .launch = request.facts.launch,
     }) orelse return refused(.identity_mismatch);
     const master = descriptors.received[0];
-    if (!darwin.masterOf(master, request.facts.slave)) return refused(.identity_mismatch);
+    if (!native.masterOf(master, request.facts.slave)) return refused(.identity_mismatch);
     const streams: fork_launch.Streams = .{ .pty = .{
         .master = master,
         .slave = descriptors.received[1],
@@ -227,8 +228,8 @@ pub fn spawnProgram(table: *Table, arena: std.mem.Allocator, peer: state.Peer, r
     const count = request.capture.count();
     if (descriptors.count != 2 * count) return refused(.handle_failed);
     for (0..count) |stream| {
-        if (!darwin.pipeEnd(descriptors.received[2 * stream], false)) return refused(.identity_mismatch);
-        if (!darwin.pipeEnd(descriptors.received[2 * stream + 1], true)) return refused(.identity_mismatch);
+        if (!native.pipeEnd(descriptors.received[2 * stream], false)) return refused(.identity_mismatch);
+        if (!native.pipeEnd(descriptors.received[2 * stream + 1], true)) return refused(.identity_mismatch);
     }
     const null_device = posix_compat.openNullDevice() catch return refused(.spawn_failed);
     defer posix_compat.close(null_device);
@@ -314,7 +315,7 @@ fn reserve(table: *Table, requester: Process, id: RandomId, kind: message.Reques
 fn start(plan: fork_launch.Plan) ?Process {
     const child = fork_launch.start(plan) catch return null;
     const pid: u32 = @intCast(child);
-    const created = darwin.processStart(pid) orelse {
+    const created = native.processStart(pid) orelse {
         posix.kill(child, posix.SIG.KILL) catch {};
         _ = posix_compat.waitpid(child, 0);
         return null;

@@ -1,4 +1,6 @@
 //! Retained child observation delegates process creation and exit semantics to the host adapter.
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(unix)]

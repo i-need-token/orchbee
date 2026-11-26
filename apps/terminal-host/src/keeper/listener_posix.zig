@@ -1,6 +1,6 @@
-//! The macOS Keeper's endpoint: a Host's Unix socket, with its private folder, same-user check, and
-//! lifetime lock, from which the listener accepts each connection as a socket that carries
-//! descriptors.
+//! The macOS and Linux Keeper's endpoint: a Host's Unix socket, with its private folder, same-user
+//! check, and lifetime lock, from which the listener accepts each connection as a socket that
+//! carries descriptors.
 
 const std = @import("std");
 const platform = @import("terminal-host-platform");
@@ -8,7 +8,7 @@ const local_ipc = @import("terminal-host-transport");
 
 const posix_compat = platform.posix_compat;
 const posix = std.posix;
-const Stream = platform.keeper.darwin.Stream;
+const Stream = platform.keeper.native.Stream;
 
 pub const Server = struct {
     inner: local_ipc.LocalServer,

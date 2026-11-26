@@ -18,10 +18,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Whether this platform's Session keeps a binding record: Windows and macOS, whose Host outlives
-/// its Server. A policy constant, so every branch compiles everywhere.
-pub(super) const RECORDED: bool = cfg!(any(windows, target_os = "macos"));
-
 /// How long the first change waits before the record is written; later changes ride along.
 const DEBOUNCE: Duration = Duration::from_millis(500);
 const RETRY: Duration = Duration::from_secs(1);
@@ -68,7 +64,6 @@ impl Writer {
 
     /// Writes `extensions`, the members a later release added to the record this generation
     /// adopted its Host from, back unchanged.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keep_extensions(
         &mut self,
         extensions: serde_json::Map<String, serde_json::Value>,
@@ -108,7 +103,6 @@ impl Writer {
 
     /// The write a restart's exact capture makes: the record on disk must describe the Session as
     /// captured, so a write that is deferred or fails fails the capture.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn write_exact(
         &mut self,
         terminals: &LocalTerminalService,
@@ -123,7 +117,6 @@ impl Writer {
 
     /// Reads `session`, the generation a restart's successor committed, from now on, and publishes
     /// at the next look: the record on disk names the replaced generation's activation.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn renew(&mut self, session: RetainedSessionRecord) {
         self.session = session;
         self.written = None;
@@ -133,7 +126,6 @@ impl Writer {
 
     /// Forgets what was last published, so the next write publishes even an unchanged record: a
     /// restart's successor may have replaced it while it held the store.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn forget_written(&mut self) {
         self.written = None;
         self.observed = None;

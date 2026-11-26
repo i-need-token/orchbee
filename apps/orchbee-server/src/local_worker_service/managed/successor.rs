@@ -1,4 +1,4 @@
-//! The new side of a Server restart that keeps terminals, on Windows and macOS: the successor Server the
+//! The new side of a Server restart that keeps terminals: the successor Server the
 //! `orchbee` requesting the restart started suspended and named in the Session record's `successor`
 //! entry. It checks that the running Server and its Terminal Host can hand the Session over, starts
 //! its own Worker on the Worker endpoint the restart's ticket names, and asks the running Server to
@@ -6,9 +6,9 @@
 //! let its Worker adopt the Host, write the binding record and commit under the record's writer
 //! lock. After the commit it ends the replaced Server and opens the Session as any start does.
 //! Until `prepared` a refusal ends its Worker and names the reason in its exit code; afterwards a
-//! failure ends its Worker and asks the replaced Server to take the Session back. A macOS successor
-//! first catches stop signals and leaves the requester's session, as a macOS start does, and
-//! removes the socket files the replaced Server left before it opens the Session. It records
+//! failure ends its Worker and asks the replaced Server to take the Session back. A macOS or Linux
+//! successor first catches stop signals and leaves the requester's session, as a start there does,
+//! and removes the socket files the replaced Server left before it opens the Session. It records
 //! `handover-successor`.
 
 use super::{Admitting, admit_worker, adoption, checkpoint, stop};

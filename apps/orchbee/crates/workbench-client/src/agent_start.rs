@@ -237,10 +237,6 @@ pub fn run_on_client(
     snapshot: orchbee_workbench_protocol::Snapshot,
     panel: orchbee_workbench_protocol::WorkbenchPanelId,
 ) -> Report {
-    if crate::agent_runtime::startup::admit().is_err() {
-        drop(client);
-        return Report::preflight(request, started, Failure::Unsupported);
-    }
     workflow::run_admitted(
         &request,
         started,

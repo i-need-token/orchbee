@@ -1387,25 +1387,31 @@ Keeper may hold a program's last handles (`TH-034`).
   `11` for a runtime directory that is not private, `12` when another Keeper holds the endpoint,
   and `13` when the endpoint could not be created.
 
-On macOS the Keeper holds each terminal's PTY master instead, under the contract's `pty` and
-`parent` capabilities, and answers `hold` and `hold-program` with `unsupported`:
+On macOS and Linux the Keeper holds each terminal's PTY master instead, under the contract's `pty`
+and `parent` capabilities, and answers `hold` and `hold-program` with `unsupported`:
 
 - **Endpoint and admission**: it listens on the Unix socket `<endpoint id>-host.sock` in its
   endpoint directory, with the Host's private-folder, same-user, and lifetime-lock protections,
-  and takes a peer's process id from the socket. `register-host` checks the process's start time,
-  and one `kqueue` watcher sees a registered Host end through `EVFILT_PROC`.
+  and takes a peer's process id from the socket. `register-host` checks the process's start, and
+  one watcher thread sees a registered Host end: through a `kqueue` `EVFILT_PROC` filter on
+  macOS, and on Linux through a pidfd per watch, which it polls with an `eventfd` a new watch
+  signals. On Linux a process's start is the one the
+  [Keeper contract](../../../schemas/keeper/README.md#linux-process-starts) defines.
 - **Holdings**: `hold-pty` keeps the master that arrives with the request once its slave name and
   its leader's start time match; `inspect` sends a claimant the master. It raises its soft
   descriptor limit to the hard one.
 - **Parented leaders**: `spawn` forks the leader with the Host's child steps and the master,
   slave, and input that arrive with the request, and reports an `exec` failure as `spawn-failed`.
-  It watches each leader it parents without reaping it, by `EVFILT_PROC` and a once-a-second
+  It watches each leader it parents without reaping it, by that watcher and a once-a-second
   `waitid` poll, sends `exited` once per end to the owner's connection that negotiated `parent`,
   and reaps the leader on the owner's `reap`. A leader whose holding was released while it ran is
   reaped once it ends; a release or discard that would leave more than 512 such leaders is refused
   `capacity`.
 - **Update in place**: on `reexec` it runs the named program as `keep --check`, which reads the
-  state from standard input and exits 0 only when it can take it over. It then stops the listener
+  state from standard input and exits 0 only when it can take it over; the state reaches it through
+  a pipe on macOS and a socket pair on Linux, so a check that stops reading fails by its status, not
+  by `SIGPIPE`. A Linux Keeper whose own program file was removed or replaced since it started has
+  no previous program to return to, and takes no update. It then stops the listener
   and each admitted connection between frames, holds the table's lock from its last snapshot through
   `execve`, and executes the program with its `keep` options, `--resume <descriptor>`, and
   `--previous <its own program>`. The new image takes the endpoint, the table, and each connection
@@ -1466,7 +1472,7 @@ its deadline (`TH-031`).
 - **A lost Keeper**: when the Keeper process ends, the link settles every holding, closes what it
   kept, and sends `KeeperLost`; every program keeps running unheld. Events go only to a session
   that negotiated `keeper`; without a session they are dropped.
-- **On macOS**: a macOS Host offers `keeper` and links to a Keeper that answers `pty`, through its
+- **On macOS and Linux**: the Host offers `keeper` and links to a Keeper that answers `pty`, through its
   socket in the Host's own endpoint directory; the check compares the socket's peer process and its
   start time. A hold sends the terminal's PTY master with `hold-pty` and keeps no duplicate. While a
   link whose Keeper negotiated `parent` is attached, the newest such Keeper starts each new
@@ -1511,7 +1517,7 @@ return S_OK;
 
 ### Moves between Hosts
 
-A Windows or macOS Host that offers `keeper` also offers `handover`, and moves a terminal to another
+A Windows, macOS or Linux Host that offers `keeper` also offers `handover`, and moves a terminal to another
 Host of the same Worker through the Keeper. The
 [protocol reference](../../../schemas/terminal/references/protocol.md#host-handover) owns the
 requests, their answers, and their refusals, and the [handover record](handover-record.md) owns the
@@ -2039,8 +2045,8 @@ retry only operations whose retry class makes that safe. It must reconcile or as
 non-replayable operations such as input.
 
 A failed disposal keeps the complete retained terminal. Pending outcome publication returns
-`outcome-publication-pending`, and a Keeper release the disposal started, which a macOS terminal
-first needs at its disposal, returns `keeper-release-pending` without blocking cleanup; blocked
+`outcome-publication-pending`, and a Keeper release the disposal started, which a macOS or Linux
+terminal first needs at its disposal, returns `keeper-release-pending` without blocking cleanup; blocked
 runtime cleanup returns one retryable typed code derived from the exact owner phase:
 `cleanup-contain-process`, `cleanup-release-output`, or `cleanup-release-process-identity`. No
 barrier is flattened into a permanent phase failure or a generic termination failure.

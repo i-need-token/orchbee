@@ -32,9 +32,7 @@ operations. The store that keeps the identity answers with its own document and 
 denied, unavailable, unknown, timed-out or interrupted answer, or a transport failure, ends the
 lookup and is the result. With no Session the stop receipt is still read, so a completed stop
 answers after shutdown; a miss there gives the usual no-Session failure (exit 4). An identity that
-a caller reused across stores resolves to the first store in this order. Where the platform lacks
-a store it is skipped; Linux asks only the close ledger, macOS the stop receipt and the close
-ledger, and a platform with no store answers that the command is unsupported.
+a caller reused across stores resolves to the first store in this order.
 
 When every store misses, the result is `orchbee.cli.failure` with kind `not-found`, details
 `{stage:"operation-status", reason:"not-recorded"}` and exit 3. Missing history does not prove that

@@ -78,21 +78,21 @@ pub fn resumeRead(process: *Process) !void {
     return process.pty.resumeRead();
 }
 
-/// Whether terminals can move to and from this Host: Windows and macOS Hosts move them.
-pub const moves_supported = builtin.os.tag == .windows or builtin.os.tag == .macos;
+/// Whether terminals can move to and from this Host: Windows, macOS and Linux Hosts move them.
+pub const moves_supported = builtin.os.tag == .windows or builtin.os.tag == .macos or builtin.os.tag == .linux;
 
 /// Whether this Host recovers a program the Keeper kept after its Host ended.
-pub const recovery_supported = moves_supported or builtin.os.tag == .macos;
+pub const recovery_supported = moves_supported;
 
-/// A held console whose duplicates a claim checked, or on macOS a recovered PTY master and its
-/// leader, as `Process.adopt` takes it.
+/// A held console whose duplicates a claim checked, or on macOS and Linux a recovered PTY master
+/// and its leader, as `Process.adopt` takes it.
 pub const Held = if (recovery_supported) Process.Held else void;
 
 /// Closes what a `Held` holds, for an adoption that did not take it.
 pub fn closeHeld(held: *Held) void {
     switch (builtin.os.tag) {
         .windows => @import("keeper.zig").handles.closeAll(&held.duplicates),
-        .macos => _ = std.posix.system.close(held.master),
+        .linux, .macos => _ = std.posix.system.close(held.master),
         else => unreachable,
     }
 }

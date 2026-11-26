@@ -15,14 +15,11 @@ use orchbee_server::{AgentResumeProvider, RetainedAgentSession};
 use std::collections::BTreeSet;
 
 mod conversation_ids;
-#[cfg(any(windows, target_os = "macos"))]
 mod process_sources;
 #[cfg(test)]
 mod tests;
 
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use conversation_ids::resume_arguments;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use process_sources::read as read_process_sources;
 
 /// The shell command evidence of one exact Terminal generation.
@@ -38,7 +35,6 @@ pub(crate) enum CommandEvidence {
 
 impl CommandEvidence {
     /// The evidence a generation's latest shell-echoed command gives; none means unmarked.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn of(latest: Option<orchbee_terminal_protocol::TerminalObservedCommand>) -> Self {
         match latest {
             Some(command) if !command.completed => Self::Open(command.id),
@@ -69,7 +65,6 @@ pub(crate) struct ProcessSourceEntry {
 }
 
 /// What a process source read needs of one published Agent run, taken under the Session lock.
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RunProbe {
     pub(crate) provider: AgentResumeProvider,
@@ -239,11 +234,9 @@ pub(crate) fn carried_outcome(carried: &Carried, moment: CarriedMoment<'_>) -> C
 
 /// Carried references keyed like process samples, each with the exact Terminal generation its
 /// delivery reached.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) type CarriedSessions =
     std::collections::BTreeMap<(String, String), (orchbee_server::TerminalAgentBinding, Carried)>;
 
-#[cfg(any(windows, target_os = "macos"))]
 impl super::SessionCoordinator {
     /// Records the reference the driver just admitted for delivery into `target`'s exact Terminal
     /// generation, with the tokens that delivery types. At most one delivery reaches a Presentation
@@ -497,7 +490,6 @@ impl super::SessionCoordinator {
 
 /// `session` carrying the options of the published run's sampled `command_line`, when that run is
 /// of the session's provider; otherwise `session` as it is.
-#[cfg(any(windows, target_os = "macos"))]
 fn carry_options(
     session: RetainedAgentSession,
     command_line: Option<(super::process_observation::Selected, &[String])>,
@@ -514,7 +506,6 @@ fn carry_options(
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl super::SessionCoordinator {
     /// Whether a restart reference still waits for delivery in this Presentation.
     pub(crate) fn has_pending_agent_session(

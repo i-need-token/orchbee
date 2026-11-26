@@ -39,7 +39,7 @@ error's text.
 | `worker-connection-ended` | The Worker connection ends, or its thread cannot start                                                                                                                                                                                                                                        | `exit`, `failure`, `error`, `request` with `elapsedMs` since it was sent, `afterShutdown`, `workerProcess` (`not-held`, `running`, `exited`, `unknown`), `workerExitCode`                                                                                                                                                                                           |
 | `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
 | `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
-| `host-adopted`            | A Windows or macOS Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                    | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
+| `host-adopted`            | A Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                                     | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                                                                                                                                                                             |
 | `state-poisoned`          | The Session coordinator lock is first observed poisoned                                                                                                                                                                                                                                       | `lock` (`coordinator`)                                                                                                                                                                                                                                                                                                                                              |
 | `agent-change-refused`    | The Agent state refused a change as `invalid-event`, keeping its previous state                                                                                                                                                                                                               | `transition` (the refused change's kind), `suppressed`                                                                                                                                                                                                                                                                                                              |
@@ -290,8 +290,8 @@ records a Session failure of the Server's own generation for the
 synchronously within the recorder's 2 s lock bound; a Server outside a store version folder, or
 long after a move, records nothing. A Worker that exits during a stop counts nothing.
 A Worker whose Host failed to start sends that Launch's pre-handoff failure. It keeps serving when
-the failed start left no Host process, and otherwise exits after that answer (see the
-[Worker's lazy Host startup](../orchbee-worker/README.md#managed-linux-lazy-host-startup)). The
+the failed start registered and created no Host, and otherwise exits after that answer (see the
+[Worker's lazy Host startup](../orchbee-worker/README.md#managed-lazy-host-startup)). The
 failure settles as a definite `terminal-runtime-unavailable` even when the registry already dropped
 the Worker, because no Host received the Launch, so the request is answered before this stop begins.
 
@@ -313,25 +313,21 @@ action that applies follows:
 | The cap allows no attempt                                  | Give up                           |
 | Otherwise                                                  | Replace the Worker                |
 
-On Windows and macOS the retained record observes each Host slot by its registered process ID and
-creation or start time, and `AdoptHost` names each running Host in its slot, with the epoch its
-Worker recorded; a Session that never started a Host is adopted as no Host. Linux
-registers no Host and runs one, in the first slot, so a Host lock no process holds reads as gone.
-On Linux, which runs no Keeper, a gone first Host stops the Server only when the lost Worker held a
-settled binding; otherwise the Server replaces the Worker with no Host. On macOS a gone Host in
-any slot that no binding the lost Worker settled names by its epoch, or, with no epoch recorded, a
+The retained record observes each Host slot by its registered process ID and creation or start
+time, and `AdoptHost` names each running Host in its slot, with the epoch its Worker recorded; a
+Session that never started a Host is adopted as no Host. On macOS and Linux a gone Host in any slot that no binding the lost Worker settled names by its epoch, or, with no epoch recorded, a
 gone Host while no binding settled, leaves nothing to keep: the Server frees that Host's registered
 slot, removes the socket a killed Host left, and replaces the Worker without it. A Host still spawning never ran. A stop whose Worker is lost sends `exit` to each Host the record
 names running.
 
-On Windows and macOS a Host gone while the record names a running Keeper, which kept that Host's
+A Host gone while the record names a running Keeper, which kept that Host's
 programs, is replaced rather than stopped: `AdoptHost` names a Recovery slot with the Keeper's recorded process,
 and the replacement [recovers those programs](../orchbee-worker/README.md#replacement-adoption) into
 a recovery Host in that slot. An attempt after a failed one adopts the Hosts the record names
 running, the recovery Host a failed recovery left among them, and recovers again each one gone while
 the Keeper runs; with no Host left, or one gone and no Keeper, the Server stops itself. A lone Host
 whose Worker recorded no epoch is named with the epoch its bindings share, and once every slot names
-an epoch, a binding of an epoch no slot serves is not sent. Linux starts no Keeper.
+an epoch, a binding of an epoch no slot serves is not sent.
 
 The cap allows 3 attempts in any trailing 10 minutes of one Server process, and an attempt counts
 when it starts. Attempts run one at a time, the first at once and each later one a second after the
@@ -354,8 +350,7 @@ The [terminal-runtime state](#terminal-runtime) reads `Reconnecting` from the lo
 the Worker is proven gone, unless a stop is admitted; `Serving` once a replacement serves, and
 `GivenUp` on giving up.
 
-On Windows and macOS a replacement that serves, and a Server that [adopted](#cold-adoption) its
-predecessor's Hosts, sends its Worker a move turn every 2 seconds from its own thread, on the lane
+A replacement that serves, and a Server that [adopted](#cold-adoption) its predecessor's Hosts, sends its Worker a move turn every 2 seconds from its own thread, on the lane
 behind every person's request ([H3 design](../../proposals/platform/host-handover.md#h3-design)); a
 Worker that moves nothing answers the first turn `Done`. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
 keeping its operation, fence and lease, so titles and every fact read through it follow; a binding
@@ -380,8 +375,7 @@ them. The supervision never ends a Host or a Keeper.
 
 ## Cold adoption
 
-On Windows and macOS a Server can start for a generation that kept its predecessor's running
-Terminal Host:
+A Server can start for a generation that kept its predecessor's running Terminal Host:
 the Server and Worker ended, by a crash or an `exit`, while its Hosts kept their terminals. Crash
 recovery admits that generation only when the Session's
 [binding record](docs/workbench-checkpoint.md#binding-record) names each running Host, and
@@ -418,7 +412,7 @@ and the next activation tries again. `host-adopted` records the attempt.
 
 ## Server and Worker restart
 
-On Windows and macOS the managed lifecycle owner serves `handover`, the old side of a
+The managed lifecycle owner serves `handover`, the old side of a
 [Server and Worker restart](../../proposals/platform/versioning-and-upgrade.md#server-and-worker-restart),
 and its `query` answer reports `restartKeepsTerminals` true; every other Server reports false and
 answers `handover` `unsupported`. `orchbee server restart` requests a restart, and the
@@ -472,7 +466,7 @@ answered `busy`. The decisions the code does not state:
 
 `--runtime-directory <dir> --handover <ticket>`, with the configuration arguments an activation
 freezes, starts the successor of the restart whose `successor` entry names that ticket and this
-process; the requester names it there before it runs. On Windows and macOS it:
+process; the requester names it there before it runs. It:
 
 1. Checks what `prepare` would refuse, and what only it can judge, such as a connected Client whose
    `client-server` range this build does not meet and a Host whose `worker-host` range it does not
@@ -649,11 +643,9 @@ Client's `workbench.session-stop`, `SIGTERM` and `SIGINT` all reach the
 [managed stop owner](#managed-windows-session-shutdown), so a logout or a system shutdown, which
 sends `SIGTERM`, stops the Session normally. The owner runs as on Windows without plugin hooks, and
 on macOS and Linux the [idle move](#idle-move) stops the Session under the same identity its signals
-use; on Linux it runs also without Agent resume, the checkpoint saver, final capture and kept
-terminal output: the Worker shutdown request disposes every terminal, and after the Client
-listeners stop the owner removes the Session's socket files before it publishes the Stopped record,
-which is the receipt the next start consumes. A macOS start then relaunches every terminal from the
-final capture in its saved directory, showing its kept output first while
+use. After the Client listeners stop, the owner removes the Session's socket files before it
+publishes the Stopped record, which is the receipt the next start consumes. A macOS or Linux start
+then relaunches every terminal from the final capture in its saved directory, showing its kept output first while
 `terminal.restore_after_restart` is on, and resumes each retained Agent conversation in its managed zsh or bash under the
 [Agent session resume contract](docs/agent-session-resume.md).
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
@@ -665,13 +657,13 @@ and continues once the Host's lock is free, within 45 seconds. A stop attempt th
 signal, with no Worker left, ends the process without the Stopped record, so a signal always ends
 the Server within one attempt; the next start then recovers the Session as after a crash. An
 `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host that
-keeps them, and that Host's lock would refuse every recovery while it runs. On macOS its final
-capture relaunches them at the next start.
+keeps them, and that Host's lock would refuse every recovery while it runs. Its final capture
+relaunches them at the next start.
 
 A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next
 activation recovers that record to Crashed under the activation and lifetime locks once the Host's
-lock is free, and starts the Session again; socket files never count as a live process. On macOS
-that start restores the newest background save, so terminals return with the layout and
+lock is free, and starts the Session again; socket files never count as a live process. That start restores
+the newest background save, so terminals return with the layout and
 directories saved at most 30 seconds, or half a second after a layout change, before the end. A
 Host that still holds its lock keeps the Session's terminals and refuses recovery until it ends, so
 a restore never starts beside them. This entry
@@ -691,31 +683,27 @@ resolves to, read against the process's working folder, and keeps that path only
 the provider. One retained thread does those reads: a sample waits 25 ms for its answer, skips at
 once while an earlier read is unanswered, and otherwise keeps the Host's row, so a stuck network
 mount never holds a terminal's routing; answers serve the same path for ten seconds. A relayed
-sample carries the same path, so Clients read the rows the Server read. On
-macOS a catalog download runs `/usr/bin/curl` with the Windows arguments, attempts and limits;
-Linux admits no system curl and fails it as a process failure before any network effect. Startup
-also configures Panel graphics file frames: on macOS each producer gets a private 0700 frame
-directory under the Session runtime, read only through descriptors that never follow a link (see
-[macOS private frame directories](docs/windows-graphics.md#macos-private-frame-directories)), and
-Linux compiles the same directory but never reaches it. Agent names
+sample carries the same path, so Clients read the rows the Server read. A
+catalog download runs `/usr/bin/curl` with the Windows arguments, attempts and limits; a system
+without it fails the attempt as a process failure before any network effect. Startup also
+configures Panel graphics file frames: each producer gets a private 0700 frame directory under the
+Session runtime, read only through descriptors that never follow a link (see
+[POSIX private frame directories](docs/windows-graphics.md#posix-private-frame-directories)). Agent names
 resolve through the same guarded path as on Windows; terminal name owners come from Agent reports
 and process observation. Client view, semantic event and window title
 requests are admitted as on Windows: their state lives in Server memory for the connection or its
 subscription, and nothing of it is saved. Panel Agent and Panel metadata requests are admitted the
 same way, so the sidebar and Panel titles read the Agent states process observation and reports
-publish. A macOS Session also serves the Agent view, the Session-scoped Agent source override
-that the TUI's machine Agent list reads; a plugin source answers `source-unavailable` there
-because the plugin store is Windows-only. It serves configured commands too, running them in the
-login shell as [custom commands](../orchbee/docs/custom-commands.md#macos) describes, and Panel
-graphics. Workspace metadata and notification requests, and the Agent view, configured commands
-and Panel graphics on Linux, keep their earlier refusal at admission until their behavior off
-Windows is decided.
-A macOS Session keeps the [checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)
-and [kept terminal output](docs/workbench-checkpoint.md#terminal-output-replay) in the Session
-folder under its POSIX data root and holds a Panel whose saved directory is gone until
-`panel.restore-terminal`; a Linux Session keeps neither yet, which takes the checkpoint policy
-in `managed/checkpoint.rs` and the restore-notice reader in the workbench Client plus a decision on
-logouts that leave user processes running. Handoff remains Windows-only because only the Windows
+publish. A macOS or Linux Session also serves the Agent view, the Session-scoped Agent source
+override that the TUI's machine Agent list reads; a plugin source answers `source-unavailable`
+there because the plugin store is Windows-only. It serves configured commands too, running them in
+the login shell as [custom commands](../orchbee/docs/custom-commands.md#macos-and-linux) describes,
+Panel graphics, Workspace metadata and notification requests.
+A macOS or Linux Session keeps the
+[checkpoint](docs/workbench-checkpoint.md#managed-startup-and-clean-stop) and
+[kept terminal output](docs/workbench-checkpoint.md#terminal-output-replay) in the Session folder
+under its POSIX data root and holds a Panel whose saved directory is gone until
+`panel.restore-terminal`. Handoff remains Windows-only because only the Windows
 startup constructs its owner.
 
 ## Local Worker service
@@ -1510,7 +1498,7 @@ This refinement reuses the Tab creation commit and settlement owner. Verificatio
 
 ## Retained Worktree continuation
 
-Windows and macOS serve Worktree operations, source queries and Workspace group Close; Linux refuses them before any effect. `workbench.worktree.operation` admits Start, pure Read and attempt-fenced Resume. The Workbench authority retains at most 64 operations, one Pending globally, and canonical Workspace association; a lazy maintenance owner continues after Client disconnect. Registry-to-Session admission and publication recheck the source and exact Worker incarnation; OBCN IPC runs outside both gates. Create/Open observe Worker checkout facts before reusing or launching a Workspace. A Create's optional `agentStart` travels to the launched Workspace's first shell as that launch's `agentStart`, under a new Tab's fallback; a reused Workspace launches nothing and starts nothing, and a Resume launches with the retained intent's selector. Remove checks dirty state before Close, reserves new Workspace/directory admissions, holds canonical publication and waits for terminal disposal plus cleanup before Git removal. A known Git failure verifies the original checkout and restores fresh default shells into the retained presentation slots; independent bounded restoration counts preserve failed and unknown launches. Unknown deletion keeps the layout fenced without launching shells. Known success releases publication; final Close retries never repeat Git. Explicit ordinary Close after a failed Worktree can release the hold without Git. Explicit Session stop joins this owner before Close maintenance and Worker carrier freeze. See the [CLI/continuation contract](../orchbee/docs/windows-worktrees.md) and [shared protocol](../../schemas/workbench/v1/workbench-worktree.schema.json) for limits and recovery.
+Worktree operations, source queries and Workspace group Close are served on every platform. `workbench.worktree.operation` admits Start, pure Read and attempt-fenced Resume. The Workbench authority retains at most 64 operations, one Pending globally, and canonical Workspace association; a lazy maintenance owner continues after Client disconnect. Registry-to-Session admission and publication recheck the source and exact Worker incarnation; OBCN IPC runs outside both gates. Create/Open observe Worker checkout facts before reusing or launching a Workspace. A Create's optional `agentStart` travels to the launched Workspace's first shell as that launch's `agentStart`, under a new Tab's fallback; a reused Workspace launches nothing and starts nothing, and a Resume launches with the retained intent's selector. Remove checks dirty state before Close, reserves new Workspace/directory admissions, holds canonical publication and waits for terminal disposal plus cleanup before Git removal. A known Git failure verifies the original checkout and restores fresh default shells into the retained presentation slots; independent bounded restoration counts preserve failed and unknown launches. Unknown deletion keeps the layout fenced without launching shells. Known success releases publication; final Close retries never repeat Git. Explicit ordinary Close after a failed Worktree can release the hold without Git. Explicit Session stop joins this owner before Close maintenance and Worker carrier freeze. See the [CLI/continuation contract](../orchbee/docs/windows-worktrees.md) and [shared protocol](../../schemas/workbench/v1/workbench-worktree.schema.json) for limits and recovery.
 
 Worktree Start has a required nullable `projectId`: only a Directory source may request an
 existing Project; Workspace sources and Remove require `null`. Retained outcomes preserve that
@@ -1589,7 +1577,7 @@ and a restored Session hands it back before any Client connects
 can be checked come from `StartableAgent` in
 [`orchbee-agent-observation-protocol`](../../crates/agent-observation-protocol/README.md#native-process-input-rules);
 a provider whose start command is a generic alias is `cant-check`, and its command is never sent.
-`startable` is true on Windows and macOS, the platforms that start Agents.
+`startable` is true: every platform starts Agents.
 
 One pump thread, started by Session composition, keeps the catalog current through the registered
 Worker's [Agent probe job](../orchbee-worker/README.md#agent-probe-job), OBCN kinds 37 and 38. Each
@@ -1599,7 +1587,7 @@ checkable commands, then a Poll every 100 milliseconds. A refresh starts another
 is running or the last ended under two seconds ago. A lookup fails on any other answer, a lost
 exchange, the loss of its Worker, or after ten seconds; a failed lookup the Worker had accepted is
 cancelled once. A failed later lookup keeps the last completed rows, and a failed first lookup
-leaves checkable rows `unknown`, as does a Linux Worker's `Unsupported`. The module comment holds
+leaves checkable rows `unknown`. The module comment holds
 the schedule's states and transitions. A Windows Session stop joins the pump before Close
 maintenance stops, without waiting for a Worker job, which the Worker ends at its own deadline or
 exit.
@@ -1623,7 +1611,7 @@ connection leaves nothing to release.
 Server replaces a lost Worker, or `GivenUp` once it stops trying until the Session stops. It starts
 `Serving` at revision 1; `set` advances the revision by one only when the state changes and then
 wakes its watchers, held weakly and woken after its lock is released, so a change never waits on a
-Client connection. The Worker replacement is its writer, and on Windows and macOS a restart's `prepare` sets
+Client connection. The Worker replacement is its writer, and a restart's `prepare` sets
 `Reconnecting` once it releases its Worker ([Server and Worker restart](#server-and-worker-restart)).
 
 The read-only [`workbench.terminal-runtime`](../../schemas/workbench/README.md#session-terminal-runtime-reads)
@@ -1750,7 +1738,7 @@ started New Workspace in the shell's directory after `cd`, and the window's read
 
 ## Panel image ownership
 
-The accepted model and current implementation boundary on Windows and macOS are maintained in [Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
+The accepted model and current implementation boundary are maintained in [Panel graphics](docs/windows-graphics.md). Canonical commits retire invalid layers immediately; authenticated connections own producers, and the shared temporary-viewer observer retains uncertain PNG-read cleanup. UI pixels, capability observations, CLI producers and final composed acceptance remain separately required.
 
 Canonical split ratios are shared by native Clients and retained in checkpoint v6, guarded by catalog v5. The [checkpoint contract](docs/workbench-checkpoint.md) owns strict migration from versions 1–5; the [shared ratio contract](docs/shared-split-ratios.md) owns ratio mutation, projection and compatibility.
 
@@ -1768,5 +1756,4 @@ publishes exactly one settings snapshot with a higher revision; a refused edit p
 nothing. A file that stops parsing or cannot be read keeps the last valid settings: terminal
 creation is not blocked, the snapshot reports `syntax-error` with its line and column or
 `unreadable`, and an edit against it is refused without writing. Turning
-`terminal.restore_after_restart` off removes kept output at once on Windows and macOS, whichever
-editor turned it off.
+`terminal.restore_after_restart` off removes kept output at once, whichever editor turned it off.

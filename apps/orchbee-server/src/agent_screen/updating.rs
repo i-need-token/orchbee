@@ -330,5 +330,5 @@ fn run_with_fetch(
     report
 }
 
-#[cfg(all(test, any(windows, target_os = "macos")))]
+#[cfg(test)]
 pub(crate) mod tests;

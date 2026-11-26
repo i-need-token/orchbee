@@ -1,18 +1,18 @@
-//! What a macOS holding holds: a terminal's PTY master, or the read ends of a background program's
-//! captured streams, with the facts its hold or spawn recorded, and, for a leader the Keeper
-//! parented, how it ended. The table also keeps the leaders whose holdings were released while they
-//! ran, which the Keeper reaps once they end, and the holdings a `spawn` or `spawn-program`
-//! reserved while its leader starts outside the lock.
+//! What a macOS or Linux holding holds: a terminal's PTY master, or the read ends of a background
+//! program's captured streams, with the facts its hold or spawn recorded, and, for a leader the
+//! Keeper parented, how it ended. The table also keeps the leaders whose holdings were released
+//! while they ran, which the Keeper reaps once they end, and the holdings a `spawn` or
+//! `spawn-program` reserved while its leader starts outside the lock.
 
 const std = @import("std");
 const handshake = @import("terminal-host-handshake");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const state = @import("state.zig");
-const reexec = @import("reexec_darwin.zig");
+const reexec = @import("reexec_posix.zig");
 const program_facts = @import("program_facts.zig");
 
-const darwin = platform.keeper.darwin;
+const native = platform.keeper.native;
 const posix_compat = platform.posix_compat;
 const message = keeper_protocol.message;
 const pty = message.pty;
@@ -193,7 +193,7 @@ pub const Descriptors = struct {
 
     /// Adds a duplicate of `descriptor` to the reply; false when it could not be made.
     pub fn sendDuplicate(self: *Descriptors, descriptor: posix.fd_t) bool {
-        self.send[self.send_count] = darwin.duplicate(descriptor) orelse return false;
+        self.send[self.send_count] = native.duplicate(descriptor) orelse return false;
         self.send_count += 1;
         return true;
     }
@@ -221,7 +221,7 @@ pub fn pollLeaders(table: *state.Table) void {
     for (table.holdings[0..table.holding_count]) |*holding| {
         const held = holding.content.parent();
         if (!held.parented or held.ended != null) continue;
-        const exit = darwin.peekExit(holding.content.leader().pid) orelse continue;
+        const exit = native.peekExit(holding.content.leader().pid) orelse continue;
         held.ended = switch (exit) {
             .code => |code| .{ .code = code },
             .signal => |number| .{ .signal = number },
@@ -233,11 +233,11 @@ pub fn pollLeaders(table: *state.Table) void {
     var index: usize = 0;
     while (index < extra.released_count) {
         const leader = extra.released[index];
-        if (darwin.peekExit(leader) == null) {
+        if (native.peekExit(leader) == null) {
             index += 1;
             continue;
         }
-        darwin.reap(leader);
+        native.reap(leader);
         extra.released[index] = extra.released[extra.released_count - 1];
         extra.released_count -= 1;
     }

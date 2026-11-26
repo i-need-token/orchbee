@@ -3,25 +3,25 @@
 pub(super) const HELP_WORKSPACE_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace list [--project <t>] [--worktrees] [--client <id>] [--format text|json]",
-        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:0x<hex>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\nOn Windows and macOS, --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows and macOS results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\nWindows and macOS --worktrees add each Workspace's live Git worktree observation: one query per Workspace with a directory, within the same 5000 ms total. Without it, JSON rows report worktreeObservation not-requested.",
+        "List all Workspaces, including ungrouped ones, or filter by the Project selected by\n--project (exact ID, @project:0x<hex>, or exact label). Fields: ids,\nlabel, primary directory\n(null means none), and terminal context.\n\n--client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nResults include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.\n--worktrees adds each Workspace's live Git worktree observation: one query per Workspace with a directory, within the same 5000 ms total. Without it, JSON rows report worktreeObservation not-requested.",
     );
 
 pub(super) const HELP_WORKSPACE_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace list [--project <t>] [--worktrees] [--client <id>] [--format text|json]",
-        "列出所有工作区（包括未分组），或仅列 --project（精确 ID、@project:0x<hex> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\nWindows 与 macOS 上，--client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 与 macOS 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\nWindows 与 macOS 的 --worktrees 附加每个工作区的实时 Git 工作树观察结果：每个有目录的工作区一次查询，共用同一个 5000 毫秒总时限。未指定时，JSON 行的 worktreeObservation 为 not-requested。",
+        "列出所有工作区（包括未分组），或仅列 --project（精确 ID、@project:0x<hex> 或精确 label）所选\nProject 内的。字段：各 ID、label、主目录（null 表示无）与终端上下文。\n\n--client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\n结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。\n--worktrees 附加每个工作区的实时 Git 工作树观察结果：每个有目录的工作区一次查询，共用同一个 5000 毫秒总时限。未指定时，JSON 行的 worktreeObservation 为 not-requested。",
     );
 
 pub(super) const HELP_WORKSPACE_GET_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace get <target> [--client <id>] [--format text|json]",
-        "Show one Workspace plus the Tabs that live in its terminal context.\n\nOn Windows and macOS, --client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nWindows and macOS results include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
+        "Show one Workspace plus the Tabs that live in its terminal context.\n\n--client <id> adds that exact TUI selection and focused flags; Workspace results include remembered active Tab. No Client is guessed, and the query never navigates. Total read timeout: 5000 ms.\nResults include matched live Agent sessions and their aggregate status.\nUse --client to distinguish seen idle from unseen done; unavailable read state is null.",
     );
 
 pub(super) const HELP_WORKSPACE_GET_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace get <target> [--client <id>] [--format text|json]",
-        "显示一个工作区及其终端上下文中存在的标签页。\n\nWindows 与 macOS 上，--client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\nWindows 与 macOS 结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
+        "显示一个工作区及其终端上下文中存在的标签页。\n\n--client <id> 附加指定 TUI 的选择与焦点；工作区结果包含记忆的活动标签页。不猜测客户端，查询不导航。读取总超时为 5000 毫秒。\n结果包含关联的存活智能体会话及汇总状态。使用 --client 区分空闲已读和完成待查看；无法确认已读状态时返回 null。",
     );
 
 pub(super) const HELP_WORKSPACE_CREATE_EN: crate::cli_text::HelpDetails =
@@ -75,11 +75,11 @@ pub(super) const HELP_WORKSPACE_CLOSE_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_WORKSPACE_MOVE_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace move <target> --insert-index <n> [--format text|json]",
-        "Reorder one workspace globally on Windows and macOS. Project membership, running terminals and every client's selection remain unchanged.\n\n--insert-index selects a boundary in the original order, from 0 through the workspace count (maximum 1023). Selecting the source boundary or its next boundary leaves the order unchanged.\n\nTargets resolve before the change; invalid input has no effect. No-op keeps the revision. Use workspace list to inspect order. An unknown outcome is never retried automatically.",
+        "Reorder one workspace globally. Project membership, running terminals and every client's selection remain unchanged.\n\n--insert-index selects a boundary in the original order, from 0 through the workspace count (maximum 1023). Selecting the source boundary or its next boundary leaves the order unchanged.\n\nTargets resolve before the change; invalid input has no effect. No-op keeps the revision. Use workspace list to inspect order. An unknown outcome is never retried automatically.",
     );
 
 pub(super) const HELP_WORKSPACE_MOVE_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee workspace move <target> --insert-index <n> [--format text|json]",
-        "在 Windows 与 macOS 上全局重排一个工作区，保留项目归属、运行中的终端及各客户端的选择。\n\n--insert-index 选择原顺序的插入边界，从 0 到当前工作区数量，最多 1023。选择来源边界或其下一边界时，顺序保持不变。\n\n变更前先解析目标；无效输入不产生变更，无变化时保留修订。使用 workspace list 查看顺序；结果未知时不自动重试。",
+        "全局重排一个工作区，保留项目归属、运行中的终端及各客户端的选择。\n\n--insert-index 选择原顺序的插入边界，从 0 到当前工作区数量，最多 1023。选择来源边界或其下一边界时，顺序保持不变。\n\n变更前先解析目标；无效输入不产生变更，无变化时保留修订。使用 workspace list 查看顺序；结果未知时不自动重试。",
     );

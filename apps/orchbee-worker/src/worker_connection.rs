@@ -76,7 +76,6 @@ pub(crate) fn run(
         };
         // The Worker of a restart's successor Server connects to that Server's endpoint, which the
         // restart's ticket names, while the replaced Server still serves the Session's own.
-        #[cfg(any(windows, target_os = "macos"))]
         let ticket = match arguments.next() {
             None => None,
             Some(flag) if replacement.is_some() && flag == "--ticket" => Some(
@@ -97,22 +96,17 @@ pub(crate) fn run(
             orchbee_local_runtime::ModeCheckedLocalSessionRendezvous::from_runtime_directory(
                 &runtime,
             )?;
-        #[cfg(any(windows, target_os = "macos"))]
         let endpoint = match ticket {
             Some(ticket) => session.successor_worker_socket_path(ticket),
             None => session.worker_socket_path().to_owned(),
         };
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let endpoint = session.worker_socket_path().to_owned();
         #[cfg(windows)]
         let listening = orchbee_local_ipc::endpoint_exists(&endpoint)?;
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         let listening = match ticket {
             Some(ticket) => session.successor_worker_socket_exists(ticket)?,
             None => session.worker_socket_exists()?,
         };
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let listening = session.worker_socket_exists()?;
         if !session.activation_started()? || !listening {
             return Err(io::Error::other("Session startup is unavailable").into());
         }

@@ -8,9 +8,9 @@ const posix_compat = @import("posix_compat.zig");
 const process_session = @import("process_session.zig");
 const process_types = @import("process_types.zig");
 const pty_module = @import("pty.zig");
-const keeper_record = if (builtin.os.tag == .macos) @import("process_keeper_darwin.zig") else struct {};
+const keeper_record = if (builtin.os.tag == .macos or builtin.os.tag == .linux) @import("process_keeper_posix.zig") else struct {};
 const handover = @import("process_posix_handover.zig");
-const is_macos = builtin.os.tag == .macos;
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
 
 const ExitResult = process_types.ExitResult;
 const Launch = process_types.Launch;
@@ -36,8 +36,9 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     child_id: posix.pid_t,
     allocator: std.mem.Allocator,
-    /// What the macOS Keeper links read: the release-first gate and the facts a hold names.
-    keeper: if (builtin.os.tag == .macos) *keeper_record.Record else void,
+    /// What the macOS and Linux Keeper links read: the release-first gate and the facts a hold
+    /// names.
+    keeper: if (posix_keeper) *keeper_record.Record else void,
     /// A recovered terminal's leader, which is not this Host's child: a Keeper parents it, or
     /// nobody here does.
     adopted: bool = false,
@@ -93,8 +94,8 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .rows = launch.rows,
         });
         errdefer pty.deinit();
-        const keeper = if (comptime builtin.os.tag == .macos) try keeper_record.Record.create(allocator, pty.master) else {};
-        errdefer if (comptime builtin.os.tag == .macos) keeper.destroy(allocator);
+        const keeper = if (comptime posix_keeper) try keeper_record.Record.create(allocator, pty.master) else {};
+        errdefer if (comptime posix_keeper) keeper.destroy(allocator);
         var child_stdin_fd: ?posix.fd_t = null;
         if (launch.stdin_fd) |raw_fd| {
             const duplicated = try duplicateCloexec(@intCast(raw_fd));
@@ -111,7 +112,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             .directory = launch.current_directory,
             .streams = .{ .pty = .{ .master = pty.master, .slave = pty.slave.?, .input = child_stdin_fd } },
         };
-        const child_id = if (comptime builtin.os.tag == .macos)
+        const child_id = if (comptime posix_keeper)
             try startThroughKeeper(launch, keeper, plan, integration.launch_kind)
         else
             try fork_launch.start(plan);
@@ -120,7 +121,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
             child_stdin_fd = null;
         }
         pty.closeSlave();
-        if (comptime builtin.os.tag == .macos) if (!keeper.isParented()) keeper.started(child_id);
+        if (comptime posix_keeper) if (!keeper.isParented()) keeper.started(child_id);
         return .{
             .child_id = child_id,
             .allocator = allocator,
@@ -136,7 +137,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
     /// leader, or the leader runs with its recorded start time. A recovered leader nobody parents,
     /// and one whose parent released it or ended, is reaped by another process once it ends.
     fn sessionNamed(self: *Process) bool {
-        if (comptime !is_macos) return true;
+        if (comptime !posix_keeper) return true;
         return self.keeper.keepsLeader(self.adopted) or self.keeper.leaderRuns(self.child_id);
     }
 
@@ -148,7 +149,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
         // Reaping is a fallible ownership transition and must have completed in
         // TerminalRuntime.shutdown before this infallible resource destructor.
         std.debug.assert(self.exit_reaped);
-        if (comptime builtin.os.tag == .macos) self.keeper.destroy(self.allocator);
+        if (comptime posix_keeper) self.keeper.destroy(self.allocator);
         self.pty.deinit();
         self.* = undefined;
     }
@@ -242,7 +243,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn wait(self: *Process) !ExitResult {
         if (self.exit_result) |result| return result;
-        if (comptime builtin.os.tag == .macos) {
+        if (comptime posix_keeper) {
             const result = try self.keeper.awaitLeader(self.child_id, self.adopted) orelse return error.Stopped;
             self.exit_result = result;
             return result;
@@ -266,7 +267,7 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn releaseProcessIdentity(self: *Process) !void {
         if (self.exit_reaped) return;
-        if (comptime builtin.os.tag == .macos) if (self.keeper.isParented()) {
+        if (comptime posix_keeper) if (self.keeper.isParented()) {
             try self.identity.release(self.child_id, KeeperReaper{ .record = self.keeper });
             self.exit_reaped = true;
             return;
@@ -305,10 +306,10 @@ pub const Process = if (builtin.os.tag == .windows) void else struct {
 
     pub fn finishPtyAfterChildExit(_: *Process) !void {}
 
-    /// Release first, without waiting: true once no Keeper holds the terminal. Only a macOS
-    /// terminal is ever held.
+    /// Release first, without waiting: true once no Keeper holds the terminal. Only a macOS or
+    /// Linux terminal is ever held.
     pub fn releaseKeepers(self: *Process) bool {
-        if (comptime builtin.os.tag != .macos) return true;
+        if (comptime !posix_keeper) return true;
         return self.keeper.gate.tryPass();
     }
 

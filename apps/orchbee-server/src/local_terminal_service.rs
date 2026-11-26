@@ -41,12 +41,10 @@ mod agent_drain_read;
 mod agent_integration;
 mod agent_names;
 mod agent_quota_resume;
-#[cfg(any(windows, target_os = "macos"))]
 mod agent_resume;
 mod agent_start_delivery;
 mod checkpoint;
 pub(crate) use checkpoint::CheckpointRestore;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use checkpoint::Offered;
 mod close_maintenance;
 mod connected_hosts;
@@ -80,11 +78,6 @@ mod worktree_list;
 mod worktree_operation;
 mod worktree_query;
 
-/// Whether this host's Server serves Worktree source queries, Worktree operations and Project
-/// close-all. Windows and macOS do; Linux refuses them before any effect until its behavior is
-/// decided. A policy constant rather than a `cfg`, so every branch compiles everywhere.
-const SERVES_WORKTREES: bool = cfg!(any(windows, target_os = "macos"));
-
 // One queued plus one in-flight exchange, each with a two-second write and twenty-second read.
 const LEASE_LIFETIME_MILLISECONDS: u64 = 46_000;
 
@@ -110,7 +103,6 @@ pub(crate) struct LocalTerminalService {
     popups: independent_popup::Popups,
     process_observer: process_observer::ProcessObserver,
     close_maintenance: close_maintenance::CloseMaintenance,
-    #[cfg(any(windows, target_os = "macos"))]
     agent_resume: agent_resume::AgentResume,
     agent_start_delivery: agent_start_delivery::AgentStartDelivery,
     agent_confirmations: agent_confirmation::AgentConfirmations,
@@ -166,7 +158,6 @@ impl LocalTerminalService {
             popups: independent_popup::Popups::default(),
             close_maintenance: close_maintenance::CloseMaintenance::default(),
             process_observer: process_observer::ProcessObserver::default(),
-            #[cfg(any(windows, target_os = "macos"))]
             agent_resume: agent_resume::AgentResume::default(),
             agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
             agent_confirmations: agent_confirmation::AgentConfirmations::default(),
@@ -420,7 +411,6 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
     match handle.request(request) {
         #[cfg(any(windows, test))]
         Ok(WorkerOperationResult::Handoff(_)) => Completion::Unknown,
-        #[cfg(any(windows, target_os = "macos"))]
         Ok(WorkerOperationResult::MoveTurn(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Shutdown(_)) => Completion::Unknown,
         Ok(WorkerOperationResult::Launch(result)) => Completion::Launch(result),

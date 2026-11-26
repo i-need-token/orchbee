@@ -1153,7 +1153,7 @@ int orchbee_observe_process_exit(
     return orchbee_observe_process_exit_until_stopped(process_id, -1, result_kind, result_value);
 }
 
-// As orchbee_observe_process_exit, and on macOS a nonnegative stop_descriptor that turns
+// As orchbee_observe_process_exit, and on macOS and Linux a nonnegative stop_descriptor that turns
 // readable ends the wait with ECANCELED before the process ends. Elsewhere it must be negative.
 int orchbee_observe_process_exit_until_stopped(
     int process_id,
@@ -1200,7 +1200,35 @@ int orchbee_observe_process_exit_until_stopped(
         if (wait_result != darwin_wait_audit_timeout) return EAGAIN;
     }
 #else
+#if defined(__linux__)
+    // A pidfd reads ready once its process has ended, so one poll waits for the end or the stop;
+    // the end wins when both are ready. A child that already ended still opens one.
+    if (stop_descriptor >= 0) {
+        const long opened = syscall(SYS_pidfd_open, (pid_t)process_id, 0U);
+        if (opened < 0) return errno == 0 ? EIO : errno;
+        const int process_descriptor = (int)opened;
+        struct pollfd watched[2] = {
+            {.fd = process_descriptor, .events = POLLIN, .revents = 0},
+            {.fd = stop_descriptor, .events = POLLIN, .revents = 0},
+        };
+        for (;;) {
+            if (poll(watched, 2, -1) < 0) {
+                if (errno == EINTR) continue;
+                const int poll_error = errno == 0 ? EIO : errno;
+                (void)close(process_descriptor);
+                return poll_error;
+            }
+            if (watched[0].revents != 0) break;
+            if (watched[1].revents != 0) {
+                (void)close(process_descriptor);
+                return ECANCELED;
+            }
+        }
+        (void)close(process_descriptor);
+    }
+#else
     if (stop_descriptor >= 0) return ENOTSUP;
+#endif
     siginfo_t information = {0};
     while (waitid(P_PID, (id_t)process_id, &information, WEXITED | WNOWAIT) != 0) {
         if (errno == EINTR) continue;

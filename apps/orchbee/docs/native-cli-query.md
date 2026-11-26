@@ -373,7 +373,7 @@ Stages and reasons are finite schema values; no exception text becomes a machine
 ## Invariants
 
 - A syntactically invalid invocation never touches the filesystem, cohort, or socket.
-- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and `config default` on Windows and macOS) never perform platform,
+- Offline commands (`help`, `-v`/`-V`/`--version`, `--skill`, `completion`, `api schema`, and `config default`) never perform platform,
   runtime, cohort, or Session discovery.
 - A network query creates nothing: no directory, lock, marker, terminal, viewer, control grant,
   or second request — except `terminal read`/`terminal wait-output`, whose read-capability

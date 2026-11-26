@@ -1,4 +1,4 @@
-//! The hang check on Windows and macOS: the Worker reads each Host's `dispatch-progress` between
+//! The hang check: the Worker reads each Host's `dispatch-progress` between
 //! requests and
 //! ends a Host whose dispatch has stopped turning once the Keeper holds every terminal it runs, so
 //! recovery follows as for a crash. It never ends a Host that runs a terminal the Keeper does not
@@ -123,7 +123,8 @@ fn holds_every_terminal(
         && matches!(every_child_held(host, &held), Ok(true))
 }
 
-/// The program and OpenConsole processes of each holding held for `owner`; on macOS, each leader.
+/// The program and OpenConsole processes of each holding held for `owner`; on macOS and Linux, each
+/// leader.
 fn held_processes(status: &KeeperStatus, owner: KeeperProcess) -> Vec<u32> {
     status
         .holdings
@@ -157,7 +158,7 @@ fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
 
 /// Whether every running child process of the Host `host` is one of `held`, as on Windows: a
 /// leader the Host forked is its child, and a held leader keeps its ID while the Keeper holds it.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn every_child_held(host: (u32, u64), held: &[u32]) -> io::Result<bool> {
     Ok(orchbee_local_runtime::running_children(host.0)?
         .into_iter()

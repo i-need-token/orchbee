@@ -1,11 +1,12 @@
-//! What the Keeper and the Host's Keeper link need from macOS: a Unix stream socket that carries
-//! descriptors by `SCM_RIGHTS`, the peer's process id, a process's start time, a PTY master's slave
-//! name, and a wake one descriptor carries. A write attaches the descriptors its message carries to
+//! What the Keeper and the Host's Keeper link need from macOS and Linux: a Unix stream socket that
+//! carries descriptors by `SCM_RIGHTS`, the peer's process id, a process's start, a PTY master's
+//! slave name, a wake one descriptor carries, and an update's check run. A write attaches the descriptors its message carries to
 //! the frame's first byte, and a read keeps the descriptors that arrived until the decoded message
 //! takes them. A message takes exactly the count it names; a short count, or control data the
 //! kernel truncated, closes every descriptor that arrived, so none outlives a message nobody took.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const monotonic = @import("monotonic.zig");
 const posix_compat = @import("posix_compat.zig");
 
@@ -18,16 +19,20 @@ pub const maximum_slave_bytes = 128;
 extern "c" fn orchbee_send_with_descriptors(socket: c_int, bytes: [*]const u8, length: usize, descriptors: [*]const c_int, count: usize, sent: *usize) c_int;
 extern "c" fn orchbee_receive_with_descriptors(socket: c_int, bytes: [*]u8, capacity: usize, descriptors: [*]c_int, descriptor_capacity: usize, read_length: *usize, descriptor_count: *usize, truncated: *c_int) c_int;
 extern "c" fn orchbee_peer_process_id(socket: c_int, pid: *i32) c_int;
-extern "c" fn orchbee_process_start_microseconds(pid: i32, start: *u64) c_int;
+extern "c" fn orchbee_process_start(pid: i32, start: *u64) c_int;
 extern "c" fn orchbee_pty_slave_name(master: c_int, name: *[maximum_slave_bytes]u8) c_int;
 extern "c" fn orchbee_raise_descriptor_limit() void;
 extern "c" fn orchbee_connect_local(path: [*:0]const u8, socket: *c_int) c_int;
 extern "c" fn orchbee_pipe_end(descriptor: c_int, write: c_int) c_int;
+extern "c" fn orchbee_check_channel(read_end: *c_int, write_end: *c_int) c_int;
+extern "c" fn orchbee_check_write(write_end: c_int, bytes: [*]const u8, length: usize, written: *usize) c_int;
+extern "c" fn orchbee_spawn_check(program: [*:0]const u8, input: c_int, pid: *i32) c_int;
 extern "c" fn ioctl(fd: c_int, request: c_ulong, ...) c_int;
 
-const FIONREAD: c_ulong = 0x4004667f;
-const EAGAIN: c_int = 35;
-const F_DUPFD_CLOEXEC: c_int = 67;
+const linux = builtin.os.tag == .linux;
+const FIONREAD: c_ulong = if (linux) 0x541b else 0x4004667f;
+const EAGAIN: c_int = if (linux) 11 else 35;
+const F_DUPFD_CLOEXEC: c_int = if (linux) 1030 else 67;
 
 /// The process id of the socket's peer when it connected, or null when it cannot be read.
 pub fn peerProcessId(socket: posix.fd_t) ?u32 {
@@ -36,11 +41,13 @@ pub fn peerProcessId(socket: posix.fd_t) ?u32 {
     return @intCast(pid);
 }
 
-/// A process's start time in microseconds since 1970, or null when it is gone or unreadable.
+/// A process's start, which tells it from a later process with its id, or null when it is gone or
+/// unreadable: on macOS its start time in microseconds since 1970, on Linux its start in clock ticks
+/// since boot under this boot's tag, as the local runtime registers it.
 pub fn processStart(pid: u32) ?u64 {
     if (pid == 0 or pid > std.math.maxInt(i32)) return null;
     var start: u64 = 0;
-    if (orchbee_process_start_microseconds(@intCast(pid), &start) != 0) return null;
+    if (orchbee_process_start(@intCast(pid), &start) != 0) return null;
     return start;
 }
 
@@ -80,6 +87,34 @@ pub fn duplicate(descriptor: posix.fd_t) ?posix.fd_t {
 
 pub fn raiseDescriptorLimit() void {
     orchbee_raise_descriptor_limit();
+}
+
+/// The channel to an update's check run: the child's standard input, and a non-blocking write end
+/// whose writes to a child that stopped reading fail instead of raising `SIGPIPE`.
+pub const CheckChannel = struct { read_end: posix.fd_t, write_end: posix.fd_t };
+
+pub fn checkChannel() ?CheckChannel {
+    var read_end: c_int = -1;
+    var write_end: c_int = -1;
+    if (orchbee_check_channel(&read_end, &write_end) != 0) return null;
+    return .{ .read_end = read_end, .write_end = write_end };
+}
+
+/// Writes what the check channel takes now of `bytes`; `WouldBlock` when it takes nothing.
+pub fn checkWrite(write_end: posix.fd_t, bytes: []const u8) error{ WouldBlock, Closed }!usize {
+    var written: usize = 0;
+    const status = orchbee_check_write(write_end, bytes.ptr, bytes.len, &written);
+    if (status == EAGAIN) return error.WouldBlock;
+    if (status != 0 or written == 0) return error.Closed;
+    return written;
+}
+
+/// Starts `program` as `keep --check` reading `input`, with no other descriptor of this process;
+/// null when it cannot start.
+pub fn spawnCheck(program: [*:0]const u8, input: posix.fd_t) ?posix.pid_t {
+    var pid: i32 = 0;
+    if (orchbee_spawn_check(program, input, &pid) != 0 or pid <= 0) return null;
+    return pid;
 }
 
 pub const Stream = struct {
@@ -199,9 +234,26 @@ pub const Stream = struct {
     }
 };
 
-/// A wake that one descriptor carries: a `kqueue` with one user event, which a poll for reading
-/// sees once it is triggered, and which a wait consumes, so it resets itself.
-pub const wake_events = struct {
+/// A wake that one descriptor carries, which a poll for reading sees once it is signalled, and which
+/// a wait consumes, so it resets itself: a `kqueue` with one user event on macOS, an `eventfd` on
+/// Linux.
+pub const wake_events = if (linux) struct {
+    pub fn create() ?posix.fd_t {
+        const created = std.os.linux.eventfd(0, std.os.linux.EFD.CLOEXEC | std.os.linux.EFD.NONBLOCK);
+        if (std.os.linux.errno(created) != .SUCCESS) return null;
+        return @intCast(created);
+    }
+
+    pub fn signal(event: posix.fd_t) void {
+        const one: u64 = 1;
+        _ = std.c.write(event, std.mem.asBytes(&one), @sizeOf(u64));
+    }
+
+    pub fn consume(event: posix.fd_t) void {
+        var count: u64 = 0;
+        _ = std.c.read(event, std.mem.asBytes(&count), @sizeOf(u64));
+    }
+} else struct {
     const EVFILT_USER: i16 = -10;
     const EV_ADD: u16 = 0x0001;
     const EV_CLEAR: u16 = 0x0020;

@@ -11,7 +11,7 @@ const control = @import("terminal-host-control");
 
 const program = platform.program;
 const is_windows = builtin.os.tag == .windows;
-const is_macos = builtin.os.tag == .macos;
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
 const Gate = platform.keeper.Gate;
 const thread_sync = platform.thread_sync;
 const Summary = control.encode.program.Summary;
@@ -97,7 +97,7 @@ pub const Entry = struct {
         created: u64,
         handles: Handles,
     ) error{OutOfMemory}!*Entry {
-        if (comptime !is_windows and !is_macos) unreachable;
+        if (comptime !is_windows and !posix_keeper) unreachable;
         const entry = try allocator.create(Entry);
         errdefer allocator.destroy(entry);
         const owned_label = try allocator.dupe(u8, label);
@@ -110,7 +110,7 @@ pub const Entry = struct {
         const spawned: program.Spawned = if (comptime is_windows)
             .{ .process = handles.process, .job = handles.job, .streams = handles.streams, .pid = pid, .created = created }
         else
-            .{ .process = {}, .job = {}, .streams = handles.streams, .pid = pid, .created = created, .record = try program.darwin.recoveredRecord(allocator, created, handles.parented) };
+            .{ .process = {}, .job = {}, .streams = handles.streams, .pid = pid, .created = created, .record = try program.posix_program.recoveredRecord(allocator, created, handles.parented) };
         entry.* = .{
             .allocator = allocator,
             .id = id,
@@ -139,7 +139,7 @@ pub const Entry = struct {
 
     /// The release-first gate that each attached Keeper's slot holds the program through.
     pub fn gateOf(self: *Entry) *Gate {
-        if (comptime is_macos) return &self.spawned.record.gate;
+        if (comptime posix_keeper) return &self.spawned.record.gate;
         return &self.gate;
     }
 
@@ -147,9 +147,9 @@ pub const Entry = struct {
     /// failed. The waiter starts last, so it joins every reader.
     pub fn follow(self: *Entry) !void {
         for (&self.captures) |*slot| if (slot.*) |*capture| if (capture.thread == null) {
-            capture.thread = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, readCapture, .{capture});
+            capture.thread = try std.Thread.spawn(platform.thread_stack.sized(thread_stack_bytes), readCapture, .{capture});
         };
-        if (self.waiter == null) self.waiter = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, wait, .{self});
+        if (self.waiter == null) self.waiter = try std.Thread.spawn(platform.thread_stack.sized(thread_stack_bytes), wait, .{self});
     }
 
     /// Frees a recovered program no thread follows and no Keeper slot holds: its claim did not
@@ -163,9 +163,9 @@ pub const Entry = struct {
         self.endMembers();
         if (comptime is_windows) {
             _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));
-        } else if (comptime is_macos) {
+        } else if (comptime posix_keeper) {
             self.gateOf().pass();
-            program.darwin.reapOwn(self.spawned, self.adopted);
+            program.posix_program.reapOwn(self.spawned, self.adopted);
         }
         self.joinReaders();
         self.destroy();
@@ -219,7 +219,7 @@ pub const Entry = struct {
         if (self.waiter) |thread| {
             thread.join();
         } else {
-            if (comptime is_windows or is_macos) self.gateOf().pass();
+            if (comptime is_windows or posix_keeper) self.gateOf().pass();
             self.joinReaders();
         }
         self.waiter = null;
@@ -228,7 +228,7 @@ pub const Entry = struct {
 
     fn endMembers(self: *Entry) void {
         if (comptime is_windows) _ = program.endMembers(self.spawned.job);
-        if (comptime is_macos) program.darwin.endMembers(self.spawned, self.adopted);
+        if (comptime posix_keeper) program.posix_program.endMembers(self.spawned, self.adopted);
     }
 
     fn joinReaders(self: *Entry) void {
@@ -246,7 +246,7 @@ pub const Entry = struct {
         };
         program.close(self.spawned.process);
         program.close(self.spawned.job);
-        if (comptime is_macos) self.spawned.record.destroy(allocator);
+        if (comptime posix_keeper) self.spawned.record.destroy(allocator);
         allocator.free(self.label);
         allocator.destroy(self);
     }
@@ -275,11 +275,11 @@ fn readCapture(capture: *Capture) void {
 /// session's members first, while the ended root still keeps the session id the program's own,
 /// and its release then lets a parenting Keeper reap the root.
 fn wait(self: *Entry) void {
-    const code: u32 = if (comptime is_macos) code: {
-        const code = program.darwin.awaitExit(self.spawned, self.adopted);
+    const code: u32 = if (comptime posix_keeper) code: {
+        const code = program.posix_program.awaitExit(self.spawned, self.adopted);
         self.endMembers();
         self.gateOf().pass();
-        program.darwin.reapOwn(self.spawned, self.adopted);
+        program.posix_program.reapOwn(self.spawned, self.adopted);
         break :code code orelse 1;
     } else code: {
         _ = program.waitExit(self.spawned.process, std.math.maxInt(u32));

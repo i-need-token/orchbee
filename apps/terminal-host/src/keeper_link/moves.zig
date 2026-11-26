@@ -1,10 +1,10 @@
 //! Move requests on a Keeper link: `mark`, `resume`, `inspect` with the pull of the seven
-//! duplicates or of a program's, `claim`, and `decline`. A macOS link's `inspect` reply carries the
-//! master or a program's captured streams instead, and a claimed holding whose leader the Keeper
-//! parents makes the link its parent. Their maker, the dispatch thread or a restore build, owns
-//! each request and keeps it until the link completes it; the link thread makes the request, one
-//! at a time with the holds and releases, and completes every request it has not made once the
-//! link ends. A completion wakes the service loop, which polls; a build waits.
+//! duplicates or of a program's, `claim`, and `decline`. A macOS or Linux link's `inspect` reply
+//! carries the master or a program's captured streams instead, and a claimed holding whose leader
+//! the Keeper parents makes the link its parent. Their maker, the dispatch thread or a restore
+//! build, owns each request and keeps it until the link completes it; the link thread makes the
+//! request, one at a time with the holds and releases, and completes every request it has not made
+//! once the link ends. A completion wakes the service loop, which polls; a build waits.
 //!
 //! The link's gate slots follow the holding: a `resume` answered `claimed` settles the old Host's
 //! slot without a release, since the holding is the claimant's now, and a `claim`, or a `decline`
@@ -21,12 +21,12 @@ const message = keeper_protocol.message;
 const thread_sync = platform.thread_sync;
 const handles = platform.keeper.handles;
 const is_windows = builtin.os.tag == .windows;
-const is_macos = builtin.os.tag == .macos;
-const supported = is_windows or is_macos;
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
+const supported = is_windows or posix_keeper;
 const Gate = platform.keeper.Gate;
 const Link = switch (builtin.os.tag) {
     .windows => @import("link_windows.zig").Link,
-    .macos => @import("link_darwin.zig").Link,
+    .linux, .macos => @import("link_posix.zig").Link,
     else => void,
 };
 
@@ -44,8 +44,8 @@ pub const Body = union(enum) {
     forget: *Gate,
 };
 
-/// What `inspect` answered and the handles this Host pulled after it; on macOS, the PTY holding's
-/// facts and the master its reply carried.
+/// What `inspect` answered and the handles this Host pulled after it; on macOS and Linux, the PTY
+/// holding's facts and the master its reply carried.
 pub const Inspected = if (is_windows) WindowsInspected else PtyInspected;
 
 pub const PtyInspected = struct {
@@ -95,8 +95,8 @@ pub const InspectedProgram = struct {
 
 pub const Process = message.Process;
 
-/// A macOS program holding: the duplicate of each captured stream's read end, which the request's
-/// maker owns, and the Keeper's parent state.
+/// A macOS or Linux program holding: the duplicate of each captured stream's read end, which the
+/// request's maker owns, and the Keeper's parent state.
 pub const PipesInspected = struct {
     streams: [2]?std.posix.fd_t,
     /// The Keeper parents the program.
@@ -220,7 +220,7 @@ fn make(link: *Link, body: Body) Result {
             return result;
         },
         .inspect => |marked| {
-            if (comptime is_macos) return inspectPty(link, marked);
+            if (comptime posix_keeper) return inspectPty(link, marked);
             const reply = switch (callLink(link, .{ .inspect = marked })) {
                 .reply => |reply| reply,
                 else => |other| return unanswered(other),
@@ -249,7 +249,7 @@ fn make(link: *Link, body: Body) Result {
             } };
         },
         .inspect_program => |marked| {
-            if (comptime is_macos) return inspectPipes(link, marked);
+            if (comptime posix_keeper) return inspectPipes(link, marked);
             if (comptime !is_windows) unreachable;
             const reply = switch (callLink(link, .{ .inspect = marked })) {
                 .reply => |reply| reply,
@@ -297,12 +297,12 @@ fn make(link: *Link, body: Body) Result {
     }
 }
 
-/// One request on the link thread; a macOS link's requests here carry no descriptor.
+/// One request on the link thread; a macOS or Linux link's requests here carry no descriptor.
 fn callLink(link: *Link, body: message.Request.Body) link_core.Outcome {
     return link.call(body);
 }
 
-/// `inspect` of a PTY holding on macOS: the reply's facts, and the master it carried.
+/// `inspect` of a PTY holding on macOS and Linux: the reply's facts, and the master it carried.
 fn inspectPty(link: *Link, marked: message.Marked) Result {
     const reply = switch (callLink(link, .{ .inspect = marked })) {
         .reply => |reply| reply,
@@ -340,8 +340,8 @@ fn inspectPty(link: *Link, marked: message.Marked) Result {
     return .{ .inspected = inspected };
 }
 
-/// `inspect` of a program holding on macOS: the reply's facts, and the read end of each captured
-/// stream it carried, stdout first.
+/// `inspect` of a program holding on macOS and Linux: the reply's facts, and the read end of each
+/// captured stream it carried, stdout first.
 fn inspectPipes(link: *Link, marked: message.Marked) Result {
     const reply = switch (callLink(link, .{ .inspect = marked })) {
         .reply => |reply| reply,
@@ -453,7 +453,7 @@ fn adopt(link: *Link, gate: *Gate, holding: [16]u8) void {
     gate.adopt(link.index, link.serial, link.wake, holding);
     link.held.appendAssumeCapacity(.{ .gate = gate, .holding = holding });
     // A claimed leader the Keeper parents is reaped through this link from now on.
-    if (comptime is_macos) {
+    if (comptime posix_keeper) {
         const record: *platform.keeper.parent.Record = @fieldParentPtr("gate", gate);
         if (record.claims_parent) record.parentedBy(link.serial, record.leader_created);
     }

@@ -1,8 +1,6 @@
 # Windows Workspace metadata
 
-macOS runs `workspace report-metadata` and serves the Server owner as Windows does. Linux returns
-`unsupported-platform` for the report, its Server withholds the request, and Workspace list/get
-there carry no reported metadata.
+macOS and Linux run `workspace report-metadata` and serve the Server owner as Windows does.
 
 ## Ownership and scope
 

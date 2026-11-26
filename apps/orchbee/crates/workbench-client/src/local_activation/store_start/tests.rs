@@ -19,6 +19,11 @@ fn root() -> PathBuf {
     PathBuf::from("/Users/person/.local/share/store")
 }
 
+#[cfg(target_os = "linux")]
+fn root() -> PathBuf {
+    PathBuf::from("/home/person/.local/share/store")
+}
+
 #[cfg(windows)]
 fn elsewhere() -> PathBuf {
     PathBuf::from(r"D:\elsewhere")
@@ -27,6 +32,11 @@ fn elsewhere() -> PathBuf {
 #[cfg(target_os = "macos")]
 fn elsewhere() -> PathBuf {
     PathBuf::from("/Volumes/elsewhere")
+}
+
+#[cfg(target_os = "linux")]
+fn elsewhere() -> PathBuf {
+    PathBuf::from("/media/elsewhere")
 }
 
 /// An outside Client's folder, such as the one setup keeps for the window.
@@ -39,6 +49,12 @@ fn outside() -> PathBuf {
 #[cfg(target_os = "macos")]
 fn outside() -> PathBuf {
     PathBuf::from("/Applications/Orchbee.app/Contents/Resources/cohort")
+}
+
+/// An outside Client's folder, such as an unpacked window application's.
+#[cfg(target_os = "linux")]
+fn outside() -> PathBuf {
+    PathBuf::from("/opt/Orchbee/resources/cohort")
 }
 
 fn active(version: &str) -> impl FnOnce(&Path) -> io::Result<Option<ActiveRelease>> {

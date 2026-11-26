@@ -20,7 +20,6 @@ fn skill_is_offline_localized_and_describes_the_native_surface() -> Result<(), B
     Ok(())
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn default_config_precedes_configuration_discovery() -> Result<(), Box<dyn Error>> {
     let invoke = |arguments: &[&str], locale: &str| {

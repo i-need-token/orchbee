@@ -30,14 +30,11 @@ pub(super) enum HostStartStage {
     Directory,
     /// Checking the endpoint address, or an endpoint that existed before the start.
     Endpoint,
-    /// Registering the Host in the Session record before creating it; only Windows and macOS
-    /// register.
-    #[cfg(any(windows, target_os = "macos"))]
+    /// Registering the Host in the Session record before creating it.
     Registration,
     /// Creating the Host process.
     Spawn,
     /// Publishing the created Host's identity and letting it run.
-    #[cfg(any(windows, target_os = "macos"))]
     Release,
     /// The Host exited, or could not be observed, before its endpoint appeared.
     Exited,
@@ -55,10 +52,8 @@ impl HostStartStage {
         match self {
             Self::Directory => "directory",
             Self::Endpoint => "endpoint",
-            #[cfg(any(windows, target_os = "macos"))]
             Self::Registration => "registration",
             Self::Spawn => "spawn",
-            #[cfg(any(windows, target_os = "macos"))]
             Self::Release => "release",
             Self::Exited => "exited",
             Self::Connect => "connect",
@@ -76,10 +71,10 @@ pub(super) struct HostStartFailure {
     elapsed: Duration,
     host_exit: Option<u32>,
     error: Box<dyn Error>,
-    /// No Host process was registered or created, or the one created has exited and left no
-    /// endpoint, so a later start cannot meet it; and the failure is not one every later start
-    /// would repeat, such as an endpoint present before the start. A Windows Host's registration
-    /// outlives its process, so there only a failure before registration leaves a retry.
+    /// No Host process was registered or created, so a later start cannot meet it, and the failure
+    /// is not one every later start would repeat, such as an endpoint present before the start. A
+    /// Host's registration outlives its process, so only a failure before registration leaves a
+    /// retry.
     retryable: bool,
 }
 
@@ -135,11 +130,10 @@ pub(super) const HOST_START_ATTEMPTS: u32 = 3;
 
 /// Which Host a start makes: a Host in a slot no Host holds, or a recovery Host in the slot of a
 /// Host that ended while the Keeper kept its programs, serving that Host's epoch when the bindings
-/// name one. A Linux Worker starts only the first slot's Host.
+/// name one.
 #[derive(Clone, Copy)]
 pub(super) enum HostStart {
     Fresh(orchbee_local_runtime::HostSlot),
-    #[cfg(any(windows, target_os = "macos"))]
     Recovery(
         orchbee_local_runtime::HostSlot,
         Option<orchbee_capability_node_protocol::HostEpoch>,
@@ -150,7 +144,6 @@ impl HostStart {
     pub(super) const fn slot(self) -> orchbee_local_runtime::HostSlot {
         match self {
             Self::Fresh(slot) => slot,
-            #[cfg(any(windows, target_os = "macos"))]
             Self::Recovery(slot, _) => slot,
         }
     }
@@ -180,13 +173,6 @@ pub(super) fn start_host(
         retryable: false,
         ..failed(stage, error)
     };
-    #[cfg(all(unix, not(target_os = "macos")))]
-    if start.slot() != orchbee_local_runtime::HostSlot::FIRST {
-        return Err(permanent(
-            HostStartStage::Endpoint,
-            "a Linux Session runs its one Host in the first slot".into(),
-        ));
-    }
     #[cfg(unix)]
     nix::sys::socket::UnixAddr::new(&endpoint)
         .map_err(|error| permanent(HostStartStage::Endpoint, error.into()))?;
@@ -208,7 +194,7 @@ pub(super) fn start_host(
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         // The lost Host's socket outlives it. Once no Host holds the slot's lock the socket names
         // no listener, so it goes before the recovery Host starts, which a dial would meet first.
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         Ok(_) if matches!(start, HostStart::Recovery(..)) => {
             match orchbee_local_runtime::host_lock_held(runtime, start.slot()) {
                 Ok(false) => {}
@@ -242,7 +228,6 @@ pub(super) fn start_host(
         std::ffi::OsStr::new(&host_endpoint_id),
     ];
     // A recovery Host serves the lost Host's epoch, so each recovered terminal keeps its identity.
-    #[cfg(any(windows, target_os = "macos"))]
     let epoch = match start {
         HostStart::Recovery(_, Some(epoch)) => Some(
             orchbee_terminal_protocol::HostEpoch::from_bytes(epoch.as_bytes())
@@ -251,17 +236,13 @@ pub(super) fn start_host(
         ),
         HostStart::Fresh(_) | HostStart::Recovery(_, None) => None,
     };
-    #[cfg(any(windows, target_os = "macos"))]
     let mut arguments = arguments.to_vec();
-    #[cfg(any(windows, target_os = "macos"))]
     if let Some(epoch) = &epoch {
         arguments.extend([
             std::ffi::OsStr::new("--host-epoch"),
             std::ffi::OsStr::new(epoch),
         ]);
     }
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let HostStart::Fresh(_) = start;
     // A macOS or Linux Host binds its endpoint in the socket folder, which the Session admitted.
     #[cfg(unix)]
     let socket_root = ModeCheckedLocalSessionRendezvous::socket_root_path();
@@ -274,7 +255,6 @@ pub(super) fn start_host(
         ],
     ]
     .concat();
-    #[cfg(any(windows, target_os = "macos"))]
     let mut child = orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
         .map_err(|_| io::Error::from(io::ErrorKind::NotFound))
         .and_then(|root| {
@@ -283,7 +263,6 @@ pub(super) fn start_host(
                 runtime,
                 match start {
                     HostStart::Fresh(slot) => orchbee_local_runtime::SessionChild::Host(slot),
-                    #[cfg(any(windows, target_os = "macos"))]
                     HostStart::Recovery(slot, _) => {
                         orchbee_local_runtime::SessionChild::RecoveryHost(slot)
                     }
@@ -305,9 +284,6 @@ pub(super) fn start_host(
                 ..failed(stage, error.into())
             }
         })?;
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let mut child = orchbee_local_runtime::spawn_retained(&executable, &arguments)
-        .map_err(|error| failed(HostStartStage::Spawn, error.into()))?;
     let dialed = |child: &mut orchbee_local_runtime::RetainedChild,
                   dial: Result<HostBrokerConnection, DialFailure>| {
         let failure = match dial {
@@ -394,7 +370,6 @@ pub(super) fn start_host(
     match ready {
         Ok(host) => {
             // The Server pairs this Host with its terminals through the epoch the record keeps.
-            #[cfg(any(windows, target_os = "macos"))]
             if let Ok(process) = child.exact_identity() {
                 crate::host_adoption::record_epoch(
                     runtime,
@@ -405,27 +380,13 @@ pub(super) fn start_host(
             }
             Ok((host, child))
         }
-        // A Host still running could later bind the endpoint a second start dials, one that bound
-        // its endpoint before it ended leaves that endpoint behind, and a Windows or macOS
-        // registration outlives the process; each leaves this Worker no further start.
+        // The created Host's registration outlives its process, so it leaves this Worker no
+        // further start.
         Err(failure) => Err(HostStartFailure {
-            retryable: cfg!(not(any(windows, target_os = "macos")))
-                && matches!(child.try_wait(), Ok(Some(_)))
-                && endpoint_absent(&endpoint),
+            retryable: false,
             ..failure
         }),
     }
-}
-
-/// Whether no endpoint, not even one a Host that ended left behind, is at the Host's address.
-#[cfg(unix)]
-fn endpoint_absent(endpoint: &Path) -> bool {
-    matches!(std::fs::symlink_metadata(endpoint), Err(error) if error.kind() == io::ErrorKind::NotFound)
-}
-
-#[cfg(windows)]
-fn endpoint_absent(endpoint: &Path) -> bool {
-    matches!(orchbee_local_ipc::endpoint_exists(endpoint), Ok(false))
 }
 
 /// The Host's exit code once it exits within [`HOST_EXIT_GRACE`]; a Host still running keeps none.

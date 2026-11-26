@@ -53,8 +53,7 @@ struct Inner {
 
 pub(crate) struct AgentProbeJobs {
     inner: Mutex<Inner>,
-    /// `None` where this platform has no lookup: every Start answers `Unsupported`.
-    execute: Option<Execute>,
+    execute: Execute,
 }
 
 impl AgentProbeJobs {
@@ -112,9 +111,7 @@ impl AgentProbeJobs {
     }
 
     fn start(&self, id: OperationId, commands: Vec<String>) -> Start {
-        let Some(execute) = self.execute else {
-            return Start::Unsupported;
-        };
+        let execute = self.execute;
         let Ok(mut inner) = self.inner.lock() else {
             return Start::Dead;
         };

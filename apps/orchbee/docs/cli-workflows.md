@@ -109,12 +109,12 @@ orchbee status         # the running Session's Workbench counts and processes
 `server start` runs the same connect-or-activate sequence the TUI uses. An
 interrupted or timed-out start can leave committed activation state behind;
 a later invocation then answers `rejected` with a recovery-required reason.
-Linux has no Session stop, repair or deletion command. Windows and macOS support `server stop --confirm`, and `operation status <id>` reads the stop; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#release-destructive-confirmation) describes.
+`server stop --confirm` stops the Session, and `operation status <id>` reads the stop; a completed stop allows a later `server start`. Stop ends all terminal processes and discards the Session's in-memory state. A timeout or cancellation ends the CLI wait only: retain the request ID and query status. Use `--retry --request-id <id>` only to explicitly retry a failed stop. The release build refuses `--confirm` and scripted stops; a person runs `server stop` in a console and types the Session name, as the [release confirmation](../README.md#release-destructive-confirmation) describes.
 
-### Restart the Server (Windows and macOS)
+### Restart the Server
 
 `server restart` hands this Session to a new Server and Worker of this build while every terminal
-keeps running. It runs on Windows and macOS; Linux refuses it as unsupported. The declared
+keeps running. The declared
 workflow, in phase order:
 
 1. Reserve: holding the Session's activation lock until it answers, so that no start runs beside

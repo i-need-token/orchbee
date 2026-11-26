@@ -1,10 +1,10 @@
 //! The Keeper update (`proposals/platform/host-handover.md`, the H4 design and H5's M7). A Worker
 //! that answers for a Keeper running another installation's program updates it to its own once
 //! every Host holding terminals attached it and nothing it holds is moving or orphaned. On Windows
-//! a new Keeper takes every holding over and the old one retires (`replacement`); on macOS the
-//! Keeper executes the Worker's program in its own process, keeping every holding and connection. A
-//! failed update leaves the old Keeper in charge and is tried again later. Moves wait while an
-//! update is due.
+//! a new Keeper takes every holding over and the old one retires (`replacement`); on macOS and
+//! Linux the Keeper executes the Worker's program in its own process, keeping every holding and
+//! connection. A failed update leaves the old Keeper in charge and is tried again later. Moves wait
+//! while an update is due.
 
 use std::{
     error::Error,
@@ -123,7 +123,7 @@ impl KeeperUpdate {
 
     /// Has the Keeper execute the Worker's program in its own process; one that does not answer
     /// within the update's bound is replaced.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     fn apply(
         &mut self,
         _hosts: &[Cared<'_>],
@@ -171,8 +171,8 @@ const fn updatable(_keeper: &SessionKeeper) -> bool {
     true
 }
 
-/// Whether `keeper` can be updated at all: a macOS Keeper must offer the update in place.
-#[cfg(target_os = "macos")]
+/// Whether `keeper` can be updated at all: a macOS or Linux Keeper must offer the update in place.
+#[cfg(unix)]
 const fn updatable(keeper: &SessionKeeper) -> bool {
     keeper.reexecs()
 }

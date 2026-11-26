@@ -85,14 +85,11 @@ fn main() -> ExitCode {
         Ok(()) => return ExitCode::SUCCESS,
         // A restart's successor that refused before the replaced Server prepared names the refusal
         // to the `orchbee` that requested the restart.
-        #[cfg(any(windows, target_os = "macos"))]
         Err(error) => {
             if let Some(refusal) = local_worker_service::restart_refusal(&error) {
                 return ExitCode::from(refusal.code());
             }
         }
-        #[cfg(all(unix, not(target_os = "macos")))]
-        Err(_) => {}
     }
 
     ExitCode::FAILURE

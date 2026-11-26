@@ -9,7 +9,7 @@ const fork_launch = @import("fork_launch_posix.zig");
 const posix_compat = @import("posix_compat.zig");
 const process_common = @import("process_common.zig");
 const process_session = @import("process_session.zig");
-const keeper_record = @import("process_keeper_darwin.zig");
+const keeper_record = @import("process_keeper_posix.zig");
 const program = @import("program.zig");
 
 const posix = std.posix;

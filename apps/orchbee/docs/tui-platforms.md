@@ -19,9 +19,7 @@ request identity and cancellation wait. Its `startup/{snapshot,observation,proce
 modules perform the typed Snapshot and OBAP reads, exact binding resolution, attached Host process
 reads with viewer cleanup, and single terminal submission consumed by native startup and CLI
 adapters. Callers retain discovery, selectors, presentation and signal ownership; operations use
-the original absolute deadline and wake. The OS startup adapter only admits Agent launch:
-Windows and macOS accept, while Linux returns typed `Unsupported` before connection, reservation,
-viewer or input admission. The pure startup workflow and its receipt reasoning remain compiled.
+the original absolute deadline and wake. The pure startup workflow and its receipt reasoning are compiled on every platform.
 
 `local_client::cancellation` privately owns one-shot cancellation for observation jobs, event
 watches, saved-machine observers and selection attempts. Creation finishes before thread spawn;
@@ -54,16 +52,16 @@ and SSH-guard retirement scheduling keep their original cadence.
 | Browser link activation                                                        | Windows shell                               | `open` or `xdg-open` in a local desktop session                                          |
 | Saved-machine SSH carriers                                                     | Owned OpenSSH processes                     | macOS and Linux: system `/usr/bin/ssh`                                                   |
 | Saved-machine catalog storage                                                  | Private Windows cache                       | macOS and Linux: same as Windows                                                         |
-| Remembered Workspace and Tab position storage                                  | Private record in the Session folder        | macOS: same as Windows; Linux: unsupported                                               |
-| Local directory entry                                                          | Existing Windows adapter                    | macOS: POSIX grammar, from the launch folder; Linux: unsupported                         |
-| Worktree create and open                                                       | Existing Windows adapter                    | macOS: same as Windows; Linux: unsupported                                               |
-| Agent launch and provider probing                                              | Existing Windows adapters                   | macOS: managed zsh and bash, login-shell probe; Linux: unsupported                       |
-| `config.toml` location, `config default` and the `user-config` check           | Existing Windows adapters                   | macOS: same as Windows; Linux: unsupported                                               |
+| Remembered Workspace and Tab position storage                                  | Private record in the Session folder        | Same as Windows                                                                          |
+| Local directory entry                                                          | Existing Windows adapter                    | POSIX grammar, from the launch folder                                                    |
+| Worktree create and open                                                       | Existing Windows adapter                    | Same as Windows                                                                          |
+| Agent launch and provider probing                                              | Existing Windows adapters                   | Managed zsh and bash, login-shell probe                                                  |
+| `config.toml` location, `config default` and the `user-config` check           | Existing Windows adapters                   | Same as Windows                                                                          |
 | Plugin registry persistence                                                    | Existing Windows adapters                   | Unsupported                                                                              |
 | Host window title                                                              | Console title, original restored on exit    | OSC 0, original restored from the terminal's title stack on exit                         |
 | Terminal notification transport                                                | Ghostty/iTerm/WezTerm OSC 9 or Kitty OSC 99 | Same as Windows                                                                          |
 | System notification transport                                                  | Notification-area balloon                   | Terminal sequence, `osascript` or `notify-send`, by session route                        |
-| Terminal graphics                                                              | Existing Windows adapter and host admission | macOS: as Windows, not [Terminal.app](#outer-terminal-queries); Linux: unsupported       |
+| Terminal graphics                                                              | Existing Windows adapter and host admission | As Windows, not [Terminal.app](#outer-terminal-queries)                                  |
 | Notification cards and ordinary terminal bell                                  | Shared TUI / admitted terminal              | Shared TUI / admitted terminal                                                           |
 | Login-shell preference                                                         | Unsupported by the Windows shell adapter    | Existing POSIX shell adapter                                                             |
 
@@ -71,18 +69,15 @@ The optional-capability list does not gate the whole TUI. In particular, an abse
 adapter does not disable the local Workspace/Agent sidebar or repeatedly retire its observations.
 Settings drafts and edits use the Server's settings snapshots on every platform.
 Local activation retains the admitted runtime directory on every platform. Remembered-position
-storage derives its record path only inside the Windows and macOS adapter, from the data root and
-the Session the runtime directory is named after; the Linux adapter returns the typed
-`PositionStorage` refusal without reading environment variables or inventing a path.
+storage derives its record path from the data root and the Session the runtime directory is named
+after.
 [Directory startup](native-directory-startup.md) takes the launch directory from the operating
 system rather than from the directory-entry adapter, so an empty Session creates its first
 Workspace there on every platform; interactive directory entry and quick creation still need it.
 
 Activation restore feedback is one optional typed fact on every platform, consumed by the same
-TUI notice and CLI warning projections. Windows and macOS keep a checkpoint, so their reader
-retains its activation-generation checks and I/O failures. Linux keeps none yet; its reader reports
-an unsupported capability without probing storage, and activation continues with no restore notice.
-Capability absence never hides a supported reader's I/O failure or fabricates a recovered or empty
+TUI notice and CLI warning projections. Every platform keeps a checkpoint, so the reader retains
+its activation-generation checks and I/O failures, and never fabricates a recovered or empty
 checkpoint.
 
 ## Outer-terminal queries

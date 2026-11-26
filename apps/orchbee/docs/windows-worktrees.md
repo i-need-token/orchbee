@@ -1,6 +1,6 @@
 # Windows Worktree operations
 
-This record owns native CLI Worktree creation, opening, removal and recovery. Git effects belong to the Worker; the Server owns retained operations and canonical Workspace association. Windows and macOS serve every command here; Linux refuses them before any effect. The CLI waits for observations and never runs Git itself. `worktree list` supports source-based discovery and preserves its existing registered-directory query contract.
+This record owns native CLI Worktree creation, opening, removal and recovery. Git effects belong to the Worker; the Server owns retained operations and canonical Workspace association. Every platform serves every command here. The CLI waits for observations and never runs Git itself. `worktree list` supports source-based discovery and preserves its existing registered-directory query contract.
 
 ## Commands and defaults
 

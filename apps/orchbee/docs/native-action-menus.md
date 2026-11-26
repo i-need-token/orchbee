@@ -175,7 +175,7 @@ macOS or Linux in a test or release build that the automatic-update switch admit
 sentence, Update · Switch to Orchbee {version}. Terminals keep running. Choosing it checks that the
 new version joins the running Session: the Session's answer lists `compatibility-window` and the
 active manifest's `client` component lists the `client-server` generation this connection
-negotiated. On Windows the active version's own `orchbee` then decides in the background whether
+negotiated. The active version's own `orchbee` then decides in the background whether
 the Session restarts first: it reads the Session's restart tier with `status server`, and when that
 tier is `recommended` or `required`, or the version cannot join, it runs `server restart`, which
 keeps every terminal, while the status line says Restarting Session… (`正在重启会话…`). A restart
@@ -185,13 +185,13 @@ terminals: the TUI asks Restart terminals to update? (`重启终端以完成更�
 move's question does. Cancel leaves the update waiting; Restart stops
 the Session through the TUI's own connection, as a stop action does, and once the stop has ended
 switches as a joining Session does, so the new version starts the Session and every terminal
-restarts in its folder from the final capture. When
-it joins, the TUI restores the console and exits with status `75` to an
-announcing [launcher](../../orchbee-launcher/README.md#relaunch-protocol). Without one, a macOS TUI
+restarts in its folder from the final capture. When it joins, the TUI
+restores the console and exits with status `75` to an announcing
+[launcher](../../orchbee-launcher/README.md#relaunch-protocol). Without one, a macOS or Linux TUI
 replaces its own process with the store's active Client, read again, with the same arguments and
 environment and no blocked signal, so the new version opens in the same terminal under the same
-parent; elsewhere, or when that replacement cannot start, it exits with `0` and one line naming the
-command that opens that version. A macOS TUI that no launcher started, the replacement included,
+parent; on Windows, or when that replacement cannot start, it exits with `0` and one line naming the
+command that opens that version. A macOS or Linux TUI that no launcher started, the replacement included,
 [records its own failure](../../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
 as a launcher would: a replacement that cannot start, a failed join that a launcher would see as
 status `76`, and a panic each run the previous version's Client-failure helper. When it does not,
@@ -199,8 +199,8 @@ nothing switches and
 the status line says the update applies when no terminal is running; a row chosen after the store
 moved back says there is no update to switch to.
 
-On Windows and macOS a TUI that joins a local Session whose Server named an older product version
-in its handshake moves that Session onto its own version by itself, once, with nothing to confirm:
+A TUI that joins a local Session whose Server named an older product version in its handshake
+moves that Session onto its own version by itself, once, with nothing to confirm:
 its own `orchbee` runs `server restart` in the background, whatever the restart tier says, while
 the status line says Updating the Session. Terminals keep running. (`正在更新会话，终端继续运行。`),
 and the TUI's connection reconnects to the new Server. A start the Session refuses as too old runs
@@ -210,9 +210,7 @@ restart leaves the Session on its version: the status line says why, and the Upd
 offer the move, Update · Update the Session to Orchbee {version}. Terminals keep running. Choosing
 it tries again; a Host that must be replaced asks Restart terminals to update? first, and Restart
 stops the Session through the TUI's own connection and starts it with this version, which the TUI
-rejoins with every terminal restarted. A newer version in the store takes the row's place. A Linux
-TUI moves no Session; its Server's [idle move](../../orchbee-server/README.md#idle-move) starts the
-new version once no terminal runs.
+rejoins with every terminal restarted. A newer version in the store takes the row's place.
 
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;

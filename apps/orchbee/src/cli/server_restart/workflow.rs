@@ -95,7 +95,7 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         &arguments,
         deadline,
     );
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let spawned = catalog.spawn_successor(
         &session,
         &activation,
@@ -126,7 +126,7 @@ pub(super) fn restart(deadline: Instant, signals: &mut ArmedSignals) -> Restart 
         }
         Err(_) => return Restart::Failed(FailedPhase::Start),
     };
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let mut successor = match spawned {
         Ok(successor) => successor,
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
@@ -347,12 +347,12 @@ fn look(
 }
 
 /// Whether a failed connect shows that no Server holds the Session: its endpoint is missing, or, on
-/// macOS, where a socket file outlives its Server, the connect was refused and a probe takes the
-/// Session lifetime lock, which every Server holds while it lives.
+/// macOS and Linux, where a socket file outlives its Server, the connect was refused and a probe
+/// takes the Session lifetime lock, which every Server holds while it lives.
 fn no_server(session: &Rendezvous, error: &io::Error) -> bool {
     match error.kind() {
         io::ErrorKind::NotFound => true,
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         io::ErrorKind::ConnectionRefused => matches!(
             session.try_acquire_session_lifetime_lock(),
             Ok(LockAttempt::Acquired(_))

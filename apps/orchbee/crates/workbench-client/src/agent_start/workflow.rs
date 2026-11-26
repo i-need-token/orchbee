@@ -65,7 +65,6 @@ pub(super) fn run_on_origin(
     progress: &dyn Fn(super::Progress),
 ) -> Report {
     let admitted = step_deadline(deadline).and_then(|step| {
-        agent_start_runtime::admit().map_err(|_| Failure::Unsupported)?;
         agent_start_runtime::snapshot_from_origin(origin, clock, step, wake)
             .map_err(|error| Failure::Admission(Box::new(error)))
     });

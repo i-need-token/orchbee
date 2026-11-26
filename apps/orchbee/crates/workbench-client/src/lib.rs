@@ -125,7 +125,7 @@ pub mod application {
         }
 
         pub mod startup {
-            pub use crate::agent_runtime::startup::{AdmissionError, admit, obap_identity};
+            pub use crate::agent_runtime::startup::{AdmissionError, obap_identity};
 
             pub mod binding {
                 pub use crate::agent_runtime::startup::binding::{Binding, PrimaryError};
@@ -172,7 +172,6 @@ pub mod application {
     }
 
     pub mod local_activation {
-        #[cfg(any(windows, target_os = "macos"))]
         pub use crate::local_activation::restart_cohort_directory;
         pub use crate::local_activation::{
             ActivationCause, ActivationFailure, Rejoined, StartedSession, StartupFailure,

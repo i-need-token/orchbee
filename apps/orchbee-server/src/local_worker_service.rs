@@ -17,7 +17,6 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::WorkerId as CapabilityWorkerId;
-#[cfg(any(windows, target_os = "macos"))]
 use orchbee_connection_handshake::HandoverTicket;
 use orchbee_local_peer_credentials::require_same_effective_user;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -71,7 +70,6 @@ fn read_configuration(
 
 /// The refusal a restart's successor ended with before the Server it replaces prepared, which its
 /// exit code names to the `orchbee` that requested the restart.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn restart_refusal(error: &io::Error) -> Option<orchbee_local_runtime::RestartRefusal> {
     error
         .get_ref()
@@ -114,7 +112,6 @@ pub(crate) fn run(
             io::Error::new(io::ErrorKind::InvalidInput, "missing Session runtime")
         })?;
         // The successor Server of a restart names the restart's ticket before its configuration.
-        #[cfg(any(windows, target_os = "macos"))]
         let ticket = if arguments
             .peek()
             .is_some_and(|argument| argument == "--handover")
@@ -136,13 +133,10 @@ pub(crate) fn run(
         let configuration = read_configuration(configuration)
             .map_err(|error| io::Error::new(io::ErrorKind::InvalidInput, error))?;
         log_event(LogLevel::Info, "started", &[("version", VERSION)]);
-        #[cfg(any(windows, target_os = "macos"))]
         let outcome = match ticket {
             Some(ticket) => managed::run_successor(&runtime, ticket, configuration),
             None => managed::run(&runtime, configuration),
         };
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let outcome = managed::run(&runtime, configuration);
         log_exit(outcome.as_ref().err().map(io::Error::kind));
         return outcome;
     }

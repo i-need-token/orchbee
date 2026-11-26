@@ -30,11 +30,6 @@ impl LocalTerminalService {
             }
         }
         let mutating = !matches!(request.action, Action::Read { .. });
-        if mutating && !super::SERVES_WORKTREES {
-            return response(Outcome::Unavailable {
-                reason: Unavailable::Unsupported,
-            });
-        }
         if mutating && self.group_close_maintenance.ensure(self).is_err() {
             return response(Outcome::Unavailable {
                 reason: Unavailable::ServiceUnavailable,

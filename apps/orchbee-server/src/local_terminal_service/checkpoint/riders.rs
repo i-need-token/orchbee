@@ -1,8 +1,8 @@
 //! Agent resume and output replay ride on a checkpoint: a save records each terminal's retained
 //! Agent session and kept output, a restore resumes the one and replays the other, and a held
-//! restore does both for its one Presentation. The Session's settings turn each on. Output replay
-//! rides wherever the Session keeps a checkpoint; Agent resume rides on Windows and macOS, through
-//! `resume`, and a Presentation whose Agent resumes replays no output. One setting turns both on.
+//! restore does both for its one Presentation. The Session's settings turn each on. Agent resume
+//! rides through `resume`, and a Presentation whose Agent resumes replays no output. One setting
+//! turns both on.
 //! It does not sample directories or publish a checkpoint.
 
 use super::super::LocalTerminalService;
@@ -21,10 +21,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(any(windows, target_os = "macos"))]
-mod resume;
-#[cfg(not(any(windows, target_os = "macos")))]
-#[path = "riders/without_resume.rs"]
 mod resume;
 pub(super) use resume::{Resumes, resumes};
 

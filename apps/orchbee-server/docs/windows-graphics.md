@@ -2,7 +2,7 @@
 
 ## Accepted outcome and ownership
 
-Windows and macOS support Panel graphics set, clear, information and framed streams. A Linux Server refuses Panel graphics requests at admission until its frame directory and outer-terminal behavior are verified. A working renderer requires end-to-end evidence. Desktop runtime additions are outside this boundary.
+Windows, macOS and Linux support Panel graphics set, clear, information and framed streams. A working renderer requires end-to-end evidence. Desktop runtime additions are outside this boundary.
 
 The Session owns ephemeral layers by canonical Panel and Presentation identity. Its existing
 navigation-management grant admits visual writes; its read grant admits information and bounded
@@ -120,7 +120,7 @@ private admission, writer/rename exclusion, creation refusal and failed-removal 
 malicious ACL changes, process crashes and replacement during the final delete syscall are outside
 this per-user development boundary; a crash does not prove clean runtime shutdown.
 
-## macOS private frame directories
+## POSIX private frame directories
 
 The same module compiles a POSIX `PrivateFrameDirectory` with the Windows API, leaf name, owner
 marker, 16 MiB read bound and Reserved → Preparing → Ready → Releasing → Released lifecycle. A
@@ -147,8 +147,7 @@ directory is refused; an entry added during the pass makes the final removal fai
 owner note and leaves the same owner to retry. Unit traces on macOS cover private modes, symbolic
 link, hard link, directory and FIFO refusal, no adoption of an existing leaf or a linked or shared
 runtime, nested release that keeps link targets, failed-removal retry and replaced-leaf refusal.
-Linux compiles the same module, but its Server refuses Panel graphics requests at admission until
-the behavior is verified there.
+Linux runs the same module.
 
 ## Client rendering and truthful information
 

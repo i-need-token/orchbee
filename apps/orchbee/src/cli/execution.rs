@@ -40,7 +40,7 @@ pub(super) enum Capability {
     /// `update`, the automatic helper and channel changes, which download.
     ReleaseUpdate,
     ServerStop,
-    /// `server restart`: the Windows and macOS handover of this Session to a new Server.
+    /// `server restart`: the handover of this Session to a new Server.
     ServerRestart,
     TerminalClear,
     ChannelPreference,

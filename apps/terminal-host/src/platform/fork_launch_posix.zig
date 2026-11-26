@@ -1,10 +1,10 @@
-//! A terminal leader's or background program's start, shared by a POSIX Host and the macOS Keeper:
-//! fork, then in the child the launch directory, a new session, for a terminal with the PTY slave
-//! as controlling terminal and standard streams and the standard input in place of the slave's when
-//! given, for a program without a controlling terminal and with the streams the plan names, no
-//! other descriptor, and `execve` of the executable or of each candidate in order. The parent
-//! learns whether the exec happened from a close-on-exec status pipe, and reaps a child that did
-//! not start.
+//! A terminal leader's or background program's start, shared by a POSIX Host and the macOS and
+//! Linux Keeper: fork, then in the child the launch directory, a new session, for a terminal with
+//! the PTY slave as controlling terminal and standard streams and the standard input in place of
+//! the slave's when given, for a program without a controlling terminal and with the streams the
+//! plan names, no other descriptor, and `execve` of the executable or of each candidate in order.
+//! The parent learns whether the exec happened from a close-on-exec status pipe, and reaps a child
+//! that did not start.
 
 const std = @import("std");
 const builtin = @import("builtin");

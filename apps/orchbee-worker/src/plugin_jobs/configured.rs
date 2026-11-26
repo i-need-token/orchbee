@@ -135,7 +135,7 @@ pub(super) fn finish_hosted(inner: &mut Inner, program: orchbee_terminal_protoco
 }
 
 /// The absolute path of the command processor a configured command runs in, and its arguments
-/// before the command text, on Windows and macOS, where a Terminal Host runs background programs.
+/// before the command text, where a Terminal Host runs background programs.
 pub(super) fn command_processor() -> Option<(String, Vec<String>)> {
     shell::processor()
 }
@@ -263,9 +263,9 @@ fn run(
 }
 
 /// Starts the configured command as the leader of its own process group, with the null device as
-/// each standard stream. On macOS the native adapter starts it, so it inherits no descriptor but
-/// those three, however many threads of this process create descriptors meanwhile.
-#[cfg(target_os = "macos")]
+/// each standard stream. It inherits no descriptor but those three, however many threads of this
+/// process create descriptors meanwhile and whatever descriptors this process inherited.
+#[cfg(unix)]
 fn spawn_configured(command: Command) -> Result<CommandChild, CommandSpawnFailure> {
     use orchbee_local_runtime::SpawnEnvironment;
     use std::{fs::OpenOptions, io, os::fd::OwnedFd};
@@ -297,8 +297,8 @@ fn spawn_configured(command: Command) -> Result<CommandChild, CommandSpawnFailur
     )
 }
 
-/// Elsewhere the standard library's spawn starts the same command with the same null streams.
-#[cfg(not(target_os = "macos"))]
+/// On Windows the standard library's spawn starts the same command with the same null streams.
+#[cfg(windows)]
 fn spawn_configured(mut command: Command) -> Result<CommandChild, CommandSpawnFailure> {
     use std::process::Stdio;
     command

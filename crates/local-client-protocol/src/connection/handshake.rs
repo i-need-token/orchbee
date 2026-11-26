@@ -106,7 +106,6 @@ pub(super) fn exit_reply(
 
 /// Sends one `handover` request; the Server replies once it has done the step, so the caller reads
 /// the reply with [`handover_reply`] under its own deadline.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn request_handover(
     transport: &mut impl Write,
     environment: EnvironmentName,
@@ -125,7 +124,6 @@ pub(super) fn request_handover(
 
 /// Accepts the `handover-result`, or the Server's `unsupported` reply from a build that serves no
 /// `handover`.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn handover_reply(
     transport: &mut impl Read,
     step: orchbee_connection_handshake::HandoverStep,

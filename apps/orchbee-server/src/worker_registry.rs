@@ -168,7 +168,6 @@ impl WorkerRegistry {
     }
 
     /// Holds the serving Worker for a restart's successor, or lifts that hold.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn hold(&mut self, held: bool) {
         self.held = held;
     }

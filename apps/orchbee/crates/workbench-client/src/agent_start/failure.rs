@@ -15,7 +15,6 @@ use std::{io, sync::Arc};
 /// Reservation and input-delivery facts remain in the accompanying startup Report.
 #[derive(Debug)]
 pub enum Failure {
-    Unsupported,
     Identity,
     Primary(PrimaryError),
     Admission(Box<AdmissionError>),

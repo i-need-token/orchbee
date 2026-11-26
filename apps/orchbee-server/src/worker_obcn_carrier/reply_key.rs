@@ -45,7 +45,6 @@ pub(super) enum ReplyKey {
     AgentIntegrationJob(OperationId),
     AgentProbeJob(OperationId),
     AdoptHost(AdoptHostPageKey),
-    #[cfg(any(windows, target_os = "macos"))]
     MoveTurn(OperationId),
 }
 
@@ -96,7 +95,6 @@ impl ReplyKey {
                 Self::AgentProbeJob(request.operation_id)
             }
             WorkerOperationRequest::AdoptHost(request) => Self::AdoptHost(request.key()),
-            #[cfg(any(windows, target_os = "macos"))]
             WorkerOperationRequest::MoveTurn(request) => Self::MoveTurn(request.request_id),
         }
     }
@@ -175,7 +173,6 @@ impl ReplyKey {
                 result.operation_id == id
             }
             (Self::AdoptHost(key), Message::AdoptHostResult(result)) => result.key() == key,
-            #[cfg(any(windows, target_os = "macos"))]
             (Self::MoveTurn(id), Message::TerminalMoveTurnResult(result)) => {
                 result.request.request_id == id
             }
@@ -213,7 +210,6 @@ impl ReplyKey {
             Self::AgentIntegrationJob(id) => (Kind::AgentIntegrationJob, id),
             Self::AgentProbeJob(id) => (Kind::AgentProbeJob, id),
             Self::AdoptHost(key) => (Kind::AdoptHost, key.adoption_id),
-            #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(id) => (Kind::MoveTurn, id),
         };
         WorkerRequestDeclined::operation(kind, id)

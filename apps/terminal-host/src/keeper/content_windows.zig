@@ -81,7 +81,7 @@ pub const TableExtra = struct {
     }
 };
 
-/// The descriptors a request carries on macOS; none on Windows.
+/// The descriptors a request carries on macOS and Linux; none on Windows.
 pub const Descriptors = struct {
     pub fn release(_: *Descriptors) void {}
 };

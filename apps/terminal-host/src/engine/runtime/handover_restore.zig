@@ -64,8 +64,8 @@ pub const Prepared = struct {
 
 /// How a prepared terminal reaches its program.
 pub const Program = union(enum) {
-    /// A running terminal's held console, whose duplicates the claim checks passed, or on macOS a
-    /// recovered PTY master and its leader.
+    /// A running terminal's held console, whose duplicates the claim checks passed, or on macOS and
+    /// Linux a recovered PTY master and its leader.
     held: pty_process.Held,
     /// A settled terminal, whose program ended on the old Host.
     settled,

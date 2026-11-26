@@ -19,7 +19,7 @@ pub(crate) struct Route {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct RemoteStop {
     pub(crate) selector: String,
-    /// Whether `--confirm` was given; a release Windows or macOS build refuses it at admission.
+    /// Whether `--confirm` was given; a release build refuses it at admission.
     pub(crate) confirm: bool,
     pub(crate) format: OutputFormat,
 }
@@ -33,7 +33,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         && entry == "--machine-session"
     {
         return Ok(SelectedRequest {
-            availability: Availability::WindowsAndMacos,
+            availability: Availability::Portable,
             format: None,
             request: Request::DesktopSession(machine.clone()),
             session: None,
@@ -66,7 +66,7 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
         (
             "--desktop-machines",
             Request::DesktopMachines,
-            Availability::WindowsAndMacos,
+            Availability::Portable,
         ),
     ] {
         if tokens == [token] {

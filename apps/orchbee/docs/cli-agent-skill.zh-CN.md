@@ -34,7 +34,7 @@ orchbee terminal run --panel @panel:0x1 "git status" --wait --timeout 30000 --fo
 
 从 `orchbee --help` 开始，再查看 `orchbee <family> --help` 和 `orchbee <family> <command> --help`。`--` 前任意位置的单个帮助开关，也支持已填写的操作数和选项，且不会执行它们。未知选项、缺值和重复选项仍会失败。`help <path>` 接受精确帮助路径。裸 `orchbee` 会启动 TUI。
 
-`--version`、`--skill`、`completion <shell>`、`api schema` 以及 Windows 和 macOS 上的 `config default` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
+`--version`、`--skill`、`completion <shell>`、`api schema` 以及 `config default` 均可离线使用。补全支持 Bash、Zsh、Fish、PowerShell 和 Elvish。`api schema` 列出 schema ID；用 `api schema <schema-id>` 查看同一构建的机器契约，或添加 `--output <path>` 导出。读取输出中的 `schema` 与 `version`；本指南不固定目录数量或历史版本。
 
 所有 CLI JSON 文档均使用版本 `1`，每种只有一个当前 schema。不同平台及参数下字段均保留：`{kind:"unsupported"}` 表示平台无此能力，`null` 表示来源说没有，`"unknown"` 表示来源说不清。整条命令不支持时返回 `stage: "platform"`、`reason: "unsupported-platform"`，退出码为 `4`；当前发布版本暂不提供的命令返回 `stage: "release"`、`reason: "withheld-in-release"`，退出码为 `4`。`doctor` 在所有平台上都在 `orchbee.doctor` 中保留全部六项检查；平台无法执行的检查为 `{kind:"unsupported"}`。
 
@@ -44,7 +44,7 @@ PowerShell 用户可用 `orchbee completion powershell` 输出补全脚本。
 
 ## 选择并启动 Session
 
-用 `doctor` 检查 Orchbee 在本机能否正常工作：安装、设置、已保存数据、运行时目录和会话，每项为 `pass`、`warning`、`fail` 或 `not-applicable`，只有检查失败时退出码才为 `1`。用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程。`doctor` 与 `config check` 不启动 Session；`status` 需要正在运行的 Session。`server start` 执行无界面启动；在 Windows 和 macOS 上，`server restart` 可把正在运行的 Session 交给本构建的新 Server，终端保持运行；`workspace create`、`project create`、`worktree create` 和 `worktree open` 在所选 Session 未运行时会先自行启动它，并在标准错误输出 `本地会话已启动。`。
+用 `doctor` 检查 Orchbee 在本机能否正常工作：安装、设置、已保存数据、运行时目录和会话，每项为 `pass`、`warning`、`fail` 或 `not-applicable`，只有检查失败时退出码才为 `1`。用 `config check` 检查本地配置，`status` 读取正在运行的 Session 的数量和进程。`doctor` 与 `config check` 不启动 Session；`status` 需要正在运行的 Session。`server start` 执行无界面启动；`server restart` 可把正在运行的 Session 交给本构建的新 Server，终端保持运行；`workspace create`、`project create`、`worktree create` 和 `worktree open` 在所选 Session 未运行时会先自行启动它，并在标准错误输出 `本地会话已启动。`。
 
 `--session <name>` 选择本地命名 Session，可位于命令之前或之后，默认值为 `default`。后续操作与诊断应保持相同选择。`session list` 显示本地清单；`session attach <name>` 进入其 TUI。退出 TUI 不会停止 Session。
 
@@ -95,15 +95,15 @@ orchbee panel split <panel-id> --direction right
 
 `agent start <provider>` 在你自己的面板旁的新标签页中启动提供方；`--split right|down` 改为打开拆分面板，`--cwd <dir>`、`--focus` 与 `--no-focus` 仅适用于此类新标签页或拆分面板启动，并与 `--here` 互斥。`--client <id>` 指定 `--focus` 切换的客户端，且需与 `--focus` 同用。`--here --panel <panel-id>` 在该已观察到空闲的 cmd、PowerShell、pwsh 或 macOS zsh、bash 终端已确认的提示符处输入一次（不能是你自己的面板：`own-panel`；交互启动时若提示符尚未标记会短暂等待稳定）。`--panel <panel-id>` 或 `--current` 指定参照面板。不带参数时，新标签页或拆分面板的 shell 以提供方作为首个命令运行，面板创建后即返回：`confirmation` 为 `launched`，`submission` 为 null。否则输入命令并在 3 秒检查后返回：`confirmation` 为 `sent`。两种情况下 `interactiveReady` 都为 false，`place` 和 `panelId` 指明启动位置；发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。未经规范会话报告时，就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，请用 `@panel:` 句柄经 `--panel` 或 `--terminal` 指定该智能体。后续步骤失败时，已创建的新标签页或拆分面板保留，失败结果的 `createdPanelId` 指向它。聚焦未切换时不会使启动失败；`result.focus`（失败时为 `details.focus`）给出阶段与原因。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并在 `agent list` 中查看该智能体的行。
 
-`agent list/get` 检查当前 Agent 状态；`agent get --format json` 还会给出 `result.explanation` 或 `result.detection`，另一项为 null。Windows 和 macOS 上，`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。Windows 和 macOS 的 JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。分页游标应原样传回；畸形游标在读取实时来源前作为用法错误拒绝，收到 `cursor-restart` 时须从第一页重新开始；可选 cwd 信息每页最多为 64 行，无法获取时为 null。
+`agent list/get` 检查当前 Agent 状态；`agent get --format json` 还会给出 `result.explanation` 或 `result.detection`，另一项为 null。`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。分页游标应原样传回；畸形游标在读取实时来源前作为用法错误拒绝，收到 `cursor-restart` 时须从第一页重新开始；可选 cwd 信息每页最多为 64 行，无法获取时为 null。
 
-Windows 和 macOS 上，`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；`agent prompt`、`send-keys`、`read` 和 `wait` 也可直接传入 `--panel` 或 `--terminal`（仅通过终端识别的智能体，例如 `antigravity`，以及子终端，应通过 `--panel` 或 `--terminal` 指定；若在 `stage: "agent-terminal"` 被拒绝，可用 `orchbee panel process-info <panel-id>` 检查进程归属）。不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
+`@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；`agent prompt`、`send-keys`、`read` 和 `wait` 也可直接传入 `--panel` 或 `--terminal`（仅通过终端识别的智能体，例如 `antigravity`，以及子终端，应通过 `--panel` 或 `--terminal` 指定；若在 `stage: "agent-terminal"` 被拒绝，可用 `orchbee panel process-info <panel-id>` 检查进程归属）。不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
 
-`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。Windows 和 macOS 默认没有总时限，条件为 idle/done/blocked；Linux 保留 600000 毫秒总时限，条件为 needs-attention/failed/succeeded/canceled/interrupted/idle/ended；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
+`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。默认没有总时限，条件为 idle/done/blocked；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
 
 保留已观察的 revision；使用 `--after-revision` 等待后续状态前，先查看 `agent wait --help`。
 
-`--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever` 与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。Linux 保留 600000 毫秒的默认等待期限。等待失败会保留已接受的输入回执，因此不要重放结果不确定的输入。
+`--until`、`--timeout` 和 `--forever` 要求 `agent prompt --wait`；`--forever` 与 `--timeout` 互斥。Windows Codex 的输入在 paste 与 Enter 之间包含 Right 键。等待失败会保留已接受的输入回执，因此不要重放结果不确定的输入。
 
 ## 事件与终端流
 

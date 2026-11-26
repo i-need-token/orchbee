@@ -39,12 +39,10 @@ mod fallback;
 mod restore_feedback;
 mod session_selection;
 
-#[cfg(any(windows, target_os = "macos"))]
 mod store_start;
 pub use session_selection::{
     inside_selected_session, select_session, selected_session_name, target_session_name,
 };
-#[cfg(any(windows, target_os = "macos"))]
 pub use store_start::restart_cohort_directory;
 
 pub use crate::startup_status::StartupFailure;
@@ -61,7 +59,6 @@ pub struct ActivationFailure {
 /// The raw cause behind an activation failure, kept for typed CLI
 /// classification only — the TUI adapter never reads it.
 pub enum ActivationCause {
-    #[cfg(any(windows, target_os = "macos"))]
     Configuration(orchbee_local_runtime::SettingsError),
     /// `Cohort::current_with_diagnostic` failure: its I/O kind selects
     /// the CLI exit class and its artifact-open evidence can identify one
@@ -247,7 +244,7 @@ fn activate(
     #[cfg(unix)]
     let name = &selected;
     // The name given by `--session` or by the caller, which a store start passes on as on Windows.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let explicit = match named {
         Some(name) => Some(name.as_str()),
         None => selected_session_name(),
@@ -259,7 +256,6 @@ fn activate(
     loop {
         // A start the store's Client takes runs before the catalog lock, which that Client's own
         // activation takes in turn; this activation then joins its Session as any other.
-        #[cfg(any(windows, target_os = "macos"))]
         let started_by_store = store_start::start_if_absent(
             &base,
             &scope_text,
@@ -320,14 +316,10 @@ fn activate(
                 continue;
             }
         };
-        #[cfg(any(windows, target_os = "macos"))]
         let spawned = spawned || started_by_store;
         // Reading the notice leaves it in place, so a Client that joins a Session the store's Client
         // started reads the same notice that Client reported.
-        let restore_notice = match restore_feedback::read(&session) {
-            Ok(notice) => notice.map_err(runtime_failure)?,
-            Err(restore_feedback::Unsupported) => None,
-        };
+        let restore_notice = restore_feedback::read(&session).map_err(runtime_failure)?;
         return Ok(StartedSession {
             client,
             spawned,
@@ -478,7 +470,6 @@ fn connect_or_activate(
                 // Activation refuses only a location it cannot admit, and freezes it: a file that
                 // cannot be read still starts the Session, so the person has a terminal to repair
                 // it. The Server reads that location itself as the single configuration authority.
-                #[cfg(any(windows, target_os = "macos"))]
                 let settings =
                     orchbee_local_runtime::read_startup_settings(|name| std::env::var_os(name))
                         .map_err(|error| {
@@ -520,17 +511,13 @@ fn connect_or_activate(
                 let arguments = [
                     std::ffi::OsStr::new("--runtime-directory"),
                     session.runtime_directory().as_os_str(),
-                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new("--configuration-file"),
-                    #[cfg(any(windows, target_os = "macos"))]
                     settings
                         .path
                         .as_deref()
                         .map(std::path::Path::as_os_str)
                         .unwrap_or(std::ffi::OsStr::new("")),
-                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new("--configuration-file-explicit"),
-                    #[cfg(any(windows, target_os = "macos"))]
                     std::ffi::OsStr::new(if settings.explicit { "true" } else { "false" }),
                 ];
                 #[cfg(windows)]
@@ -556,11 +543,9 @@ fn connect_or_activate(
                         }),
                 };
                 // The Session's terminals inherit a `PATH` that ends with this cohort's folder.
-                #[cfg(target_os = "macos")]
+                #[cfg(unix)]
                 let child =
                     catalog.spawn_server(session, &_activation, &executable, &arguments, deadline);
-                #[cfg(all(unix, not(target_os = "macos")))]
-                let child = orchbee_local_runtime::spawn_session_server(&executable, &arguments);
                 Some(child.map_err(|error| {
                     fallback::observe(
                         &activation_id,

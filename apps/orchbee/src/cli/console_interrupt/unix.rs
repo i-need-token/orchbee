@@ -1,6 +1,7 @@
 //! The optional console-command capability refuses without installing a Unix signal policy. The
-//! release and saved-machine commands on macOS borrow the source owner's interrupt pair instead,
-//! latched, and a routed command reads its declared document through the source owner's reader.
+//! release and saved-machine commands on macOS and Linux borrow the source owner's interrupt pair
+//! instead, latched, and a routed command reads its declared document through the source owner's
+//! reader.
 
 use super::NativeSignals;
 use std::io;
@@ -50,13 +51,13 @@ pub(super) fn arm() -> io::Result<Box<dyn NativeSignals>> {
 /// The first signal read latches: every later read answers it and settling owes the restore, as
 /// the Windows console guard answers a request until it ends, so a workflow that checks between
 /// its steps and the settle that ends it see the same interruption.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 struct Latched {
     signals: crate::cli::source::ArmedSignals,
     signal: Option<i32>,
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(super) fn arm_latched() -> io::Result<Box<dyn NativeSignals>> {
     crate::cli::source::ArmedSignals::arm_interrupts()
         .map(|signals| {
@@ -68,7 +69,7 @@ pub(super) fn arm_latched() -> io::Result<Box<dyn NativeSignals>> {
         .map_err(|error| io::Error::other(error.to_string()))
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 impl NativeSignals for Latched {
     fn wake(&self) -> Option<orchbee_local_ipc::LocalIo<'_>> {
         crate::cli::source::SignalWatch::poll_fd(&self.signals)
@@ -100,7 +101,7 @@ impl NativeSignals for Latched {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 pub(super) fn acquire_document(
     path: Option<&str>,
     limit: usize,
@@ -111,7 +112,7 @@ pub(super) fn acquire_document(
 }
 
 /// The source reader's view of a latched owner: a read error keeps its system code.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 impl crate::cli::source::SignalWatch for super::ArmedSignals {
     fn poll_fd(&self) -> Option<std::os::fd::BorrowedFd<'_>> {
         self.poll_fd()
@@ -125,7 +126,7 @@ impl crate::cli::source::SignalWatch for super::ArmedSignals {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 pub(super) fn acquire_document(
     _path: Option<&str>,
     _limit: usize,

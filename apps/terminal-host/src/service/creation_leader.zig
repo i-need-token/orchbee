@@ -9,10 +9,10 @@ const platform = @import("terminal-host-platform");
 const identifiers = @import("terminal-host-model").identifiers;
 const host_runtime_aggregate = @import("runtime_aggregate/root.zig");
 
-const macos = target_builtin.os.tag == .macos;
+const posix_keeper = target_builtin.os.tag == .macos or target_builtin.os.tag == .linux;
 
 pub const LeaderStart = struct {
-    spawner: if (macos) ?keeper_link.Spawner else void = if (macos) null else {},
+    spawner: if (posix_keeper) ?keeper_link.Spawner else void = if (posix_keeper) null else {},
 
     /// The dispatch thread: pins the Keeper link that starts the leader of `identity`, if any.
     pub fn pin(
@@ -20,7 +20,7 @@ pub const LeaderStart = struct {
         identity: host_runtime_aggregate.TerminalIdentity,
         host_epoch: identifiers.HostEpoch,
     ) LeaderStart {
-        if (comptime !macos) return .{};
+        if (comptime !posix_keeper) return .{};
         const attachments = keepers orelse return .{};
         return .{ .spawner = attachments.spawner(.{
             .creation_id = identity.creation_id.bytes,
@@ -32,12 +32,12 @@ pub const LeaderStart = struct {
     /// The creation thread: points `launch` at the pinned Keeper. The hook refers to this value,
     /// which stays where it is until `unpin`.
     pub fn apply(self: *LeaderStart, launch: *platform.process.Launch) void {
-        if (comptime !macos) return;
+        if (comptime !posix_keeper) return;
         if (self.spawner) |*spawner| launch.keeper = spawner.hook();
     }
 
     pub fn unpin(self: *LeaderStart) void {
-        if (comptime !macos) return;
+        if (comptime !posix_keeper) return;
         if (self.spawner) |*spawner| spawner.unpin();
         self.spawner = null;
     }

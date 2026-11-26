@@ -31,12 +31,6 @@ impl super::CliText {
             (Locale::ZhCn, crate::invocation::grammar::Availability::Windows) => {
                 "执行目前需要 Windows。所有平台均公开相同语法、帮助与补全；其他宿主返回 unsupported-platform（退出码 4）。"
             }
-            (Locale::EnUs, crate::invocation::grammar::Availability::WindowsAndMacos) => {
-                "Execution currently requires Windows or macOS. Syntax, help and completion are available on every platform; other hosts return unsupported-platform (exit 4)."
-            }
-            (Locale::ZhCn, crate::invocation::grammar::Availability::WindowsAndMacos) => {
-                "执行目前需要 Windows 或 macOS。所有平台均公开相同语法、帮助与补全；其他宿主返回 unsupported-platform（退出码 4）。"
-            }
             (Locale::EnUs, crate::invocation::grammar::Availability::Portable) => {
                 "Syntax, help and completion are identical on every platform. The selected execution adapter retains its documented capabilities and defaults; unavailable operations return unsupported-platform (exit 4)."
             }
@@ -700,8 +694,8 @@ impl super::CliText {
     pub(crate) const fn cli_help_text(self, text: HelpText) -> &'static str {
         let (english, chinese) = match text {
             HelpText::SessionRules => (
-                "Windows and macOS: --session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen, neither start nor end with a dot, and are no Windows device name such as con or nul. Letter case does not tell sessions apart. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
-                "Windows 和 macOS：--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符，不以点开头或结尾，也不能是 con、nul 等 Windows 设备名。只差大小写的名称指同一会话。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
+                "--session <name> selects a local session (default: default). Names use 1..64 ASCII letters, digits, dot, underscore or hyphen, neither start nor end with a dot, and are no Windows device name such as con or nul. Letter case does not tell sessions apart. Explicit --session overrides inherited routing and ORCHBEE_SESSION.",
+                "--session <name> 选择本地会话，默认 default。名称为 1..64 个 ASCII 字母、数字、点、下划线或连字符，不以点开头或结尾，也不能是 con、nul 等 Windows 设备名。只差大小写的名称指同一会话。显式 --session 覆盖继承的路由和 ORCHBEE_SESSION。",
             ),
             HelpText::MachineRules => (
                 "Use orchbee --machine <name-or-id> <command> for a saved remote machine; --machine local runs the command on this computer. Duplicate names, disabled machines and connection kinds this version does not support are refused. --file/--stdin read locally; --cwd names a remote path. TUI and terminal streams are not routed. Removing or disabling a machine leaves remote sessions running.",

@@ -1,7 +1,6 @@
 # Windows Panel metadata reports
 
-macOS runs `panel report-metadata` and its Server owner as Windows does; Linux returns
-`unsupported-platform`.
+macOS and Linux run `panel report-metadata` and its Server owner as Windows does.
 
 ## Exact member targets
 

@@ -1,5 +1,5 @@
-//! Storage identity for the Client's optional position cache on Windows and macOS: the record in
-//! the data root's folder of the Session whose runtime the Client admitted, which is named after it.
+//! Storage identity for the Client's optional position cache: the record in the data root's folder
+//! of the Session whose runtime the Client admitted, which is named after it.
 
 use orchbee_local_runtime::{DataRoot, SessionName, VersionedFile, VersionedRecord};
 use std::{io, path::Path};

@@ -38,9 +38,7 @@ pub(crate) use controllers::ControlGrant;
 mod exchange;
 mod host_colors;
 mod offer;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use offer::HostStopping;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use offer::source_commit;
 mod pacing;
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
@@ -51,7 +49,6 @@ mod viewers;
 
 #[cfg(test)]
 mod tests;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use exchange::exchange_within;
 pub(crate) use exchange::{
     HostExchange, PeerFailure, UnexpectedAnswer, exchange, exchange_between_requests,
@@ -103,10 +100,8 @@ pub(crate) struct HostBrokerConnection {
     /// The Host's answer listed `screen-gated-prompt`.
     screen_gated_prompt: bool,
     /// The Host's answer listed `keeper`, `recovery`, and `handover`.
-    #[cfg(any(windows, target_os = "macos"))]
     keeper: KeeperTerms,
     /// The Keeper events the Host sent since the Worker last took them.
-    #[cfg(any(windows, target_os = "macos"))]
     keeper_events: std::cell::Cell<KeeperEvents>,
     /// The Host's answer listed `background-programs`.
     background_programs: bool,
@@ -160,18 +155,15 @@ pub(crate) struct DialBounds {
 }
 
 /// Whether the Host's answer listed `keeper`, `recovery`, and, on Windows, `handover`.
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct KeeperTerms {
     keeper: bool,
     recovery: bool,
-    #[cfg(any(windows, target_os = "macos"))]
     handover: bool,
 }
 
 /// The Keeper events a Host sent: its Keeper ended (`KeeperLost`), missed a deadline
 /// (`KeeperUnresponsive`), or a terminal runs unheld (`TerminalUnheld`).
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct KeeperEvents {
     pub(crate) lost: bool,
@@ -261,9 +253,7 @@ impl HostBrokerConnection {
             terminal_lifecycle_read: answer.terminal_lifecycle_read,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: answer.keeper,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: answer.background_programs,
             program_exits: RefCell::default(),
@@ -318,9 +308,7 @@ impl HostBrokerConnection {
             terminal_lifecycle_read: answer.terminal_lifecycle_read,
             screen_gated_send: answer.screen_gated_send,
             screen_gated_prompt: answer.screen_gated_prompt,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: answer.keeper,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper_events: std::cell::Cell::default(),
             background_programs: answer.background_programs,
             program_exits: RefCell::default(),
@@ -353,7 +341,6 @@ impl HostBrokerConnection {
     /// The Host's `dispatch-progress` and terminal count, from one `query` control request as
     /// [`Self::query_process`] sends it; `None` when the Host has not answered by `deadline` or its
     /// answer carries no progress.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn query_progress(&self, deadline: Instant) -> Option<(u64, u32)> {
         let (entry, progress) =
             process_query::query_with_progress(&self.endpoint, deadline).ok()?;
@@ -384,33 +371,28 @@ impl HostBrokerConnection {
     }
 
     /// Whether this Host holds its running terminals in a Keeper the Worker attaches.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn keeper(&self) -> bool {
         self.keeper.keeper
     }
 
     /// Whether this Host recovers a program the Keeper kept after its Host ended.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn recovery(&self) -> bool {
         self.keeper.recovery
     }
 
     /// Whether this Host exports and imports terminals that move between Hosts.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) const fn handover(&self) -> bool {
         self.keeper.handover
     }
 
     /// Whether the Host reported its Keeper lost or unresponsive since the Keeper's care last took
     /// its events, which this call leaves for that care.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn keeper_troubled(&self) -> bool {
         let events = self.keeper_events.get();
         events.lost || events.unresponsive
     }
 
     /// The Keeper events the Host sent since the last call, which this call clears.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn take_keeper_events(&self) -> KeeperEvents {
         self.keeper_events.take()
     }
@@ -421,7 +403,6 @@ impl HostBrokerConnection {
     }
 
     /// Whether the Host reported a program exit that the Worker has not taken yet.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn has_program_exits(&self) -> bool {
         !self.program_exits.borrow().is_empty()
     }
@@ -456,14 +437,12 @@ impl HostBrokerConnection {
     }
 
     /// Whether this Host runs any program for the Worker, as far as its answers showed.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn runs_programs(&self) -> bool {
         !self.programs.borrow().is_empty()
     }
 
     /// Joins this connection's title projection to the one `primary` shares, so the Worker keeps one
     /// change sequence across its Hosts; the titles this connection read so far become changes there.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn share_titles(&mut self, primary: &Self) {
         if Rc::ptr_eq(&self.titles, &primary.titles) {
             return;
@@ -474,7 +453,6 @@ impl HostBrokerConnection {
 
     /// Sends this Host one `drain` control request on a new connection to its endpoint, so it takes
     /// no new terminal and ends once it holds none; `false` when it has not answered by `deadline`.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn drain_host(&self, deadline: Instant) -> bool {
         process_query::drain(&self.endpoint, deadline).is_ok()
     }
@@ -512,7 +490,6 @@ impl HostBrokerConnection {
         }
         // `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld` come only to a session that
         // negotiated `keeper`; the Worker acts on them between Server requests.
-        #[cfg(any(windows, target_os = "macos"))]
         if (92..=94).contains(&envelope.kind) {
             let mut events = self.keeper_events.get();
             match envelope.kind {

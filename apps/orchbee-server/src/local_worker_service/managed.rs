@@ -22,16 +22,13 @@ use std::{
     thread,
     time::{Duration, Instant},
 };
-#[cfg(any(windows, target_os = "macos"))]
 mod adoption;
 mod checkpoint;
 mod replacement;
 #[cfg(unix)]
 mod signals;
 mod stop;
-#[cfg(any(windows, target_os = "macos"))]
 mod successor;
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) use successor::{Refused, run as run_successor};
 
 /// Wakes the lifecycle owner when a Worker connection ends, so its loss is seen at once rather
@@ -87,7 +84,6 @@ pub(super) fn run(
     let (session_record, kept, checkpoint) = checkpoint::load(&session)?;
     // A generation that kept its predecessor's running Host adopts it; one that cannot fails here,
     // before anything starts, and leaves that Host running.
-    #[cfg(any(windows, target_os = "macos"))]
     let adopting = adoption::Adopting::find(&session_record, kept.as_ref())?;
     // A Session that ended without its stop left its socket files, and no listener can serve
     // them while this Server holds the lifetime lock.
@@ -132,13 +128,10 @@ pub(super) fn run(
     let registry = Arc::new(Mutex::new(WorkerRegistry::new()));
     let executable = cohort.executable(CohortArtifact::Worker);
     // An adopting Worker keeps the Session Worker id its predecessor's bindings name.
-    #[cfg(any(windows, target_os = "macos"))]
     let (worker_argument, replacing) = (
         adopting.as_ref().map(adoption::Adopting::worker_argument),
         adopting.as_ref().map(adoption::Adopting::worker_id),
     );
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let (worker_argument, replacing): (Option<String>, _) = (None, None);
     let mut arguments = vec![
         std::ffi::OsStr::new("--runtime-directory"),
         runtime.as_os_str(),
@@ -149,7 +142,6 @@ pub(super) fn run(
             std::ffi::OsStr::new(worker_id),
         ]);
     }
-    #[cfg(any(windows, target_os = "macos"))]
     let mut worker = orchbee_local_runtime::spawn_session_child(
         &orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
             .map_err(|_| io::Error::from(io::ErrorKind::NotFound))?,
@@ -159,8 +151,6 @@ pub(super) fn run(
         &arguments,
         deadline,
     )?;
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let mut worker = orchbee_local_runtime::spawn_retained(&executable, &arguments)?;
     let mut carrier = None;
     let admitted = admit_worker(
         &listener,
@@ -176,15 +166,10 @@ pub(super) fn run(
         &mut carrier,
     );
     // The listener stays open, admitting a replacement Worker only while the Server starts one.
-    #[cfg(any(windows, target_os = "macos"))]
     if let Err(error) = admitted {
         return Err(checkpoint::abort_before_launch(worker, carrier, error));
     }
-    // No launch was sent, so this Worker owns no Host; it stops once its Server connection closes.
-    #[cfg(not(any(windows, target_os = "macos")))]
-    admitted?;
     let initialized = (|| {
-        #[cfg(any(windows, target_os = "macos"))]
         if let Some(adopting) = &adopting {
             let (handle, mut terminals, pending) =
                 adopting.restore(&registry, checkpoint, &configuration)?;
@@ -204,16 +189,12 @@ pub(super) fn run(
         terminals.configure_graphics_files(runtime);
         Ok::<_, io::Error>((handle, Arc::new(terminals), pending))
     })();
-    #[cfg(any(windows, target_os = "macos"))]
     let (handle, terminals, pending) = match initialized {
         Ok(initialized) => initialized,
         Err(error) => {
             return Err(checkpoint::abort_before_launch(worker, carrier, error));
         }
     };
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let (handle, terminals, pending) = initialized?;
-    #[cfg(any(windows, target_os = "macos"))]
     let Some(carrier) = carrier else {
         return Err(checkpoint::abort_before_launch(
             worker,
@@ -221,8 +202,6 @@ pub(super) fn run(
             io::Error::other("Worker wire owner did not start"),
         ));
     };
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let carrier = carrier.ok_or_else(|| io::Error::other("Worker wire owner did not start"))?;
     stop::run(
         stop::Owners {
             session,
@@ -233,10 +212,7 @@ pub(super) fn run(
             worker,
             carrier,
             handle,
-            #[cfg(any(windows, target_os = "macos"))]
             adopted: adopting.is_some(),
-            #[cfg(not(any(windows, target_os = "macos")))]
-            adopted: false,
             listener,
             registry,
             waker: Arc::downgrade(&shutdown),
@@ -249,7 +225,6 @@ pub(super) fn run(
             automatic_updates: None,
             update_job: Arc::default(),
             session_record,
-            #[cfg(any(windows, target_os = "macos"))]
             worker_ticket: None,
         },
         shutdown,

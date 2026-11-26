@@ -41,10 +41,10 @@ impl<'a> StopControl<'a> {
         ProcessState::Ready
     }
 
-    /// Whether this Server serves `handover`: a managed Windows Server, whose restart keeps its
+    /// Whether this Server serves `handover`: a managed Server, whose restart keeps its
     /// terminals.
     pub(super) fn serves_handover(&self) -> bool {
-        cfg!(any(windows, target_os = "macos")) && self.shutdown.is_some()
+        self.shutdown.is_some()
     }
 
     /// The state the handshake weighs an offer against.
@@ -81,7 +81,6 @@ impl<'a> StopControl<'a> {
 
     /// Delivers one `handover` step to the lifecycle owner and returns its answer: `Some(None)` when
     /// none came by `deadline`, and `None` without a lifecycle owner, having delivered nothing.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn handover(
         &self,
         step: orchbee_connection_handshake::HandoverStep,

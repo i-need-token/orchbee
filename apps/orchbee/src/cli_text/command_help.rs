@@ -44,12 +44,12 @@ const HELP_API_SNAPSHOT_ZH: crate::cli_text::HelpDetails = crate::cli_text::Help
 
 const HELP_API_SCHEMA_EN: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee api schema [<schema-id>] [--output <path>] [--format text|json]",
-    "Without <schema-id>, list every embedded schema ID with its versions and title.\nWith <schema-id>, emit that JSON Schema; --format json or --output emits the\ncomplete dictionary. Schema documents are always JSON; unknown IDs are\nnot-found, and failure envelopes require '--format json'.\nOn Windows and macOS, --output writes identical JSON to a literal file path,\nreplacing an existing regular file only after complete preparation. Parent\ndirectories must exist. The command stays offline and also emits the JSON on stdout.",
+    "Without <schema-id>, list every embedded schema ID with its versions and title.\nWith <schema-id>, emit that JSON Schema; --format json or --output emits the\ncomplete dictionary. Schema documents are always JSON; unknown IDs are\nnot-found, and failure envelopes require '--format json'.\n--output writes identical JSON to a literal file path,\nreplacing an existing regular file only after complete preparation. Parent\ndirectories must exist. The command stays offline and also emits the JSON on stdout.",
 );
 
 const HELP_API_SCHEMA_ZH: crate::cli_text::HelpDetails = crate::cli_text::HelpDetails::new(
     "orchbee api schema [<schema-id>] [--output <path>] [--format text|json]",
-    "不带 <schema-id> 时列出每个内嵌 schema 的 ID、版本和标题；带 <schema-id> 时输出该 JSON Schema；--format json 或 --output 输出完整字典。schema 文档始终为 JSON；未知 ID 为 not-found，失败封套需显式 '--format json'。\nWindows 与 macOS 的 --output 将相同 JSON 写入字面文件路径，完整准备后才替换已有普通文件。父目录必须存在；全程离线，stdout 同时输出该 JSON。",
+    "不带 <schema-id> 时列出每个内嵌 schema 的 ID、版本和标题；带 <schema-id> 时输出该 JSON Schema；--format json 或 --output 输出完整字典。schema 文档始终为 JSON；未知 ID 为 not-found，失败封套需显式 '--format json'。\n--output 将相同 JSON 写入字面文件路径，完整准备后才替换已有普通文件。父目录必须存在；全程离线，stdout 同时输出该 JSON。",
 );
 
 impl super::CliText {
@@ -261,11 +261,11 @@ impl super::CliText {
             (Locale::ZhCn, CommandPath::AgentList) => super::agent::HELP_AGENT_LIST_ZH,
             (Locale::EnUs, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows and macOS: start an interactive Agent in a new Tab (the default), in a new Panel split\nright or down (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel and rejects --cwd, --focus,\n--client and --no-focus.\nFor --new-tab and --split, --cwd sets the initial directory or directory policy (follow, home,\ncurrent, workspace) instead of the Workspace default, and --focus switches an existing ready TUI\nClient to the new Panel; --client <id> names that Client and needs --focus. A focus that does not\nswitch is reported as `focus` and does not fail the start (--no-focus keeps its selection, which is\nalso the default).\nWith no arguments, a new Tab or split runs the Agent as its shell's first command and returns once\nthe Panel exists. Otherwise the command is typed once at the confirmed prompt. The start returns after\na 3-second check: a shell back at its prompt reports the command not found or the Agent exited. A new\nTab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout never kills the Agent.\n<provider> is a canonical provider id, for example antigravity.",
+                "Start an interactive Agent in a new Tab (the default), in a new Panel split\nright or down (--split), or at the prompt of an existing idle terminal (--here). The reference Panel is\n--panel, --current or the caller's own Panel: a new Tab joins its Workspace, a split divides it,\nand --here types into it; --here is refused for the caller's own Panel and rejects --cwd, --focus,\n--client and --no-focus.\nFor --new-tab and --split, --cwd sets the initial directory or directory policy (follow, home,\ncurrent, workspace) instead of the Workspace default, and --focus switches an existing ready TUI\nClient to the new Panel; --client <id> names that Client and needs --focus. A focus that does not\nswitch is reported as `focus` and does not fail the start (--no-focus keeps its selection, which is\nalso the default).\nWith no arguments, a new Tab or split runs the Agent as its shell's first command and returns once\nthe Panel exists. Otherwise the command is typed once at the confirmed prompt. The start returns after\na 3-second check: a shell back at its prompt reports the command not found or the Agent exited. A new\nTab or Panel stays when a later step fails.\nTimeout: 3001–300000 ms, default 30000. Use --arg=<value> repeatedly as an alternative to\ntrailing arguments. Cancellation or timeout never kills the Agent.\n<provider> is a canonical provider id, for example antigravity.",
             ),
             (Locale::ZhCn, CommandPath::AgentStart) => crate::cli_text::HelpDetails::new(
                 "orchbee agent start <provider> [--new-tab|--here|--split right|down] [--panel <id|@panel:0x<hex>>|--current] [--cwd <abs|follow|home|current|workspace>] [--focus|--no-focus] [--client <id>] [--timeout <ms>] [--format text|json] [--arg <value>]... [-- <args>...]",
-                "Windows 和 macOS：在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板，也不能与 --cwd、--focus、--client 或 --no-focus 同时使用。\n对于 --new-tab 与 --split，--cwd 设置初始工作目录或目录策略（follow、home、current、workspace）而非工作区默认值；--focus 让已有就绪 TUI 客户端切换到新面板（--no-focus 保持原选中项，这也是默认行为）；--client <id> 指定要切换的客户端，且需与 --focus 同用。聚焦未切换时在 focus 中报告，不会使启动失败。\n不带参数时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时不会终止智能体。\n<provider> 为规范的提供方 ID，例如 antigravity。",
+                "在新标签页（默认）、向右或向下拆分出的新面板（--split）中启动交互式智能体，或在现有空闲终端的提示符处启动（--here）。参照面板为 --panel、--current 或调用者自己的面板：新标签页加入其工作区，拆分会分割它，--here 在其中输入；--here 不能用于调用者自己的面板，也不能与 --cwd、--focus、--client 或 --no-focus 同时使用。\n对于 --new-tab 与 --split，--cwd 设置初始工作目录或目录策略（follow、home、current、workspace）而非工作区默认值；--focus 让已有就绪 TUI 客户端切换到新面板（--no-focus 保持原选中项，这也是默认行为）；--client <id> 指定要切换的客户端，且需与 --focus 同用。聚焦未切换时在 focus 中报告，不会使启动失败。\n不带参数时，新标签页或拆分面板的 shell 把智能体作为第一条命令运行，面板出现后即返回。否则在已确认的提示符处输入一次启动命令。命令在 3 秒检查后返回：shell 回到提示符则报告找不到命令或智能体已退出。之后的步骤失败时，新标签页或面板会保留。超时范围 3001–300000 毫秒，默认 30000。可重复使用 --arg=<value> 代替尾随参数。取消或超时不会终止智能体。\n<provider> 为规范的提供方 ID，例如 antigravity。",
             ),
             (Locale::EnUs, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_EN,
             (Locale::ZhCn, CommandPath::AgentPrompt) => super::agent::HELP_AGENT_PROMPT_WINDOWS_ZH,
@@ -337,14 +337,14 @@ impl super::CliText {
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
                 "Remove the installed Orchbee of this environment completely, in this order: list what goes and confirm; stop every Session; disable every Agent integration; remove the user Path entry, the Start menu shortcut and the uninstall registration; remove logs, internal/integrations, internal/cache, internal/runtime and internal/tmp from the data folder; remove the program folder (ORCHBEE_INSTALL_DIR, default %LOCALAPPDATA%/Programs/Orchbee) a few seconds after the command ends.
 Settings, Sessions and the rest of the data folder stay unless --delete-data, which removes the whole data folder.
-The Windows and macOS release builds ask a person in a console to type orchbee; development and test builds require --confirm.
+Release builds ask a person in a console to type orchbee; development and test builds require --confirm.
 A failure says what was done and what remains; running the command again continues.",
             ),
             (Locale::ZhCn, CommandPath::Uninstall) if cfg!(windows) => crate::cli_text::HelpDetails::new(
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
                 "完整移除本环境已安装的 Orchbee，顺序为：列出将移除的内容并确认；停止所有会话；停用所有智能体集成；移除用户 Path 条目、开始菜单快捷方式和卸载登记；从数据文件夹移除 logs、internal/integrations、internal/cache、internal/runtime 和 internal/tmp；命令结束几秒后移除程序文件夹（ORCHBEE_INSTALL_DIR，默认 %LOCALAPPDATA%/Programs/Orchbee）。
 除非加 --delete-data（删除整个数据文件夹），否则设置、会话和数据文件夹中的其余内容都会保留。
-Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
+正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
 失败时会说明已完成和尚余的内容；再次运行命令即可继续。",
             ),
             // macOS and Linux install into the release store and link the command in ~/.local/bin.
@@ -360,14 +360,14 @@ Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
                 "Remove the installed Orchbee of this environment completely, in this order: list what goes and confirm; stop every Session; disable every Agent integration; remove the command link ~/.local/bin/orchbee while it names a version of this installation, and on macOS the two PATH lines install added to your shell's startup file; remove logs, internal/integrations, internal/cache, internal/runtime and internal/tmp from the data folder; remove the program folder (ORCHBEE_INSTALL_DIR, default ~/.local/share/orchbee) last.
 Settings, Sessions and the rest of the data folder stay unless --delete-data, which removes the whole data folder.
-The Windows and macOS release builds ask a person in a console to type orchbee; development and test builds require --confirm.
+Release builds ask a person in a console to type orchbee; development and test builds require --confirm.
 A failure says what was done and what remains; running the command again continues.",
             ),
             (Locale::ZhCn, CommandPath::Uninstall) => crate::cli_text::HelpDetails::new(
                 "orchbee uninstall [--delete-data] [--confirm] [--format text|json]",
                 "完整移除本环境已安装的 Orchbee，顺序为：列出将移除的内容并确认；停止所有会话；停用所有智能体集成；命令链接 ~/.local/bin/orchbee 指向本安装的版本时移除它，在 macOS 上还会移除 install 加入 shell 启动文件的两行 PATH 设置；从数据文件夹移除 logs、internal/integrations、internal/cache、internal/runtime 和 internal/tmp；最后移除程序文件夹（ORCHBEE_INSTALL_DIR，默认 ~/.local/share/orchbee）。
 除非加 --delete-data（删除整个数据文件夹），否则设置、会话和数据文件夹中的其余内容都会保留。
-Windows 和 macOS 正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
+正式版要求在控制台中输入 orchbee；开发和测试构建需要 --confirm。
 失败时会说明已完成和尚余的内容；再次运行命令即可继续。",
             ),
             (Locale::EnUs, CommandPath::ConfigCheck) => super::configuration::HELP_CONFIG_CHECK_EN,

@@ -4,7 +4,6 @@
 //! pathname or pipe disappearance proves process exit.
 
 use crate::local_terminal_service::LocalTerminalService;
-#[cfg(any(windows, target_os = "macos"))]
 use orchbee_local_runtime::RetainedChild;
 use orchbee_local_runtime::{
     DataRoot, LogLevel, LogValue, ModeCheckedLocalSessionRendezvous, RetainedSessionRecord,
@@ -16,17 +15,10 @@ use std::{
     sync::{Arc, Mutex},
     time::Instant,
 };
-#[cfg(any(windows, target_os = "macos"))]
 use std::{thread, time::Duration};
 pub(super) mod autosave;
 mod bindings;
-#[cfg(any(windows, target_os = "macos"))]
 mod moves;
-
-/// Whether this platform's managed Session keeps a checkpoint: it restores the last one when it
-/// starts, saves while it runs and publishes a final one when it stops. A Linux Session keeps none
-/// yet and starts empty. A policy constant, so every branch compiles everywhere.
-const KEPT: bool = cfg!(any(windows, target_os = "macos"));
 
 /// The store a Session's saves publish to and, once the Session runs, the saver that publishes
 /// while it runs.
@@ -35,12 +27,11 @@ pub(super) struct Kept {
     saver: Option<autosave::Saver>,
     /// The loaded fallback was the visible empty one, which stays unsaved until it changes.
     suppress_initial_empty: bool,
-    /// What keeps the binding record, where this platform keeps one; the saver and the final
-    /// capture write through it, one at a time.
-    bindings: Option<Arc<Mutex<bindings::Writer>>>,
+    /// What keeps the binding record; the saver and the final capture write through it, one at a
+    /// time.
+    bindings: Arc<Mutex<bindings::Writer>>,
     /// The move turns of a Worker that adopted its Hosts, which record each rebinding through the
     /// binding record before the next turn.
-    #[cfg(any(windows, target_os = "macos"))]
     turns: Option<moves::Turns>,
 }
 
@@ -56,39 +47,34 @@ impl Kept {
             Arc::clone(terminals),
             worker,
             self.suppress_initial_empty,
-            self.bindings.clone(),
+            Arc::clone(&self.bindings),
         )?);
         Ok(())
     }
 
     /// Starts the move turns of the Worker `handle` names, which adopted its Hosts, in place of any
     /// earlier generation's.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn start_turns(
         &mut self,
         terminals: &Arc<LocalTerminalService>,
         handle: &crate::worker_obcn_carrier::WorkerRequestHandle,
         worker: orchbee_workbench_protocol::WorkerId,
     ) {
-        if let Some(writer) = &self.bindings {
-            self.turns = moves::Turns::start(
-                handle.clone(),
-                Arc::clone(terminals),
-                Arc::clone(writer),
-                worker,
-            );
-        }
+        self.turns = moves::Turns::start(
+            handle.clone(),
+            Arc::clone(terminals),
+            Arc::clone(&self.bindings),
+            worker,
+        );
     }
 
     /// Whether move turns were started for this Session's Worker, even if they ended since.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) const fn turns_started(&self) -> bool {
         self.turns.is_some()
     }
 
     /// Stops the move turns and the background writer; a write in progress returns first.
     pub(super) fn stop_saver_before(&mut self, deadline: Instant) -> io::Result<()> {
-        #[cfg(any(windows, target_os = "macos"))]
         if let Some(turns) = &self.turns {
             turns.stop();
         }
@@ -109,7 +95,7 @@ impl Kept {
     ) -> io::Result<()> {
         autosave::publish_final(&self.store, bytes)?;
         terminals.after_checkpoint_save(bytes);
-        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+        if let Ok(mut bindings) = self.bindings.lock() {
             bindings.write_final(terminals, worker);
         }
         Ok(())
@@ -118,7 +104,6 @@ impl Kept {
     /// Publishes a restart's exact capture: the checkpoint, then the binding record of the same
     /// moment, which the successor adopts the Host from, so a binding record that cannot be written
     /// fails it.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn publish_exact(
         &self,
         terminals: &LocalTerminalService,
@@ -127,41 +112,36 @@ impl Kept {
     ) -> io::Result<()> {
         autosave::publish_final(&self.store, bytes)?;
         terminals.after_checkpoint_save(bytes);
-        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
-            Some(Ok(mut bindings)) => bindings.write_exact(terminals, worker),
-            _ => Err(io::Error::other("no binding record is kept")),
-        }
+        self.bindings
+            .lock()
+            .map_err(|_| io::Error::other("the binding record writer failed"))?
+            .write_exact(terminals, worker)
     }
 
     /// Writes the binding record a restart's successor describes once its Worker adopted the Host,
     /// before the commit; a write that is deferred or fails fails the restart.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn write_bindings_exact(
         &self,
         terminals: &LocalTerminalService,
         worker: &orchbee_workbench_protocol::WorkerId,
     ) -> io::Result<()> {
-        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
-            Some(Ok(mut bindings)) => bindings.write_exact(terminals, worker),
-            _ => Err(io::Error::other("no binding record is kept")),
-        }
+        self.bindings
+            .lock()
+            .map_err(|_| io::Error::other("the binding record writer failed"))?
+            .write_exact(terminals, worker)
     }
 
     /// Moves the binding writer to `session`, the generation a restart's successor committed.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn committed(&self, session: RetainedSessionRecord) -> io::Result<()> {
-        match self.bindings.as_ref().map(|bindings| bindings.lock()) {
-            Some(Ok(mut bindings)) => {
-                bindings.renew(session);
-                Ok(())
-            }
-            _ => Err(io::Error::other("no binding record is kept")),
-        }
+        self.bindings
+            .lock()
+            .map_err(|_| io::Error::other("the binding record writer failed"))?
+            .renew(session);
+        Ok(())
     }
 
     /// Lets the successor of a restart open the store; every write refuses until
     /// [`Self::retake_store`].
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn release_store(&self) -> io::Result<()> {
         self.store
             .lock()
@@ -173,7 +153,6 @@ impl Kept {
     /// Holds the store again after a restart that did not commit, waiting until `deadline` for the
     /// ended successor's hold on it to go. The binding record is written again at the next change,
     /// since the successor may have replaced it.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn retake_store(&self, deadline: Instant) -> io::Result<()> {
         loop {
             let retaken = self
@@ -190,7 +169,7 @@ impl Kept {
                 retaken => break retaken?,
             }
         }
-        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+        if let Ok(mut bindings) = self.bindings.lock() {
             bindings.forget_written();
         }
         Ok(())
@@ -199,7 +178,7 @@ impl Kept {
     /// Removes the binding record once the Host has ended, so nothing is left to adopt; a failure
     /// is reported only.
     pub(super) fn remove_bindings(&self) {
-        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+        if let Ok(mut bindings) = self.bindings.lock() {
             bindings.remove();
         }
     }
@@ -207,7 +186,6 @@ impl Kept {
     /// The binding record this generation adopts its predecessor's Host from, read through the
     /// store; the record this generation writes keeps its `extensions`. An absent or unusable
     /// record fails.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn adopted_record(&self) -> io::Result<crate::binding_record::BindingRecord> {
         let bytes = self
             .store
@@ -217,7 +195,7 @@ impl Kept {
             .ok_or_else(|| io::Error::other("no binding record names the kept Terminal Host"))?;
         let record = crate::binding_record::decode(&bytes)
             .ok_or_else(|| io::Error::other("the binding record is unusable"))?;
-        if let Some(Ok(mut bindings)) = self.bindings.as_ref().map(|bindings| bindings.lock()) {
+        if let Ok(mut bindings) = self.bindings.lock() {
             bindings.keep_extensions(record.extensions.clone());
         }
         Ok(record)
@@ -229,9 +207,8 @@ impl Kept {
     }
 }
 
-/// The Session's retained record and, where this platform keeps a checkpoint, its store and the
-/// checkpoint to restore, if any. Loading publishes the restore notice the activating Client
-/// reads.
+/// The Session's retained record, its store and the checkpoint to restore, if any. Loading
+/// publishes the restore notice the activating Client reads.
 pub(super) fn load(
     session: &ModeCheckedLocalSessionRendezvous,
 ) -> io::Result<(
@@ -241,26 +218,17 @@ pub(super) fn load(
 )> {
     let root = DataRoot::resolve(|name| std::env::var_os(name))
         .map_err(|_| io::Error::other("the data root is unavailable"))?;
-    if !KEPT {
-        return Ok((RetainedSessionRecord::retain(&root, session)?, None, None));
-    }
     let (store, checkpoint, record, suppress_initial_empty) = load_from(&root, session)?;
     let store = Arc::new(Mutex::new(store));
-    let bindings = if bindings::RECORDED {
-        let session = RetainedSessionRecord::retain(&root, session)?;
-        Some(Arc::new(Mutex::new(bindings::Writer::new(
-            Arc::clone(&store),
-            session,
-        ))))
-    } else {
-        None
-    };
+    let bindings = Arc::new(Mutex::new(bindings::Writer::new(
+        Arc::clone(&store),
+        RetainedSessionRecord::retain(&root, session)?,
+    )));
     let kept = Kept {
         store,
         saver: None,
         suppress_initial_empty,
         bindings,
-        #[cfg(any(windows, target_os = "macos"))]
         turns: None,
     };
     Ok((record, Some(kept), checkpoint))
@@ -270,7 +238,6 @@ pub(super) fn load(
 /// capture that Server published, which must be the newest checkpoint and readable by this build;
 /// the binding writer reads the replaced generation's record until [`Kept::committed`]. Nothing is
 /// restored after a fallback and no restore notice is published: no activation waits for one.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn take(
     root: &DataRoot,
     session: &ModeCheckedLocalSessionRendezvous,
@@ -294,8 +261,7 @@ pub(super) fn take(
         store,
         saver: None,
         suppress_initial_empty: false,
-        bindings: Some(Arc::new(Mutex::new(bindings))),
-        #[cfg(any(windows, target_os = "macos"))]
+        bindings: Arc::new(Mutex::new(bindings)),
         turns: None,
     };
     Ok((record, kept, checkpoint))
@@ -380,7 +346,6 @@ fn failed(stage: &'static str, error: Option<io::ErrorKind>) {
 mod tests;
 
 /// No launch has been sent; this Worker cannot own a Host or terminal.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn abort_before_launch(
     mut worker: RetainedChild,
     carrier: Option<thread::JoinHandle<()>>,

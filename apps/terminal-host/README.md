@@ -200,8 +200,9 @@ orchbee-terminal-host serve \
 
 The broker derives the runtime directory and endpoint identifier from its own runtime scope; the Host treats both as infrastructure values and does not infer product topology from them.
 
-On Windows and macOS the same binary also runs as the Keeper, which holds terminals' handles, or on
-macOS their PTY masters, for the Hosts of one Session so a program outlives the Host that serves it:
+On Windows, macOS and Linux the same binary also runs as the Keeper, which holds terminals' handles,
+or on macOS and Linux their PTY masters, for the Hosts of one Session so a program outlives the Host
+that serves it:
 
 ```text
 orchbee-terminal-host keep \
@@ -215,7 +216,7 @@ The runtime directory and endpoint are the Keeper's own. Nothing starts a Keeper
 [runtime model](docs/runtime-model.md#keeper) owns its behavior and exit codes; it writes
 `keeper-fatal.json` and `keeper-diagnostics.jsonl` in the Host's formats with the role `keeper`.
 
-A Windows or macOS Host offers the `keeper`, `handover` and `recovery` capabilities, which hold its
+A Windows, macOS or Linux Host offers the `keeper`, `handover` and `recovery` capabilities, which hold its
 running terminals in a Keeper, move a terminal to another Host of the same Worker, and recover one
 the Keeper kept after its Host ended; a Worker offers each only where its build runs the Keeper. The
 runtime model owns the [Keeper link](docs/runtime-model.md#keeper-link) and

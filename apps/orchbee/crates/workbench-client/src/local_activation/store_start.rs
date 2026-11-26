@@ -5,8 +5,7 @@
 //! newer store never loses the start to an older Client. Whatever the store's Client answers, the
 //! caller's own activation stays the only verdict: it joins the Session that Client started, reports
 //! the refusal it meets, or starts its own Server as before. Each start decision writes one
-//! `session-start-source` record with tokens and counts only. Windows and macOS run it; Linux keeps
-//! starting its own cohort.
+//! `session-start-source` record with tokens and counts only.
 //!
 //! On macOS the window application's bundled Client is the only installer a copy dragged from the
 //! disk image has. Where no store version is active, or the store's active version is lower than
@@ -25,9 +24,9 @@ use orchbee_local_runtime::{
     ActiveRelease, CohortArtifact, EnvironmentKind, LogLevel, LogValue,
     ModeCheckedLocalSessionRendezvous, RendezvousError, SessionScope, private_filesystem,
 };
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 use orchbee_local_runtime::{DetachedChild, SpawnEnvironment};
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 use std::os::fd::OwnedFd;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -465,9 +464,9 @@ fn spawn_install_own(own_client: &Path, no_path: bool) {
     }
 }
 
-/// The child `wait_for` watches: a `DetachedChild` on macOS and the standard library's child on
-/// Windows.
-#[cfg(target_os = "macos")]
+/// The child `wait_for` watches: a `DetachedChild` on macOS and Linux and the standard library's
+/// child on Windows.
+#[cfg(unix)]
 type Watched = DetachedChild;
 #[cfg(windows)]
 type Watched = Child;
@@ -486,7 +485,7 @@ fn start_watched(mut command: Command, output: Stdio) -> io::Result<Watched> {
 
 /// Starts `command` as a `DetachedChild` with `output` as its standard output and null standard
 /// input and error, so it inherits no descriptor but those three.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn start_watched(command: Command, output: OwnedFd) -> io::Result<Watched> {
     let streams = [null_device(false)?, output, null_device(true)?];
     DetachedChild::spawn_with_streams(command, SpawnEnvironment::Inherited, streams)
@@ -494,7 +493,7 @@ fn start_watched(command: Command, output: OwnedFd) -> io::Result<Watched> {
 
 /// The null device, opened for reading or for writing as the standard library's `Stdio::null` opens
 /// it for each standard stream.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn null_device(write: bool) -> io::Result<OwnedFd> {
     let device = File::options()
         .read(!write)
@@ -514,21 +513,21 @@ fn null_streams() -> io::Result<[OwnedFd; 3]> {
 /// waits for it until `deadline`; `pins` hold its program in place until it exists. It gets null
 /// standard input and error, a bounded standard output, and a working folder no version owns, since
 /// a Session it starts outlives this Client: the system folder on Windows, where it also gets no
-/// console window, and `/` on macOS, where it leads a process group of its own, so a terminal's
-/// interrupt meant for this Client never reaches it. On macOS it starts as a `DetachedChild`, which
-/// inherits no descriptor but those three streams.
+/// console window, and `/` on macOS and Linux, where it leads a process group of its own, so a
+/// terminal's interrupt meant for this Client never reaches it, and starts as a `DetachedChild`,
+/// which inherits no descriptor but those three streams.
 fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
     #[cfg(windows)]
     let Ok(directory) = winsafe::GetSystemDirectory() else {
         return Run::Failed;
     };
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let directory = "/";
     #[cfg(windows)]
     let Ok((mut reader, writer)) = ChildOutputReader::pipe() else {
         return Run::Failed;
     };
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let Ok((mut reader, writer)) = ChildOutputReader::pipe_descriptor() else {
         return Run::Failed;
     };

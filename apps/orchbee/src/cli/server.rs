@@ -236,7 +236,6 @@ pub(super) fn activate_for_relay(
 #[cfg(any(target_os = "linux", target_os = "macos", windows))]
 fn classify(failure: ActivationFailure) -> Failure {
     match failure.cause {
-        #[cfg(any(windows, target_os = "macos"))]
         Some(ActivationCause::Configuration(error)) => {
             super::configuration::Error::from(error).failure()
         }

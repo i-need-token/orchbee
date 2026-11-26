@@ -2,7 +2,7 @@
 
 ## Interaction and scope
 
-On Windows and macOS, New Worktree… and `Ctrl+b Shift+W` open the New Worktree form after read-only source
+New Worktree… and `Ctrl+b Shift+W` open the New Worktree form after read-only source
 discovery, with Branch blank (a generated branch) and Base `HEAD`. Nothing is created until its
 Create or Enter; Esc or Cancel creates nothing. No Project chooser blocks this intent. Use the CLI
 for an explicit destination. `Ctrl+b Shift+O` opens an exact checkout

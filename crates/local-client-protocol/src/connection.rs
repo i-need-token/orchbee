@@ -129,7 +129,6 @@ pub fn exchange_exit_before(
 }
 
 /// What a Server answered one `handover` step.
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Clone, Debug, PartialEq)]
 pub enum HandoverReply {
     /// The step's `handover-result`.
@@ -142,7 +141,6 @@ pub enum HandoverReply {
 /// one `handover` control request. The connection never enters the Client phase; the reply arrives
 /// once the Server has done the step, inside `deadline`: a `prepare` is answered after the Server
 /// released the Session store and its Worker.
-#[cfg(any(windows, target_os = "macos"))]
 pub fn exchange_handover_before(
     endpoint: &Path,
     environment: orchbee_connection_handshake::EnvironmentName,
@@ -153,7 +151,7 @@ pub fn exchange_handover_before(
 ) -> Result<HandoverReply, SessionStopExchangeError> {
     #[cfg(windows)]
     return windows_admission::handover(endpoint, environment, step, ticket, deadline, wake);
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     return admission_deadline::handover_before_cancellable(
         endpoint,
         environment,

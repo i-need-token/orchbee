@@ -76,7 +76,7 @@ impl Saver {
         terminals: Arc<LocalTerminalService>,
         worker: WorkerId,
         suppress_initial_empty: bool,
-        bindings: Option<Arc<Mutex<super::bindings::Writer>>>,
+        bindings: Arc<Mutex<super::bindings::Writer>>,
     ) -> io::Result<Self> {
         let mut suppressed_payload = if suppress_initial_empty {
             let (_, bytes) = terminals.cached_checkpoint(&worker)?;
@@ -130,7 +130,7 @@ impl Saver {
                 }
                 // The binding record keeps its own schedule; a failed checkpoint save never holds
                 // it back.
-                if let Some(Ok(mut bindings)) = bindings.as_ref().map(|bindings| bindings.lock()) {
+                if let Ok(mut bindings) = bindings.lock() {
                     bindings.look(&terminals, &worker);
                 }
                 match receive.recv_timeout(POLL) {

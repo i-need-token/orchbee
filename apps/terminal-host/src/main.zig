@@ -36,7 +36,7 @@ pub fn main(init: std.process.Init) !void {
         },
         .keep => |options| try keep(allocator, options),
         .keep_check => {
-            if (comptime builtin.os.tag != .macos) return error.KeeperUnsupported;
+            if (comptime !(builtin.os.tag == .macos or builtin.os.tag == .linux)) return error.KeeperUnsupported;
             terminal_host.keeper.check.serve(allocator);
         },
     }
@@ -52,7 +52,7 @@ fn keep(allocator: std.mem.Allocator, options: launcher_arguments.KeepOptions) !
         .endpoint_directory = options.endpoint_directory,
     };
     if (options.resumed) |resumed| {
-        if (comptime builtin.os.tag != .macos) return error.KeeperUnsupported;
+        if (comptime !(builtin.os.tag == .macos or builtin.os.tag == .linux)) return error.KeeperUnsupported;
         terminal_host.keeper.resume_state.run(allocator, service_options, .{
             .state = resumed.state,
             .previous = resumed.previous,

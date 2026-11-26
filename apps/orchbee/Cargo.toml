@@ -68,23 +68,18 @@ jsonschema.workspace = true
 # Bounded fake peers, controlled transport clocks, and Client runtime fixtures for application
 # tests only.
 orchbee-workbench-client = { path = "crates/workbench-client", features = ["test-support"] }
+# Default configuration and provider TOML documents are parsed and rendered in tests.
+toml.workspace = true
+toml_edit.workspace = true
 
 [target.'cfg(unix)'.dev-dependencies]
 # `socket` lets a scripted peer look at a connection's first frame without taking it from the script.
 nix = { workspace = true, features = ["fs", "process", "signal", "socket", "term"] }
 
 [target.'cfg(windows)'.dev-dependencies]
-# Default configuration and provider TOML documents are parsed and rendered in Windows tests.
-toml.workspace = true
-toml_edit.workspace = true
 # The workspace's Job wrapper, already admitted, gives the link helper's process test a Job with the
 # limits Win32-OpenSSH gives each connection.
 process-wrap.workspace = true
-
-[target.'cfg(target_os = "macos")'.dev-dependencies]
-# macOS prints the default configuration too, and its tests parse it as on Windows.
-toml.workspace = true
-toml_edit.workspace = true
 
 [lints]
 workspace = true

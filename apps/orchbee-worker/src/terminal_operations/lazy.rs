@@ -334,11 +334,11 @@ pub(crate) fn run(
                 false,
             );
             // The Keeper's care starts the Session's Keeper between requests, first right after
-            // this answer, so the start takes none of the Launch's bound. A macOS Keeper parents
-            // only a terminal it starts, and one the Host forks itself loses its exit status once a
-            // move lets that Host end, so a macOS Host attaches it before the Launch's terminal
-            // starts, within the Launch's bound.
-            #[cfg(target_os = "macos")]
+            // this answer, so the start takes none of the Launch's bound. A macOS or Linux Keeper
+            // parents only a terminal it starts, and one the Host forks itself loses its exit
+            // status once a move lets that Host end, so such a Host attaches it before the Launch's
+            // terminal starts, within the Launch's bound.
+            #[cfg(unix)]
             hosts.attach_keeper();
             let host = hosts.primary();
             let bound = host.pacing.exchange_bound();

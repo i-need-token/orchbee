@@ -154,9 +154,8 @@ fn an_unmasked_command_receives_exactly_the_environment_it_states() {
 }
 
 /// A command started with its own streams inherits no descriptor but those three, not even one
-/// another thread of this process left open without close-on-exec, and leads its own group. macOS
-/// only: Linux creates its descriptors close-on-exec, so this one would reach the child there.
-#[cfg(target_os = "macos")]
+/// another thread of this process left open without close-on-exec or one this process inherited
+/// that way, and leads its own group.
 #[test]
 fn a_command_with_its_own_streams_inherits_no_other_descriptor() {
     use nix::unistd::{Pid as GroupPid, getpgid};
@@ -193,9 +192,7 @@ fn a_command_with_its_own_streams_inherits_no_other_descriptor() {
 }
 
 /// An unmasked command inherits no descriptor but its three standard streams, not even one another
-/// thread of this process left open without close-on-exec. macOS only: Linux creates its descriptors
-/// close-on-exec, so this one would not reach the command there.
-#[cfg(target_os = "macos")]
+/// thread of this process left open without close-on-exec or one this process inherited that way.
 #[test]
 fn an_unmasked_command_inherits_no_other_descriptor() {
     // Open without close-on-exec, at a number no descriptor of the command takes.
@@ -217,8 +214,7 @@ fn an_unmasked_command_inherits_no_other_descriptor() {
 }
 
 /// A detached child keeps running after its owner drops it: dropping signals nothing, so the child
-/// still writes its output, and the pipe closes only when the child ends. macOS only.
-#[cfg(target_os = "macos")]
+/// still writes its output, and the pipe closes only when the child ends.
 #[test]
 fn a_dropped_detached_child_keeps_running() {
     use std::{fs::File, io::Read, os::fd::OwnedFd};
@@ -243,8 +239,7 @@ fn a_dropped_detached_child_keeps_running() {
     assert_eq!(text, "survived\n");
 }
 
-/// A detached child reports the status it ended with, and keeps it for later reads. macOS only.
-#[cfg(target_os = "macos")]
+/// A detached child reports the status it ended with, and keeps it for later reads.
 #[test]
 fn a_detached_child_reports_the_status_it_ended_with() {
     use std::{fs::File, os::fd::OwnedFd};

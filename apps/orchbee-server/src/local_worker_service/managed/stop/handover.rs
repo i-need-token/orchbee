@@ -1,4 +1,4 @@
-//! The old side of a Server restart that keeps terminals, on Windows and macOS. A `prepare` holds the Session
+//! The old side of a Server restart that keeps terminals. A `prepare` holds the Session
 //! for the successor its record names: it settles intents, counts background programs, publishes an
 //! exact capture, releases the store and the Worker, and starts a lease. A `commit` ends this Server
 //! once the record names the successor; an `abort`, the lease, or the end of the successor or its
@@ -548,13 +548,10 @@ fn restart_saver(owners: &mut Owners) {
         .and_then(|()| checkpoint_worker(&owners.handle))
         .and_then(|worker| {
             kept.start_saver(&owners.terminals, worker.clone())?;
-            // Move turns run only on Windows and macOS, whose Worker can hold an older Host.
-            #[cfg(any(windows, target_os = "macos"))]
+            // Move turns run only once the Worker can hold an older Host.
             if kept.turns_started() {
                 kept.start_turns(&owners.terminals, &owners.handle, worker);
             }
-            #[cfg(not(any(windows, target_os = "macos")))]
-            let _ = worker;
             Ok(())
         });
     if let Err(error) = started {
@@ -575,7 +572,7 @@ pub(super) fn leave(
     }
     // A Server an earlier restart started also served the Worker endpoint its ticket names, which
     // no later Server uses.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     if let Some(ticket) = owners.worker_ticket {
         forget_endpoint(&owners, *ticket.as_bytes());
     }
@@ -586,7 +583,7 @@ pub(super) fn leave(
 /// Removes the Worker endpoint the successor of `ticket` bound, once that successor was ended and
 /// so could not remove it: a socket file outlives its listener, while a Windows pipe ends with it.
 fn forget_endpoint(owners: &Owners, ticket: [u8; 16]) {
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     if let Err(error) = owners
         .session
         .remove_successor_worker_endpoint(&owners.lifetime, ticket)

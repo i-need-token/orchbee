@@ -121,14 +121,12 @@ impl ModeCheckedLocalSessionRendezvous {
     /// Server it replaces still serves the Session's own Worker endpoint, which the successor keeps
     /// beside it for its whole life. Four bytes of the ticket keep the path inside a socket address;
     /// one restart of a Session runs at a time.
-    #[cfg(target_os = "macos")]
     pub fn successor_worker_socket_path(&self, ticket: [u8; 16]) -> PathBuf {
         Self::socket_root_path().join(successor_worker_leaf(&self.paths.endpoint_id, ticket))
     }
 
     /// Removes the Worker endpoint the successor of the restart `ticket` names bound, as a stop
     /// removes the Session's own endpoints.
-    #[cfg(target_os = "macos")]
     pub fn remove_successor_worker_endpoint(
         &self,
         lifetime: &ModeCheckedSessionLock,
@@ -183,14 +181,12 @@ impl ModeCheckedLocalSessionRendezvous {
 
     /// The endpoint identity a Keeper slot receives, which names its socket and its lock. Pure path
     /// math.
-    #[cfg(target_os = "macos")]
     pub fn keeper_endpoint_id(runtime_directory: &Path, slot: crate::KeeperSlot) -> String {
         crate::rendezvous_types::keeper_endpoint_id(&runtime_endpoint_id(runtime_directory), slot)
     }
 
     /// The socket a Keeper slot binds in the socket folder, the Host's endpoint folder, where each
     /// Host derives it from the Keeper's endpoint identity. Pure path math.
-    #[cfg(target_os = "macos")]
     pub fn keeper_endpoint_path(runtime_directory: &Path, slot: crate::KeeperSlot) -> PathBuf {
         Self::socket_root_path().join(socket_leaf(
             &Self::keeper_endpoint_id(runtime_directory, slot),
@@ -548,7 +544,6 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     /// Whether the Worker endpoint the successor of the restart `ticket` names is bound.
-    #[cfg(target_os = "macos")]
     pub fn successor_worker_socket_exists(&self, ticket: [u8; 16]) -> std::io::Result<bool> {
         self.leaf_exists(&successor_worker_leaf(&self.paths.endpoint_id, ticket))
     }
@@ -580,7 +575,7 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     /// Removes the sockets a Session that ended without its stop left behind: the Client, pending,
-    /// Worker and Agent observation sockets, on macOS the Worker endpoints of restarts' successors,
+    /// Worker and Agent observation sockets, the Worker endpoints of restarts' successors,
     /// and each Host slot's while no Terminal Host holds that slot's lock.
     /// Only the Session lifetime owner removes them, before it binds and once more as it stops, so
     /// a socket a live Server or Host still serves is never touched. An entry goes only when it is
@@ -617,17 +612,13 @@ impl ModeCheckedLocalSessionRendezvous {
         ] {
             self.remove_socket(sockets, role)?;
         }
-        #[cfg(target_os = "macos")]
         self.remove_successor_worker_sockets(sockets, kept)?;
-        #[cfg(not(target_os = "macos"))]
-        let _ = kept;
         self.remove_free_host_socket(sockets)
     }
 
     /// Removes the Worker endpoints earlier restarts' successors bound, which a Server a restart
     /// started serves for its whole life and leaves when it is killed: each socket of this user
     /// named `<id>-worker-<ticket>.sock` but the one of the restart `kept` names.
-    #[cfg(target_os = "macos")]
     fn remove_successor_worker_sockets(
         &self,
         sockets: &OwnedFd,
@@ -656,7 +647,6 @@ impl ModeCheckedLocalSessionRendezvous {
     /// Removes the socket of the Host in `slot` while no Terminal Host holds that slot's lock, for
     /// the Session lifetime owner that freed the registered slot of a Host that ended: a Host
     /// killed before its stop leaves its socket, which the next Host start in that slot would meet.
-    #[cfg(target_os = "macos")]
     pub fn remove_host_endpoint(
         &self,
         lifetime: &ModeCheckedSessionLock,
@@ -1075,7 +1065,6 @@ fn runtime_endpoint_id(runtime_directory: &Path) -> String {
 }
 
 /// The leaf of the Worker endpoint a restart's successor binds for `ticket`.
-#[cfg(target_os = "macos")]
 fn successor_worker_leaf(id: &str, ticket: [u8; 16]) -> String {
     let ticket: String = ticket[..4]
         .iter()

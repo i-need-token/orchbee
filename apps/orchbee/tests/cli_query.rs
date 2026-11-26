@@ -813,15 +813,14 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         (&["status", "--format", "json"], "orchbee.status"),
         (&["api", "snapshot"], "orchbee.api.snapshot"),
     ];
-    // The Tab and Panel lists and gets and the Terminal list join the Windows Client, Agent and
-    // process reads, and on macOS the Workspace list and get also join the Workspace reports only
-    // its Server serves; this snapshot-only peer fakes none of them, and the Windows Agent focus
-    // suite witnesses those documents. Each keeps its place, empty.
+    // The Workspace, Tab and Panel lists and gets and the Terminal list carry the Client, Agent and
+    // process reads, which this snapshot-only peer does not fake; the Windows Agent focus suite
+    // witnesses those documents. Each keeps its place, empty.
     let enriched = |arguments: &[&str]| {
         matches!(
             arguments,
-            ["tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..]
-        ) || cfg!(target_os = "macos") && matches!(arguments, ["workspace", "list" | "get", ..])
+            ["workspace" | "tab" | "panel", "list" | "get", ..] | ["terminal", "list", ..]
+        )
     };
     let derived = queries
         .iter()
@@ -903,22 +902,6 @@ fn snapshot_derived_documents_validate_against_schemas() -> TestResult {
         serde_json::json!([{"workspaceId": id(0x12), "label": "ws"}])
     );
 
-    if !cfg!(target_os = "macos") {
-        let workspaces = documents[2]["result"]["workspaces"].as_array().unwrap();
-        assert_eq!(workspaces.len(), 2);
-        assert_eq!(workspaces[0]["workspaceId"], id(1));
-        assert_eq!(workspaces[1]["workspaceId"], id(0x12));
-        assert_eq!(workspaces[1]["projectId"], id(0x10));
-        assert_eq!(workspaces[1]["primaryDirectoryId"], id(0x11));
-        assert_eq!(workspaces[1]["terminalContextId"], id(0x20));
-
-        let workspace = &documents[3]["result"]["workspace"];
-        assert_eq!(workspace["workspaceId"], id(0x12));
-        assert_eq!(
-            workspace["tabs"],
-            serde_json::json!([{"tabId": id(0x21), "label": "ws-main"}])
-        );
-    }
     // `terminal get` answers the Server's launch-read join — version 4 envelope, its own source
     // kind, the same routing, and the retained launch fact.
     let get = &documents[12];

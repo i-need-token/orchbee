@@ -2,7 +2,7 @@
 //! connects to the Keeper, then holds each terminal the dispatch thread queues, releases each one
 //! that ends or that a detach gives back, makes the move requests the dispatch thread posts
 //! (`moves.zig`), and watches the Keeper process; its platform adds what only it does
-//! (`link_windows.zig`, `link_darwin.zig`). Every request waits at most the Keeper's reply deadline;
+//! (`link_windows.zig`, `link_posix.zig`). Every request waits at most the Keeper's reply deadline;
 //! after one miss the link fails every later request at once, so release first never waits on this
 //! Keeper again. The thread settles every gate slot it touched before it reports the attachment
 //! gone.
@@ -96,7 +96,7 @@ pub fn Link(comptime P: type) type {
             const wake = P.createWake() orelse return error.SystemResources;
             errdefer P.closeWake(wake);
             link.* = .{ .allocator = allocator, .index = index, .serial = serial, .keeper = keeper, .wake = wake, .own = own };
-            link.thread = try std.Thread.spawn(.{ .stack_size = thread_stack_bytes }, run, .{link});
+            link.thread = try std.Thread.spawn(platform.thread_stack.sized(thread_stack_bytes), run, .{link});
             return link;
         }
 

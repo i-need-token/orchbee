@@ -334,7 +334,6 @@ pub(super) fn execute<'service>(
         // do not.
         if acknowledges_input(request.action()) || matches!(request.action(), Action::Paste { .. })
         {
-            #[cfg(any(windows, target_os = "macos"))]
             service.note_client_input(controller.target);
             service.note_agent_start_input(controller.target);
         }

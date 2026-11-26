@@ -26,7 +26,7 @@ A replacement Worker records its adoption as `adoption`: `target` (`no-host`, `h
 `quarantined` and `missing` counts, `pages`, `inventoryRestarts` and `elapsedMs` since the last page
 arrived. A failed adoption also ends the Worker with an `exited` record at site `adopt`.
 
-On Windows and macOS the Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
+The Worker records the [Session's Keeper](#the-sessions-keeper): `keeper-started` once
 its first Host attached it, `keeper-replaced` when one that ended or stopped answering was replaced,
 `keeper-updated` with the `terminals` and `programs` the new Keeper held, or on macOS the holdings
 the Keeper carried into the program it executed, and `elapsedMs` when an update committed,
@@ -147,7 +147,7 @@ and leaves the loop available for the next request.
 
 Worker consumes authorization only from the admitted same-user Server and uses the OBLW generation
 for its authorization kernel. It sends Create/Start only after local admission and a fresh handoff
-check. Explicit-endpoint mode does not start a Host; managed Linux mode uses the lazy workflow below, and a
+check. Explicit-endpoint mode does not start a Host; managed mode uses the lazy workflow below, and a
 replacement Worker adopts its predecessor's Host as [Replacement adoption](#replacement-adoption)
 describes. Connection retry, PTY/VT operations, Agent behavior, service installation and other
 recovery remain excluded.
@@ -161,7 +161,7 @@ existing Host inventory, force and dispose contracts under one request deadline 
 Each inventory request selects the first remaining terminal; force is sent once per selected active
 terminal in an attempt, and disposal requires a disposable observed phase and an exact acknowledgement.
 The inventory read that observes a settled phase can leave its outcome unpublished until the Host's
-next event poll, and a macOS terminal's disposal first starts its Keeper's release, so a disposal
+next event poll, and a macOS or Linux terminal's disposal first starts its Keeper's release, so a disposal
 refused as `outcome-publication-pending` or `keeper-release-pending` is asked again for the same
 terminal after a 10-millisecond pause until the request deadline; any other Host refusal ends the
 attempt. Prepared target cleanup retires local viewer/controller ownership only after that
@@ -185,7 +185,7 @@ every terminal, and the Worker ends after answering Released, or NoHost before a
 The managed Linux and macOS Worker runs the same shutdown with no plugin job owner, and its Server
 sends only the Dispose disposition, so a Host never outlives a stopped Session there.
 
-## Managed Linux lazy Host startup
+## Managed lazy Host startup
 
 The private `--runtime-directory <absolute-runtime-directory>` entry verifies the shared runtime and
 four-artifact cohort, then registers with Server without creating a Host directory or process.
@@ -210,16 +210,13 @@ next Launch. A kernel refusal of that Launch is declined with cause `state`, and
 under a prepared Windows handoff with cause `handoff`, as in the admitted loop.
 A preparation failure refuses only its Launch. A Host start failure answers its Launch with the
 definite pre-handoff failure, which reaches the person who asked for the terminal as
-`terminal-runtime-unavailable`. When the failed start leaves no Host process and no endpoint,
-because it failed before one was created or the one created has already exited without binding,
-the Worker keeps serving and a later authorized Launch starts a Host again, up to three starts in
-all. Otherwise the Worker sends that answer, then exits with the start failure's cause, and the
-Session stops and cleans up by the [Server's Worker-exit rule](../orchbee-server/README.md): a
-macOS or Linux Host still running when the start window ends could later bind the endpoint a
-second start dials; an endpoint already at the Host's address before the start, or one a Host left
-when it ended, fails every later start the same way; a Windows Host's registration in the Session
-record outlives its process, so every Windows start failure from registration on exits; and the
-third failed start leaves no further one. Uncertain handed-off outcomes are never replayed. Later operations use the
+`terminal-runtime-unavailable`. When the failed start registered and created no Host, the Worker
+keeps serving and a later authorized Launch starts a Host again, up to three starts in all.
+Otherwise the Worker sends that answer, then exits with the start failure's cause, and the Session
+stops and cleans up by the [Server's Worker-exit rule](../orchbee-server/README.md): a Host's
+registration in the Session record outlives its process, so every start failure from registration
+on exits; an endpoint already at the Host's address before the start fails every later start the
+same way; and the third failed start leaves no further one. Uncertain handed-off outcomes are never replayed. Later operations use the
 same serialized loop and replay cache.
 
 On Unix, every Launch on this managed path also propagates the local Agent observation channel
@@ -341,7 +338,7 @@ quarantine and missing bindings. The macOS and Linux verification has no Host wi
 
 ## Several Hosts
 
-On Windows and macOS one Worker can hold a Host in each of the Session's four slots: its own Host,
+One Worker can hold a Host in each of the Session's four slots: its own Host,
 which runs its cohort's Terminal Host, and older Hosts a replacement adopted from another
 installation. An adopted Host is the Worker's own when its process image is that program, read on
 macOS by the recorded process ID while its start time matches; a Host whose image cannot be read
@@ -384,7 +381,7 @@ as moving first resumes the copy through the Keeper, which answers `claimed-else
 
 ## The Session's Keeper
 
-On Windows and macOS the managed Worker cares for the Session's Keeper between Server requests,
+The managed Worker cares for the Session's Keeper between Server requests,
 never under a prepared handoff: first right after the answer that admitted its Host, then every two
 seconds, and offers its Hosts `keeper` and `recovery`. A Host that offers both `keeper`
 and `recovery` and has no Keeper gets one: the Worker starts it, registers the Host with it and has the
@@ -424,7 +421,7 @@ A Host exchange between requests does not watch the Server, so a request that ar
 waits for it, at most three seconds for an `AttachKeeper`, and that request's bound runs from when
 the care began. A Keeper the Host reports lost, or reports unresponsive and that does not answer the
 Worker within its two-second reply bound either, is ended and replaced, and the Host attaches the
-new one. On Windows and macOS the same care reads the Host's `dispatch-progress` with a `query` on a
+new one. The same care reads the Host's `dispatch-progress` with a `query` on a
 control lane, within one second. A count that has not
 changed for 10 seconds, or a Host that has not answered for as long, counts as hung: the Worker ends
 the Host only when the Keeper holds, for that Host, at least as many terminals as the Host's last
@@ -1551,8 +1548,7 @@ cancellation, failed settlement and generation fencing. Real Git tests cover bra
 creation/reuse, open selectors, dirty refusal, force removal and branch preservation on every
 platform; lock residue retirement depends on Windows share modes and is tested there only.
 These do not prove external-writer exclusion or abrupt Worker-death recovery. No CLI parity is
-inferred from this Worker boundary alone; the Server serves Worktree mutation on Windows and macOS
-and refuses it on Linux.
+inferred from this Worker boundary alone.
 
 InspectSource resolves the checkout containing the source directory; Open permits the main checkout. Create re-observes its branch after Git completes, so a successful hook changing HEAD yields RepositoryChanged with possible effects, not a false successful association. The Server now consumes these observations through its retained continuation; ownership and cleanup remain in this Worker.
 
@@ -1639,7 +1635,7 @@ tests exercise real protocol exchanges, not a packaged Worker/Host process accep
 
 The admitted request loop also serves bounded plugin-job start/list/get/cancel/running records before and after Host creation. The running query answers from memory how many plugin jobs and configured commands still run, the Worker's own apart from those its Terminal Host runs: the Server's [idle move](../orchbee-server/README.md#idle-move) reads both, and a restart's check only the Worker's own; an owner whose cleanup is unknown refuses it with `physical-unknown`, and it changes nothing. `plugin_jobs` retains up to 32 command owners and 200 logs. Where the Host negotiated `background-programs`, it runs them instead, and the Worker keeps their records, reads a finished plugin job's output from the Host, disposes of the program, and on adoption rebuilds each record from the label it gave the Host; the shared `orchbee-local-runtime` Windows command owner supplies the same Job settlement used by Git. CLI disconnect leaves accepted work running. Explicit Session shutdown signals, settles and joins all plugin owners before reporting success; every other exit uses the shared [background job window](#background-job-owners-and-exit), and Drop never waits. [Native plugin behavior](../orchbee/docs/windows-plugins.md) owns invocation, paging, output limits and remaining integration.
 
-Off Windows the same owner serves configured commands and the running count, while plugin start, list, get and cancel answer `unsupported`, because plugins run only on Windows. A configured command runs in the person's login shell as the leader of its own process group, and the shared Unix command owner settles that whole group; [custom commands](../orchbee/docs/custom-commands.md#macos) owns the launch. A macOS Worker offers `background-programs` only while it runs the Keeper; where the Host negotiated it, the Host runs a configured command as the login shell with the command text as one raw argument.
+Off Windows the same owner serves configured commands and the running count, while plugin start, list, get and cancel answer `unsupported`, because plugins run only on Windows. A configured command runs in the person's login shell as the leader of its own process group, and the shared Unix command owner settles that whole group; [custom commands](../orchbee/docs/custom-commands.md#macos-and-linux) owns the launch. A macOS or Linux Worker offers `background-programs` only while it runs the Keeper; where the Host negotiated it, the Host runs a configured command as the login shell with the command text as one raw argument.
 
 ## Plugin terminal launch environment
 

@@ -1,5 +1,6 @@
 //! Direct creators publish durable ownership while their child is suspended: on Windows its initial
-//! thread, on macOS the whole process before its first instruction.
+//! thread, on macOS the whole process before its first instruction, and on Linux the process held at
+//! a gate before it starts its program, which an ended creator's closed gate makes it leave.
 use crate::{
     DataRoot, RetainedChild,
     durable_sessions::{Directory, Lifecycle},

@@ -61,7 +61,6 @@ pub(crate) struct ManagedHost {
 pub(super) struct StopHosts<'a> {
     pub(super) hosts: Vec<(&'a HostBrokerConnection, &'a mut ManagedHost)>,
     pub(super) epoch: HostEpoch,
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) keeper: &'a mut Option<crate::session_keeper::SessionKeeper>,
     #[cfg(windows)]
     pub(super) retiring: &'a mut Option<crate::session_keeper::RetiringKeeper>,
@@ -85,7 +84,6 @@ impl ManagedHost {
 
     /// Whether the Host runs `executable`, this Worker's cohort Terminal Host: one it started does,
     /// and an adopted one whose image is that program.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn runs(&self, executable: &std::path::Path) -> bool {
         match &self.owner {
             HostOwner::Started(_) => true,
@@ -94,13 +92,11 @@ impl ManagedHost {
     }
 
     /// Whether the Host process has exited.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn exited(&mut self) -> io::Result<bool> {
         self.owner.exited()
     }
 
-    /// The Host's process ID and creation time, its start time on macOS.
-    #[cfg(any(windows, target_os = "macos"))]
+    /// The Host's process ID and creation time, its start on macOS and Linux.
     pub(super) fn host_identity(&self) -> io::Result<(u32, u64)> {
         match &self.owner {
             HostOwner::Started(child) => child.exact_identity(),
@@ -109,7 +105,6 @@ impl ManagedHost {
     }
 
     /// The Host's process, for the hang check that may end it.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn end_host(&mut self, deadline: Instant) -> io::Result<()> {
         match &mut self.owner {
             HostOwner::Started(child) => child.terminate_before(deadline).map(drop),
@@ -316,7 +311,6 @@ fn end(
     }
     // Each Host released every holding before it ended its terminals, so the Keeper holds nothing
     // and ending it ends no program.
-    #[cfg(any(windows, target_os = "macos"))]
     if let Some(mut keeper) = stop.keeper.take() {
         keeper.end(deadline);
     }

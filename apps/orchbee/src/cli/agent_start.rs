@@ -70,13 +70,6 @@ struct Reference {
 }
 
 pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Locale) -> Output {
-    if crate::agent_runtime::startup::admit().is_err() {
-        return failure_output(
-            report::domain_failure(crate::agent_start::Failure::Unsupported),
-            Some(format),
-            locale,
-        );
-    }
     let started = Instant::now();
     let provider = AgentProviderId::parse(&command.provider)
         .expect("agent start parser admits only canonical providers");

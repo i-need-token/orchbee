@@ -10,7 +10,6 @@
 //! Session for integration status only when an integration may have been enabled; it never starts
 //! a Session and creates nothing. The platform adapter names the system release, tells whether a
 //! process runs a given program, and names the running Sessions where `session list` cannot.
-//! Windows and macOS admit the command; Linux answers the typed unsupported-platform failure.
 use super::execution::{Capability, admit};
 use super::schema_export::{PublishFailure, publish};
 use super::{Failure, FailureKind, Output, failure_output, output};

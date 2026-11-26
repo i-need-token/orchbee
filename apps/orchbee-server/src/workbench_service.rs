@@ -43,21 +43,6 @@ pub(crate) enum WorkbenchExecution {
 #[cfg(test)]
 mod tests;
 
-/// Request kinds that Linux keeps refusing as before ORC-234 until their behavior off Windows is
-/// decided. A policy constant rather than a `cfg`, so every branch compiles everywhere. macOS
-/// serves the Agent view, configured commands, Panel graphics, Workspace reports and
-/// notifications.
-fn withheld_off_windows(request: &WorkbenchRequest) -> bool {
-    match request {
-        WorkbenchRequest::AgentView(_)
-        | WorkbenchRequest::ConfiguredCommand(_)
-        | WorkbenchRequest::PaneGraphics(_)
-        | WorkbenchRequest::WorkspaceMetadata(_)
-        | WorkbenchRequest::Notification(_) => !cfg!(any(windows, target_os = "macos")),
-        _ => false,
-    }
-}
-
 /// Starting `enable` writes node-local Agent configuration. The user-facing Agent integration was
 /// removed and Agent status comes from screen detection alone, so an enable that an older Client
 /// still sends is refused before any Worker job starts. Disable, poll and cancel stay served, so an
@@ -256,7 +241,7 @@ impl WorkbenchService {
         if !permitted {
             return WorkbenchExecution::Response(unavailable_or_denied(request, true));
         }
-        if withheld_off_windows(&request) || withheld_agent_integration_enable(&request) {
+        if withheld_agent_integration_enable(&request) {
             return WorkbenchExecution::Response(unavailable_or_denied(request, false));
         }
         match &request {
@@ -1197,9 +1182,6 @@ impl WorkbenchClientConnection<'_> {
         request: WorkbenchRequest,
         lane: orchbee_workbench_protocol::MultiplexLaneId,
     ) -> WorkbenchExecution {
-        if withheld_off_windows(&request) {
-            return self.service.execute(request);
-        }
         let owner = crate::local_terminal_service::PopupOwner::new(self.generation, lane);
         if let WorkbenchRequest::PaneGraphics(graphics) = &request {
             let allowed = if graphics.action.writes() {

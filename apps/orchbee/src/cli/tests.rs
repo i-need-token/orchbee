@@ -9,7 +9,6 @@ mod projection_schemas;
 
 use serde_json::{Value, json};
 
-#[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn default_config_uses_the_setting_and_client_action_registries() {
     let output = super::default_config(Locale::EnUs);
@@ -1641,43 +1640,30 @@ fn empty_lists_say_how_to_create_their_first_entry() {
 #[cfg(not(windows))]
 #[test]
 fn unsupported_commands_share_the_platform_failure_contract() {
-    use crate::invocation::ClientCommand;
-    use orchbee_workbench_protocol::WorkbenchRequestId;
     let schema: Value =
         serde_json::from_str(include_str!("schemas/orchbee.cli.failure.json")).unwrap();
     let validator = jsonschema::validator_for(&schema).unwrap();
     for locale in [Locale::EnUs, Locale::ZhCn] {
         for format in [OutputFormat::Json, OutputFormat::Text] {
-            // Linux reads Client views, but Client control stays Windows and macOS only.
-            let control = cfg!(target_os = "linux").then(|| {
-                super::client_control::run(
-                    &ClientCommand::ControlStatus(WorkbenchRequestId::parse(ID).unwrap()),
-                    format,
-                    locale,
-                )
-            });
-            // `channel show` stays Windows only, and `server restart` Windows and macOS only.
-            let channel = super::channel::show(format, locale);
-            let restart = cfg!(target_os = "linux").then(|| super::server_restart(format, locale));
-            for output in control.into_iter().chain([channel]).chain(restart) {
-                assert_eq!(output.status, 4);
-                assert!(!output.stderr.is_empty());
-                if format == OutputFormat::Json {
-                    let document: Value = serde_json::from_slice(&output.stdout).unwrap();
-                    validator.validate(&document).unwrap();
-                    assert_eq!(document["schema"], "orchbee.cli.failure");
-                    assert_eq!(document["version"], 1);
-                    assert_eq!(document["failure"]["kind"], "service-unavailable");
-                    assert_eq!(
-                        document["failure"]["details"],
-                        json!({
-                            "stage":"platform", "reason":"unsupported-platform",
-                        })
-                    );
-                    assert!(document.get("result").is_none());
-                } else {
-                    assert!(output.stdout.is_empty());
-                }
+            // `channel show` stays Windows only.
+            let output = super::channel::show(format, locale);
+            assert_eq!(output.status, 4);
+            assert!(!output.stderr.is_empty());
+            if format == OutputFormat::Json {
+                let document: Value = serde_json::from_slice(&output.stdout).unwrap();
+                validator.validate(&document).unwrap();
+                assert_eq!(document["schema"], "orchbee.cli.failure");
+                assert_eq!(document["version"], 1);
+                assert_eq!(document["failure"]["kind"], "service-unavailable");
+                assert_eq!(
+                    document["failure"]["details"],
+                    json!({
+                        "stage":"platform", "reason":"unsupported-platform",
+                    })
+                );
+                assert!(document.get("result").is_none());
+            } else {
+                assert!(output.stdout.is_empty());
             }
         }
     }

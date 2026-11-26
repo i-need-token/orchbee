@@ -54,7 +54,7 @@ pub fn run_unix_command_exchange(
 /// [`run_unix_command`] for a caller whose thread blocks signals, such as one that captures
 /// `SIGINT` and `SIGTERM` to settle its children: the command starts through `posix_spawn` with an
 /// empty signal mask, `SIGPIPE` at its default action and the `environment` it states, and takes no
-/// working directory. On macOS it inherits no descriptor but its three standard streams.
+/// working directory. It inherits no descriptor but its three standard streams.
 pub fn run_unmasked_unix_command(
     command: Command,
     environment: SpawnEnvironment,

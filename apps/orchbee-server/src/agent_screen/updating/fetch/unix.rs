@@ -14,7 +14,8 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// Part of every macOS installation, so no search path or user-installed copy is consulted.
+/// Part of every macOS installation and where Linux distributions install theirs, so no search path
+/// or user-installed copy is consulted; a system without it fails the attempt as a process failure.
 const CURL: &str = "/usr/bin/curl";
 
 pub(super) fn curl() -> Result<PathBuf, Failure> {

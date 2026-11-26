@@ -16,19 +16,19 @@ const is_windows = builtin.os.tag == .windows;
 const supported = platform.keeper.supported;
 const Link = switch (builtin.os.tag) {
     .windows => @import("link_windows.zig").Link,
-    .macos => @import("link_darwin.zig").Link,
+    .linux, .macos => @import("link_posix.zig").Link,
     else => void,
 };
-/// A background program offered for a hold; only Windows and macOS Hosts hold them.
+/// A background program offered for a hold; only Windows, macOS and Linux Hosts hold them.
 pub const Program = switch (builtin.os.tag) {
     .windows => @import("link_windows.zig").Program,
-    .macos => @import("link_darwin.zig").Program,
+    .linux, .macos => @import("link_posix.zig").Program,
     else => void,
 };
 
 /// A link pinned for one creation, which may start that terminal's leader through its Keeper; the
 /// creation unpins it once its build returned.
-pub const Spawner = if (builtin.os.tag == .macos) struct {
+pub const Spawner = if (builtin.os.tag == .macos or builtin.os.tag == .linux) struct {
     link: *Link,
     terminal: message.Terminal,
 
@@ -49,7 +49,7 @@ pub const Spawner = if (builtin.os.tag == .macos) struct {
 
 /// A link pinned for one background program's start, which may start it through its Keeper; the
 /// start unpins it once it returned.
-pub const ProgramSpawner = if (builtin.os.tag == .macos) struct {
+pub const ProgramSpawner = if (builtin.os.tag == .macos or builtin.os.tag == .linux) struct {
     link: *Link,
 
     /// The hook a launch carries; valid while this spawner stays where it is.
@@ -93,7 +93,7 @@ pub const Attachments = struct {
     retiring: std.ArrayList(*Link) = .empty,
     /// Names each attachment in the gates, so one attachment tries a terminal once.
     next_serial: u64 = 1,
-    /// The folder of the Host's own socket, where a macOS Keeper binds its socket too.
+    /// The folder of the Host's own socket, where a macOS or Linux Keeper binds its socket too.
     endpoint_directory: []const u8 = "",
 
     pub fn init(allocator: std.mem.Allocator) Attachments {
@@ -185,7 +185,7 @@ pub const Attachments = struct {
     /// The dispatch thread: pins the newest attachment whose Keeper starts leaders for one creation
     /// of `terminal`; null when none does, and the creation forks its leader itself.
     pub fn spawner(self: *Attachments, terminal: message.Terminal) ?Spawner {
-        if (comptime builtin.os.tag != .macos) return null;
+        if (comptime !(builtin.os.tag == .macos or builtin.os.tag == .linux)) return null;
         const link = self.pinNewest(false) orelse return null;
         return .{ .link = link, .terminal = terminal };
     }
@@ -193,7 +193,7 @@ pub const Attachments = struct {
     /// The dispatch thread: pins the newest attachment whose Keeper starts background programs for
     /// one start; null when none does, and the Host starts the program itself.
     pub fn programSpawner(self: *Attachments) ?ProgramSpawner {
-        if (comptime builtin.os.tag != .macos) return null;
+        if (comptime !(builtin.os.tag == .macos or builtin.os.tag == .linux)) return null;
         const link = self.pinNewest(true) orelse return null;
         return .{ .link = link };
     }
@@ -275,8 +275,8 @@ pub const Attachments = struct {
         }
     }
 
-    /// Starts a link to `keeper`: on Windows through its pipe, on macOS through its socket beside
-    /// the Host's own.
+    /// Starts a link to `keeper`: on Windows through its pipe, on macOS and Linux through its
+    /// socket beside the Host's own.
     fn startLink(self: *Attachments, index: usize, serial: u64, keeper: message.Process, endpoint_id: [32]u8) !*Link {
         if (comptime is_windows) return Link.start(self.allocator, index, serial, keeper, endpoint_id);
         const path = try std.fmt.allocPrint(self.allocator, "{s}/{s}-host.sock", .{ self.endpoint_directory, &endpoint_id });
@@ -296,6 +296,6 @@ pub const Attachments = struct {
 
 /// Whether a creation still holds `link`, which is then not freed.
 fn pinned(link: *Link) bool {
-    if (comptime builtin.os.tag != .macos) return false;
+    if (comptime !(builtin.os.tag == .macos or builtin.os.tag == .linux)) return false;
     return link.status().users > 0;
 }

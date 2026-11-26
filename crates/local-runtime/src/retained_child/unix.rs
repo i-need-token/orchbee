@@ -2,10 +2,10 @@
 //! reaper while the parent remains alive. It never terminates that child on drop; after parent
 //! exit, orphan reaping belongs to the operating system.
 
+#[cfg(not(target_os = "macos"))]
+use super::linux::Process;
 #[cfg(target_os = "macos")]
 use super::macos::Process;
-#[cfg(not(target_os = "macos"))]
-use std::process::Child as Process;
 use std::{io, process::ExitStatus, thread};
 
 /// Observes startup exit, then reaps while its parent lives without terminating the child.
@@ -26,38 +26,20 @@ impl RetainedChild {
     ) -> io::Result<Self> {
         // The child outlives the activating Client, so it keeps none of that Client's directories
         // busy or reachable, such as a Worktree the person later removes or unmounts. Nor does it
-        // receive the relaunch protocol's variable, which only a launcher's own Client may read.
-        // On macOS it also receives no descriptor beyond its standard streams (see `macos`).
-        #[cfg(target_os = "macos")]
-        let child = Process::spawn(executable, arguments, path)?;
-        #[cfg(not(target_os = "macos"))]
-        let child = {
-            let mut command = std::process::Command::new(executable);
-            command
-                .args(arguments)
-                .env_remove(crate::RELAUNCH_PROTOCOL_VARIABLE)
-                .current_dir("/")
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::null())
-                .stderr(std::process::Stdio::null());
-            if let Some(path) = path {
-                command.env("PATH", path);
-            }
-            command.spawn()?
-        };
-        Ok(Self(Some(child)))
+        // receive the relaunch protocol's variable, which only a launcher's own Client may read,
+        // nor any descriptor beyond its standard streams (see `macos` and `linux`).
+        Process::spawn(executable, arguments, path).map(|child| Self(Some(child)))
     }
-    /// As [`Self::spawn`], with the child stopped before its first instruction until
+    /// As [`Self::spawn`], with the child stopped before it starts `executable` until
     /// [`Self::resume`], so its creator can publish its identity first.
-    #[cfg(target_os = "macos")]
     pub(crate) fn spawn_suspended(
         executable: &std::path::Path,
         arguments: &[&std::ffi::OsStr],
     ) -> io::Result<Self> {
         Self::spawn_suspended_with_path(executable, arguments, None)
     }
-    /// As [`Self::spawn_suspended`], with `path` as the child's `PATH` when given.
-    #[cfg(target_os = "macos")]
+    /// As [`Self::spawn_suspended`], with `path` as the child's `PATH` when given. macOS stops the
+    /// child before its first instruction; Linux holds it at a gate (see `linux`).
     pub(crate) fn spawn_suspended_with_path(
         executable: &std::path::Path,
         arguments: &[&std::ffi::OsStr],
@@ -67,10 +49,14 @@ impl RetainedChild {
     }
     /// The held child's registered identity: its process ID and start time. It is not reaped
     /// while held, so its ID names no other process.
-    #[cfg(target_os = "macos")]
     pub(crate) fn identity(&self) -> io::Result<crate::process_registration::ProcessIdentity> {
         let id = self.id().ok_or(io::ErrorKind::NotFound)?;
         crate::process_observation::identity(id)
+    }
+    /// Lets a child [`Self::spawn_suspended`] started run.
+    #[cfg(not(target_os = "macos"))]
+    pub(crate) fn resume(&mut self) -> io::Result<()> {
+        self.0.as_mut().ok_or(io::ErrorKind::NotFound)?.resume()
     }
     /// Lets a child [`Self::spawn_suspended`] started run.
     #[cfg(target_os = "macos")]
@@ -81,13 +67,12 @@ impl RetainedChild {
         );
         nix::sys::signal::kill(pid, nix::sys::signal::Signal::SIGCONT).map_err(io::Error::from)
     }
-    /// The held child's exact identity: its process ID and its start time in microseconds, which a
-    /// peer that checks processes by both, such as the Keeper, compares.
+    /// The held child's exact identity: its process ID and its start, which a peer that checks
+    /// processes by both, such as the Keeper, compares.
     ///
     /// # Errors
     ///
     /// Returns an error when the start time cannot be read.
-    #[cfg(target_os = "macos")]
     pub fn exact_identity(&self) -> io::Result<(u32, u64)> {
         self.identity()
             .map(|identity| (identity.pid(), identity.creation_time()))
@@ -131,6 +116,9 @@ impl RetainedChild {
 impl Drop for RetainedChild {
     fn drop(&mut self) {
         if let Some(mut child) = self.0.take() {
+            // A child still held at its gate leaves it once the gate closes, before it starts.
+            #[cfg(not(target_os = "macos"))]
+            child.close_gate();
             // Failure to allocate a reaper must never kill an already-started service.
             // In that case the OS reaps it when this parent exits.
             let _reaper = thread::Builder::new()

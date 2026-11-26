@@ -2,7 +2,7 @@
 
 `notification show <title> [--body TEXT] [--position top-left|top-right|bottom-left|bottom-right] [--sound none|done|request] [--format text|json]` submits to an existing Session. Title/body normalization collapses whitespace, removes controls and truncates to 80/240 Unicode scalar values; an empty normalized title fails before submission. Omitted position follows each Client configuration (bottom-right by default); sound defaults to none. The wire bounds each normalized string by its scalar count and UTF-8 size.
 
-macOS runs `notification show` as Windows does: cards and terminal delivery are shared, and `system` delivery uses the outer terminal's notification sequence or, without one, `/usr/bin/osascript`. Linux returns `unsupported-platform`, and its Server withholds the request.
+macOS and Linux run `notification show` as Windows does: cards and terminal delivery are shared, and `system` delivery uses the outer terminal's notification sequence or, without one, `/usr/bin/osascript` on macOS and `notify-send` on Linux.
 
 ## Delivery model
 

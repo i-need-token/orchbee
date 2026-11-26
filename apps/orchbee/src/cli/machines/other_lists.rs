@@ -120,7 +120,7 @@ fn ask_all(
     if catalog.profiles.is_empty() {
         return Ok(Vec::new());
     }
-    let Ok(signals) = ArmedSignals::arm_interrupts_except_linux() else {
+    let Ok(signals) = ArmedSignals::arm_interrupts_latched() else {
         return Ok(Vec::new());
     };
     let mut context = Context {

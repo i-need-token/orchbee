@@ -1,9 +1,10 @@
-//! macOS Agent probe lookup: one run of the person's shell, the system shell a new terminal starts,
-//! as an interactive login shell, so `/etc/zprofile`'s `path_helper`, the person's profile and
-//! interactive startup files set `PATH` as they do in a new terminal; that shell then becomes
-//! `/bin/sh`, which runs `command -v` for each name on the `PATH` they left. The script and the
-//! names reach the child only through its environment, so the person's shell never parses a name,
-//! whichever shell it is. The child's process group settles before the answers are read.
+//! macOS and Linux Agent probe lookup: one run of the person's shell, the system shell a new
+//! terminal starts, as an interactive login shell, so the system profile (on macOS
+//! `/etc/zprofile`'s `path_helper`), the person's profile and interactive startup files set `PATH`
+//! as they do in a new terminal; that shell then becomes `/bin/sh`, which runs `command -v` for
+//! each name on the `PATH` they left. The script and the names reach the child only through its
+//! environment, so the person's shell never parses a name, whichever shell it is. The child's
+//! process group settles before the answers are read.
 use nix::sys::signal::SigSet;
 use orchbee_capability_node_protocol::AgentProbeResult;
 use std::{

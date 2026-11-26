@@ -49,11 +49,8 @@ mod lazy;
 pub(crate) use lazy::run as run_lazy;
 #[cfg(windows)]
 mod handoff;
-#[cfg(any(windows, target_os = "macos"))]
 mod keeper_care;
-#[cfg(any(windows, target_os = "macos"))]
 mod moves;
-#[cfg(any(windows, target_os = "macos"))]
 mod recovery;
 mod server_transport;
 mod shutdown;
@@ -169,7 +166,6 @@ fn run_admitted_with_handoff(
         handoff,
     );
     let failed = hosts.failed();
-    #[cfg(any(windows, target_os = "macos"))]
     if let Err(error) = &outcome
         && exit_cause::host_unanswered(error.as_ref(), hosts.connection(failed))
     {
@@ -186,7 +182,7 @@ fn run_admitted_with_handoff(
 /// A request that names a terminal goes to the Host that serves its epoch, one that names an
 /// attachment to the Host that holds it, a launch to the Worker's own Host, and a request that
 /// reads every Host to each that still serves. Between requests the loop also keeps the Keeper's
-/// care on Windows and macOS, and the explicit handoff on Windows.
+/// care, and the explicit handoff on Windows.
 ///
 /// [`Pacing`]: crate::host_connection::Pacing
 fn serve(
@@ -200,7 +196,6 @@ fn serve(
 ) -> Result<(), Box<dyn Error>> {
     #[cfg(windows)]
     let mut server = server;
-    #[cfg(any(windows, target_os = "macos"))]
     let mut moving = moves::Moves::default();
     loop {
         hosts.end_request();
@@ -219,7 +214,7 @@ fn serve(
                 (None, None)
             };
             // A macOS Worker takes no handoff.
-            #[cfg(target_os = "macos")]
+            #[cfg(unix)]
             let (wake, cared) = if hosts.is_managed() {
                 hosts.settle_programs(aux.plugin_jobs);
                 let cared: Option<Instant> = hosts.care(&server);
@@ -227,8 +222,6 @@ fn serve(
             } else {
                 (None, None)
             };
-            #[cfg(not(any(windows, target_os = "macos")))]
-            let (wake, cared) = (None, None::<Instant>);
             if let Some((request, readable)) = hosts.receive(&server, wake)? {
                 break (request, cared.map_or(readable, |began| readable.min(began)));
             }
@@ -269,9 +262,7 @@ fn serve(
         }
         // A request the Server wrote before it recorded a move runs against the terminal as it
         // runs now.
-        #[cfg(any(windows, target_os = "macos"))]
         let mut request = request;
-        #[cfg(any(windows, target_os = "macos"))]
         let named = moving.before(&mut request, hosts);
         if let CapabilityNodeMessage::TerminalMoveTurnRequest(turn) = request {
             if turn.worker_id.as_bytes() != worker_id.as_bytes()
@@ -285,13 +276,10 @@ fn serve(
                 )?;
                 continue;
             }
-            #[cfg(any(windows, target_os = "macos"))]
             let outcome = {
                 hosts.set_site(Site::Move);
                 moving.turn(hosts, &mut kernel, &server, readable)?
             };
-            #[cfg(not(any(windows, target_os = "macos")))]
-            let outcome = orchbee_capability_node_protocol::TerminalMoveTurnOutcome::Done;
             let result = TerminalMoveTurnResult {
                 request: turn,
                 outcome,
@@ -512,7 +500,6 @@ fn serve(
             let result = kernel
                 .take_lifecycle_result()
                 .ok_or_else(|| io::Error::other("Worker lifecycle result is missing"))?;
-            #[cfg(any(windows, target_os = "macos"))]
             let result = moves::lifecycle_answer(result, named.as_ref())?;
             // A retired terminal is never named again, so its cleanup cell frees for another Close.
             if result.outcome()
@@ -565,14 +552,9 @@ fn serve(
             };
             let host = hosts.connection(index);
             host.pacing.set_site(Site::Viewer);
-            #[cfg_attr(
-                not(any(windows, target_os = "macos")),
-                expect(unused_mut, reason = "only moves rewrite an answer")
-            )]
             let mut result = crate::terminal_viewer_operation::execute(
                 request, worker_id, generation, host, &server,
             )?;
-            #[cfg(any(windows, target_os = "macos"))]
             moves::viewer_answer(&mut result.outcome, named.as_ref());
             clean_and_send(
                 &server,

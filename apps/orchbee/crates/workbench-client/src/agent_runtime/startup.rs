@@ -15,18 +15,6 @@ use orchbee_agent_observation_protocol::ObapRequestId;
 use orchbee_local_ipc::LocalIo;
 use orchbee_workbench_protocol::{Snapshot, WorkbenchSnapshotOutcome};
 use std::time::Instant;
-#[cfg(windows)]
-#[path = "startup/windows.rs"]
-mod platform;
-#[cfg(not(windows))]
-#[path = "startup/unix.rs"]
-mod platform;
-pub use platform::admit;
-
-/// This native Agent launch operation has no adapter on the current host.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct Unsupported;
-
 /// Fresh OS entropy could not be obtained or admitted as a protocol request identity.
 #[derive(Debug)]
 pub struct IdentityError;

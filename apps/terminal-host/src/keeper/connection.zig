@@ -1,10 +1,10 @@
 //! One Keeper connection on its own thread: the `OBHS` frame, `hello`, then one request at a time.
 //! Every read and write happens here, outside the table's lock, and a reply the peer does not take
 //! within the reply deadline ends only this connection, so a peer that stops reading stalls no
-//! other connection. On macOS a request's descriptors arrive with its frame and a reply's leave
-//! with it, a Host's connection sends `exited` for its parented leaders between requests, and an
-//! update stops each admitted connection between frames, which the next image resumes
-//! (`reexec_darwin.zig`).
+//! other connection. On macOS and Linux a request's descriptors arrive with its frame and a reply's
+//! leave with it, a Host's connection sends `exited` for its parented leaders between requests, and
+//! an update stops each admitted connection between frames, which the next image resumes
+//! (`reexec_posix.zig`).
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -18,11 +18,11 @@ const state = @import("state.zig");
 const UsedIds = @import("used_ids.zig").UsedIds;
 
 const handles = state.handles;
-const darwin = builtin.os.tag == .macos;
-const reexec = if (darwin) @import("reexec_darwin.zig") else struct {};
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
+const reexec = if (posix_keeper) @import("reexec_posix.zig") else struct {};
 /// One accepted connection: a pipe instance on Windows, a Unix socket that carries descriptors on
-/// macOS.
-pub const Transport = if (darwin) platform.keeper.darwin.Stream else local_ipc.LocalServer;
+/// macOS and Linux.
+pub const Transport = if (posix_keeper) platform.keeper.native.Stream else local_ipc.LocalServer;
 
 const monotonic = platform.monotonic;
 const message = keeper_protocol.message;
@@ -51,9 +51,10 @@ pub fn run(context: Context) void {
     connection.end();
 }
 
-/// What a connection an earlier image admitted brings to this one, on macOS: its peer, the
-/// capabilities its `answer` listed, the ids it used, and the `reexec` it waits on with its answer.
-pub const Resumed = if (darwin) struct {
+/// What a connection an earlier image admitted brings to this one, on macOS and Linux: its peer,
+/// the capabilities its `answer` listed, the ids it used, and the `reexec` it waits on with its
+/// answer.
+pub const Resumed = if (posix_keeper) struct {
     peer: state.Peer,
     capabilities: reexec.Capabilities,
     used: []const [2]u32,
@@ -297,7 +298,7 @@ const Connection = struct {
                     if (message.Request.needsReexec(kind) and !self.reexec) break :applied .{ .unsupported = kind.name() };
                     if (!requests_module.held.serves(kind)) break :applied .{ .unsupported = kind.name() };
                     if (!self.takeDescriptors(request.body, &effects)) break :applied .{ .refused = .handle_failed };
-                    if (comptime darwin) switch (request.body) {
+                    if (comptime posix_keeper) switch (request.body) {
                         // A spawn forks with the lock released, so it takes the lock itself.
                         .spawn => |spawn| {
                             if (self.closingNow()) return;
@@ -309,7 +310,7 @@ const Connection = struct {
                         },
                         else => {},
                     };
-                    if (comptime darwin) if (request.body == .reexec) {
+                    if (comptime posix_keeper) if (request.body == .reexec) {
                         // An update stops every other connection and replaces this image; it
                         // returns only with a refusal.
                         var own = self.parked();
@@ -337,7 +338,7 @@ const Connection = struct {
 
     /// Moves the descriptors a request carries into `effects`; false when they did not all arrive.
     fn takeDescriptors(self: *Connection, body: message.Request.Body, effects: *state.Effects) bool {
-        if (comptime !darwin) return true;
+        if (comptime !posix_keeper) return true;
         const count = message.Request.descriptorCount(body);
         if (!self.transport.takeDescriptors(effects.descriptors.received[0..count])) return false;
         effects.descriptors.count = count;
@@ -346,11 +347,11 @@ const Connection = struct {
 
     /// Closes descriptors that arrived with a request that does not carry them.
     fn discardDescriptors(self: *Connection) void {
-        if (comptime darwin) self.transport.discardDescriptors();
+        if (comptime posix_keeper) self.transport.discardDescriptors();
     }
 
     fn writeReply(self: *Connection, frame: []const u8, effects: *const state.Effects) !void {
-        if (comptime darwin) {
+        if (comptime posix_keeper) {
             const sent = effects.descriptors.sent();
             if (sent.len > 0) return self.transport.writeWithDescriptors(frame, sent, message.reply_deadline_ns);
         }
@@ -359,13 +360,13 @@ const Connection = struct {
 
     /// Closes the duplicates a reply carried, once the reply is written or abandoned.
     fn closeSent(_: *Connection, effects: *state.Effects) void {
-        if (comptime darwin) effects.descriptors.closeSent();
+        if (comptime posix_keeper) effects.descriptors.closeSent();
     }
 
     /// Sends `exited` for each ended parented leader of this connection's Host it was not yet
     /// sent, on a connection that negotiated `parent`.
     fn sendExits(self: *Connection) !void {
-        if (comptime darwin) {
+        if (comptime posix_keeper) {
             if (!self.parent) return;
             const owner = self.host orelse return;
             while (true) {
@@ -430,7 +431,7 @@ const Source = struct {
         if (self.deadline == .within_deadline and self.timer == null) self.startTimer() catch return error.ConnectionClosed;
         while (true) {
             // Between frames, an update stops this connection until it ends or replaces the image.
-            if (comptime darwin) if (self.timer == null and self.connection.peer != null and self.connection.transport.arrived_count == 0) {
+            if (comptime posix_keeper) if (self.timer == null and self.connection.peer != null and self.connection.transport.arrived_count == 0) {
                 reexec.parkConnection(self.connection.table, self.connection.slot, self.connection.parked());
             };
             if (self.connection.closingNow()) return error.ConnectionClosed;

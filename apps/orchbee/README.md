@@ -4,19 +4,19 @@
 
 A Session contains your Workspaces, terminals and Agents; its background service keeps programs
 running when you leave the interface. Start with the default Session and use Workspaces for daily
-organization. Windows and macOS support separate named Sessions through `--session <name>` and
+organization. Separate named Sessions are available through `--session <name>` and
 `session attach <name>`; `server` commands manage the selected Session's background service. The
 [Session contract](docs/native-cli-query.md#sessions-and-background-services) defines terminology,
 supported boundaries and unchanged storage/protocol identities.
 
-Windows and macOS refuse a TUI launched from a terminal already inside the selected Session before
-opening another Client. The localized message returns to the current Shell; CLI subcommands and explicit
+A TUI launched from a terminal already inside the selected Session is refused before it opens
+another Client. The localized message returns to the current Shell; CLI subcommands and explicit
 routes to another Session remain usable. Failed and ended terminals retain navigation, creation
 and close paths; [terminal settlement](docs/native-panel-lifecycle.md#terminal-settlement) preserves
 final output and known exit codes. An interactive Shell that exits with code 0 instead closes its
 Panel, and its Tab when it was the last Panel.
 
-On Windows and macOS, `events subscribe` streams bounded observations from an existing Session: one
+`events subscribe` streams bounded observations from an existing Session: one
 text line per record, or NDJSON records under `--format json`. Run `orchbee events --help` for
 bounds and conditions; the [event contract](../orchbee-server/docs/windows-events.md) owns behavior
 and evidence.
@@ -36,7 +36,7 @@ processes.
 unblocked preflight. It observes activity before waiting for a condition and retains the
 input receipt on later timeout or cancellation; it does not promise turn causality.
 
-`agent start codex` starts an Agent on Windows or macOS in a new Tab beside the caller's Panel, or
+`agent start codex` starts an Agent in a new Tab beside the caller's Panel, or
 with `--split right|down` in a new split, or with `--here --panel <id>` at the confirmed prompt of
 that idle terminal. See [Windows Agent startup](docs/windows-agent-start.md) for setup, limits and
 recovery.
@@ -97,21 +97,21 @@ orchbee server stop --confirm      # stop the Windows Session (release: type its
 orchbee doctor                   # check whether Orchbee works here
 orchbee operation status <id>    # inspect a retained operation by its request ID
 orchbee config check             # local runtime inspection
-orchbee diagnostics create --output <path>  # diagnostic bundle to send for help (Windows, macOS)
+orchbee diagnostics create --output <path>  # diagnostic bundle to send for help
 orchbee help [<family>|<command>]
 orchbee completion bash|zsh|fish|powershell|elvish
 orchbee --help | --version
 ```
 
-Windows and macOS `panel create-terminal` starts an unbound primary or exact member, or appends a
+`panel create-terminal` starts an unbound primary or exact member, or appends a
 child without splitting the Panel. See [Panel terminal creation](docs/windows-panel-terminals.md).
 
 `server start` is the headless activation path: it runs the same connect-or-activate sequence the
 TUI startup uses — validate the cohort, prepare the runtime directory, take the locks, commit the
 marker, spawn the Server when no running Session answers — under one absolute 20-second deadline,
 then reports `started` only when this invocation, or the release store's Client it handed the start
-to on Windows and macOS ([store
-start](docs/windows-cli-configuration.md#windows-release-installation)), actually spawned the child
+to ([store start](docs/windows-cli-configuration.md#windows-release-installation)), actually
+spawned the child
 and `already-running` when an existing Session admitted its probe. `workspace create`, `project
 create`, `worktree create` and `worktree open` run the same start first when no Session answers and
 print its started line on standard error. The command is effectful even on refusal: only a grammar
@@ -151,13 +151,11 @@ orchbee agent list                        # sessions the running Session observe
 orchbee agent wait <session-id> --until ended
 ```
 
-The Apple Silicon macOS development cohort runs the same Session-backed Agent commands as Linux:
-`agent list`, `get`, `read` and `wait`, and `agent prompt`. macOS also runs `agent start`, which Linux refuses as unsupported. Like Windows,
-macOS reads them through the unified Agent projection, so physical terminal Agents, `@agent:`
-selectors, the per-Client projection (`--client`) and `agent focus` work there; Linux keeps the
-canonical sessions only.
-`SIGINT` and `SIGTERM` cancel these commands as on Linux, with the typed cancellation document at
-exit 130, and `terminal send --file` and `--stdin` read their declared source on macOS too.
+macOS and Linux run the same Session-backed Agent commands as Windows: `agent list`, `get`,
+`read` and `wait`, `agent prompt` and `agent start`, read through the unified Agent projection, so
+physical terminal Agents, `@agent:` selectors, the per-Client projection (`--client`) and `agent
+focus` work there. `SIGINT` and `SIGTERM` cancel these commands with the typed cancellation
+document at exit 130, and `terminal send --file` and `--stdin` read their declared source.
 
 Session concepts and onboarding stay in this guide rather than introducing a separate help section.
 
@@ -205,7 +203,7 @@ and [startup position](docs/native-context-selection.md#windows-startup-preferen
 The prefix is `Ctrl+b`, followed by `|` for a side-by-side split, `-` for a stacked split, `h/j/k/l`
 for Panel focus, or `d` to detach. Run the executable again to reattach to the retained Session.
 Detaching leaves shells running. Continuous Workbench checkpoints retain layout changes and sampled
-terminal directories without screen contents on Windows and macOS; Linux keeps none yet. See the
+terminal directories without screen contents. See the
 [Workbench checkpoint contract](../orchbee-server/docs/workbench-checkpoint.md).
 
 After attachment, the TooSmall recovery surface withholds Panel geometry observations instead of
@@ -318,7 +316,7 @@ the system clipboard. [Selection and effects](docs/native-terminal-selection-eff
 clipboard dependency and lifecycle; Panel-program writes, OSC 52 mode, and clipboard configuration
 remain to be connected.
 
-[Custom commands](docs/custom-commands.md), on Windows and macOS, share one installed catalog between
+[Custom commands](docs/custom-commands.md) share one installed catalog between
 `command list`, `command invoke`, configured shortcuts and shortcut discovery. Shell jobs, Panel
 creation, independent popups and plugin actions retain their existing execution owners and receipts.
 
@@ -668,20 +666,20 @@ The Client attaches only the snapshot's exact Session/Worker/Terminal binding th
 
 ## Release destructive confirmation
 
-The Windows and macOS release builds guard `server stop`, `--machine <selector> server stop`, `machine remove <selector> --stop-session`, `session stop <name>` and `session delete <name>`. Each runs only when standard input and standard output are both consoles, terminals on macOS, and the person types the target Session's name at the prompt on standard error exactly as the prompt shows it, letter case included, although letter case does not otherwise tell Sessions apart; surrounding whitespace is ignored. `server stop` names the Session the invocation selects: `--session`, an inherited Session route, `ORCHBEE_SESSION` or `default`. `--machine <selector> server stop` and `machine remove <selector> --stop-session` name the selected saved machine's remote Session, and their prompt names the machine and says that every terminal in that Session stops; see [remote Session stop](docs/machines.md#remote-session-stop) and [removing a machine](docs/machines.md#removing-a-machine). The prompt of `server stop` and `session stop <name>` first says what stops: the Session and its terminal count from the Session's handshake `query`, asked within two seconds, or every terminal in it when the Session cannot say; a Session with no terminal keeps the bare request for its name. Release refuses `--confirm`, a stream that is not a console, a target it cannot name and a mismatched name with `denied` (exit 3), details `{stage:"confirmation",reason}` where `reason` is `confirm-option`, `not-interactive`, `session-unknown` or `name-mismatch`, and a localized message naming the command to run by hand. Ctrl+C at the prompt cancels with exit 130. Development and test builds require `--confirm` as before and never prompt; TUI and Desktop stop actions keep their own confirmation dialogs. Desktop's Quit All, in the menu of its notification-area or menu-bar icon, confirms once in a native dialog and records the stop through its admitted Client connection, not through this command, so the release prompt and its log do not apply to it; `operation status <id>` reads that stop as any other. The guard slows unintended Agent actions and is not a security boundary. On macOS `server stop` names `ORCHBEE_RUNTIME_SCOPE`, which a managed terminal inherits, or `default`. Linux keeps `--confirm` and writes no request log until ORC-328.
+Release builds guard `server stop`, `--machine <selector> server stop`, `machine remove <selector> --stop-session`, `session stop <name>` and `session delete <name>`. Each runs only when standard input and standard output are both consoles, terminals on macOS and Linux, and the person types the target Session's name at the prompt on standard error exactly as the prompt shows it, letter case included, although letter case does not otherwise tell Sessions apart; surrounding whitespace is ignored. `server stop` names the Session the invocation selects: `--session`, an inherited Session route, `ORCHBEE_SESSION` or `default`. `--machine <selector> server stop` and `machine remove <selector> --stop-session` name the selected saved machine's remote Session, and their prompt names the machine and says that every terminal in that Session stops; see [remote Session stop](docs/machines.md#remote-session-stop) and [removing a machine](docs/machines.md#removing-a-machine). The prompt of `server stop` and `session stop <name>` first says what stops: the Session and its terminal count from the Session's handshake `query`, asked within two seconds, or every terminal in it when the Session cannot say; a Session with no terminal keeps the bare request for its name. Release refuses `--confirm`, a stream that is not a console, a target it cannot name and a mismatched name with `denied` (exit 3), details `{stage:"confirmation",reason}` where `reason` is `confirm-option`, `not-interactive`, `session-unknown` or `name-mismatch`, and a localized message naming the command to run by hand. Ctrl+C at the prompt cancels with exit 130. Development and test builds require `--confirm` as before and never prompt; TUI and Desktop stop actions keep their own confirmation dialogs. Desktop's Quit All, in the menu of its notification-area or menu-bar icon, confirms once in a native dialog and records the stop through its admitted Client connection, not through this command, so the release prompt and its log do not apply to it; `operation status <id>` reads that stop as any other. The guard slows unintended Agent actions and is not a security boundary. On macOS `server stop` names `ORCHBEE_RUNTIME_SCOPE`, which a managed terminal inherits, or `default`. Linux keeps `--confirm` and writes no request log until ORC-328.
 
-Before the command runs, every Windows and macOS invocation of these commands that passes grammar, accepted or refused, in every environment, appends one JSON line to `logs/destructive-commands.jsonl` in the environment's data root. A grammar failure, such as a development `server stop` without `--confirm`, is not a request and is not logged, nor is a remote stop whose machine cannot be selected. Each record has:
+Before the command runs, every invocation of these commands that passes grammar, accepted or refused, in every environment, appends one JSON line to `logs/destructive-commands.jsonl` in the environment's data root. A grammar failure, such as a development `server stop` without `--confirm`, is not a request and is not logged, nor is a remote stop whose machine cannot be selected. Each record has:
 
-| Field         | Value                                                                                                                                                                                                                                                                                             |
-| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `version`     | `1`                                                                                                                                                                                                                                                                                               |
-| `time`        | UTC RFC 3339 with milliseconds, or `null` when the clock cannot be read                                                                                                                                                                                                                           |
-| `environment` | The compiled environment stem                                                                                                                                                                                                                                                                     |
-| `command`     | `server stop`, `machine server stop` for a remote stop, `session stop`, `session delete` or `uninstall`                                                                                                                                                                                           |
-| `session`     | The target Session name, or `null` when it cannot be named                                                                                                                                                                                                                                        |
-| `interactive` | `{stdin, stdout}`: whether each stream is a console, or on macOS a terminal                                                                                                                                                                                                                       |
-| `parent`      | `{pid, image}` from a process snapshot; `image` is `null` when the parent has exited or its PID now names a newer process. On macOS `image` is the start path `ps` reports, which names a program a shell started by name only by that name, and `null` when the parent changed while it was read |
-| `outcome`     | `accepted`, `refused-confirm-option`, `refused-not-interactive`, `refused-session-unknown`, `refused-name-mismatch` or `cancelled`                                                                                                                                                                |
+| Field         | Value                                                                                                                                                                                                                                                                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `version`     | `1`                                                                                                                                                                                                                                                                                                                                           |
+| `time`        | UTC RFC 3339 with milliseconds, or `null` when the clock cannot be read                                                                                                                                                                                                                                                                       |
+| `environment` | The compiled environment stem                                                                                                                                                                                                                                                                                                                 |
+| `command`     | `server stop`, `machine server stop` for a remote stop, `session stop`, `session delete` or `uninstall`                                                                                                                                                                                                                                       |
+| `session`     | The target Session name, or `null` when it cannot be named                                                                                                                                                                                                                                                                                    |
+| `interactive` | `{stdin, stdout}`: whether each stream is a console, or on macOS and Linux a terminal                                                                                                                                                                                                                                                         |
+| `parent`      | `{pid, image}` from a process snapshot; `image` is `null` when the parent has exited or its PID now names a newer process. On macOS `image` is the start path `ps` reports, which names a program a shell started by name only by that name; on Linux it is the parent's program file. It is `null` when the parent changed while it was read |
+| `outcome`     | `accepted`, `refused-confirm-option`, `refused-not-interactive`, `refused-session-unknown`, `refused-name-mismatch` or `cancelled`                                                                                                                                                                                                            |
 
 `outcome` is the admission decision; the command's own result stays in its output. A failed append never blocks or changes the command. The [local runtime guide](../../crates/local-runtime/README.md#destructive-request-log) owns the file's location, privacy and rotation.
 
@@ -707,12 +705,12 @@ lines. Unit tests describe the development grammar on every host. The Desktop an
 withhold their Search too and keep the Actions-only palette, as the TUI keeps its action
 menu; see the [Web Workbench](../web/docs/workbench.md#release-withheld-search).
 
-## Windows and macOS Worktree operations
+## Worktree operations
 
 The [Worktree contract](docs/windows-worktrees.md) owns source selection, defaults, confirmation,
 partial outcomes and recovery. These commands do not activate a Session.
 
-## Windows and macOS Workspace group Close
+## Workspace group Close
 
 `project close-all <target> --confirm` closes the captured Workspaces in that Project while
 retaining the Project record and Git checkouts. Ordinary `workspace close` always closes only its
@@ -720,30 +718,27 @@ target. See the [Project close-all contract](docs/windows-worktrees.md#project-c
 
 Windows CLI Panel/Tab/Workspace Close captures and settles every bound primary and child Presentation, including grouped/pinned Tabs. Canonical removal waits for all target disposal/cleanup and exact membership revalidation; unknown effects keep their retained receipts and recovery constraints. Unbound Presentations, child navigation and other structural operations retain their separate contracts; see the [Close model](../orchbee-server/docs/terminal-tab-close.md#complete-presentation-membership).
 
-## Windows and macOS Client navigation
+## Client navigation
 
 [Windows Client view control](docs/windows-client-control.md) owns `client list/get/status`,
 `workspace focus`, `tab focus`, `panel focus` and `panel maximize`. Navigation targets one current
 TUI via `--client` or unambiguous validated caller context. No operating-system window activation is
-added. macOS admits the same controls; Linux admits only the read-only `client list` and `client
-get`.
+added.
 
 ## Schema export
 
 `api schema [<schema-id>] --output <path>` exports the embedded JSON document offline and also emits
 it on stdout. The [export contract](docs/native-cli-query.md#offline-schema-export) owns failure
-stages, temporary cleanup and post-publication stdout failures. It runs on Windows and macOS; Linux
-answers the typed unsupported-platform failure.
+stages, temporary cleanup and post-publication stdout failures.
 
 ## Diagnostic bundle
 
 `diagnostics create --output <path> [--format text|json]` writes one stored ZIP archive to a literal
 path the person chooses and creates nothing in the data root; nothing is uploaded. It runs offline,
-never starts a Session, is not release-withheld, and runs on Windows and macOS; Linux answers the
-typed unsupported-platform failure. Publication shares the [schema
+never starts a Session and is not release-withheld. Publication shares the [schema
 export](docs/native-cli-query.md#offline-schema-export) steps with a
 `.orchbee-diagnostics-<nonce>.tmp` sibling: the parent must exist and only a regular file is
-replaced. On macOS the bundle is created private to the user (mode `0600`).
+replaced. On macOS and Linux the bundle is created private to the user (mode `0600`).
 
 | Entry                     | Contents                                                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -803,14 +798,14 @@ Panel swap uses the shared structural placement authority for one atomic same-Ta
 exchange, preserving Split/slot and terminal identities. [Native Panel
 swap](docs/native-panel-swap.md) owns the workflow, receipt and evidence.
 
-On Windows and macOS, `tab create` and `panel split` resolve `--cwd
+`tab create` and `panel split` resolve `--cwd
 follow|home|current|workspace|<absolute-path>` before creation; follow is the default and samples
 the resolved source root process. `orchbee.creation.result` separates committed creation from later
 ratio/focus results; a later failure is not permission to repeat creation. [Native terminal
 creation](docs/native-terminal-creation.md) owns target selection, total budget, concurrency guards
-and recovery for these Windows commands.
+and recovery for these commands.
 
-On Windows and macOS, `tab move <target> --insert-index N` moves a complete Tab to a zero-based
+`tab move <target> --insert-index N` moves a complete Tab to a zero-based
 boundary in the original order: 0 is first, the Tab count is last, source/source+1 are unchanged,
 and out-of-range values are refused. It excludes `--order` and preserves focus and terminals.
 
@@ -839,7 +834,7 @@ Bare `status` reads the Workbench and then lists the Session's processes and the
 
 ## Agent navigation
 
-Windows and macOS `agent focus <target> [--client <id>]` resolves a name, session or Panel to its
+`agent focus <target> [--client <id>]` resolves a name, session or Panel to its
 unique live primary Panel before one Client control submission, which a definite `stale-view`
 refusal repeats on a fresh read up to three times while the target resolves the same way. The [Agent
 navigation contract](docs/native-agent-navigation.md) defines primary binding, ambiguity,
@@ -852,7 +847,7 @@ The Windows provider hook writers for Cursor, Qoder, Antigravity, Mastracode, Dr
 and Hermes are dormant with the rest of the integration family: no command or setting enables them in this
 release. Their contracts remain in the [Windows integration contract](docs/windows-agent-integrations.md).
 
-On Windows and macOS, `workspace create` accepts omitted Project, label and cwd, resolves source
+`workspace create` accepts omitted Project, label and cwd, resolves source
 terminal/Workspace/home defaults, creates an ungrouped Workspace by default, and optionally focuses
 an existing TUI with `--focus`. Workspace and focus retain separate outcomes; optional Project
 placement commits atomically with Workspace creation, without a separate Project preparation step.
@@ -884,20 +879,20 @@ The [Workspace metadata contract](docs/windows-workspace-metadata.md) defines re
 source sequence fences, TTL and the consistent read join. Its Server and shared wire owners are
 separate from canonical topology and terminal OSC metadata.
 
-On Windows and macOS, `panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
+`panel report-metadata` supports source-owned presentation fields, guards, token patches, sequence and TTL with a binding-fenced, once-only receipt. See the [Panel metadata contract](docs/windows-panel-metadata.md).
 
-On Windows and macOS, `panel report-agent`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions; Linux returns `unsupported-platform` for them and for `panel report-metadata`. See the [Agent report contract](docs/windows-panel-agent-reports.md).
+`panel report-agent`, `clear-agent-authority` and `release-agent` submit explicit source-owned reports and return correlated dispositions. See the [Agent report contract](docs/windows-panel-agent-reports.md).
 
 ## CLI notifications
 
-On Windows and macOS, `orchbee notification show "Build complete" --body "All checks passed"
+`orchbee notification show "Build complete" --body "All checks passed"
 --position bottom-right --sound done` queues a custom notification for accepting main-TUI Clients on
 the running Session. See [delivery, limits and lifecycle](docs/windows-notifications.md); acceptance
 is queue admission, not a display or sound acknowledgement.
 
 ## Outer terminal title
 
-On Windows and macOS, `orchbee terminal title set "Build workspace"` publishes an override for the
+`orchbee terminal title set "Build workspace"` publishes an override for the
 foreground Client, a main TUI or a Desktop window, which shows it as its window title; `orchbee
 terminal title clear` returns to the live `appearance.window_title` template (fallback `Orchbee`).
 See [title ownership and restoration](docs/windows-terminal-title.md) for configured templates and
@@ -907,9 +902,8 @@ Windows `plugin link/unlink/enable/disable/list/config-dir` and `plugin action l
 
 ## Panel graphics commands
 
-On Windows and macOS, `panel graphics set|clear|info|stream` admits closed image inputs, file/pipe
-acquisition and bounded raw frame streams, with one submission through existing Workbench ownership;
-Linux returns `unsupported-platform`. See [Panel graphics CLI](docs/windows-panel-graphics.md) for
+`panel graphics set|clear|info|stream` admits closed image inputs, file/pipe acquisition and bounded
+raw frame streams, with one submission through existing Workbench ownership. See [Panel graphics CLI](docs/windows-panel-graphics.md) for
 parameters, unknown receipts and producer cleanup. The [native TUI
 renderer](docs/native-panel-graphics.md) stages complete images and publishes successful draw facts;
 it draws Kitty images only in an outer terminal that answers the Kitty query, such as Ghostty or

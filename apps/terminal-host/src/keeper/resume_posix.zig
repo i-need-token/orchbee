@@ -1,7 +1,7 @@
-//! The image a macOS Keeper executes in its own place (`reexec_darwin.zig`): it reads the state the
-//! old image left, takes over its endpoint, table, and connections, records each parented leader
-//! that ended meanwhile, and answers the pending `reexec`. An image that cannot read the state
-//! executes the old program with it and `--returned`, and that image answers `exec-failed`.
+//! The image a macOS or Linux Keeper executes in its own place (`reexec_posix.zig`): it reads the
+//! state the old image left, takes over its endpoint, table, and connections, records each parented
+//! leader that ended meanwhile, and answers the pending `reexec`. An image that cannot read the
+//! state executes the old program with it and `--returned`, and that image answers `exec-failed`.
 
 const std = @import("std");
 const handshake = @import("terminal-host-handshake");
@@ -11,8 +11,8 @@ const build_options = @import("build-options");
 const connection = @import("connection.zig");
 const service = @import("service.zig");
 const state = @import("state.zig");
-const saved = @import("saved_darwin.zig");
-const reexec = @import("reexec_darwin.zig");
+const saved = @import("saved_posix.zig");
+const reexec = @import("reexec_posix.zig");
 
 const message = keeper_protocol.message;
 const handles = state.handles;
@@ -20,7 +20,7 @@ const content = state.content;
 const posix = std.posix;
 const c = std.c;
 const posix_compat = platform.posix_compat;
-const darwin = platform.keeper.darwin;
+const native = platform.keeper.native;
 
 /// Outside release builds, a state is refused once while this names a file, which is removed.
 const refuse_state_variable = "ORCHBEE_TEST_KEEPER_REFUSE_STATE";
@@ -72,7 +72,7 @@ pub fn run(allocator: std.mem.Allocator, options: service.Options, handover: Han
             .used = entry.usedIds,
             .pending = if (entry.pending) |id| .{ .id = id, .body = answer } else null,
         };
-        if (!service.resumeConnection(allocator, table, darwin.Stream.init(entry.socket), slot, resumed)) {
+        if (!service.resumeConnection(allocator, table, native.Stream.init(entry.socket), slot, resumed)) {
             table.lock();
             table.releaseConnection(slot);
             table.unlock();

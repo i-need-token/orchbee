@@ -45,7 +45,6 @@ pub(super) struct Answer {
     pub(super) terminal_lifecycle_read: bool,
     /// Whether the Host holds its running terminals in a Keeper this Worker attaches
     /// (`keeper`) and recovers a program the Keeper kept after its Host ended (`recovery`).
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) keeper: super::KeeperTerms,
     /// Whether the Host runs this Worker's background programs (`background-programs`).
     pub(super) background_programs: bool,
@@ -53,9 +52,8 @@ pub(super) struct Answer {
 
 /// This build's `worker-host` offer: the registry's generations and capabilities, the package
 /// version, the source commit release packaging compiled in, and the compiled environment. It adds
-/// `background-programs` on Windows, and on macOS where it runs the Keeper. Where a Windows or
-/// macOS build runs the Keeper it also offers `keeper` and `recovery`, and `handover` while moves
-/// are live there.
+/// `background-programs` on Windows, and on macOS and Linux where they run the Keeper. A build that
+/// runs the Keeper also offers `keeper` and `recovery`, and `handover` while moves are live.
 pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
     let mut offer = Offer::local(
         ConnectionKind::WorkerHost,
@@ -66,7 +64,7 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
         },
         EnvironmentName::new(orchbee_local_runtime::environment_stem())?,
     );
-    if cfg!(windows) || (cfg!(target_os = "macos") && orchbee_local_runtime::keeper_live()) {
+    if cfg!(windows) || orchbee_local_runtime::keeper_live() {
         offer.capabilities = CapabilitySet::new(
             offer
                 .capabilities
@@ -75,7 +73,7 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
                 .chain([CapabilityName::new(BACKGROUND_PROGRAMS)?]),
         )?;
     }
-    if cfg!(any(windows, target_os = "macos")) && orchbee_local_runtime::keeper_live() {
+    if orchbee_local_runtime::keeper_live() {
         offer.capabilities = CapabilitySet::new(
             offer
                 .capabilities
@@ -84,7 +82,7 @@ pub(super) fn local() -> Result<Offer, Box<dyn Error>> {
                 .chain([CapabilityName::new(KEEPER)?, CapabilityName::new(RECOVERY)?]),
         )?;
     }
-    if cfg!(any(windows, target_os = "macos")) && orchbee_local_runtime::moves_live() {
+    if orchbee_local_runtime::moves_live() {
         offer.capabilities = CapabilitySet::new(
             offer
                 .capabilities
@@ -137,11 +135,9 @@ pub(super) fn exchange(
             screen_gated_send: answer.capabilities.contains(SCREEN_GATED_SEND),
             screen_gated_prompt: answer.capabilities.contains(SCREEN_GATED_PROMPT),
             terminal_lifecycle_read: answer.capabilities.contains(TERMINAL_LIFECYCLE_READ),
-            #[cfg(any(windows, target_os = "macos"))]
             keeper: super::KeeperTerms {
                 keeper: answer.capabilities.contains(KEEPER),
                 recovery: answer.capabilities.contains(RECOVERY),
-                #[cfg(any(windows, target_os = "macos"))]
                 handover: answer.capabilities.contains(HANDOVER),
             },
             background_programs: answer.capabilities.contains(BACKGROUND_PROGRAMS),

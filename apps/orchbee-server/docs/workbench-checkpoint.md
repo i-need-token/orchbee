@@ -3,8 +3,8 @@
 ## Scope and ownership
 
 `workbench_authority/checkpoint.rs` owns the private versioned projection of retained Workbench
-configuration and its reconstruction into a fresh authority. The managed Windows and macOS
-Sessions are its storage/startup consumers; a Linux Session keeps no checkpoint yet. The domain
+configuration and its reconstruction into a fresh authority. The managed Sessions are its
+storage/startup consumers. The domain
 codec remains separate from filesystem admission, checkpoint publication and terminal relaunch.
 Named-Session routing and the additional recovery owners remain separate obligations.
 
@@ -359,8 +359,7 @@ carries its bytes. macOS writes none until its Server can adopt a Host it did no
 ## Terminal output replay
 
 The `restoreTerminals` preference (`terminal.restore_after_restart`, on by default) keeps each
-terminal's recent output on this computer and shows it again after a full Server restart, on every platform whose Session keeps a
-checkpoint (Windows and macOS; a Linux Session keeps neither). `terminal_output.rs` owns the payload, the
+terminal's recent output on this computer and shows it again after a full Server restart, on every platform. `terminal_output.rs` owns the payload, the
 caps, the file numbers and an in-memory index of what each live terminal last kept;
 `local_terminal_service/terminal_output.rs` connects it to capture, saves and restore. The Server
 reads the preference at every save and restore, so a change from any writer applies at the next

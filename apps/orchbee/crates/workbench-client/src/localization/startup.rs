@@ -78,11 +78,9 @@ impl Locale {
             (Self::ZhCn, StartupFailure::SessionTooOld(versions)) if versions.session.is_none() => {
                 "正在运行的会话由早于版本检查的 Orchbee 启动。请用启动它的那个 Orchbee 运行 `server stop`，然后重试。\n".into()
             }
-            // Windows and macOS restart a Session's Server while its terminals run; the TUI and
-            // Desktop try that by themselves first.
-            (Self::EnUs, StartupFailure::SessionTooOld(versions))
-                if cfg!(any(windows, target_os = "macos")) =>
-            {
+            // A Session's Server restarts while its terminals run; the TUI and Desktop try that by
+            // themselves first.
+            (Self::EnUs, StartupFailure::SessionTooOld(versions)) => {
                 format!(
                     "{} is too old for Orchbee {}. Run `orchbee server restart`, then try again. Terminals keep running.\n",
                     session(versions, "The running Session"),
@@ -90,9 +88,7 @@ impl Locale {
                 )
                 .into()
             }
-            (Self::ZhCn, StartupFailure::SessionTooOld(versions))
-                if cfg!(any(windows, target_os = "macos")) =>
-            {
+            (Self::ZhCn, StartupFailure::SessionTooOld(versions)) => {
                 format!(
                     "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server restart`，然后重试。终端会继续运行。\n",
                     session(versions, "正在运行的会话"),
@@ -100,18 +96,6 @@ impl Locale {
                 )
                 .into()
             }
-            (Self::EnUs, StartupFailure::SessionTooOld(versions)) => format!(
-                "{} is too old for Orchbee {}. Run `orchbee server stop`, then try again.\n",
-                session(versions, "The running Session"),
-                versions.client
-            )
-            .into(),
-            (Self::ZhCn, StartupFailure::SessionTooOld(versions)) => format!(
-                "{}版本过旧，无法与 Orchbee {} 配合。请运行 `orchbee server stop`，然后重试。\n",
-                session(versions, "正在运行的会话"),
-                versions.client
-            )
-            .into(),
             (Self::EnUs, StartupFailure::OtherEnvironment) => {
                 "This copy of Orchbee belongs to another environment and cannot join the running Session.\n".into()
             }
@@ -136,9 +120,8 @@ impl Locale {
     }
 
     /// A recovery refused because a process an earlier start registered still runs, naming its
-    /// role, program and process ID and what clears it: the system's own tool for ending a process,
-    /// Task Manager on Windows and Activity Monitor on macOS, the two platforms that register
-    /// processes. The desktop window says the same through
+    /// role, program and process ID and what clears it: Task Manager on Windows, Activity Monitor on
+    /// macOS and `kill` on Linux. The desktop window says the same through
     /// `session.connection.unavailable.recoveryBlocked`.
     fn recovery_blocked(self, blocker: &orchbee_local_runtime::RecoveryBlocker) -> String {
         use orchbee_local_runtime::BlockerRole;
@@ -150,26 +133,29 @@ impl Locale {
         };
         let program = blocker.role.program().file_name();
         let process = blocker.process_id;
-        let macos = cfg!(target_os = "macos");
         match self {
             Self::EnUs => {
-                let tool = if macos {
-                    "Activity Monitor"
+                let end = if cfg!(windows) {
+                    "End that process in Task Manager".to_owned()
+                } else if cfg!(target_os = "macos") {
+                    "End that process in Activity Monitor".to_owned()
                 } else {
-                    "Task Manager"
+                    format!("End that process with `kill {process}`")
                 };
                 format!(
-                    "Orchbee can't start this Session while the {role} from an earlier start is still running ({program}, process {process}). End that process in {tool} or restart the computer; the next start then recovers the Session by itself.\n"
+                    "Orchbee can't start this Session while the {role} from an earlier start is still running ({program}, process {process}). {end} or restart the computer; the next start then recovers the Session by itself.\n"
                 )
             }
             Self::ZhCn => {
-                let tool = if macos {
-                    "活动监视器"
+                let end = if cfg!(windows) {
+                    "请在任务管理器中结束该进程".to_owned()
+                } else if cfg!(target_os = "macos") {
+                    "请在活动监视器中结束该进程".to_owned()
                 } else {
-                    "任务管理器"
+                    format!("请用 `kill {process}` 结束该进程")
                 };
                 format!(
-                    "之前启动的 {role} 仍在运行（{program}，进程 {process}），Orchbee 无法启动此会话。请在{tool}中结束该进程或重启电脑，下次启动会自动恢复会话。\n"
+                    "之前启动的 {role} 仍在运行（{program}，进程 {process}），Orchbee 无法启动此会话。{end}或重启电脑，下次启动会自动恢复会话。\n"
                 )
             }
         }
@@ -381,9 +367,6 @@ impl Locale {
                     RecoveryCheckpoint::Retained => {
                         "The local session requires explicit recovery. The checkpoint is retained. No replacement process was started.\n"
                     }
-                    RecoveryCheckpoint::Absent => {
-                        "The local session requires explicit recovery. No replacement process was started.\n"
-                    }
                 }
             }
             (Self::ZhCn, StartupFailure::RecoveryRequired) => {
@@ -394,7 +377,6 @@ impl Locale {
                     RecoveryCheckpoint::Retained => {
                         "本地会话需要显式恢复。已保留检查点。未启动替代进程。\n"
                     }
-                    RecoveryCheckpoint::Absent => "本地会话需要显式恢复。未启动替代进程。\n",
                 }
             }
             // Rendered with their versions, the refused item, the blocking process or the system's

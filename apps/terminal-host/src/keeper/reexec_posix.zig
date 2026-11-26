@@ -1,4 +1,4 @@
-//! A macOS Keeper's update in place (`schemas/keeper/README.md`, Re-execution). On the Worker's
+//! A Keeper's update in place (`schemas/keeper/README.md`, Re-execution). On the Worker's
 //! `reexec` it checks the new program against a copy of its state, stops the listener and every
 //! admitted connection between frames, and, holding the table's lock from its last snapshot on,
 //! writes the state to an unlinked file and executes the new program in its own process, which
@@ -6,11 +6,12 @@
 //! leaves this image serving as before; only the new image answers the `reexec` that succeeded.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const state = @import("state.zig");
-const saved = @import("saved_darwin.zig");
-const check = @import("check_darwin.zig");
+const saved = @import("saved_posix.zig");
+const check = @import("check_posix.zig");
 
 const message = keeper_protocol.message;
 const Body = message.Reply.Body;
@@ -76,12 +77,18 @@ pub fn arm(value: Endpoint) void {
     endpoint = value;
 }
 
-/// The program this process runs, as an absolute path, or null when it cannot be read.
+/// The program this process runs, as an absolute path, or null when it cannot be read. On Linux a
+/// program file removed or replaced since this process started reads as `<path> (deleted)`, which
+/// names nothing an image could execute again, so it reads as null too.
 pub fn ownProgram(allocator: std.mem.Allocator) ?[]u8 {
     var buffer: [program_path_bytes]u8 = undefined;
-    const length = proc_pidpath(c.getpid(), &buffer, buffer.len);
-    if (length <= 0) return null;
+    const length = if (comptime builtin.os.tag == .macos)
+        proc_pidpath(c.getpid(), &buffer, buffer.len)
+    else
+        c.readlink("/proc/self/exe", &buffer, buffer.len);
+    if (length <= 0 or length >= buffer.len) return null;
     const path = buffer[0..@intCast(length)];
+    if (comptime builtin.os.tag == .linux) if (std.mem.endsWith(u8, path, " (deleted)")) return null;
     if (!message.validProgram(path)) return null;
     return allocator.dupe(u8, path) catch null;
 }

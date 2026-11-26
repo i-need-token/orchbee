@@ -67,8 +67,8 @@ impl super::CliText {
             ),
             (CommandPath::MachineRemove, "--confirm") => (
                 "",
-                "Confirm stopping the remote Session with --stop-session. The Windows and macOS release builds refuse it and ask a person to type the remote Session's name instead.",
-                "确认用 --stop-session 停止远端会话。Windows 和 macOS 正式版不接受此选项，改为由人输入远端会话名称。",
+                "Confirm stopping the remote Session with --stop-session. Release builds refuse it and ask a person to type the remote Session's name instead.",
+                "确认用 --stop-session 停止远端会话。正式版不接受此选项，改为由人输入远端会话名称。",
             ),
             (CommandPath::MachineRemove, "--stop-session") => (
                 "",
@@ -310,8 +310,8 @@ impl super::CliText {
                 "--cols" => ("<n>", "Terminal width in columns.", "终端列数。"),
                 "--confirm" => (
                     "",
-                    "Confirm closing or removing the selected resources. The Windows and macOS release builds refuse it on server stop, session stop, session delete and uninstall, which ask a person to type the Session name, or orchbee, instead.",
-                    "确认关闭或移除所选资源。Windows 和 macOS 正式版的 server stop、session stop、session delete 和 uninstall 不接受此选项，改为由人输入会话名称或 orchbee。",
+                    "Confirm closing or removing the selected resources. Release builds refuse it on server stop, session stop, session delete and uninstall, which ask a person to type the Session name, or orchbee, instead.",
+                    "确认关闭或移除所选资源。正式版的 server stop、session stop、session delete 和 uninstall 不接受此选项，改为由人输入会话名称或 orchbee。",
                 ),
                 "--delete-data" => (
                     "",

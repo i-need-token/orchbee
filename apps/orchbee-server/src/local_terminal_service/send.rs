@@ -71,7 +71,6 @@ impl LocalTerminalService {
     pub(crate) fn execute_send(&self, request: &TerminalSendRequest) -> ServerMessage {
         self.deliver_send(request, |_, target| {
             // A Client's send refutes a pending resume or start line of the terminal it reaches.
-            #[cfg(any(windows, target_os = "macos"))]
             self.note_client_input(*target);
             self.note_agent_start_input(*target);
             true

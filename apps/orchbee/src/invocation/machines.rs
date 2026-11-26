@@ -27,7 +27,7 @@ pub(crate) enum MachineCommand {
     Remove {
         machine: String,
         stop_session: bool,
-        /// Whether `--confirm` was given; a release Windows or macOS build refuses it at admission.
+        /// Whether `--confirm` was given; a release build refuses it at admission.
         confirm: bool,
     },
     Enable {

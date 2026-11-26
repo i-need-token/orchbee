@@ -27,7 +27,7 @@ pub(super) fn run(
     restart: super::RestartTier,
 ) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let signals = match ArmedSignals::arm_interrupts_except_linux() {
+    let signals = match ArmedSignals::arm_interrupts_latched() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };

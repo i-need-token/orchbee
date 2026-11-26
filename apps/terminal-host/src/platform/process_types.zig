@@ -22,8 +22,8 @@ pub const Launch = struct {
     // opens and validates its fixture before launch, then the child inherits it.
     stdin_fd: ?isize = null,
     /// macOS: the attached Keeper that starts the leader and parents it; null forks it here.
-    keeper: if (builtin.os.tag == .macos) ?@import("process_keeper_darwin.zig").Spawn else void =
-        if (builtin.os.tag == .macos) null else {},
+    keeper: if (builtin.os.tag == .macos or builtin.os.tag == .linux) ?@import("process_keeper_posix.zig").Spawn else void =
+        if (builtin.os.tag == .macos or builtin.os.tag == .linux) null else {},
 };
 
 /// How the Host started the root process. Clients choose a command format from

@@ -17,11 +17,9 @@ names, and any Agent started with its conversation id on its command line, such 
 ## Outcome and scope
 
 A user runs supported Agents in Panels, and the managed Server restarts from its checkpoint. Each
-Panel's supported Agent Session should reopen in that Panel once. The managed Windows and macOS
-Sessions keep a checkpoint and share this format and these rules; the macOS line is typed into
-managed zsh or bash. A Linux Session keeps no checkpoint, and its build compiles the closed rider,
-`checkpoint/riders/without_resume.rs`, without the resume driver, until its Host is tested, as for
-Agent start.
+Panel's supported Agent Session should reopen in that Panel once. Every managed Session keeps a
+checkpoint and shares this format and these rules; the macOS and Linux line is typed into managed
+zsh or bash.
 
 Non-goals: replaying a command, relaunching an arbitrary program, restoring managed Agent names,
 and restoring a terminal screen or history. A resumed Agent appears without its former name.
@@ -422,9 +420,8 @@ any of them gives none, since the process may hold another conversation than any
   switches conversation inside the Agent (`/resume`, `/new`, `/clear` and the like) and no hook
   session reports the switch, the next restart reopens the conversation the process started in,
   which still exists: stale, never a prompt. Orchbee does not detect the switch.
-- **Platform.** The Windows and macOS Hosts sample command lines; the macOS Host splits each by
-  POSIX quoting rules before identity reads it. A Linux Session keeps no checkpoint, so the source
-  gives none there.
+- **Platform.** The Hosts sample command lines; the macOS and Linux Hosts split each by POSIX
+  quoting rules before identity reads it.
 
 ### Carried options
 

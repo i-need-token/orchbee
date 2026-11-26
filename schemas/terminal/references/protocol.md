@@ -501,7 +501,7 @@ prompt first seen after the arrival is answered once the quiet time since the ar
 
 ## Host handover
 
-Kinds 90 to 106 move a running Windows or macOS terminal between Terminal Hosts through the
+Kinds 90 to 106 move a running terminal between Terminal Hosts through the
 Keeper, whose own connection is [`../../keeper/README.md`](../../keeper/README.md), and recover one
 whose Host ended. They belong to three `worker-host` capabilities: `keeper` covers `AttachKeeper`,
 `DetachKeeper`, and the events `KeeperLost`, `KeeperUnresponsive`, and `TerminalUnheld`; `recovery`
@@ -617,8 +617,7 @@ freezes with them.
 
 ## Background programs
 
-Kinds 110 to 115 let a Worker run a program without a terminal in its Windows or macOS Terminal
-Host, so the program outlives the Worker that started it. They belong to the `worker-host` capability
+Kinds 110 to 115 let a Worker run a program without a terminal in its Terminal Host, so the program outlives the Worker that started it. They belong to the `worker-host` capability
 `background-programs`. A request on a connection that did not negotiate it fails with the
 non-retryable `TypedFailure` `not-negotiated` before any effect, and a Host sends `ProgramExited`
 only on a connection that negotiated it. The Worker is the only sender of these requests; the

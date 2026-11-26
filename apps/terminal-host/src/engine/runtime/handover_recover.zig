@@ -30,7 +30,7 @@ pub const Recovery = struct {
 
 /// The recovered terminal's runtime, running no worker yet, and the facts its commit and claim
 /// read, with `console` and `launch_kind` as the Keeper reported them; the runtime borrows neither
-/// `recovery` nor `console`. A macOS terminal has no console facts.
+/// `recovery` nor `console`. A macOS or Linux terminal has no console facts.
 pub fn prepare(
     allocator: std.mem.Allocator,
     recovery: Recovery,

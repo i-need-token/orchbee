@@ -210,7 +210,6 @@ fn launch_environment(
 
 /// The profile a recovered terminal starts with: the system's display mode and the default color
 /// themes, since a recovery runs with no Client preference at hand.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn recovery_profile() -> TerminalProfile {
     terminal_profile(
         super::system_terminal_colors(),

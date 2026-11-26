@@ -1,7 +1,7 @@
-//! A click's Session restart for the active version, on Windows and macOS, where a restart keeps
-//! every terminal. The newer side decides: the active version's own `orchbee` reads the Session's restart
-//! tier with `status server`, and when that tier, or a failed join, asks for it, restarts the
-//! Session's Server and Worker with `server restart`. Both run on one background thread, each as a
+//! A click's Session restart for the active version, which keeps every terminal. The newer side
+//! decides: the active version's own `orchbee` reads the Session's restart tier with
+//! `status server`, and when that tier, or a failed join, asks for it, restarts the Session's
+//! Server and Worker with `server restart`. Both run on one background thread, each as a
 //! child without a window, bounded in time. A Terminal Host that version's Worker cannot adopt rules
 //! out a restart that keeps terminals: the person confirms first, and the confirmed replacement stops
 //! the Session through this TUI's own connection, so the active version starts it again with every

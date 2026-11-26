@@ -1,5 +1,5 @@
-//! What a macOS terminal's Keeper links read and change: its release-first gate, the facts a
-//! `hold-pty` names, and, when a Keeper started its leader, that parent's state. The record lives
+//! What a macOS or Linux terminal's Keeper links read and change: its release-first gate, the facts
+//! a `hold-pty` names, and, when a Keeper started its leader, that parent's state. The record lives
 //! apart from the process value, so a pointer to it stays valid from the spawn on, however the
 //! process value moves.
 //!
@@ -9,7 +9,7 @@
 //! and the Host sees its end only by its start time.
 
 const std = @import("std");
-const keeper_darwin = @import("keeper_darwin.zig");
+const keeper_posix = @import("keeper_posix.zig");
 const monotonic = @import("monotonic.zig");
 const posix_compat = @import("posix_compat.zig");
 const thread_sync = @import("thread_sync.zig");
@@ -106,7 +106,7 @@ pub const Record = struct {
     /// The leader's start time in microseconds since 1970; zero when it could not be read, and
     /// then no Keeper holds the terminal.
     leader_created: u64 = 0,
-    slave: [keeper_darwin.maximum_slave_bytes]u8 = undefined,
+    slave: [keeper_posix.maximum_slave_bytes]u8 = undefined,
     slave_length: usize = 0,
 
     mutex: thread_sync.Mutex = .{},
@@ -129,7 +129,7 @@ pub const Record = struct {
     pub fn create(allocator: std.mem.Allocator, master: std.posix.fd_t) !*Record {
         const record = try allocator.create(Record);
         record.* = .{};
-        if (keeper_darwin.slaveName(master, &record.slave)) |name| record.slave_length = name.len;
+        if (keeper_posix.slaveName(master, &record.slave)) |name| record.slave_length = name.len;
         return record;
     }
 
@@ -141,7 +141,7 @@ pub const Record = struct {
 
     /// Records the start time of a leader the Host forked, read once it runs.
     pub fn started(self: *Record, leader: std.posix.pid_t) void {
-        self.leader_created = keeper_darwin.processStart(@intCast(leader)) orelse 0;
+        self.leader_created = keeper_posix.processStart(@intCast(leader)) orelse 0;
     }
 
     /// The slave's name, or null when it could not be read.
@@ -175,7 +175,7 @@ pub const Record = struct {
 
     /// Whether the leader still runs with its recorded start time.
     pub fn leaderRuns(self: *const Record, leader: std.posix.pid_t) bool {
-        return self.leader_created != 0 and keeper_darwin.processStart(@intCast(leader)) == self.leader_created;
+        return self.leader_created != 0 and keeper_posix.processStart(@intCast(leader)) == self.leader_created;
     }
 
     /// The terminal leaves this Host: the wait for its leader's end returns null.

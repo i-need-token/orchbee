@@ -1,4 +1,4 @@
-//! A program holding's facts as the Keeper's table stores them, on Windows and macOS alike.
+//! A program holding's facts as the Keeper's table stores them, on Windows, macOS and Linux alike.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");

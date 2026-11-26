@@ -8,7 +8,7 @@ revisions; the Client owns selection and input. This reference extends
 [context selection](native-context-selection.md) and the Server's
 [directory contract](../../orchbee-server/docs/workspace-terminal-directory.md).
 
-On Windows and macOS, New Workspace, the empty state's Create Workspace, `Ctrl+b a` and `Ctrl+b Shift+N`
+New Workspace, the empty state's Create Workspace, `Ctrl+b a` and `Ctrl+b Shift+N`
 immediately prepare and submit a Workspace with its first default shell. They open no directory or
 name form and require no confirmation. The default result is ungrouped. New Workspace from an exact
 Project row's menu or heading uses that Project, including empty and noncurrent Projects. Creating a Workspace never

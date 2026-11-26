@@ -129,7 +129,6 @@ impl WorkerOperationRequest {
             Self::TitleChanges(_) => "title-changes",
             Self::HostQuery(_) => "host-query",
             Self::AdoptHost(_) => "adopt-host",
-            #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(_) => "move-turn",
         }
     }

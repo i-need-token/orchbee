@@ -12,7 +12,7 @@ mod output_drain;
 mod unix;
 #[cfg(windows)]
 mod windows;
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub use unix::DetachedChild;
 #[cfg(unix)]
 pub use unix::{

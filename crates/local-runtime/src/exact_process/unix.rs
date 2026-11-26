@@ -1,11 +1,15 @@
-//! The macOS adapter. Nothing holds a POSIX process ID, so the process's start time is compared
-//! again right before each act on it; the window between that comparison and the signal is the one
-//! every `kill` has. Opening decides identity from the ID and start time alone, as
+//! The macOS and Linux adapter. Nothing holds a POSIX process ID, so the process's start time is
+//! compared again right before each act on it; the window between that comparison and the signal is
+//! the one every `kill` has. Opening decides identity from the ID and start time alone, as
 //! [observation](crate::process_observation) does, so an ID that another account's process now
 //! holds decides nothing about the recorded one.
 use super::blocked;
+#[cfg(target_os = "macos")]
+use crate::process_identity_native as native;
+#[cfg(target_os = "linux")]
+use crate::process_identity_proc as native;
 use crate::{
-    BlockerRole, process_identity_native as native, process_observation,
+    BlockerRole, process_observation,
     process_registration::{ProcessIdentity, ProcessObservation},
 };
 use std::{
@@ -37,7 +41,7 @@ impl ExactProcess {
     }
 
     /// This process, for a holder that may have to end it later. Ending needs no right held in
-    /// advance on macOS, so this only checks that it still runs as recorded.
+    /// advance on macOS or Linux, so this only checks that it still runs as recorded.
     pub fn endable(self) -> io::Result<Self> {
         if self.exited()? {
             return Err(blocked(io::ErrorKind::NotFound, self.role, self.identity));

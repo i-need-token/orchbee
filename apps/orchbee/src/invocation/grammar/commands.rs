@@ -126,12 +126,12 @@ commands! {
     ConfigReload => ["config", "reload"], 0, Operand, Portable, true, true, false;
     DiagnosticsCreate => ["diagnostics", "create"], 0, Operand, Portable, true, false, false;
     ServerStart => ["server", "start"], 0, Operand, Portable, true, false, false;
-    ServerRestart => ["server", "restart"], 0, Operand, WindowsAndMacos, true, false, false;
+    ServerRestart => ["server", "restart"], 0, Operand, Portable, true, false, false;
     ServerConnect => ["server", "connect"], 0, Operand, Portable, false, false, false;
-    SessionList => ["session", "list"], 0, Operand, WindowsAndMacos, true, false, false;
-    SessionAttach => ["session", "attach"], 1, Session, WindowsAndMacos, false, false, false;
-    SessionStop => ["session", "stop"], 1, Session, WindowsAndMacos, true, false, false;
-    SessionDelete => ["session", "delete"], 1, Session, WindowsAndMacos, true, false, false;
+    SessionList => ["session", "list"], 0, Operand, Portable, true, false, false;
+    SessionAttach => ["session", "attach"], 1, Session, Portable, false, false, false;
+    SessionStop => ["session", "stop"], 1, Session, Portable, true, false, false;
+    SessionDelete => ["session", "delete"], 1, Session, Portable, true, false, false;
     ServerUpdateAgentManifests => ["server", "update-agent-manifests"], 0, Operand, Portable, true, true, false;
     TerminalTitleSet => ["terminal", "title", "set"], 1, Operand, Portable, true, true, false;
     TerminalTitleClear => ["terminal", "title", "clear"], 0, Operand, Portable, true, true, false;

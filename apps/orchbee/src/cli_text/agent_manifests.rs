@@ -11,22 +11,22 @@ impl super::CliText {
         match (self.locale, path) {
             (Locale::EnUs, CommandPath::ServerAgentManifests) => crate::cli_text::HelpDetails::new(
                 "orchbee server agent-manifests [--format text|json]",
-                "Read the running Windows or macOS session's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.",
+                "Read the running session's installed detection rules, source, version, path and warnings. Includes automatic-check policy and its latest result. This does not reread files or fetch updates.",
             ),
             (Locale::ZhCn, CommandPath::ServerAgentManifests) => crate::cli_text::HelpDetails::new(
                 "orchbee server agent-manifests [--format text|json]",
-                "读取运行中 Windows 或 macOS 会话已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。",
+                "读取运行中会话已安装的识别规则、来源、版本、路径及警告。包含自动检查策略及最近结果。不会重新读取文件或下载更新。",
             ),
             (Locale::EnUs, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--format text|json]",
-                    "Reload local detection rules from the configuration directory in the running Windows or macOS session; reset screen stabilization. Invalid rules retain the previous rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query operation status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last until the Server restarts (maximum 1,024); no remote fetch.",
+                    "Reload local detection rules from the configuration directory in the running session; reset screen stabilization. Invalid rules retain the previous rules. Wait up to five seconds; pending/unknown returns exit 8 and retains the operation ID. Query operation status <id> after interruption. Reusing an accepted ID never reloads again. Receipts last until the Server restarts (maximum 1,024); no remote fetch.",
                 )
             }
             (Locale::ZhCn, CommandPath::ServerReloadAgentManifests) => {
                 crate::cli_text::HelpDetails::new(
                     "orchbee server reload-agent-manifests [--format text|json]",
-                    "在运行中 Windows 或 macOS 会话从配置目录重载本地识别规则，并重置屏幕稳定状态。规则无效时保留旧规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 operation status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留到 Server 重启前（最多 1,024 条）；不会远程下载。",
+                    "在运行中会话从配置目录重载本地识别规则，并重置屏幕稳定状态。规则无效时保留旧规则。最多等待五秒；待处理或结果未知时退出码为 8，并保留操作 ID。中断后使用 operation status <id> 查询。复用已接纳的 ID 不会再次重载。回执保留到 Server 重启前（最多 1,024 条）；不会远程下载。",
                 )
             }
             (Locale::EnUs, _) => crate::cli_text::HelpDetails::new(

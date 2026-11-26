@@ -7,7 +7,7 @@ acknowledged focus request to one existing TUI Client. It accepts one positional
 target or `--panel`, with the existing precedence and mutual exclusions.
 `--client`, `--timeout` and `--format text|json` use the existing
 Client control contract. The default total timeout is 30000 ms. Help, completion and parsing
-remain offline. macOS runs the same command; Linux refuses it as unsupported.
+remain offline.
 
 The command changes Client selection and explicitly acknowledges current known versions in the
 focused Panel and selected presentation through the [Client attention owner](native-client-attention.md). This explicit effect

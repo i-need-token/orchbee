@@ -940,7 +940,7 @@ then lists each terminal with its identity, and an attach restores its screen an
 a Worker that stopped reading releases a Host blocked writing to it; and `exit` with no Worker
 attached ends the Host and every terminal's process tree. P1 also closes two current gaps: a Worker
 cannot adopt a running Host
-([Worker](../../apps/orchbee-worker/README.md#managed-linux-lazy-host-startup)), and Server keeps no
+([Worker](../../apps/orchbee-worker/README.md#managed-lazy-host-startup)), and Server keeps no
 binding record.
 
 ## Acceptance

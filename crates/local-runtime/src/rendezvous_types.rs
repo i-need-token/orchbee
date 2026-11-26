@@ -384,10 +384,10 @@ pub(crate) fn slot_endpoint_id(runtime_id: &str, slot: HostSlot) -> String {
     }
 }
 
-/// The endpoint id of a macOS Keeper slot of the POSIX runtime whose socket names start with
+/// The endpoint id of a Keeper slot of the POSIX runtime whose socket names start with
 /// `runtime_id`: that name hashed under the slot's own domain, so the Keeper's socket belongs to this
 /// Session alone, keeps the Host's length, and a Worker that adopts the Keeper derives it again.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub(crate) fn keeper_endpoint_id(runtime_id: &str, slot: KeeperSlot) -> String {
     use sha2::{Digest, Sha256};
     let mut hash = Sha256::new();

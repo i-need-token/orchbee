@@ -1,6 +1,6 @@
 # Windows Client view control
 
-This contract owns native CLI discovery and navigation of a live Windows or macOS TUI Client. The TUI owns its selection and maximized state; Server routes bounded requests and retains observations. Canonical Workbench snapshots, revisions and terminal control ownership are unchanged. A routed request does not activate an operating-system window.
+This contract owns native CLI discovery and navigation of a live TUI Client. The TUI owns its selection and maximized state; Server routes bounded requests and retains observations. Canonical Workbench snapshots, revisions and terminal control ownership are unchanged. A routed request does not activate an operating-system window.
 
 Ordinary Workspace/Tab focus shares [Client selection memory](native-context-selection.md): return restores the last surviving Tab/Panel, while explicit Panel or Agent navigation overrides it. History is private to the selected Client and is discarded on restart.
 

@@ -290,7 +290,7 @@ pub(crate) fn run(route: Route, locale: Locale) -> Output {
     {
         return cli::unsupported_platform(Some(route.format), locale);
     }
-    let signals = match ArmedSignals::arm_interrupts_except_linux() {
+    let signals = match ArmedSignals::arm_interrupts_latched() {
         Ok(v) => v,
         Err(_) => {
             return failed(
@@ -530,10 +530,8 @@ fn serve_packet(bytes: &[u8], mut interrupted: impl FnMut() -> io::Result<bool>)
         return Reply::failure(Outcome::NotSubmitted);
     };
     let mut command = Command::new(executable);
-    if !platform::select_session(&mut command, &packet.session) {
-        return Reply::failure(Outcome::NotSubmitted);
-    }
     command
+        .args(["--session", &packet.session])
         .args(&packet.arguments)
         .env("LC_ALL", locale_name(packet_locale(&packet.locale)))
         // The route already made this Session ready; a creating command must not start another.

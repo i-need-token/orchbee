@@ -63,7 +63,7 @@ impl Registry {
             state.as_ref().is_some_and(|state| state.schedule.is_some()),
         )
     }
-    #[cfg(all(test, any(windows, target_os = "macos")))]
+    #[cfg(test)]
     pub(super) fn initialize(
         &self,
         root: Option<PathBuf>,
@@ -247,7 +247,7 @@ impl Registry {
             source: state.source.clone(),
         })
     }
-    #[cfg(all(test, any(windows, target_os = "macos")))]
+    #[cfg(test)]
     fn complete(
         &self,
         id: WorkbenchRequestId,
@@ -422,5 +422,5 @@ impl LocalTerminalService {
     }
 }
 
-#[cfg(all(test, any(windows, target_os = "macos")))]
+#[cfg(test)]
 mod tests;

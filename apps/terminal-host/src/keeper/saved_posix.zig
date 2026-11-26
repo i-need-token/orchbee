@@ -1,8 +1,8 @@
-//! The state a macOS Keeper hands the image it executes in its place (`schemas/keeper/README.md`,
-//! Re-execution): format 1, one JSON object that names every holding, registered Host, and admitted
-//! connection with the descriptors that carry them across `execve`. Every later Keeper reads each
-//! format an earlier release wrote; a state these rules refuse sends the update back to the old
-//! image.
+//! The state a macOS or Linux Keeper hands the image it executes in its place
+//! (`schemas/keeper/README.md`, Re-execution): format 1, one JSON object that names every holding,
+//! registered Host, and admitted connection with the descriptors that carry them across `execve`.
+//! Every later Keeper reads each format an earlier release wrote; a state these rules refuse sends
+//! the update back to the old image.
 
 const std = @import("std");
 const handshake = @import("terminal-host-handshake");

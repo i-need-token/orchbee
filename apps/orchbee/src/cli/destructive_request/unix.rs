@@ -1,7 +1,6 @@
 //! POSIX facts for destructive admission: the compiled environment, terminal streams, the Session
-//! name prompt, and the destructive request log record. Only macOS applies them: a release macOS
-//! build prompts in place of `--confirm`, and every macOS invocation is logged. Linux keeps
-//! `--confirm` and writes no destructive request log until ORC-328.
+//! name prompt, and the destructive request log record. A release build prompts in place of
+//! `--confirm`, and every invocation is logged.
 use super::{Console, Typed};
 use crate::cli::console_interrupt::{ArmedSignals, Finish};
 use serde_json::json;
@@ -9,16 +8,17 @@ use std::{
     io::{self, BufRead, IsTerminal, Read, Write},
     sync::mpsc::{self, RecvTimeoutError},
     thread,
-    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 /// A typed Session name is at most 64 bytes; a longer line can only mismatch.
 const LINE_LIMIT: u64 = 1024;
 /// Room for one program path in the parent's `ps` line.
+#[cfg(target_os = "macos")]
 const PARENT_LIMIT: usize = 4096;
 
 pub(super) fn release() -> bool {
-    cfg!(target_os = "macos") && orchbee_local_runtime::is_release()
+    orchbee_local_runtime::is_release()
 }
 
 /// A terminal answers `isatty`; a pipe, file or the null device does not.
@@ -47,7 +47,7 @@ pub(super) fn prompt(text: &str) -> Typed {
         return Ok(String::new());
     }
     drop(stderr);
-    let Ok(mut signals) = ArmedSignals::arm_interrupts_except_linux() else {
+    let Ok(mut signals) = ArmedSignals::arm_interrupts_latched() else {
         return Ok(String::new());
     };
     let (sender, receiver) = mpsc::channel();
@@ -79,12 +79,10 @@ pub(super) fn prompt(text: &str) -> Typed {
     }
 }
 
-/// Appends the invocation's record on macOS. A failed append never blocks or changes the command.
+/// Appends the invocation's record. A failed append never blocks or changes the command.
 pub(super) fn record(command: &str, target: Option<&str>, console: Console, outcome: &str) {
-    if !cfg!(target_os = "macos") {
-        return;
-    }
-    let (parent, image) = parent_process();
+    let parent = std::os::unix::process::parent_id();
+    let image = parent_image(parent).filter(|_| std::os::unix::process::parent_id() == parent);
     let document = json!({
         "version": 1,
         "time": utc_time(),
@@ -98,11 +96,11 @@ pub(super) fn record(command: &str, target: Option<&str>, console: Console, outc
     let _ = orchbee_local_runtime::append_destructive_request(&document);
 }
 
-/// The parent PID and its start path as `ps` reports it. An exited parent's children pass to
-/// another process, so a parent PID that is the same after `ps` answered named one live process
-/// throughout and its line is that process's; otherwise the image is not reported.
-fn parent_process() -> (Option<u32>, Option<String>) {
-    let parent = std::os::unix::process::parent_id();
+/// The parent's start path as `ps` reports it on macOS, and its program file on Linux. An exited
+/// parent's children pass to another process, so the caller keeps the image only when the parent
+/// PID is the same after it was read: that PID named one live process throughout.
+#[cfg(target_os = "macos")]
+fn parent_image(parent: u32) -> Option<String> {
     let mut command = std::process::Command::new("/bin/ps");
     command
         .args(["-o", "comm=", "-p", &parent.to_string()])
@@ -114,13 +112,19 @@ fn parent_process() -> (Option<u32>, Option<String>) {
         command,
         orchbee_local_runtime::SpawnEnvironment::Cleared,
         PARENT_LIMIT,
-        Some(Instant::now() + Duration::from_secs(2)),
+        Some(std::time::Instant::now() + Duration::from_secs(2)),
         || Ok(false),
     );
-    let image = (result.failure.is_none() && !result.stdout_truncated)
+    (result.failure.is_none() && !result.stdout_truncated)
         .then(|| String::from_utf8_lossy(&result.stdout).trim().to_owned())
-        .filter(|image| !image.is_empty() && std::os::unix::process::parent_id() == parent);
-    (Some(parent), image)
+        .filter(|image| !image.is_empty())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn parent_image(parent: u32) -> Option<String> {
+    std::fs::read_link(format!("/proc/{parent}/exe"))
+        .ok()
+        .map(|path| path.to_string_lossy().into_owned())
 }
 
 /// The current UTC time as RFC 3339 with milliseconds, such as `2026-11-08T03:04:05.678Z`.

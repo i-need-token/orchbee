@@ -1,7 +1,7 @@
 //! The launcher's relaunch protocol from the TUI's side: whether the launcher that started this
 //! process announced it, and the status the TUI ends with under it. Statuses 75 and 76 exist only
-//! there; the launcher returns neither to its caller. A macOS TUI that no launcher started replaces
-//! itself with the active version instead, in the same process and terminal, and records its own
+//! there; the launcher returns neither to its caller. A macOS or Linux TUI that no launcher started
+//! replaces itself with the active version instead, in the same process and terminal, and records its own
 //! failed start or join for the fallback as a launcher would.
 
 use crate::cli;
@@ -17,16 +17,16 @@ const FAILED_START_STATUS: u8 = 76;
 pub(crate) type TuiOutcome = Result<Option<String>, StartupFailure>;
 
 /// How long a failure record may hold the TUI, as a launcher waits for it, and how often it looks.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 const RECORD_BOUND: std::time::Duration = std::time::Duration::from_secs(5);
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 const RECORD_POLL: std::time::Duration = std::time::Duration::from_millis(50);
 
-/// Runs a TUI invocation. A macOS TUI that no launcher started records its own panic, as a
+/// Runs a TUI invocation. A macOS or Linux TUI that no launcher started records its own panic, as a
 /// launcher records a Client that ends with Rust's panic status, then goes on unwinding, so the
 /// process still ends with that status.
 pub(crate) fn run_tui(run: impl FnOnce() -> TuiOutcome) -> TuiOutcome {
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     if launcher() == Launcher::Absent {
         return std::panic::catch_unwind(std::panic::AssertUnwindSafe(run)).unwrap_or_else(
             |panic| {
@@ -49,7 +49,7 @@ pub(crate) fn tui_output(outcome: &TuiOutcome, locale: Locale) -> cli::Output {
         },
         Ok(Some(version)) => {
             let launcher = launcher();
-            #[cfg(target_os = "macos")]
+            #[cfg(unix)]
             if launcher == Launcher::Absent {
                 replace_in_place();
             }
@@ -66,9 +66,9 @@ pub(crate) fn tui_output(outcome: &TuiOutcome, locale: Locale) -> cli::Output {
             if counts_against_version(failure) {
                 match launcher() {
                     Launcher::Announcing => output.status = FAILED_START_STATUS,
-                    #[cfg(target_os = "macos")]
+                    #[cfg(unix)]
                     Launcher::Absent => record_own_failure(),
-                    #[cfg(not(target_os = "macos"))]
+                    #[cfg(windows)]
                     Launcher::Absent => {}
                 }
             }
@@ -113,7 +113,7 @@ fn parent_process_id() -> Option<u32> {
 /// blocked signal, as a start from a shell does. It returns only when the replacement could not
 /// start, which it records as a launcher records a Client that did not start, and the TUI then
 /// leaves as it would without one.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn replace_in_place() {
     use std::os::unix::process::CommandExt;
 
@@ -136,7 +136,7 @@ fn replace_in_place() {
 }
 
 /// Records this TUI's own failed start or join; see [`record_failure`].
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn record_own_failure() {
     if let Ok(client) = orchbee_local_runtime::current_executable() {
         record_failure(&client);
@@ -148,7 +148,7 @@ fn record_own_failure() {
 /// version active through a counting move that may fall back, the previous version's Client runs
 /// the Client-failure helper with null standard streams, and this process waits for it at most
 /// five seconds. A Client outside a store version folder records nothing.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn record_failure(client: &std::path::Path) {
     use std::{io::Read, process::Stdio};
 

@@ -1,7 +1,7 @@
 # Windows reusable layouts
 
-The native Windows and macOS CLI owns portable layout export and composition of canonical Workbench
-membership, Client view state and read-only terminal facts. Linux answers unsupported-platform.
+The native CLI owns portable layout export and composition of canonical Workbench membership,
+Client view state and read-only terminal facts.
 
 ## Export
 

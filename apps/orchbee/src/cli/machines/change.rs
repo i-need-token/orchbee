@@ -223,7 +223,7 @@ pub(crate) fn run(change: &SetMachine, locale: Locale) -> Output {
     {
         return cli::unsupported_platform(Some(change.format), locale);
     }
-    let Ok(signals) = ArmedSignals::arm_interrupts_except_linux() else {
+    let Ok(signals) = ArmedSignals::arm_interrupts_latched() else {
         return cli::failure_output(
             Failure::new(FailureKind::InternalFailure),
             Some(change.format),

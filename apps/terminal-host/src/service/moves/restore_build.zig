@@ -110,7 +110,7 @@ pub const Job = struct {
     /// Worker's size. The holding must name this Host's epoch and the terminal the Worker named.
     fn recover(self: *Job, recovery: Recovery) !*TerminalRuntime {
         if (comptime !platform.process.recovery_supported) unreachable;
-        if (comptime builtin.os.tag == .macos) return self.recoverPty(recovery);
+        if (comptime (builtin.os.tag == .macos or builtin.os.tag == .linux)) return self.recoverPty(recovery);
         var inspected = try self.inspect(recovery.holding, recovery.mark);
         const build = builds.find(inspected.console_build);
         const known = if (build) |entry|
@@ -153,11 +153,11 @@ pub const Job = struct {
     fn recoverPty(self: *Job, recovery: Recovery) !*TerminalRuntime {
         const inspected = try self.inspect(recovery.holding, recovery.mark);
         const leader = inspected.program;
-        const darwin = platform.keeper.darwin;
+        const native = platform.keeper.native;
         const kept = inspected.parented and inspected.ended;
         if (!namesTerminal(inspected.terminal, recovery.identity) or
-            !darwin.masterOf(inspected.master, inspected.slaveName()) or
-            (!kept and darwin.processStart(leader.pid) != leader.created))
+            !native.masterOf(inspected.master, inspected.slaveName()) or
+            (!kept and native.processStart(leader.pid) != leader.created))
         {
             platform.posix_compat.close(inspected.master);
             return self.fail(refusal.failed("claim-check"), error.ClaimCheckFailed);
@@ -199,7 +199,7 @@ pub const Job = struct {
         const inputs = facts.terminal.inputs;
         const holding = inputs.holding_id orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
         const mark = inputs.mark_id orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
-        if (comptime builtin.os.tag == .macos) return self.claimCheckPty(facts, holding, mark);
+        if (comptime (builtin.os.tag == .macos or builtin.os.tag == .linux)) return self.claimCheckPty(facts, holding, mark);
         const console = facts.console orelse return self.fail(refusal.failed("invalid-record"), error.InvalidRecord);
         const build = builds.find(console.open_console_sha256) orelse
             return self.fail(refusal.ineligible("unknown-console-build"), error.UnknownConsoleBuild);
@@ -231,11 +231,11 @@ pub const Job = struct {
     fn claimCheckPty(self: *Job, facts: *const Facts, holding: [16]u8, mark: [16]u8) !platform.process.Held {
         const inspected = try self.inspect(holding, mark);
         const leader = inspected.program;
-        const darwin = platform.keeper.darwin;
+        const native = platform.keeper.native;
         const kept = inspected.parented and inspected.ended;
         if (!namesTerminal(inspected.terminal, facts.terminal.inputs.identity) or
-            !darwin.masterOf(inspected.master, inspected.slaveName()) or
-            (!kept and darwin.processStart(leader.pid) != leader.created))
+            !native.masterOf(inspected.master, inspected.slaveName()) or
+            (!kept and native.processStart(leader.pid) != leader.created))
         {
             platform.posix_compat.close(inspected.master);
             return self.fail(refusal.failed("claim-check"), error.ClaimCheckFailed);

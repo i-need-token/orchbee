@@ -120,7 +120,6 @@ pub(super) fn exit_before_cancellable(
 
 /// One `handover` step under `expires_at`: the request is due within the candidate deadline, and
 /// the reply, which comes once the Server has done the step, within the caller's.
-#[cfg(target_os = "macos")]
 pub(super) fn handover_before_cancellable(
     endpoint: &Path,
     environment: EnvironmentName,

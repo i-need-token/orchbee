@@ -49,11 +49,9 @@ type OfferedTerminal<'record> = (
 pub(crate) struct CheckpointRestore {
     /// Each restored launch and, when replay is on, the kept output its Presentation replays.
     pending: Vec<(PendingOperation, riders::Output)>,
-    #[cfg(any(windows, target_os = "macos"))]
     resumes: riders::Resumes,
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl CheckpointRestore {
     /// The Presentations whose retained Agent session reference survived startup, in restoration
     /// order. Taking them leaves none behind.
@@ -183,7 +181,6 @@ impl LocalTerminalService {
     /// Presentation of an offered terminal shows it again without a launch, a kept-output
     /// replay or an Agent resume. Every other Presentation restores as at any start, and no
     /// identity the predecessor may have issued is issued again.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn adopting_checkpoint(
         workers: Arc<Mutex<WorkerRegistry>>,
         checkpoint: Option<WorkbenchCheckpoint>,
@@ -301,14 +298,7 @@ impl LocalTerminalService {
                 output,
             ));
         }
-        Ok((
-            service,
-            CheckpointRestore {
-                pending,
-                #[cfg(any(windows, target_os = "macos"))]
-                resumes,
-            },
-        ))
+        Ok((service, CheckpointRestore { pending, resumes }))
     }
 
     pub(crate) fn launch_checkpoint_terminals(

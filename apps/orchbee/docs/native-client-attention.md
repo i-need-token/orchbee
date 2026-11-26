@@ -123,8 +123,7 @@ not refresh itself or repeat a read.
 
 ## Joining canonical Agent reads
 
-macOS composes every join in this section as Windows does; Linux refuses `--client` as
-unsupported before any effect.
+macOS and Linux compose every join in this section as Windows does.
 
 Windows `agent get <target> --client <id>` joins one exact Client observation with a later canonical Get on one admitted session and five-second total. The read routes one retained attention operation, authenticates its cursor, then requires the canonical revision to cover that attention head. Generation and sequence must both agree before exposing joined seen/state-change revision. A bounded changes read also proves no transition for this session between the Client checkpoint and the canonical sample; equal counters alone cannot exclude a freshness transition. Unrelated-session changes preserve the join, while lost history or any intervening target event conservatively makes it stale. Missing and stale Client versions remain explicit, with null seen; no canonical status is rewritten. Windows Get without `--client` uses v1 with terminal, runtime and management information; composed Get uses v1. Both revalidate the Agent binding after the process read inside the same total budget.
 

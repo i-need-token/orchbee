@@ -1,5 +1,5 @@
 //! A background program's process: started on Windows without a console window inside a fresh
-//! kill-on-close Job, and on macOS in a session of its own (`program_darwin.zig`), with the null
+//! kill-on-close Job, and on macOS in a session of its own (`program_posix.zig`), with the null
 //! device as input and each output sent to the null device or to a pipe the caller reads. It owns
 //! no table, thread, or protocol; the Host's program owner does. Other systems start no background
 //! program in the Host.
@@ -11,17 +11,17 @@ const process_types = @import("process_types.zig");
 const windows_command_line = @import("windows_command_line.zig");
 
 const is_windows = builtin.os.tag == .windows;
-const is_macos = builtin.os.tag == .macos;
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
 const windows = std.os.windows;
-const keeper_record = if (is_macos) @import("process_keeper_darwin.zig") else struct {};
-pub const darwin = if (is_macos) @import("program_darwin.zig") else struct {};
+const keeper_record = if (posix_keeper) @import("process_keeper_posix.zig") else struct {};
+pub const posix_program = if (posix_keeper) @import("program_posix.zig") else struct {};
 
 /// A Windows program's process and Job.
 pub const Handle = if (is_windows) windows.HANDLE else void;
 /// A captured stream's read end.
 pub const Pipe = if (is_windows) windows.HANDLE else std.posix.fd_t;
 /// A macOS program's Keeper record: its release-first gate and its parent.
-pub const Record = if (is_macos) keeper_record.Record else void;
+pub const Record = if (posix_keeper) keeper_record.Record else void;
 
 /// The two outputs a program may send to the caller, in this order.
 pub const Stream = enum(u1) { stdout, stderr };
@@ -38,7 +38,7 @@ pub const Launch = struct {
     /// Whether each of stdout and stderr reaches a pipe instead of the null device.
     capture: [2]bool,
     /// On macOS, the attached Keeper that starts the program, and the facts its holding records.
-    keeper: if (is_macos) ?keeper_record.ProgramSpawn else void = if (is_macos) null else {},
+    keeper: if (posix_keeper) ?keeper_record.ProgramSpawn else void = if (posix_keeper) null else {},
     program_id: [16]u8 = @splat(0),
     label: []const u8 = "",
 };
@@ -51,7 +51,7 @@ pub const Spawned = struct {
     pid: u32,
     created: u64,
     /// Owned; freed once no Keeper link touches its gate.
-    record: if (is_macos) *Record else void = if (is_macos) undefined else {},
+    record: if (posix_keeper) *Record else void = if (posix_keeper) undefined else {},
 };
 
 pub const SpawnError = error{
@@ -91,7 +91,7 @@ extern "kernel32" fn GetExitCodeProcess(process: windows.HANDLE, code: *windows.
 extern "kernel32" fn GetSystemDirectoryW(buffer: [*]u16, size: windows.UINT) callconv(.winapi) windows.UINT;
 
 pub fn spawn(allocator: std.mem.Allocator, launch: Launch) SpawnError!Spawned {
-    if (comptime is_macos) return darwin.spawn(allocator, launch);
+    if (comptime posix_keeper) return posix_program.spawn(allocator, launch);
     if (comptime !is_windows) return error.Unsupported;
     if (!std.fs.path.isAbsoluteWindows(launch.executable) or !std.fs.path.isAbsoluteWindows(launch.directory))
         return error.InvalidCommand;
@@ -156,7 +156,7 @@ pub fn spawn(allocator: std.mem.Allocator, launch: Launch) SpawnError!Spawned {
 
 /// Reads what a captured stream has; 0 once every writer has closed it or the read failed.
 pub fn read(stream: Pipe, buffer: []u8) usize {
-    if (comptime is_macos) return darwin.read(stream, buffer);
+    if (comptime posix_keeper) return posix_program.read(stream, buffer);
     if (comptime !is_windows) return 0;
     var count: windows.DWORD = 0;
     const length: windows.DWORD = @intCast(@min(buffer.len, std.math.maxInt(windows.DWORD)));

@@ -40,7 +40,7 @@ pub(crate) fn admit(selected: &SelectedRequest) -> Result<(), Failure> {
     ) {
         return Ok(());
     }
-    platform::admit(selected.availability, selected.session.is_some()).map_err(|Unsupported| {
+    platform::admit(selected.availability).map_err(|Unsupported| {
         Failure::new(FailureKind::ServiceUnavailable)
             .details(stage_reason_details("platform", "unsupported-platform"))
     })

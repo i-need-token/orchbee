@@ -33,9 +33,6 @@ impl LocalTerminalService {
             None => return unavailable(WorktreeAdmissionFailure::ServiceUnavailable),
         }
         let mutating = !matches!(request.action, WorkbenchWorktreeAction::Read { .. });
-        if mutating && !super::SERVES_WORKTREES {
-            return unavailable(WorktreeAdmissionFailure::Unsupported);
-        }
         if mutating && self.worktree_maintenance.ensure(self).is_err() {
             return unavailable(WorktreeAdmissionFailure::ServiceUnavailable);
         }

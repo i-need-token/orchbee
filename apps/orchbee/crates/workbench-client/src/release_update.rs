@@ -2,11 +2,11 @@
 //! version newer than this Client active, whether that version can join the running Session, and
 //! how the TUI leaves for it. The store is read on a background thread; the switch itself is the
 //! TUI's exit: a launcher that announced the relaunch protocol starts the active version; without
-//! one a macOS TUI replaces itself with that version, and elsewhere the TUI names the command that
-//! opens it. On Windows and macOS a click first restarts the Session for the active version when
-//! that version asks for it, keeping every terminal; see [`restart`]. There, too, a TUI that joined
-//! a Session running an older version moves that Session onto its own version by itself, keeping
-//! every terminal, and Update offers the move again only when it could not happen. About's Check
+//! one a macOS or Linux TUI replaces itself with that version, and a TUI that cannot names the
+//! command that opens it. A click first restarts the Session for the active version when that
+//! version asks for it, keeping every terminal; see [`restart`]. A TUI that joined a Session running
+//! an older version also moves that Session onto its own version by itself, keeping every terminal,
+//! and Update offers the move again only when it could not happen. About's Check
 //! for updates asks the Session Server to run its update job now; see [`check`].
 
 use crate::background_thread::BackgroundThread;
@@ -156,7 +156,6 @@ pub enum UpdateSwitch {
 }
 
 /// The move of an older Session onto this Client's version: made once by itself, then on a click.
-#[cfg(any(windows, target_os = "macos"))]
 #[derive(Default)]
 enum SessionMove {
     /// No move began: the Session is not known to run an older version.
@@ -183,13 +182,10 @@ pub struct Updater {
     /// A store reading arrived since the check last looked.
     store_read: bool,
     /// The restart a click started, with the version it leaves for.
-    #[cfg(any(windows, target_os = "macos"))]
     restart: Option<(String, restart::Job)>,
     /// The version a Host replacement leaves for while the person has not answered, and whether
     /// the Session already runs it.
-    #[cfg(any(windows, target_os = "macos"))]
     replacing: Option<(String, bool)>,
-    #[cfg(any(windows, target_os = "macos"))]
     session_move: SessionMove,
 }
 
@@ -234,11 +230,8 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
-            #[cfg(any(windows, target_os = "macos"))]
             restart: None,
-            #[cfg(any(windows, target_os = "macos"))]
             replacing: None,
-            #[cfg(any(windows, target_os = "macos"))]
             session_move: SessionMove::Untried,
         }
     }
@@ -258,11 +251,8 @@ impl Updater {
             leaving: UpdateDeparture::default(),
             check: check::Check::default(),
             store_read: false,
-            #[cfg(any(windows, target_os = "macos"))]
             restart: None,
-            #[cfg(any(windows, target_os = "macos"))]
             replacing: None,
-            #[cfg(any(windows, target_os = "macos"))]
             session_move: SessionMove::Untried,
         };
         updater.observe(Some(ActiveRelease {
@@ -327,7 +317,6 @@ impl Updater {
         if let UpdateControl::Ready { version } = &self.control {
             return Some(version);
         }
-        #[cfg(any(windows, target_os = "macos"))]
         if matches!(self.session_move, SessionMove::Waiting(_)) {
             return Some(crate::local_client::CLIENT_VERSION);
         }
@@ -335,22 +324,19 @@ impl Updater {
     }
 
     /// Moves the local Session `session` onto this Client's version by itself, once, when it runs
-    /// `older`, an older version; [`Self::take_restart`] reports the move. Windows and macOS only,
-    /// where a restart keeps every terminal.
+    /// `older`, an older version; [`Self::take_restart`] reports the move, which keeps every
+    /// terminal.
     pub(crate) fn move_older_session(&mut self, older: bool, session: Option<&str>) {
-        #[cfg(any(windows, target_os = "macos"))]
         if older
             && matches!(self.session_move, SessionMove::Untried)
             && let Some(job) = session.and_then(restart::Job::move_session)
         {
             self.session_move = SessionMove::Running(job);
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let _ = (older, session);
     }
 
-    /// Runs a click against the current control and the Session's handshake answer. On Windows,
-    /// with the local Session `session` named, the active version decides on a restart first and
+    /// Runs a click against the current control and the Session's handshake answer. With the local
+    /// Session `session` named, the active version decides on a restart first and
     /// [`Self::take_restart`] reports what followed; a click during that restart changes nothing.
     /// A switch records the version the TUI leaves for in its [`UpdateDeparture`].
     pub(crate) fn switch(
@@ -359,7 +345,6 @@ impl Updater {
         negotiated: Option<Generation>,
         session: Option<&str>,
     ) -> UpdateSwitch {
-        #[cfg(any(windows, target_os = "macos"))]
         if matches!(
             self.session_move,
             SessionMove::Running(_) | SessionMove::Asking
@@ -370,7 +355,6 @@ impl Updater {
             return self.switch_session(session);
         };
         let joins = joins(marker, negotiated, (self.generations)(active));
-        #[cfg(any(windows, target_os = "macos"))]
         {
             if self.restart.is_some() || self.replacing.is_some() {
                 return UpdateSwitch::Started;
@@ -382,8 +366,6 @@ impl Updater {
                 return UpdateSwitch::Started;
             }
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let _ = session;
         if !joins {
             return UpdateSwitch::Waiting;
         }
@@ -394,7 +376,6 @@ impl Updater {
     /// A click while no newer version is offered: moves an older Session again when its move
     /// waits, asking first when that restarts every terminal.
     fn switch_session(&mut self, session: Option<&str>) -> UpdateSwitch {
-        #[cfg(any(windows, target_os = "macos"))]
         match self.session_move {
             SessionMove::Waiting(SessionWait::HostRequired) => {
                 self.session_move = SessionMove::Asking;
@@ -411,8 +392,6 @@ impl Updater {
             | SessionMove::Asking
             | SessionMove::Done => {}
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let _ = session;
         UpdateSwitch::Unavailable
     }
 
@@ -420,7 +399,6 @@ impl Updater {
     /// began, then [`UpdateSwitch::Leave`] with the version recorded, or [`UpdateSwitch::Waiting`]
     /// when nothing changed; else the next report of an older Session's move.
     pub(crate) fn take_restart(&mut self) -> Option<UpdateSwitch> {
-        #[cfg(any(windows, target_os = "macos"))]
         {
             let Some((_, job)) = &self.restart else {
                 return self.take_session_move();
@@ -444,13 +422,10 @@ impl Updater {
                 }
             })
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        None
     }
 
     /// The next report of an older Session's move, once. A move that left terminals on a Host it
     /// must replace still moved the Session; those terminals keep running on their Host.
-    #[cfg(any(windows, target_os = "macos"))]
     fn take_session_move(&mut self) -> Option<UpdateSwitch> {
         let SessionMove::Running(job) = &self.session_move else {
             return None;
@@ -488,7 +463,6 @@ impl Updater {
         confirmed: bool,
         runtime: Option<&std::path::Path>,
     ) -> UpdateSwitch {
-        #[cfg(any(windows, target_os = "macos"))]
         {
             if matches!(self.session_move, SessionMove::Asking) {
                 return self.replace_host_for_move(confirmed, runtime);
@@ -512,17 +486,11 @@ impl Updater {
             self.restart = Some((version, job));
             UpdateSwitch::Started
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
-        {
-            let _ = (confirmed, runtime);
-            UpdateSwitch::Waiting
-        }
     }
 
     /// The person's answer when moving an older Session restarts every terminal. Confirmed, it
     /// stops the local Session whose runtime folder is `runtime` and starts it again with this
     /// Client's version; declined, or when that cannot begin, the move waits.
-    #[cfg(any(windows, target_os = "macos"))]
     fn replace_host_for_move(
         &mut self,
         confirmed: bool,
@@ -588,8 +556,8 @@ pub struct Departure {
 }
 
 /// Under an announcing launcher the TUI asks it, by status 75, to start the active version;
-/// without one it exits normally and names the command that opens that version, which a macOS TUI
-/// needs only when it could not replace itself.
+/// without one it exits normally and names the command that opens that version, which a macOS or
+/// Linux TUI needs only when it could not replace itself.
 pub fn depart(version: &str, launcher: Launcher, locale: Locale) -> Departure {
     match launcher {
         Launcher::Announcing => Departure {
@@ -663,7 +631,6 @@ fn read_store() -> Option<Option<ActiveRelease>> {
 }
 
 mod check;
-#[cfg(any(windows, target_os = "macos"))]
 mod restart;
 #[cfg(test)]
 mod tests;

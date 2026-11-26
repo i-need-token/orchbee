@@ -32,7 +32,7 @@ before opening a path or spawning a process with `PluginRegistryError::Unsupport
 Applications decide action visibility and localized feedback through their
 [TUI platform contract](../../apps/orchbee/docs/tui-platforms.md).
 
-Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules. The Session catalog, durable and activation records, checkpoint store and persisted-data versions share one implementation over the [private storage seam](#private-storage-on-macos-and-linux); unimplemented registered-child operations return `io::ErrorKind::Unsupported` before effects. `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). `NamedSessionDeleteReason::Unsupported` stays for a host without a catalog, which no supported host is now; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
+Product types for Session identity, lifecycle, checkpoints and command outcomes are also available on every supported platform. Implementations live in `windows`, `unix`, `linux` or `macos` child modules. The Session catalog, durable and activation records, checkpoint store and persisted-data versions share one implementation over the [private storage seam](#private-storage-on-macos-and-linux). `CommandChild` retains one command and everything it starts: a Job on Windows, its own process group on Unix (see [retained commands](#retained-commands)). `NamedSessionDeleteReason::Unsupported` stays for a host without a catalog, which no supported host is now; keybinding reset uses the stable `platform` / `unsupported-platform` settings diagnosis. Existing Unix rendezvous, cohort and retained-child implementations remain with their own adapters.
 
 ## File locks
 
@@ -150,7 +150,8 @@ Client's release commands on macOS, which capture `SIGINT` and `SIGTERM` to sett
 the command starts through nix's safe `posix_spawn` wrapper with an empty signal mask, `SIGPIPE` at
 its default action, standard input from `/dev/null` and its outputs duplicated onto the drained
 pipes, as the leader of its own process group. On macOS it also passes
-`POSIX_SPAWN_CLOEXEC_DEFAULT`, so the command inherits no descriptor but its three standard streams.
+`POSIX_SPAWN_CLOEXEC_DEFAULT`, and on Linux it closes every descriptor `/proc/self/fd` lists above
+the standard streams, so the command inherits no descriptor but its three standard streams.
 The standard library's spawn would pass the blocked mask on, so the group's `SIGTERM` could not end
 it before the grace. The caller states whether the environment is inherited or cleared, since
 `Command` does not report `env_clear`, and a command that sets a working directory is refused. The
@@ -246,11 +247,12 @@ group, and exactly the environment and working directory its command sets, with 
 The Client's Session start and installs on macOS can outlive the Client, so they start through
 `DetachedChild`, which starts the same way with the streams they name. Dropping a `DetachedChild`
 signals nothing and reaps nothing: its child keeps running, and a child not yet waited for stays a
-zombie until this process exits. Linux creates these descriptors close-on-exec atomically and keeps
-the standard library's spawn for every such path; Windows is unchanged. The Worker's configured
-commands take the same macOS route, with `/dev/null` as each standard stream.
+zombie until this process exits. Linux starts every such path through a safe launch of its own (see
+[Linux retained spawn](#linux-retained-spawn)); Windows is unchanged. The Worker's configured
+commands take the same route, with `/dev/null` as each standard stream.
 `run_unmasked_unix_command` starts through the safe wrapper with `POSIX_SPAWN_CLOEXEC_DEFAULT` on
-macOS, so its command inherits no descriptor but its three standard streams. `run_unix_command` keeps
+macOS and closes every inherited descriptor on Linux, so its command inherits no descriptor but its
+three standard streams. `run_unix_command` keeps
 the standard library's spawn, so a command it runs can inherit a descriptor that another thread
 created without close-on-exec, and keeps it until the command's process group settles.
 
@@ -271,6 +273,30 @@ environment and exit status; and checks that a missing executable starts nothing
 test starts a command with its own streams while such a descriptor is open, and checks that the
 command sees no other descriptor and leads its own group. An unmasked command is checked the same
 way, and a `DetachedChild` is checked to keep running after its drop and to report its status.
+
+## Linux retained spawn
+
+Linux creates this process's own sockets and pipes close-on-exec atomically, but a process can
+inherit descriptors that are not: a Client that an Electron window starts inherits that window's
+sockets, shared memory and cache files, and the standard library's spawn would pass every one of
+them to a Session that outlives the window. On Linux, `RetainedChild`,
+`CommandChild::spawn_with_streams` and `DetachedChild` therefore start through
+`src/retained_spawn_linux.rs`, which uses nix's safe `posix_spawn` wrapper and no authored unsafe
+code. Once the three standard streams are duplicated onto 0 to 2, its file actions close every
+descriptor that `/proc/self/fd` lists above them. A descriptor this process creates after the
+listing is close-on-exec, and closing one that ended after it fails harmlessly in the child. The
+signal mask is empty and `SIGPIPE` is at its default action, as on macOS, and a command leads a new
+process group.
+
+`posix_spawn` cannot set a working directory portably, so a child whose directory differs from
+this process's, or one held at a gate, starts as `/bin/sh` with an empty environment. The shell
+enters the directory and replaces itself with `/usr/bin/env -i`, which replaces itself with the
+program in exactly the stated environment, since a shell exports variables of its own, such as `PWD`
+after `cd`. Both replacements keep the child's process ID and start. The executable must be an
+absolute path without `=`, a variable whose name is empty or starts with `-` is left out, and a
+program that does not exist or cannot be run is refused before any process starts. The command
+tests run on Linux too: a command with its own streams, an unmasked command and a `DetachedChild`
+see no other descriptor, and a dropped `DetachedChild` keeps running and reports its status.
 
 ## macOS host capacity
 
@@ -303,14 +329,15 @@ no failure panics.
 - **Wrapping.** The processor ticks are 32-bit counters; the free share takes their difference
   modulo 2³², exact while fewer than 2³² ticks pass between two readings.
 
-## macOS process identity
+## Process identity on macOS and Linux
 
-A macOS Session registers its Server, Worker and Terminal Host in its record as a Windows Session
-does (`proposals/platform/host-handover.md`, H5 design), naming each by its process ID and its start
-time in microseconds. Nothing holds a POSIX process ID open, so whoever observes or ends a
-registered process reads its start time again first, and a process with that ID and another start
-time is a later process. The reads come from the private `src/process_identity_native.rs` adapter,
-this crate's fourth authored unsafe boundary: `proc_pidinfo` with `PROC_PIDTBSDINFO` for the start
+A macOS or Linux Session registers its Server, Worker and Terminal Host in its record as a Windows
+Session does (`proposals/platform/host-handover.md`, H5 design), naming each by its process ID and
+its start. Nothing holds a POSIX process ID open, so whoever observes or ends a registered process
+reads its start again first, and a process with that ID and another start is a later process.
+
+On macOS the start is the start time in microseconds, and the reads come from the private
+`src/process_identity_native.rs` adapter, this crate's fourth authored unsafe boundary: `proc_pidinfo` with `PROC_PIDTBSDINFO` for the start
 time and state, `proc_pidpath` for the program, and `proc_listchildpids` for the children the
 Worker's hang check reads. Callers get gone, a start time or denied, a path or `None`, and a list of
 IDs or an error; no failure panics.
@@ -331,14 +358,32 @@ IDs or an error; no failure panics.
   recorded role's file name. Observation reads such a process as unknown, which refuses recovery,
   and one running another program as gone.
 
-A registered child starts stopped: its creator passes `POSIX_SPAWN_START_SUSPENDED` to the retained
-spawn, publishes the child's identity, and only then sends `SIGCONT`, so a child that was never
-published runs no instruction; a failed publication ends it while it is still stopped.
+On Linux the safe `src/process_identity_proc.rs` reads the same facts from `/proc`:
+
+- **Start.** Field 22 of `/proc/<pid>/stat`, the start in clock ticks since boot, in the low 40
+  bits under the boot's tag, as the
+  [Keeper contract](../../schemas/keeper/README.md#linux-process-starts) defines it, so the Keeper
+  compares the same value. The tag keeps a process that a login starts at the same tick of every
+  boot from matching a record of an earlier boot. A missing entry and a zombie or dead state read as
+  gone, and an entry the kernel withholds, as under `hidepid`, reads as denied.
+- **Program.** The target of `/proc/<pid>/exe`, which another account's process withholds; a
+  program file removed since its process started reads with the kernel's ` (deleted)` mark.
+- **Children.** The processes whose `stat` names the parent, read from every `/proc` entry.
+
+A registered child starts stopped: on macOS its creator passes `POSIX_SPAWN_START_SUSPENDED` to the
+retained spawn, publishes the child's identity, and only then sends `SIGCONT`, so a child that was
+never published runs no instruction; a failed publication ends it while it is still stopped. Linux
+cannot create a stopped process, so the child starts as `/bin/sh` held at a gate: its standard
+input is a pipe only its creator writes. The creator publishes the child's identity and then writes
+the line that lets it execute the program in its place, which keeps its ID and start; a failed
+publication closes the pipe, and the child exits before it starts the program.
 
 The adjacent safe test finds a child's start time between readings taken around its spawn and the
 same on a second read, reads its program's file name, finds it gone once killed but still unreaped
 and again once reaped, and reads process 1, root's `launchd`, as denied with its program path still
-readable.
+readable. On Linux the `/proc` tests find a child's start unchanged on a second read, list it among
+this process's children, read it gone once killed, before and after it is reaped, read process 1's
+program as unreadable, and keep the fields after a command name that holds `)` and spaces.
 
 ## Data root
 
@@ -582,18 +627,14 @@ layout unreadable, so the root is refused until the file is removed, and a cut-s
 record reads as invalid and grants no restart. Neither host claims power-loss durability: a folder
 flush is best effort.
 
-macOS registers processes as Windows does ([macOS process identity](#macos-process-identity));
-Linux does not. On Linux a durable record's Server, Worker and Host registry stays `not-started`,
-no observation ever reports a role absent, and `spawn_server` and `spawn_session_child` return
-`io::ErrorKind::Unsupported`. Recovering an Active Session there rests on its free activation and
-lifetime locks and a free Host lock; macOS also requires its registered identities gone, except
-running Hosts the binding record names, which the next generation adopts
-([cold adoption](docs/windows-crash-recovery.md#cold-adoption)). A socket
-outlives its listener until its owner removes it, unlike a Windows pipe, so on both socket files
-never count as a live process: the Server removes the Session's stale ones under its lifetime lock
+macOS and Linux register processes as Windows does
+([process identity](#process-identity-on-macos-and-linux)). Recovering an Active Session there
+rests on its free activation and lifetime locks, a free Host lock, and its registered identities
+gone, except running Hosts the binding record names, which the next generation adopts
+([cold adoption](docs/windows-crash-recovery.md#cold-adoption)). A socket outlives its listener
+until its owner removes it, unlike a Windows pipe, so socket files never count as a live process: the Server removes the Session's stale ones under its lifetime lock
 before it binds, and its own once its stop completes, and a held Host lock refuses recovery,
-activation and deletion; on macOS each slot's Host keeps its own lock, and only a kept Host's may be
-held. `host_lock_held` is that probe of one slot for other processes: a replacement Worker requires the lock held before it dials the
+activation and deletion; each slot's Host keeps its own lock, and only a kept Host's may be held. `host_lock_held` is that probe of one slot for other processes: a replacement Worker requires the lock held before it dials the
 Host it adopts, and waits for it to come free when it stops that Host. A free lock is taken for the
 instant of the probe, so only a caller that no Host of the Session can be starting beside may ask.
 
@@ -688,8 +729,7 @@ Named and default Sessions keep one bounded private lifecycle record each,
 `session.pending` beside it and the Session's checkpoints in the same folder. Each record binds the
 name, which matches its folder without letter case, and the runtime folder in use to Active,
 Crashed, Stopped with a nonzero stop identity, or Deleting. Only current numeric version 1 with all
-fields, including the Server/Worker/Host process ID and creation-time registry, which Linux leaves
-unstarted (see [process registration](#private-storage-on-macos-and-linux)), is admitted. Other
+fields, including the Server/Worker/Host process ID and creation-time registry, is admitted. Other
 versions or shapes return InvalidData; reads never migrate records. Effect paths derive from
 admitted inputs, never serialized paths.
 
@@ -710,10 +750,8 @@ still reserved decides nothing: recovery reads it under the record writer lock, 
 holds across the whole creation, so its attempt ended without an identity and its child never runs.
 Recovery publishes Crashed before reconciling its marker and beginning a fresh generation.
 Live/unknown identity, pending deletion and orphan storage refuse recovery.
-Linux registers no process identities, so there recovery requires the free activation and lifetime
-guards and a free Host lock, which the Host holds for its whole life; macOS requires that lock free
-beside its registered identities gone. Socket files are never evidence on either, and a Stopped
-record needs only its receipt until those platforms keep checkpoints.
+On macOS and Linux recovery also requires a free Host lock, which the Host holds for its whole
+life, and socket files are never evidence.
 A record that names another runtime folder, after `ORCHBEE_RUNTIME_BASE` changed, starts through the
 new folder only once Stopped; Active and Crashed refuse until their own folder recovers them.
 Activation atomically publishes the current Active record before marker, Server or storage effects.
@@ -984,20 +1022,21 @@ Child owners reap exits without killing retained services; no reaper grants rest
 Every runtime child starts in a neutral working directory, the system directory on Windows and `/`
 on Unix, never in the activating Client's. A Session outlives that Client, and Windows keeps a
 process's working directory in use, so an inherited one would block removing a Worktree the person
-started Orchbee in. On macOS and Linux the Client starts the Server through `spawn_session_server`,
-which appends a release or test cohort's folder to the Server's `PATH` when an inherited, non-empty
+started Orchbee in. On macOS and Linux `SessionCatalog::spawn_server` appends a release or test
+cohort's folder to the Server's `PATH` when an inherited, non-empty
 `PATH` names no such entry, so the Worker, Host and terminals inherit it and a terminal finds that
 cohort's Client by name even when no shell profile names `~/.local/bin`. The folder goes last, so
 an earlier `orchbee` still wins; a development cohort's build folder is never added. On macOS
-every runtime child inherits no descriptor beyond its standard streams (see
-[macOS retained spawn](#macos-retained-spawn)), so a Worker's death closes the Server's last end of
+and Linux every runtime child inherits no descriptor beyond its standard streams (see
+[macOS retained spawn](#macos-retained-spawn) and [Linux retained spawn](#linux-retained-spawn)), so a Worker's death closes the Server's last end of
 its connection even while a terminal it started lives on.
 
 The Worker registers without starting a Host. Its authorization kernel admits the first Launch
 and prepares launch facts before spawning one exact cohort Host, which keeps its lock in a private
-`host` directory and binds its endpoint in the socket folder. On Windows and macOS a Host in a later
-slot keeps its records, and on macOS its lock, in `host-<n>` and serves its own endpoint: on Windows
-a pipe whose name hashes the runtime folder with the slot, on macOS the socket of its slot id.
+`host` directory and binds its endpoint in the socket folder. A Host in a later slot keeps its
+records, and on macOS and Linux its lock, in `host-<n>` and serves its own endpoint: on Windows a
+pipe whose name hashes the runtime folder with the slot, on macOS and Linux the socket of its slot
+id.
 Invalid authorization produces the existing typed result without a Host. The admitted dispatch
 and kernel survive Host startup; the Host handoff revalidates authorization. The absolute Host
 endpoint address is checked against the platform socket-address ABI before the `host` directory
@@ -1118,8 +1157,8 @@ For one trusted, existing, exactly normalized absolute per-user runtime base, th
 | Client pending name        | `<socket-folder>/<id>-pending.sock`                                           |
 | Worker socket              | `<socket-folder>/<id>-worker.sock`                                            |
 | Host endpoint              | `<socket-folder>/<id>-host.sock`                                              |
-| Later Host slot (macOS)    | `<runtime-base>/<session>/host-<n>` and `<socket-folder>/<slot-id>-host.sock` |
-| Keeper endpoint (macOS)    | `<socket-folder>/<keeper-id>-host.sock`                                       |
+| Later Host slot            | `<runtime-base>/<session>/host-<n>` and `<socket-folder>/<slot-id>-host.sock` |
+| Keeper endpoint            | `<socket-folder>/<keeper-id>-host.sock`                                       |
 | Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                             |
 
 `<id>` is the first 32 hex digits of SHA-256 over `orchbee-posix-runtime-v1`, a NUL byte, the
@@ -1127,9 +1166,9 @@ runtime base as activation names it, `/`, and the lowercase Session name. Every 
 has one length whatever the home folder, base, or Session name; the longest, with a 10-digit user
 ID, is 94 bytes, inside the 103 that macOS allows. The pending name is the transient pre-publish
 bind the Server renames onto the Client socket; the Host receives `<id>` and the socket folder as
-`--endpoint-id` and `--endpoint-directory`; a macOS Host in a later slot receives `<slot-id>`, the
+`--endpoint-id` and `--endpoint-directory`; a Host in a later slot receives `<slot-id>`, the
 first 32 hex digits of SHA-256 over `orchbee-posix-host-slot-v1`, a NUL byte, the slot index as one
-byte, and `<id>`. A macOS Keeper receives `<keeper-id>`, the first 32 hex digits of SHA-256 over
+byte, and `<id>`. A Keeper receives `<keeper-id>`, the first 32 hex digits of SHA-256 over
 `orchbee-posix-keeper-v1` for the first Keeper slot or `orchbee-posix-keeper-second-v1` for the
 second, a NUL byte, and `<id>`, with the socket folder and the `host` folder as its runtime
 directory; `start_keeper` counts it listening once a new socket carries the final mode. The derived
@@ -1220,10 +1259,9 @@ terminate descendants. Managed startup uses it before the Worker can create a Ho
 Server's Worker supervision to prove a lost Worker gone and to end a replacement that will not
 serve; later cleanup belongs to the Worker shutdown protocol. `RetainedSessionRecord::hosts`
 reports each of the current generation's Host slots for that supervision, with the epoch its Worker
-recorded: on Windows and macOS not started, spawning, gone, running with its registered process ID
-and creation or start time, or unknown, where a live process with the registered ID but another
-time is gone; on Linux the first slot runs while a process holds the Host lock and is gone
-otherwise, and the others never start. On macOS `release_gone_host` frees a slot whose registered
+recorded: not started, spawning, gone, running with its registered process ID and creation or start
+time, or unknown, where a live process with the registered ID but another time is gone. On macOS and
+Linux `release_gone_host` frees a slot whose registered
 Host is gone, for a replacement Worker that keeps no Host there. It grants no termination authority.
 Dropping `RetainedChild` continues to release observation ownership without terminating anything.
 `RetainedChild::id` reports the held process identifier, which the Server lists for its Worker in

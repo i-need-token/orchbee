@@ -14,7 +14,7 @@ const protocol = harness.protocol;
 const core_module = harness.core_module;
 const platform = harness.platform_boundary;
 const monotonic = platform.monotonic;
-const darwin = platform.keeper.darwin;
+const native = platform.keeper.native;
 const connect = keeper_link.testing.connect;
 const HostService = harness.HostService;
 const ConnectionState = harness.ConnectionState;
@@ -28,7 +28,7 @@ fn report(comptime format: []const u8, arguments: anytype) void {
 }
 
 fn processOf(pid: u32) !message.Process {
-    return .{ .pid = pid, .created = darwin.processStart(pid) orelse return error.ProcessStartUnknown };
+    return .{ .pid = pid, .created = native.processStart(pid) orelse return error.ProcessStartUnknown };
 }
 
 fn ignoreWake(_: *anyopaque) void {}
@@ -103,7 +103,7 @@ const Fixture = struct {
         errdefer keeper.end(io);
         const socket_path = try std.fmt.allocPrintSentinel(allocator, "{s}/{s}-host.sock", .{ directory, &keeper.endpoint }, 0);
         errdefer allocator.free(socket_path);
-        const wake = darwin.wake_events.create() orelse return error.WakeFailed;
+        const wake = native.wake_events.create() orelse return error.WakeFailed;
         errdefer platform.posix_compat.close(wake);
         self.* = .{
             .allocator = allocator,
@@ -354,7 +354,7 @@ fn expectTag(body: message.Reply.Body, comptime tag: std.meta.Tag(message.Reply.
 
 /// Whether the leader no longer runs: no process has its id and start time.
 fn leaderGone(leader: message.Process) bool {
-    return darwin.processStart(leader.pid) != leader.created;
+    return native.processStart(leader.pid) != leader.created;
 }
 
 test "a terminal running before the Keeper attaches is held with its master, and released at its end" {

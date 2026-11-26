@@ -109,7 +109,6 @@ impl<'a> HeldPrograms<'a> {
     }
 
     /// The programs of `hosts`, each with whether it is the Worker's own, between Server requests.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn between_requests(
         hosts: impl IntoIterator<Item = (&'a HostBrokerConnection, bool)>,
     ) -> Option<Self> {

@@ -44,8 +44,6 @@ pub(crate) fn run(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
 
 fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
     // A TUI inside a terminal of the Session it selects could select its own hosting terminal.
-    // Linux has no `--session` to name another Session, so it keeps starting there.
-    #[cfg(any(windows, target_os = "macos"))]
     if local_activation::inside_selected_session().map_err(|_| StartupFailure::Runtime)? {
         return Err(StartupFailure::AlreadyInSession);
     }
@@ -163,10 +161,9 @@ fn run_tui(locale: Locale, mouse: bool) -> crate::relaunch::TuiOutcome {
 }
 
 /// Hands the selected Session to this build's Server and Worker, as `server restart` does, keeping
-/// every terminal; true once they serve it. Windows and macOS only, where a restart keeps terminals.
+/// every terminal; true once they serve it.
 fn restart_older_session(locale: Locale) -> bool {
-    cfg!(any(windows, target_os = "macos"))
-        && crate::cli::server_restart(crate::invocation::OutputFormat::Json, locale).status == 0
+    crate::cli::server_restart(crate::invocation::OutputFormat::Json, locale).status == 0
 }
 
 fn await_geometry(inherited: &InheritedTerminal, locale: Locale, deadline: Instant) -> StartupWait {

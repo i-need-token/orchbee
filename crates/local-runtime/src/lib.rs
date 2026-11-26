@@ -17,7 +17,6 @@ pub use plugins::{
     PluginRegistryEntry, PluginRegistryError, PluginRegistryMutation, PluginRegistryResult,
     plugin_git_reference, plugin_identifier,
 };
-#[cfg(any(windows, target_os = "macos"))]
 mod host_appearance;
 mod host_system;
 #[cfg(target_os = "macos")]
@@ -50,12 +49,10 @@ pub use release_store::{
 mod keeper;
 #[cfg(windows)]
 pub use keeper::worker_recorded;
-#[cfg(any(windows, target_os = "macos"))]
 pub use keeper::{
     HeldTerminal, Holding, HoldingState, KEEPER_REPLY_BOUND, KeeperClient, KeeperProcess,
     KeeperRefusal, KeeperStatus, ProgramHolding, start_keeper,
 };
-#[cfg(any(windows, target_os = "macos"))]
 pub use keeper::{RecordedKeepers, end_recorded_keeper, recorded_keepers};
 pub use keeper::{keeper_live, moves_live};
 mod automatic_updates;
@@ -150,6 +147,10 @@ mod host_capacity_native;
     reason = "reviewed libproc reads of a process's start time, program and children are isolated here"
 )]
 mod process_identity_native;
+#[cfg(target_os = "linux")]
+mod process_identity_proc;
+#[cfg(target_os = "linux")]
+mod retained_spawn_linux;
 #[cfg(target_os = "macos")]
 #[allow(
     unsafe_code,
@@ -171,7 +172,7 @@ pub use standard_rights::{
 };
 mod process_observation;
 pub use process_observation::HostPresence;
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub use process_observation::{process_ended, running_children, running_program};
 mod process_registration;
 mod recovery_blocker;
@@ -179,7 +180,6 @@ pub use recovery_blocker::{BlockerRole, RecoveryBlocker};
 mod registered_child;
 pub use activation_record::{ActivationState, RetainedActivationRecord};
 pub use registered_child::{SessionChild, SessionChildStep, spawn_session_child};
-#[cfg(any(windows, target_os = "macos"))]
 pub use registered_child::{
     make_session_keeper_current, record_session_host_epoch, release_session_host,
     release_session_keeper,
@@ -188,13 +188,9 @@ mod durable_sessions;
 pub use durable_sessions::{
     Fenced, HostSlotPresence, RetainedSessionRecord, Successor, session_moved_to,
 };
-#[cfg(any(windows, target_os = "macos"))]
 mod exact_process;
-#[cfg(any(windows, target_os = "macos"))]
 pub use exact_process::ExactProcess;
-#[cfg(any(windows, target_os = "macos"))]
 mod successor_record;
-#[cfg(any(windows, target_os = "macos"))]
 pub use successor_record::{
     RestartCleared, RestartRefusal, RestartReservation, SuccessorRecord, clear_restart,
 };
@@ -263,11 +259,9 @@ pub fn spawn_retained(
 }
 #[cfg(unix)]
 mod session_path;
-#[cfg(unix)]
-pub use session_path::spawn_session_server;
 
 mod command_child;
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 pub use command_child::DetachedChild;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(unix)]

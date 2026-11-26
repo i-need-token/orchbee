@@ -1,11 +1,11 @@
-//! The Session's Keeper as the Worker owns it, on Windows and macOS: started once the Worker's first
-//! Host is ready, or adopted from the Session record by a replacement Worker; each Host it starts
-//! registered with it and told to attach it; replaced when it ended or stopped answering; and ended
-//! at a stop once the Host is gone. It is also updated when it runs another installation's program:
-//! on Windows a new Keeper replaces it, and a Keeper an update replaced or rolled back is retired
-//! (`retiring`); on macOS it executes the new program in its own process. A failed Keeper step leaves the terminals running unheld and the Worker serving,
-//! so nothing here ends a program or the Worker (`proposals/platform/host-handover.md`, The
-//! Keeper's life from H2, and the H4 design).
+//! The Session's Keeper as the Worker owns it: started once the Worker's first Host is ready, or
+//! adopted from the Session record by a replacement Worker; each Host it starts registered with it
+//! and told to attach it; replaced when it ended or stopped answering; and ended at a stop once the
+//! Host is gone. It is also updated when it runs another installation's program: on Windows a new
+//! Keeper replaces it, and a Keeper an update replaced or rolled back is retired (`retiring`); on
+//! macOS and Linux it executes the new program in its own process. A failed Keeper step leaves the
+//! terminals running unheld and the Worker serving, so nothing here ends a program or the Worker
+//! (`proposals/platform/host-handover.md`, The Keeper's life from H2, and the H4 design).
 //!
 //! A Host exchange runs either inside the Server request it serves, which watches that request's
 //! Server stream, or between requests, where the Server's next request waits for it.
@@ -52,7 +52,6 @@ const BETWEEN_REQUESTS_BUDGET: Duration = Duration::from_secs(3);
 #[derive(Clone, Copy)]
 pub(crate) enum Serving<'a> {
     Request(&'a LocalStream),
-    #[cfg(any(windows, target_os = "macos"))]
     Within(&'a LocalStream, Duration),
     BetweenRequests,
 }
@@ -91,7 +90,6 @@ impl std::fmt::Display for HostRefusal {
 
 impl Error for HostRefusal {}
 
-#[cfg(any(windows, target_os = "macos"))]
 impl HostRefusal {
     /// Whether `error` is a Host's refusal of a step because the terminal is still moving: a
     /// quiesced terminal whose Keeper answers takes a drop only once its Host saw `claimed`.
@@ -324,7 +322,6 @@ impl SessionKeeper {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl SessionKeeper {
     /// The Keeper's process ID and creation time.
     pub(crate) const fn identity(&self) -> (u32, u64) {
@@ -343,7 +340,7 @@ impl SessionKeeper {
     }
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 impl SessionKeeper {
     /// Whether the Keeper can execute another program in its own process.
     pub(crate) const fn reexecs(&self) -> bool {
@@ -401,7 +398,6 @@ pub(crate) fn request(
             &encoded.payload,
             encoded.payload_encoding,
         )?,
-        #[cfg(any(windows, target_os = "macos"))]
         Serving::Within(server, budget) => crate::host_connection::exchange_within(
             host,
             server,

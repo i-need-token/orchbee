@@ -83,7 +83,6 @@ pub(crate) enum WorkerOperationRequest {
     /// One page of a replacement Worker's adoption of its Host, its first request.
     AdoptHost(orchbee_capability_node_protocol::AdoptHostRequest),
     /// One turn of a replacement's moves of terminals from older Hosts into its own.
-    #[cfg(any(windows, target_os = "macos"))]
     MoveTurn(orchbee_capability_node_protocol::TerminalMoveTurnRequest),
 }
 
@@ -132,7 +131,6 @@ impl WorkerOperationRequest {
             Self::TitleChanges(request) => (request.worker_id, request.worker_generation),
             Self::HostQuery(request) => (request.worker_id, request.worker_generation),
             Self::AdoptHost(request) => (request.key().worker_id, request.key().worker_generation),
-            #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(request) => (request.worker_id, request.worker_generation),
         }
     }
@@ -156,7 +154,6 @@ impl WorkerOperationRequest {
             Self::Viewer(_) | Self::GraphicsDecode(_) | Self::AgentProbeJob(_) => RequestLane::Low,
             Self::TitleChanges(_) => RequestLane::Idle,
             // A move holds every request queued behind it, so it never goes ahead of a person's.
-            #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(_) => RequestLane::Low,
             Self::Shutdown(_) | Self::AdoptHost(_) => RequestLane::High,
             Self::CwdValidation(_)
@@ -213,7 +210,6 @@ impl WorkerOperationRequest {
             }
             Self::HostQuery(request) => CapabilityNodeMessage::HostQueryRequest(*request),
             Self::AdoptHost(request) => CapabilityNodeMessage::AdoptHostRequest(request.clone()),
-            #[cfg(any(windows, target_os = "macos"))]
             Self::MoveTurn(request) => CapabilityNodeMessage::TerminalMoveTurnRequest(*request),
         }
     }
@@ -242,7 +238,6 @@ pub(crate) enum WorkerOperationResult {
     TitleChanges(orchbee_capability_node_protocol::TerminalTitleChangesResult),
     HostQuery(orchbee_capability_node_protocol::HostQueryResult),
     AdoptHost(orchbee_capability_node_protocol::AdoptHostResult),
-    #[cfg(any(windows, target_os = "macos"))]
     MoveTurn(orchbee_capability_node_protocol::TerminalMoveTurnResult),
 }
 
@@ -477,7 +472,6 @@ impl WorkerRequestHandle {
     /// A plugin-job read whose reader waits only until its own deadline, such as the count of
     /// background programs a `query` reply or a restart's `prepare` reads; the wire owner still
     /// validates and consumes a later result. Admission never waits.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn admit_plugin_job(
         &self,
         request: orchbee_capability_node_protocol::PluginJobRequest,
@@ -2195,7 +2189,6 @@ fn validate_response(
         | (_, CapabilityNodeMessage::TerminalMoveTurnRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
-        #[cfg(any(windows, target_os = "macos"))]
         (
             WorkerOperationRequest::MoveTurn(expected),
             CapabilityNodeMessage::TerminalMoveTurnResult(actual),
@@ -2211,7 +2204,6 @@ fn validate_response(
         (_, CapabilityNodeMessage::TerminalMoveTurnResult(_)) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
-        #[cfg(any(windows, target_os = "macos"))]
         (WorkerOperationRequest::MoveTurn(_), _) => Err(WorkerResponseFailure::WrongResultKind),
         (
             WorkerOperationRequest::AdoptHost(expected),

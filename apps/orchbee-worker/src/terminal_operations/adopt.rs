@@ -37,7 +37,6 @@ use crate::{
 };
 
 mod pages;
-#[cfg(any(windows, target_os = "macos"))]
 mod pairs;
 
 /// How long after the last page arrives its answer is written at the latest, inside the Server's
@@ -56,7 +55,6 @@ enum Phase {
 
 struct Adopted {
     found: Vec<Found>,
-    #[cfg(any(windows, target_os = "macos"))]
     keeper: Option<crate::session_keeper::SessionKeeper>,
     kernel: AuthorizedHostOperationKernel,
 }
@@ -118,13 +116,9 @@ pub(crate) fn run(
                 {
                     plugin_jobs.adopt(&programs);
                 }
-                #[cfg(any(windows, target_os = "macos"))]
                 let offered = found.offered;
-                #[cfg(not(any(windows, target_os = "macos")))]
-                let offered = false;
                 hosts.add(found.slot, found.host, found.managed, offered);
             }
-            #[cfg(any(windows, target_os = "macos"))]
             hosts.keep(adopted.keeper);
             super::run_admitted_with_handoff(
                 server,
@@ -217,7 +211,6 @@ fn serve_until_adopted(
                     return adoption.no_host(Vec::new());
                 }
                 let correlation = CorrelationId::from_bytes(key.adoption_id.as_bytes())?;
-                #[cfg(any(windows, target_os = "macos"))]
                 let mut keeper = KeeperAdoption {
                     runtime,
                     named: target.keeper(),
@@ -232,15 +225,7 @@ fn serve_until_adopted(
                         drain: Rc::clone(drain),
                         deadline: arrived + ADOPTION_BUDGET,
                     };
-                    match adopt_slot(
-                        slot,
-                        cohort,
-                        runtime,
-                        channel,
-                        #[cfg(any(windows, target_os = "macos"))]
-                        &mut keeper,
-                        &bindings,
-                    ) {
+                    match adopt_slot(slot, cohort, runtime, channel, &mut keeper, &bindings) {
                         Ok(Some(adopted)) => found.push(adopted),
                         Ok(None) => {}
                         Err(failed) => return Err(adoption.fail(failed)),
@@ -251,18 +236,13 @@ fn serve_until_adopted(
                     let missing = bindings.iter().map(|binding| binding.terminal_id).collect();
                     return adoption.no_host(missing);
                 }
-                return adoption.import(
-                    found,
-                    #[cfg(any(windows, target_os = "macos"))]
-                    keeper.keeper,
-                    &bindings,
-                );
+                return adoption.import(found, keeper.keeper, &bindings);
             }
         }
     }
 }
 
-/// Adopts the Host in one slot of the target, or on Windows and macOS recovers the terminals of one
+/// Adopts the Host in one slot of the target, or recovers the terminals of one
 /// that ended into a recovery Host this Worker starts in that slot. `None` on Windows names a Host that
 /// refused this Worker as `stopping` and then ended: it drained or stopped on its own, and its slot
 /// is freed.
@@ -271,11 +251,9 @@ fn adopt_slot(
     cohort: &Cohort,
     runtime: &Path,
     channel: host::Channel<'_>,
-    #[cfg(any(windows, target_os = "macos"))] keeper: &mut KeeperAdoption<'_>,
+    keeper: &mut KeeperAdoption<'_>,
     bindings: &[orchbee_capability_node_protocol::AdoptBinding],
 ) -> Result<Option<Found>, host::Failed> {
-    #[cfg(not(any(windows, target_os = "macos")))]
-    let _ = bindings;
     let refused = |error: &str| host::Failed {
         failure: AdoptHostFailure::HostRefused,
         restarts: 0,
@@ -284,18 +262,10 @@ fn adopt_slot(
     let Some(host_slot) = HostSlot::new(slot.slot) else {
         return Err(refused("no such Host slot"));
     };
-    // A Linux Session runs its one Host in the first slot.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    if host_slot != HostSlot::FIRST {
-        let _ = (cohort, channel);
-        return Err(refused("a POSIX Session runs one Host"));
-    }
-    #[cfg(any(windows, target_os = "macos"))]
     let keeper_channel = (channel.server, channel.correlation, channel.deadline);
     let found = match slot.kind {
         AdoptHostKind::Host { process } => {
             match host::adopt(runtime, host_slot, process, slot.epoch, channel) {
-                #[cfg(any(windows, target_os = "macos"))]
                 Err(failed)
                     if failed.error.is::<crate::host_connection::HostStopping>()
                         && ended_on_its_own(runtime, host_slot, process, keeper_channel.2) =>
@@ -305,7 +275,6 @@ fn adopt_slot(
                 adopted => adopted.map(|found| Found::adopted(host_slot, found)),
             }
         }
-        #[cfg(any(windows, target_os = "macos"))]
         AdoptHostKind::Recovery => {
             let held = if keeper.named.is_some() {
                 keeper.adopted()
@@ -328,18 +297,7 @@ fn adopt_slot(
                 }),
             }
         }
-        // No Linux Session starts a Keeper.
-        #[cfg(not(any(windows, target_os = "macos")))]
-        AdoptHostKind::Recovery => {
-            let _ = (cohort, channel);
-            Err(host::Failed {
-                failure: AdoptHostFailure::RecoveryFailed,
-                restarts: 0,
-                error: "no Keeper runs on this platform".into(),
-            })
-        }
     }?;
-    #[cfg(any(windows, target_os = "macos"))]
     if matches!(slot.kind, AdoptHostKind::Host { .. }) {
         return with_keeper(found, keeper, keeper_channel, bindings).map(Some);
     }
@@ -349,7 +307,6 @@ fn adopt_slot(
 /// Frees `slot` of a Host that refused this Worker as `stopping` once its process ended within
 /// [`ENDED_BOUND`] and `deadline`: the Worker before drained it, or it stopped, and no Worker can
 /// reach its terminals any more.
-#[cfg(any(windows, target_os = "macos"))]
 fn ended_on_its_own(
     runtime: &Path,
     slot: HostSlot,
@@ -372,7 +329,6 @@ fn ended_on_its_own(
 }
 
 /// How long an adoption waits for a Host that refused it as `stopping` to end.
-#[cfg(any(windows, target_os = "macos"))]
 const ENDED_BOUND: Duration = Duration::from_secs(2);
 
 /// What an adoption imports from one slot: the Host, how this Worker owns it, and the Host's
@@ -383,7 +339,6 @@ struct Found {
     host: HostBrokerConnection,
     managed: shutdown::ManagedHost,
     /// Whether the Session's Keeper was offered to the Host during the adoption.
-    #[cfg(any(windows, target_os = "macos"))]
     offered: bool,
     inventory: Vec<crate::terminal_authorization::InventoryTerminal>,
     restarts: u32,
@@ -396,14 +351,12 @@ impl Found {
             slot,
             host: found.host,
             managed: shutdown::ManagedHost::adopted(found.owner),
-            #[cfg(any(windows, target_os = "macos"))]
             offered: false,
             inventory: found.inventory,
             restarts: found.restarts,
         }
     }
 
-    #[cfg(any(windows, target_os = "macos"))]
     fn recovered(slot: HostSlot, recovered: super::recovery::Recovered) -> Self {
         Self {
             target: "recovery",
@@ -419,7 +372,6 @@ impl Found {
 
 /// The Session's Keeper an adoption answers for, adopted once, when the first Host that holds in
 /// one needs it: the one the target names, or any the Session record names when it names none.
-#[cfg(any(windows, target_os = "macos"))]
 struct KeeperAdoption<'a> {
     runtime: &'a Path,
     named: Option<orchbee_capability_node_protocol::AdoptHostProcess>,
@@ -427,7 +379,6 @@ struct KeeperAdoption<'a> {
     tried: bool,
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl KeeperAdoption<'_> {
     /// The adopted Keeper; a failed adoption is recorded once and leaves none.
     fn adopted(&mut self) -> Option<&mut crate::session_keeper::SessionKeeper> {
@@ -448,7 +399,6 @@ impl KeeperAdoption<'_> {
 /// it, and the orphans of the Host's epoch a binding names are recovered into it before
 /// its inventory is read again. A Keeper that cannot be adopted leaves the terminals unheld and the
 /// adoption going on; a recovery that fails fails it.
-#[cfg(any(windows, target_os = "macos"))]
 fn with_keeper(
     mut adopted: Found,
     keeper: &mut KeeperAdoption<'_>,
@@ -538,9 +488,7 @@ impl Adoption<'_> {
     fn import(
         self,
         mut found: Vec<Found>,
-        #[cfg(any(windows, target_os = "macos"))] keeper: Option<
-            crate::session_keeper::SessionKeeper,
-        >,
+        keeper: Option<crate::session_keeper::SessionKeeper>,
         bindings: &[orchbee_capability_node_protocol::AdoptBinding],
     ) -> Result<Phase, Box<dyn Error>> {
         let target = if found.iter().any(|found| found.target == "recovery") {
@@ -551,7 +499,6 @@ impl Adoption<'_> {
         let restarts = found
             .iter()
             .fold(0_u32, |sum, found| sum.saturating_add(found.restarts));
-        #[cfg(any(windows, target_os = "macos"))]
         let paired = match pairs::pair(
             &mut found,
             bindings,
@@ -561,7 +508,6 @@ impl Adoption<'_> {
             Ok(paired) => paired,
             Err(failed) => return Err(self.fail(failed)),
         };
-        #[cfg(any(windows, target_os = "macos"))]
         let bindings = paired.bindings.as_slice();
         let mut inventory = Vec::new();
         for found in &mut found {
@@ -591,14 +537,11 @@ impl Adoption<'_> {
         let quarantined = u32::try_from(imported.quarantined.len())?;
         let missing = u32::try_from(imported.missing.len())?;
         // A rebound binding whose owner the import did not take is missing, not moved.
-        #[cfg(any(windows, target_os = "macos"))]
         let moved = paired
             .moved
             .into_iter()
             .filter(|moved| !imported.missing.contains(&moved.terminal_id))
             .collect();
-        #[cfg(not(any(windows, target_os = "macos")))]
-        let moved = Vec::new();
         let host = &found
             .first()
             .ok_or_else(|| io::Error::other("an adoption without a Host"))?
@@ -629,9 +572,7 @@ impl Adoption<'_> {
         });
         // An orphan of an adopted Host's epoch that no binding names is discarded once the import
         // succeeded: no person can reach it.
-        #[cfg(any(windows, target_os = "macos"))]
         let mut keeper = keeper;
-        #[cfg(any(windows, target_os = "macos"))]
         if let Some(keeper) = keeper.as_mut() {
             for found in &found {
                 super::recovery::discard_unbound(
@@ -643,7 +584,6 @@ impl Adoption<'_> {
         }
         Ok(Phase::Host(Box::new(Adopted {
             found,
-            #[cfg(any(windows, target_os = "macos"))]
             keeper,
             kernel,
         })))

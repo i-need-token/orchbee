@@ -1,16 +1,16 @@
-//! A process opened on a recorded exact identity, its process ID and creation time, or on macOS its
-//! start time. A Session record names such a process outside its registrations only in the successor
+//! A process opened on a recorded exact identity, its process ID and creation time, or on macOS and
+//! Linux its start time. A Session record names such a process outside its registrations only in the successor
 //! entry of a Server restart, and whoever removes that entry ends what it names through this first.
 //! Opening ends nothing.
 use crate::{BlockerRole, RecoveryBlocker, Successor, process_registration::ProcessIdentity};
 use std::{io, time::Instant};
 
-#[cfg(target_os = "macos")]
-mod macos;
+#[cfg(unix)]
+mod unix;
 #[cfg(windows)]
 mod windows;
-#[cfg(target_os = "macos")]
-pub use macos::ExactProcess;
+#[cfg(unix)]
+pub use unix::ExactProcess;
 #[cfg(windows)]
 pub use windows::ExactProcess;
 
@@ -48,7 +48,7 @@ impl ExactProcess {
     /// # Errors
     ///
     /// Returns an error when the process cannot be proven gone or ended, naming it.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     pub fn end_host(process: (u32, u64), deadline: Instant) -> io::Result<()> {
         let identity = ProcessIdentity::new(process.0, process.1)
             .ok_or_else(|| io::Error::from(io::ErrorKind::InvalidInput))?;

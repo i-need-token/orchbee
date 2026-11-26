@@ -19,7 +19,7 @@ const entry_module = @import("entry.zig");
 
 const Entry = entry_module.Entry;
 const is_windows = builtin.os.tag == .windows;
-const is_macos = builtin.os.tag == .macos;
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
 const MessageKind = protocol.MessageKind;
 const Outgoing = host_outgoing.Outgoing;
 const WireIdentifier = identifiers.IdentifierBytes;
@@ -142,7 +142,7 @@ pub const Recoveries = struct {
         attachments: *keeper_link.Attachments,
         entries: *std.ArrayList(*Entry),
     ) void {
-        if (comptime !is_windows and !is_macos) unreachable;
+        if (comptime !is_windows and !posix_keeper) unreachable;
         const duplicates = inspected_program.duplicates;
         defer attachments.allocator.free(inspected_program.label);
         const failed: ?host_response.FailureDetails = if (!std.mem.eql(u8, &inspected_program.program_id, &recovery.value.program_id))
@@ -193,9 +193,9 @@ pub const Recoveries = struct {
             return handles.programMatches(duplicates, .{ .pid = process.pid, .created = process.created }) and
                 handles.killsOnClose(duplicates.job);
         }
-        const darwin = platform.keeper.darwin;
-        for (duplicates.streams) |stream| if (stream) |descriptor| if (!darwin.pipeEnd(descriptor, false)) return false;
-        return (duplicates.parented and duplicates.ended) or darwin.processStart(process.pid) == process.created;
+        const native = platform.keeper.native;
+        for (duplicates.streams) |stream| if (stream) |descriptor| if (!native.pipeEnd(descriptor, false)) return false;
+        return (duplicates.parented and duplicates.ended) or native.processStart(process.pid) == process.created;
     }
 
     /// Starts the claimed program's threads and lists it; what cannot start yet retries on the

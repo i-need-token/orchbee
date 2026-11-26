@@ -77,7 +77,7 @@ pub(crate) fn run(stop: &RemoteStop, locale: Locale) -> Output {
     if let Err(refusal) = admit_remote_stop(stop.confirm, &target, stop.format, locale) {
         return *refusal;
     }
-    let Ok(signals) = ArmedSignals::arm_interrupts_except_linux() else {
+    let Ok(signals) = ArmedSignals::arm_interrupts_latched() else {
         return refuse(Error::Internal);
     };
     let mut context = Context {

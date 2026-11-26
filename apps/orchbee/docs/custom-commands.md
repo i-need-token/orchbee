@@ -1,8 +1,7 @@
 # Custom commands
 
-Custom commands run on Windows and macOS. Their configuration, catalog, invocation and receipts are
-shared; [Platform command processors](#platform-command-processors) names what differs. A Linux
-Session keeps refusing them at admission, and the CLI answers `unsupported-platform` there.
+Custom commands run on Windows, macOS and Linux. Their configuration, catalog, invocation and
+receipts are shared; [Platform command processors](#platform-command-processors) names what differs.
 
 ## Configuration and catalog model
 
@@ -68,7 +67,7 @@ named by its processor, as the Panel's launch program instead of that adapter. A
 Job holds every process it starts; the Terminal Host starts it without a console, with the null
 device as each standard stream.
 
-### macOS
+### macOS and Linux
 
 Every command runs in the person's login shell, the shell a new terminal starts: `$SHELL` when it
 names an absolute executable, else the account's shell, else `/bin/sh`. It runs as
@@ -81,8 +80,8 @@ environment values, such as the source terminal's folder, arrive as written and 
 text; a shell path that holds `=` is refused as unavailable.
 
 A `shell` command leads its own process group, and its owner thread unblocks every signal before it
-starts, so the command and its children can be stopped. On macOS it starts through the native
-adapter, so no descriptor reaches it except its three standard streams, which are the null device.
+starts, so the command and its children can be stopped. No descriptor reaches it except its three
+standard streams, which are the null device.
 When the shell exits, the members left in its group get `SIGKILL`. When the Session stops first, the
 group gets `SIGTERM`, then `SIGKILL` once the shell has exited or two seconds have passed. Either
 way the command counts as ended only once no member is left. A program that leaves the group, such as one that calls `setsid` to become a

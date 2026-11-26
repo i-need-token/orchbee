@@ -1,7 +1,7 @@
 //! The Keeper's listener thread: it accepts each connection onto its own thread, on its own pipe
 //! instance on Windows, closes at once any connection beyond the Keeper's bounds, and ends the
-//! process once it is empty for 30 seconds or drained. On macOS it stops while an update stops
-//! connections (`reexec_darwin.zig`).
+//! process once it is empty for 30 seconds or drained. On macOS and Linux it stops while an update
+//! stops connections (`reexec_posix.zig`).
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -10,9 +10,9 @@ const local_ipc = @import("terminal-host-transport");
 const connection = @import("connection.zig");
 const state = @import("state.zig");
 
-const darwin = builtin.os.tag == .macos;
-pub const Server = if (darwin) @import("listener_darwin.zig").Server else local_ipc.LocalServer;
-const reexec = if (darwin) @import("reexec_darwin.zig") else struct {};
+const posix_keeper = builtin.os.tag == .macos or builtin.os.tag == .linux;
+pub const Server = if (posix_keeper) @import("listener_posix.zig").Server else local_ipc.LocalServer;
+const reexec = if (posix_keeper) @import("reexec_posix.zig") else struct {};
 
 const monotonic = platform.monotonic;
 const diagnostic_log = platform.diagnostic_log;
@@ -33,7 +33,7 @@ const connection_stack_bytes = 256 * 1024;
 pub const Options = struct {
     runtime_directory: []const u8,
     endpoint_id: []const u8,
-    /// Where a macOS Keeper binds its socket; the runtime directory when absent.
+    /// Where a macOS or Linux Keeper binds its socket; the runtime directory when absent.
     endpoint_directory: ?[]const u8 = null,
 };
 
@@ -41,7 +41,7 @@ pub const StartError = error{ InsecureRuntimeDirectory, AlreadyRunning, Endpoint
 
 /// Serves the Keeper's endpoint until the Keeper ends; returns only when it could not start.
 pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{ OutOfMemory, SystemResources })!noreturn {
-    var server = (if (darwin)
+    var server = (if (posix_keeper)
         Server.init(allocator, options.runtime_directory, options.endpoint_directory orelse options.runtime_directory, options.endpoint_id)
     else
         Server.initWithInstanceLimit(allocator, options.runtime_directory, options.endpoint_id, pipe_instance_limit)) catch |err| {
@@ -58,7 +58,7 @@ pub fn run(allocator: std.mem.Allocator, options: Options) (StartError || error{
     try table.init();
     state.activate(table);
     try table.startWatch();
-    if (darwin) armUpdate(allocator, options, &server);
+    if (posix_keeper) armUpdate(allocator, options, &server);
     serve(allocator, &server, table);
 }
 
@@ -67,13 +67,14 @@ pub fn armProcess(runtime_directory: []const u8, server: *const Server) void {
     fatal_record.armAs(.keeper, runtime_directory);
     diagnostic_log.armKeeper(runtime_directory);
     fatal_record.markThread(.@"keeper-listener");
-    if (darwin) {
-        platform.keeper.darwin.raiseDescriptorLimit();
+    if (posix_keeper) {
+        platform.keeper.native.raiseDescriptorLimit();
         state.armEndpointRemoval(server.inner.socket_path);
     }
 }
 
-/// Lets a macOS Keeper update in place from its endpoint; without its own program it cannot.
+/// Lets a macOS or Linux Keeper update in place from its endpoint; without its own program it
+/// cannot.
 pub fn armUpdate(allocator: std.mem.Allocator, options: Options, server: *const Server) void {
     const program = reexec.ownProgram(allocator) orelse return;
     const descriptors = server.endpointDescriptors();
@@ -100,7 +101,7 @@ pub fn serve(allocator: std.mem.Allocator, server: *Server, table: *state.Table)
 /// Serves a connection an earlier image of this Keeper admitted, in `slot`, on its own thread;
 /// false when no thread starts.
 pub fn resumeConnection(allocator: std.mem.Allocator, table: *state.Table, transport: connection.Transport, slot: usize, resumed: connection.Resumed) bool {
-    const thread = std.Thread.spawn(.{ .stack_size = connection_stack_bytes }, connection.resumeRun, .{ connection.Context{
+    const thread = std.Thread.spawn(platform.thread_stack.sized(connection_stack_bytes), connection.resumeRun, .{ connection.Context{
         .allocator = allocator,
         .table = table,
         .transport = transport,
@@ -117,7 +118,7 @@ const Listener = struct {
 
     fn run(self: *Listener) noreturn {
         while (true) {
-            if (darwin) reexec.parkListener(self.table);
+            if (posix_keeper) reexec.parkListener(self.table);
             if (self.server.acceptBefore(accept_slice_ms)) |accepted| {
                 if (accepted) self.dispatch();
             } else |err| self.acceptFailed(err);
@@ -143,7 +144,7 @@ const Listener = struct {
             diagnostic_log.noteConnectionBeyondBounds();
             return;
         };
-        const thread = std.Thread.spawn(.{ .stack_size = connection_stack_bytes }, connection.run, .{connection.Context{
+        const thread = std.Thread.spawn(platform.thread_stack.sized(connection_stack_bytes), connection.run, .{connection.Context{
             .allocator = self.allocator,
             .table = self.table,
             .transport = transport,

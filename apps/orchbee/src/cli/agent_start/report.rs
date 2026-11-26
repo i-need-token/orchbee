@@ -245,11 +245,6 @@ pub(super) fn domain_failure(error: crate::agent_start::Failure) -> Failure {
     use crate::agent_start::{ExchangeFailure, Failure as DomainFailure, StartFailure};
     use orchbee_client_server_protocol::SendPromptState;
     let start = match error {
-        DomainFailure::Unsupported => {
-            return Failure::new(FailureKind::ServiceUnavailable).details(
-                super::super::stage_reason_details("platform", "unsupported-platform"),
-            );
-        }
         DomainFailure::Identity => return Failure::new(FailureKind::InternalFailure),
         DomainFailure::Primary(PrimaryError::InvalidBinding) => {
             return Failure::new(FailureKind::InternalFailure);

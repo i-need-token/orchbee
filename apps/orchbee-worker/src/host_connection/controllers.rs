@@ -63,7 +63,6 @@ impl HostControllers {
     /// Takes in `grant`, whose terminal moved here as `terminal_id` and whose controller this Host
     /// attached under `revision`: its viewer, identities, and consumed sequence stay, so input the
     /// Server held during the move still passes. Returns whether there was room.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn adopt_moved(
         &mut self,
         grant: ControlGrant,

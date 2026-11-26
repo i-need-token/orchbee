@@ -1,8 +1,7 @@
-# Windows and macOS Agent startup
+# Agent startup
 
-`agent start` starts one provider command on a running Windows or macOS Session, in a new Tab, a
-new split or an existing Panel's idle shell. Linux Clients refuse it as unsupported until the Linux
-Host's managed shells are verified. A new Panel's shell can run the exact catalog command as its
+`agent start` starts one provider command on a running Session, in a new Tab, a new split or an
+existing Panel's idle shell. A new Panel's shell can run the exact catalog command as its
 first command; otherwise the command is typed once at the confirmed prompt. Without a name that is
 the whole start: after a short
 [early check](#workflow-and-invariants) the Agent is observed exactly like one the person typed by

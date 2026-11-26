@@ -78,7 +78,6 @@ impl RecoveryBlocker {
 
     /// The refusal cold recovery returns when what a successor entry names could not be proven
     /// gone or ended with `error`, as InvalidData, carrying the process `error` names.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn successor_refusal(error: &io::Error) -> io::Error {
         Self::carried(Self::of(error))
     }

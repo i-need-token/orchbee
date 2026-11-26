@@ -90,9 +90,6 @@ const POLL_INTERVAL: Duration = Duration::from_millis(100);
 const LOOKUP_DEADLINE: Duration = Duration::from_secs(10);
 /// A refresh this soon after the last lookup ended starts nothing.
 const REFRESH_FLOOR: Duration = Duration::from_secs(2);
-/// Whether this Session's machine can start Agents at all: Windows and macOS Sessions start them.
-/// A policy constant rather than a `cfg`, so every branch compiles everywhere.
-const STARTABLE: bool = cfg!(any(windows, target_os = "macos"));
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LookupStatus {
@@ -755,7 +752,8 @@ impl State {
         }
         Some(AgentCatalogSnapshot {
             revision: self.revision,
-            startable: STARTABLE,
+            // Every platform's Session starts Agents.
+            startable: true,
             status: self.shown.status,
             checked_at: self.shown.checked_at,
             recent: self

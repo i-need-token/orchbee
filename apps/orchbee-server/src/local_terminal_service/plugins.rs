@@ -220,7 +220,6 @@ impl LocalTerminalService {
     /// restart would end, read before
     /// `deadline` through the serving Worker, also while a restart holds it. `None` short of a
     /// correlated answer in time; the carrier discards a late reply.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn background_programs(&self, deadline: std::time::Instant) -> Option<u32> {
         use crate::worker_obcn_carrier::ExchangeWait;
         if std::time::Instant::now() >= deadline {

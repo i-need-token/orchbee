@@ -81,17 +81,17 @@ impl ArmedSignals {
         return Self::arm_interrupts();
     }
 
-    /// [`Self::arm_interrupts`] on Windows, and on macOS the interrupt pair `SIGINT` and `SIGTERM`
-    /// captured for the release commands, `install`, `update` and the automatic helper, and for
-    /// the saved-machine commands, so an interruption settles their children and answers its
-    /// document there too. Linux keeps the
-    /// inherited action, as [`Self::arm_interrupts_or_inherit`] does.
-    pub(super) fn arm_interrupts_except_linux() -> io::Result<Self> {
+    /// [`Self::arm_interrupts`] on Windows, and on macOS and Linux the interrupt pair `SIGINT` and
+    /// `SIGTERM` captured, latched, for the release commands, `install`, `update` and the automatic
+    /// helper, and for the saved-machine commands, so an interruption settles their children and
+    /// answers its document there too. Any other Unix keeps the inherited action, as
+    /// [`Self::arm_interrupts_or_inherit`] does.
+    pub(super) fn arm_interrupts_latched() -> io::Result<Self> {
         #[cfg(windows)]
         return Self::arm_interrupts();
-        #[cfg(target_os = "macos")]
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
         return platform::arm_latched().map(Self);
-        #[cfg(not(any(windows, target_os = "macos")))]
+        #[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
         return platform::inherit().map(Self);
     }
 

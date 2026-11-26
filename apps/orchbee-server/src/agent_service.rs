@@ -17,11 +17,9 @@ mod cursor;
 mod launch;
 mod map;
 mod names;
-#[cfg(any(windows, target_os = "macos", test))]
 mod resume;
 pub(crate) use names::ObservedCommand;
 pub(crate) use names::TerminalNameFact;
-#[cfg(any(windows, target_os = "macos", test))]
 pub(crate) use resume::AgentResumeCandidate;
 #[cfg(test)]
 mod tests;

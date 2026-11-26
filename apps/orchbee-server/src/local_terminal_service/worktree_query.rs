@@ -53,9 +53,6 @@ impl LocalTerminalService {
         request: &WorkbenchWorktreeQuery,
         deadline: Instant,
     ) -> Result<Outcome, Failure> {
-        if !super::SERVES_WORKTREES {
-            return Err(Failure::Unsupported {});
-        }
         let (target, handle, base) = {
             let workers = self.workers.lock().map_err(|_| busy())?;
             let mut coordinator = self.coordinator.lock().map_err(|_| busy())?;

@@ -79,7 +79,6 @@ impl PluginJobs {
     }
     /// Collects the program exits `host` reported and disposes of each collected program, as a
     /// plugin-job action does first, for a Worker between Server requests.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn settle_exits(&self, host: &dyn ProgramHost) {
         let Ok(mut inner) = self.inner.lock() else {
             return;

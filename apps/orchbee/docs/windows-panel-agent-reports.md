@@ -1,7 +1,7 @@
 # Windows Panel Agent reports
 
-macOS runs `panel report-agent`, `clear-agent-authority` and `release-agent` and their Server
-owner as Windows does; Linux returns `unsupported-platform`.
+macOS and Linux run `panel report-agent`, `clear-agent-authority` and `release-agent` and their
+Server owner as Windows does.
 
 ## Exact member targets
 

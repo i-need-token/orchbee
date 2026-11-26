@@ -1,7 +1,6 @@
 //! Shared activation generations bind catalog admission, direct-child registration and clean-stop
 //! publication. Private lifecycle records, one `session.json` in each Session's folder, outlive the
 //! runtime folder. Effects derive their paths from admission.
-#[cfg(any(windows, target_os = "macos"))]
 use crate::process_registration::ProcessIdentity;
 use crate::{
     ActivationState, DataRoot, HeldLock, ModeCheckedLocalSessionRendezvous as Rendezvous,
@@ -21,7 +20,6 @@ use std::{
 
 mod successor;
 pub use successor::Successor;
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) use successor::{
     commit as commit_successor, record_worker as record_successor_worker,
     remove as remove_successor, reserve as reserve_successor,
@@ -528,7 +526,6 @@ fn remove_private(path: &Path) -> io::Result<()> {
 
 /// The Keepers the Active generation of the Session at `runtime` records, for the Worker that adopts
 /// one: each slot's identified Keeper and the current Keeper's slot.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn recorded_keepers(
     root: &DataRoot,
     runtime: &Path,
@@ -569,7 +566,6 @@ pub(crate) fn names_worker(
 }
 
 /// Each Keeper slot's identified Keeper in `processes`, and the current Keeper's slot.
-#[cfg(any(windows, target_os = "macos"))]
 fn keepers_of(
     processes: &crate::process_registration::SessionProcesses,
 ) -> crate::process_registration::KeptKeepers {
@@ -627,24 +623,10 @@ fn role_presence(
     record: &Record,
     role: crate::process_registration::ProcessRole,
 ) -> io::Result<HostPresence> {
-    #[cfg(any(windows, target_os = "macos"))]
-    return Ok(crate::process_observation::presence(
+    Ok(crate::process_observation::presence(
         &record.processes,
         role,
-    ));
-    // Linux runs its one Host in the first slot and starts no Keeper.
-    #[cfg(all(unix, not(target_os = "macos")))]
-    return Ok(match role {
-        crate::process_registration::ProcessRole::Host(crate::HostSlot::FIRST)
-            if crate::rendezvous::host_lock_held(record.runtime(), crate::HostSlot::FIRST)? =>
-        {
-            HostPresence::Running(None)
-        }
-        crate::process_registration::ProcessRole::Host(crate::HostSlot::FIRST) => {
-            HostPresence::Gone
-        }
-        _ => HostPresence::NotStarted,
-    });
+    ))
 }
 
 impl RetainedSessionRecord {
@@ -685,9 +667,8 @@ impl RetainedSessionRecord {
         })
     }
     /// Whether this generation's Terminal Host was never started or its exact process is gone.
-    /// A reserved spawn or an unknown observation answers false. Linux registers no Host, so there
-    /// it is gone once no process holds the Host lock; the caller asks only after its Worker
-    /// exited, when no Host can start. Observation grants no termination authority.
+    /// A reserved spawn or an unknown observation answers false. Observation grants no termination
+    /// authority.
     pub fn host_absent(&self) -> io::Result<bool> {
         let current = self
             .directory
@@ -696,21 +677,13 @@ impl RetainedSessionRecord {
         if !current.same_active_generation(&self.active) {
             return Err(io::ErrorKind::InvalidData.into());
         }
-        #[cfg(any(windows, target_os = "macos"))]
-        return Ok(crate::process_registration::HOST_ROLES
+        Ok(crate::process_registration::HOST_ROLES
             .into_iter()
-            .all(|role| crate::process_observation::role_absent(&current.processes, role)));
-        #[cfg(all(unix, not(target_os = "macos")))]
-        return Ok(!crate::rendezvous::host_lock_held(
-            current.runtime(),
-            crate::HostSlot::FIRST,
-        )?);
+            .all(|role| crate::process_observation::role_absent(&current.processes, role)))
     }
     /// What each of this generation's Terminal Host slots holds now. A Spawning Host never ran,
-    /// since a child runs only once identified. On Windows and macOS a running Host carries its registered
-    /// process; a process with the registered ID but another creation time means the registered
-    /// Host is gone. Linux registers no Host and runs one, in the first slot: a Host holding the
-    /// Host lock runs, and a free lock reads as gone, which also covers a Host that never started.
+    /// since a child runs only once identified. A running Host carries its registered process; a
+    /// process with the registered ID but another creation time means the registered Host is gone.
     /// Observation grants no termination authority.
     ///
     /// Each slot comes back in order, with the epoch its Host recorded once its Worker connected.
@@ -733,7 +706,7 @@ impl RetainedSessionRecord {
     /// holds its programs, so a later Host may start in the slot. Answers whether the slot is free
     /// once the record's writer lock, waited for until `deadline`, is held: a slot no Host was ever
     /// started in already is, and a running, spawning or unobservable Host keeps it.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     pub fn release_gone_host(&self, slot: crate::HostSlot, deadline: Instant) -> io::Result<bool> {
         use crate::process_registration::{ProcessRole, Registration};
         let _writer = self.writer_before(deadline)?;
@@ -764,7 +737,6 @@ impl RetainedSessionRecord {
     /// # Errors
     ///
     /// Returns an error when the record cannot be read or no longer names this generation.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(crate) fn keeper_identities(&self) -> io::Result<[Option<ProcessIdentity>; 2]> {
         let current = self
             .directory
@@ -778,7 +750,7 @@ impl RetainedSessionRecord {
     /// What this generation's Keeper is now, in the same terms as [`Self::hosts`]: the current
     /// Keeper while it runs, otherwise one running in the other slot, which an adopting Worker
     /// then takes. Neither running, an unknown or spawning slot reads as such, and otherwise the
-    /// current slot's presence. Linux starts no Keeper, so there it reads as never started.
+    /// current slot's presence.
     pub fn keeper_presence(&self) -> io::Result<HostPresence> {
         let record = self.current()?;
         let current = record.processes.current_keeper();
@@ -930,7 +902,6 @@ impl RetainedSessionRecord {
     /// `abandoned` judges abandoned, `end` ends every live process it names by its recorded
     /// identity, the Worker first ([`crate::ExactProcess::end_successor`]), and only then is the
     /// entry removed. Answers the entry it cleared; an `end` that fails leaves the record unchanged.
-    #[cfg(any(windows, target_os = "macos"))]
     pub fn clear_successor(
         &self,
         deadline: Instant,

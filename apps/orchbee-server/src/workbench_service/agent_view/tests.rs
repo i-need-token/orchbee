@@ -210,8 +210,6 @@ fn plugin_view_lifecycle_reads_real_private_registry_without_creating_on_read() 
     );
 }
 
-// Linux withholds Agent view requests at admission (`withheld_off_windows`).
-#[cfg(any(windows, target_os = "macos"))]
 #[test]
 fn agent_view_permissions_precede_source_inspection_and_session_mismatch_preserves() {
     use crate::{local_terminal_service::LocalTerminalService, worker_registry::WorkerRegistry};

@@ -43,28 +43,26 @@ impl Capability {
     ];
 
     pub fn available(self) -> bool {
-        // These capabilities currently have Windows adapters. The terminal, local transport,
-        // shared Workbench operations and client-local interaction are separate capabilities.
-        // Linux and macOS adapters of the session-dependent effects admit what this session's
-        // frozen facts support.
+        // The terminal, local transport, shared Workbench operations and client-local interaction
+        // are separate capabilities. The macOS and Linux adapters of the session-dependent effects
+        // admit what this session's frozen facts support.
         match self {
             Self::Clipboard | Self::Browser | Self::SystemNotification | Self::WindowTitle => {
                 session_admits(self)
             }
-            // macOS shells get the same managed prompt and run prefix as Windows PowerShell.
-            Self::AgentLaunch => cfg!(any(windows, target_os = "macos")),
-            // macOS keeps the position record and `config.toml` under its data root, as Windows,
-            // resolves a typed folder in the POSIX grammar, from its launch folder, and its Server
-            // serves Worktree operations and Panel graphics. Graphics admits only the outer
-            // terminal's probe; its replies, never the terminal's name, select the renderer.
-            Self::PositionStorage
+            // Every platform's shells get the managed prompt and run prefix; every platform keeps
+            // the position record and `config.toml` under its data root, resolves a typed folder in
+            // its own grammar from its launch folder, and its Server serves Worktree operations and
+            // Panel graphics. Graphics admits only the outer terminal's probe; its replies, never
+            // the terminal's name, select the renderer. The machine hub, its carriers and the far
+            // end run over the system `ssh`.
+            Self::AgentLaunch
+            | Self::PositionStorage
             | Self::ConfigurationFile
             | Self::DirectoryInput
             | Self::Worktrees
-            | Self::Graphics => cfg!(any(windows, target_os = "macos")),
-            // macOS and Linux run the machine hub, its carriers and the far end over the system
-            // `ssh`, as Windows does.
-            Self::SavedMachines => cfg!(any(windows, target_os = "macos", target_os = "linux")),
+            | Self::Graphics
+            | Self::SavedMachines => true,
         }
     }
 
@@ -119,18 +117,14 @@ pub(crate) enum RecoveryCheckpoint {
     Diagnosable,
     /// The checkpoint is retained; neither command is admitted on this host yet.
     Retained,
-    /// The Session keeps no checkpoint on this host.
-    Absent,
 }
 
 /// This host's [`RecoveryCheckpoint`].
 pub(crate) const fn startup_recovery_checkpoint() -> RecoveryCheckpoint {
     if cfg!(windows) {
         RecoveryCheckpoint::Diagnosable
-    } else if cfg!(target_os = "macos") {
-        RecoveryCheckpoint::Retained
     } else {
-        RecoveryCheckpoint::Absent
+        RecoveryCheckpoint::Retained
     }
 }
 

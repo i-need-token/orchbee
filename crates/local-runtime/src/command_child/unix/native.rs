@@ -1,17 +1,18 @@
-//! Starts one command through the reviewed native adapter on macOS, so the child receives its three
-//! standard streams and no other descriptor, however many threads of this process create
-//! descriptors meanwhile. The root leads a new process group, as
+//! Starts one command through the reviewed native adapter on macOS, and through the Linux launch
+//! there, so the child receives its three standard streams and no other descriptor, however many
+//! threads of this process create descriptors meanwhile and whatever descriptors this process
+//! inherited. The root leads a new process group, as
 //! [`CommandChild::spawn`](super::CommandChild::spawn) places it, and [`spawn_detached`] starts a
 //! child whose owner may leave it running.
 use super::{CommandChild, SpawnEnvironment, spawn::variable_pairs};
-use crate::{CommandSpawnFailure, retained_spawn_native};
+use crate::CommandSpawnFailure;
 use rustix::process::Pid;
 use std::{
     ffi::{OsStr, OsString},
     io,
     os::fd::{AsFd, AsRawFd, OwnedFd},
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, ExitStatus},
 };
 
 /// Starts `command` as the leader of its own process group, with its three `streams` as its standard
@@ -43,7 +44,8 @@ fn start(
     let errors = above_standard(errors).map_err(not_created)?;
     let arguments: Vec<&OsStr> = command.get_args().collect();
     let variables: Vec<(OsString, OsString)> = variable_pairs(command, environment);
-    let id = retained_spawn_native::spawn(
+    #[cfg(target_os = "macos")]
+    let id = crate::retained_spawn_native::spawn(
         executable,
         &arguments,
         &variables,
@@ -51,9 +53,34 @@ fn start(
         Some([input.as_fd(), output.as_fd(), errors.as_fd()]),
         true,
         false,
-    )
-    .map_err(not_created)?;
-    Ok(id)
+    );
+    #[cfg(not(target_os = "macos"))]
+    let id = crate::retained_spawn_linux::spawn(&crate::retained_spawn_linux::Launch {
+        executable,
+        arguments: &arguments,
+        environment: &variables,
+        directory: &directory,
+        streams: [input.as_fd(), output.as_fd(), errors.as_fd()],
+        process_group: true,
+        gated: false,
+    });
+    id.map_err(not_created)
+}
+
+/// The status of `process`, a child [`start`] started and nobody has reaped, once it has ended, or
+/// `None` while it runs when `block` is false. The caller keeps the status, because a reaped
+/// identifier may name another process later.
+pub(super) fn wait(process: u32, block: bool) -> io::Result<Option<ExitStatus>> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::unix::process::ExitStatusExt as _;
+        crate::retained_spawn_native::wait(process, block)
+            .map(|status| status.map(ExitStatus::from_raw))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        crate::retained_spawn_linux::wait(process, block)
+    }
 }
 
 /// Starts `command` as [`start`] does, as the owner of a group root that a `CommandChild` settles.

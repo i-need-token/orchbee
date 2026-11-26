@@ -14,9 +14,9 @@ A cancellable state subscription uses the shared carrier and coalesces to one la
 
 The lifecycle captures the inherited console title before its first change, then uses safe Windows title APIs. `win32console` 0.1.5 is admitted only for this capture/write capability: no standard-library or existing safe binding offers capture; it adds no build script and uses the existing winapi version. Its fixed UTF-16 capture buffer is checked for padding and ambiguous truncation; titles of 259 or more UTF-16 units and invalid UTF-16 refuse capture before any title change. Last-error zero distinguishes a valid empty title. Restoring uses the exact captured string, not escaped display text. The existing bounded restoration lease runs on normal exit, errors and owner-thread panic, attempts other cleanup after failures and blocks subsequent title writes. Capture/write refusal shows a localized status notice without closing the TUI or replacing an existing notice; already-owed restoration remains registered. A consumed publication is not retried each UI tick. OS/host settings may ignore requested title changes.
 
-## macOS lifecycle
+## macOS and Linux lifecycle
 
-On macOS `terminal title set|clear` run as on Windows. The TUI saves its outer terminal's own title on the xterm title stack before its first change, writes OSC 0, and pops the saved title when it exits. Linux compiles the same writer, but `terminal title` returns `unsupported-platform` there.
+On macOS and Linux `terminal title set|clear` run as on Windows. The TUI saves its outer terminal's own title on the xterm title stack before its first change, writes OSC 0, and pops the saved title when it exits.
 
 ## Contract and evidence
 

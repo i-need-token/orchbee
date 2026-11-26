@@ -442,18 +442,9 @@ fn list_and_status_machine_documents_keep_their_exact_json_bytes() {
         bytes
     }
 
-    // Hosts that admit the Agent projection report unknown Client members, the others unsupported.
-    let projected = cfg!(any(windows, target_os = "macos"));
-    let capability = if projected {
-        json!("unknown")
-    } else {
-        json!({"kind":"unsupported"})
-    };
-    let selection = if projected {
-        Value::Null
-    } else {
-        json!({"kind":"unsupported"})
-    };
+    // Every host admits the Agent projection, so Client members it cannot read report unknown.
+    let capability = json!("unknown");
+    let selection = Value::Null;
 
     let source = json!({"kind":"workbench-snapshot","sessionId":ID,"revision":"9"});
     let workspace_id = "abcdef0123456789abcdef0123456789";

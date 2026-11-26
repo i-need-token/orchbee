@@ -1,5 +1,5 @@
 //! Projects named-Session catalog and lifecycle observations and executes explicit guarded
-//! deletion with typed receipts on Windows and macOS. It does not adopt unregistered processes or
+//! deletion with typed receipts. It does not adopt unregistered processes or
 //! infer a running Session solely from an endpoint pathname.
 
 use super::console_interrupt::{ArmedSignals, Finish, SignalWatch};
@@ -80,7 +80,7 @@ fn delete(
         );
     }
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut signals = match ArmedSignals::arm_interrupts_except_linux() {
+    let mut signals = match ArmedSignals::arm_interrupts_latched() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };
@@ -145,7 +145,7 @@ fn local_error_at(error: io::Error, stage: &str) -> Failure {
 
 fn list(format: OutputFormat, locale: Locale) -> Output {
     let deadline = Instant::now() + Duration::from_secs(5);
-    let mut signals = match ArmedSignals::arm_interrupts_except_linux() {
+    let mut signals = match ArmedSignals::arm_interrupts_latched() {
         Ok(signals) => signals,
         Err(_) => return failed(Failure::new(FailureKind::InternalFailure), format, locale),
     };

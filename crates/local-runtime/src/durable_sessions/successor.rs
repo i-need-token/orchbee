@@ -58,7 +58,6 @@ impl Successor {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl Successor {
     /// The successor Server's recorded identity.
     pub(crate) fn server(&self) -> ProcessIdentity {
@@ -74,7 +73,6 @@ impl Successor {
 /// Names `server`, the suspended successor Server of a restart, in `record` with `ticket` and the
 /// `activation_id` it will commit. Only an Active record whose Server is identified and that
 /// carries no entry takes one; a caller clears an earlier entry first.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn reserve(
     record: &mut Record,
     ticket: [u8; 16],
@@ -108,7 +106,6 @@ pub(crate) fn reserve(
 
 /// Adds `worker`, the suspended Worker the successor created, to the entry for `ticket` whose
 /// Server is `server`. An entry that names another ticket or Server, or a Worker already, refuses.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn record_worker(
     record: &mut Record,
     ticket: [u8; 16],
@@ -134,7 +131,6 @@ pub(crate) fn record_worker(
 /// record still names `replaced` as its Server, the record becomes the successor's generation.
 /// Its Server and Worker are the successor pair, its activation is the one the entry reserved, the
 /// entry and the ended generation's `exited` member are gone, and the Host keeps its registration.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn commit(
     record: &mut Record,
     ticket: [u8; 16],
@@ -167,7 +163,6 @@ pub(crate) fn commit(
 }
 
 /// Removes the entry for `ticket`; answers whether `record` carried it.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn remove(record: &mut Record, ticket: [u8; 16]) -> bool {
     if Successor::of(record).is_some_and(|entry| entry.ticket == ticket) {
         record.extensions.remove(SUCCESSOR);
@@ -177,7 +172,6 @@ pub(crate) fn remove(record: &mut Record, ticket: [u8; 16]) -> bool {
 }
 
 /// Whether one of `record`'s registrations already names `identity`.
-#[cfg(any(windows, target_os = "macos"))]
 fn named(record: &Record, identity: ProcessIdentity) -> bool {
     [ProcessRole::Server, ProcessRole::Worker]
         .into_iter()
@@ -185,7 +179,6 @@ fn named(record: &Record, identity: ProcessIdentity) -> bool {
         .any(|role| record.processes.registration(role).identity() == Some(identity))
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 fn write(record: &mut Record, entry: &Successor) -> std::io::Result<()> {
     let value = serde_json::to_value(entry).map_err(std::io::Error::other)?;
     record.extensions.insert(SUCCESSOR.to_owned(), value);

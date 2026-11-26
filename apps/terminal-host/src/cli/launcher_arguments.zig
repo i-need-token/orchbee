@@ -40,12 +40,12 @@ pub const Command = union(enum) {
 };
 
 pub const KeepOptions = struct {
-    /// Where a macOS Keeper binds its socket; without it the socket goes in the runtime directory.
-    /// A Windows Keeper names a pipe instead and ignores it.
+    /// Where a macOS or Linux Keeper binds its socket; without it the socket goes in the runtime
+    /// directory. A Windows Keeper names a pipe instead and ignores it.
     endpoint_directory: ?[]const u8 = null,
     endpoint_id: []const u8,
     runtime_directory: []const u8,
-    /// An image a macOS Keeper executed in its own place, with the state it hands over.
+    /// An image a macOS or Linux Keeper executed in its own place, with the state it hands over.
     resumed: ?Resumed = null,
 };
 

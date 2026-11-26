@@ -92,9 +92,9 @@ fn expired_spawn_confirmation_stays_unknown_after_late_completion_without_replay
     );
 }
 
-/// Pins the macOS route: a configured command must not inherit a descriptor the Worker holds
+/// Pins the POSIX route: a configured command must not inherit a descriptor the Worker holds
 /// without close-on-exec, which the standard library's spawn would pass on.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 #[test]
 fn configured_command_inherits_no_descriptor_the_worker_holds() {
     use nix::sys::socket::{AddressFamily, SockFlag, SockType, socket};

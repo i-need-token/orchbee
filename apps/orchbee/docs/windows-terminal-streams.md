@@ -2,8 +2,7 @@
 
 ## Scope and ownership
 
-`terminal session observe <terminal>` emits NDJSON from one existing terminal binding. The streams
-and interactive attach run on Windows and macOS; Linux answers unsupported-platform.
+`terminal session observe <terminal>` emits NDJSON from one existing terminal binding.
 It never activates a Session, starts a terminal, reads stdin, acquires control, or changes Host geometry.
 `terminal session control <terminal>` adds exclusive input, resize and history commands.
 Interactive attach remains a dependent surface. Both commands select existing terminal IDs/selectors.

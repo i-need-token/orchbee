@@ -70,14 +70,12 @@ pub(crate) enum Site {
     /// A replacement Worker adopting the Host of the Worker it replaces.
     Adopt,
     /// A move turn: a terminal's move from an older Host into the Worker's own.
-    #[cfg(any(windows, target_os = "macos"))]
     Move,
 }
 
 /// Each site keeps its own once-a-minute slot for `host-slow` and for `host-unexpected`.
 const SITE_SLOTS: usize = 18;
 const _: () = assert!((Site::Adopt as usize) < SITE_SLOTS);
-#[cfg(any(windows, target_os = "macos"))]
 const _: () = assert!((Site::Move as usize) < SITE_SLOTS);
 
 impl Site {
@@ -101,7 +99,6 @@ impl Site {
             Self::HostStart => "host-start",
             Self::Shutdown => "shutdown",
             Self::Adopt => "adopt",
-            #[cfg(any(windows, target_os = "macos"))]
             Self::Move => "move",
         }
     }
@@ -255,14 +252,12 @@ pub(crate) fn host_started() {
 }
 
 /// The Session's Keeper started and its first Host attached it.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_started() {
     log_event(LogLevel::Info, "keeper-started", &[]);
 }
 
 /// A Keeper step that failed, which leaves the terminals running, unheld or in the Keeper's care:
 /// its `step` token, the closed I/O error kind, and the operating-system error code it carries.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_failed(step: &'static str, error: &(dyn Error + 'static)) {
     let mut fields = vec![error_kind(error), ("step", LogValue::Token(step))];
     if let Some(code) = os_error(error) {
@@ -274,7 +269,6 @@ pub(crate) fn keeper_failed(step: &'static str, error: &(dyn Error + 'static)) {
 }
 
 /// A Host's epoch could not be written into the Session record: the closed I/O error kind.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
     let fields = [error_kind(error)];
     log_event(LogLevel::Warning, "host-epoch-unrecorded", &fields);
@@ -282,7 +276,6 @@ pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
 
 /// An older Host in `slot`, from another installation, held no terminal and ran no program, and was
 /// told to drain.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_draining(slot: u8) {
     log_event(
         LogLevel::Info,
@@ -292,7 +285,6 @@ pub(crate) fn host_draining(slot: u8) {
 }
 
 /// The drained Host in `slot` ended: `released` once the Session record freed its slot.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_drained(slot: u8, released: bool) {
     log_event(
         LogLevel::Info,
@@ -306,7 +298,6 @@ pub(crate) fn host_drained(slot: u8, released: bool) {
 
 /// A terminal moved from the Host in slot `from` to the one in `to`: its record's size, whether it
 /// had settled, and the milliseconds from the quiesce to the claim.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn terminal_moved(
     from: u8,
     to: u8,
@@ -329,7 +320,6 @@ pub(crate) fn terminal_moved(
 
 /// A move's `step` failed: the refusal's `class` and `reason`, and whether moves stopped for the
 /// rest of the Worker's life.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn terminal_move_failed(
     step: &'static str,
     class: &'static str,
@@ -349,15 +339,14 @@ pub(crate) fn terminal_move_failed(
 }
 
 /// The Session's Keeper ended or stopped answering, and another took its place.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_replaced() {
     log_event(LogLevel::Info, "keeper-replaced", &[]);
 }
 
 /// The Worker updated the Session's Keeper to its own program: on Windows a new Keeper held
-/// `terminals` terminal holdings and `programs` program holdings, and on macOS the Keeper carried
-/// as many of each into the program it executed; the update took `elapsed` up to its commit.
-#[cfg(any(windows, target_os = "macos"))]
+/// `terminals` terminal holdings and `programs` program holdings, and on macOS and Linux the Keeper
+/// carried as many of each into the program it executed; the update took `elapsed` up to its
+/// commit.
 pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duration) {
     log_event(
         LogLevel::Info,
@@ -372,7 +361,6 @@ pub(crate) fn keeper_updated(terminals: usize, programs: usize, elapsed: Duratio
 
 /// A Keeper update failed at `step` on its `attempt`, from 1, and was rolled back, so the old
 /// Keeper stays: the closed I/O error kind and the operating-system error code it carries.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn keeper_update_failed(
     step: &'static str,
     attempt: u32,
@@ -391,14 +379,12 @@ pub(crate) fn keeper_update_failed(
     log_event(LogLevel::Warning, "keeper-update-failed", &fields);
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 fn count(value: usize) -> LogValue {
     LogValue::Count(u64::try_from(value).unwrap_or(u64::MAX))
 }
 
 /// The Host's dispatch stopped turning for `stalled`: `ended` when the Keeper held every terminal
 /// it runs and the Worker ended it, so recovery follows; otherwise the Host is left running.
-#[cfg(any(windows, target_os = "macos"))]
 pub(crate) fn host_hung(ended: bool, stalled: Duration) {
     log_event(
         LogLevel::Warning,

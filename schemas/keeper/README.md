@@ -26,7 +26,7 @@ The Keeper runs as `orchbee-terminal-host keep` and serves its own runtime direc
 through the Terminal Host's Local IPC, with every protection a Host endpoint has: the same-user
 check at the first byte, the pipe's DACL and integrity label, and no write from a lower integrity
 level on Windows, and the private folder, the same-user check, and the lifetime lock of a Host's
-Unix socket on macOS. Each connection starts with one [`OBHS`](../connection/README.md#frame) exchange whose
+Unix socket on macOS and Linux. Each connection starts with one [`OBHS`](../connection/README.md#frame) exchange whose
 `connection` is `keeper`. After the `answer`, both directions carry only `OBKP` frames until either
 side closes. The frame has no version field: the answer's generation selects this contract.
 
@@ -36,7 +36,7 @@ side closes. The frame has no version field: the answer's generation selects thi
 - **Capabilities.** A request, member, event, or enumerated value added later comes under a
   capability name and is sent only when the answer lists that name. `recovery` adds the Worker's
   `assign` and `discard` and the reason `not-orphaned`; `programs` adds the Host's `hold-program`
-  and, on macOS, `hold-pipes`, the program holdings it makes, and their entries in a Worker's
+  and, on macOS and Linux, `hold-pipes`, the program holdings it makes, and their entries in a Worker's
   `status`. `pty` adds the Host's `hold-pty`, the PTY holdings it makes, and their entries in a
   Worker's `status`; `parent` adds the Host's `spawn` and `reap`, the event `exited`, and the
   reasons `spawn-failed` and `running` (see [PTY holdings](#pty-holdings)), and with `programs` the
@@ -46,7 +46,7 @@ side closes. The frame has no version field: the answer's generation selects thi
   `hold-pipes`, `hold-pty`, `spawn`, `spawn-program`, `reap`, and `reexec` with `unsupported` on a
   connection whose answer did not list their capabilities, and lists program and PTY holdings only
   to a Worker whose answer listed `programs` or `pty`. A Windows Keeper serves `programs` and
-  `recovery`; a macOS Keeper serves `parent`, `programs`, `pty`, `recovery`, and `reexec`.
+  `recovery`; a macOS or Linux Keeper serves `parent`, `programs`, `pty`, `recovery`, and `reexec`.
 - **Control requests.** The Keeper answers `OBHS` control requests on a control slot. `query`
   reports one process entry of role `keeper` whose `terminals` counts its holdings and whose one
   connection entry is `keeper`. After `drain` it answers `register-host` and `hold` with `draining`
@@ -86,20 +86,20 @@ whatever its `type`.
 
 ## Values
 
-| Value             | Rule                                                                                                                             |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Name              | 1–64 bytes of `a`–`z`, `0`–`9`, and `-`, as in the connection contract; reasons, roles, and outcomes are names                   |
-| `id`              | Integer from 1 to 4,294,967,295 that the connection has not used for an earlier request                                          |
-| Process           | `{pid, created}`: `pid` an integer from 1 to 4,294,967,295, `created` its creation time                                          |
-| Time              | 16 lowercase hexadecimal digits, not all zero: a `FILETIME` on Windows, the start time in microseconds since 1970 on macOS       |
-| Handle            | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle |
-| Holding id        | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                           |
-| Mark id           | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`  |
-| Terminal          | `{creationId, hostEpoch, terminalId}`: a Terminal Host's terminal identity, each 32 lowercase hexadecimal digits                 |
-| `handles`         | `{job, program, console, signal, reference, input, output}`, seven handles                                                       |
-| `facts`           | `{terminal, program, console, consoleBuild, signalFormat, launch}`                                                               |
-| Program `handles` | `{job, process, stdout, stderr}`: two handles, and the read end of each captured stream, both optional                           |
-| Program `facts`   | `{process, programId, label}`                                                                                                    |
+| Value             | Rule                                                                                                                                                                                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Name              | 1–64 bytes of `a`–`z`, `0`–`9`, and `-`, as in the connection contract; reasons, roles, and outcomes are names                                                                                                                                                                  |
+| `id`              | Integer from 1 to 4,294,967,295 that the connection has not used for an earlier request                                                                                                                                                                                         |
+| Process           | `{pid, created}`: `pid` an integer from 1 to 4,294,967,295, `created` its creation time                                                                                                                                                                                         |
+| Time              | 16 lowercase hexadecimal digits, not all zero: a `FILETIME` on Windows, the start time in microseconds since 1970 on macOS, and on Linux the start in clock ticks since boot in the low 40 bits under the boot's 24-bit tag (see [Linux process starts](#linux-process-starts)) |
+| Handle            | 16 lowercase hexadecimal digits of a handle value in the process that holds it, nonzero and below 2^32, so never a pseudo handle                                                                                                                                                |
+| Holding id        | 32 lowercase hexadecimal digits, not all zero, minted at random by a Host at a terminal's first `hold`                                                                                                                                                                          |
+| Mark id           | 32 lowercase hexadecimal digits, not all zero, minted at random by the owner for one quiesce, or by the Worker for one `assign`                                                                                                                                                 |
+| Terminal          | `{creationId, hostEpoch, terminalId}`: a Terminal Host's terminal identity, each 32 lowercase hexadecimal digits                                                                                                                                                                |
+| `handles`         | `{job, program, console, signal, reference, input, output}`, seven handles                                                                                                                                                                                                      |
+| `facts`           | `{terminal, program, console, consoleBuild, signalFormat, launch}`                                                                                                                                                                                                              |
+| Program `handles` | `{job, process, stdout, stderr}`: two handles, and the read end of each captured stream, both optional                                                                                                                                                                          |
+| Program `facts`   | `{process, programId, label}`                                                                                                                                                                                                                                                   |
 
 `handles` names, in the process that holds them, the terminal's Job, the program's process, the
 OpenConsole process, the pseudoconsole's signal and reference handles, the input pipe's write end,
@@ -110,7 +110,7 @@ from 1 to 65,535, and `launch` is the launch kind a Host reports in `ReadProcess
 
 A program holding, under `programs`, keeps a background program a Host runs without a terminal.
 On Windows its `handles` name the program's Job, its process, and the read end of each stream the
-Host captures; on macOS the holding keeps each captured stream's read end instead (see
+Host captures; on macOS and Linux the holding keeps each captured stream's read end instead (see
 [Program pipes](#program-pipes)). In its `facts`, `process` is the program's process, `programId` the 32 lowercase
 hexadecimal digits of the id its Worker gave it, and `label` the Worker's record of it: 1 to 2,048
 characters of the base64 alphabet, which the Keeper returns unread.
@@ -167,8 +167,8 @@ or `unsupported` with `request`, the requested type. One request is outstanding 
 
 ## Admission and roles
 
-- The Keeper takes the peer's process id from the pipe, or on macOS from the socket with
-  `LOCAL_PEERPID`, before it decodes any frame.
+- The Keeper takes the peer's process id from the pipe, or from the socket with `LOCAL_PEERPID` on
+  macOS and `SO_PEERCRED` on Linux, before it decodes any frame.
 - The initiator's first `OBKP` frame is `hello`. Any other first request, a frame that does not
   decode, an `id` the connection already used, a second request while one is outstanding, and a
   message in the wrong direction close the connection without a reply.
@@ -256,7 +256,7 @@ that has not taken its reply within 2 seconds loses its connection.
 
 ## PTY holdings
 
-On macOS a holding keeps a terminal's PTY master. A descriptor never appears in a payload: it moves
+On macOS and Linux a holding keeps a terminal's PTY master. A descriptor never appears in a payload: it moves
 by `SCM_RIGHTS` with the frame of the message that carries it, at most 64 per message. `hold-pty`
 carries the master; `spawn` carries the master, the slave, and the standard input when `input` is
 true, in that order; a PTY holding's `inspect-result` carries the master. A receiver counts the
@@ -270,9 +270,9 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
 | `launch`          | `{executable, arguments, environment, candidates, directory}`: the executable as named, the arguments after the first, `name=value` entries, the paths to try in order when the executable names no folder, and the optional directory; no text has a NUL, and each list has at most 4,096 entries |
 | Exit status       | `{code}`, from 0 to 255, or `{signal}`, from 1 to 255                                                                                                                                                                                                                                              |
 
-- `register-host` on macOS checks the process's start time as the kernel's process record
-  (`KERN_PROC_PID`) holds it and watches its end with a `kqueue` `EVFILT_PROC` filter; a process gone before the watch is armed gets
-  `handle-failed`.
+- `register-host` checks the process's start as the kernel records it, in `KERN_PROC_PID` on macOS
+  and `/proc/<pid>/stat` on Linux, and watches its end, with a `kqueue` `EVFILT_PROC` filter on
+  macOS and a pidfd on Linux; a process gone before the watch is armed gets `handle-failed`.
 - `hold-pty` checks the master it received: a PTY master whose slave name equals `slave`, and a
   leader that runs with the recorded start time. A failed check gets `identity-mismatch` and closes
   the descriptor. The holding is not parented.
@@ -282,8 +282,8 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
   candidate in order, with `execve`. A child that cannot start gets `spawn-failed`. The Keeper
   closes the slave and the standard input, keeps the master, and answers the leader's process; the
   holding is owned by that Host and parented.
-- The Keeper watches a parented leader from its fork with `EVFILT_PROC` and `NOTE_EXIT`, and polls
-  it once a second with a `waitid` that never reaps. When the leader ends, the Keeper records the
+- The Keeper watches a parented leader from its fork, with `EVFILT_PROC` and `NOTE_EXIT` on macOS
+  and a pidfd on Linux, and polls it once a second with a `waitid` that never reaps. When the leader ends, the Keeper records the
   status that `waitid(P_PID, …, WEXITED | WNOWAIT)` reads and sends `exited` once for that end on a
   connection of its owner that negotiated `parent`; a claim makes it due again to the claimant. A PTY holding's status
   entry and `inspect-result` carry `parented` and, once a parented leader ended, `ended`.
@@ -297,7 +297,7 @@ kernel truncated, fails the request as `handle-failed` and closes what arrived.
 
 ## Program pipes
 
-On macOS a program holding keeps the read end of each stream its Host captures, carried by
+On macOS and Linux a program holding keeps the read end of each stream its Host captures, carried by
 `SCM_RIGHTS` as a PTY master is. Its status entry is a program holding's.
 
 | Value                     | Rule                                                                                                                                                                       |
@@ -321,7 +321,7 @@ On macOS a program holding keeps the read end of each stream its Host captures, 
 
 ## Re-execution
 
-A macOS Keeper is updated in place, as the [Host handover](../../proposals/platform/host-handover.md#the-keeper-update-on-macos)
+A macOS or Linux Keeper is updated in place, as the [Host handover](../../proposals/platform/host-handover.md#the-keeper-update-on-macos)
 design says: `execve` keeps its process, its children, and every descriptor not marked
 close-on-exec, so its registration, its parented leaders, and its connections stay.
 
@@ -363,6 +363,15 @@ The state is one JSON object under the [payload rules](#payload), with these mem
   open, and a table these rules do not allow.
 - Every later Keeper reads each format an earlier release wrote. Format 1 freezes with the release
   in which a macOS Worker first offers `reexec`.
+
+## Linux process starts
+
+A Linux process's start is its start in clock ticks since boot, field 22 of `/proc/<pid>/stat`, in
+the low 40 bits, under a tag of the boot it runs in: 23 bits of the 64-bit FNV-1a hash of
+`/proc/sys/kernel/random/boot_id` without its surrounding white space, with bit 23 set. A tick count
+alone repeats across boots, and the tag keeps a start a record kept across a restart names from
+matching a process of a later boot. The local runtime computes the same value for the processes a
+Worker registers. A process that ended and waits to be reaped keeps its start.
 
 ## Bounds
 

@@ -233,7 +233,7 @@ pub(crate) fn run(command: &MachineCommand, format: OutputFormat, locale: Locale
         },
         _ => None,
     };
-    let signals = match ArmedSignals::arm_interrupts_except_linux() {
+    let signals = match ArmedSignals::arm_interrupts_latched() {
         Ok(s) => s,
         Err(_) => {
             return failure_output(

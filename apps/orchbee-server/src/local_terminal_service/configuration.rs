@@ -160,7 +160,7 @@ struct Committed {
     output_off: bool,
 }
 impl Registry {
-    #[cfg(all(test, any(windows, target_os = "macos")))]
+    #[cfg(test)]
     pub(super) fn initialize(&self, settings: &UserSettings) -> std::io::Result<()> {
         self.initialize_load(&UserSettingsLoad {
             settings: settings.clone(),
@@ -169,7 +169,7 @@ impl Registry {
             unreadable: None,
         })
     }
-    #[cfg(all(test, any(windows, target_os = "macos")))]
+    #[cfg(test)]
     pub(super) fn initialize_load(&self, current: &UserSettingsLoad) -> std::io::Result<()> {
         self.install_initial(Self::prepare_initial(current)?)
     }

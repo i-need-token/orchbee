@@ -28,7 +28,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-#[cfg(any(windows, target_os = "macos"))]
 mod handover;
 mod idle;
 mod worker_loss;
@@ -78,7 +77,6 @@ pub(super) struct Owners {
     pub(super) session_record: RetainedSessionRecord,
     /// The ticket of the restart that started this Server, which names its Worker endpoint for
     /// life; none for a Server an activation started.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) worker_ticket: Option<orchbee_connection_handshake::HandoverTicket>,
 }
 
@@ -140,7 +138,7 @@ pub(super) fn run(
     // Every stop a POSIX Server begins uses its one identity, the idle move's too.
     #[cfg(unix)]
     let mut idle = idle::IdleMove::under(own);
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let mut restart = handover::Restart::under(own);
     loop {
         let watch = Watch {
@@ -159,7 +157,7 @@ pub(super) fn run(
         ) else {
             return handover::leave(owners, clients, &shutdown);
         };
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         let Some(work) = next_work(
             &mut owners,
             &shutdown,
@@ -171,8 +169,6 @@ pub(super) fn run(
         ) else {
             return handover::leave(owners, clients, &shutdown);
         };
-        #[cfg(all(unix, not(target_os = "macos")))]
-        let work = next_work(&mut owners, &shutdown, own, &mut idle, watch);
         let attempt = match work {
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
@@ -231,7 +227,7 @@ pub(super) fn run(
         #[cfg(unix)]
         owners.session.remove_endpoints(&owners.lifetime)?;
         // A Server a restart started also removes the Worker endpoint its ticket names.
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         if let Some(ticket) = owners.worker_ticket {
             owners
                 .session
@@ -266,15 +262,12 @@ fn start(
     startup_deadline: Instant,
     configuration: orchbee_local_runtime::UserSettingsLoad,
 ) -> io::Result<local_client_service::ManagedClients> {
-    #[cfg(any(windows, target_os = "macos"))]
     owners.terminals.bind_agent_names(&owners.agents)?;
     owners.terminals.start_close_maintenance()?;
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
     owners.terminals.start_agent_start_delivery()?;
-    #[cfg(any(windows, target_os = "macos"))]
     let mut restored = restored;
-    #[cfg(any(windows, target_os = "macos"))]
     let resumes = restored.take_agent_resume();
     // Restored launches read their kept output through the same store.
     if let Some(kept) = &owners.checkpoint {
@@ -289,12 +282,10 @@ fn start(
         .terminals
         .start_process_observer(move || Ok(configuration), true)?;
     // Resumes read through the observer and wait for a Client, so no listener may open first.
-    #[cfg(any(windows, target_os = "macos"))]
     owners.terminals.start_agent_resume(resumes)?;
     if let Some(kept) = &mut owners.checkpoint {
         kept.start_saver(&owners.terminals, checkpoint_worker(&owners.handle)?)?;
         // Only a Worker that adopted its Hosts can hold an older one.
-        #[cfg(any(windows, target_os = "macos"))]
         if owners.adopted {
             kept.start_turns(
                 &owners.terminals,
@@ -559,7 +550,7 @@ fn next_work(
 /// [`next_work`] as on Windows, except that a failed stop this Server began after losing its Worker
 /// and Host is tried again once that Worker and Host are gone, rather than becoming an `exit`.
 /// Every stop this Server begins uses `own`, the identity its signal handler uses too.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn next_work(
     owners: &mut Owners,
     shutdown: &SessionShutdown,
@@ -596,28 +587,6 @@ fn next_work(
             continue;
         }
         restart.look(owners);
-        if watch.look(owners, shutdown) {
-            begin_own(shutdown, own);
-        }
-        idle.tick(owners, shutdown);
-    }
-}
-
-/// [`next_work`] on Linux, whose Server answers no restart: each tick looks at the Worker and the
-/// idle move, and a failed stop this Server began after losing its Worker and Host is tried again
-/// once both are gone.
-#[cfg(all(unix, not(target_os = "macos")))]
-fn next_work(
-    owners: &mut Owners,
-    shutdown: &SessionShutdown,
-    own: StopId,
-    idle: &mut idle::IdleMove,
-    mut watch: Watch<'_>,
-) -> Work {
-    loop {
-        if let Some(work) = shutdown.take_within(Duration::from_secs(1)) {
-            return work;
-        }
         if watch.look(owners, shutdown) {
             begin_own(shutdown, own);
         }
@@ -682,8 +651,8 @@ const ORPHANED_HOST_BUDGET: Duration = WORKER_STOP_BUDGET;
 
 /// Ends the Hosts a lost Worker left behind, the only way left to end their terminals: each Host's
 /// `exit` control request ends every retained terminal through the Host's ordinary teardown and
-/// then the Host. It returns once [`host_absent`] observes every Host gone, the first slot's lock
-/// free on Linux and each registered identity gone on Windows and macOS, and fails at `deadline` or
+/// then the Host. It returns once [`host_absent`] observes every registered Host gone, and fails at
+/// `deadline` or
 /// [`ORPHANED_HOST_BUDGET`], whichever comes first. A Host that is already gone, or that ends while
 /// the request is lost, counts as ended; a Host is never ended by force.
 fn end_orphaned_host(owners: &Owners, deadline: Instant) -> io::Result<()> {
@@ -791,7 +760,6 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
     }
     #[cfg(windows)]
     owners.terminals.stop_plugin_hooks_before(deadline)?;
-    #[cfg(any(windows, target_os = "macos"))]
     {
         // A resume types through the Worker and reads through the observer, so it stops first; one
         // not yet attempted stays pending for the final capture.
@@ -954,7 +922,7 @@ pub(super) fn host_absent(owners: &Owners) -> bool {
 }
 
 /// Only an exact observation that the Keeper is gone, or that none started, counts; a running
-/// Keeper keeps the programs of a Host that ended. POSIX starts none.
+/// Keeper keeps the programs of a Host that ended.
 pub(super) fn keeper_absent(owners: &Owners) -> bool {
     matches!(
         owners.session_record.keeper_presence(),
@@ -986,7 +954,6 @@ fn worker_phase(stage: ShutdownStage) -> StopPhase {
 fn abort_startup(mut owners: Owners, startup: io::Error) -> io::Error {
     let deadline = Instant::now() + Duration::from_secs(30);
     let cleanup = (|| -> io::Result<()> {
-        #[cfg(any(windows, target_os = "macos"))]
         {
             owners.terminals.stop_agent_resume_before(deadline)?;
             owners

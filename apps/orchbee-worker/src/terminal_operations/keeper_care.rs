@@ -4,10 +4,10 @@
 //! terminals there, has each Host the Worker holds attach that Keeper, and replaces a Keeper a Host
 //! reports lost, or reports unresponsive and that does not answer the Worker either. It updates an
 //! adopted Keeper that runs another installation's program, on Windows by a new Keeper and the
-//! retirement of the old one and on macOS in place (`update`), and ends a Host whose dispatch has
-//! stopped turning once the Keeper holds every terminal it runs, so recovery follows as for a crash
-//! (`hang`). A hang check never ends a Host that runs a terminal the Keeper does not hold, and no
-//! step here ends the Worker.
+//! retirement of the old one and on macOS and Linux in place (`update`), and ends a Host whose
+//! dispatch has stopped turning once the Keeper holds every terminal it runs, so recovery follows
+//! as for a crash (`hang`). A hang check never ends a Host that runs a terminal the Keeper does not
+//! hold, and no step here ends the Worker.
 //!
 //! A Server request that arrives while the care runs waits for it, so the care answers when it
 //! began, and that request's bound runs from then. A request that meets a hung Host first keeps the
@@ -32,7 +32,6 @@ use crate::{
 };
 
 mod hang;
-#[cfg(any(windows, target_os = "macos"))]
 mod update;
 
 pub(super) use hang::after_unanswered;
@@ -56,7 +55,6 @@ pub(super) struct KeeperCare {
     /// Whether the Keeper ended or stopped answering and waits for its replacement.
     replacing: bool,
     /// Whether the Keeper runs another installation's program and is updated.
-    #[cfg(any(windows, target_os = "macos"))]
     update: update::KeeperUpdate,
 }
 
@@ -105,7 +103,6 @@ impl HostWatch {
     }
 }
 
-#[cfg(any(windows, target_os = "macos"))]
 impl HostWatch {
     /// Whether this Host holds its running terminals in the Session's current Keeper.
     pub(super) const fn attached(&self) -> bool {
@@ -122,14 +119,12 @@ impl KeeperCare {
             next_start: now,
             failed_starts: 0,
             replacing: false,
-            #[cfg(any(windows, target_os = "macos"))]
             update: update::KeeperUpdate::new(now),
         }
     }
 
     /// Whether moves wait for the Session's Keeper `keeper`: it waits for its replacement, an
     /// update of it is due or not yet judged, or another Keeper still `retiring`.
-    #[cfg(any(windows, target_os = "macos"))]
     pub(super) fn keeper_changing(&self, keeper: Option<&SessionKeeper>, retiring: bool) -> bool {
         self.replacing || retiring || self.update.pending(keeper)
     }
@@ -140,10 +135,10 @@ impl KeeperCare {
     }
 
     /// Has each Host attach the Session's Keeper at once, starting it when none runs, as the care
-    /// does but outside its schedule: for a macOS Host the Worker just started for a request, so
-    /// the Keeper parents that request's terminal. A Keeper that waits for its replacement, or a
-    /// start not yet allowed, stays with the care.
-    #[cfg(target_os = "macos")]
+    /// does but outside its schedule: for a macOS or Linux Host the Worker just started for a
+    /// request, so the Keeper parents that request's terminal. A Keeper that waits for its
+    /// replacement, or a start not yet allowed, stays with the care.
+    #[cfg(unix)]
     pub(super) fn attach_now(&mut self, hosts: &mut [Cared<'_>], mut keepers: Keepers<'_>) {
         if self.replacing {
             return;
@@ -197,7 +192,6 @@ impl KeeperCare {
         } else {
             offer(hosts, keepers.keeper);
             // A Keeper that stops answering during its update is replaced at the next care.
-            #[cfg(any(windows, target_os = "macos"))]
             if self.update.run(hosts, &mut keepers) {
                 self.replacing = true;
             }

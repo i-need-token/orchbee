@@ -1,7 +1,7 @@
-//! What a macOS Keeper link's hold names: the terminal or background program the dispatch thread
-//! queued, and the `hold-pty` that sends its master or the `hold-pipes` that sends its captured
-//! streams' read ends. The descriptors move with the request, so nothing outlives an unanswered
-//! hold here: a descriptor the Keeper never received closes with the socket.
+//! What a macOS or Linux Keeper link's hold names: the terminal or background program the dispatch
+//! thread queued, and the `hold-pty` that sends its master or the `hold-pipes` that sends its
+//! captured streams' read ends. The descriptors move with the request, so nothing outlives an
+//! unanswered hold here: a descriptor the Keeper never received closes with the socket.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");

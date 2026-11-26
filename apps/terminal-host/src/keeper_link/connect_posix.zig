@@ -1,8 +1,8 @@
-//! The Keeper check and the connection it yields on macOS. `AttachKeeper`'s Keeper is checked by its
-//! process id and start time; the server behind its Unix socket must be that process; it must answer
-//! a `keeper` offer of this build and the `hello`. Each step waits at most the reply deadline. A
-//! request's descriptors leave with its frame, and the `exited` events the Keeper sends between
-//! replies go to the link as they arrive.
+//! The Keeper check and the connection it yields on macOS and Linux. `AttachKeeper`'s Keeper is
+//! checked by its process id and start time; the server behind its Unix socket must be that
+//! process; it must answer a `keeper` offer of this build and the `hello`. Each step waits at most
+//! the reply deadline. A request's descriptors leave with its frame, and the `exited` events the
+//! Keeper sends between replies go to the link as they arrive.
 
 const std = @import("std");
 const build_options = @import("build-options");
@@ -12,7 +12,7 @@ const platform = @import("terminal-host-platform");
 
 const message = keeper_protocol.message;
 const monotonic = platform.monotonic;
-const darwin = platform.keeper.darwin;
+const native = platform.keeper.native;
 const posix = std.posix;
 
 /// How long one wait lasts before it checks the deadline and the Keeper process again.
@@ -36,7 +36,7 @@ pub const Error = error{ Closed, Deadline, KeeperEnded, OutOfMemory, Unencodable
 
 pub const Connection = struct {
     keeper: message.Process,
-    stream: ?darwin.Stream,
+    stream: ?native.Stream,
     events: ?Events = null,
     /// The Keeper's answer listed `pty`, so it takes `hold-pty`.
     pty: bool = false,
@@ -68,7 +68,7 @@ pub const Connection = struct {
 
     /// Whether the Keeper process has ended: no process runs under its id with its start time.
     pub fn keeperEnded(self: *const Connection) bool {
-        const started = darwin.processStart(self.keeper.pid) orelse return true;
+        const started = native.processStart(self.keeper.pid) orelse return true;
         return started != self.keeper.created;
     }
 
@@ -153,7 +153,7 @@ pub const Connection = struct {
         const count = posix.poll(&ready, timeout_ms) catch return false;
         if (count == 0) return false;
         if (ready[0].revents != 0) {
-            darwin.wake_events.consume(watch.wake);
+            native.wake_events.consume(watch.wake);
             watch.woken(watch.context);
         }
         return self.stream != null and ready[1].revents != 0;
@@ -227,9 +227,9 @@ pub fn open(
     var connection: Connection = .{ .keeper = keeper, .stream = null };
     errdefer connection.close();
     if (connection.keeperEnded()) return error.Unavailable;
-    const socket = darwin.connectLocal(socket_path) orelse return error.Unavailable;
-    connection.stream = darwin.Stream.init(socket);
-    const server = darwin.peerProcessId(socket) orelse return error.Unavailable;
+    const socket = native.connectLocal(socket_path) orelse return error.Unavailable;
+    connection.stream = native.Stream.init(socket);
+    const server = native.peerProcessId(socket) orelse return error.Unavailable;
     if (server != keeper.pid or connection.keeperEnded()) return error.Unavailable;
 
     var arena_state = std.heap.ArenaAllocator.init(allocator);

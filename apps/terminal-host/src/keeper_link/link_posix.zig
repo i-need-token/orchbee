@@ -1,22 +1,22 @@
-//! A Keeper link's macOS side (`link.zig`): it connects over the Keeper's socket, holds each
-//! terminal by sending its PTY master with `hold-pty` and each background program by sending its
-//! captured streams' read ends with `hold-pipes`, starts the leader of each new terminal a creation
-//! hands it with `spawn` and each new program with `spawn-program`, reaps each parented leader its
-//! terminal asks for, reads the `exited` events the Keeper sends between requests, and ends the
-//! parent of every leader it parents before it reports the attachment gone. A descriptor moves
-//! with its request, so an unanswered hold leaves nothing to keep.
+//! A Keeper link's macOS and Linux side (`link.zig`): it connects over the Keeper's socket, holds
+//! each terminal by sending its PTY master with `hold-pty` and each background program by sending
+//! its captured streams' read ends with `hold-pipes`, starts the leader of each new terminal a
+//! creation hands it with `spawn` and each new program with `spawn-program`, reaps each parented
+//! leader its terminal asks for, reads the `exited` events the Keeper sends between requests, and
+//! ends the parent of every leader it parents before it reports the attachment gone. A descriptor
+//! moves with its request, so an unanswered hold leaves nothing to keep.
 
 const std = @import("std");
 const keeper_protocol = @import("terminal-host-keeper-protocol");
 const platform = @import("terminal-host-platform");
 const core = @import("link.zig");
-const connect = @import("connect_darwin.zig");
-const holds = @import("hold_darwin.zig");
-const parenting = @import("parent_darwin.zig");
+const connect = @import("connect_posix.zig");
+const holds = @import("hold_posix.zig");
+const parenting = @import("parent_posix.zig");
 const move_requests = @import("moves.zig");
 
 const message = keeper_protocol.message;
-const wake_events = platform.keeper.darwin.wake_events;
+const wake_events = platform.keeper.native.wake_events;
 const parent_module = platform.keeper.parent;
 const Gate = platform.keeper.Gate;
 const Process = platform.process.Process;

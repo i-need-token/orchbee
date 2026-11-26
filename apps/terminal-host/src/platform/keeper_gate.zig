@@ -1,9 +1,9 @@
 //! Release first, as the platform enforces it. Each Windows terminal carries one gate in front of
-//! the end of its handles: before its pseudoconsole, signal, reference, or Job handle closes, or its
-//! Job is terminated, the gate has passed, so every Keeper link that queued or holds the terminal
-//! has released it or given up after its reply deadline. A macOS terminal's gate stands in front of
-//! its PTY master's close, since a master a Keeper still holds keeps the terminal open. A link
-//! reports each step here, and only the link thread waits on a Keeper.
+//! the end of its handles: before its pseudoconsole, signal, reference, or Job handle closes, or
+//! its Job is terminated, the gate has passed, so every Keeper link that queued or holds the
+//! terminal has released it or given up after its reply deadline. A macOS or Linux terminal's gate
+//! stands in front of its PTY master's close, since a master a Keeper still holds keeps the
+//! terminal open. A link reports each step here, and only the link thread waits on a Keeper.
 //!
 //! The dispatch thread never waits here: `tryPass` starts the release and reports whether it is
 //! done, and an end that needs the gate waits for the next try. The last settle wakes the service
@@ -24,19 +24,20 @@ const thread_sync = @import("thread_sync.zig");
 pub const maximum_attachments = 2;
 
 /// Where a Keeper holds this platform's terminals.
-pub const supported = builtin.os.tag == .windows or builtin.os.tag == .macos;
+pub const supported = builtin.os.tag == .windows or builtin.os.tag == .macos or builtin.os.tag == .linux;
 
-/// A link's wake: an auto-reset event on Windows, a `kqueue` user event on macOS.
+/// A link's wake: an auto-reset event on Windows, a `kqueue` user event on macOS, an `eventfd` on
+/// Linux.
 pub const Wake = switch (builtin.os.tag) {
     .windows => std.os.windows.HANDLE,
-    .macos => std.posix.fd_t,
+    .linux, .macos => std.posix.fd_t,
     else => void,
 };
 
 fn signal(wake: Wake) void {
     switch (builtin.os.tag) {
         .windows => _ = SetEvent(wake),
-        .macos => @import("keeper_darwin.zig").wake_events.signal(wake),
+        .linux, .macos => @import("keeper_posix.zig").wake_events.signal(wake),
         else => unreachable,
     }
 }

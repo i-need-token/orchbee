@@ -25,7 +25,6 @@ mod host_programs;
 mod plugin_job_operation;
 #[cfg(any(unix, windows))]
 mod plugin_jobs;
-#[cfg(any(windows, target_os = "macos"))]
 mod session_keeper;
 #[cfg(any(unix, windows, test))]
 mod terminal_authorization;

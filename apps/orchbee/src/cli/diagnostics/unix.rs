@@ -1,5 +1,5 @@
-//! POSIX bundle facts: the macOS product version and a process's program. Linux carries no system
-//! release.
+//! POSIX bundle facts: the macOS product version or the Linux distribution and kernel, and a
+//! process's program.
 use serde_json::{Value, json};
 use std::{
     path::{Path, PathBuf},
@@ -10,12 +10,44 @@ use std::{
 const LINE_LIMIT: usize = 4096;
 
 /// `macos` and its product version, which `sw_vers` reports.
+#[cfg(target_os = "macos")]
 pub(super) fn release() -> Option<(&'static str, Value)> {
-    if !cfg!(target_os = "macos") {
-        return None;
-    }
     let version = first_line("/usr/bin/sw_vers", &["-productVersion"]);
     Some(("macos", json!({ "version": version })))
+}
+
+/// `linux` with the distribution's name and version from `os-release`, and the kernel release.
+#[cfg(not(target_os = "macos"))]
+pub(super) fn release() -> Option<(&'static str, Value)> {
+    let fields = ["/etc/os-release", "/usr/lib/os-release"]
+        .iter()
+        .find_map(|path| std::fs::read_to_string(path).ok())
+        .map(|text| os_release(&text))
+        .unwrap_or_default();
+    let kernel = std::fs::read_to_string("/proc/sys/kernel/osrelease")
+        .ok()
+        .map(|text| text.trim().to_owned());
+    Some((
+        "linux",
+        json!({
+            "distribution": fields.0,
+            "version": fields.1,
+            "kernel": kernel,
+        }),
+    ))
+}
+
+/// `PRETTY_NAME` and `VERSION_ID` from an `os-release` text, each unquoted.
+#[cfg(not(target_os = "macos"))]
+fn os_release(text: &str) -> (Option<String>, Option<String>) {
+    let value = |key: &str| {
+        text.lines()
+            .filter_map(|line| line.split_once('='))
+            .find(|(name, _)| name.trim() == key)
+            .map(|(_, value)| value.trim().trim_matches('"').trim_matches('\'').to_owned())
+            .filter(|value| !value.is_empty())
+    };
+    (value("PRETTY_NAME"), value("VERSION_ID"))
 }
 
 /// Whether the process `pid` runs `expected`: its start path on macOS, which names the program a

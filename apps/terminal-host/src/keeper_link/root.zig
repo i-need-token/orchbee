@@ -17,7 +17,7 @@ pub const Keeper = notice_module.Keeper;
 /// Move requests on a link, for the `handover` requests.
 pub const moves = @import("moves.zig");
 
-/// What the Keeper link witnesses use as the Worker: the macOS Keeper connection.
+/// What the Keeper link witnesses use as the Worker: the macOS and Linux Keeper connection.
 pub const testing = struct {
-    pub const connect = if (@import("builtin").os.tag == .macos) @import("connect_darwin.zig") else struct {};
+    pub const connect = if (@import("builtin").os.tag == .macos or @import("builtin").os.tag == .linux) @import("connect_posix.zig") else struct {};
 };

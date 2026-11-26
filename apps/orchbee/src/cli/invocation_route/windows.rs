@@ -2,9 +2,6 @@
 use super::Unsupported;
 use crate::invocation::grammar::Availability;
 
-pub(super) fn admit(
-    _availability: Availability,
-    _session_selected: bool,
-) -> Result<(), Unsupported> {
+pub(super) fn admit(_availability: Availability) -> Result<(), Unsupported> {
     Ok(())
 }

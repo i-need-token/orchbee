@@ -1,77 +1,48 @@
-//! The check run of a macOS Keeper update: before it executes another program in its place, the
+//! The check run of a Keeper update: before it executes another program in its place, the
 //! Keeper runs that program as `keep --check` with a copy of the state on its standard input, and
 //! keeps its own image unless the child exits 0 within 5 seconds. `serve` is that check mode: it
 //! reads the state and exits 0 only when it can take it over.
 
 const std = @import("std");
 const platform = @import("terminal-host-platform");
-const saved = @import("saved_darwin.zig");
+const saved = @import("saved_posix.zig");
 
 const posix = std.posix;
 const c = std.c;
+const native = platform.keeper.native;
 const posix_compat = platform.posix_compat;
 const monotonic = platform.monotonic;
 
 const deadline_ns = 5 * std.time.ns_per_s;
 const wait_slice_ns = 5 * std.time.ns_per_ms;
-const F_SETNOSIGPIPE: c_int = 73;
-const O_RDONLY: c_int = 0;
-const O_NONBLOCK: c_int = 0x0004;
 const WNOHANG: c_int = 1;
 
 /// Whether `program` reads `state` in its check mode within the deadline. A child still running at
 /// the deadline is ended and reaped.
 pub fn passes(program: [:0]const u8, state: []const u8) bool {
     var timer = monotonic.Timer.start() catch return false;
-    var ends: [2]posix.fd_t = undefined;
-    if (c.pipe(&ends) != 0) return false;
-    var read_end: ?posix.fd_t = ends[0];
-    defer if (read_end) |descriptor| posix_compat.close(descriptor);
-    const write_end = ends[1];
-    defer posix_compat.close(write_end);
-    for (ends) |descriptor| _ = posix_compat.fcntl(descriptor, posix.F.SETFD, posix.FD_CLOEXEC) catch return false;
     // A child that exits before it read everything fails the check by its status, not by a signal.
-    _ = posix_compat.fcntl(write_end, F_SETNOSIGPIPE, 1) catch return false;
-    const flags = posix_compat.fcntl(write_end, posix.F.GETFL, 0) catch return false;
-    _ = posix_compat.fcntl(write_end, posix.F.SETFL, flags | O_NONBLOCK) catch return false;
-
-    const child = spawn(program, ends[0]) orelse return false;
-    posix_compat.close(ends[0]);
-    read_end = null;
-    const fed = feed(write_end, state, &timer);
-    posix_compat.close(write_end);
-    return awaitExit(child, &timer) and fed;
-}
-
-fn spawn(program: [:0]const u8, input: posix.fd_t) ?c.pid_t {
-    var actions: c.posix_spawn_file_actions_t = undefined;
-    if (c.posix_spawn_file_actions_init(&actions) != 0) return null;
-    defer _ = c.posix_spawn_file_actions_destroy(&actions);
-    var attributes: c.posix_spawnattr_t = undefined;
-    if (c.posix_spawnattr_init(&attributes) != 0) return null;
-    defer _ = c.posix_spawnattr_destroy(&attributes);
-    // Only the three standard streams pass to the child.
-    if (c.posix_spawnattr_setflags(&attributes, .{ .CLOEXEC_DEFAULT = true }) != 0) return null;
-    if (c.posix_spawn_file_actions_adddup2(&actions, input, 0) != 0) return null;
-    for ([_]posix.fd_t{ 1, 2 }) |stream| {
-        if (c.posix_spawn_file_actions_addopen(&actions, stream, "/dev/null", O_RDONLY, 0) != 0) return null;
-    }
-    const argv = [_:null]?[*:0]const u8{ program.ptr, "keep", "--check" };
-    var pid: c.pid_t = 0;
-    if (c.posix_spawn(&pid, program.ptr, &actions, &attributes, &argv, @ptrCast(c.environ)) != 0) return null;
-    return pid;
+    const channel = native.checkChannel() orelse return false;
+    const child = native.spawnCheck(program.ptr, channel.read_end);
+    posix_compat.close(channel.read_end);
+    const pid = child orelse {
+        posix_compat.close(channel.write_end);
+        return false;
+    };
+    const fed = feed(channel.write_end, state, &timer);
+    // The end of input, so the child decides on what it read.
+    posix_compat.close(channel.write_end);
+    return awaitExit(pid, &timer) and fed;
 }
 
 /// Writes all of `state` before the deadline; false when the child stopped reading.
 fn feed(descriptor: posix.fd_t, state: []const u8, timer: *monotonic.Timer) bool {
     var written: usize = 0;
     while (written < state.len) {
-        const count = c.write(descriptor, state[written..].ptr, state.len - written);
-        if (count > 0) {
-            written += @intCast(count);
+        if (native.checkWrite(descriptor, state[written..])) |count| {
+            written += count;
             continue;
-        }
-        if (posix.errno(count) != .AGAIN) return false;
+        } else |err| if (err != error.WouldBlock) return false;
         const elapsed = timer.read();
         if (elapsed >= deadline_ns) return false;
         var ready = [_]posix.pollfd{.{ .fd = descriptor, .events = posix.POLL.OUT, .revents = 0 }};

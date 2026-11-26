@@ -4,9 +4,10 @@
 //! blocks `SIGINT` and `SIGTERM` to capture them would ignore both, and its group's settlement could
 //! only end it by `SIGKILL` after the grace. The root leads a new process group, as
 //! [`CommandChild::spawn`](super::CommandChild::spawn) places it, and reads `/dev/null` as its
-//! input. On macOS it also passes `POSIX_SPAWN_CLOEXEC_DEFAULT`, since that system sets
-//! close-on-exec only after a descriptor exists, so the child receives its three standard streams
-//! and no other descriptor, however many threads of this process create descriptors meanwhile.
+//! input. It receives its three standard streams and no other descriptor: on macOS through
+//! `POSIX_SPAWN_CLOEXEC_DEFAULT`, since that system sets close-on-exec only after a descriptor
+//! exists, and on Linux by closing every descriptor this process inherited (see
+//! [`crate::retained_spawn_linux`]).
 use super::CommandChild;
 use crate::CommandSpawnFailure;
 use nix::{
@@ -64,11 +65,15 @@ pub(super) fn spawn(
     // Opened here, close-on-exec, and duplicated onto the child's input, so the launch needs no
     // open action.
     let input = File::open("/dev/null").map_err(not_created)?;
+    #[cfg(not(target_os = "macos"))]
+    let inherited = crate::retained_spawn_linux::open_descriptors().map_err(not_created)?;
     let launch = || -> nix::Result<nix::unistd::Pid> {
         let mut actions = PosixSpawnFileActions::init()?;
         actions.add_dup2(input.as_raw_fd(), 0)?;
         actions.add_dup2(stdout.as_raw_fd(), 1)?;
         actions.add_dup2(stderr.as_raw_fd(), 2)?;
+        #[cfg(not(target_os = "macos"))]
+        crate::retained_spawn_linux::close_each(&mut actions, &inherited)?;
         let mut attributes = PosixSpawnAttr::init()?;
         attributes.set_flags(
             PosixSpawnFlags::POSIX_SPAWN_SETPGROUP
@@ -99,8 +104,8 @@ pub(super) fn spawn(
     Ok(CommandChild::spawned(root))
 }
 
-/// The flag that closes every descriptor but the standard streams on exec. macOS needs it, since its
-/// descriptors are close-on-exec only once created; Linux creates them close-on-exec already.
+/// The flag that closes every descriptor but the standard streams on exec on macOS, where
+/// descriptors are close-on-exec only once created; Linux closes them by file actions instead.
 fn close_other_descriptors() -> PosixSpawnFlags {
     #[cfg(target_os = "macos")]
     {
