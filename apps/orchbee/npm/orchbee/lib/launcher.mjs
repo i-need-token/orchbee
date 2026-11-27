@@ -3,9 +3,9 @@
 // program's own `install --no-path` when the store has no active version or a lower one, and then runs
 // the store's active program in place of itself. The store's pointer `active.json` alone names the
 // active version; a carried version the pointer holds after a failed move is never installed, and the
-// active one runs instead. On Windows and macOS, where automatic updates run, it follows the relaunch
-// protocol of `apps/orchbee-launcher` with the same rule, and records a failed Client through the
-// previous version's program as that launcher does. Nothing runs at install time.
+// active one runs instead. It follows the relaunch protocol of `apps/orchbee-launcher` with the same
+// rule, and records a failed Client through the previous version's program as that launcher does.
+// Nothing runs at install time.
 //
 // The launcher is plain JavaScript that runs on the person's own Node, so it uses only Node built-ins
 // available since Node 18 and reads nothing beyond its own package, the sub-package, and the pointer.
@@ -48,9 +48,6 @@ const relaunchWindowMilliseconds = 10_000;
 // `crates/local-runtime/src/automatic_updates.rs`, and how long the launcher waits for it.
 const clientFailureHelperArgument = '--record-client-failure';
 const clientFailureWaitMilliseconds = 5_000;
-// The platforms whose release store automatic updates write, as the Client's own update control has
-// them; Linux keeps no store yet.
-const relaunchPlatforms = new Set(['win32', 'darwin']);
 // The release-build half of the local runtime's automatic-update switch, `IN_RELEASE_BUILDS` in
 // `crates/local-runtime/src/automatic_updates.rs`: the change that turns one on turns on both.
 const automaticUpdatesInReleaseBuilds = true;
@@ -281,7 +278,7 @@ export function storeRoot(stem, platform, environment) {
  * it failed: `{ program: <root>/versions/<previous>/<name>, version }` when the pointer still makes
  * `<version>` active through a counting move that may fall back and names a previous version, or
  * null. The previous version runs it because the failed Client may be what broke. Only the relaunch
- * protocol's platforms use it.
+ * protocol uses it.
  */
 export function clientFailureHelper(started, text, platform = process.platform) {
 	const paths = platform === 'win32' ? path.win32 : path.posix;
@@ -497,7 +494,7 @@ function recordClientFailure(helper, then) {
 }
 
 /**
- * `run` under the relaunch protocol, on Windows and macOS: each start receives this process's id in the
+ * `run` under the relaunch protocol: each start receives this process's id in the
  * protocol variable, and `nextStart` decides after each one. A relaunch reads the pointer again; a
  * pointer that names no version counts as a relaunched Client that did not start. After a failed
  * start or join, the failure is recorded through the previous version first when the pointer still
@@ -599,7 +596,7 @@ export function main() {
 		carriedVersion: carried.version,
 		text,
 	});
-	if (relaunchPlatforms.has(process.platform) && automaticUpdatesLive(stem))
+	if (automaticUpdatesLive(stem))
 		runWithRelaunch(program, storeRoot(stem, process.platform, process.env), programName, text);
 	else run(program, text);
 }
