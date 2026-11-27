@@ -11,6 +11,7 @@ import { desktopSecureKeyboardEntryMessages } from '../desktop-secure-keyboard-e
 import { desktopTrayMessages } from '../desktop-tray';
 
 import { desktopWindowMessages } from '../desktop-window';
+import { fileBarMessages } from '../file-bar';
 import { keyboardShortcutMessages } from '../keyboard-shortcuts';
 import { projectedTerminalMessages } from '../projected-terminal';
 
@@ -31,6 +32,7 @@ const descriptorCollections: readonly (readonly [
 	['Desktop tray', desktopTrayMessages],
 
 	['Desktop window', desktopWindowMessages],
+	['File Bar', fileBarMessages],
 	['keyboard shortcuts', keyboardShortcutMessages],
 	['projected terminal', projectedTerminalMessages],
 

@@ -46,6 +46,7 @@ import { EMPTY_WORKBENCH_SEARCH_PROVIDERS } from './constants/search-providers';
 import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
+import { useWorkbenchFileBar } from './hooks/useWorkbenchFileBar';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchAuthority } from './types/workbench-authority';
@@ -99,6 +100,8 @@ interface WorkbenchProps {
 	readonly configuredCommandKeys?: WorkbenchConfiguredCommandKeysView | undefined;
 	/** The build the sidebar marks beside Settings; a release has none. */
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
+	/** Whether the window offers the File Bar, which is withheld unless offered. */
+	readonly fileBarOffered?: boolean | undefined;
 	/**
 	 * The host's Action scope: the Workbench's Actions resolve under it, and Update registers in it,
 	 * so the host's own surfaces, such as Settings' About, run the footer's Action.
@@ -139,6 +142,7 @@ export function Workbench({
 	clientUpdate,
 	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
 	environmentMarker,
+	fileBarOffered = false,
 	hostActionScope,
 	isShortcutScopeActive = true,
 	layoutStorage,
@@ -194,6 +198,13 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
+	const fileBar = useWorkbenchFileBar({
+		actionRuntime,
+		actionScope: view.actionScope,
+		mobile: view.mobileLayout,
+		offered: fileBarOffered,
+	});
+	const FileBarColumn = fileBar.column?.content ?? null;
 	const agentPresentation = useWorkbenchAgentPresentation({
 		confirmations: view.authority.agentConfirmations,
 		nameSource: agentNameSource,
@@ -651,6 +662,29 @@ export function Workbench({
 							</div>
 						</div>
 					</ResizablePanel>
+					{fileBar.column === null ? null : (
+						<>
+							<ResizableHandle className={styles['resizeHandle']} />
+							<ResizablePanel
+								id='file-bar'
+								defaultSize={fileBar.column.defaultSize}
+								minSize={fileBar.column.minSize}
+								maxSize={fileBar.column.maxSize}
+								groupResizeBehavior='preserve-pixel-size'
+							>
+								<aside
+									aria-label={fileBar.column.label}
+									className={styles['fileBarPanel']}
+									data-slot='file-bar'
+								>
+									{FileBarColumn === null ? null : <FileBarColumn />}
+									{fileBar.column.failure === null ? null : (
+										<p className={styles['fileBarFailure']}>{fileBar.column.failure}</p>
+									)}
+								</aside>
+							</ResizablePanel>
+						</>
+					)}
 				</ResizablePanelGroup>
 			</div>
 			{view.searchState.kind === 'closed' ? null : (

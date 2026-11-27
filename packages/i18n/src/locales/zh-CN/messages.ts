@@ -15,6 +15,7 @@ import { zhCNDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboar
 import { zhCNDesktopTrayMessages } from './desktop-tray';
 
 import { zhCNDesktopWindowMessages } from './desktop-window';
+import { zhCNFileBarMessages } from './file-bar';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
 import { zhCNSessionConnectionMessages } from './session-connection';
@@ -39,6 +40,7 @@ export const zhCNMessages = {
 	...zhCNDesktopTrayMessages,
 
 	...zhCNDesktopWindowMessages,
+	...zhCNFileBarMessages,
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,
 	...zhCNSessionConnectionMessages,

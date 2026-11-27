@@ -144,9 +144,9 @@ and no filter tabs, because it is the counterpart of the TUI's action menu, whic
 only route to Actions without a default key. The renderer passes `searchOffered` as `false` to the
 shortcut settings controller and the Workbench in every distribution. Desktop Main still names its
 distribution (`development`, `release` or `test`) in the document's connection bootstrap, which the
-renderer reads only for the environment marker. A Web Client gets the Workbench's default, which
-also withholds Search; the shortcut settings controller still defaults to offered, so pass
-`searchOffered: false` to it too.
+renderer reads only for the environment marker and the [File Bar](#release-withheld-file-bar). A Web
+Client gets the Workbench's default, which also withholds Search; the shortcut settings controller
+still defaults to offered, so pass `searchOffered: false` to it too.
 
 The sidebar Search control and the platform All-search binding—`Mod+Shift+F` on Apple and `Mod+Shift+K` on Standard—open one upper-viewport modal with the `All` filter and an empty query. `Mod+Shift+P` opens the same surface with the `Actions` filter. Each global open starts a new in-memory session; switching among `All`, `Agents`, `Actions`, and `Settings` preserves the current query, while closing discards the session. File search is intentionally absent.
 
@@ -155,6 +155,18 @@ The current local provider projects Actions by requesting subtree discovery from
 `All` shows curated recommended Actions plus Settings before a query, then searches the complete local catalog after typing. Matching normalizes Unicode, case, and repeated whitespace and ranks exact localized titles, title prefixes, title-token prefixes, localized keywords, canonical English titles, and fuzzy subsequences in deterministic tiers. The `Agents` filter is present as the accepted navigation slot but remains empty because no Agent-owned searchable read model is composed; the Workspace overview's exact navigation Action requires an internal Session row input and is deliberately not a searchable catalog item. The provider coordinator accepts bounded synchronous or asynchronous providers and rejects stale completions. File search, Agent fallback, persistent MRU, and user-editable keybindings remain outside the current implementation.
 
 The dialog keeps DOM focus in its combobox. Up and Down move `aria-activedescendant` through inspectable results, Enter opens or runs the highlighted row, Escape returns from a nested picker or closes the surface, and pointer movement updates the same visual highlight. Input, filters, and footer remain fixed while grouped results scroll. The results keep their usual minimum height while the window has room and give it up in a short one, so the dialog always fits below its top offset, the query stays in view at every window size, and only the results scroll. Up and Down scroll the results just enough to show the whole highlighted row; neither a pointer highlight nor the wheel scrolls back to it. Closing occurs before a selected Action begins; it does not cancel or assume ownership of that Action's asynchronous lifecycle.
+
+### Release-withheld File Bar
+
+The File Bar is unfinished, so only a development or test Desktop window offers it: the renderer
+passes `fileBarOffered` from its distribution, and a release window and a Web Client, which gets the
+Workbench's default, register none of its Actions, render none of it and read none of its storage.
+Where it is offered it starts hidden; Toggle File Bar (`workbench.file-bar.toggle`) docks it as a
+column after the terminal area, except in the mobile layout, which offers no Action for it yet. The
+Workbench owns that column, its visibility and its Actions; the File Bar's views reach it only
+through `loadFileBar()`, the `file-bar` module's only runtime export, which loads them as their
+own chunk the first time a window shows the column. A failed load says so inside the column and
+tries again the next time it shows.
 
 ### Search modeling record
 

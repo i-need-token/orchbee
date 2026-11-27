@@ -1,0 +1,11 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+
+.togglesRow {
+	flex: none;
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+}

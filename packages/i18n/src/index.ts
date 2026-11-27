@@ -9,6 +9,7 @@ export {
 	desktopSecureKeyboardEntryMessages,
 	desktopTrayMessages,
 	desktopWindowMessages,
+	fileBarMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,
 	sessionConnectionMessages,

@@ -16,6 +16,8 @@ export type { DesktopTrayMessageId } from './desktop-tray';
 
 export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';
+export { enUSFileBarMessages } from './file-bar';
+export type { FileBarMessageId } from './file-bar';
 export { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 export type { KeyboardShortcutMessageId } from './keyboard-shortcuts';
 export { enUSProjectedTerminalMessages } from './projected-terminal';

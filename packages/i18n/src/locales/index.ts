@@ -7,6 +7,7 @@ export {
 	enUSDesktopSecureKeyboardEntryMessages,
 	enUSDesktopTrayMessages,
 	enUSDesktopWindowMessages,
+	enUSFileBarMessages,
 	enUSKeyboardShortcutMessages,
 	enUSProjectedTerminalMessages,
 	enUSMessages,

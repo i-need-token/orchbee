@@ -76,6 +76,8 @@ export interface WebApplicationProps {
 	readonly clientUpdate?: WorkbenchClientUpdate | undefined;
 	/** The build the sidebar marks; a release window and a served Web Client have none. */
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
+	/** Whether the window offers the File Bar, which the Workbench follows. It defaults to withheld. */
+	readonly fileBarOffered?: boolean | undefined;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
@@ -121,6 +123,7 @@ export const WebApplication = React.memo(function WebApplication({
 	clientBuild,
 	clientUpdate,
 	environmentMarker,
+	fileBarOffered,
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
@@ -241,6 +244,7 @@ export const WebApplication = React.memo(function WebApplication({
 					clientUpdate={clientUpdate}
 					configuredCommandKeys={configuredCommandKeys}
 					environmentMarker={environmentMarker}
+					fileBarOffered={fileBarOffered}
 					hostActionScope={hostActionScope}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}

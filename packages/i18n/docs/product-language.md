@@ -23,6 +23,7 @@ Grammar may vary with a complete message, but the underlying product concept and
 | Built-in colors       | Built-in colors       | 内置颜色     | Terminal colors option `host`; in the GUI it paints the theme's colors | Terminal default、Host、终端默认、主机     |
 | Color theme name      | Gruvbox Dark          | Gruvbox Dark | Published name of a third-party color theme; never translated          | Translated names such as Gruvbox 深色      |
 | Command output        | Command output        | 命令输出     | Shell-marked text produced by one command                              | Terminal output、log                       |
+| File Bar              | File Bar              | 文件栏       | Column of file views beside the terminal area; never the Sidebar       | Primary Side Bar、Sidebar、侧边栏、边栏    |
 | Keyboard shortcut     | Keyboard shortcut     | 键盘快捷键   | Physical chord bound to one semantic product action                    | Hotkey、快捷方式                           |
 | Personal Access Token | Personal Access Token | 个人访问令牌 | Installation-scoped secret used to sign in to Browser access           | Access token、API token、personal token    |
 | Planned               | Planned               | 规划中       | Visible future setting that is explicitly unavailable and inert        | Coming soon、即将推出、未来                |

@@ -154,6 +154,24 @@ button.statusNoticeText {
 	background: var(--ob-sys-color-surface-subtle);
 }
 
+/* The File Bar shares the Sidebar's surface. */
+.fileBarPanel {
+	overflow: hidden;
+	position: relative;
+	height: 100%;
+	min-height: 0;
+	background: var(--ob-sys-color-surface-subtle);
+}
+
+/* Below the column's 36px band, which the window's caption buttons may cover. */
+.fileBarFailure {
+	margin: 0;
+	margin-block-start: var(--ob-comp-workbench-horizontal-chrome-height);
+	padding: var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}
+
 .windowDragRegion {
 	position: absolute;
 	z-index: var(--ob-ref-layer-base);

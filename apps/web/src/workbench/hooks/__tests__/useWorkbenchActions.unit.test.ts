@@ -323,6 +323,8 @@ describe('useWorkbenchActions', () => {
 						actionId !== WORKBENCH_ACTION_IDS.resetTerminalFontSize &&
 						// Only a host that offers a newer Client version registers Update.
 						actionId !== WORKBENCH_ACTION_IDS.updateClient &&
+						// Only a window that offers the File Bar registers its Actions.
+						!actionId.startsWith('workbench.file-bar.') &&
 						// A composite whose lower Action no surface here registers has nothing to lend.
 						actionId !== WORKBENCH_ACTION_IDS.focusActivePanelByPosition &&
 						actionId !== WORKBENCH_ACTION_IDS.closeActiveTab &&

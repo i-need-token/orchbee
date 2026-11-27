@@ -8,6 +8,7 @@ export { desktopSecureKeyboardEntryMessages } from './desktop-secure-keyboard-en
 export { desktopTrayMessages } from './desktop-tray';
 
 export { desktopWindowMessages } from './desktop-window';
+export { fileBarMessages } from './file-bar';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';
 export { sessionConnectionMessages, sessionPathRefusalMessages } from './session-connection';

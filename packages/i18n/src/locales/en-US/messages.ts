@@ -14,6 +14,7 @@ import { enUSDesktopSecureKeyboardEntryMessages } from './desktop-secure-keyboar
 import { enUSDesktopTrayMessages } from './desktop-tray';
 
 import { enUSDesktopWindowMessages } from './desktop-window';
+import { enUSFileBarMessages } from './file-bar';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
 import { enUSSessionConnectionMessages } from './session-connection';
@@ -38,6 +39,7 @@ export const enUSMessages = {
 	...enUSDesktopTrayMessages,
 
 	...enUSDesktopWindowMessages,
+	...enUSFileBarMessages,
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
 	...enUSSessionConnectionMessages,

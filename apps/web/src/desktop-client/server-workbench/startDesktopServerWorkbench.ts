@@ -76,6 +76,7 @@ import { DesktopBackgroundSessions } from './DesktopBackgroundSessions';
 import { DesktopRemoteSessions } from './DesktopRemoteSessions';
 import { DesktopWorkbenchSurfaces } from './DesktopWorkbenchSurfaces';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
+import { offersFileBar } from './offersFileBar';
 import { requestMachineSession } from './requestMachineSession';
 
 type DocumentElement = Pick<HTMLElement, 'dataset' | 'dir' | 'lang'>;
@@ -320,6 +321,7 @@ async function run(
 	// Search is withheld in every distribution until it is finished (ORC-424); its code stays
 	// for later.
 	const searchOffered = false;
+	const fileBarOffered = offersFileBar(bootstrap.distribution);
 	const environmentMarker =
 		bootstrap.distribution === 'release'
 			? undefined
@@ -467,6 +469,7 @@ async function run(
 		clientBuild: { distribution: bootstrap.distribution, version: bootstrap.applicationVersion },
 		clientUpdate,
 		environmentMarker,
+		fileBarOffered,
 		keyboardShortcutSettingsController,
 		layoutStorage: storage.preferences,
 		macosTerminalInputSettingsController,
