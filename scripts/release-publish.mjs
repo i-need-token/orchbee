@@ -165,10 +165,11 @@ export function planRelease({ event, ref, version: requested, platforms }) {
 }
 
 /**
- * The first release whose own automatic helper can install a newer one: the first that runs a newer
- * release's helpers by the names it answers. No release below it enters the release gate's window.
+ * The first release whose own automatic helper can install a newer one: slice 1 of
+ * proposals/platform/automatic-updates.md#phases. No release below it enters the release gate's
+ * window.
  */
-const gateFirstVersion = '0.1.0-beta.25';
+const gateFirstVersion = '0.1.0-beta.14';
 // From this release on a Windows Session hands its Server over in a restart, and a newer release
 // adopts its Host cold, so a gate path from it keeps its probe running.
 const gateRestartFirstVersion = '0.1.0-beta.23';
