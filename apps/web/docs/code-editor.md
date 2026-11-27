@@ -31,6 +31,12 @@ as the page's do. The syntax roles color the tokens of every language, and the t
 rules from Monaco's own, whose colors would show through every named theme. Colors the theme leaves
 out keep Monaco's defaults for the polarity.
 
+## File languages
+
+Monaco declares JSON only in its language service, which the editor leaves out, so
+`registerJsonLanguages` declares JSON, JSON with Comments and JSON Lines with a tokenizer of its
+own.
+
 ## Codicons
 
 Monaco ships its own Codicon font under the same `codicon` family as the product's
