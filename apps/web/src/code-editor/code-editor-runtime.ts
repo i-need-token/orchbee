@@ -18,6 +18,7 @@ export { CodeEditorTextDocument } from './CodeEditorTextDocument';
 export { CodeEditorViewStates } from './CodeEditorViewStates';
 export { ImagePreviewDocument } from './ImagePreviewDocument';
 export { CodeEditorDiffView } from './components/code-editor-diff-view/CodeEditorDiffView';
+export { CodeEditorMultiDiffView } from './components/code-editor-multi-diff-view/CodeEditorMultiDiffView';
 export { CodeEditorTextView } from './components/code-editor-text-view/CodeEditorTextView';
 export { ImagePreview } from './components/image-preview/ImagePreview';
 export { imagePreviewMimeType } from './imagePreviewMimeType';

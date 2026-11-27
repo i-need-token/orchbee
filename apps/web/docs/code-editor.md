@@ -52,6 +52,25 @@ A tab's owner may dispose of a document before the view unmounts, so a view save
 when its model is about to be disposed of. The diff editor treats a side disposed of while it still
 compares it as a bug, so the diff view lets go of both sides first.
 
+## Multi-diff
+
+`CodeEditorMultiDiffView` lists many files' diffs in one scrolling view, laid out as VS Code's
+multi-diff editor lays them out: files follow one another, each under a header that collapses it,
+and none renders taller than the view. While the view scrolls through a taller file, the file stays
+in sight and its diff editor scrolls instead, so no editor grows taller than the screen.
+
+Only the files in sight hold a slot. Each slot keeps its diff editor and moves it between files, so
+scrolling creates no editor beyond the most files the view has shown at once, and a file keeps its
+computed diff while it stays listed, so a file that scrolls back does not compute it again. Until
+its diff is computed, a file counts as VS Code's estimate of 500 pixels, and a placeholder counts as
+100 below its header. A file wholly above the view that changes height moves the offset, so the
+files in sight stay where they are.
+
+The wheel scrolls the view as the Sidebar's lists scroll, and moves the view and the editors in
+sight in the same frame; a natively scrolled view would show a pinned file's editor a frame behind.
+Hovers and other widgets that overflow an editor render in one layer over the view, outside every
+file's frame.
+
 ## Image preview
 
 Images show from `data:` URLs, because the production policy's `img-src` admits `data:` but not
@@ -89,16 +108,17 @@ a change that grows them reports the new sizes.
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
 | 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
 | Largest grammar chunk                            | 18,564 B    | 4,463 B     |
-| Theme, JSON languages, documents and views       | 25,952 B    | 8,227 B     |
-| Views' stylesheet                                | 1,826 B     | 716 B       |
-| Main bundle growth                               | 13,245 B    | 4,454 B     |
-| Main stylesheet growth                           | 5,154 B     | 795 B       |
-| Production web build growth                      | 4,672,269 B | 1,266,220 B |
+| Theme, JSON languages, documents and views       | 39,484 B    | 12,398 B    |
+| Views' stylesheet                                | 6,086 B     | 1,672 B     |
+| Main bundle growth                               | 13,248 B    | 4,451 B     |
+| Main stylesheet growth                           | 5,353 B     | 828 B       |
+| Production web build growth                      | 4,690,264 B | 1,271,379 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit, the loader's
 chunk map lists the new chunks, and `@orchbee/i18n` carries the editor's messages with every other
 domain's; the File Bar's limit for it is 10 KB gzip. The main stylesheet grows by the syntax roles
-of both appearances and every named theme.
+of both appearances and every named theme. The views' stylesheet carries a copy of the virtual
+tree's, which the multi-diff's import of the tree's scrolling arithmetic brings along.
 
 ## Upgrading Monaco
 

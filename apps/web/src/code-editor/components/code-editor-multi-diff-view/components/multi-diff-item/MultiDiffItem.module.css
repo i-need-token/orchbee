@@ -1,0 +1,93 @@
+/* A file sits at its own offset in the content. Its frame renders no taller than the view and sticks
+   to the top while the view scrolls through a taller file, and its header sticks to the top while
+   any of the file is in sight, as VS Code's multi-diff does. The frame clips rather than hides its
+   overflow, which would stop the header from sticking. */
+.item {
+	position: absolute;
+	inset-inline: 0;
+	top: var(--ob-comp-code-editor-multi-diff-item-start);
+	height: var(--ob-comp-code-editor-multi-diff-item-height);
+}
+
+.frame {
+	position: sticky;
+	top: 0;
+	display: flex;
+	flex-direction: column;
+	height: var(--ob-comp-code-editor-multi-diff-frame-height);
+	overflow: clip;
+}
+
+/* VS Code's compact header: the whole header collapses the file. Its height is
+   `MULTI_DIFF_HEADER_HEIGHT`. */
+.header {
+	position: sticky;
+	top: 0;
+	z-index: var(--ob-ref-layer-sticky);
+	display: flex;
+	flex: none;
+	box-sizing: border-box;
+	height: var(--ob-ref-size-control-md);
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	margin: 0;
+	padding-inline: var(--ob-ref-space-1) var(--ob-ref-space-2);
+	border: none;
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+	background: var(--ob-sys-color-surface-raised);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	text-align: start;
+	white-space: nowrap;
+	cursor: default;
+}
+
+.header:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+.header:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.twistie {
+	display: inline-flex;
+	flex: none;
+	width: var(--ob-ref-space-4);
+	align-items: center;
+	justify-content: center;
+}
+
+.twistie[data-open] {
+	transform: rotate(90deg);
+}
+
+.name {
+	flex: none;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.description {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ob-sys-color-text-secondary);
+	text-overflow: ellipsis;
+}
+
+/* Below the header, the diff or the placeholder fills what the frame leaves, above VS Code's compact
+   padding, `MULTI_DIFF_BOTTOM_PADDING`. */
+.body {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	min-height: 0;
+	padding-block-end: var(--ob-ref-space-2);
+}
+
+.editor {
+	flex: 1;
+	min-height: 0;
+}

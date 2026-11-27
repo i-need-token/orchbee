@@ -48,8 +48,9 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - Rows are VS Code's 22 px unless `rowHeight` says otherwise. A function reads each row's height
   into a Fenwick index, which answers position and row lookups in O(log n); it is read for every
   row whenever its identity changes or rows change in place, and for inserted rows otherwise, so
-  keep it stable and cheap. The index, `layout/HeightIndex.ts`, works on
-  its own, and the module index exports it once a second consumer, such as multi-diff, needs it.
+  keep it stable and cheap. The index, `HeightIndex`, works on its own, and the module index
+  exports it, with the wheel arithmetic below, for other lists that scroll as these do, such as the
+  code editor's multi-diff.
 - The scroll offset is model state: `scrollTop`, `setScrollTop` and the view state carry it, so a
   tree shown again opens where it was left, and the view pulls an offset that the rows no longer
   reach back within them. `reveal(key, { relativeTop })` expands a row's parents and asks the view

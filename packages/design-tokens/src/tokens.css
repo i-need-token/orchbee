@@ -901,6 +901,12 @@
 	--ob-comp-virtual-tree-thumb-opacity: 0;
 	--ob-comp-virtual-tree-thumb-size: 0px;
 	--ob-comp-virtual-tree-thumb-start: 0px;
+	/* The code editor's multi-diff runtime geometry: each file sits at its own offset in the content,
+	   and its frame renders no taller than the view. */
+	--ob-comp-code-editor-multi-diff-content-height: 0px;
+	--ob-comp-code-editor-multi-diff-frame-height: 0px;
+	--ob-comp-code-editor-multi-diff-item-height: 0px;
+	--ob-comp-code-editor-multi-diff-item-start: 0px;
 	--ob-comp-settings-color-theme-swatch-inline-size: 3.5rem;
 
 	--ob-comp-tab-strip-length-negative-14: -14px;

@@ -1,5 +1,9 @@
 /* Generated from tokens.css by scripts/generate-design-token-inventory.mjs. */
 export const designTokenNames = [
+	'--ob-comp-code-editor-multi-diff-content-height',
+	'--ob-comp-code-editor-multi-diff-frame-height',
+	'--ob-comp-code-editor-multi-diff-item-height',
+	'--ob-comp-code-editor-multi-diff-item-start',
 	'--ob-comp-machine-color',
 	'--ob-comp-projected-terminal-progress-value',
 	'--ob-comp-settings-color-theme-swatch-inline-size',
