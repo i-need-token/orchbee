@@ -51,8 +51,9 @@
 //   display `DISPLAY` names (`xvfb-run` in the workflow). HOME and TMPDIR lie in the work folder, and
 //   `ORCHBEE_INSTALL_DIR` and `ORCHBEE_HOME` name the default store root and data root there.
 //
-// Every Linux build's `uninstall` takes `--confirm`: only a release Windows or macOS build asks a
-// person to type `orchbee` instead.
+// A development or test build's `uninstall` takes `--confirm`; a release build refuses it and asks a
+// person to type `orchbee` instead, so the release identity's steps run `uninstall` on a terminal
+// that python3 opens and type that word at its prompt.
 //
 // Every step then requires that no process runs from the work folder, by the program each process
 // in /proc started.
@@ -109,6 +110,34 @@ const setupDeadline = 600_000;
 const settleDeadline = 15_000;
 const hostPlatforms = { arm64: 'linux-aarch64', x64: 'linux-x86_64' };
 const hostPlatform = hostPlatforms[process.arch];
+// The release stem, whose builds ask for this word in place of `uninstall --confirm`.
+const releaseStem = 'orchbee';
+// The release prompt in the locale the typed run sets.
+const uninstallPrompt = 'Type orchbee to uninstall:';
+// Runs argv[3:] on a new terminal, copies its output, types argv[1] and Enter once argv[2] shows,
+// and exits as the program did.
+const typeAtPrompt = `
+import os, pty, sys
+word, prompt, program = sys.argv[1].encode(), sys.argv[2].encode(), sys.argv[3:]
+pid, terminal = pty.fork()
+if pid == 0:
+    os.execv(program[0], program)
+seen, typed = b"", False
+while True:
+    try:
+        chunk = os.read(terminal, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    os.write(1, chunk)
+    seen += chunk
+    if not typed and prompt in seen:
+        os.write(terminal, word + b"\\n")
+        typed = True
+sys.exit(os.waitstatus_to_exitcode(os.waitpid(pid, 0)[1]))
+`;
+
 function log(line) {
 	process.stdout.write(`${line}\n`);
 }
@@ -203,12 +232,32 @@ function expectStatus(result, expected, what) {
 }
 
 /** Runs `command uninstall --confirm`. */
-function uninstall(command, env) {
-	expectStatus(
-		run(command, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
-		0,
-		'uninstall --confirm',
+function uninstall(identity, command, env) {
+	if (identity.stem !== releaseStem) {
+		expectStatus(
+			run(command, ['uninstall', '--confirm'], { env, deadline: setupDeadline }),
+			0,
+			'uninstall --confirm',
+		);
+		return;
+	}
+	log(`> ${command} uninstall, on a terminal, typing ${releaseStem} at its prompt`);
+	const result = spawnSync(
+		'/usr/bin/python3',
+		['-I', '-c', typeAtPrompt, releaseStem, uninstallPrompt, command, 'uninstall'],
+		{
+			encoding: 'utf8',
+			env: { ...env, LC_ALL: 'en_US.UTF-8' },
+			stdio: ['ignore', 'pipe', 'pipe'],
+			timeout: setupDeadline,
+			maxBuffer: 64 * 1024 * 1024,
+		},
 	);
+	if (result.error !== undefined) throw new StepFailure(`python3: ${result.error.message}`);
+	process.stdout.write(`${result.stdout ?? ''}${result.stderr ?? ''}`);
+	if (!result.stdout.includes(uninstallPrompt))
+		throw new StepFailure('uninstall never asked for the word');
+	expectStatus(result, 0, `uninstall, typing ${releaseStem}`);
 }
 
 function expectVersion(identity, result, what) {
@@ -318,7 +367,7 @@ function archive(identity, work) {
 	const root = storeRoot(identity, home);
 	expectActive(identity, root);
 	const link = expectLink(identity, home, root, env, 'install');
-	uninstall(link, env);
+	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
 	expectNoProcesses(work);
@@ -368,7 +417,7 @@ function installScriptStep(identity, work) {
 	const link = expectLink(identity, home, root, env, 'install.sh');
 	const menuFiles = expectWindowStore(identity, home, root, window.version);
 	log(`install.sh installed ${identity.version} with the desktop app ${window.version}.`);
-	uninstall(link, env);
+	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
 	for (const file of menuFiles) expectGone(file, 'The menu file');
@@ -510,7 +559,7 @@ function npm(identity, work) {
 	const root = storeRoot(identity, home);
 	expectActive(identity, root);
 	expectVersion(identity, run(command, ['--version'], { env }), '--version');
-	uninstall(command, env);
+	uninstall(identity, command, env);
 	expectGone(root, 'The store root');
 	const packages = [identity.stem, `@${identity.stem}/cli-linux-${identity.cpu}`];
 	expectStatus(
