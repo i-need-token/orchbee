@@ -79,15 +79,28 @@ impl Driver {
     /// The zoomed Panel just went away by `route`: the Tab draws its normal layout.
     fn assert_normal_layout(&self, route: &str, panels: u64, gone: &str) {
         let selection = self.await_panels(panels);
-        let screen = self.fixture.screen(&self.tui.terminal);
         assert_eq!(
-            selection["maximized"], false,
-            "{route} left another Panel zoomed: {selection}\n{screen}"
+            selection["maximized"],
+            false,
+            "{route} left another Panel zoomed: {selection}\n{}",
+            self.fixture.screen(&self.tui.terminal)
         );
         assert_ne!(selection["panelId"], gone, "{selection}");
-        // Each remaining shell shows its prompt; a zoom would draw one of them.
-        let shells = u64::try_from(screen.matches("PS ").count()).unwrap();
-        assert!(shells >= panels, "{route} drew {shells} shells:\n{screen}");
+        // The Client publishes its view before it paints it. Once the normal layout is drawn, each
+        // remaining shell shows its prompt; a zoom would draw one of them.
+        let deadline = Instant::now() + LANDING;
+        loop {
+            let screen = self.fixture.screen(&self.tui.terminal);
+            let shells = u64::try_from(screen.matches("PS ").count()).unwrap();
+            if shells >= panels {
+                return;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "{route} drew {shells} shells:\n{screen}"
+            );
+            thread::sleep(Duration::from_millis(50));
+        }
     }
 }
 

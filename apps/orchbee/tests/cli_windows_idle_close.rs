@@ -70,6 +70,26 @@ impl Driver {
         self.fixture.screen(&self.tui.terminal)
     }
 
+    /// The screen once two reads a poll apart agree. Until a redraw presents, the Client drops
+    /// pointer events rather than resolve them against the frame it replaces, so a gesture waits
+    /// for the frame it aims at to stand.
+    fn settled_screen(&self) -> String {
+        let deadline = Instant::now() + LANDING;
+        let mut last = self.screen();
+        loop {
+            thread::sleep(POLL);
+            let screen = self.screen();
+            if screen == last {
+                return screen;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "the screen never settled:\n{screen}"
+            );
+            last = screen;
+        }
+    }
+
     /// Adds a background Tab whose shell starts with the isolated environment.
     fn tab(&self, workspace: &str, label: &str) -> String {
         let environment = self.fixture.terminal_environment();
@@ -130,6 +150,7 @@ impl Driver {
     }
 
     fn click(&mut self, column: usize, row: usize) {
+        self.settled_screen();
         self.pointer(35, column, row);
         self.pointer(0, column, row);
         thread::sleep(HOLD);
@@ -140,7 +161,7 @@ impl Driver {
     /// Clicks the `[x]` of the Tab named `label`, resting on it first as a person does: a
     /// background Tab reveals its button only under the pointer. Returns the clicked cell.
     fn click_close_button(&mut self, label: &str) -> (usize, usize) {
-        let screen = self.screen();
+        let screen = self.settled_screen();
         let strip = screen.lines().next().unwrap().to_owned();
         let start = strip
             .find(label)
@@ -276,7 +297,7 @@ impl Driver {
 
     /// The Column of the Tab named `label`, one-based.
     fn tab_column(&self, label: &str) -> usize {
-        let screen = self.screen();
+        let screen = self.settled_screen();
         let strip = screen.lines().next().unwrap();
         let start = strip
             .find(label)

@@ -198,6 +198,14 @@ fn agent_color(fixture: &Fixture, tui: &Tui) -> Option<Vec<u16>> {
     fixture.state_color(&tui.terminal, STATE_ROW_LABEL)
 }
 
+/// The state cell's color once two reads a frame apart agree, so a frame painted on the way to it
+/// does not stand in for it.
+fn settled_color(fixture: &Fixture, tui: &Tui) -> Option<Vec<u16>> {
+    let first = agent_color(fixture, tui)?;
+    thread::sleep(Duration::from_millis(100));
+    agent_color(fixture, tui).filter(|second| *second == first)
+}
+
 #[test]
 fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_until_input() {
     let fixture = Fixture::new("orchbee-split-attention-", &[]);
@@ -226,9 +234,12 @@ fn a_visible_split_stays_unread_until_focused_and_completion_survives_viewing_un
         first
     );
     report(&fixture, &second, "done");
+    // The row can paint before the Client holds its attention entry; the completed color is the
+    // one that stands once the Client reports this completion unseen.
+    attention(&fixture, &tui, &second, false);
     let completed_color = wait(
         "explicit completion never acquired a colored state cell",
-        || agent_color(&fixture, &tui),
+        || settled_color(&fixture, &tui),
     );
     report(&fixture, &second, "working");
     wait("Working kept the completed cell color", || {
