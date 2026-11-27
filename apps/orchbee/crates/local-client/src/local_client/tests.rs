@@ -1499,10 +1499,14 @@ fn wake_readiness_interrupts_the_exchange_wait() -> TestResult {
 
 #[test]
 fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
-    let server = FakeServer::start(|mut stream| {
+    // The client polls only once the noise is in its socket, so both are ready at once and the
+    // client never drops the connection before the Server has written.
+    let (written_sender, written_receiver) = sync_channel(1);
+    let server = FakeServer::start(move |mut stream| {
         handshake::expect_hello(&mut stream)?;
         admit(&mut stream, 7)?;
         stream.write_all(b"noise")?;
+        let _acknowledged = written_sender.send(());
         let mut sink = [0_u8; 8];
         // The client drops with the noise byte unread, so this read may fail
         // with ECONNRESET — either outcome means the peer is gone.
@@ -1512,6 +1516,7 @@ fn wake_readiness_wins_over_simultaneous_socket_data() -> TestResult {
     let mut client = LocalClient::connect(server.endpoint())?;
     let (wake_read, mut wake_write) = UnixStream::pair()?;
     wake_write.write_all(b"x")?;
+    written_receiver.recv()?;
     let clock = client.operation_clock();
     let deadline = SubmissionDeadline::start(&clock, Duration::from_secs(5))?;
     let io = deadline_io(
