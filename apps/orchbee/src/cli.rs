@@ -503,6 +503,7 @@ pub(crate) fn session_start(format: OutputFormat, locale: Locale) -> Output {
 }
 
 pub(crate) fn query(command: QueryCommand, format: OutputFormat, locale: Locale) -> Output {
+    query::reads_only();
     if execution::admit(execution::Capability::WorkbenchInspection).is_ok()
         && matches!(command, QueryCommand::TerminalList { .. })
     {

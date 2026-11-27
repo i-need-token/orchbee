@@ -59,6 +59,23 @@ pub(crate) fn open_file(
     Ok(File::from(fd))
 }
 
+/// An opened artifact's identity, size and times. Replacing or rewriting the file changes its
+/// status-change time, which no ordinary tool sets back.
+pub(crate) fn stamp(file: &File) -> io::Result<String> {
+    use std::os::unix::fs::MetadataExt as _;
+    let status = file.metadata()?;
+    Ok(format!(
+        "{}:{}:{}:{}.{}:{}.{}",
+        status.dev(),
+        status.ino(),
+        status.size(),
+        status.mtime(),
+        status.mtime_nsec(),
+        status.ctime(),
+        status.ctime_nsec()
+    ))
+}
+
 /// Owned by the effective user or by root, and writable by neither its group nor others.
 fn trusted(status: &FileStat) -> bool {
     (status.st_uid == geteuid().as_raw() || status.st_uid == ROOT_UID)

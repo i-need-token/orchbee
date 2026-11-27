@@ -269,3 +269,44 @@ fn expired_deadline_and_unsafe_directory_fail_before_artifact_admission() {
     fs::set_permissions(&fixture.path, fs::Permissions::from_mode(0o775)).unwrap();
     assert!(fixture.load().is_err());
 }
+
+/// A recorded full check admits only the files it recorded: an executable rewritten with bytes of
+/// the same size after the record is hashed again and refused.
+#[test]
+fn a_recorded_check_never_admits_a_changed_executable() {
+    let fixture = Fixture::new();
+    let root = DataRoot::at(fixture.path.join("data"));
+    fs::create_dir_all(root.internal()).unwrap();
+    for folder in [root.path().to_owned(), root.internal()] {
+        fs::set_permissions(folder, fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    fs::write(root.version_file(), br#"{"layout":1}"#).unwrap();
+    fs::set_permissions(root.version_file(), fs::Permissions::from_mode(0o600)).unwrap();
+    let deadline = || Instant::now() + Duration::from_secs(2);
+    let first = Cohort::load_remembered(&root, &fixture.path, deadline()).unwrap();
+    assert_eq!(
+        fs::read_dir(root.cohort_check_cache())
+            .unwrap()
+            .filter(|entry| entry
+                .as_ref()
+                .unwrap()
+                .file_name()
+                .to_string_lossy()
+                .ends_with(".txt"))
+            .count(),
+        1
+    );
+    let remembered = Cohort::load_remembered(&root, &fixture.path, deadline()).unwrap();
+    assert_eq!(remembered.identity(), first.identity());
+    fs::write(
+        fixture.path.join(CohortArtifact::Client.file_name()),
+        b"native fixturx\n",
+    )
+    .unwrap();
+    assert_eq!(
+        Cohort::load_remembered(&root, &fixture.path, deadline())
+            .unwrap_err()
+            .kind(),
+        io::ErrorKind::InvalidData
+    );
+}

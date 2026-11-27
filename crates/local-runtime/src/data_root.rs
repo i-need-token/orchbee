@@ -259,6 +259,11 @@ impl DataRoot {
         self.internal().join("cache").join("agent-detection")
     }
 
+    /// What the last full check of each native cohort found, discarded and rebuilt freely.
+    pub fn cohort_check_cache(&self) -> PathBuf {
+        self.internal().join("cache").join("cohort")
+    }
+
     /// Copies taken before a reset, one folder per `<YYYY-MM-DD>-<reason>`.
     pub fn backups(&self) -> PathBuf {
         self.internal().join("backups")

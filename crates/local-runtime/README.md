@@ -410,6 +410,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/sessions.lock`                             | Namespace lock that serializes Session activation and deletion                                                                               |
 | `internal/state/<record>.json`                       | `StateRecord`: the machine catalog                                                                                                           |
 | `internal/cache/agent-detection/`                    | Downloaded detection rules and `catalog.json`, which names the URL                                                                           |
+| `internal/cache/cohort/<key>.txt`                    | What the last full check of one native cohort found; `cohort.lock` guards every record                                                       |
 | `internal/desktop/`                                  | Desktop's Electron `userData`, which its bundled Client creates; [Desktop](../../apps/desktop/docs/data-root.md) owns what it holds          |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
@@ -1078,6 +1079,16 @@ four executables, including on warm startup. A role finds its cohort beside `cur
 its own program file; macOS reports the path a program was started through, such as the command
 link `~/.local/bin/orchbee`, so there the path is resolved first.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
+
+`Cohort::current_remembered` serves an invocation that only reads, which the Client's query
+commands are. A full check records, in the data root's `internal/cache/cohort/`, the manifest's
+SHA-256 and each opened executable's identity, size and times: device, inode, size, modification
+and status-change times on macOS and Linux, and volume, file index, size, creation and last write
+times on Windows. A later read-only invocation whose cohort reads exactly as recorded admits it
+without hashing the executables; every other check is a full one, and any difference, a missing or
+unreadable record, or a root without an admitted layout record means a full check, which records
+what it found. A record that cannot be written stays unwritten. Every other role and command keeps
+the full check.
 
 The root development and test profiles compile the existing `sha2` dependency at optimization
 level 3 so large debug executables can be hashed efficiently. Application code retains its normal

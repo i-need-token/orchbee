@@ -18,6 +18,19 @@ pub(crate) fn artifact_file_name(artifact: CohortArtifact) -> String {
         CohortArtifact::TerminalHost => format!("{}-terminal-host.exe", environment_stem()),
     }
 }
+/// An opened artifact's volume, file index, size and times. A replaced file has another index, and
+/// rewriting one changes its last write time.
+pub(crate) fn stamp(file: &File) -> io::Result<String> {
+    let information = winapi_util::file::information(file)?;
+    Ok(format!(
+        "{}:{}:{}:{}:{}",
+        information.volume_serial_number(),
+        information.file_index(),
+        information.file_size(),
+        information.creation_time().unwrap_or(0),
+        information.last_write_time().unwrap_or(0)
+    ))
+}
 pub(crate) struct Directory {
     _handles: Vec<File>,
 }

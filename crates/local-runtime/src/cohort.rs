@@ -1,4 +1,5 @@
 //! Immutable cohort admission and artifact identities; filesystem adapters own handle-level checks.
+use crate::DataRoot;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::{
@@ -8,6 +9,7 @@ use std::{
 };
 
 mod filesystem;
+mod record;
 use filesystem::open_file;
 
 const MANIFEST_LIMIT: u64 = 16 * 1024;
@@ -189,6 +191,37 @@ impl Cohort {
     /// Returns the underlying I/O or validation failure. `missing_artifact`
     /// is populated only for a missing declared native sibling.
     pub fn load_with_diagnostic(directory: &Path, deadline: Instant) -> Result<Self, CohortError> {
+        Self::admit(directory, deadline, None)
+    }
+
+    /// Like [`Self::current_with_diagnostic`], for an invocation that only reads: a cohort whose
+    /// manifest and executables read exactly as `root` recorded them at the last full check is
+    /// admitted without hashing them again. Any difference, or no record, means a full check, which
+    /// records what it found.
+    ///
+    /// # Errors
+    /// As [`Self::current_with_diagnostic`].
+    pub fn current_remembered(root: &DataRoot, deadline: Instant) -> Result<Self, CohortError> {
+        let executable = current_executable()?;
+        let directory = executable
+            .parent()
+            .ok_or_else(|| CohortError::from(invalid()))?;
+        Self::load_remembered(root, directory, deadline)
+    }
+
+    pub(crate) fn load_remembered(
+        root: &DataRoot,
+        directory: &Path,
+        deadline: Instant,
+    ) -> Result<Self, CohortError> {
+        Self::admit(directory, deadline, Some(root))
+    }
+
+    fn admit(
+        directory: &Path,
+        deadline: Instant,
+        remembered: Option<&DataRoot>,
+    ) -> Result<Self, CohortError> {
         remaining(deadline)?;
         let descriptor = filesystem::open_directory(directory)?;
         let mut encoded = Vec::new();
@@ -211,33 +244,48 @@ impl Cohort {
         if !declared_hash(&manifest.artifacts.observation_adapters) {
             return Err(invalid().into());
         }
-        let mut identity = Sha256::new();
-        identity.update(b"orchbee-native-cohort-v1\n");
+        let mut files = Vec::with_capacity(ARTIFACTS.len());
         for artifact in ARTIFACTS {
-            let expected = manifest.artifacts.hash(artifact);
-            if !declared_hash(expected) {
+            if !declared_hash(manifest.artifacts.hash(artifact)) {
                 return Err(invalid().into());
             }
             let name = artifact.file_name();
-            let mut file =
+            let file =
                 open_file(&descriptor, &name, true, &directory.join(&name)).map_err(|source| {
                     let missing_artifact =
                         (source.kind() == io::ErrorKind::NotFound).then_some(artifact);
                     CohortError::new(source, missing_artifact)
                 })?;
-            let mut hash = Sha256::new();
-            let mut buffer = [0_u8; 64 * 1024];
-            loop {
-                remaining(deadline)?;
-                let count = file.read(&mut buffer)?;
-                if count == 0 {
-                    break;
+            files.push((name, file));
+        }
+        let record =
+            remembered.and_then(|root| record::Record::new(root, directory, &encoded, &files));
+        if !record.as_ref().is_some_and(record::Record::recorded) {
+            for (artifact, (_, file)) in ARTIFACTS.into_iter().zip(&mut files) {
+                let mut hash = Sha256::new();
+                let mut buffer = [0_u8; 64 * 1024];
+                loop {
+                    remaining(deadline)?;
+                    let count = file.read(&mut buffer)?;
+                    if count == 0 {
+                        break;
+                    }
+                    hash.update(&buffer[..count]);
                 }
-                hash.update(&buffer[..count]);
+                if crate::digest_hex::lower_hex(&hash.finalize())
+                    != manifest.artifacts.hash(artifact)
+                {
+                    return Err(invalid().into());
+                }
             }
-            if crate::digest_hex::lower_hex(&hash.finalize()) != expected {
-                return Err(invalid().into());
+            if let Some(record) = &record {
+                record.store();
             }
+        }
+        let mut identity = Sha256::new();
+        identity.update(b"orchbee-native-cohort-v1\n");
+        for (artifact, (name, _)) in ARTIFACTS.into_iter().zip(&files) {
+            let expected = manifest.artifacts.hash(artifact);
             identity.update(name.as_bytes());
             identity.update([0]);
             identity.update(expected.as_bytes());

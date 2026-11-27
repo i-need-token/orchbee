@@ -781,7 +781,7 @@ fn session_preamble(
     cohort_deadline: Instant,
     settle: impl Fn() -> Result<(), Failure>,
 ) -> Result<(Cohort, ModeCheckedLocalSessionRendezvous), Failure> {
-    let cohort = Cohort::current_with_diagnostic(cohort_deadline);
+    let cohort = admit_cohort(cohort_deadline);
     settle()?;
     let cohort = cohort.map_err(|error| {
         Failure::new(FailureKind::CheckFailed)
@@ -800,6 +800,26 @@ fn session_preamble(
         }
         Err(_) => Err(Failure::new(FailureKind::CheckFailed).details(stage_details("socket"))),
     }
+}
+
+/// Set once by [`super::query`] before an invocation's first read, as the Session selection is.
+static READS_ONLY: std::sync::OnceLock<()> = std::sync::OnceLock::new();
+
+/// Marks this invocation as one that only reads, so its cohort check trusts the data root's record
+/// of an earlier full check of the same unchanged files.
+pub(super) fn reads_only() {
+    let _ = READS_ONLY.set(());
+}
+
+/// A full cohort check, or for an invocation that only reads, one that skips hashing a cohort whose
+/// files are unchanged since the last full check.
+fn admit_cohort(deadline: Instant) -> Result<Cohort, orchbee_local_runtime::CohortError> {
+    if READS_ONLY.get().is_some()
+        && let Ok(root) = orchbee_local_runtime::DataRoot::resolve(|key| std::env::var_os(key))
+    {
+        return Cohort::current_remembered(&root, deadline);
+    }
+    Cohort::current_with_diagnostic(deadline)
 }
 
 /// One admission and one snapshot read under the shared deadline. On success
