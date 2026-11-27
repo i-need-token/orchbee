@@ -50,11 +50,15 @@ export type Release =
 
 export const release: Release = {
 	published: true,
-	version: '0.1.0-beta.24',
+	version: '0.1.0-beta.25',
 	downloads: {
-		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.24/Orchbee-0.1.0-beta.24-windows-x86_64-setup.exe`,
-		'macos-aarch64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.24/Orchbee-0.1.0-beta.24-macos-aarch64.dmg`,
-		'macos-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.24/Orchbee-0.1.0-beta.24-macos-x86_64.dmg`,
+		'windows-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-windows-x86_64-setup.exe`,
+		'macos-aarch64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-macos-aarch64.dmg`,
+		'macos-x86_64': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-macos-x86_64.dmg`,
+		'linux-x86_64-appimage': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-linux-x86_64.AppImage`,
+		'linux-x86_64-deb': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-linux-x86_64.deb`,
+		'linux-aarch64-appimage': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-linux-aarch64.AppImage`,
+		'linux-aarch64-deb': `${REPOSITORY_URL}/releases/download/v0.1.0-beta.25/Orchbee-0.1.0-beta.25-linux-aarch64.deb`,
 	},
 };
 
