@@ -1,8 +1,9 @@
 This module reimplements editor behavior specified by Visual Studio Code
 (Code - OSS), read at commit ef5ca45a6e545e4767e0117905ee9d6120b86e11. No
 VS Code source is copied. Where an algorithm follows VS Code closely, such as
-the association of file names with languages and the image preview's zoom
-levels and gestures, the MIT license below covers it.
+the association of file names with languages, the image preview's zoom levels
+and gestures, and the Git staging of selected ranges, the MIT license below
+covers it.
 
 MIT License
 

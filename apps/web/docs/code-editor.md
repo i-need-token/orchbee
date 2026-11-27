@@ -49,7 +49,8 @@ A document holds one file's content, and every tab that shows the file shares it
 A view keeps one editor for as long as it is mounted and moves it between documents, so switching
 tabs creates no editor. Each file's scroll and selection outlive its tab, up to VS Code's 100 files.
 A tab's owner may dispose of a document before the view unmounts, so a view saves the view state
-when its model is about to be disposed of.
+when its model is about to be disposed of. The diff editor treats a side disposed of while it still
+compares it as a bug, so the diff view lets go of both sides first.
 
 ## Image preview
 
@@ -88,11 +89,11 @@ a change that grows them reports the new sizes.
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
 | 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
 | Largest grammar chunk                            | 18,564 B    | 4,463 B     |
-| Theme, JSON languages, documents and views       | 21,139 B    | 6,946 B     |
-| Views' stylesheet                                | 1,749 B     | 698 B       |
-| Main bundle growth                               | 13,248 B    | 4,453 B     |
+| Theme, JSON languages, documents and views       | 25,952 B    | 8,227 B     |
+| Views' stylesheet                                | 1,826 B     | 716 B       |
+| Main bundle growth                               | 13,245 B    | 4,454 B     |
 | Main stylesheet growth                           | 5,154 B     | 795 B       |
-| Production web build growth                      | 4,667,383 B | 1,264,920 B |
+| Production web build growth                      | 4,672,269 B | 1,266,220 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit, the loader's
 chunk map lists the new chunks, and `@orchbee/i18n` carries the editor's messages with every other

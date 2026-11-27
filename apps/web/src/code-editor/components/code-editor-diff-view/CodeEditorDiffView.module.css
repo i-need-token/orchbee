@@ -1,0 +1,10 @@
+.root {
+	height: 100%;
+	min-height: 0;
+	min-width: 0;
+}
+
+/* Only one of the editor and the placeholder shows, and either fills the tab. */
+.editor {
+	height: 100%;
+}
