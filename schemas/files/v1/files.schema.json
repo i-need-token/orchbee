@@ -1,0 +1,1840 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "urn:orchbee:schema:files:v1",
+	"$comment": "Bindings additionally enforce UTF-8 byte bounds and the record bounds: 16 KiB per request, 128 KiB per result or notice. files-conformance-v1.json names the result and notice definitions of each operation.",
+	"$ref": "#/$defs/request",
+	"$defs": {
+		"identity": {
+			"description": "A nonzero 128-bit identity in lowercase hexadecimal.",
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$",
+			"not": {
+				"const": "00000000000000000000000000000000"
+			}
+		},
+		"workspaceId": {
+			"title": "WorkspaceId",
+			"$ref": "#/$defs/identity"
+		},
+		"requestId": {
+			"title": "RequestId",
+			"description": "A mutation's identity; a repeated one returns the recorded outcome.",
+			"$ref": "#/$defs/identity"
+		},
+		"promptId": {
+			"title": "PromptId",
+			"$ref": "#/$defs/identity"
+		},
+		"counter": {
+			"description": "An unsigned 64-bit value in canonical decimal.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^(?:0|[1-9][0-9]{0,19})$",
+			"format": "orchbee-uint64"
+		},
+		"transfer": {
+			"title": "TransferId",
+			"description": "A Client-chosen transfer identity, nonzero and unique in the connection; Put and Chunk records carry it as u64.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^[1-9][0-9]{0,19}$",
+			"format": "orchbee-uint64"
+		},
+		"pageCursor": {
+			"description": "An opaque continuation the previous page returned.",
+			"type": "string",
+			"pattern": "^[0-9a-f]{32}$"
+		},
+		"safeInteger": {
+			"type": "integer",
+			"minimum": 0,
+			"maximum": 9007199254740991
+		},
+		"mtimeMs": {
+			"description": "Modification time in whole milliseconds since the Unix epoch.",
+			"type": "integer",
+			"minimum": -9007199254740991,
+			"maximum": 9007199254740991
+		},
+		"path": {
+			"title": "FilePath",
+			"description": "An absolute path in the machine's native form: at most 4,096 UTF-8 bytes, no NUL. orchbee-files refuses relative, dot, empty-segment, device, verbatim and UNC forms.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^[^\\u0000]*$"
+		},
+		"paths": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/path"
+			},
+			"minItems": 1,
+			"maxItems": 256
+		},
+		"encoding": {
+			"description": "A VS Code encoding identifier such as `utf8`, `utf16le` or `windows1252`.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 24,
+			"pattern": "^[a-z0-9]+$"
+		},
+		"commit": {
+			"description": "A full object name: SHA-1 or SHA-256 in lowercase hexadecimal.",
+			"type": "string",
+			"pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+		},
+		"gitName": {
+			"description": "A remote or branch name: at most 1,024 UTF-8 bytes, no NUL, never starting with `-`.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"pattern": "^[^\\u0000\\-][^\\u0000]*$"
+		},
+		"token": {
+			"description": "An open kebab-case token; a Client treats one it does not know as absent.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+		},
+		"readMode": {
+			"enum": ["text", "bytes"]
+		},
+		"entry": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"description": "The final component; empty for a filesystem root.",
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"type": {
+					"description": "A link's target type.",
+					"enum": ["file", "directory", "unknown"]
+				},
+				"symlink": {
+					"type": "boolean"
+				},
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"mtimeMs": {
+					"$ref": "#/$defs/mtimeMs"
+				},
+				"readonly": {
+					"type": "boolean"
+				},
+				"unrepresentable": {
+					"description": "The name is not valid UTF-8; `name` is a lossy spelling and the entry cannot be operated on. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["name", "type", "symlink", "size", "mtimeMs", "readonly"],
+			"additionalProperties": false
+		},
+		"error": {
+			"description": "An operation's failure. `reason` says why the service is unavailable and comes exactly with `unavailable`.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"code": {
+							"const": "unavailable"
+						},
+						"reason": {
+							"$ref": "#/$defs/token"
+						},
+						"osError": {
+							"description": "The operating system's error number.",
+							"type": "integer",
+							"minimum": -9007199254740991,
+							"maximum": 9007199254740991
+						},
+						"gitErrorCode": {
+							"description": "VS Code's GitErrorCodes name in kebab-case, such as `repository-is-locked`.",
+							"$ref": "#/$defs/token"
+						},
+						"detail": {
+							"description": "Content Orchbee did not author, such as git's standard error, shown verbatim.",
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						}
+					},
+					"required": ["code", "reason"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"code": {
+							"enum": [
+								"denied",
+								"outside-scope",
+								"link-target-outside",
+								"unsupported-location",
+								"not-found",
+								"exists",
+								"is-directory",
+								"not-directory",
+								"invalid-name",
+								"unrepresentable-name",
+								"permission-denied",
+								"read-only",
+								"disk-full",
+								"busy",
+								"too-large",
+								"content-newer",
+								"write-incomplete",
+								"trash-unavailable",
+								"trash-failed",
+								"undo-expired",
+								"stale-revision",
+								"timeout",
+								"cancelled",
+								"unsafe-repository",
+								"git-failed",
+								"invalid-regex",
+								"invalid-request",
+								"failed"
+							]
+						},
+						"osError": {
+							"description": "The operating system's error number.",
+							"type": "integer",
+							"minimum": -9007199254740991,
+							"maximum": 9007199254740991
+						},
+						"gitErrorCode": {
+							"description": "VS Code's GitErrorCodes name in kebab-case, such as `repository-is-locked`.",
+							"$ref": "#/$defs/token"
+						},
+						"detail": {
+							"description": "Content Orchbee did not author, such as git's standard error, shown verbatim.",
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						}
+					},
+					"required": ["code"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"errorReply": {
+			"type": "object",
+			"properties": {
+				"error": {
+					"$ref": "#/$defs/error"
+				}
+			},
+			"required": ["error"],
+			"additionalProperties": false
+		},
+		"emptyResult": {
+			"type": "object",
+			"properties": {},
+			"required": [],
+			"additionalProperties": false
+		},
+		"fsSubscribeRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.subscribe"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				}
+			},
+			"required": ["op", "workspaceId"],
+			"additionalProperties": false
+		},
+		"fsListRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.list"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				},
+				"singleChild": {
+					"description": "Also list the chain of single-child directories below `path`. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "path"],
+			"additionalProperties": false
+		},
+		"fsPathsRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["fs.release", "fs.stat", "fs.ungrant"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				}
+			},
+			"required": ["op", "workspaceId", "paths"],
+			"additionalProperties": false
+		},
+		"fsGrantRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.grant"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"source": {
+					"enum": ["tree", "terminal-link", "restored", "os-open", "save-as", "diff"]
+				}
+			},
+			"required": ["op", "workspaceId", "path", "source"],
+			"additionalProperties": false
+		},
+		"fsReadRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.read"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"mode": {
+					"$ref": "#/$defs/readMode"
+				},
+				"encoding": {
+					"$ref": "#/$defs/encoding"
+				},
+				"forceText": {
+					"description": "Decode a binary file as text. Absent means false.",
+					"type": "boolean"
+				},
+				"limit": {
+					"description": "The largest file the Client accepts, in bytes; a larger one is `too-large`.",
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["op", "workspaceId", "transfer", "path", "mode", "limit"],
+			"additionalProperties": false
+		},
+		"fsReadChunkRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.read-chunk"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				},
+				"offset": {
+					"description": "Where the chunk starts: in decoded UTF-8 output bytes for a text read, in file bytes otherwise.",
+					"$ref": "#/$defs/counter"
+				},
+				"length": {
+					"type": "integer",
+					"minimum": 16384,
+					"maximum": 131072
+				}
+			},
+			"required": ["op", "workspaceId", "transfer", "offset", "length"],
+			"additionalProperties": false
+		},
+		"fsGuessEncodingRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.guess-encoding"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "path"],
+			"additionalProperties": false
+		},
+		"transferCloseRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "transfer.close"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				}
+			},
+			"required": ["op", "workspaceId", "transfer"],
+			"additionalProperties": false
+		},
+		"scmSubscribeRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "scm.subscribe"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				}
+			},
+			"required": ["op", "workspaceId"],
+			"additionalProperties": false
+		},
+		"gitStatusPageRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.status-page"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"revision": {
+					"$ref": "#/$defs/counter"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "revision"],
+			"additionalProperties": false
+		},
+		"gitShowRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.show"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"ref": {
+					"description": "`HEAD`, `index` or a full commit name.",
+					"type": "string",
+					"pattern": "^(?:HEAD|index|[0-9a-f]{40}|[0-9a-f]{64})$"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"mode": {
+					"$ref": "#/$defs/readMode"
+				},
+				"encoding": {
+					"$ref": "#/$defs/encoding"
+				},
+				"limit": {
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["op", "workspaceId", "transfer", "repository", "ref", "path", "mode", "limit"],
+			"additionalProperties": false
+		},
+		"gitCheckIgnoreRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.check-ignore"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"paths": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"minItems": 1,
+					"maxItems": 1000
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "paths"],
+			"additionalProperties": false
+		},
+		"gitRefsRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.refs"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository"],
+			"additionalProperties": false
+		},
+		"gitUserConfigRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.user-config"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "repository"],
+			"additionalProperties": false
+		},
+		"gitOutputRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.output"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"cursor": {
+					"$ref": "#/$defs/counter"
+				}
+			},
+			"required": ["op", "workspaceId"],
+			"additionalProperties": false
+		},
+		"gitPathsRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.stage", "git.unstage", "git.discard"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "paths"],
+			"additionalProperties": false
+		},
+		"gitStageContentRequest": {
+			"description": "The index content follows as Put records of `transfer`, the last flagged `commit`.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.stage-content"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "transfer", "repository", "path", "size"],
+			"additionalProperties": false
+		},
+		"gitCleanRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.clean"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				},
+				"mode": {
+					"enum": ["trash", "permanent"]
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "paths", "mode"],
+			"additionalProperties": false
+		},
+		"gitCommitRequest": {
+			"description": "The message is `message`, or, with `editor: true`, asked through the relay's editor prompt.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "git.commit"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"requestId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"repository": {
+							"$ref": "#/$defs/path"
+						},
+						"amend": {
+							"type": "boolean"
+						},
+						"signoff": {
+							"type": "boolean"
+						},
+						"all": {
+							"enum": ["none", "tracked", "all"]
+						},
+						"noVerify": {
+							"type": "boolean"
+						},
+						"message": {
+							"type": "string",
+							"maxLength": 16384,
+							"pattern": "^[^\\u0000]*$"
+						},
+						"editor": {
+							"const": false
+						}
+					},
+					"required": [
+						"op",
+						"workspaceId",
+						"requestId",
+						"repository",
+						"amend",
+						"signoff",
+						"all",
+						"noVerify",
+						"message"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "git.commit"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"requestId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"repository": {
+							"$ref": "#/$defs/path"
+						},
+						"amend": {
+							"type": "boolean"
+						},
+						"signoff": {
+							"type": "boolean"
+						},
+						"all": {
+							"enum": ["none", "tracked", "all"]
+						},
+						"noVerify": {
+							"type": "boolean"
+						},
+						"editor": {
+							"const": true
+						}
+					},
+					"required": [
+						"op",
+						"workspaceId",
+						"requestId",
+						"repository",
+						"amend",
+						"signoff",
+						"all",
+						"noVerify",
+						"editor"
+					],
+					"additionalProperties": false
+				}
+			]
+		},
+		"gitFetchRequest": {
+			"description": "Fetches `remote`, every remote with `all: true`, or else the branch's default remote.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "git.fetch"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"requestId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"repository": {
+							"$ref": "#/$defs/path"
+						},
+						"prune": {
+							"type": "boolean"
+						},
+						"background": {
+							"description": "An automatic fetch, which never prompts.",
+							"type": "boolean"
+						},
+						"remote": {
+							"$ref": "#/$defs/gitName"
+						},
+						"all": {
+							"const": false
+						}
+					},
+					"required": [
+						"op",
+						"workspaceId",
+						"requestId",
+						"repository",
+						"prune",
+						"background",
+						"remote"
+					],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "git.fetch"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"requestId": {
+							"$ref": "#/$defs/requestId"
+						},
+						"repository": {
+							"$ref": "#/$defs/path"
+						},
+						"prune": {
+							"type": "boolean"
+						},
+						"background": {
+							"description": "An automatic fetch, which never prompts.",
+							"type": "boolean"
+						},
+						"all": {
+							"type": "boolean"
+						}
+					},
+					"required": ["op", "workspaceId", "requestId", "repository", "prune", "background"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"gitPullRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.pull", "git.sync"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"rebase": {
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "rebase"],
+			"additionalProperties": false
+		},
+		"gitPushRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.push"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"remote": {
+					"$ref": "#/$defs/gitName"
+				},
+				"branch": {
+					"$ref": "#/$defs/gitName"
+				},
+				"setUpstream": {
+					"type": "boolean"
+				},
+				"force": {
+					"enum": ["none", "lease", "force"]
+				},
+				"tags": {
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "setUpstream", "force", "tags"],
+			"additionalProperties": false
+		},
+		"gitPathRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.init", "git.mark-safe"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "path"],
+			"additionalProperties": false
+		},
+		"repositoryRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["repository.consent", "repository.close"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "repository"],
+			"additionalProperties": false
+		},
+		"relaySubscribeRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "relay.subscribe"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				}
+			},
+			"required": ["op", "workspaceId"],
+			"additionalProperties": false
+		},
+		"relayAnswerRequest": {
+			"description": "Answers `value`, nothing when absent, or cancels the operation with `cancelled: true`.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "relay.answer"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"prompt": {
+							"$ref": "#/$defs/promptId"
+						},
+						"value": {
+							"type": "string",
+							"maxLength": 4096,
+							"pattern": "^[^\\u0000]*$"
+						},
+						"cancelled": {
+							"const": false
+						}
+					},
+					"required": ["op", "workspaceId", "prompt", "value"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"op": {
+							"const": "relay.answer"
+						},
+						"workspaceId": {
+							"$ref": "#/$defs/workspaceId"
+						},
+						"prompt": {
+							"$ref": "#/$defs/promptId"
+						},
+						"cancelled": {
+							"type": "boolean"
+						}
+					},
+					"required": ["op", "workspaceId", "prompt"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"clientFocusRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "client.focus"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"focused": {
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "focused"],
+			"additionalProperties": false
+		},
+		"requestOutcomeRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "request.outcome"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId"],
+			"additionalProperties": false
+		},
+		"request": {
+			"description": "A File Bar Request record's JSON body.",
+			"oneOf": [
+				{
+					"$ref": "#/$defs/fsSubscribeRequest"
+				},
+				{
+					"$ref": "#/$defs/fsListRequest"
+				},
+				{
+					"$ref": "#/$defs/fsPathsRequest"
+				},
+				{
+					"$ref": "#/$defs/fsGrantRequest"
+				},
+				{
+					"$ref": "#/$defs/fsReadRequest"
+				},
+				{
+					"$ref": "#/$defs/fsReadChunkRequest"
+				},
+				{
+					"$ref": "#/$defs/fsGuessEncodingRequest"
+				},
+				{
+					"$ref": "#/$defs/transferCloseRequest"
+				},
+				{
+					"$ref": "#/$defs/scmSubscribeRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStatusPageRequest"
+				},
+				{
+					"$ref": "#/$defs/gitShowRequest"
+				},
+				{
+					"$ref": "#/$defs/gitCheckIgnoreRequest"
+				},
+				{
+					"$ref": "#/$defs/gitRefsRequest"
+				},
+				{
+					"$ref": "#/$defs/gitUserConfigRequest"
+				},
+				{
+					"$ref": "#/$defs/gitOutputRequest"
+				},
+				{
+					"$ref": "#/$defs/gitPathsRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStageContentRequest"
+				},
+				{
+					"$ref": "#/$defs/gitCleanRequest"
+				},
+				{
+					"$ref": "#/$defs/gitCommitRequest"
+				},
+				{
+					"$ref": "#/$defs/gitFetchRequest"
+				},
+				{
+					"$ref": "#/$defs/gitPullRequest"
+				},
+				{
+					"$ref": "#/$defs/gitPushRequest"
+				},
+				{
+					"$ref": "#/$defs/gitPathRequest"
+				},
+				{
+					"$ref": "#/$defs/repositoryRequest"
+				},
+				{
+					"$ref": "#/$defs/relaySubscribeRequest"
+				},
+				{
+					"$ref": "#/$defs/relayAnswerRequest"
+				},
+				{
+					"$ref": "#/$defs/clientFocusRequest"
+				},
+				{
+					"$ref": "#/$defs/requestOutcomeRequest"
+				}
+			]
+		},
+		"descendant": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/entry"
+					},
+					"maxItems": 2000
+				}
+			},
+			"required": ["path", "entries"],
+			"additionalProperties": false
+		},
+		"fsListResult": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/entry"
+					},
+					"maxItems": 2000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				},
+				"descendants": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/descendant"
+					},
+					"minItems": 1,
+					"maxItems": 64
+				}
+			},
+			"required": ["entries"],
+			"additionalProperties": false
+		},
+		"statItem": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"path": {
+							"$ref": "#/$defs/path"
+						},
+						"entry": {
+							"$ref": "#/$defs/entry"
+						}
+					},
+					"required": ["path", "entry"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"path": {
+							"$ref": "#/$defs/path"
+						},
+						"error": {
+							"$ref": "#/$defs/error"
+						}
+					},
+					"required": ["path", "error"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"fsStatResult": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/statItem"
+					},
+					"minItems": 1,
+					"maxItems": 256
+				}
+			},
+			"required": ["items"],
+			"additionalProperties": false
+		},
+		"fsGrantResult": {
+			"type": "object",
+			"properties": {
+				"entry": {
+					"$ref": "#/$defs/entry"
+				}
+			},
+			"required": ["entry"],
+			"additionalProperties": false
+		},
+		"readResult": {
+			"type": "object",
+			"properties": {
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"mtimeMs": {
+					"$ref": "#/$defs/mtimeMs"
+				},
+				"encoding": {
+					"description": "The encoding text chunks were decoded from; null for a byte read or an undecoded binary file.",
+					"oneOf": [
+						{
+							"$ref": "#/$defs/encoding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				},
+				"bom": {
+					"type": "boolean"
+				},
+				"binary": {
+					"type": "boolean"
+				}
+			},
+			"required": ["size", "mtimeMs", "encoding", "bom", "binary"],
+			"additionalProperties": false
+		},
+		"fsGuessEncodingResult": {
+			"type": "object",
+			"properties": {
+				"encoding": {
+					"oneOf": [
+						{
+							"$ref": "#/$defs/encoding"
+						},
+						{
+							"type": "null"
+						}
+					]
+				}
+			},
+			"required": ["encoding"],
+			"additionalProperties": false
+		},
+		"statusEntry": {
+			"type": "object",
+			"properties": {
+				"x": {
+					"enum": [".", "M", "T", "A", "D", "R", "C", "U", "?", "!"]
+				},
+				"y": {
+					"enum": [".", "M", "T", "A", "D", "R", "C", "U", "?", "!"]
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"original": {
+					"$ref": "#/$defs/path"
+				},
+				"submodule": {
+					"type": "boolean"
+				}
+			},
+			"required": ["x", "y", "path", "submodule"],
+			"additionalProperties": false
+		},
+		"gitStatusPageResult": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/statusEntry"
+					},
+					"maxItems": 2000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["entries"],
+			"additionalProperties": false
+		},
+		"gitCheckIgnoreResult": {
+			"type": "object",
+			"properties": {
+				"ignored": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"maxItems": 1000
+				}
+			},
+			"required": ["ignored"],
+			"additionalProperties": false
+		},
+		"gitRef": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"type": {
+					"enum": ["head", "remote-head", "tag"]
+				},
+				"commit": {
+					"$ref": "#/$defs/commit"
+				},
+				"upstream": {
+					"type": "object",
+					"properties": {
+						"remote": {
+							"$ref": "#/$defs/gitName"
+						},
+						"name": {
+							"$ref": "#/$defs/gitName"
+						}
+					},
+					"required": ["remote", "name"],
+					"additionalProperties": false
+				}
+			},
+			"required": ["name", "type", "commit"],
+			"additionalProperties": false
+		},
+		"gitRemote": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"fetchUrl": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"pushUrl": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				}
+			},
+			"required": ["name"],
+			"additionalProperties": false
+		},
+		"gitRefsResult": {
+			"type": "object",
+			"properties": {
+				"refs": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitRef"
+					},
+					"maxItems": 2000
+				},
+				"remotes": {
+					"description": "Every remote on the first page; empty on later pages.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitRemote"
+					},
+					"maxItems": 256
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["refs", "remotes"],
+			"additionalProperties": false
+		},
+		"gitUserConfigResult": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"email": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				}
+			},
+			"required": [],
+			"additionalProperties": false
+		},
+		"gitOutputResult": {
+			"type": "object",
+			"properties": {
+				"text": {
+					"description": "Command lines and output from the cursor on, as the ring holds them.",
+					"type": "string",
+					"maxLength": 131072,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"cursor": {
+					"$ref": "#/$defs/counter"
+				},
+				"dropped": {
+					"description": "Bytes the ring overwrote between the requested cursor and `text`.",
+					"$ref": "#/$defs/counter"
+				}
+			},
+			"required": ["text", "cursor", "dropped"],
+			"additionalProperties": false
+		},
+		"gitCleanResult": {
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"path": {
+								"$ref": "#/$defs/path"
+							},
+							"error": {
+								"$ref": "#/$defs/error"
+							}
+						},
+						"required": ["path"],
+						"additionalProperties": false
+					},
+					"minItems": 1,
+					"maxItems": 256
+				}
+			},
+			"required": ["items"],
+			"additionalProperties": false
+		},
+		"gitCommitResult": {
+			"type": "object",
+			"properties": {
+				"commit": {
+					"$ref": "#/$defs/commit"
+				}
+			},
+			"required": ["commit"],
+			"additionalProperties": false
+		},
+		"gitInitResult": {
+			"type": "object",
+			"properties": {
+				"repository": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["repository"],
+			"additionalProperties": false
+		},
+		"mutationReply": {
+			"oneOf": [
+				{
+					"$ref": "#/$defs/errorReply"
+				},
+				{
+					"$ref": "#/$defs/emptyResult"
+				},
+				{
+					"$ref": "#/$defs/gitCleanResult"
+				},
+				{
+					"$ref": "#/$defs/gitCommitResult"
+				},
+				{
+					"$ref": "#/$defs/gitInitResult"
+				}
+			]
+		},
+		"requestOutcomeResult": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "completed"
+						},
+						"result": {
+							"$ref": "#/$defs/mutationReply"
+						}
+					},
+					"required": ["state", "result"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"enum": ["running", "unknown"]
+						}
+					},
+					"required": ["state"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"root": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"enum": ["present", "missing"]
+						},
+						"path": {
+							"$ref": "#/$defs/path"
+						}
+					},
+					"required": ["state", "path"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"state": {
+							"const": "none"
+						}
+					},
+					"required": ["state"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"watchState": {
+			"enum": ["full", "degraded", "stopped"]
+		},
+		"fsSnapshot": {
+			"type": "object",
+			"properties": {
+				"root": {
+					"$ref": "#/$defs/root"
+				},
+				"os": {
+					"enum": ["windows", "macos", "linux"]
+				},
+				"separator": {
+					"enum": ["\\", "/"]
+				},
+				"caseSensitive": {
+					"type": "boolean"
+				},
+				"watch": {
+					"$ref": "#/$defs/watchState"
+				}
+			},
+			"required": ["root", "os", "separator", "caseSensitive", "watch"],
+			"additionalProperties": false
+		},
+		"change": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": ["added", "changed", "deleted"]
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"directory": {
+					"description": "The item is or was a directory, as far as the watcher knows.",
+					"type": "boolean"
+				}
+			},
+			"required": ["type", "path", "directory"],
+			"additionalProperties": false
+		},
+		"fsUpdate": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "changes"
+						},
+						"changes": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/change"
+							},
+							"minItems": 1,
+							"maxItems": 500
+						}
+					},
+					"required": ["kind", "changes"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "rescan"
+						},
+						"paths": {
+							"type": "array",
+							"items": {
+								"$ref": "#/$defs/path"
+							},
+							"minItems": 1,
+							"maxItems": 500
+						}
+					},
+					"required": ["kind", "paths"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "root"
+						},
+						"root": {
+							"$ref": "#/$defs/root"
+						}
+					},
+					"required": ["kind", "root"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "watch"
+						},
+						"watch": {
+							"$ref": "#/$defs/watchState"
+						}
+					},
+					"required": ["kind", "watch"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"scmRepository": {
+			"type": "object",
+			"properties": {
+				"repository": {
+					"description": "The canonical toplevel path.",
+					"$ref": "#/$defs/path"
+				},
+				"kind": {
+					"enum": ["root", "nested", "parent", "file"]
+				},
+				"head": {
+					"type": "object",
+					"properties": {
+						"branch": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 1024,
+							"pattern": "^[^\\u0000]*$"
+						},
+						"commit": {
+							"$ref": "#/$defs/commit"
+						},
+						"detached": {
+							"type": "boolean"
+						},
+						"unborn": {
+							"type": "boolean"
+						}
+					},
+					"required": ["detached", "unborn"],
+					"additionalProperties": false
+				},
+				"upstream": {
+					"type": "object",
+					"properties": {
+						"name": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 1024,
+							"pattern": "^[^\\u0000]*$"
+						},
+						"ahead": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"behind": {
+							"$ref": "#/$defs/safeInteger"
+						}
+					},
+					"required": ["name", "ahead", "behind"],
+					"additionalProperties": false
+				},
+				"operation": {
+					"enum": ["none", "merge", "rebase", "cherry-pick", "revert"]
+				},
+				"counts": {
+					"type": "object",
+					"properties": {
+						"merge": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"index": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"workingTree": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"untracked": {
+							"$ref": "#/$defs/safeInteger"
+						}
+					},
+					"required": ["merge", "index", "workingTree", "untracked"],
+					"additionalProperties": false
+				},
+				"truncated": {
+					"type": "boolean"
+				},
+				"revision": {
+					"$ref": "#/$defs/counter"
+				},
+				"busy": {
+					"enum": [
+						"stage",
+						"unstage",
+						"discard",
+						"stage-content",
+						"clean",
+						"commit",
+						"fetch",
+						"pull",
+						"sync",
+						"push"
+					]
+				},
+				"warm": {
+					"type": "boolean"
+				},
+				"stale": {
+					"type": "boolean"
+				}
+			},
+			"required": [
+				"repository",
+				"kind",
+				"head",
+				"operation",
+				"counts",
+				"truncated",
+				"revision",
+				"warm",
+				"stale"
+			],
+			"additionalProperties": false
+		},
+		"scmSummary": {
+			"type": "object",
+			"properties": {
+				"git": {
+					"type": "object",
+					"properties": {
+						"state": {
+							"enum": ["ok", "missing", "too-old"]
+						},
+						"version": {
+							"type": "string",
+							"minLength": 1,
+							"maxLength": 64,
+							"pattern": "^[^\\u0000]*$"
+						}
+					},
+					"required": ["state"],
+					"additionalProperties": false
+				},
+				"repositories": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/scmRepository"
+					},
+					"maxItems": 256
+				},
+				"candidates": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"maxItems": 256
+				},
+				"unsafe": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"maxItems": 256
+				},
+				"repositoriesTruncated": {
+					"type": "boolean"
+				}
+			},
+			"required": ["git", "repositories", "candidates", "unsafe", "repositoriesTruncated"],
+			"additionalProperties": false
+		},
+		"prompt": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "#/$defs/promptId"
+				},
+				"kind": {
+					"enum": ["username", "password", "passphrase", "host-key", "editor"]
+				},
+				"text": {
+					"type": "string",
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["id", "kind", "text", "repository"],
+			"additionalProperties": false
+		},
+		"relaySnapshot": {
+			"type": "object",
+			"properties": {
+				"prompts": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/prompt"
+					},
+					"maxItems": 16
+				}
+			},
+			"required": ["prompts"],
+			"additionalProperties": false
+		},
+		"relayUpdate": {
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "prompt"
+						},
+						"prompt": {
+							"$ref": "#/$defs/prompt"
+						}
+					},
+					"required": ["kind", "prompt"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "closed"
+						},
+						"id": {
+							"$ref": "#/$defs/promptId"
+						}
+					},
+					"required": ["kind", "id"],
+					"additionalProperties": false
+				}
+			]
+		}
+	}
+}

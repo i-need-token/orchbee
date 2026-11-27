@@ -1,15 +1,57 @@
-//! The File Bar's wire contracts: the identities its traffic names and OBFL, the private link
-//! between a Server and the `orchbee-files` process it admitted. Callers own transport,
-//! deadlines, admission and scope; decoding a value grants no authority.
+//! The File Bar's wire contracts: OBFB, the records File Bar traffic carries inside the Client
+//! multiplex, with the strict JSON of every `files` operation, and OBFL, the private link between
+//! a Server and the `orchbee-files` process it admitted. Values are validated at decoding, so a
+//! decoded value is valid wherever the protocol carries it. Callers own transport, deadlines,
+//! admission and scope; decoding a value grants no authority.
 
 mod identity;
+mod json;
 mod link;
+mod notice;
+mod record;
+mod reply;
+mod request;
+mod value;
 
-pub use identity::{CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, WorkspaceId};
+pub use identity::{
+    CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId, TransferId,
+    WorkspaceId,
+};
 pub use link::{
     BuildIdentity, CallClose, DrainReason, FrameKind, GrantClass, LINK_MAGIC, LINK_VERSION,
     LinkError, LinkFrame, LinkHello, LinkMessage, LinkRefusal, LinkRequest, LinkSide,
     MAXIMUM_ENVIRONMENT_BYTES, MAXIMUM_LINK_PAYLOAD_BYTES, MAXIMUM_ROOT_BYTES,
     MAXIMUM_VERSION_BYTES, ScopeUpdate, WorkspaceScope, decode_link_message, encode_link_message,
     read_link_message, write_link_message,
+};
+pub use notice::{
+    BusyOperation, Change, ChangeKind, FilesNotice, FsSnapshot, FsUpdate, GitProgram, GitState,
+    Head, NoticeKind, OperatingSystem, Prompt, PromptKind, RelaySnapshot, RelayUpdate,
+    RepositoryKind, RepositoryOperation, Root, ScmRepository, ScmSummary, Separator, StatusCounts,
+    Upstream, WatchState, encode_notice, parse_notice,
+};
+pub use record::{
+    Chunk, ChunkEnd, FilesRecord, LineEnding, MAXIMUM_DATA_BYTES, MAXIMUM_REPLY_BYTES,
+    MAXIMUM_REQUEST_BYTES, Put, PutEnd, RECORD_MAGIC, RECORD_VERSION, RecordError, RecordPlace,
+    check_files_record, decode_files_record, encode_files_record, is_files_record,
+};
+pub use reply::{
+    CleanItem, Descendant, Empty, Entry, EntryKind, ErrorCode, ErrorReply, FilesError, FilesReply,
+    FsGrantResult, FsListResult, FsStatResult, GitCheckIgnoreResult, GitCleanResult,
+    GitCommitResult, GitInitResult, GitOutputResult, GitRef, GitRefsResult, GitRemote,
+    GitStatusPageResult, GitUserConfigResult, GuessEncodingResult, MutationReply, MutationState,
+    ReadResult, RefKind, RefUpstream, RequestOutcomeResult, StatItem, StatusCode, StatusEntry,
+    encode_reply, parse_reply,
+};
+pub use request::{
+    ChunkLength, CleanMode, ClientFocus, CommitAll, CommitMessage, FetchRemotes, FilesRequest,
+    FsGrant, FsList, FsRead, FsReadChunk, GitCheckIgnore, GitClean, GitCommit, GitFetch, GitOutput,
+    GitPath, GitPaths, GitPull, GitPush, GitRefs, GitShow, GitStageContent, GitStatusPage,
+    GrantSource, Operation, OperationStream, PathRequest, PathsRequest, PromptAnswer, PushForce,
+    ReadMode, RelayAnswer, RepositoryRequest, RequestError, RequestOutcome, ShowRef,
+    TransferRequest, WorkspaceRequest, encode_request, parse_request,
+};
+pub use value::{
+    CommitName, Counter, EncodingName, FilePath, GitName, Integer, InvalidValue, List,
+    MAXIMUM_PATH_BYTES, MAXIMUM_SAFE_INTEGER, PageCursor, SafeInteger, Signed, Text, Token,
 };

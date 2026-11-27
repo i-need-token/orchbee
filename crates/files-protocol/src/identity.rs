@@ -1,11 +1,15 @@
-//! The identities File Bar traffic names: the Workspace a request acts in, the Server's call,
-//! Client connection and lane numbers on the private link, and the one-time token that admits a
-//! started `orchbee-files` process. Each is validated at construction; none grants authority by
-//! itself.
+//! The identities File Bar traffic names: the Workspace a request acts in, a mutation's request,
+//! a credential prompt, a Client's transfer, the Server's call, Client connection and lane numbers
+//! on the private link, and the one-time token that admits a started `orchbee-files` process. Each
+//! is validated at construction; none grants authority by itself.
 
 use std::{fmt, num::NonZeroU64};
 
-const WORKSPACE_BYTES: usize = 16;
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
+use crate::value::{decode_lowercase_hex, lowercase_hex, parse_canonical_u64};
+
+const WIDE_BYTES: usize = 16;
 const TOKEN_BYTES: usize = 32;
 
 /// Text that is not the identity's canonical spelling.
@@ -20,41 +24,74 @@ impl fmt::Display for InvalidIdentity {
 
 impl std::error::Error for InvalidIdentity {}
 
-/// A Workspace as the Workbench names it: 32 lowercase hexadecimal digits, never all zero.
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct WorkspaceId([u8; WORKSPACE_BYTES]);
+macro_rules! wide_identity {
+    ($(#[$meta:meta])* $name:ident) => {
+        $(#[$meta])*
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub struct $name([u8; WIDE_BYTES]);
 
-impl WorkspaceId {
-    /// The Workspace these bytes name, most significant first; `None` for the all-zero value no
-    /// Workspace has.
-    #[must_use]
-    pub fn from_bytes(bytes: [u8; WORKSPACE_BYTES]) -> Option<Self> {
-        bytes.iter().any(|byte| *byte != 0).then_some(Self(bytes))
-    }
+        impl $name {
+            /// The identity these bytes name, most significant first; `None` for the all-zero
+            /// value that names nothing.
+            #[must_use]
+            pub fn from_bytes(bytes: [u8; WIDE_BYTES]) -> Option<Self> {
+                bytes.iter().any(|byte| *byte != 0).then_some(Self(bytes))
+            }
 
-    /// Admits exactly the Workbench spelling: 32 lowercase hexadecimal digits, not all zero.
-    ///
-    /// # Errors
-    ///
-    /// [`InvalidIdentity`] for any other text, uppercase digits included.
-    pub fn parse(text: &str) -> Result<Self, InvalidIdentity> {
-        decode_lowercase_hex::<WORKSPACE_BYTES>(text)
-            .and_then(Self::from_bytes)
-            .ok_or(InvalidIdentity)
-    }
+            /// Admits exactly 32 lowercase hexadecimal digits, not all zero.
+            ///
+            /// # Errors
+            ///
+            /// [`InvalidIdentity`] for any other text, uppercase digits included.
+            pub fn parse(text: &str) -> Result<Self, InvalidIdentity> {
+                decode_lowercase_hex::<WIDE_BYTES>(text)
+                    .and_then(Self::from_bytes)
+                    .ok_or(InvalidIdentity)
+            }
 
-    /// The bytes of this identity, most significant first.
-    #[must_use]
-    pub const fn as_bytes(&self) -> &[u8; WORKSPACE_BYTES] {
-        &self.0
-    }
+            /// The bytes of this identity, most significant first.
+            #[must_use]
+            pub const fn as_bytes(&self) -> &[u8; WIDE_BYTES] {
+                &self.0
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str(&lowercase_hex(&self.0))
+            }
+        }
+
+        impl Serialize for $name {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.collect_str(self)
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let text = String::deserialize(deserializer)?;
+                Self::parse(&text).map_err(|_| {
+                    de::Error::custom("an identity of 32 lowercase hexadecimal digits, not all zero")
+                })
+            }
+        }
+    };
 }
 
-impl fmt::Display for WorkspaceId {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write_lowercase_hex(&self.0, formatter)
-    }
-}
+wide_identity!(
+    /// A Workspace as the Workbench names it.
+    WorkspaceId
+);
+wide_identity!(
+    /// A mutation's identity, which the Client chooses; a repeated one returns the recorded
+    /// outcome without running again.
+    RequestId
+);
+wide_identity!(
+    /// One credential, host-key or editor prompt an operation's Git child raised.
+    PromptId
+);
 
 macro_rules! link_number {
     ($(#[$meta:meta])* $name:ident) => {
@@ -94,6 +131,26 @@ link_number!(
     /// A lane inside one Client connection's multiplex, as that connection numbered it.
     LaneId
 );
+link_number!(
+    /// One read or write transfer, which its Client numbers uniquely in its connection. JSON
+    /// records spell it in canonical decimal; Put and Chunk records carry it as a u64.
+    TransferId
+);
+
+impl Serialize for TransferId {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.get())
+    }
+}
+
+impl<'de> Deserialize<'de> for TransferId {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        parse_canonical_u64(&text)
+            .and_then(Self::new)
+            .ok_or_else(|| de::Error::custom("a nonzero canonical unsigned 64-bit decimal"))
+    }
+}
 
 /// The 256-bit secret a Server hands one `orchbee-files` start, which the started process
 /// returns in its hello. Comparing two tokens takes the same time wherever they differ.
@@ -128,12 +185,7 @@ impl LinkToken {
     /// The spelling [`Self::parse`] admits.
     #[must_use]
     pub fn to_hex(&self) -> String {
-        let mut text = String::with_capacity(TOKEN_BYTES * 2);
-        for byte in self.0 {
-            text.push(char::from(HEX[usize::from(byte >> 4)]));
-            text.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-        text
+        lowercase_hex(&self.0)
     }
 }
 
@@ -157,30 +209,4 @@ impl fmt::Debug for LinkToken {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("LinkToken(..)")
     }
-}
-
-const HEX: &[u8; 16] = b"0123456789abcdef";
-
-fn decode_lowercase_hex<const BYTES: usize>(text: &str) -> Option<[u8; BYTES]> {
-    let text = text.as_bytes();
-    if text.len() != BYTES * 2 {
-        return None;
-    }
-    let digit = |byte: u8| match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        _ => None,
-    };
-    let mut bytes = [0_u8; BYTES];
-    for (byte, pair) in bytes.iter_mut().zip(text.chunks_exact(2)) {
-        *byte = (digit(pair[0])? << 4) | digit(pair[1])?;
-    }
-    Some(bytes)
-}
-
-fn write_lowercase_hex(bytes: &[u8], formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-    for byte in bytes {
-        write!(formatter, "{byte:02x}")?;
-    }
-    Ok(())
 }

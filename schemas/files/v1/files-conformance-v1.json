@@ -1,0 +1,5103 @@
+{
+	"contractVersion": 1,
+	"capability": "files",
+	"bounds": {
+		"requestBytes": 16384,
+		"replyBytes": 131072,
+		"dataBytes": 131072,
+		"pathBytes": 4096
+	},
+	"operations": [
+		{
+			"op": "fs.subscribe",
+			"stream": "events",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": null,
+			"snapshot": "fsSnapshot",
+			"update": "fsUpdate"
+		},
+		{
+			"op": "fs.list",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "fsListResult"
+		},
+		{
+			"op": "fs.release",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "fs.stat",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "fsStatResult"
+		},
+		{
+			"op": "fs.grant",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "fsGrantResult"
+		},
+		{
+			"op": "fs.ungrant",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "emptyResult"
+		},
+		{
+			"op": "fs.read",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "readResult"
+		},
+		{
+			"op": "fs.read-chunk",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": null,
+			"chunk": true
+		},
+		{
+			"op": "fs.guess-encoding",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "fsGuessEncodingResult"
+		},
+		{
+			"op": "transfer.close",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "emptyResult"
+		},
+		{
+			"op": "scm.subscribe",
+			"stream": "events",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": null,
+			"snapshot": "scmSummary",
+			"update": "scmSummary"
+		},
+		{
+			"op": "git.status-page",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitStatusPageResult"
+		},
+		{
+			"op": "git.show",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "readResult"
+		},
+		{
+			"op": "git.check-ignore",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitCheckIgnoreResult"
+		},
+		{
+			"op": "git.refs",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitRefsResult"
+		},
+		{
+			"op": "git.user-config",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitUserConfigResult"
+		},
+		{
+			"op": "git.output",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitOutputResult"
+		},
+		{
+			"op": "git.stage",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.unstage",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.discard",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stage-content",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.clean",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "gitCleanResult"
+		},
+		{
+			"op": "git.commit",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "gitCommitResult"
+		},
+		{
+			"op": "git.fetch",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.pull",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.sync",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.push",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.init",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "gitInitResult"
+		},
+		{
+			"op": "git.mark-safe",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "repository.consent",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "repository.close",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "relay.subscribe",
+			"stream": "events",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": null,
+			"snapshot": "relaySnapshot",
+			"update": "relayUpdate"
+		},
+		{
+			"op": "relay.answer",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "client.focus",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "request.outcome",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "requestOutcomeResult"
+		}
+	],
+	"records": {
+		"valid": [
+			{
+				"name": "request",
+				"place": "request-open",
+				"hex": "4f424642000100010000006b7b226f70223a2266732e73746174222c22776f726b73706163654964223a223031323334353637383961626364656630313233343536373839616263646566222c227061746873223a5b222f686f6d652f6465762f70726f6a6563742f7372632f6d61696e2e7273225d7d",
+				"record": {
+					"kind": "request",
+					"json": "{\"op\":\"fs.stat\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\",\"paths\":[\"/home/dev/project/src/main.rs\"]}"
+				}
+			},
+			{
+				"name": "subscribing-request",
+				"place": "events-open",
+				"hex": "4f42464200010001000000467b226f70223a2266732e737562736372696265222c22776f726b73706163654964223a223031323334353637383961626364656630313233343536373839616263646566227d",
+				"record": {
+					"kind": "request",
+					"json": "{\"op\":\"fs.subscribe\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\"}"
+				}
+			},
+			{
+				"name": "result",
+				"place": "result-frame",
+				"hex": "4f424642000100020000001e7b226572726f72223a7b22636f6465223a226e6f742d666f756e64227d7d",
+				"record": {
+					"kind": "result",
+					"json": "{\"error\":{\"code\":\"not-found\"}}"
+				}
+			},
+			{
+				"name": "notice",
+				"place": "notice-frame",
+				"hex": "4f42464200010003000000237b226b696e64223a227761746368222c227761746368223a226465677261646564227d",
+				"record": {
+					"kind": "notice",
+					"json": "{\"kind\":\"watch\",\"watch\":\"degraded\"}"
+				}
+			},
+			{
+				"name": "put-continues",
+				"place": "request-open",
+				"hex": "4f42464200010004000000180000000000000007000000000000000000666e206d61696e",
+				"record": {
+					"kind": "put",
+					"transfer": "7",
+					"offset": "0",
+					"end": "continues",
+					"data": "666e206d61696e"
+				}
+			},
+			{
+				"name": "put-last",
+				"place": "request-open",
+				"hex": "4f424642000100040000001700000000000000070000000000000007012829207b7d0a",
+				"record": {
+					"kind": "put",
+					"transfer": "7",
+					"offset": "7",
+					"end": "last",
+					"data": "2829207b7d0a"
+				}
+			},
+			{
+				"name": "put-commit-empty",
+				"place": "request-open",
+				"hex": "4f42464200010004000000110000000000000008000000000000000003",
+				"record": {
+					"kind": "put",
+					"transfer": "8",
+					"offset": "0",
+					"end": "commit",
+					"data": ""
+				}
+			},
+			{
+				"name": "put-largest-identities",
+				"place": "request-open",
+				"hex": "4f4246420001000400000012ffffffffffffffffffffffffffffffff00ff",
+				"record": {
+					"kind": "put",
+					"transfer": "18446744073709551615",
+					"offset": "18446744073709551615",
+					"end": "continues",
+					"data": "ff"
+				}
+			},
+			{
+				"name": "chunk-continues",
+				"place": "result-frame",
+				"hex": "4f42464200010005000000180000000000000009000000000000000000006c696e650d0a",
+				"record": {
+					"kind": "chunk",
+					"transfer": "9",
+					"offset": "0",
+					"end": null,
+					"data": "6c696e650d0a"
+				}
+			},
+			{
+				"name": "chunk-final-lf-changed",
+				"place": "result-frame",
+				"hex": "4f42464200010005000000170000000000000009000000000000000603026c6173740a",
+				"record": {
+					"kind": "chunk",
+					"transfer": "9",
+					"offset": "6",
+					"end": {
+						"lineEnding": "lf",
+						"changed": true,
+						"digest": null
+					},
+					"data": "6c6173740a"
+				}
+			},
+			{
+				"name": "chunk-final-none-empty",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000012000000000000000a00000000000000000101",
+				"record": {
+					"kind": "chunk",
+					"transfer": "10",
+					"offset": "0",
+					"end": {
+						"lineEnding": "none",
+						"changed": false,
+						"digest": null
+					},
+					"data": ""
+				}
+			},
+			{
+				"name": "chunk-final-crlf-digest",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000036000000000000000b00000000000200000503000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f610d0a62",
+				"record": {
+					"kind": "chunk",
+					"transfer": "11",
+					"offset": "131072",
+					"end": {
+						"lineEnding": "crlf",
+						"changed": false,
+						"digest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+					},
+					"data": "610d0a62"
+				}
+			},
+			{
+				"name": "chunk-final-every-flag",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000032ffffffffffffffffffffffffffffffff0702000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+				"record": {
+					"kind": "chunk",
+					"transfer": "18446744073709551615",
+					"offset": "18446744073709551615",
+					"end": {
+						"lineEnding": "lf",
+						"changed": true,
+						"digest": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+					},
+					"data": ""
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "short-header",
+				"place": "request-open",
+				"hex": "4f42464200010001000000"
+			},
+			{
+				"name": "foreign-magic",
+				"place": "request-open",
+				"hex": "4f42575000010001000000027b7d"
+			},
+			{
+				"name": "version-zero",
+				"place": "request-open",
+				"hex": "4f42464200000001000000027b7d"
+			},
+			{
+				"name": "version-two",
+				"place": "request-open",
+				"hex": "4f42464200020001000000027b7d"
+			},
+			{
+				"name": "kind-zero",
+				"place": "request-open",
+				"hex": "4f42464200010000000000027b7d"
+			},
+			{
+				"name": "kind-six",
+				"place": "result-frame",
+				"hex": "4f42464200010006000000027b7d"
+			},
+			{
+				"name": "request-in-result-frame",
+				"place": "result-frame",
+				"hex": "4f42464200010001000000027b7d"
+			},
+			{
+				"name": "request-in-notice-frame",
+				"place": "notice-frame",
+				"hex": "4f42464200010001000000027b7d"
+			},
+			{
+				"name": "result-in-request-open",
+				"place": "request-open",
+				"hex": "4f42464200010002000000027b7d"
+			},
+			{
+				"name": "result-in-notice-frame",
+				"place": "notice-frame",
+				"hex": "4f42464200010002000000027b7d"
+			},
+			{
+				"name": "notice-in-result-frame",
+				"place": "result-frame",
+				"hex": "4f42464200010003000000027b7d"
+			},
+			{
+				"name": "notice-in-events-open",
+				"place": "events-open",
+				"hex": "4f42464200010003000000027b7d"
+			},
+			{
+				"name": "put-in-events-open",
+				"place": "events-open",
+				"hex": "4f42464200010004000000110000000000000001000000000000000000"
+			},
+			{
+				"name": "put-in-result-frame",
+				"place": "result-frame",
+				"hex": "4f42464200010004000000110000000000000001000000000000000000"
+			},
+			{
+				"name": "chunk-in-request-open",
+				"place": "request-open",
+				"hex": "4f4246420001000500000012000000000000000100000000000000000101"
+			},
+			{
+				"name": "chunk-in-notice-frame",
+				"place": "notice-frame",
+				"hex": "4f4246420001000500000012000000000000000100000000000000000101"
+			},
+			{
+				"name": "empty-request",
+				"place": "request-open",
+				"hex": "4f4246420001000100000000"
+			},
+			{
+				"name": "empty-result",
+				"place": "result-frame",
+				"hex": "4f4246420001000200000000"
+			},
+			{
+				"name": "empty-notice",
+				"place": "notice-frame",
+				"hex": "4f4246420001000300000000"
+			},
+			{
+				"name": "length-beyond-body",
+				"place": "request-open",
+				"hex": "4f42464200010001000000037b7d"
+			},
+			{
+				"name": "body-beyond-length",
+				"place": "request-open",
+				"hex": "4f42464200010001000000017b7d"
+			},
+			{
+				"name": "put-short-prefix",
+				"place": "request-open",
+				"hex": "4f424642000100040000001000000000000000010000000000000000"
+			},
+			{
+				"name": "put-zero-transfer",
+				"place": "request-open",
+				"hex": "4f4246420001000400000012000000000000000000000000000000000078"
+			},
+			{
+				"name": "put-commit-without-last",
+				"place": "request-open",
+				"hex": "4f4246420001000400000012000000000000000100000000000000000278"
+			},
+			{
+				"name": "put-unknown-flag",
+				"place": "request-open",
+				"hex": "4f4246420001000400000012000000000000000100000000000000000478"
+			},
+			{
+				"name": "put-every-flag",
+				"place": "request-open",
+				"hex": "4f424642000100040000001200000000000000010000000000000000ff78"
+			},
+			{
+				"name": "chunk-short-prefix",
+				"place": "result-frame",
+				"hex": "4f42464200010005000000110000000000000001000000000000000000"
+			},
+			{
+				"name": "chunk-zero-transfer",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000012000000000000000000000000000000000101"
+			},
+			{
+				"name": "chunk-continues-with-line-ending",
+				"place": "result-frame",
+				"hex": "4f424642000100050000001300000000000000010000000000000000000278"
+			},
+			{
+				"name": "chunk-continues-changed",
+				"place": "result-frame",
+				"hex": "4f424642000100050000001300000000000000010000000000000000020078"
+			},
+			{
+				"name": "chunk-continues-digest",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000032000000000000000100000000000000000400000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+			},
+			{
+				"name": "chunk-final-without-line-ending",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000012000000000000000100000000000000000100"
+			},
+			{
+				"name": "chunk-final-line-ending-four",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000012000000000000000100000000000000000104"
+			},
+			{
+				"name": "chunk-unknown-flag",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000012000000000000000100000000000000000901"
+			},
+			{
+				"name": "chunk-short-digest",
+				"place": "result-frame",
+				"hex": "4f4246420001000500000031000000000000000100000000000000000501000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e"
+			}
+		]
+	},
+	"requests": {
+		"valid": [
+			{
+				"name": "fs-subscribe",
+				"json": {
+					"op": "fs.subscribe",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "fs-list",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project"
+				}
+			},
+			{
+				"name": "fs-list-continued-single-child",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "C:\\Users\\dev\\project",
+					"cursor": "00112233445566778899aabbccddeeff",
+					"singleChild": true
+				}
+			},
+			{
+				"name": "fs-list-single-child-false",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/",
+					"singleChild": false
+				}
+			},
+			{
+				"name": "fs-release",
+				"json": {
+					"op": "fs.release",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project/src", "/home/dev/project/docs"]
+				}
+			},
+			{
+				"name": "fs-stat",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "fs-grant-terminal-link",
+				"json": {
+					"op": "fs.grant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project/src/main.rs",
+					"source": "terminal-link"
+				}
+			},
+			{
+				"name": "fs-grant-save-as",
+				"json": {
+					"op": "fs.grant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/tmp/notes.md",
+					"source": "save-as"
+				}
+			},
+			{
+				"name": "fs-ungrant",
+				"json": {
+					"op": "fs.ungrant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "fs-read-text",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1073741824
+				}
+			},
+			{
+				"name": "fs-read-encoded-forced",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "2",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"encoding": "windows1252",
+					"forceText": true,
+					"limit": 10485760
+				}
+			},
+			{
+				"name": "fs-read-bytes-fraction-spelling",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "bytes",
+					"limit": 1048576.0
+				}
+			},
+			{
+				"name": "fs-read-chunk",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"offset": "0",
+					"length": 131072
+				}
+			},
+			{
+				"name": "fs-read-chunk-largest",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "18446744073709551615",
+					"offset": "18446744073709551615",
+					"length": 16384
+				}
+			},
+			{
+				"name": "fs-guess-encoding",
+				"json": {
+					"op": "fs.guess-encoding",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "transfer-close",
+				"json": {
+					"op": "transfer.close",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "42"
+				}
+			},
+			{
+				"name": "scm-subscribe",
+				"json": {
+					"op": "scm.subscribe",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "git-status-page",
+				"json": {
+					"op": "git.status-page",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revision": "3"
+				}
+			},
+			{
+				"name": "git-status-page-continued",
+				"json": {
+					"op": "git.status-page",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revision": "18446744073709551615",
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "git-show-head",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "4",
+					"repository": "/home/dev/project",
+					"ref": "HEAD",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1048576
+				}
+			},
+			{
+				"name": "git-show-index",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "5",
+					"repository": "/home/dev/project",
+					"ref": "index",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "bytes",
+					"limit": 0
+				}
+			},
+			{
+				"name": "git-show-commit",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "6",
+					"repository": "/home/dev/project",
+					"ref": "0123456789abcdef0123456789abcdef01234567",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"encoding": "utf16le",
+					"limit": 1
+				}
+			},
+			{
+				"name": "git-show-sha256",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "7",
+					"repository": "/home/dev/project",
+					"ref": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 9007199254740991
+				}
+			},
+			{
+				"name": "git-check-ignore",
+				"json": {
+					"op": "git.check-ignore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/target", "/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "git-refs",
+				"json": {
+					"op": "git.refs",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-refs-continued",
+				"json": {
+					"op": "git.refs",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "git-user-config",
+				"json": {
+					"op": "git.user-config",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-output",
+				"json": {
+					"op": "git.output",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "git-output-continued",
+				"json": {
+					"op": "git.output",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cursor": "1024"
+				}
+			},
+			{
+				"name": "git-stage",
+				"json": {
+					"op": "git.stage",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "git-unstage",
+				"json": {
+					"op": "git.unstage",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "git-discard",
+				"json": {
+					"op": "git.discard",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "git-stage-content",
+				"json": {
+					"op": "git.stage-content",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "8",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 12
+				}
+			},
+			{
+				"name": "git-clean-trash",
+				"json": {
+					"op": "git.clean",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/scratch.txt"],
+					"mode": "trash"
+				}
+			},
+			{
+				"name": "git-clean-permanent",
+				"json": {
+					"op": "git.clean",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/scratch.txt"],
+					"mode": "permanent"
+				}
+			},
+			{
+				"name": "git-commit-message",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "Fix the build\n\nIt failed.",
+					"amend": false,
+					"signoff": false,
+					"all": "none",
+					"noVerify": false
+				}
+			},
+			{
+				"name": "git-commit-empty-message-editor-false",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "",
+					"editor": false,
+					"amend": true,
+					"signoff": true,
+					"all": "tracked",
+					"noVerify": true
+				}
+			},
+			{
+				"name": "git-commit-editor",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"editor": true,
+					"amend": false,
+					"signoff": false,
+					"all": "all",
+					"noVerify": false
+				}
+			},
+			{
+				"name": "git-fetch-default",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"prune": false,
+					"background": true
+				}
+			},
+			{
+				"name": "git-fetch-remote",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "origin",
+					"prune": true,
+					"background": false
+				}
+			},
+			{
+				"name": "git-fetch-all",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"all": true,
+					"prune": false,
+					"background": false
+				}
+			},
+			{
+				"name": "git-pull",
+				"json": {
+					"op": "git.pull",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"rebase": false
+				}
+			},
+			{
+				"name": "git-sync-rebase",
+				"json": {
+					"op": "git.sync",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"rebase": true
+				}
+			},
+			{
+				"name": "git-push",
+				"json": {
+					"op": "git.push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"setUpstream": false,
+					"force": "none",
+					"tags": false
+				}
+			},
+			{
+				"name": "git-push-publish",
+				"json": {
+					"op": "git.push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "origin",
+					"branch": "feature/x",
+					"setUpstream": true,
+					"force": "lease",
+					"tags": true
+				}
+			},
+			{
+				"name": "git-init",
+				"json": {
+					"op": "git.init",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-mark-safe",
+				"json": {
+					"op": "git.mark-safe",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "C:\\Users\\dev\\project"
+				}
+			},
+			{
+				"name": "repository-consent",
+				"json": {
+					"op": "repository.consent",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev"
+				}
+			},
+			{
+				"name": "repository-close",
+				"json": {
+					"op": "repository.close",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev"
+				}
+			},
+			{
+				"name": "relay-subscribe",
+				"json": {
+					"op": "relay.subscribe",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "relay-answer-value",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000001",
+					"value": "hunter2"
+				}
+			},
+			{
+				"name": "relay-answer-empty",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000001"
+				}
+			},
+			{
+				"name": "relay-answer-cancelled",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000001",
+					"cancelled": true
+				}
+			},
+			{
+				"name": "relay-answer-value-not-cancelled",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000001",
+					"value": "",
+					"cancelled": false
+				}
+			},
+			{
+				"name": "client-focus",
+				"json": {
+					"op": "client.focus",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"focused": true
+				}
+			},
+			{
+				"name": "request-outcome",
+				"json": {
+					"op": "request.outcome",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210"
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "missing-workspace",
+				"json": {
+					"op": "fs.subscribe"
+				}
+			},
+			{
+				"name": "uppercase-workspace",
+				"json": {
+					"op": "fs.subscribe",
+					"workspaceId": "0123456789ABCDEF0123456789ABCDEF"
+				}
+			},
+			{
+				"name": "zero-workspace",
+				"json": {
+					"op": "fs.subscribe",
+					"workspaceId": "00000000000000000000000000000000"
+				}
+			},
+			{
+				"name": "short-workspace",
+				"json": {
+					"op": "fs.subscribe",
+					"workspaceId": "0123456789abcdef0123456789abcde"
+				}
+			},
+			{
+				"name": "unknown-member",
+				"json": {
+					"op": "fs.subscribe",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"extra": 1
+				}
+			},
+			{
+				"name": "null-optional",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project",
+					"cursor": null
+				}
+			},
+			{
+				"name": "null-required",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": null
+				}
+			},
+			{
+				"name": "uppercase-cursor",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project",
+					"cursor": "00112233445566778899AABBCCDDEEFF"
+				}
+			},
+			{
+				"name": "paths-empty",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": []
+				}
+			},
+			{
+				"name": "paths-too-many",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": [
+						"/a0",
+						"/a1",
+						"/a2",
+						"/a3",
+						"/a4",
+						"/a5",
+						"/a6",
+						"/a7",
+						"/a8",
+						"/a9",
+						"/a10",
+						"/a11",
+						"/a12",
+						"/a13",
+						"/a14",
+						"/a15",
+						"/a16",
+						"/a17",
+						"/a18",
+						"/a19",
+						"/a20",
+						"/a21",
+						"/a22",
+						"/a23",
+						"/a24",
+						"/a25",
+						"/a26",
+						"/a27",
+						"/a28",
+						"/a29",
+						"/a30",
+						"/a31",
+						"/a32",
+						"/a33",
+						"/a34",
+						"/a35",
+						"/a36",
+						"/a37",
+						"/a38",
+						"/a39",
+						"/a40",
+						"/a41",
+						"/a42",
+						"/a43",
+						"/a44",
+						"/a45",
+						"/a46",
+						"/a47",
+						"/a48",
+						"/a49",
+						"/a50",
+						"/a51",
+						"/a52",
+						"/a53",
+						"/a54",
+						"/a55",
+						"/a56",
+						"/a57",
+						"/a58",
+						"/a59",
+						"/a60",
+						"/a61",
+						"/a62",
+						"/a63",
+						"/a64",
+						"/a65",
+						"/a66",
+						"/a67",
+						"/a68",
+						"/a69",
+						"/a70",
+						"/a71",
+						"/a72",
+						"/a73",
+						"/a74",
+						"/a75",
+						"/a76",
+						"/a77",
+						"/a78",
+						"/a79",
+						"/a80",
+						"/a81",
+						"/a82",
+						"/a83",
+						"/a84",
+						"/a85",
+						"/a86",
+						"/a87",
+						"/a88",
+						"/a89",
+						"/a90",
+						"/a91",
+						"/a92",
+						"/a93",
+						"/a94",
+						"/a95",
+						"/a96",
+						"/a97",
+						"/a98",
+						"/a99",
+						"/a100",
+						"/a101",
+						"/a102",
+						"/a103",
+						"/a104",
+						"/a105",
+						"/a106",
+						"/a107",
+						"/a108",
+						"/a109",
+						"/a110",
+						"/a111",
+						"/a112",
+						"/a113",
+						"/a114",
+						"/a115",
+						"/a116",
+						"/a117",
+						"/a118",
+						"/a119",
+						"/a120",
+						"/a121",
+						"/a122",
+						"/a123",
+						"/a124",
+						"/a125",
+						"/a126",
+						"/a127",
+						"/a128",
+						"/a129",
+						"/a130",
+						"/a131",
+						"/a132",
+						"/a133",
+						"/a134",
+						"/a135",
+						"/a136",
+						"/a137",
+						"/a138",
+						"/a139",
+						"/a140",
+						"/a141",
+						"/a142",
+						"/a143",
+						"/a144",
+						"/a145",
+						"/a146",
+						"/a147",
+						"/a148",
+						"/a149",
+						"/a150",
+						"/a151",
+						"/a152",
+						"/a153",
+						"/a154",
+						"/a155",
+						"/a156",
+						"/a157",
+						"/a158",
+						"/a159",
+						"/a160",
+						"/a161",
+						"/a162",
+						"/a163",
+						"/a164",
+						"/a165",
+						"/a166",
+						"/a167",
+						"/a168",
+						"/a169",
+						"/a170",
+						"/a171",
+						"/a172",
+						"/a173",
+						"/a174",
+						"/a175",
+						"/a176",
+						"/a177",
+						"/a178",
+						"/a179",
+						"/a180",
+						"/a181",
+						"/a182",
+						"/a183",
+						"/a184",
+						"/a185",
+						"/a186",
+						"/a187",
+						"/a188",
+						"/a189",
+						"/a190",
+						"/a191",
+						"/a192",
+						"/a193",
+						"/a194",
+						"/a195",
+						"/a196",
+						"/a197",
+						"/a198",
+						"/a199",
+						"/a200",
+						"/a201",
+						"/a202",
+						"/a203",
+						"/a204",
+						"/a205",
+						"/a206",
+						"/a207",
+						"/a208",
+						"/a209",
+						"/a210",
+						"/a211",
+						"/a212",
+						"/a213",
+						"/a214",
+						"/a215",
+						"/a216",
+						"/a217",
+						"/a218",
+						"/a219",
+						"/a220",
+						"/a221",
+						"/a222",
+						"/a223",
+						"/a224",
+						"/a225",
+						"/a226",
+						"/a227",
+						"/a228",
+						"/a229",
+						"/a230",
+						"/a231",
+						"/a232",
+						"/a233",
+						"/a234",
+						"/a235",
+						"/a236",
+						"/a237",
+						"/a238",
+						"/a239",
+						"/a240",
+						"/a241",
+						"/a242",
+						"/a243",
+						"/a244",
+						"/a245",
+						"/a246",
+						"/a247",
+						"/a248",
+						"/a249",
+						"/a250",
+						"/a251",
+						"/a252",
+						"/a253",
+						"/a254",
+						"/a255",
+						"/a256"
+					]
+				}
+			},
+			{
+				"name": "path-empty",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": [""]
+				}
+			},
+			{
+				"name": "path-nul",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/a\u0000b"]
+				}
+			},
+			{
+				"name": "path-too-long",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": [
+						"/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+					]
+				}
+			},
+			{
+				"name": "mode-as-object",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": {
+						"text": null
+					},
+					"limit": 1024
+				}
+			},
+			{
+				"name": "mode-unknown",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "lines",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "transfer-zero",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "0",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "transfer-leading-zero",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "01",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "transfer-number",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": 7,
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "transfer-overflow",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "18446744073709551616",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "offset-overflow",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"offset": "99999999999999999999",
+					"length": 16384
+				}
+			},
+			{
+				"name": "chunk-length-short",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"offset": "0",
+					"length": 16383
+				}
+			},
+			{
+				"name": "chunk-length-long",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"offset": "0",
+					"length": 131073
+				}
+			},
+			{
+				"name": "chunk-length-fraction",
+				"json": {
+					"op": "fs.read-chunk",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"offset": "0",
+					"length": 16384.5
+				}
+			},
+			{
+				"name": "limit-negative",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": -1
+				}
+			},
+			{
+				"name": "limit-unsafe",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 9007199254740992
+				}
+			},
+			{
+				"name": "limit-string",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": "1024"
+				}
+			},
+			{
+				"name": "encoding-uppercase",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024,
+					"encoding": "UTF8"
+				}
+			},
+			{
+				"name": "encoding-too-long",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024,
+					"encoding": "aaaaaaaaaaaaaaaaaaaaaaaaa"
+				}
+			},
+			{
+				"name": "force-text-null",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1024,
+					"forceText": null
+				}
+			},
+			{
+				"name": "ref-branch",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "4",
+					"repository": "/home/dev/project",
+					"ref": "main",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1
+				}
+			},
+			{
+				"name": "ref-short-commit",
+				"json": {
+					"op": "git.show",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "4",
+					"repository": "/home/dev/project",
+					"ref": "0123456789abcdef0123456789abcdef0123456",
+					"path": "/home/dev/project/src/main.rs",
+					"mode": "text",
+					"limit": 1
+				}
+			},
+			{
+				"name": "check-ignore-too-many",
+				"json": {
+					"op": "git.check-ignore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"paths": [
+						"/b0",
+						"/b1",
+						"/b2",
+						"/b3",
+						"/b4",
+						"/b5",
+						"/b6",
+						"/b7",
+						"/b8",
+						"/b9",
+						"/b10",
+						"/b11",
+						"/b12",
+						"/b13",
+						"/b14",
+						"/b15",
+						"/b16",
+						"/b17",
+						"/b18",
+						"/b19",
+						"/b20",
+						"/b21",
+						"/b22",
+						"/b23",
+						"/b24",
+						"/b25",
+						"/b26",
+						"/b27",
+						"/b28",
+						"/b29",
+						"/b30",
+						"/b31",
+						"/b32",
+						"/b33",
+						"/b34",
+						"/b35",
+						"/b36",
+						"/b37",
+						"/b38",
+						"/b39",
+						"/b40",
+						"/b41",
+						"/b42",
+						"/b43",
+						"/b44",
+						"/b45",
+						"/b46",
+						"/b47",
+						"/b48",
+						"/b49",
+						"/b50",
+						"/b51",
+						"/b52",
+						"/b53",
+						"/b54",
+						"/b55",
+						"/b56",
+						"/b57",
+						"/b58",
+						"/b59",
+						"/b60",
+						"/b61",
+						"/b62",
+						"/b63",
+						"/b64",
+						"/b65",
+						"/b66",
+						"/b67",
+						"/b68",
+						"/b69",
+						"/b70",
+						"/b71",
+						"/b72",
+						"/b73",
+						"/b74",
+						"/b75",
+						"/b76",
+						"/b77",
+						"/b78",
+						"/b79",
+						"/b80",
+						"/b81",
+						"/b82",
+						"/b83",
+						"/b84",
+						"/b85",
+						"/b86",
+						"/b87",
+						"/b88",
+						"/b89",
+						"/b90",
+						"/b91",
+						"/b92",
+						"/b93",
+						"/b94",
+						"/b95",
+						"/b96",
+						"/b97",
+						"/b98",
+						"/b99",
+						"/b100",
+						"/b101",
+						"/b102",
+						"/b103",
+						"/b104",
+						"/b105",
+						"/b106",
+						"/b107",
+						"/b108",
+						"/b109",
+						"/b110",
+						"/b111",
+						"/b112",
+						"/b113",
+						"/b114",
+						"/b115",
+						"/b116",
+						"/b117",
+						"/b118",
+						"/b119",
+						"/b120",
+						"/b121",
+						"/b122",
+						"/b123",
+						"/b124",
+						"/b125",
+						"/b126",
+						"/b127",
+						"/b128",
+						"/b129",
+						"/b130",
+						"/b131",
+						"/b132",
+						"/b133",
+						"/b134",
+						"/b135",
+						"/b136",
+						"/b137",
+						"/b138",
+						"/b139",
+						"/b140",
+						"/b141",
+						"/b142",
+						"/b143",
+						"/b144",
+						"/b145",
+						"/b146",
+						"/b147",
+						"/b148",
+						"/b149",
+						"/b150",
+						"/b151",
+						"/b152",
+						"/b153",
+						"/b154",
+						"/b155",
+						"/b156",
+						"/b157",
+						"/b158",
+						"/b159",
+						"/b160",
+						"/b161",
+						"/b162",
+						"/b163",
+						"/b164",
+						"/b165",
+						"/b166",
+						"/b167",
+						"/b168",
+						"/b169",
+						"/b170",
+						"/b171",
+						"/b172",
+						"/b173",
+						"/b174",
+						"/b175",
+						"/b176",
+						"/b177",
+						"/b178",
+						"/b179",
+						"/b180",
+						"/b181",
+						"/b182",
+						"/b183",
+						"/b184",
+						"/b185",
+						"/b186",
+						"/b187",
+						"/b188",
+						"/b189",
+						"/b190",
+						"/b191",
+						"/b192",
+						"/b193",
+						"/b194",
+						"/b195",
+						"/b196",
+						"/b197",
+						"/b198",
+						"/b199",
+						"/b200",
+						"/b201",
+						"/b202",
+						"/b203",
+						"/b204",
+						"/b205",
+						"/b206",
+						"/b207",
+						"/b208",
+						"/b209",
+						"/b210",
+						"/b211",
+						"/b212",
+						"/b213",
+						"/b214",
+						"/b215",
+						"/b216",
+						"/b217",
+						"/b218",
+						"/b219",
+						"/b220",
+						"/b221",
+						"/b222",
+						"/b223",
+						"/b224",
+						"/b225",
+						"/b226",
+						"/b227",
+						"/b228",
+						"/b229",
+						"/b230",
+						"/b231",
+						"/b232",
+						"/b233",
+						"/b234",
+						"/b235",
+						"/b236",
+						"/b237",
+						"/b238",
+						"/b239",
+						"/b240",
+						"/b241",
+						"/b242",
+						"/b243",
+						"/b244",
+						"/b245",
+						"/b246",
+						"/b247",
+						"/b248",
+						"/b249",
+						"/b250",
+						"/b251",
+						"/b252",
+						"/b253",
+						"/b254",
+						"/b255",
+						"/b256",
+						"/b257",
+						"/b258",
+						"/b259",
+						"/b260",
+						"/b261",
+						"/b262",
+						"/b263",
+						"/b264",
+						"/b265",
+						"/b266",
+						"/b267",
+						"/b268",
+						"/b269",
+						"/b270",
+						"/b271",
+						"/b272",
+						"/b273",
+						"/b274",
+						"/b275",
+						"/b276",
+						"/b277",
+						"/b278",
+						"/b279",
+						"/b280",
+						"/b281",
+						"/b282",
+						"/b283",
+						"/b284",
+						"/b285",
+						"/b286",
+						"/b287",
+						"/b288",
+						"/b289",
+						"/b290",
+						"/b291",
+						"/b292",
+						"/b293",
+						"/b294",
+						"/b295",
+						"/b296",
+						"/b297",
+						"/b298",
+						"/b299",
+						"/b300",
+						"/b301",
+						"/b302",
+						"/b303",
+						"/b304",
+						"/b305",
+						"/b306",
+						"/b307",
+						"/b308",
+						"/b309",
+						"/b310",
+						"/b311",
+						"/b312",
+						"/b313",
+						"/b314",
+						"/b315",
+						"/b316",
+						"/b317",
+						"/b318",
+						"/b319",
+						"/b320",
+						"/b321",
+						"/b322",
+						"/b323",
+						"/b324",
+						"/b325",
+						"/b326",
+						"/b327",
+						"/b328",
+						"/b329",
+						"/b330",
+						"/b331",
+						"/b332",
+						"/b333",
+						"/b334",
+						"/b335",
+						"/b336",
+						"/b337",
+						"/b338",
+						"/b339",
+						"/b340",
+						"/b341",
+						"/b342",
+						"/b343",
+						"/b344",
+						"/b345",
+						"/b346",
+						"/b347",
+						"/b348",
+						"/b349",
+						"/b350",
+						"/b351",
+						"/b352",
+						"/b353",
+						"/b354",
+						"/b355",
+						"/b356",
+						"/b357",
+						"/b358",
+						"/b359",
+						"/b360",
+						"/b361",
+						"/b362",
+						"/b363",
+						"/b364",
+						"/b365",
+						"/b366",
+						"/b367",
+						"/b368",
+						"/b369",
+						"/b370",
+						"/b371",
+						"/b372",
+						"/b373",
+						"/b374",
+						"/b375",
+						"/b376",
+						"/b377",
+						"/b378",
+						"/b379",
+						"/b380",
+						"/b381",
+						"/b382",
+						"/b383",
+						"/b384",
+						"/b385",
+						"/b386",
+						"/b387",
+						"/b388",
+						"/b389",
+						"/b390",
+						"/b391",
+						"/b392",
+						"/b393",
+						"/b394",
+						"/b395",
+						"/b396",
+						"/b397",
+						"/b398",
+						"/b399",
+						"/b400",
+						"/b401",
+						"/b402",
+						"/b403",
+						"/b404",
+						"/b405",
+						"/b406",
+						"/b407",
+						"/b408",
+						"/b409",
+						"/b410",
+						"/b411",
+						"/b412",
+						"/b413",
+						"/b414",
+						"/b415",
+						"/b416",
+						"/b417",
+						"/b418",
+						"/b419",
+						"/b420",
+						"/b421",
+						"/b422",
+						"/b423",
+						"/b424",
+						"/b425",
+						"/b426",
+						"/b427",
+						"/b428",
+						"/b429",
+						"/b430",
+						"/b431",
+						"/b432",
+						"/b433",
+						"/b434",
+						"/b435",
+						"/b436",
+						"/b437",
+						"/b438",
+						"/b439",
+						"/b440",
+						"/b441",
+						"/b442",
+						"/b443",
+						"/b444",
+						"/b445",
+						"/b446",
+						"/b447",
+						"/b448",
+						"/b449",
+						"/b450",
+						"/b451",
+						"/b452",
+						"/b453",
+						"/b454",
+						"/b455",
+						"/b456",
+						"/b457",
+						"/b458",
+						"/b459",
+						"/b460",
+						"/b461",
+						"/b462",
+						"/b463",
+						"/b464",
+						"/b465",
+						"/b466",
+						"/b467",
+						"/b468",
+						"/b469",
+						"/b470",
+						"/b471",
+						"/b472",
+						"/b473",
+						"/b474",
+						"/b475",
+						"/b476",
+						"/b477",
+						"/b478",
+						"/b479",
+						"/b480",
+						"/b481",
+						"/b482",
+						"/b483",
+						"/b484",
+						"/b485",
+						"/b486",
+						"/b487",
+						"/b488",
+						"/b489",
+						"/b490",
+						"/b491",
+						"/b492",
+						"/b493",
+						"/b494",
+						"/b495",
+						"/b496",
+						"/b497",
+						"/b498",
+						"/b499",
+						"/b500",
+						"/b501",
+						"/b502",
+						"/b503",
+						"/b504",
+						"/b505",
+						"/b506",
+						"/b507",
+						"/b508",
+						"/b509",
+						"/b510",
+						"/b511",
+						"/b512",
+						"/b513",
+						"/b514",
+						"/b515",
+						"/b516",
+						"/b517",
+						"/b518",
+						"/b519",
+						"/b520",
+						"/b521",
+						"/b522",
+						"/b523",
+						"/b524",
+						"/b525",
+						"/b526",
+						"/b527",
+						"/b528",
+						"/b529",
+						"/b530",
+						"/b531",
+						"/b532",
+						"/b533",
+						"/b534",
+						"/b535",
+						"/b536",
+						"/b537",
+						"/b538",
+						"/b539",
+						"/b540",
+						"/b541",
+						"/b542",
+						"/b543",
+						"/b544",
+						"/b545",
+						"/b546",
+						"/b547",
+						"/b548",
+						"/b549",
+						"/b550",
+						"/b551",
+						"/b552",
+						"/b553",
+						"/b554",
+						"/b555",
+						"/b556",
+						"/b557",
+						"/b558",
+						"/b559",
+						"/b560",
+						"/b561",
+						"/b562",
+						"/b563",
+						"/b564",
+						"/b565",
+						"/b566",
+						"/b567",
+						"/b568",
+						"/b569",
+						"/b570",
+						"/b571",
+						"/b572",
+						"/b573",
+						"/b574",
+						"/b575",
+						"/b576",
+						"/b577",
+						"/b578",
+						"/b579",
+						"/b580",
+						"/b581",
+						"/b582",
+						"/b583",
+						"/b584",
+						"/b585",
+						"/b586",
+						"/b587",
+						"/b588",
+						"/b589",
+						"/b590",
+						"/b591",
+						"/b592",
+						"/b593",
+						"/b594",
+						"/b595",
+						"/b596",
+						"/b597",
+						"/b598",
+						"/b599",
+						"/b600",
+						"/b601",
+						"/b602",
+						"/b603",
+						"/b604",
+						"/b605",
+						"/b606",
+						"/b607",
+						"/b608",
+						"/b609",
+						"/b610",
+						"/b611",
+						"/b612",
+						"/b613",
+						"/b614",
+						"/b615",
+						"/b616",
+						"/b617",
+						"/b618",
+						"/b619",
+						"/b620",
+						"/b621",
+						"/b622",
+						"/b623",
+						"/b624",
+						"/b625",
+						"/b626",
+						"/b627",
+						"/b628",
+						"/b629",
+						"/b630",
+						"/b631",
+						"/b632",
+						"/b633",
+						"/b634",
+						"/b635",
+						"/b636",
+						"/b637",
+						"/b638",
+						"/b639",
+						"/b640",
+						"/b641",
+						"/b642",
+						"/b643",
+						"/b644",
+						"/b645",
+						"/b646",
+						"/b647",
+						"/b648",
+						"/b649",
+						"/b650",
+						"/b651",
+						"/b652",
+						"/b653",
+						"/b654",
+						"/b655",
+						"/b656",
+						"/b657",
+						"/b658",
+						"/b659",
+						"/b660",
+						"/b661",
+						"/b662",
+						"/b663",
+						"/b664",
+						"/b665",
+						"/b666",
+						"/b667",
+						"/b668",
+						"/b669",
+						"/b670",
+						"/b671",
+						"/b672",
+						"/b673",
+						"/b674",
+						"/b675",
+						"/b676",
+						"/b677",
+						"/b678",
+						"/b679",
+						"/b680",
+						"/b681",
+						"/b682",
+						"/b683",
+						"/b684",
+						"/b685",
+						"/b686",
+						"/b687",
+						"/b688",
+						"/b689",
+						"/b690",
+						"/b691",
+						"/b692",
+						"/b693",
+						"/b694",
+						"/b695",
+						"/b696",
+						"/b697",
+						"/b698",
+						"/b699",
+						"/b700",
+						"/b701",
+						"/b702",
+						"/b703",
+						"/b704",
+						"/b705",
+						"/b706",
+						"/b707",
+						"/b708",
+						"/b709",
+						"/b710",
+						"/b711",
+						"/b712",
+						"/b713",
+						"/b714",
+						"/b715",
+						"/b716",
+						"/b717",
+						"/b718",
+						"/b719",
+						"/b720",
+						"/b721",
+						"/b722",
+						"/b723",
+						"/b724",
+						"/b725",
+						"/b726",
+						"/b727",
+						"/b728",
+						"/b729",
+						"/b730",
+						"/b731",
+						"/b732",
+						"/b733",
+						"/b734",
+						"/b735",
+						"/b736",
+						"/b737",
+						"/b738",
+						"/b739",
+						"/b740",
+						"/b741",
+						"/b742",
+						"/b743",
+						"/b744",
+						"/b745",
+						"/b746",
+						"/b747",
+						"/b748",
+						"/b749",
+						"/b750",
+						"/b751",
+						"/b752",
+						"/b753",
+						"/b754",
+						"/b755",
+						"/b756",
+						"/b757",
+						"/b758",
+						"/b759",
+						"/b760",
+						"/b761",
+						"/b762",
+						"/b763",
+						"/b764",
+						"/b765",
+						"/b766",
+						"/b767",
+						"/b768",
+						"/b769",
+						"/b770",
+						"/b771",
+						"/b772",
+						"/b773",
+						"/b774",
+						"/b775",
+						"/b776",
+						"/b777",
+						"/b778",
+						"/b779",
+						"/b780",
+						"/b781",
+						"/b782",
+						"/b783",
+						"/b784",
+						"/b785",
+						"/b786",
+						"/b787",
+						"/b788",
+						"/b789",
+						"/b790",
+						"/b791",
+						"/b792",
+						"/b793",
+						"/b794",
+						"/b795",
+						"/b796",
+						"/b797",
+						"/b798",
+						"/b799",
+						"/b800",
+						"/b801",
+						"/b802",
+						"/b803",
+						"/b804",
+						"/b805",
+						"/b806",
+						"/b807",
+						"/b808",
+						"/b809",
+						"/b810",
+						"/b811",
+						"/b812",
+						"/b813",
+						"/b814",
+						"/b815",
+						"/b816",
+						"/b817",
+						"/b818",
+						"/b819",
+						"/b820",
+						"/b821",
+						"/b822",
+						"/b823",
+						"/b824",
+						"/b825",
+						"/b826",
+						"/b827",
+						"/b828",
+						"/b829",
+						"/b830",
+						"/b831",
+						"/b832",
+						"/b833",
+						"/b834",
+						"/b835",
+						"/b836",
+						"/b837",
+						"/b838",
+						"/b839",
+						"/b840",
+						"/b841",
+						"/b842",
+						"/b843",
+						"/b844",
+						"/b845",
+						"/b846",
+						"/b847",
+						"/b848",
+						"/b849",
+						"/b850",
+						"/b851",
+						"/b852",
+						"/b853",
+						"/b854",
+						"/b855",
+						"/b856",
+						"/b857",
+						"/b858",
+						"/b859",
+						"/b860",
+						"/b861",
+						"/b862",
+						"/b863",
+						"/b864",
+						"/b865",
+						"/b866",
+						"/b867",
+						"/b868",
+						"/b869",
+						"/b870",
+						"/b871",
+						"/b872",
+						"/b873",
+						"/b874",
+						"/b875",
+						"/b876",
+						"/b877",
+						"/b878",
+						"/b879",
+						"/b880",
+						"/b881",
+						"/b882",
+						"/b883",
+						"/b884",
+						"/b885",
+						"/b886",
+						"/b887",
+						"/b888",
+						"/b889",
+						"/b890",
+						"/b891",
+						"/b892",
+						"/b893",
+						"/b894",
+						"/b895",
+						"/b896",
+						"/b897",
+						"/b898",
+						"/b899",
+						"/b900",
+						"/b901",
+						"/b902",
+						"/b903",
+						"/b904",
+						"/b905",
+						"/b906",
+						"/b907",
+						"/b908",
+						"/b909",
+						"/b910",
+						"/b911",
+						"/b912",
+						"/b913",
+						"/b914",
+						"/b915",
+						"/b916",
+						"/b917",
+						"/b918",
+						"/b919",
+						"/b920",
+						"/b921",
+						"/b922",
+						"/b923",
+						"/b924",
+						"/b925",
+						"/b926",
+						"/b927",
+						"/b928",
+						"/b929",
+						"/b930",
+						"/b931",
+						"/b932",
+						"/b933",
+						"/b934",
+						"/b935",
+						"/b936",
+						"/b937",
+						"/b938",
+						"/b939",
+						"/b940",
+						"/b941",
+						"/b942",
+						"/b943",
+						"/b944",
+						"/b945",
+						"/b946",
+						"/b947",
+						"/b948",
+						"/b949",
+						"/b950",
+						"/b951",
+						"/b952",
+						"/b953",
+						"/b954",
+						"/b955",
+						"/b956",
+						"/b957",
+						"/b958",
+						"/b959",
+						"/b960",
+						"/b961",
+						"/b962",
+						"/b963",
+						"/b964",
+						"/b965",
+						"/b966",
+						"/b967",
+						"/b968",
+						"/b969",
+						"/b970",
+						"/b971",
+						"/b972",
+						"/b973",
+						"/b974",
+						"/b975",
+						"/b976",
+						"/b977",
+						"/b978",
+						"/b979",
+						"/b980",
+						"/b981",
+						"/b982",
+						"/b983",
+						"/b984",
+						"/b985",
+						"/b986",
+						"/b987",
+						"/b988",
+						"/b989",
+						"/b990",
+						"/b991",
+						"/b992",
+						"/b993",
+						"/b994",
+						"/b995",
+						"/b996",
+						"/b997",
+						"/b998",
+						"/b999",
+						"/b1000"
+					]
+				}
+			},
+			{
+				"name": "remote-as-option",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "-upload-pack=x",
+					"prune": false,
+					"background": false
+				}
+			},
+			{
+				"name": "branch-as-option",
+				"json": {
+					"op": "git.push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"branch": "--force",
+					"setUpstream": false,
+					"force": "none",
+					"tags": false
+				}
+			},
+			{
+				"name": "fetch-remote-and-all",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "origin",
+					"all": true,
+					"prune": false,
+					"background": false
+				}
+			},
+			{
+				"name": "commit-message-and-editor",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "m",
+					"amend": false,
+					"signoff": false,
+					"all": "none",
+					"noVerify": false,
+					"editor": true
+				}
+			},
+			{
+				"name": "commit-without-message",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"amend": false,
+					"signoff": false,
+					"all": "none",
+					"noVerify": false
+				}
+			},
+			{
+				"name": "commit-editor-false-only",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"amend": false,
+					"signoff": false,
+					"all": "none",
+					"noVerify": false,
+					"editor": false
+				}
+			},
+			{
+				"name": "commit-missing-no-verify",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "m",
+					"amend": false,
+					"signoff": false,
+					"all": "none"
+				}
+			},
+			{
+				"name": "commit-all-unknown",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "m",
+					"amend": false,
+					"signoff": false,
+					"all": "staged",
+					"noVerify": false
+				}
+			},
+			{
+				"name": "clean-mode-unknown",
+				"json": {
+					"op": "git.clean",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/src/main.rs"],
+					"mode": "recycle"
+				}
+			},
+			{
+				"name": "push-force-unknown",
+				"json": {
+					"op": "git.push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"setUpstream": false,
+					"force": "yes",
+					"tags": false
+				}
+			},
+			{
+				"name": "mutation-without-request-id",
+				"json": {
+					"op": "git.stage",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"paths": ["/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "grant-source-unknown",
+				"json": {
+					"op": "fs.grant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project/src/main.rs",
+					"source": "os-paste"
+				}
+			},
+			{
+				"name": "relay-value-and-cancelled",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000001",
+					"value": "x",
+					"cancelled": true
+				}
+			},
+			{
+				"name": "relay-zero-prompt",
+				"json": {
+					"op": "relay.answer",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"prompt": "00000000000000000000000000000000"
+				}
+			},
+			{
+				"name": "focus-not-boolean",
+				"json": {
+					"op": "client.focus",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"focused": 1
+				}
+			},
+			{
+				"name": "op-missing",
+				"json": {
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "op-number",
+				"json": {
+					"op": 1,
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "op-of-another-shape",
+				"json": {
+					"op": "fs.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project"]
+				}
+			},
+			{
+				"name": "array",
+				"text": "[]"
+			},
+			{
+				"name": "string",
+				"text": "\"fs.subscribe\""
+			},
+			{
+				"name": "duplicate-member",
+				"text": "{\"op\":\"fs.subscribe\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\"}"
+			},
+			{
+				"name": "duplicate-op",
+				"text": "{\"op\":\"fs.subscribe\",\"op\":\"fs.subscribe\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\"}"
+			},
+			{
+				"name": "trailing-value",
+				"text": "{\"op\":\"fs.subscribe\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\"} {}"
+			},
+			{
+				"name": "byte-order-mark",
+				"text": "﻿{\"op\":\"fs.subscribe\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\"}"
+			},
+			{
+				"name": "path-too-long-in-bytes",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": [
+						"/éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+					]
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "message-too-long-in-bytes",
+				"json": {
+					"op": "git.commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€€",
+					"amend": false,
+					"signoff": false,
+					"all": "none",
+					"noVerify": false
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "remote-too-long-in-bytes",
+				"json": {
+					"op": "git.fetch",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+					"prune": false,
+					"background": false
+				},
+				"boundary": "binding"
+			}
+		],
+		"unsupported": [
+			{
+				"name": "batch-two-operation",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "unknown-operation",
+				"json": {
+					"op": "fs.unknown",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "uppercase-operation",
+				"json": {
+					"op": "FS.LIST",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project"
+				}
+			}
+		]
+	},
+	"replies": {
+		"valid": [
+			{
+				"name": "error-denied",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "denied"
+					}
+				}
+			},
+			{
+				"name": "error-outside-scope",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "outside-scope"
+					}
+				}
+			},
+			{
+				"name": "error-link-target-outside",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "link-target-outside"
+					}
+				}
+			},
+			{
+				"name": "error-unsupported-location",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unsupported-location"
+					}
+				}
+			},
+			{
+				"name": "error-not-found",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "not-found"
+					}
+				}
+			},
+			{
+				"name": "error-exists",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "exists"
+					}
+				}
+			},
+			{
+				"name": "error-is-directory",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "is-directory"
+					}
+				}
+			},
+			{
+				"name": "error-not-directory",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "not-directory"
+					}
+				}
+			},
+			{
+				"name": "error-invalid-name",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "invalid-name"
+					}
+				}
+			},
+			{
+				"name": "error-unrepresentable-name",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unrepresentable-name"
+					}
+				}
+			},
+			{
+				"name": "error-permission-denied",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "permission-denied"
+					}
+				}
+			},
+			{
+				"name": "error-read-only",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "read-only"
+					}
+				}
+			},
+			{
+				"name": "error-disk-full",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "disk-full"
+					}
+				}
+			},
+			{
+				"name": "error-busy",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "busy"
+					}
+				}
+			},
+			{
+				"name": "error-too-large",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "too-large"
+					}
+				}
+			},
+			{
+				"name": "error-content-newer",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "content-newer"
+					}
+				}
+			},
+			{
+				"name": "error-write-incomplete",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "write-incomplete"
+					}
+				}
+			},
+			{
+				"name": "error-trash-unavailable",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "trash-unavailable"
+					}
+				}
+			},
+			{
+				"name": "error-trash-failed",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "trash-failed"
+					}
+				}
+			},
+			{
+				"name": "error-undo-expired",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "undo-expired"
+					}
+				}
+			},
+			{
+				"name": "error-stale-revision",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "stale-revision"
+					}
+				}
+			},
+			{
+				"name": "error-timeout",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "timeout"
+					}
+				}
+			},
+			{
+				"name": "error-cancelled",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "cancelled"
+					}
+				}
+			},
+			{
+				"name": "error-unavailable",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unavailable",
+						"reason": "crashed-repeatedly"
+					}
+				}
+			},
+			{
+				"name": "error-unsafe-repository",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unsafe-repository"
+					}
+				}
+			},
+			{
+				"name": "error-git-failed",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "git-failed"
+					}
+				}
+			},
+			{
+				"name": "error-invalid-regex",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "invalid-regex"
+					}
+				}
+			},
+			{
+				"name": "error-invalid-request",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "invalid-request"
+					}
+				}
+			},
+			{
+				"name": "error-failed",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "failed"
+					}
+				}
+			},
+			{
+				"name": "error-git-failed-classified",
+				"op": "git.push",
+				"json": {
+					"error": {
+						"code": "git-failed",
+						"gitErrorCode": "push-rejected",
+						"detail": "! [rejected] main -> main (fetch first)\n"
+					}
+				}
+			},
+			{
+				"name": "error-os-error",
+				"op": "fs.read",
+				"json": {
+					"error": {
+						"code": "permission-denied",
+						"osError": 13
+					}
+				}
+			},
+			{
+				"name": "error-negative-os-error",
+				"op": "fs.read",
+				"json": {
+					"error": {
+						"code": "busy",
+						"osError": -2147024864
+					}
+				}
+			},
+			{
+				"name": "error-for-chunk",
+				"op": "fs.read-chunk",
+				"json": {
+					"error": {
+						"code": "invalid-request"
+					}
+				}
+			},
+			{
+				"name": "error-for-subscription",
+				"op": "scm.subscribe",
+				"json": {
+					"error": {
+						"code": "denied"
+					}
+				}
+			},
+			{
+				"name": "fs-list",
+				"op": "fs.list",
+				"json": {
+					"entries": [
+						{
+							"name": "src",
+							"type": "directory",
+							"symlink": false,
+							"size": 0,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						},
+						{
+							"name": "main.rs",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-list-empty",
+				"op": "fs.list",
+				"json": {
+					"entries": []
+				}
+			},
+			{
+				"name": "fs-list-continued-descendants",
+				"op": "fs.list",
+				"json": {
+					"entries": [
+						{
+							"name": "a",
+							"type": "directory",
+							"symlink": false,
+							"size": 0,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					],
+					"cursor": "00112233445566778899aabbccddeeff",
+					"descendants": [
+						{
+							"path": "/home/dev/project/a",
+							"entries": [
+								{
+									"name": "b",
+									"type": "directory",
+									"symlink": false,
+									"size": 0,
+									"mtimeMs": 1732700000000,
+									"readonly": false
+								}
+							]
+						},
+						{
+							"path": "/home/dev/project/a/b",
+							"entries": []
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-list-odd-entries",
+				"op": "fs.list",
+				"json": {
+					"entries": [
+						{
+							"name": "",
+							"type": "directory",
+							"symlink": false,
+							"size": 0,
+							"mtimeMs": -1,
+							"readonly": false
+						},
+						{
+							"name": "link",
+							"type": "unknown",
+							"symlink": true,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": true
+						},
+						{
+							"name": "caf�",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false,
+							"unrepresentable": true
+						},
+						{
+							"name": "plain",
+							"type": "file",
+							"symlink": false,
+							"size": 9007199254740991,
+							"mtimeMs": -9007199254740991,
+							"readonly": false,
+							"unrepresentable": false
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-stat",
+				"op": "fs.stat",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs",
+							"entry": {
+								"name": "main.rs",
+								"type": "file",
+								"symlink": false,
+								"size": 12,
+								"mtimeMs": 1732700000000,
+								"readonly": false
+							}
+						},
+						{
+							"path": "/home/dev/project/gone",
+							"error": {
+								"code": "not-found"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-grant",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "main.rs",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "fs-release",
+				"op": "fs.release",
+				"json": {}
+			},
+			{
+				"name": "fs-read-text",
+				"op": "fs.read",
+				"json": {
+					"size": 12,
+					"mtimeMs": 1732700000000,
+					"encoding": "utf8",
+					"bom": true,
+					"binary": false
+				}
+			},
+			{
+				"name": "fs-read-binary",
+				"op": "fs.read",
+				"json": {
+					"size": 4096,
+					"mtimeMs": 0,
+					"encoding": null,
+					"bom": false,
+					"binary": true
+				}
+			},
+			{
+				"name": "fs-guess-encoding",
+				"op": "fs.guess-encoding",
+				"json": {
+					"encoding": "shiftjis"
+				}
+			},
+			{
+				"name": "fs-guess-encoding-none",
+				"op": "fs.guess-encoding",
+				"json": {
+					"encoding": null
+				}
+			},
+			{
+				"name": "transfer-close",
+				"op": "transfer.close",
+				"json": {}
+			},
+			{
+				"name": "git-status-page",
+				"op": "git.status-page",
+				"json": {
+					"entries": [
+						{
+							"x": "M",
+							"y": ".",
+							"path": "/home/dev/project/src/main.rs",
+							"submodule": false
+						},
+						{
+							"x": "R",
+							"y": "M",
+							"path": "/home/dev/project/new.rs",
+							"original": "/home/dev/project/old.rs",
+							"submodule": false
+						},
+						{
+							"x": "?",
+							"y": "?",
+							"path": "/home/dev/project/scratch.txt",
+							"submodule": false
+						},
+						{
+							"x": "U",
+							"y": "U",
+							"path": "/home/dev/project/conflict.rs",
+							"submodule": false
+						},
+						{
+							"x": ".",
+							"y": "M",
+							"path": "/home/dev/project/vendor/lib",
+							"submodule": true
+						},
+						{
+							"x": "!",
+							"y": "!",
+							"path": "/home/dev/project/target",
+							"submodule": false
+						},
+						{
+							"x": "A",
+							"y": "D",
+							"path": "/home/dev/project/a",
+							"submodule": false
+						},
+						{
+							"x": "C",
+							"y": "T",
+							"path": "/home/dev/project/c",
+							"original": "/home/dev/project/b",
+							"submodule": false
+						}
+					],
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "git-show",
+				"op": "git.show",
+				"json": {
+					"size": 0,
+					"mtimeMs": 1732700000000,
+					"encoding": "utf8",
+					"bom": false,
+					"binary": false
+				}
+			},
+			{
+				"name": "git-check-ignore",
+				"op": "git.check-ignore",
+				"json": {
+					"ignored": ["/home/dev/project/target"]
+				}
+			},
+			{
+				"name": "git-check-ignore-none",
+				"op": "git.check-ignore",
+				"json": {
+					"ignored": []
+				}
+			},
+			{
+				"name": "git-refs",
+				"op": "git.refs",
+				"json": {
+					"refs": [
+						{
+							"name": "main",
+							"type": "head",
+							"commit": "0123456789abcdef0123456789abcdef01234567",
+							"upstream": {
+								"remote": "origin",
+								"name": "main"
+							}
+						},
+						{
+							"name": "origin/main",
+							"type": "remote-head",
+							"commit": "0123456789abcdef0123456789abcdef01234567"
+						},
+						{
+							"name": "v1.0.0",
+							"type": "tag",
+							"commit": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+						}
+					],
+					"remotes": [
+						{
+							"name": "origin",
+							"fetchUrl": "https://example.com/project.git",
+							"pushUrl": "git@example.com:project.git"
+						},
+						{
+							"name": "bare"
+						}
+					],
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "git-refs-later-page",
+				"op": "git.refs",
+				"json": {
+					"refs": [],
+					"remotes": []
+				}
+			},
+			{
+				"name": "git-user-config",
+				"op": "git.user-config",
+				"json": {
+					"name": "Dev",
+					"email": "dev@example.com"
+				}
+			},
+			{
+				"name": "git-user-config-unset",
+				"op": "git.user-config",
+				"json": {}
+			},
+			{
+				"name": "git-output",
+				"op": "git.output",
+				"json": {
+					"text": "> git status\n",
+					"cursor": "13",
+					"dropped": "0"
+				}
+			},
+			{
+				"name": "git-clean",
+				"op": "git.clean",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/a.txt"
+						},
+						{
+							"path": "/home/dev/project/b.txt",
+							"error": {
+								"code": "trash-failed"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "git-commit",
+				"op": "git.commit",
+				"json": {
+					"commit": "0123456789abcdef0123456789abcdef01234567"
+				}
+			},
+			{
+				"name": "git-init",
+				"op": "git.init",
+				"json": {
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-mark-safe",
+				"op": "git.mark-safe",
+				"json": {}
+			},
+			{
+				"name": "relay-answer",
+				"op": "relay.answer",
+				"json": {}
+			},
+			{
+				"name": "client-focus",
+				"op": "client.focus",
+				"json": {}
+			},
+			{
+				"name": "outcome-completed-empty",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {}
+				}
+			},
+			{
+				"name": "outcome-completed-error",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"error": {
+							"code": "git-failed",
+							"gitErrorCode": "repository-is-locked"
+						}
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-commit",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"commit": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-clean",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"items": [
+							{
+								"path": "/home/dev/project/a.txt"
+							}
+						]
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-init",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"repository": "/home/dev/project"
+					}
+				}
+			},
+			{
+				"name": "outcome-running",
+				"op": "request.outcome",
+				"json": {
+					"state": "running"
+				}
+			},
+			{
+				"name": "outcome-unknown",
+				"op": "request.outcome",
+				"json": {
+					"state": "unknown"
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "unavailable-without-reason",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unavailable"
+					}
+				}
+			},
+			{
+				"name": "reason-without-unavailable",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "failed",
+						"reason": "crashed-repeatedly"
+					}
+				}
+			},
+			{
+				"name": "client-only-code",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "remote-disconnected"
+					}
+				}
+			},
+			{
+				"name": "error-unknown-member",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "failed",
+						"message": "Failed"
+					}
+				}
+			},
+			{
+				"name": "error-beside-result",
+				"op": "fs.grant",
+				"json": {
+					"error": {
+						"code": "failed"
+					},
+					"entry": {
+						"name": "main.rs",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "error-reason-not-token",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "unavailable",
+						"reason": "Crashed"
+					}
+				}
+			},
+			{
+				"name": "error-os-error-fraction",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "failed",
+						"osError": 1.5
+					}
+				}
+			},
+			{
+				"name": "error-as-array",
+				"op": "fs.stat",
+				"json": {
+					"error": ["denied"]
+				}
+			},
+			{
+				"name": "entry-negative-size",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "main.rs",
+						"type": "file",
+						"symlink": false,
+						"size": -1,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "entry-without-readonly",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "main.rs",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000
+					}
+				}
+			},
+			{
+				"name": "entry-type-symlink",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "main.rs",
+						"type": "symlink",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "entry-name-too-long",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "entry-unrepresentable-null",
+				"op": "fs.grant",
+				"json": {
+					"entry": {
+						"name": "x",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false,
+						"unrepresentable": null
+					}
+				}
+			},
+			{
+				"name": "entries-as-object",
+				"op": "fs.list",
+				"json": {
+					"entries": {
+						"main.rs": {
+							"name": "main.rs",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					}
+				}
+			},
+			{
+				"name": "descendants-empty",
+				"op": "fs.list",
+				"json": {
+					"entries": [],
+					"descendants": []
+				}
+			},
+			{
+				"name": "stat-item-entry-and-error",
+				"op": "fs.stat",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs",
+							"entry": {
+								"name": "main.rs",
+								"type": "file",
+								"symlink": false,
+								"size": 12,
+								"mtimeMs": 1732700000000,
+								"readonly": false
+							},
+							"error": {
+								"code": "not-found"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "stat-item-neither",
+				"op": "fs.stat",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "stat-items-empty",
+				"op": "fs.stat",
+				"json": {
+					"items": []
+				}
+			},
+			{
+				"name": "read-without-encoding",
+				"op": "fs.read",
+				"json": {
+					"size": 1,
+					"mtimeMs": 0,
+					"bom": false,
+					"binary": false
+				}
+			},
+			{
+				"name": "read-empty-encoding",
+				"op": "fs.read",
+				"json": {
+					"size": 1,
+					"mtimeMs": 0,
+					"encoding": "",
+					"bom": false,
+					"binary": false
+				}
+			},
+			{
+				"name": "guess-without-encoding",
+				"op": "fs.guess-encoding",
+				"json": {}
+			},
+			{
+				"name": "status-code-unknown",
+				"op": "git.status-page",
+				"json": {
+					"entries": [
+						{
+							"x": "Z",
+							"y": ".",
+							"path": "/home/dev/project/src/main.rs",
+							"submodule": false
+						}
+					]
+				}
+			},
+			{
+				"name": "ref-short-commit",
+				"op": "git.refs",
+				"json": {
+					"refs": [
+						{
+							"name": "main",
+							"type": "head",
+							"commit": "0123456789abcdef0123456789abcdef0123456"
+						}
+					],
+					"remotes": []
+				}
+			},
+			{
+				"name": "ref-type-branch",
+				"op": "git.refs",
+				"json": {
+					"refs": [
+						{
+							"name": "main",
+							"type": "branch",
+							"commit": "0123456789abcdef0123456789abcdef01234567"
+						}
+					],
+					"remotes": []
+				}
+			},
+			{
+				"name": "refs-without-remotes",
+				"op": "git.refs",
+				"json": {
+					"refs": []
+				}
+			},
+			{
+				"name": "output-cursor-number",
+				"op": "git.output",
+				"json": {
+					"text": "",
+					"cursor": 0,
+					"dropped": "0"
+				}
+			},
+			{
+				"name": "clean-items-empty",
+				"op": "git.clean",
+				"json": {
+					"items": []
+				}
+			},
+			{
+				"name": "commit-uppercase",
+				"op": "git.commit",
+				"json": {
+					"commit": "0123456789ABCDEF0123456789ABCDEF01234567"
+				}
+			},
+			{
+				"name": "outcome-completed-without-result",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed"
+				}
+			},
+			{
+				"name": "outcome-running-with-result",
+				"op": "request.outcome",
+				"json": {
+					"state": "running",
+					"result": {}
+				}
+			},
+			{
+				"name": "outcome-result-error-as-array",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"error": ["denied"]
+					}
+				}
+			},
+			{
+				"name": "outcome-result-unknown-shape",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"entry": {
+							"name": "x",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					}
+				}
+			},
+			{
+				"name": "empty-result-with-member",
+				"op": "client.focus",
+				"json": {
+					"ok": true
+				}
+			},
+			{
+				"name": "result-for-subscription",
+				"op": "fs.subscribe",
+				"json": {}
+			},
+			{
+				"name": "result-for-chunk",
+				"op": "fs.read-chunk",
+				"json": {}
+			},
+			{
+				"name": "array",
+				"op": "fs.release",
+				"text": "[]"
+			},
+			{
+				"name": "duplicate-member",
+				"op": "fs.read",
+				"text": "{\"size\":1,\"size\":1,\"mtimeMs\":0,\"encoding\":null,\"bom\":false,\"binary\":false}"
+			},
+			{
+				"name": "detail-too-long-in-bytes",
+				"op": "fs.stat",
+				"json": {
+					"error": {
+						"code": "failed",
+						"detail": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+					}
+				},
+				"boundary": "binding"
+			}
+		]
+	},
+	"notices": {
+		"valid": [
+			{
+				"name": "fs-snapshot-linux",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "fs-snapshot-windows-missing",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "missing",
+						"path": "C:\\Users\\dev\\project"
+					},
+					"os": "windows",
+					"separator": "\\",
+					"caseSensitive": false,
+					"watch": "stopped"
+				}
+			},
+			{
+				"name": "fs-snapshot-macos-without-root",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "none"
+					},
+					"os": "macos",
+					"separator": "/",
+					"caseSensitive": false,
+					"watch": "degraded"
+				}
+			},
+			{
+				"name": "fs-update-changes",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "changes",
+					"changes": [
+						{
+							"type": "added",
+							"path": "/home/dev/project/new.rs",
+							"directory": false
+						},
+						{
+							"type": "changed",
+							"path": "/home/dev/project/src/main.rs",
+							"directory": false
+						},
+						{
+							"type": "deleted",
+							"path": "/home/dev/project/old",
+							"directory": true
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-update-rescan",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "rescan",
+					"paths": ["/home/dev/project/src"]
+				}
+			},
+			{
+				"name": "fs-update-root",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "root",
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project-renamed"
+					}
+				}
+			},
+			{
+				"name": "fs-update-root-none",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "root",
+					"root": {
+						"state": "none"
+					}
+				}
+			},
+			{
+				"name": "fs-update-watch",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "watch",
+					"watch": "degraded"
+				}
+			},
+			{
+				"name": "scm-snapshot",
+				"op": "scm.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						},
+						{
+							"repository": "/home/dev/project/vendor/lib",
+							"kind": "nested",
+							"head": {
+								"commit": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+								"detached": true,
+								"unborn": false
+							},
+							"operation": "rebase",
+							"counts": {
+								"merge": 1,
+								"index": 0,
+								"workingTree": 0,
+								"untracked": 0
+							},
+							"truncated": true,
+							"revision": "0",
+							"warm": false,
+							"stale": true
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "scm-update-git-missing",
+				"op": "scm.subscribe",
+				"kind": "update",
+				"json": {
+					"git": {
+						"state": "missing"
+					},
+					"repositories": [],
+					"candidates": [],
+					"unsafe": [],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "scm-update-unborn-parent",
+				"op": "scm.subscribe",
+				"kind": "update",
+				"json": {
+					"git": {
+						"state": "too-old",
+						"version": "2.17.0"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev",
+							"kind": "parent",
+							"head": {
+								"branch": "main",
+								"detached": false,
+								"unborn": true
+							},
+							"operation": "merge",
+							"counts": {
+								"merge": 0,
+								"index": 0,
+								"workingTree": 0,
+								"untracked": 0
+							},
+							"truncated": false,
+							"revision": "1",
+							"warm": true,
+							"stale": false
+						}
+					],
+					"candidates": [],
+					"unsafe": [],
+					"repositoriesTruncated": true
+				}
+			},
+			{
+				"name": "relay-snapshot",
+				"op": "relay.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"prompts": [
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "ffffffffffffffffffffffffffffffff",
+							"kind": "editor",
+							"text": "",
+							"repository": "/home/dev/project",
+							"path": "/home/dev/project/.git/COMMIT_EDITMSG"
+						}
+					]
+				}
+			},
+			{
+				"name": "relay-snapshot-empty",
+				"op": "relay.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"prompts": []
+				}
+			},
+			{
+				"name": "relay-update-prompt",
+				"op": "relay.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "prompt",
+					"prompt": {
+						"id": "00000000000000000000000000000001",
+						"kind": "host-key",
+						"text": "Are you sure you want to continue connecting (yes/no)?",
+						"repository": "/home/dev/project"
+					}
+				}
+			},
+			{
+				"name": "relay-update-closed",
+				"op": "relay.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "closed",
+					"id": "00000000000000000000000000000001"
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "root-none-with-path",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "none",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "root-present-without-path",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "present"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "root-state-unknown",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "moved",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "snapshot-without-watch",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true
+				}
+			},
+			{
+				"name": "separator-colon",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": ":",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "os-darwin",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project"
+					},
+					"os": "darwin",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "snapshot-as-update",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"root": {
+						"state": "present",
+						"path": "/home/dev/project"
+					},
+					"os": "linux",
+					"separator": "/",
+					"caseSensitive": true,
+					"watch": "full"
+				}
+			},
+			{
+				"name": "update-as-snapshot",
+				"op": "fs.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"kind": "watch",
+					"watch": "full"
+				}
+			},
+			{
+				"name": "update-kind-unknown",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "overflow"
+				}
+			},
+			{
+				"name": "update-changes-empty",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "changes",
+					"changes": []
+				}
+			},
+			{
+				"name": "change-without-directory",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "changes",
+					"changes": [
+						{
+							"type": "added",
+							"path": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "change-type-renamed",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "changes",
+					"changes": [
+						{
+							"type": "renamed",
+							"path": "/home/dev/project/src/main.rs",
+							"directory": false
+						}
+					]
+				}
+			},
+			{
+				"name": "update-member-of-another-kind",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "root",
+					"watch": "full"
+				}
+			},
+			{
+				"name": "update-extra-member",
+				"op": "fs.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "watch",
+					"watch": "full",
+					"root": {
+						"state": "none"
+					}
+				}
+			},
+			{
+				"name": "repository-revision-number",
+				"op": "scm.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": 7,
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "head-without-detached",
+				"op": "scm.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "counts-negative",
+				"op": "scm.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": -1,
+								"workingTree": 0,
+								"untracked": 0
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "busy-unknown",
+				"op": "scm.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "checkout",
+							"warm": true,
+							"stale": false
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "summary-without-unsafe",
+				"op": "scm.subscribe",
+				"kind": "update",
+				"json": {
+					"git": {
+						"state": "ok",
+						"version": "2.47.1"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						},
+						{
+							"repository": "/home/dev/project/vendor/lib",
+							"kind": "nested",
+							"head": {
+								"commit": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+								"detached": true,
+								"unborn": false
+							},
+							"operation": "rebase",
+							"counts": {
+								"merge": 1,
+								"index": 0,
+								"workingTree": 0,
+								"untracked": 0
+							},
+							"truncated": true,
+							"revision": "0",
+							"warm": false,
+							"stale": true
+						}
+					],
+					"candidates": ["/home/dev"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "git-state-unknown",
+				"op": "scm.subscribe",
+				"kind": "update",
+				"json": {
+					"git": {
+						"state": "broken"
+					},
+					"repositories": [
+						{
+							"repository": "/home/dev/project",
+							"kind": "root",
+							"head": {
+								"branch": "main",
+								"commit": "0123456789abcdef0123456789abcdef01234567",
+								"detached": false,
+								"unborn": false
+							},
+							"upstream": {
+								"name": "origin/main",
+								"ahead": 2,
+								"behind": 0
+							},
+							"operation": "none",
+							"counts": {
+								"merge": 0,
+								"index": 1,
+								"workingTree": 3,
+								"untracked": 2
+							},
+							"truncated": false,
+							"revision": "7",
+							"busy": "push",
+							"warm": true,
+							"stale": false
+						},
+						{
+							"repository": "/home/dev/project/vendor/lib",
+							"kind": "nested",
+							"head": {
+								"commit": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+								"detached": true,
+								"unborn": false
+							},
+							"operation": "rebase",
+							"counts": {
+								"merge": 1,
+								"index": 0,
+								"workingTree": 0,
+								"untracked": 0
+							},
+							"truncated": true,
+							"revision": "0",
+							"warm": false,
+							"stale": true
+						}
+					],
+					"candidates": ["/home/dev"],
+					"unsafe": ["/srv/shared"],
+					"repositoriesTruncated": false
+				}
+			},
+			{
+				"name": "prompt-kind-token",
+				"op": "relay.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"prompts": [
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "token",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						}
+					]
+				}
+			},
+			{
+				"name": "prompts-too-many",
+				"op": "relay.subscribe",
+				"kind": "snapshot",
+				"json": {
+					"prompts": [
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						},
+						{
+							"id": "00000000000000000000000000000001",
+							"kind": "password",
+							"text": "Password for 'https://dev@example.com': ",
+							"repository": "/home/dev/project"
+						}
+					]
+				}
+			},
+			{
+				"name": "closed-extra-member",
+				"op": "relay.subscribe",
+				"kind": "update",
+				"json": {
+					"kind": "closed",
+					"id": "00000000000000000000000000000001",
+					"prompt": {
+						"id": "00000000000000000000000000000001",
+						"kind": "password",
+						"text": "Password for 'https://dev@example.com': ",
+						"repository": "/home/dev/project"
+					}
+				}
+			},
+			{
+				"name": "notice-for-request-operation",
+				"op": "fs.list",
+				"kind": "snapshot",
+				"json": {
+					"entries": []
+				}
+			}
+		]
+	}
+}
