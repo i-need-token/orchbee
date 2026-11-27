@@ -243,6 +243,57 @@ test "export then import restores each screen's Kitty images and placements, and
     try std.testing.expectError(error.HoldsImage, fixture.exportParked(source));
 }
 
+/// One line in each of 2,000 colors, then a shell prompt. A page holds more styles than a standard
+/// page has room for, so each page grows and the screen holds more history than its scrollback
+/// limit, while the prompt's anchor counts rows from the top of that history.
+fn overgrownHistory() ![]u8 {
+    var bytes: std.ArrayList(u8) = .empty;
+    errdefer bytes.deinit(allocator);
+    for (0..2000) |line| {
+        try bytes.print(allocator, "\x1b[38;2;{d};{d};200mline {d:0>4}\x1b[0m\r\n", .{ line % 256, line / 256, line });
+    }
+    try bytes.appendSlice(allocator, prompt);
+    return bytes.toOwnedSlice(allocator);
+}
+
+const ScrollbackUse = struct { bytes: usize, limit: usize };
+
+fn scrollbackUse(runtime: *TerminalRuntime) ScrollbackUse {
+    const state = harness.runtimeState(runtime);
+    state.terminal_mutex.lock();
+    defer state.terminal_mutex.unlock();
+    const pages = &state.terminal.screens.get(.primary).?.pages;
+    return .{ .bytes = pages.page_size, .limit = pages.limits.max(.bytes) };
+}
+
+test "export then import restores a screen holding more history than its limit exactly" {
+    const history = try overgrownHistory();
+    defer allocator.free(history);
+    var stand_in: fixture.StandIn = try .init();
+    defer stand_in.deinit();
+    var source_output: ScriptedOutput = .{};
+    // Below any page's size, so Ghostty's own floor of two standard pages bounds the history.
+    const source = try fixture.createScriptedWith(&source_output, &stand_in, 80, 24, .{ .scrollback_bytes = 1 });
+    defer source.destroy();
+    source_output.commit(history);
+
+    const record = try fixture.exportParked(source);
+    defer allocator.free(record);
+    const exported = scrollbackUse(source);
+    try std.testing.expect(exported.bytes > exported.limit);
+    var decoded = try fixture.handover.decode(allocator, record, subject.handover_pin);
+    defer decoded.deinit();
+    try std.testing.expect(decoded.engine.prompt_gate.anchor.?.place == .holds);
+
+    var imported_output: ScriptedOutput = .{};
+    var imported = try fixture.importScripted(record, &imported_output, &stand_in);
+    defer imported.deinit();
+    try fixture.expectSameTerminal(source, imported.runtime);
+    try fixture.expectSameSections(source, imported.runtime);
+    // The screen keeps its limit, which prunes the oldest pages from the next page on.
+    try std.testing.expectEqual(exported.limit, scrollbackUse(imported.runtime).limit);
+}
+
 test "export then import restores a busy shell exactly" {
     const flood = "busy-";
     // A slow reader of a flood gets the PTY's whole buffer each read, 4,095 bytes on Linux. Lines

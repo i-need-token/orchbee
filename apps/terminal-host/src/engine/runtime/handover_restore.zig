@@ -18,7 +18,6 @@ const state = @import("state.zig");
 const clock = @import("clock.zig");
 const creation = @import("creation.zig");
 const feedback = @import("feedback.zig");
-const terminal_control = @import("terminal_control.zig");
 const handover_export = @import("handover_export.zig");
 const handover_shell = @import("handover_shell.zig");
 const handover_input = @import("handover_input.zig");
@@ -81,9 +80,8 @@ pub fn prepare(allocator: std.mem.Allocator, record: []const u8) !Prepared {
     try checkEngine(decoded.terminal, engine);
 
     var reader: std.Io.Reader = .fixed(decoded.screen);
-    var snapshot = ghostty_vt.snapshot.decodeExact(allocator, platform.thread_sync.io(), &reader, .{
-        .max_continuation_bytes = 0,
-    }) catch |err| return switch (err) {
+    var lifted: LiftedLimits = .{};
+    var snapshot = decodeScreen(allocator, &reader, &lifted) catch |err| return switch (err) {
         error.OutOfMemory => error.OutOfMemory,
         error.ContinuationLimitExceeded => error.ContinuationPending,
         else => error.InvalidRecord,
@@ -132,6 +130,7 @@ pub fn prepare(allocator: std.mem.Allocator, record: []const u8) !Prepared {
     applyHostLimits(self);
     try handover_images.restore(&self.terminal, decoded.images);
     try install(self, engine, held_attachments);
+    restoreScrollbackLimits(&lifted);
     return .{
         .runtime = self,
         .facts = .{
@@ -259,11 +258,54 @@ pub fn restoreStandIn(
     return prepared;
 }
 
-/// The bounds the Host sets on every terminal and Ghostty's snapshot does not carry.
+/// A screen's scrollback byte limit as the record declares it, lifted while its history decodes.
+const LiftedLimit = struct { screen: *ghostty_vt.Screen, limit: ?usize };
+const LiftedLimits = std.EnumMap(ghostty_vt.ScreenSet.Key, LiftedLimit);
+
+/// Restores the record's screen section with every history page the exporting screen held, since
+/// the record's prompt anchor and image placements count rows from the top of that history.
+/// Ghostty drops the oldest pages that would exceed a screen's byte limit, and a screen can hold
+/// more than its limit: a page that needs room for more styles, graphemes, or links grows without
+/// pruning another. Each limit stays lifted until `restoreScrollbackLimits`.
+fn decodeScreen(
+    allocator: std.mem.Allocator,
+    reader: *std.Io.Reader,
+    lifted: *LiftedLimits,
+) ghostty_vt.snapshot.DecodeExactError!ghostty_vt.snapshot.Decoded {
+    var decoder: ghostty_vt.snapshot.Decoder = .init(reader);
+    var result = try decoder.ready(allocator, platform.thread_sync.io(), .{ .max_continuation_bytes = 0 });
+    errdefer result.deinit(allocator);
+    const terminal = &result.terminal.?;
+    var screens = terminal.screens.all.iterator();
+    while (screens.next()) |entry| {
+        const screen = entry.value.*;
+        const explicit = screen.pages.limits.bytes.explicit;
+        // Ghostty stores an absent limit as the largest value.
+        lifted.put(entry.key, .{ .screen = screen, .limit = if (explicit == std.math.maxInt(usize)) null else explicit });
+        screen.pages.limits.set(.bytes, null);
+    }
+    while (try decoder.next(allocator, terminal)) |_| {}
+    // The section ends at its FINISH record, as `decodeExact` requires.
+    _ = reader.peekByte() catch |err| switch (err) {
+        error.EndOfStream => return result,
+        else => |other| return other,
+    };
+    return error.TrailingData;
+}
+
+/// Restores each screen's byte limit once the record's screen points are tracked, without pruning:
+/// the screen holds what the old Host's held under the same limit, and its next page prunes the
+/// oldest as the old Host's would have.
+fn restoreScrollbackLimits(lifted: *LiftedLimits) void {
+    var screens = lifted.iterator();
+    while (screens.next()) |entry| entry.value.screen.pages.limits.set(.bytes, entry.value.limit);
+}
+
+/// The bounds the Host sets on every terminal and Ghostty's snapshot does not carry; the snapshot
+/// carries each screen's scrollback limit.
 fn applyHostLimits(self: *state.State) void {
     self.terminal.setKittyGraphicsSizeLimit(self.allocator, protocol.Limits.terminal_graphics_resource_bytes);
     self.terminal.setKittyGraphicsLoadingLimits(creation.kittyLoadingLimits(self.kitty_temp_directory.?));
-    _ = terminal_control.applyScrollbackBytes(&self.terminal, self.scrollback_bytes);
     self.stream.handler.resized();
 }
 

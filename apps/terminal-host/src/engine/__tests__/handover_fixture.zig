@@ -77,8 +77,19 @@ pub const RefusingSpawner = struct {
 };
 
 pub fn createScripted(output: *ScriptedOutput, stand_in: *const StandIn, columns: u16, rows: u16) !*TerminalRuntime {
+    return createScriptedWith(output, stand_in, columns, rows, .{});
+}
+
+/// `createScripted` with the runtime's `options`.
+pub fn createScriptedWith(
+    output: *ScriptedOutput,
+    stand_in: *const StandIn,
+    columns: u16,
+    rows: u16,
+    options: subject.Options,
+) !*TerminalRuntime {
     var spawner: harness.HookedThreadSpawner = .{ .hooks = output.hooks() };
-    const runtime = try harness.createWithOptionsUsingSpawner(allocator, stand_in.launch(columns, rows), .{}, &spawner);
+    const runtime = try harness.createWithOptionsUsingSpawner(allocator, stand_in.launch(columns, rows), options, &spawner);
     output.runtime = runtime;
     return runtime;
 }

@@ -137,6 +137,10 @@ Every color is a `u32` of the form `0x00RRGGBB`.
   one, and refuses the record past 128 MiB. An export refuses such a screen the same way. Ghostty
   would otherwise allocate and zero a forged capacity before checking the record, and it asserts
   that one page stays under 4 GiB.
+- An import restores every history page the snapshot holds, though a screen can hold more than its
+  scrollback limit: Ghostty grows a page that needs room for more styles, graphemes, or links
+  without pruning another. The prompt gate's anchor and each placement count rows from the top of
+  that history. The limit prunes from the next page on, as it would have on the exporting Host.
 - Kitty images are not in the snapshot; the [`images`](#images) section carries them.
 
 ## `engine`
