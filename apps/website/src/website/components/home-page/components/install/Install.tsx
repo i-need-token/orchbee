@@ -61,8 +61,8 @@ const START_NOTE = {
 	all: messages.installStartNoteAll,
 } as const satisfies Record<OfferedPlatforms, unknown>;
 
-// How to install Orchbee. Once a release is published: the rows of each platform it published (its commands, when it
-// has any, above its installer buttons), the npm package and how to start, with the release named. With more than one
+// How to install Orchbee. Once a release is published: the rows of each platform it published (its installer buttons,
+// then its commands when it has any), the npm package and how to start, with the release named. With more than one
 // platform, a tab per platform and one for npm, opening on the visitor's platform; the note under the rows follows
 // the tab. Before a release, the source build.
 export function Install({ release }: { release: Release }): ReactElement {
@@ -137,6 +137,22 @@ export function Install({ release }: { release: Release }): ReactElement {
 								));
 								return (
 									<Fragment key={platform.id}>
+										<InstallRow
+											title={
+												several ? t(shellMessages[platform.install.title]) : t(messages.installApp)
+											}
+											detail={t(shellMessages[platform.install.detail], richText)}
+											// More than two installers, as Linux has, leave the text no room beside them.
+											stacked={installers.length > 2}
+											group={platform.id}
+										>
+											{/* A lone installer sits in the row itself, as the Windows download always has. */}
+											{installers.length === 1 ? (
+												installers
+											) : (
+												<div className={styles['downloads']}>{installers}</div>
+											)}
+										</InstallRow>
 										{platform.install.commands === undefined ? null : (
 											<InstallRow
 												title={t(shellMessages[platform.install.commands.title])}
@@ -156,22 +172,6 @@ export function Install({ release }: { release: Release }): ReactElement {
 												</div>
 											</InstallRow>
 										)}
-										<InstallRow
-											title={
-												several ? t(shellMessages[platform.install.title]) : t(messages.installApp)
-											}
-											detail={t(shellMessages[platform.install.detail], richText)}
-											// More than two installers, as Linux has, leave the text no room beside them.
-											stacked={installers.length > 2}
-											group={platform.id}
-										>
-											{/* A lone installer sits in the row itself, as the Windows download always has. */}
-											{installers.length === 1 ? (
-												installers
-											) : (
-												<div className={styles['downloads']}>{installers}</div>
-											)}
-										</InstallRow>
 									</Fragment>
 								);
 							})}

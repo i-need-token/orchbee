@@ -108,8 +108,8 @@ interface PlatformCommand {
 }
 
 // A platform's rows in the install section: the downloads row (its title, its description and a button per
-// installer) and, when the platform has commands, a commands row above it. Both show under the platform's tab,
-// followed by the platform's note when it has one.
+// installer) and, when the platform has commands, a commands row under it, so the desktop application comes first.
+// Both show under the platform's tab, followed by the platform's note when it has one.
 interface PlatformInstall {
 	readonly title: ShellMessageKey;
 	readonly detail: ShellMessageKey;
@@ -142,7 +142,8 @@ interface Platform {
 // 2. Its entry here: `id`, `name` (its copy key), `icon`, the `visitor` pattern (it must not match Android, whose
 //    platform string also starts with "Linux"), `variants` (one per installer: its `download` key and the copy keys
 //    `label`, `install` and `cta`; `link` names a non-first installer in the call to action's link line, and `cta`
-//    stands in when there is no `link`), `commands` (other ways to install, if any), and `install` (the copy of its
+//    stands in when there is no `link`), `commands` (other ways to install, if any, the one that installs the
+//    desktop application first), and `install` (the copy of its
 //    install rows: `title`, `detail` and `note`, plus `commands` when it has commands).
 // 3. Its icon: a PATHS entry in components/icon/Icon.tsx, under the name `icon` gives.
 // 4. Its copy keys: every key the entry references, in packages/i18n/src/descriptors/website-shell.ts with a
