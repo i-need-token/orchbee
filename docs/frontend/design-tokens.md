@@ -108,7 +108,7 @@ The `font` shorthand cannot carry letter spacing, so a role that is tracked regi
 
 The spacing, sizing, radius, breakpoint, motion, elevation, and layer foundations stay in the reference tier because their values are context-independent. Do not create separate system aliases named for CSS properties such as margin and padding; components select from the same finite spacing scale.
 
-Authored transitions and animations consume `--ob-sys-motion-duration-*` and `--ob-sys-motion-easing-*`, not motion references directly. Under `prefers-reduced-motion: reduce`, the registry maps fast, normal, and slow semantic durations to the instant reference. Keyframe names and transitioned properties remain component implementation details.
+Authored transitions and animations consume `--ob-sys-motion-duration-*` and `--ob-sys-motion-easing-*`, not motion references directly. Under `prefers-reduced-motion: reduce`, the registry maps the fast, normal, slow, and spin semantic durations to the instant reference. Keyframe names and transitioned properties remain component implementation details.
 
 ## Tailwind replacement readiness
 

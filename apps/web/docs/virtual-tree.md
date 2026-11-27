@@ -18,13 +18,22 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - Return an array when the children are at hand, as Source Control's changes and Search results
   are: the rows change in the same call, and expanding a row loads and shows its children in one
   splice. Return a promise when they must be fetched, as Explorer's directory reads are: the row
-  shows expanded and empty until the children arrive, and a result for a row that has left the tree
-  is dropped.
+  shows expanded and empty until the children arrive, and once a read has taken 800 ms its twistie
+  turns into a spinner until it ends, as in VS Code.
+- The model reads one item's children once at a time, and everyone who needs them while the read
+  runs shares it. Pass the `AbortSignal` on to the read: it aborts when the row collapses or leaves
+  the tree, or when the model is disposed, and an answer after that is dropped. A failed read
+  collapses the row and rejects the operation that asked, and expanding the row reads again. Reject
+  with an `AbortError` when the source itself cancels a read: the row collapses the same way, but
+  the operation settles without an error, as VS Code takes a cancelled read.
 - Call `refresh(key)` when the source's data under an item changed, or `refresh(null)` for the top
   level. A collapsed row only forgets its children and fetches them again when it next expands, so
   refreshing a large collapsed folder costs nothing. Expanded rows below the refreshed one fetch
-  theirs too; `recursive` also makes collapsed rows below forget theirs.
-- A view restores a tree with `restoreViewState`, which expands the saved rows as they load.
+  theirs too; `recursive` also makes collapsed rows below forget theirs. A refresh asked while an
+  older read runs waits for it and reads once more, however many refreshes arrive meanwhile, so a
+  burst of watcher events costs a folder at most two reads.
+- A view restores a tree with `restoreViewState`, which expands the saved rows as they load, and
+  calls `dispose` when the tree goes away for good.
 - Source callbacks must not call back into the model.
 
 ## Rendering a tree
@@ -100,6 +109,16 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   load when the source answered their parent synchronously, so an in-memory tree expands whole, and
   stay collapsed when it answered asynchronously, so a recursive expansion never starts a fetch per
   folder.
+- **A refresh never takes an answer older than itself.** Each read is stamped with the refresh count
+  when it starts: an expansion shares any running read, a refresh only one that started after it was
+  asked, and the rest share one follow-up read that starts when the running one ends. VS Code's
+  asynchronous tree waits for an intersecting refresh and then refreshes again for each caller, so
+  refreshes during one read cost a read each; aborting the running read instead would starve a
+  folder whose watcher fires faster than it reads.
+- **Collapsing aborts the read.** VS Code lets a collapsed row's read finish; here collapsing aborts
+  it, as the File Bar proposal asks. A refresh it aborted, like a failed read, leaves the row stale,
+  so the next expansion reads again instead of showing children the read was meant to replace. VS
+  Code keeps the old children of a failed row and shows them on the next expansion without reading.
 - **A key under a new parent wins.** The node it displaces leaves with its subtree when the refresh
   ends; a key that would make a row its own ancestor is skipped, and a key repeated in one list keeps
   its first row. VS Code leaves these cases undefined, and silent duplicates would corrupt focus and

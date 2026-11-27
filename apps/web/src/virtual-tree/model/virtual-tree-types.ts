@@ -14,8 +14,11 @@ export interface VirtualTreeSource<K, T> {
 	readonly hasChildren: (item: T) => boolean;
 	/**
 	 * The item's children in display order. Return an array when they are at hand, so the rows change
-	 * in the same task; return a promise when they must be fetched. The signal aborts when the request
-	 * is no longer wanted.
+	 * in the same task; return a promise when they must be fetched. The model asks for one item's
+	 * children once at a time, and the signal aborts when nobody wants the answer any more: the row
+	 * collapsed or left the tree, or the model was disposed. A promise that rejects after the abort is
+	 * ignored; one that rejects before it collapses the row and fails the operation that asked, unless
+	 * the error is an `AbortError`, which counts as the source cancelling the read.
 	 */
 	readonly children: (item: T, signal: AbortSignal) => readonly T[] | Promise<readonly T[]>;
 }
@@ -37,9 +40,15 @@ export interface VirtualTreeRow<K, T> {
 	/** The rows directly below this one that belong to its subtree. */
 	readonly visibleDescendantCount: number;
 	/**
-	 * Changes whenever the row's element, collapsibility or expansion changes in place, so a renderer
-	 * can skip a row whose revision it has drawn. Position, set size, depth and the descendant count
-	 * are read directly.
+	 * True once the row's children have been loading for 800 ms, when VS Code's asynchronous tree
+	 * shows a folder as slow; the tree draws a spinner in place of the twistie. A quicker load never
+	 * shows one.
+	 */
+	readonly loading: boolean;
+	/**
+	 * Changes whenever the row's element, collapsibility, expansion or loading state changes in place,
+	 * so a renderer can skip a row whose revision it has drawn. Position, set size, depth and the
+	 * descendant count are read directly.
 	 */
 	readonly revision: number;
 }

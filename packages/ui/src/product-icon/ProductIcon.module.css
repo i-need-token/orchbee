@@ -99,6 +99,10 @@
 	composes: codicon-link from global;
 }
 
+.loading {
+	composes: codicon-loading from global;
+}
+
 .machine {
 	composes: codicon-vm from global;
 }

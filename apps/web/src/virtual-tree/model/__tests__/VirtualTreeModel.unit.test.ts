@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { VirtualTreeModel } from '../VirtualTreeModel';
 import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../virtual-tree-types';
@@ -761,6 +761,305 @@ function rowSnapshot(tree: VirtualTreeModel<string, Item>): unknown[] {
 	});
 }
 
+/** A request the asynchronous source has not answered. */
+interface PendingRequest {
+	readonly item: Item;
+	readonly signal: AbortSignal;
+	/** The fake clock when the model asked. */
+	readonly askedAt: number;
+	/** The children when the model asked; a read may see them as they were then or as they are later. */
+	readonly snapshot: readonly Item[];
+	readonly resolve: (children: readonly Item[]) => void;
+	readonly reject: (error: unknown) => void;
+}
+
+type AsyncCommand =
+	| { readonly kind: 'mutate'; readonly edits: readonly Edit[] }
+	| { readonly kind: 'refresh'; readonly pick: number; readonly recursive: boolean }
+	| { readonly kind: 'expand'; readonly pick: number; readonly recursive: boolean }
+	| { readonly kind: 'collapse'; readonly pick: number; readonly recursive: boolean }
+	| { readonly kind: 'collapseAll' }
+	| { readonly kind: 'answer'; readonly pick: number; readonly current: boolean }
+	| { readonly kind: 'fail'; readonly pick: number }
+	| { readonly kind: 'wait'; readonly milliseconds: number };
+
+const LOADING_DELAY_MS = 800;
+
+const asyncCommandArbitrary: fc.Arbitrary<AsyncCommand> = fc.oneof(
+	{
+		arbitrary: fc.record({
+			edits: fc.array(editArbitrary, { maxLength: 2, minLength: 1 }),
+			kind: fc.constant('mutate'),
+		}),
+		weight: 2,
+	},
+	{
+		arbitrary: fc.record({
+			kind: fc.constant('refresh'),
+			pick: pickArbitrary,
+			recursive: fc.boolean(),
+		}),
+		weight: 3,
+	},
+	{
+		arbitrary: fc.record({
+			kind: fc.constant('expand'),
+			pick: pickArbitrary,
+			recursive: fc.boolean(),
+		}),
+		weight: 3,
+	},
+	{
+		arbitrary: fc.record({
+			kind: fc.constant('collapse'),
+			pick: pickArbitrary,
+			recursive: fc.boolean(),
+		}),
+		weight: 2,
+	},
+	{ arbitrary: fc.record({ kind: fc.constant('collapseAll') }), weight: 1 },
+	{
+		arbitrary: fc.record({ current: fc.boolean(), kind: fc.constant('answer'), pick: fc.nat() }),
+		weight: 6,
+	},
+	{ arbitrary: fc.record({ kind: fc.constant('fail'), pick: fc.nat() }), weight: 1 },
+	{
+		arbitrary: fc.record({
+			kind: fc.constant('wait'),
+			milliseconds: fc.oneof(
+				fc.constantFrom(LOADING_DELAY_MS - 1, LOADING_DELAY_MS, LOADING_DELAY_MS + 1),
+				fc.nat({ max: 1_000 }),
+			),
+		}),
+		weight: 2,
+	},
+);
+
+/** Mostly a visible row's key; sometimes one the model has not loaded, or one nobody holds. */
+function pickRowKey(model: VirtualTreeModel<string, Item>, world: World, pick: number): string {
+	const reach = pick % 20;
+	if (reach < 15 && model.rowCount > 0) return model.rowAt(pick % model.rowCount).key;
+	if (reach === 19) return 'missing';
+	const items = world.items().filter((item) => item !== world.input);
+	return items[pick % Math.max(1, items.length)]?.key ?? 'missing';
+}
+
+/** Lets every promise reaction run; the fake timers leave `setImmediate` real. */
+function flush(): Promise<void> {
+	return new Promise((resolve) => {
+		setImmediate(resolve);
+	});
+}
+
+/** Drives a model whose source answers only when a command says so. */
+class AsyncRun {
+	readonly world: World;
+	readonly model: VirtualTreeModel<string, Item>;
+	readonly pending: PendingRequest[] = [];
+	readonly events: VirtualTreeEvent<string>[] = [];
+	/** Whether each operation the run started has settled. */
+	private readonly operations: { settled: boolean }[] = [];
+	private poisoned = 0;
+
+	constructor(seed: readonly SeedItem[]) {
+		this.world = new World(seed);
+		this.model = new VirtualTreeModel<string, Item>({
+			input: this.world.input,
+			source: {
+				children: (item, signal) =>
+					new Promise((resolve, reject) => {
+						this.pending.push({
+							askedAt: Date.now(),
+							item,
+							reject,
+							resolve,
+							signal,
+							snapshot: this.world.childrenOf(item),
+						});
+					}),
+				hasChildren: (item) => item.folder,
+				key: (item) => item.key,
+			},
+		});
+		this.model.subscribe((event) => this.events.push(event));
+	}
+
+	get settled(): boolean {
+		return this.operations.every((operation) => operation.settled);
+	}
+
+	track(operation: Promise<void>): void {
+		const record = { settled: false };
+		this.operations.push(record);
+		const settle = (): void => {
+			record.settled = true;
+		};
+		operation.then(settle, settle);
+	}
+
+	/**
+	 * Answers with the children as they were when the model asked, or with `current` as the world holds
+	 * them now; a request nobody wants any more gets a poisoned child instead, which must never show.
+	 */
+	answer(request: PendingRequest, current: boolean): void {
+		this.pending.splice(this.pending.indexOf(request), 1);
+		if (!request.signal.aborted) {
+			request.resolve(current ? this.world.childrenOf(request.item) : request.snapshot);
+			return;
+		}
+		this.poisoned += 1;
+		request.resolve([
+			{ expanded: false, folder: false, key: `poison-${this.poisoned}`, version: 0 },
+		]);
+	}
+
+	async run(command: AsyncCommand): Promise<void> {
+		const { model, pending, world } = this;
+		switch (command.kind) {
+			case 'mutate':
+				for (const edit of command.edits) {
+					world.mutate(world.folderFor(pickRowKey(model, world, edit.target)), edit);
+				}
+				return;
+			case 'refresh': {
+				const key = command.pick % 5 === 0 ? null : pickRowKey(model, world, command.pick);
+				this.track(model.refresh(key, { recursive: command.recursive }));
+				return;
+			}
+			case 'expand':
+				this.track(
+					model.expand(pickRowKey(model, world, command.pick), { recursive: command.recursive }),
+				);
+				return;
+			case 'collapse':
+				model.collapse(pickRowKey(model, world, command.pick), { recursive: command.recursive });
+				return;
+			case 'collapseAll':
+				model.collapseAll();
+				return;
+			case 'answer': {
+				const request = pending[command.pick % Math.max(1, pending.length)];
+				if (request !== undefined) this.answer(request, command.current);
+				return;
+			}
+			case 'fail': {
+				const request = pending[command.pick % Math.max(1, pending.length)];
+				if (request === undefined) return;
+				pending.splice(pending.indexOf(request), 1);
+				request.reject(new Error('unreadable'));
+				return;
+			}
+			case 'wait':
+				await vi.advanceTimersByTimeAsync(command.milliseconds);
+		}
+	}
+}
+
+/**
+ * What must hold after every step: one live request per key, owned by the input or an expanded row;
+ * no poisoned row; a row loading exactly while its live request has waited the indicator's delay;
+ * consistent row structure; and splices that replay the old rows into the new ones.
+ */
+function expectAsyncInvariants(state: AsyncRun, before: readonly string[]): void {
+	const { model, pending, world } = state;
+	const live = pending.filter((request) => !request.signal.aborted);
+	const liveKeys = live.map((request) => request.item.key);
+	expect(new Set(liveKeys).size).toBe(liveKeys.length);
+	const now = Date.now();
+	for (let index = 0; index < model.rowCount; index += 1) {
+		const row = model.rowAt(index);
+		expect(row.key.startsWith('poison')).toBe(false);
+		expect(model.indexOf(row.key)).toBe(index);
+		const { parent } = row;
+		expect(row.depth).toBe(parent === null ? 1 : parent.depth + 1);
+		expect(parent === null ? -1 : model.indexOf(parent.key)).toBeLessThan(index);
+		expect(parent?.collapsed ?? false).toBe(false);
+		// The rows the descendant count covers lie deeper than this one, and the next row does not.
+		const end = index + row.visibleDescendantCount;
+		for (let below = index + 1; below <= end; below += 1) {
+			expect(model.rowAt(below).depth).toBeGreaterThan(row.depth);
+		}
+		const next = end + 1 < model.rowCount ? model.rowAt(end + 1).depth : 1;
+		expect(next).toBeLessThanOrEqual(row.depth);
+		const waited = live.some(
+			(request) => request.item.key === row.key && now - request.askedAt >= LOADING_DELAY_MS,
+		);
+		expect(row.loading).toBe(waited);
+	}
+	// Collapsing aborts and leaving the tree aborts, so only the input and expanded rows load.
+	const expanded = new Set(model.viewState().expanded);
+	for (const key of liveKeys) expect(key === world.input.key || expanded.has(key)).toBe(true);
+	expect(replayRows(before, state.events, model)).toEqual(rowKeys(model));
+}
+
+/** The rows `before` turns into when the reported splices apply, reading inserts from the model. */
+function replayRows(
+	before: readonly string[],
+	events: readonly VirtualTreeEvent<string>[],
+	model: VirtualTreeModel<string, Item>,
+): string[] {
+	const after = rowKeys(model);
+	const replay = [...before];
+	for (const event of events) {
+		if (event.kind !== 'rows') continue;
+		for (const splice of event.splices) {
+			replay.splice(
+				splice.start,
+				splice.deleteCount,
+				...after.slice(splice.start, splice.start + splice.insertCount),
+			);
+		}
+	}
+	return replay;
+}
+
+/** The rows the world shows with the model's expanded rows expanded. */
+function worldRows(world: World, model: VirtualTreeModel<string, Item>): Item[] {
+	const expanded = new Set<string>();
+	for (let index = 0; index < model.rowCount; index += 1) {
+		const row = model.rowAt(index);
+		if (row.collapsible && !row.collapsed) expanded.add(row.key);
+	}
+	const rows: Item[] = [];
+	const visit = (item: Item): void => {
+		for (const child of world.childrenOf(item)) {
+			rows.push(child);
+			if (child.folder && expanded.has(child.key)) visit(child);
+		}
+	};
+	visit(world.input);
+	return rows;
+}
+
+/**
+ * Answers every request with the children as they were when asked, picking each from the unanswered
+ * ones by the next pick, and the oldest once the picks run out.
+ */
+async function answerAll(state: AsyncRun, picks: readonly number[]): Promise<void> {
+	for (let round = 0; state.pending.length > 0; round += 1) {
+		expect(round).toBeLessThan(10_000);
+		const before = rowKeys(state.model);
+		state.events.length = 0;
+		const request = state.pending[(picks[round] ?? 0) % state.pending.length];
+		if (request !== undefined) state.answer(request, false);
+		await flush();
+		expectAsyncInvariants(state, before);
+	}
+}
+
+/** Every operation has settled, and the rows hold the world's items under the model's expansion. */
+function expectWorldRows(state: AsyncRun): void {
+	expect(state.settled).toBe(true);
+	const expected = worldRows(state.world, state.model);
+	expect(rowKeys(state.model)).toEqual(expected.map((item) => item.key));
+	for (const [index, item] of expected.entries()) {
+		const row = state.model.rowAt(index);
+		expect(row.element).toBe(item);
+		expect(row.collapsible).toBe(item.folder);
+		expect(row.loading).toBe(false);
+	}
+}
+
 describe('VirtualTreeModel', () => {
 	it(
 		'matches a naive tree through random edits, refreshes, expansion and traits',
@@ -869,4 +1168,59 @@ describe('VirtualTreeModel', () => {
 		]);
 		expect(late).toEqual([]);
 	});
+
+	it(
+		'loads asynchronously with one request per row, drops unwanted answers, and rests on the source data',
+		async () => {
+			await fc.assert(
+				fc.asyncProperty(
+					seedArbitrary,
+					fc.array(asyncCommandArbitrary, { maxLength: 40, size: 'max' }),
+					fc.constantFrom('plain', 'recursive', 'recursive behind plain'),
+					fc.array(fc.nat(), { maxLength: 60 }),
+					async (seed, commands, last, picks) => {
+						vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+						try {
+							const state = new AsyncRun(seed);
+							state.track(state.model.refresh(null));
+							await flush();
+							for (const command of commands) {
+								const before = rowKeys(state.model);
+								state.events.length = 0;
+								await state.run(command);
+								await flush();
+								expectAsyncInvariants(state, before);
+							}
+							// At rest, one more refresh reaches every expanded row. Answering everything, in any
+							// order, with the children as they were when asked must settle every operation and
+							// leave the rows the world shows: no answer a read began before the refresh may stand.
+							// A recursive refresh asked right after a plain one waits for the plain one's reads.
+							if (last !== 'recursive') state.track(state.model.refresh(null));
+							if (last !== 'plain') state.track(state.model.refresh(null, { recursive: true }));
+							await answerAll(state, picks);
+							expectWorldRows(state);
+							if (last === 'plain') return;
+							// A recursive refresh also leaves no collapsed row below holding children read before
+							// it, so expanding every row shows the whole world.
+							for (let round = 0; ; round += 1) {
+								expect(round).toBeLessThan(1_000);
+								const collapsed = rowKeys(state.model).filter((key) => {
+									const row = state.model.rowAt(state.model.indexOf(key));
+									return row.collapsible && row.collapsed;
+								});
+								if (collapsed.length === 0) break;
+								for (const key of collapsed) state.track(state.model.expand(key));
+								await answerAll(state, picks);
+							}
+							expectWorldRows(state);
+						} finally {
+							vi.useRealTimers();
+						}
+					},
+				),
+				{ interruptAfterTimeLimit: SHRINK_TIME_LIMIT_MS, numRuns: 200, seed: 2_026_11_29 },
+			);
+		},
+		PROPERTY_TIMEOUT_MS,
+	);
 });

@@ -501,6 +501,7 @@
 	--ob-ref-motion-duration-300: 300ms;
 	--ob-ref-motion-duration-500: 500ms;
 	--ob-ref-motion-duration-1000: 1000ms;
+	--ob-ref-motion-duration-1250: 1250ms;
 	--ob-ref-motion-duration-1568: 1568ms;
 	--ob-ref-motion-duration-2000: 2000ms;
 	--ob-ref-motion-duration-2600: 2600ms;
@@ -510,6 +511,7 @@
 	--ob-ref-motion-easing-linear: linear;
 	--ob-ref-motion-easing-step-end: steps(1, end);
 	--ob-ref-motion-easing-breath: ease-in-out;
+	--ob-ref-motion-easing-spin: steps(30);
 	--ob-ref-opacity-50: 0.5;
 	--ob-ref-opacity-72: 0.72;
 	--ob-ref-layer-base: 0;
@@ -826,6 +828,7 @@
 	--ob-sys-text-decoration-link-focus: var(--ob-ref-text-decoration-underline);
 	--ob-sys-motion-duration-instant: var(--ob-ref-motion-duration-instant);
 	--ob-sys-motion-duration-agent-cycle: var(--ob-ref-motion-duration-1000);
+	--ob-sys-motion-duration-spin: var(--ob-ref-motion-duration-1250);
 	--ob-sys-motion-duration-agent-breath: var(--ob-ref-motion-duration-2000);
 	--ob-sys-motion-easing-agent-breath: var(--ob-ref-motion-easing-breath);
 	--ob-sys-motion-duration-tab-strip-brief: var(--ob-ref-motion-duration-50);
@@ -846,6 +849,7 @@
 	--ob-sys-motion-easing-exit: var(--ob-ref-motion-easing-exit);
 	--ob-sys-motion-easing-linear: var(--ob-ref-motion-easing-linear);
 	--ob-sys-motion-easing-agent-frame: var(--ob-ref-motion-easing-step-end);
+	--ob-sys-motion-easing-spin: var(--ob-ref-motion-easing-spin);
 	--ob-sys-focus-ring-width: var(--ob-ref-border-width-strong);
 	--ob-sys-focus-ring-offset: var(--ob-ref-space-1);
 	--ob-sys-opacity-disabled: var(--ob-ref-opacity-50);
@@ -1682,6 +1686,7 @@
 		--ob-sys-motion-duration-fast: var(--ob-ref-motion-duration-instant);
 		--ob-sys-motion-duration-normal: var(--ob-ref-motion-duration-instant);
 		--ob-sys-motion-duration-slow: var(--ob-ref-motion-duration-instant);
+		--ob-sys-motion-duration-spin: var(--ob-ref-motion-duration-instant);
 	}
 }
 

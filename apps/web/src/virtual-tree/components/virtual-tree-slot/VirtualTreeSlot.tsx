@@ -16,7 +16,8 @@ interface VirtualTreeSlotProps<K, T> {
 
 /**
  * One row element, kept for whichever row its slot shows, so a scroll draws only the slots whose row
- * changed. The tree draws the indentation and twistie; the view draws the content.
+ * changed. The tree draws the indentation and the twistie, which turns into a spinner while the row
+ * shows that its children are loading; the view draws the content.
  */
 export function VirtualTreeSlot<K, T>({
 	renderRow,
@@ -30,6 +31,7 @@ export function VirtualTreeSlot<K, T>({
 	if (shown === null) return null;
 	const { focused, row, selected } = shown;
 	const open = row.collapsible && !row.collapsed;
+	const { loading } = row;
 	return (
 		<div
 			aria-expanded={row.collapsible ? open : undefined}
@@ -47,8 +49,14 @@ export function VirtualTreeSlot<K, T>({
 				'--ob-comp-virtual-tree-row-start': `${shown.top}px`,
 			}}
 		>
-			<span className={styles['twistie']} data-open={open ? '' : undefined}>
-				{row.collapsible ? <ProductIcon name='chevron-right' size='disclosure' /> : null}
+			<span
+				className={styles['twistie']}
+				data-loading={loading ? '' : undefined}
+				data-open={open && !loading ? '' : undefined}
+			>
+				{row.collapsible ? (
+					<ProductIcon name={loading ? 'loading' : 'chevron-right'} size='disclosure' />
+				) : null}
 			</span>
 			<div className={styles['content']}>{renderRow(row, { focused, selected })}</div>
 		</div>

@@ -2,8 +2,8 @@ This module reimplements list and tree behavior specified by Visual Studio Code
 (Code - OSS), read at commit ef5ca45a6e545e4767e0117905ee9d6120b86e11. No
 VS Code source is copied. Where an algorithm follows VS Code closely, such as
 the tree model's visible-descendant counts and single-splice expansion and the
-asynchronous tree's refresh, staleness and expansion rules, the MIT license
-below covers it.
+asynchronous tree's request sharing, loading indicator, refresh, staleness and
+expansion rules, the MIT license below covers it.
 
 MIT License
 

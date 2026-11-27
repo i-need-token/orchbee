@@ -46,6 +46,18 @@
 	transform: rotate(90deg);
 }
 
+/* VS Code turns a slow row's twistie into a loading glyph that turns once in 1.25s, in 30 steps. */
+.twistie[data-loading] {
+	animation: twistie-spin var(--ob-sys-motion-duration-spin) var(--ob-sys-motion-easing-spin)
+		infinite;
+}
+
+@keyframes twistie-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
 .content {
 	display: flex;
 	min-width: 0;

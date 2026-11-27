@@ -1,3 +1,4 @@
+import { ChildrenRequest } from './ChildrenRequest';
 import { longestIncreasingSubsequence } from './longestIncreasingSubsequence';
 import { replaceRows, RowSpliceBuilder, SpliceList } from './row-splices';
 import { collectRows, NO_CHILDREN, TreeNode } from './tree-node';
@@ -13,6 +14,9 @@ import type {
 
 /** Splices in one event beyond which a single replacement of every row describes it. */
 const EVENT_SPLICE_LIMIT = 64;
+
+/** How long a row's children load before the row shows it, as in VS Code's asynchronous tree. */
+const LOADING_INDICATOR_DELAY_MS = 800;
 
 const RESOLVED: Promise<void> = Promise.resolve();
 const NO_ITEMS: readonly never[] = [];
@@ -34,6 +38,11 @@ interface RecursiveOption {
  * Every operation applies completely before its events go out, and changes the rows with as few
  * splices as it can: one for an expand or collapse, plus one for each row that the children an
  * expansion loads move away from elsewhere, and none for a refresh that changes nothing.
+ *
+ * A row's children are fetched by one request at a time. Callers share it while its answer is new
+ * enough for them: any answer for an expansion, one requested after it was asked for a refresh.
+ * Refreshes asked while an older request runs share one more request once it ends. Collapsing the
+ * row, its leaving the tree, and `dispose` abort the request, and its late answer is dropped.
  */
 export class VirtualTreeModel<K, T> {
 	private readonly source: VirtualTreeSource<K, T>;
@@ -53,6 +62,11 @@ export class VirtualTreeModel<K, T> {
 	private delivering = false;
 	/** Keys a view-state restore expands as soon as they load. */
 	private pendingExpanded: ReadonlySet<K> | null = null;
+	/** The children requests that have not ended, one per node at most. */
+	private readonly requests = new Map<TreeNode<K, T>, ChildrenRequest<T>>();
+	/** How many refreshes have been asked for; a request answers those asked before it started. */
+	private refreshCount = 0;
+	private disposed = false;
 
 	// The current operation's effects, delivered together when the outermost operation ends.
 	private operationDepth = 0;
@@ -118,18 +132,23 @@ export class VirtualTreeModel<K, T> {
 	/**
 	 * Fetches the children of a row, or of the input for null, and merges them by key. A collapsed row
 	 * only drops its children, to fetch them when it next expands. Expanded rows below the refreshed
-	 * one fetch theirs too; `recursive` also drops the children of collapsed rows below it.
+	 * one fetch theirs too; `recursive` also drops the children of collapsed rows below it. A request
+	 * that started before the refresh was asked is waited for and then made again, so the promise
+	 * settles once every row the refresh reaches holds children fetched after it was asked.
 	 */
 	refresh(key: K | null, options?: RecursiveOption): Promise<void> {
 		const node = key === null ? this.root : this.nodes.get(key);
 		if (node === undefined) return RESOLVED;
 		const recursive = options?.recursive === true;
-		return this.settle(() => this.refreshNode(node, recursive));
+		this.refreshCount += 1;
+		const since = this.refreshCount;
+		return this.settle(() => this.refreshNode(node, recursive, since));
 	}
 
 	/**
-	 * Expands a row, fetching its children first when it has none loaded. `recursive` also expands
-	 * every loaded row below it; rows whose children arrived asynchronously stay collapsed.
+	 * Expands a row, fetching its children first when it has none loaded, and settles once they have
+	 * arrived. `recursive` also expands every loaded row below it; rows whose children arrived
+	 * asynchronously stay collapsed.
 	 */
 	expand(key: K, options?: RecursiveOption): Promise<void> {
 		const node = this.nodes.get(key);
@@ -138,7 +157,10 @@ export class VirtualTreeModel<K, T> {
 		return this.settle(() => this.expandNode(node, recursive));
 	}
 
-	/** Collapses a row; `recursive` also collapses every row below it. */
+	/**
+	 * Collapses a row, aborting the request for its children; children a refresh was fetching again
+	 * go, to load when the row next expands. `recursive` also collapses every row below it.
+	 */
 	collapse(key: K, options?: RecursiveOption): void {
 		const node = this.nodes.get(key);
 		if (node === undefined) return;
@@ -261,7 +283,7 @@ export class VirtualTreeModel<K, T> {
 			loading = this.operate(() => {
 				this.pendingExpanded = expanded;
 				const pending: Promise<void>[] = [];
-				if (this.root.stale) collect(pending, this.loadChildren(this.root, false));
+				if (this.root.stale) collect(pending, this.loadChildren(this.root, false, 0));
 				else this.expandSaved(this.root, expanded, pending);
 				const settled = settleAll(pending);
 				// A synchronous source restores everything in one batch of events.
@@ -290,24 +312,48 @@ export class VirtualTreeModel<K, T> {
 		};
 	}
 
+	/**
+	 * Aborts every request and stops delivering events; answers that arrive later change nothing,
+	 * and the operations waiting for them settle. Nothing loads after it. The owner of the tree's view
+	 * calls it once the tree goes away for good.
+	 */
+	dispose(): void {
+		if (this.disposed) return;
+		this.disposed = true;
+		this.listeners.clear();
+		const requests = [...this.requests.values()];
+		this.requests.clear();
+		for (const request of requests) request.abort();
+	}
+
 	// Loading
 
-	private refreshNode(node: TreeNode<K, T>, recursive: boolean): Promise<void> | null {
+	private refreshNode(
+		node: TreeNode<K, T>,
+		recursive: boolean,
+		since: number,
+	): Promise<void> | null {
 		if (node.owner !== null && node.collapsed) {
 			// As in VS Code's asynchronous tree, a collapsed row forgets its children until it expands.
+			this.abortRequest(node);
 			this.setCollapsible(node, this.source.hasChildren(node.element));
 			this.clearChildren(node);
 			node.stale = node.collapsible;
 			return null;
 		}
-		return this.refreshSubtree(node, recursive);
+		return this.refreshSubtree(node, recursive, since);
 	}
 
-	private refreshSubtree(node: TreeNode<K, T>, recursive: boolean): Promise<void> | null {
+	private refreshSubtree(
+		node: TreeNode<K, T>,
+		recursive: boolean,
+		since: number,
+	): Promise<void> | null {
 		if (node.owner !== null) {
 			const collapsible = this.source.hasChildren(node.element);
 			if (!collapsible) {
-				this.setChildren(node, NO_ITEMS, recursive, []);
+				this.abortRequest(node);
+				this.setChildren(node, NO_ITEMS, recursive, since, []);
 				this.setCollapsible(node, false);
 				node.collapsed = true;
 				node.stale = false;
@@ -315,20 +361,132 @@ export class VirtualTreeModel<K, T> {
 			}
 			this.setCollapsible(node, true);
 		}
-		return this.loadChildren(node, recursive);
+		return this.loadChildren(node, recursive, since);
 	}
 
-	private loadChildren(node: TreeNode<K, T>, recursive: boolean): Promise<void> | null {
-		const result = this.source.children(node.element, new AbortController().signal);
-		if ('then' in result) {
-			return result.then(
-				(items) =>
-					this.operate(() =>
-						node.attached ? this.applyChildren(node, items, recursive, false) : null,
-					) ?? RESOLVED,
-			);
+	/**
+	 * Fetches a node's children and merges them in. A running request answers the caller when it
+	 * started at or after refresh `since`; otherwise one more request follows it.
+	 */
+	private loadChildren(
+		node: TreeNode<K, T>,
+		recursive: boolean,
+		since: number,
+	): Promise<void> | null {
+		if (this.disposed) return null;
+		const running = this.requests.size > 0 ? this.requests.get(node) : undefined;
+		if (running !== undefined) return this.joinRequest(node, running, recursive, since);
+		const controller = new AbortController();
+		const result = this.source.children(node.element, controller.signal);
+		if (!('then' in result)) return this.applyChildren(node, result, recursive, true, since);
+		const request = new ChildrenRequest<T>({
+			answer: (answered, items) => this.answer(node, answered, items),
+			controller,
+			fail: (failed, error) => {
+				this.answerFailed(node, failed, error);
+			},
+			recursive,
+			result,
+			startedAt: this.refreshCount,
+		});
+		this.requests.set(node, request);
+		// The input has no row to show it on.
+		if (node.owner !== null) {
+			request.notifyAfter(LOADING_INDICATOR_DELAY_MS, () => {
+				this.showLoading(node, request);
+			});
 		}
-		return this.applyChildren(node, result, recursive, true);
+		return request.settled;
+	}
+
+	private joinRequest(
+		node: TreeNode<K, T>,
+		request: ChildrenRequest<T>,
+		recursive: boolean,
+		since: number,
+	): Promise<void> {
+		if (request.startedAt >= since) {
+			if (recursive) request.recursive = true;
+			return request.settled;
+		}
+		// The answer predates the refresh: one more request runs for every such caller once it ends.
+		if (since > request.followUpSince) request.followUpSince = since;
+		if (recursive) request.followUpRecursive = true;
+		request.followUp ??= request.ended.then(() => this.refreshAgain(node, request));
+		return request.followUp;
+	}
+
+	private refreshAgain(node: TreeNode<K, T>, request: ChildrenRequest<T>): Promise<void> {
+		if (this.disposed || !node.attached) return RESOLVED;
+		return this.settle(() =>
+			this.refreshNode(node, request.followUpRecursive, request.followUpSince),
+		);
+	}
+
+	/** Applies the answer of the node's current request; any other answer is no longer wanted. */
+	private answer(
+		node: TreeNode<K, T>,
+		request: ChildrenRequest<T>,
+		items: readonly T[],
+	): Promise<void> | null {
+		if (this.requests.get(node) !== request) return null;
+		return this.operate(() => {
+			this.endRequest(node, request);
+			return this.applyChildren(node, items, request.recursive, false, request.startedAt);
+		});
+	}
+
+	private answerFailed(node: TreeNode<K, T>, request: ChildrenRequest<T>, error: unknown): void {
+		if (this.requests.get(node) !== request) return;
+		this.operate(() => {
+			this.endRequest(node, request);
+			if (node.owner === null) return;
+			// As in VS Code, a row whose children fail to load collapses; it asks again on expand.
+			this.setCollapsed(node, true, true);
+			this.clearChildren(node);
+			node.stale = node.collapsible;
+		});
+		// VS Code's asynchronous tree takes a read its source cancelled as no children, not a failure.
+		if (error instanceof Error && error.name === 'AbortError') return;
+		throw error;
+	}
+
+	private showLoading(node: TreeNode<K, T>, request: ChildrenRequest<T>): void {
+		if (this.requests.get(node) !== request) return;
+		this.operate(() => {
+			node.loading = true;
+			this.touch(node);
+		});
+	}
+
+	private endRequest(node: TreeNode<K, T>, request: ChildrenRequest<T>): void {
+		this.requests.delete(node);
+		request.close();
+		if (node.loading) {
+			node.loading = false;
+			this.touch(node);
+		}
+	}
+
+	/** Aborts a node's request; false when it had none. */
+	private abortRequest(node: TreeNode<K, T>): boolean {
+		if (this.requests.size === 0) return false;
+		const request = this.requests.get(node);
+		if (request === undefined) return false;
+		this.requests.delete(node);
+		request.abort();
+		if (node.loading) {
+			node.loading = false;
+			this.touch(node);
+		}
+		return true;
+	}
+
+	/** Aborts the request of a row that collapsed; children a refresh was fetching again go. */
+	private abortLoad(node: TreeNode<K, T>): void {
+		if (!this.abortRequest(node) || node.stale) return;
+		this.clearChildren(node);
+		node.stale = true;
 	}
 
 	private applyChildren(
@@ -336,15 +494,16 @@ export class VirtualTreeModel<K, T> {
 		items: readonly T[],
 		recursive: boolean,
 		synchronous: boolean,
+		since: number,
 	): Promise<void> | null {
 		const pending: Promise<void>[] = [];
-		const toRefresh = this.setChildren(node, items, recursive, pending);
+		const toRefresh = this.setChildren(node, items, recursive, since, pending);
 		node.stale = false;
 		node.loadedSynchronously = synchronous;
 		for (const child of toRefresh) {
 			if (!child.attached) continue;
 			try {
-				collect(pending, this.refreshSubtree(child, recursive));
+				collect(pending, this.refreshSubtree(child, recursive, since));
 			} catch (error) {
 				pending.push(Promise.reject(error));
 			}
@@ -355,7 +514,7 @@ export class VirtualTreeModel<K, T> {
 	private expandNode(node: TreeNode<K, T>, recursive: boolean): Promise<void> | null {
 		const pending: Promise<void>[] = [];
 		// Loading first lets a synchronous source show the children in the same splice.
-		if (node.stale) collect(pending, this.loadChildren(node, false));
+		if (node.stale) collect(pending, this.loadChildren(node, false, 0));
 		if (recursive) {
 			if (!node.collapsed) this.setCollapsed(node, true, false);
 			this.expandDescendants(node, pending);
@@ -379,7 +538,7 @@ export class VirtualTreeModel<K, T> {
 			if (!child.attached || !child.collapsible) continue;
 			if (child.stale && node.loadedSynchronously) {
 				try {
-					collect(pending, this.loadChildren(child, false));
+					collect(pending, this.loadChildren(child, false, 0));
 				} catch (error) {
 					pending.push(Promise.reject(error));
 				}
@@ -400,6 +559,7 @@ export class VirtualTreeModel<K, T> {
 			if (child.collapsible && !child.collapsed) {
 				child.collapsed = true;
 				this.touch(child);
+				this.abortLoad(child);
 			}
 			if (child.children.length > 0) this.collapseDescendants(child);
 		}
@@ -428,12 +588,13 @@ export class VirtualTreeModel<K, T> {
 		parent: TreeNode<K, T>,
 		items: readonly T[],
 		recursive: boolean,
+		since: number,
 		pending: Promise<void>[],
 	): readonly TreeNode<K, T>[] {
 		if (parent.children.length === 0 && items.length === 0) return NO_CHILDREN;
 		this.diffDepth += 1;
 		try {
-			return this.mergeChildren(parent, items, recursive, pending);
+			return this.mergeChildren(parent, items, recursive, since, pending);
 		} finally {
 			this.diffDepth -= 1;
 			if (this.diffDepth === 0 && this.displaced.length > 0) this.removeDisplaced();
@@ -444,6 +605,7 @@ export class VirtualTreeModel<K, T> {
 		parent: TreeNode<K, T>,
 		items: readonly T[],
 		recursive: boolean,
+		since: number,
 		pending: Promise<void>[],
 	): readonly TreeNode<K, T>[] {
 		const source = this.source;
@@ -530,6 +692,8 @@ export class VirtualTreeModel<K, T> {
 		if (cleared !== null) {
 			for (const node of cleared) {
 				const before = node.renderNodeCount;
+				// Its request, if any, answers for what the node was before.
+				this.abortRequest(node);
 				this.clearChildren(node);
 				node.collapsed = true;
 				node.stale = node.collapsible;
@@ -542,7 +706,7 @@ export class VirtualTreeModel<K, T> {
 		if (expandedNew !== null) {
 			for (const node of expandedNew) {
 				try {
-					collect(pending, this.loadChildren(node, recursive));
+					collect(pending, this.loadChildren(node, recursive, since));
 				} catch (error) {
 					node.collapsed = true;
 					pending.push(Promise.reject(error));
@@ -670,6 +834,7 @@ export class VirtualTreeModel<K, T> {
 				]);
 			}
 		}
+		if (collapsed) this.abortLoad(node);
 		if (notify)
 			this.collapseEvents.push({ collapsed, key: node.key, kind: 'collapse', recursive: false });
 		return true;
@@ -731,6 +896,7 @@ export class VirtualTreeModel<K, T> {
 	/** Marks a subtree detached and forgets its keys, unless a newer node already owns one. */
 	private discard(node: TreeNode<K, T>): void {
 		node.attached = false;
+		this.abortRequest(node);
 		if (this.nodes.get(node.key) === node) {
 			this.nodes.delete(node.key);
 			this.removedKeys.push(node.key);

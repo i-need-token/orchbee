@@ -281,3 +281,51 @@ bench(
 	},
 	OPTIONS,
 );
+
+bench(
+	'expands an unloaded folder of 100,000 children for 1,000 callers with one request',
+	async () => {
+		const fixture = untimed(() => {
+			const children = files(N, 'big/');
+			const source = { answer: (): void => undefined, requests: 0 };
+			const model = new VirtualTreeModel<string, BenchItem>({
+				input: ROOT,
+				source: {
+					children: (item) => {
+						if (item.key === ROOT.key) return [{ folder: true, key: 'big' }];
+						source.requests += 1;
+						return new Promise((resolve) => {
+							source.answer = () => {
+								resolve(children);
+							};
+						});
+					},
+					hasChildren: (item) => item.folder,
+					key: (item) => item.key,
+				},
+			});
+			void model.refresh(null);
+			const splices: VirtualTreeSplice[] = [];
+			model.subscribe((event) => {
+				if (event.kind === 'rows') splices.push(...event.splices);
+			});
+			return { model, source, splices };
+		});
+		const expansions = Array.from({ length: 1_000 }, () => fixture.model.expand('big'));
+		fixture.source.answer();
+		await Promise.all(expansions);
+		untimed(() => {
+			const { model, source, splices } = fixture;
+			const inserted = splices.filter((splice) => splice.insertCount > 0);
+			if (source.requests !== 1) throw new Error(`${source.requests} requests for one folder`);
+			if (model.rowCount !== N + 1)
+				throw new Error(`Expected ${N + 1} rows, found ${model.rowCount}`);
+			if (
+				JSON.stringify(inserted) !== JSON.stringify([{ deleteCount: 0, insertCount: N, start: 1 }])
+			) {
+				throw new Error(`Unexpected splices ${JSON.stringify(inserted)}`);
+			}
+		});
+	},
+	OPTIONS,
+);

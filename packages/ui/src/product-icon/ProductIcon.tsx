@@ -29,6 +29,7 @@ export type ProductIconName =
 	| 'keyboard'
 	| 'layout'
 	| 'link'
+	| 'loading'
 	| 'machine'
 	| 'more-vertical'
 	| 'new-folder'
@@ -85,6 +86,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
 				name === 'link' && styles['link'],
+				name === 'loading' && styles['loading'],
 				name === 'machine' && styles['machine'],
 				name === 'more-vertical' && styles['moreVertical'],
 				name === 'new-folder' && styles['newFolder'],

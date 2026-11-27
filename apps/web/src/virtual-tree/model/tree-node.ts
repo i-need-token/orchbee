@@ -35,6 +35,8 @@ export class TreeNode<K, T> implements VirtualTreeRow<K, T> {
 	stale: boolean;
 	/** The children last arrived synchronously, so expanding recursively may load the stale ones. */
 	loadedSynchronously = false;
+	/** The request for the children has run for the loading indicator's delay. */
+	loading = false;
 	/** False once the node has left the tree. */
 	attached = true;
 
