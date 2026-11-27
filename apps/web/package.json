@@ -11,7 +11,7 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:system": "playwright test --config playwright.config.ts",
-		"benchmark:virtual-tree": "vitest bench --run src/virtual-tree"
+		"benchmark:virtual-tree": "vitest bench --run src/virtual-tree src/list-scrolling"
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",

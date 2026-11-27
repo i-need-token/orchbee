@@ -1,6 +1,6 @@
 import { useLayoutEffect, type RefObject } from 'react';
 
-import { wheelEnvironment, wheelScrollDelta } from '../../../virtual-tree';
+import { wheelEnvironment, wheelScrollDelta } from '../../../list-scrolling';
 import type { MultiDiffController } from './MultiDiffController';
 
 /**

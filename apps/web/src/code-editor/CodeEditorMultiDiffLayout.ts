@@ -1,4 +1,4 @@
-import { HeightIndex } from '../virtual-tree';
+import { HeightIndex } from '../list-scrolling';
 
 /** Where one file of a multi-diff sits, in CSS pixels. */
 export interface CodeEditorMultiDiffGeometry {

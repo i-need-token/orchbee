@@ -11,7 +11,6 @@
 		"../../apps/web/src/code-editor-css-properties.d.ts",
 		"../../apps/web/src/machine-color-css-properties.d.ts",
 		"../../apps/web/src/projected-terminal-css-properties.d.ts",
-		"../../apps/web/src/virtual-tree-css-properties.d.ts",
 		"../../apps/web/src/workbench-css-properties.d.ts",
 		"../../apps/web/stories",
 		"../../packages/*/stories"

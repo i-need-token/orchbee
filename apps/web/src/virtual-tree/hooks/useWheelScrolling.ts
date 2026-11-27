@@ -1,7 +1,7 @@
 import * as React from 'react';
 
+import { wheelEnvironment, wheelScrollDelta } from '../../list-scrolling';
 import type { TreeViewport } from '../layout/TreeViewport';
-import { wheelEnvironment, wheelScrollDelta } from '../utils/wheel-delta';
 
 /**
  * Scrolls the tree by the wheel as VS Code's lists do, and keeps every wheel event, as a list that

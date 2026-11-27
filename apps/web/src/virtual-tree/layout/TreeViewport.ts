@@ -1,4 +1,4 @@
-import { HeightIndex } from './HeightIndex';
+import { HeightIndex } from '../../list-scrolling';
 import type { VirtualTreeModel } from '../model/VirtualTreeModel';
 import type {
 	VirtualTreeEvent,
