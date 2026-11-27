@@ -19,9 +19,8 @@ use super::{
     background,
     guessing::guess_file,
     listing::{CursorId, Listings},
-    reading::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
     timer::Timer,
-    uploads::Uploads,
+    transfers::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
     watch::{Timing, Watching},
     wire,
 };
@@ -34,12 +33,11 @@ use crate::{
     subscriptions::Subscriptions,
 };
 
-/// The listings, read transfers, uploads and watches of every connection.
+/// The listings, transfers and watches of every connection.
 pub(crate) struct Engine {
     helpers: Helpers,
     listings: Arc<Listings>,
     transfers: Transfers,
-    uploads: Uploads,
     watching: Arc<Watching>,
 }
 
@@ -54,8 +52,7 @@ impl Engine {
         let timer = Arc::new(Timer::new());
         Self {
             listings: Arc::new(Listings::new(Arc::clone(&timer))),
-            transfers: Transfers::new(helpers.clone()),
-            uploads: Uploads::new(timer),
+            transfers: Transfers::new(helpers.clone(), timer),
             watching: Arc::new(Watching::new(
                 helpers.clone(),
                 scopes,
@@ -271,12 +268,12 @@ impl Engine {
         size: u64,
         commit: impl FnOnce(Call, Vec<u8>) + Send + 'static,
     ) {
-        self.uploads.open(call, transfer, size, commit);
+        self.transfers.upload(call, transfer, size, commit);
     }
 
     /// One Put of an upload, answered on its own call.
     pub(crate) fn put(&self, call: Call, put: Put) {
-        self.uploads.put(call, put);
+        self.transfers.put(call, put);
     }
 
     /// `transfer.close`.
@@ -288,22 +285,18 @@ impl Engine {
     /// Drops what `lane` of `connection` holds.
     pub(crate) fn lane_closed(&self, connection: ConnectionId, lane: LaneId) {
         self.transfers.lane_closed(connection, lane);
-        self.uploads.lane_closed(connection, lane);
     }
 
     /// Drops what `connection` holds.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.listings.connection_lost(connection);
         self.transfers.connection_lost(connection);
-        self.uploads.connection_lost(connection);
         self.watching.connection_lost(connection);
     }
 
-    /// Drops every transfer, answering the chunk requests that wait on them, every upload and
-    /// every watch.
+    /// Drops every transfer, answering the chunk requests that wait on them, and every watch.
     pub(crate) fn drain(&self) {
         self.transfers.drain();
-        self.uploads.drain();
         self.watching.drain();
     }
 }

@@ -10,10 +10,9 @@ mod encoding;
 mod engine;
 mod guessing;
 mod listing;
-mod reading;
 mod timer;
+mod transfers;
 mod trash;
-mod uploads;
 mod watch;
 mod wire;
 

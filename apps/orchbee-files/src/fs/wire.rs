@@ -10,7 +10,7 @@ use orchbee_files_protocol::{
 
 use super::{
     listing::{Page, PageBudget},
-    reading::ReadFacts,
+    transfers::ReadFacts,
 };
 
 /// What a result's JSON spends besides its entries: the members, a cursor and the brackets.

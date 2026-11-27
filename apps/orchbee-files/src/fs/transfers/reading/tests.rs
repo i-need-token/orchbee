@@ -13,12 +13,12 @@ use orchbee_files_protocol::{ChunkEnd, LineEnding, ReadMode};
 use sha2::{Digest, Sha256};
 
 use super::*;
-use crate::fs::{encoding::Encoding, tests::Scratch};
+use crate::fs::{encoding::Encoding, tests::Scratch, timer::Timer};
 
 const WAIT: Duration = Duration::from_secs(10);
 
 fn transfers() -> Transfers {
-    Transfers::new(Helpers::new())
+    Transfers::new(Helpers::new(), Arc::new(Timer::new()))
 }
 
 fn connection() -> ConnectionId {

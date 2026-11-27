@@ -1,16 +1,17 @@
 //! Uploads as the link carries them: Puts in order stage the data and the commit hands it to the
 //! operation; a Put out of order or a commit before the data is complete ends the upload and its
-//! operation's call; and an upload that receives nothing ends with `timeout`.
+//! operation's call; an upload that receives nothing ends with `timeout`; and a read and an upload
+//! share their connection's transfer names, which `transfer.close` frees.
 
 use std::{sync::mpsc, thread};
 
 use orchbee_files_protocol::{
-    CallId, FilesRecord, FrameKind, LinkFrame, LinkMessage, LinkSide, Operation, RecordPlace,
-    decode_files_record, decode_link_message, parse_reply,
+    CallId, ConnectionId, FilesRecord, FrameKind, LaneId, LinkFrame, LinkMessage, LinkSide,
+    Operation, RecordPlace, decode_files_record, decode_link_message, parse_reply,
 };
 
 use super::*;
-use crate::{calls::Calls, outbound::Outbound};
+use crate::{blocking::Helpers, calls::Calls, fs::timer::Timer, outbound::Outbound};
 
 const WAIT: Duration = Duration::from_secs(20);
 
@@ -108,10 +109,10 @@ fn never(_: Call, _: Vec<u8>) {
 #[test]
 fn puts_stage_in_order_and_only_a_complete_commit_reaches_the_operation() {
     let link = Link::new();
-    let uploads = Uploads::new(Arc::new(Timer::new()));
+    let uploads = Transfers::new(Helpers::new(), Arc::new(Timer::new()));
     let transfer = |id| TransferId::new(id).unwrap();
     let (committed, received) = mpsc::channel();
-    uploads.open(link.call(1), transfer(1), 6, move |call, data| {
+    uploads.upload(link.call(1), transfer(1), 6, move |call, data| {
         committed.send(data).unwrap();
         call.reply(&FilesReply::Empty);
     });
@@ -124,23 +125,46 @@ fn puts_stage_in_order_and_only_a_complete_commit_reaches_the_operation() {
     uploads.put(link.call(4), put(1, 6, PutEnd::Commit, b""));
     assert_eq!(link.reply(4), Err(ErrorCode::InvalidRequest));
 
-    uploads.open(link.call(5), transfer(2), 6, never);
+    uploads.upload(link.call(5), transfer(2), 6, never);
     uploads.put(link.call(6), put(2, 3, PutEnd::Continues, b"def"));
     assert_eq!(link.reply(6), Err(ErrorCode::InvalidRequest));
     assert_eq!(link.reply(5), Err(ErrorCode::InvalidRequest));
-    uploads.open(link.call(7), transfer(3), 6, never);
+    uploads.upload(link.call(7), transfer(3), 6, never);
     uploads.put(link.call(8), put(3, 0, PutEnd::Commit, b"abc"));
     assert_eq!(link.reply(8), Err(ErrorCode::InvalidRequest));
     assert_eq!(link.reply(7), Err(ErrorCode::InvalidRequest));
 
-    uploads.open(link.call(9), transfer(4), STAGED_BYTES as u64 + 1, never);
+    uploads.upload(link.call(9), transfer(4), STAGED_BYTES as u64 + 1, never);
     assert_eq!(link.reply(9), Err(ErrorCode::TooLarge));
 }
 
 #[test]
 fn an_upload_that_receives_nothing_ends_with_timeout() {
     let link = Link::new();
-    let uploads = Uploads::with_idle(Arc::new(Timer::new()), Duration::from_millis(50));
-    uploads.open(link.call(1), TransferId::new(1).unwrap(), 1, never);
+    let idle = Duration::from_millis(50);
+    let uploads = Transfers::with_idle(Helpers::new(), Arc::new(Timer::new()), idle);
+    uploads.upload(link.call(1), TransferId::new(1).unwrap(), 1, never);
     assert_eq!(link.reply(1), Err(ErrorCode::Timeout));
+}
+
+#[test]
+fn a_read_and_an_upload_share_the_transfer_names_of_their_connection() {
+    let link = Link::new();
+    let transfers = Transfers::new(Helpers::new(), Arc::new(Timer::new()));
+    let connection = ConnectionId::new(1).unwrap();
+    let transfer = TransferId::new(1).unwrap();
+    let lane = LaneId::new(9).unwrap();
+    let reading = transfers.begin(connection, lane, transfer).unwrap();
+    transfers.upload(link.call(1), transfer, 1, never);
+    assert_eq!(link.reply(1), Err(ErrorCode::InvalidRequest));
+    // A read that ends before its content is known frees its name.
+    drop(reading);
+    transfers.upload(link.call(2), transfer, 1, never);
+    assert_eq!(
+        transfers.begin(connection, lane, transfer).err(),
+        Some(Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest)))
+    );
+    transfers.close(connection, transfer).unwrap();
+    assert_eq!(link.reply(2), Err(ErrorCode::Cancelled));
+    assert!(transfers.begin(connection, lane, transfer).is_ok());
 }
