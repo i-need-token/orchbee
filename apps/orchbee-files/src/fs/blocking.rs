@@ -11,7 +11,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use super::timer::{Timer, TimerId};
+use super::{
+    os_error::{FsError, FsErrorCode},
+    timer::{Timer, TimerId},
+};
 
 /// How long a job may take, from its submission, before it answers as timed out.
 const DEADLINE: Duration = Duration::from_secs(30);
@@ -33,6 +36,17 @@ pub(crate) enum Interrupted {
     Overloaded,
     /// The engine is stopping.
     Stopping,
+}
+
+impl From<Interrupted> for FsError {
+    fn from(interrupted: Interrupted) -> Self {
+        Self::new(match interrupted {
+            Interrupted::Timeout => FsErrorCode::Timeout,
+            Interrupted::StuckFilesystem => FsErrorCode::StuckFilesystem,
+            Interrupted::Overloaded => FsErrorCode::Overloaded,
+            Interrupted::Stopping => FsErrorCode::Cancelled,
+        })
+    }
 }
 
 type Work = Box<dyn FnOnce() + Send>;

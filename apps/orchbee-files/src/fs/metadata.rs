@@ -118,7 +118,7 @@ fn kind(metadata: &fs::Metadata) -> EntryKind {
 
 /// Node.js rounds `mtimeMs` half up to the millisecond of the `Date` VS Code reads. A time the
 /// system cannot report reads as the epoch.
-fn milliseconds(time: io::Result<SystemTime>) -> i64 {
+pub(super) fn milliseconds(time: io::Result<SystemTime>) -> i64 {
     let Ok(time) = time else {
         return 0;
     };

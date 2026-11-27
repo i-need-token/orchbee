@@ -6,14 +6,20 @@ rust-version.workspace = true
 publish = false
 
 [dependencies]
+encoding_rs = { version = "0.8.44", default-features = false, features = ["alloc"] }
 orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
 orchbee-files-protocol = { path = "../../crates/files-protocol" }
 orchbee-local-ipc = { path = "../../crates/local-ipc" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-runtime = { path = "../../crates/local-runtime" }
+serde_json.workspace = true
+sha2.workspace = true
 
 [target.'cfg(unix)'.dependencies]
 signal-hook.workspace = true
+
+[dev-dependencies]
+serde.workspace = true
 
 [lints]
 workspace = true
