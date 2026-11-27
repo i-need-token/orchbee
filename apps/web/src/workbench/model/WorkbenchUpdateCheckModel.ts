@@ -4,6 +4,7 @@ import type {
 	WorkbenchUpdateCheckAnswer,
 	WorkbenchUpdateCheckStatus,
 	WorkbenchUpdateCheckUnavailableReason,
+	WorkbenchUpdatePhase,
 } from '../types/workbench-client-update';
 
 /** How often a shown check reads a queued or running run. */
@@ -17,12 +18,24 @@ const OFFER_WAIT_MILLISECONDS = 15_000;
 
 const IDLE: WorkbenchUpdateCheckStatus = { kind: 'idle' };
 const CHECKING: WorkbenchUpdateCheckStatus = { kind: 'checking' };
+const INSTALLING: WorkbenchUpdateCheckStatus = { kind: 'installing' };
 const UP_TO_DATE: WorkbenchUpdateCheckStatus = { kind: 'up-to-date' };
-const FAILED: WorkbenchUpdateCheckStatus = { kind: 'failed' };
+const FAILED = {
+	check: { kind: 'failed', phase: 'check' },
+	download: { kind: 'failed', phase: 'download' },
+	install: { kind: 'failed', phase: 'install' },
+} as const satisfies Readonly<Record<WorkbenchUpdatePhase, WorkbenchUpdateCheckStatus>>;
 const SERVER_UNAVAILABLE: WorkbenchUpdateCheckStatus = {
 	kind: 'unavailable',
 	reason: 'installation',
 };
+
+/** A run is queued or under way: checking, downloading, or installing. */
+function running(status: WorkbenchUpdateCheckStatus): boolean {
+	return (
+		status.kind === 'checking' || status.kind === 'downloading' || status.kind === 'installing'
+	);
+}
 
 interface WorkbenchUpdateCheckModelOptions {
 	/** One `workbench.update-check` exchange; it must not throw, and never waits for a run. */
@@ -35,8 +48,9 @@ interface WorkbenchUpdateCheckModelOptions {
 
 /**
  * Check for updates over the Session Server's automatic-update job, as the TUI's About runs it.
- * One exchange runs at a time. A finished result shows only for a run this window asked for, and an
- * installed version shows as the host's offer, never as Up to date.
+ * One exchange runs at a time. A run under way shows its stage, a finished result shows only for a
+ * run this window asked for, a failure by the phase it ended in, and an installed version shows as
+ * the host's offer, never as Up to date.
  */
 export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 	#asking = false;
@@ -67,9 +81,7 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 	};
 
 	readonly start = (): void => {
-		if (this.#disposed || this.#status.kind === 'checking' || this.#status.kind === 'unavailable') {
-			return;
-		}
+		if (this.#disposed || running(this.#status) || this.#status.kind === 'unavailable') return;
 		this.#started = true;
 		this.#set(CHECKING);
 		// A read already on its way is answered for a run this press did not ask for.
@@ -107,7 +119,7 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 		try {
 			answer = await this.#options.ask(action);
 		} catch {
-			answer = 'not-answered';
+			answer = { kind: 'not-answered' };
 		}
 		this.#asking = false;
 		if (this.#disposed) return;
@@ -120,9 +132,17 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 	}
 
 	#receive(answer: WorkbenchUpdateCheckAnswer): void {
-		switch (answer) {
+		switch (answer.kind) {
 			case 'checking':
 				this.#set(CHECKING);
+				this.#scheduleRead();
+				return;
+			case 'downloading':
+				this.#setDownloading(answer.version, answer.receivedBytes, answer.totalBytes);
+				this.#scheduleRead();
+				return;
+			case 'installing':
+				this.#set(INSTALLING);
 				this.#scheduleRead();
 				return;
 			case 'up-to-date':
@@ -133,25 +153,42 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 					this.#finish(IDLE);
 					return;
 				}
-				// Stays Checking until the host offers the installed version.
+				// Shows Installing until the host offers the installed version.
 				this.#started = false;
+				this.#set(INSTALLING);
 				this.#clearOfferWait();
 				this.#awaitingOffer = setTimeout(() => {
 					this.#awaitingOffer = null;
 					this.#set(IDLE);
 				}, OFFER_WAIT_MILLISECONDS);
 				return;
-			// A run this window asked for that ran nothing, failed, or whose answer was lost failed.
+			// A run this window asked for that ran nothing, or whose answer was lost, failed its check.
 			case 'idle':
 			case 'not-answered':
+				this.#finish(FAILED.check);
+				return;
 			case 'run-failed':
-				this.#finish(FAILED);
+				this.#finish(FAILED[answer.phase]);
 				return;
 			case 'unavailable':
 				this.#started = false;
 				this.#set(SERVER_UNAVAILABLE);
 				return;
 		}
+	}
+
+	/** Shows the download in whole percent, changing the status only when what it shows changes. */
+	#setDownloading(version: string, receivedBytes: number, totalBytes: number): void {
+		const percent = Math.min(100, Math.floor((receivedBytes * 100) / Math.max(1, totalBytes)));
+		const current = this.#status;
+		if (
+			current.kind === 'downloading' &&
+			current.percent === percent &&
+			current.version === version
+		) {
+			return;
+		}
+		this.#set({ kind: 'downloading', percent, version });
 	}
 
 	/** A run ended: its result is this window's only when this window asked for it. */
@@ -172,7 +209,13 @@ export class WorkbenchUpdateCheckModel implements WorkbenchUpdateCheck {
 		if (this.#shown === 0) return;
 		this.#readTimer = setTimeout(() => {
 			this.#readTimer = null;
-			if (!this.#disposed && !this.#asking && this.#status.kind === 'checking') {
+			// The wait for the host's offer after an install reads nothing more.
+			if (
+				!this.#disposed &&
+				!this.#asking &&
+				this.#awaitingOffer === null &&
+				running(this.#status)
+			) {
 				void this.#ask('read');
 			}
 		}, READ_INTERVAL_MILLISECONDS);

@@ -26,7 +26,8 @@ use std::{
 
 mod helper;
 mod outcome;
-use outcome::Outcome;
+mod progress;
+use outcome::{Outcome, Phase};
 
 /// The wait from the Session's ready moment to the first run.
 const FIRST_RUN: Duration = Duration::from_secs(60);
@@ -107,7 +108,7 @@ impl AutomaticUpdates {
                         running.store(true, Ordering::Release);
                         owner.begin();
                         let outcome = helper::run(&owner);
-                        owner.finish(outcome.finish());
+                        owner.finish(outcome.finish(Phase::reached(owner.stage().as_ref())));
                         running.store(false, Ordering::Release);
                         outcome
                     },

@@ -1,5 +1,5 @@
 use super::Locale;
-use crate::release_update::{CheckUnavailable, UpdateCheck, moves_session};
+use crate::release_update::{CheckUnavailable, UpdateCheck, UpdatePhase, moves_session};
 use orchbee_local_runtime::EnvironmentKind;
 
 impl Locale {
@@ -44,29 +44,55 @@ impl Locale {
         }
     }
 
-    /// What About's Updates row shows in place of its action while a check runs.
-    pub(crate) const fn about_checking(self) -> &'static str {
-        match self {
-            Self::EnUs => "Checking…",
-            Self::ZhCn => "正在检查…",
+    /// What About's Updates row shows in place of its action while a run is under way, its
+    /// check, its download of `version` with the share that has arrived, or its install, in the
+    /// row's degradation order: a download's shorter forms drop the version and then the verb, so
+    /// a narrow row never cuts the share or the version.
+    pub(crate) fn about_running(self, check: &UpdateCheck) -> Vec<String> {
+        match (self, check) {
+            (Self::EnUs, UpdateCheck::Downloading { version, percent }) => vec![
+                format!("Downloading {version}… {percent}%"),
+                format!("Downloading… {percent}%"),
+                format!("{percent}%"),
+            ],
+            (Self::ZhCn, UpdateCheck::Downloading { version, percent }) => vec![
+                format!("正在下载 {version}… {percent}%"),
+                format!("正在下载… {percent}%"),
+                format!("{percent}%"),
+            ],
+            (Self::EnUs, UpdateCheck::Installing) => vec!["Installing…".to_owned()],
+            (Self::ZhCn, UpdateCheck::Installing) => vec!["正在安装…".to_owned()],
+            (Self::EnUs, _) => vec!["Checking…".to_owned()],
+            (Self::ZhCn, _) => vec!["正在检查…".to_owned()],
         }
     }
 
     /// The Updates row's description: the offered version's switch while the Update control
-    /// shows, else what the check came to.
-    pub(crate) fn about_updates(self, update: Option<&str>, check: UpdateCheck) -> String {
+    /// shows, else what the check came to, a failure named by the phase it ended in.
+    pub(crate) fn about_updates(self, update: Option<&str>, check: &UpdateCheck) -> String {
         if let Some(version) = update {
             return self.update_tooltip(version);
         }
         let (en, zh) = match check {
-            UpdateCheck::Idle | UpdateCheck::Checking => (
+            UpdateCheck::Idle
+            | UpdateCheck::Checking
+            | UpdateCheck::Downloading { .. }
+            | UpdateCheck::Installing => (
                 "Orchbee also checks every hour while automatic updates are on.",
                 "自动更新开启时，Orchbee 也会每小时检查一次。",
             ),
             UpdateCheck::UpToDate => ("Orchbee is up to date.", "Orchbee 已是最新版本。"),
-            UpdateCheck::Failed => (
+            UpdateCheck::Failed(UpdatePhase::Check) => (
                 "Couldn't check: orchbee update or orchbee.com; terminals/Agents stay.",
                 "无法检查。运行 orchbee update 或去 orchbee.com，终端和 Agent 不断。",
+            ),
+            UpdateCheck::Failed(UpdatePhase::Download) => (
+                "Download failed: orchbee update or orchbee.com; terminals/Agents run.",
+                "下载失败。运行 orchbee update 或去 orchbee.com，终端和 Agent 不断。",
+            ),
+            UpdateCheck::Failed(UpdatePhase::Install) => (
+                "Downloaded but couldn't install. Install from orchbee.com.",
+                "已下载，但无法安装。请从 orchbee.com 安装。",
             ),
             UpdateCheck::Unavailable(CheckUnavailable::Development) => {
                 ("Development builds don't update.", "开发版不会更新。")

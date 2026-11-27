@@ -236,9 +236,20 @@ while a run is queued or running, `finished` with the last run's `result` (`up-t
 from a Server that runs no automatic updates, `rejected` (`session-mismatch`) and `denied`. A run
 can take minutes, so a Client reads again rather than waiting on one request. Both frames keep the
 16 KiB intent cap. A Server lists the `update-check` capability in its `client-server` handshake
-answer, and a Client sends neither action to one that does not. The
-[schema](../../schemas/workbench/v1/workbench-update-check.schema.json) and
-[shared corpus](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) drive this
+answer, and a Client sends neither action to one that does not.
+
+A request may add `phases: true`, which a Client sends only to a Server that lists
+`update-phases`, and leaves out otherwise, since an older Server refuses a member it does not
+know. Such a request is also answered `downloading` (the release `version`, `receivedBytes`, and
+`totalBytes`) and `installing` (`version`) while a run is under way, and a failed run as
+`check-failed`, `download-failed`, or `install-failed` instead of `failed`; the Server answers a
+request without it with none of these, so an older Client reads what it read before.
+`WorkbenchUpdateCheckResult::validate` holds the bounds on parse and on serialize: a version of 1
+to 64 printable ASCII characters, and a total of 1 to 2^53−1 bytes that the received bytes never
+pass. The
+[schema](../../schemas/workbench/v1/workbench-update-check.schema.json) and the shared corpora,
+[update check](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) and
+[phases](../../schemas/workbench/v1/workbench-update-phases-conformance-v1.json), drive this
 binding and TypeScript; the [Server](../../apps/orchbee-server/README.md#automatic-update-schedule)
 owns the job.
 

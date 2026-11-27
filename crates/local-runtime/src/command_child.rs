@@ -17,7 +17,7 @@ pub use unix::DetachedChild;
 #[cfg(unix)]
 pub use unix::{
     CommandChild, SpawnEnvironment, run_unix_command, run_unix_command_exchange,
-    run_unmasked_unix_command,
+    run_unmasked_unix_command, run_unmasked_unix_command_following,
 };
 #[cfg(windows)]
 pub use windows::{

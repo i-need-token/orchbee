@@ -1,7 +1,9 @@
 //! The outcome record of one helper run: how the run ended and, from the helper's `orchbee.update`
 //! document, the version, phase and error code, written to the diagnostic log as static tokens,
-//! counts and flags. The document is the helper's untrusted output: only its closed members are
-//! read, and a value outside the log's token grammar is never written.
+//! counts and flags, and the phase a Client names when the run failed. The document is the
+//! helper's untrusted output: only its closed members are read, and a value outside the log's
+//! token grammar is never written.
+use crate::update_job::Stage;
 use orchbee_local_runtime::{CommandFailure, CommandOutput, LogField, LogLevel, LogValue};
 use orchbee_workbench_protocol::UpdateCheckFinish;
 use std::sync::{Mutex, PoisonError};
@@ -25,6 +27,10 @@ pub(super) enum Outcome {
         /// `none` when the run succeeded.
         error: &'static str,
         up_to_date: bool,
+        /// Where the document says the run stopped: the runtime part's phase when it failed, else
+        /// the window part's when that failed, else the runtime part's; `None` for a phase this
+        /// Server does not know.
+        stopped_in: Option<Phase>,
     },
     /// The helper exited without a readable `orchbee.update` document, such as the refusal of a
     /// version that does not know the helper.
@@ -66,18 +72,26 @@ impl Outcome {
             serde_json::Value::String(code) => token(code),
             _ => return Self::Unanswered { status },
         };
+        let window = &result["desktop"];
+        let stopped_in = if !result["error"].is_null() || !window["error"].is_string() {
+            Phase::of(phase)
+        } else {
+            window["phase"].as_str().and_then(Phase::of)
+        };
         Self::Answered {
             status,
             version: result["releaseVersion"].as_str().map(token),
             phase: token(phase),
             error,
             up_to_date: result["upToDate"].as_bool().unwrap_or(false),
+            stopped_in,
         }
     }
 
     /// How a Client reads this run's end: only a helper that exited cleanly and answered no error
-    /// completed it, as up to date or with a newer version made active.
-    pub(super) fn finish(&self) -> UpdateCheckFinish {
+    /// completed it, as up to date or with a newer version made active. Any other end failed in
+    /// the phase the document names, or else in the one the run's progress last `reached`.
+    pub(super) fn finish(&self, reached: Phase) -> UpdateCheckFinish {
         match *self {
             Self::Answered {
                 status: Some(0),
@@ -91,7 +105,8 @@ impl Outcome {
                     UpdateCheckFinish::Installed
                 }
             }
-            _ => UpdateCheckFinish::Failed,
+            Self::Answered { stopped_in, .. } => stopped_in.unwrap_or(reached).failed(),
+            Self::NotStarted(_) | Self::Unanswered { .. } | Self::Ended(_) => reached.failed(),
         }
     }
 
@@ -112,6 +127,7 @@ impl Outcome {
                 phase,
                 error,
                 up_to_date,
+                stopped_in: _,
             } => {
                 let mut fields = vec![("run", LogValue::Token("answered"))];
                 fields.extend(status_field(status));
@@ -141,6 +157,47 @@ impl Outcome {
     pub(super) fn record(&self) {
         let (level, fields) = self.fields();
         orchbee_local_runtime::log_event(level, EVENT, &fields);
+    }
+}
+
+/// The phase of a run a Client names when the run fails.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum Phase {
+    /// Before any archive transfer: the settings, the feed, its signature and the store's state.
+    Check,
+    /// An archive's transfer, its size and SHA-256 check, and its unpacking.
+    Download,
+    /// Verifying, publishing and activating what was downloaded or already stored.
+    Install,
+}
+
+impl Phase {
+    /// The phase an `orchbee.update` document's `phase`, of either part, belongs to.
+    fn of(phase: &str) -> Option<Self> {
+        match phase {
+            "configuration" | "source" | "manifest" => Some(Self::Check),
+            "download" => Some(Self::Download),
+            "verify" | "copy" | "publish" | "activate" | "complete" => Some(Self::Install),
+            _ => None,
+        }
+    }
+
+    /// The phase a run that last reported `stage` has reached; a run that reported nothing has
+    /// only checked.
+    pub(super) fn reached(stage: Option<&Stage>) -> Self {
+        match stage {
+            None | Some(Stage::Checking) => Self::Check,
+            Some(Stage::Downloading { .. }) => Self::Download,
+            Some(Stage::Installing { .. }) => Self::Install,
+        }
+    }
+
+    const fn failed(self) -> UpdateCheckFinish {
+        match self {
+            Self::Check => UpdateCheckFinish::CheckFailed,
+            Self::Download => UpdateCheckFinish::DownloadFailed,
+            Self::Install => UpdateCheckFinish::InstallFailed,
+        }
     }
 }
 

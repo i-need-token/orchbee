@@ -1,12 +1,14 @@
 //! About's Check for updates. A press asks the Session Server, through `workbench.update-check`, to
 //! run its scheduled automatic-update job now, and About follows that run to its end by reading
-//! again while it shows. The run, its helper and its install stay the Server's; a version it
-//! installs reaches this TUI as the Update control, through the same store reading as a scheduled
-//! run's. Only a check this TUI asked for reports its end, so a failed background run still
-//! changes nothing on screen.
+//! again while it shows: its check, its download with the share that has arrived, and its install,
+//! where the Session lists `update-phases`. The run, its helper and its install stay the Server's; a
+//! version it installs reaches this TUI as the Update control, through the same store reading as a
+//! scheduled run's. Only a check this TUI asked for reports its end, a failure naming the phase it
+//! ended in, so a failed background run still changes nothing on screen.
 use super::Build;
 use crate::local_client::{LocalClientOrigin, LocalOperationClock, subscription::Request};
 use crate::session_capabilities::{SessionAction, serves};
+use orchbee_connection_handshake::UPDATE_PHASES;
 use orchbee_local_runtime::EnvironmentKind;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, UpdateCheckAction, UpdateCheckFinish, UpdateCheckOutcome,
@@ -23,17 +25,46 @@ const READ_PAUSE: Duration = Duration::from_secs(1);
 const STORE_WAIT: Duration = Duration::from_secs(15);
 
 /// What About's Updates row reports.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub(crate) enum UpdateCheck {
     /// Nothing to report: no check was asked for here, or it ended in the Update control.
     #[default]
     Idle,
-    /// A run is queued or running, or the version it installed is being read from the store.
+    /// A run is queued or reads the release feed and the store.
     Checking,
+    /// The run downloads `version`, and `percent` of everything it downloads has arrived.
+    Downloading {
+        version: String,
+        percent: u8,
+    },
+    /// The run installs what it downloaded, or the version it installed is being read from the
+    /// store.
+    Installing,
     UpToDate,
-    Failed,
+    /// The run this TUI asked for failed in this phase.
+    Failed(UpdatePhase),
     /// This TUI cannot ask, for this reason.
     Unavailable(CheckUnavailable),
+}
+
+impl UpdateCheck {
+    /// A run is queued or under way, so a press joins it.
+    pub(crate) const fn running(&self) -> bool {
+        matches!(
+            self,
+            Self::Checking | Self::Downloading { .. } | Self::Installing
+        )
+    }
+}
+
+/// The phase a failed run ended in.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum UpdatePhase {
+    /// Reading the release feed and the store; also a run that ran nothing or whose answer was
+    /// lost, and any failure a Session without `update-phases` reports.
+    Check,
+    Download,
+    Install,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -123,8 +154,8 @@ pub(super) struct Check {
 }
 
 impl Check {
-    pub(super) const fn shown(&self) -> UpdateCheck {
-        self.shown
+    pub(super) fn shown(&self) -> UpdateCheck {
+        self.shown.clone()
     }
 
     /// Asks for a run now, or joins the run About already follows.
@@ -138,7 +169,7 @@ impl Check {
             return;
         }
         // A run already queued or running is the one this press asks for.
-        if self.shown == UpdateCheck::Checking {
+        if self.shown.running() {
             self.asked = true;
             return;
         }
@@ -147,7 +178,7 @@ impl Check {
         self.exchange = None;
         if !self.send(UpdateCheckAction::Start, context) {
             self.asked = false;
-            self.shown = UpdateCheck::Failed;
+            self.shown = UpdateCheck::Failed(UpdatePhase::Check);
         }
     }
 
@@ -177,14 +208,14 @@ impl Check {
                 return true;
             }
         }
-        if appeared && self.shown != UpdateCheck::Checking {
+        if appeared && !self.shown.running() {
             // A result from an earlier visit is stale; a read shows a run that is under way.
             self.shown = UpdateCheck::Idle;
             self.asked = false;
             let _sent = self.send(UpdateCheckAction::Read, context);
             return false;
         }
-        if self.shown == UpdateCheck::Checking
+        if self.shown.running()
             && context.visible
             && self.next_read.is_none_or(|at| now >= at)
             && !self.send(UpdateCheckAction::Read, context)
@@ -194,7 +225,7 @@ impl Check {
         false
     }
 
-    /// After an install, keeps Checking until the store names the version or the wait ends.
+    /// After an install, keeps Installing until the store names the version or the wait ends.
     /// Answers whether it still waits.
     fn wait_for_store(&mut self, store: Store, now: Instant) -> bool {
         let Some(until) = self.installed else {
@@ -220,17 +251,31 @@ impl Check {
         let reported = |shown| {
             if asked { shown } else { UpdateCheck::Idle }
         };
+        let failed = |phase| reported(UpdateCheck::Failed(phase));
         match answer {
             Answer::Outcome(UpdateCheckOutcome::Checking {}) => {
-                self.asked = asked;
-                self.shown = UpdateCheck::Checking;
-                self.next_read = Some(now + READ_PAUSE);
+                self.under_way(asked, UpdateCheck::Checking, now);
+            }
+            Answer::Outcome(UpdateCheckOutcome::Downloading {
+                version,
+                received_bytes,
+                total_bytes,
+            }) => {
+                let percent = percent(received_bytes, total_bytes);
+                self.under_way(asked, UpdateCheck::Downloading { version, percent }, now);
+            }
+            Answer::Outcome(UpdateCheckOutcome::Installing { .. }) => {
+                self.under_way(asked, UpdateCheck::Installing, now);
             }
             Answer::Outcome(UpdateCheckOutcome::Finished { result }) => match result {
                 UpdateCheckFinish::UpToDate => self.shown = reported(UpdateCheck::UpToDate),
-                UpdateCheckFinish::Failed => self.shown = reported(UpdateCheck::Failed),
+                UpdateCheckFinish::Failed | UpdateCheckFinish::CheckFailed => {
+                    self.shown = failed(UpdatePhase::Check);
+                }
+                UpdateCheckFinish::DownloadFailed => self.shown = failed(UpdatePhase::Download),
+                UpdateCheckFinish::InstallFailed => self.shown = failed(UpdatePhase::Install),
                 UpdateCheckFinish::Installed if asked => {
-                    self.shown = UpdateCheck::Checking;
+                    self.shown = UpdateCheck::Installing;
                     self.installed = Some(now + STORE_WAIT);
                     return true;
                 }
@@ -246,9 +291,16 @@ impl Check {
                 | UpdateCheckOutcome::Rejected { .. }
                 | UpdateCheckOutcome::Denied {},
             )
-            | Answer::Lost => self.shown = reported(UpdateCheck::Failed),
+            | Answer::Lost => self.shown = failed(UpdatePhase::Check),
         }
         false
+    }
+
+    /// A run is queued or under way at `stage`; About reads it again after a pause.
+    fn under_way(&mut self, asked: bool, stage: UpdateCheck, now: Instant) {
+        self.asked = asked;
+        self.shown = stage;
+        self.next_read = Some(now + READ_PAUSE);
     }
 
     fn send(&mut self, action: UpdateCheckAction, context: &CheckContext<'_>) -> bool {
@@ -259,11 +311,17 @@ impl Check {
         ) else {
             return false;
         };
+        // A Session that lists `update-phases` answers where a run stands and names a failure's
+        // phase; another one cannot read the flag, so it never receives it.
+        let phases = origin
+            .session_capabilities()
+            .is_some_and(|answer| answer.contains(UPDATE_PHASES));
         let request = WorkbenchUpdateCheckRequest {
             protocol_version: ProtocolVersion,
             request_id,
             session_id: session,
             action,
+            phases,
         };
         let Ok(pending) = origin.request(
             &WorkbenchRequest::UpdateCheck(request.clone()),
@@ -312,6 +370,14 @@ impl Check {
             };
         }
     }
+}
+
+/// The whole percent of `total` that `received` is. The protocol keeps `received` within `total`
+/// and `total` above zero; anything else still reads within 0 to 100.
+fn percent(received: u64, total: u64) -> u8 {
+    u8::try_from(received.saturating_mul(100) / total.max(1))
+        .unwrap_or(100)
+        .min(100)
 }
 
 #[cfg(test)]

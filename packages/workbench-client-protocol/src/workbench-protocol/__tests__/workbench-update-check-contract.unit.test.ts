@@ -24,75 +24,81 @@ const corpusSchema = z.strictObject({
 	),
 });
 
+/** The released corpus of `update-check`, and the corpus of the outcomes `update-phases` adds. */
+const CORPORA = [
+	'workbench-update-check-conformance-v1.json',
+	'workbench-update-phases-conformance-v1.json',
+] as const;
+
 describe('Update check', () => {
-	it('shares strict documents and semantic failures with the independent Rust binding', async () => {
-		const corpus = corpusSchema.parse(
-			JSON.parse(
-				await readFile(
-					new URL(
-						'../../../../../schemas/workbench/v1/workbench-update-check-conformance-v1.json',
-						import.meta.url,
-					),
-					'utf8',
-				),
-			),
-		);
-		const schema = z
-			.record(z.string(), z.unknown())
-			.parse(
+	it.each(CORPORA)(
+		'shares strict documents and semantic failures with the independent Rust binding (%s)',
+		async (file) => {
+			const corpus = corpusSchema.parse(
 				JSON.parse(
 					await readFile(
-						new URL(
-							'../../../../../schemas/workbench/v1/workbench-update-check.schema.json',
-							import.meta.url,
-						),
+						new URL(`../../../../../schemas/workbench/v1/${file}`, import.meta.url),
 						'utf8',
 					),
 				),
 			);
-		const ajv = new Ajv2020({ allErrors: true, strict: false });
-		ajv.addFormat(
-			'orchbee-uint64',
-			(value: string) =>
-				/^(?:0|[1-9][0-9]{0,19})$/u.test(value) && BigInt(value) <= 18_446_744_073_709_551_615n,
-		);
-		for (const name of [
-			'workbench.schema.json',
-			'workbench-client-view.schema.json',
-			'workbench-panel-graphics.schema.json',
-			'workbench-command.schema.json',
-		]) {
-			const dependency = z
+			const schema = z
 				.record(z.string(), z.unknown())
 				.parse(
 					JSON.parse(
 						await readFile(
-							new URL(`../../../../../schemas/workbench/v1/${name}`, import.meta.url),
+							new URL(
+								'../../../../../schemas/workbench/v1/workbench-update-check.schema.json',
+								import.meta.url,
+							),
 							'utf8',
 						),
 					),
 				);
-			ajv.addSchema(dependency);
-		}
-		const validate = ajv.compile(schema);
-		for (const test of corpus.valid) {
-			const binding =
-				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
-			expect(binding.safeParse(test.document).success).toBe(true);
-			expect(validate(test.document)).toBe(true);
-		}
-		for (const test of corpus.invalid) {
-			const binding =
-				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
-			expect(binding.safeParse(test.document).success).toBe(false);
-		}
-		for (const test of corpus.invalid.filter((entry) => entry.boundary === 'schema')) {
-			expect(validate(test.document)).toBe(false);
-		}
-		for (const test of corpus.validJson) {
-			const binding =
-				test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
-			expect(binding.parse(JSON.parse(test.json))).toEqual(test.canonical);
-		}
-	});
+			const ajv = new Ajv2020({ allErrors: true, strict: false });
+			ajv.addFormat(
+				'orchbee-uint64',
+				(value: string) =>
+					/^(?:0|[1-9][0-9]{0,19})$/u.test(value) && BigInt(value) <= 18_446_744_073_709_551_615n,
+			);
+			for (const name of [
+				'workbench.schema.json',
+				'workbench-client-view.schema.json',
+				'workbench-panel-graphics.schema.json',
+				'workbench-command.schema.json',
+			]) {
+				const dependency = z
+					.record(z.string(), z.unknown())
+					.parse(
+						JSON.parse(
+							await readFile(
+								new URL(`../../../../../schemas/workbench/v1/${name}`, import.meta.url),
+								'utf8',
+							),
+						),
+					);
+				ajv.addSchema(dependency);
+			}
+			const validate = ajv.compile(schema);
+			for (const test of corpus.valid) {
+				const binding =
+					test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
+				expect(binding.safeParse(test.document).success).toBe(true);
+				expect(validate(test.document)).toBe(true);
+			}
+			for (const test of corpus.invalid) {
+				const binding =
+					test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
+				expect(binding.safeParse(test.document).success).toBe(false);
+			}
+			for (const test of corpus.invalid.filter((entry) => entry.boundary === 'schema')) {
+				expect(validate(test.document)).toBe(false);
+			}
+			for (const test of corpus.validJson) {
+				const binding =
+					test.direction === 'request' ? WorkbenchRequestSchema : WorkbenchResponseSchema;
+				expect(binding.parse(JSON.parse(test.json))).toEqual(test.canonical);
+			}
+		},
+	);
 });

@@ -1193,8 +1193,8 @@ running. The action menu entry carries the same sentence, so it stays reachable 
 ## Manual check
 
 Settings' About category shows the Client's version, a Check for updates action, and the Update
-control while it is Ready. The action adds no second update state, and a Client never starts
-`orchbee update`:
+control while it is Ready. One press runs the whole update in sequence, and About follows the run
+through its phases; a Client never starts `orchbee update`:
 
 - A press sends one Client-to-Server request, `workbench.update-check` with `start`, under the
   `update-check` capability. The Server wakes its scheduled job, which runs the same
@@ -1202,9 +1202,26 @@ control while it is Ready. The action adds no second update state, and a Client 
   running joins that run. A requested run ignores `update.automatic`, since the person asked for
   it, and leaves the hourly grid unchanged.
 - The Server answers at once; About reads the run with `read` while it shows. The answer is
-  `checking`, `finished` with `up-to-date`, `installed` or `failed`, `idle`, `unavailable` where
-  the Server runs no job (a development build), or a refusal. An installed version still reaches the
-  Client through the store's files, so the Update control appears as it does after a scheduled run.
+  `checking` while the run is queued or reads the feed and the store, `downloading` with the
+  release version and the bytes received of everything the run downloads, `installing` with the
+  version, `finished` with `up-to-date`, `installed`, or the phase a failure ended in
+  (`check-failed`, `download-failed`, or `install-failed`), `idle`, `unavailable` where the Server
+  runs no job (a development build), or a refusal. An installed version still reaches the Client
+  through the store's files, so the Update control appears as it does after a scheduled run.
+- The phases are negotiated under `update-phases`: a Client asks for them with `phases` only of a
+  Session that lists it. An older Session answers `checking` until the run ends and names no
+  phase, which the Client shows as the check's failure; an older Client never asks, so a newer
+  Session answers it as before, a failure as `failed`.
+- The helper reports where it stands as `orchbee.update.progress` records on standard error, which
+  the Server follows as they arrive; the runtime and window archives count as one download, and
+  the install is reported once nothing more downloads. An older helper writes none, so its run
+  shows `checking` until it ends. The Server names a failure from the `orchbee.update` document's
+  phases (configuration, source, and manifest are the check; download is the download; verify,
+  copy, publish, activate, and complete are the install), or from the phase its progress reached
+  where the document names none it knows. Progress stays on this computer.
+- While the run checks or installs, Check for updates is disabled with a spinner and reads the
+  stage; while it downloads, it stays disabled beside a progress bar and reads the version and the
+  percentage. The TUI shows the same text after its pending indicator.
 - Only the Client that asked reports the run's end. A failed scheduled run still changes nothing on
   screen.
 - A Client whose Session lacks the capability shows the action unavailable, with the reason. Each
@@ -1214,20 +1231,24 @@ control while it is Ready. The action adds no second update state, and a Client 
   [release-store model](../../crates/local-runtime/README.md#fallback-after-a-failed-move); only
   `orchbee update` is the explicit install.
 
-| Text                          | `en-US`                                                        | `zh-CN`                                      |
-| ----------------------------- | -------------------------------------------------------------- | -------------------------------------------- |
-| Category                      | About                                                          | 关于                                         |
-| Version row                   | Version                                                        | 版本                                         |
-| Build kind                    | Release build / Test build / Development build                 | 正式版 / 测试版 / 开发版                     |
-| Updates row                   | Updates                                                        | 更新                                         |
-| Action                        | Check for updates                                              | 检查更新                                     |
-| Checking                      | Checking…                                                      | 正在检查…                                    |
-| Idle                          | Orchbee also checks every hour while automatic updates are on. | 自动更新开启时，Orchbee 也会每小时检查一次。 |
-| Up to date                    | Orchbee is up to date.                                         | Orchbee 已是最新版本。                       |
-| Failed                        | Couldn't check for updates. Try again later.                   | 无法检查更新，请稍后再试。                   |
-| Unavailable, development      | Development builds don't update.                               | 开发版不会更新。                             |
-| Unavailable, older Session    | Available once the Session updates.                            | 会话更新后可用。                             |
-| Unavailable, no release store | Not available for this installation.                           | 此安装不支持检查更新。                       |
+| Text                          | `en-US`                                                                                               | `zh-CN`                                                                                  |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Category                      | About                                                                                                 | 关于                                                                                     |
+| Version row                   | Version                                                                                               | 版本                                                                                     |
+| Build kind                    | Release build / Test build / Development build                                                        | 正式版 / 测试版 / 开发版                                                                 |
+| Updates row                   | Updates                                                                                               | 更新                                                                                     |
+| Action                        | Check for updates                                                                                     | 检查更新                                                                                 |
+| Checking                      | Checking…                                                                                             | 正在检查…                                                                                |
+| Downloading                   | Downloading 0.1.0-beta.26… 42%                                                                        | 正在下载 0.1.0-beta.26… 42%                                                              |
+| Installing                    | Installing…                                                                                           | 正在安装…                                                                                |
+| Idle                          | Orchbee also checks every hour while automatic updates are on.                                        | 自动更新开启时，Orchbee 也会每小时检查一次。                                             |
+| Up to date                    | Orchbee is up to date.                                                                                | Orchbee 已是最新版本。                                                                   |
+| Check failed                  | Couldn't check for updates. Try again, or install from orchbee.com—terminals and Agents keep running. | 无法检查更新。请重试，或从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。 |
+| Download failed               | Download failed. Try again, or install from orchbee.com—terminals and Agents keep running.            | 下载失败。请重试，或从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。     |
+| Install failed                | Downloaded but couldn't install. Install from orchbee.com—terminals and Agents keep running.          | 已下载，但无法安装。请从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。   |
+| Unavailable, development      | Development builds don't update.                                                                      | 开发版不会更新。                                                                         |
+| Unavailable, older Session    | Available once the Session updates.                                                                   | 会话更新后可用。                                                                         |
+| Unavailable, no release store | Not available for this installation.                                                                  | 此安装不支持检查更新。                                                                   |
 
 ## Settings and the command
 

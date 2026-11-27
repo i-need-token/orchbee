@@ -18,18 +18,15 @@ impl About {
         self.update.as_deref()
     }
 
-    pub(crate) const fn check(&self) -> UpdateCheck {
-        self.check
+    pub(crate) const fn check(&self) -> &UpdateCheck {
+        &self.check
     }
 
     /// Whether a press on the Updates row can do anything: switch to an offered version, or ask
     /// for a check while one is possible and none is under way.
     pub(super) fn actionable(&self) -> bool {
         self.update.is_some()
-            || !matches!(
-                self.check,
-                UpdateCheck::Unavailable(_) | UpdateCheck::Checking
-            )
+            || !(matches!(self.check, UpdateCheck::Unavailable(_)) || self.check.running())
     }
 
     /// Whether the row shows as available; a check under way stays readable, not disabled.

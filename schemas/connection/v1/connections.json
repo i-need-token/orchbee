@@ -16,6 +16,7 @@
 				{ "name": "terminal-limit-reached", "addedIn": "0.1.0-beta.20" },
 				{ "name": "terminal-runtime", "addedIn": "0.1.0-beta.14" },
 				{ "name": "update-check", "addedIn": "0.1.0-beta.15" },
+				{ "name": "update-phases", "addedIn": "0.1.0-beta.26" },
 				{ "name": "workspace-idle", "addedIn": "0.1.0-beta.23" }
 			],
 			"fingerprintInputs": [
@@ -383,6 +384,9 @@
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-update-check-conformance-v1.json"
+		},
+		{
+			"path": "schemas/workbench/v1/workbench-update-phases-conformance-v1.json"
 		},
 		{
 			"path": "schemas/workbench/v1/workbench-window-title-conformance-v1.json",

@@ -6,16 +6,23 @@ use orchbee_workbench_protocol::{
 };
 use serde_json::Value;
 
-fn corpus() -> Value {
-    serde_json::from_str(include_str!(
-        "../../../schemas/workbench/v1/workbench-update-check-conformance-v1.json"
-    ))
-    .unwrap()
+/// The released corpus of `update-check`, and the corpus of the outcomes `update-phases` adds.
+fn corpora() -> [Value; 2] {
+    [
+        include_str!("../../../schemas/workbench/v1/workbench-update-check-conformance-v1.json"),
+        include_str!("../../../schemas/workbench/v1/workbench-update-phases-conformance-v1.json"),
+    ]
+    .map(|text| serde_json::from_str(text).unwrap())
 }
 
 #[test]
 fn shared_update_check_corpus_has_matching_typed_json_and_frame_results() {
-    let corpus = corpus();
+    for corpus in corpora() {
+        check_corpus(&corpus);
+    }
+}
+
+fn check_corpus(corpus: &Value) {
     for (group, accepted) in [("valid", true), ("invalid", false)] {
         for case in corpus[group].as_array().unwrap() {
             let encoded = serde_json::to_vec(&case["document"]).unwrap();

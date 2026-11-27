@@ -1,6 +1,6 @@
 //! Bounded, nonblocking capture of one Unix command, whose whole process group settles before a
 //! known result.
-use super::super::output_drain::{drain, drain_tail};
+use super::super::output_drain::{ErrorOutput, drain, drain_tail, ignore_output};
 use super::{CommandChild, SpawnEnvironment};
 use crate::{CommandFailure, CommandOutput, CommandSpawnFailure};
 use orchbee_local_ipc::ChildOutputReader;
@@ -40,6 +40,7 @@ pub fn run_unix_command_exchange(
         output_limit,
         deadline,
         interrupted,
+        &mut ignore_output,
         move |stdin, stdout, stderr| {
             let mut command = command;
             command
@@ -62,11 +63,33 @@ pub fn run_unmasked_unix_command(
     deadline: Option<Instant>,
     interrupted: impl FnMut() -> io::Result<bool>,
 ) -> CommandOutput {
+    run_unmasked_unix_command_following(
+        command,
+        environment,
+        output_limit,
+        deadline,
+        interrupted,
+        ignore_output,
+    )
+}
+
+/// [`run_unmasked_unix_command`] whose `error_output` receives what the command writes on standard
+/// error as it arrives, on the calling thread between polls, including what lies past
+/// `output_limit`.
+pub fn run_unmasked_unix_command_following(
+    command: Command,
+    environment: SpawnEnvironment,
+    output_limit: usize,
+    deadline: Option<Instant>,
+    interrupted: impl FnMut() -> io::Result<bool>,
+    mut error_output: impl FnMut(&[u8]),
+) -> CommandOutput {
     run(
         None,
         output_limit,
         deadline,
         interrupted,
+        &mut error_output,
         move |_stdin, stdout, stderr| {
             // The parent's copies of the output writers close when this returns, before the drain.
             super::spawn::spawn(&command, environment, &stdout, &stderr)
@@ -82,6 +105,7 @@ fn run(
     output_limit: usize,
     deadline: Option<Instant>,
     mut interrupted: impl FnMut() -> io::Result<bool>,
+    error_output: ErrorOutput<'_>,
     start: impl FnOnce(Stdio, OwnedFd, OwnedFd) -> Result<CommandChild, CommandSpawnFailure>,
 ) -> CommandOutput {
     use CommandFailure as Failure;
@@ -137,6 +161,7 @@ fn run(
                 &mut result.stdout_truncated,
                 false,
                 output_limit,
+                &mut ignore_output,
             )
             .and_then(|()| {
                 drain(
@@ -145,6 +170,7 @@ fn run(
                     &mut result.stderr_truncated,
                     false,
                     output_limit,
+                    &mut *error_output,
                 )
             })
             .err()
@@ -156,13 +182,14 @@ fn run(
             } else {
                 reason
             };
-            let _drained = drain_tail(&mut out, &mut err, &mut result, output_limit);
+            let _drained = drain_tail(&mut out, &mut err, &mut result, output_limit, error_output);
             return result.failed(reason);
         }
         match child.try_wait() {
             Ok(None) => thread::sleep(Duration::from_millis(10)),
             Ok(Some(status)) => {
-                if drain_tail(&mut out, &mut err, &mut result, output_limit).is_err() {
+                if drain_tail(&mut out, &mut err, &mut result, output_limit, error_output).is_err()
+                {
                     return result.failed(Failure::Io);
                 }
                 result.exit_code = status.code();

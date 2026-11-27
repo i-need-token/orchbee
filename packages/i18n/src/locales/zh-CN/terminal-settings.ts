@@ -156,11 +156,18 @@ export const zhCNTerminalSettingsMessages = {
 	'terminal.settings.page.about.updates.label': '更新',
 	'terminal.settings.page.about.updates.check': '检查更新',
 	'terminal.settings.page.about.updates.checking': '正在检查…',
+	'terminal.settings.page.about.updates.downloading':
+		'正在下载 {version}… {progress, number, percent}',
+	'terminal.settings.page.about.updates.installing': '正在安装…',
 	'terminal.settings.page.about.updates.download': '下载安装包',
 	'terminal.settings.page.about.updates.schedule': '自动更新开启时，Orchbee 也会每小时检查一次。',
 	'terminal.settings.page.about.updates.upToDate': 'Orchbee 已是最新版本。',
 	'terminal.settings.page.about.updates.failed':
 		'无法检查更新。请重试，或从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。',
+	'terminal.settings.page.about.updates.downloadFailed':
+		'下载失败。请重试，或从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。',
+	'terminal.settings.page.about.updates.installFailed':
+		'已下载，但无法安装。请从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。',
 	'terminal.settings.page.about.updates.unavailableDevelopment': '开发版不会更新。',
 	'terminal.settings.page.about.updates.unavailableSession':
 		'会话更新后可用。也可以从 orchbee.com 下载安装最新版本——运行中的终端和 Agent 不会中断。',

@@ -22,9 +22,15 @@ export type TerminalSettingsCategory =
 	| 'terminal'
 	| 'themes';
 
-/** What Check for updates shows, and why it cannot run where it cannot. */
+/**
+ * What Check for updates shows: a run checking, downloading `version` with the whole `percent` that
+ * has arrived, or installing, how it ended, a failure by the phase it ended in, and why it cannot
+ * run where it cannot.
+ */
 export type TerminalSettingsUpdateCheckStatus =
-	| { readonly kind: 'checking' | 'failed' | 'idle' | 'up-to-date' }
+	| { readonly kind: 'checking' | 'idle' | 'installing' | 'up-to-date' }
+	| { readonly kind: 'downloading'; readonly percent: number; readonly version: string }
+	| { readonly kind: 'failed'; readonly phase: 'check' | 'download' | 'install' }
 	| {
 			readonly kind: 'unavailable';
 			readonly reason: 'development' | 'installation' | 'session';

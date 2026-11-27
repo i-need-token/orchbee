@@ -65,23 +65,47 @@ export interface WorkbenchClientUpdate {
  */
 export type WorkbenchUpdateCheckUnavailableReason = 'development' | 'installation' | 'session';
 
-/** What Check for updates shows. */
+/**
+ * The phase of a run of the Session Server's update job that a failure ended in: reading the release
+ * feed and the store, downloading, or installing.
+ */
+export type WorkbenchUpdatePhase = 'check' | 'download' | 'install';
+
+/**
+ * What Check for updates shows: a run queued or reading the feed, downloading `version` with the
+ * whole `percent` of everything it downloads that has arrived, or installing, and how a run this
+ * window asked for ended.
+ */
 export type WorkbenchUpdateCheckStatus =
-	| { readonly kind: 'checking' | 'failed' | 'idle' | 'up-to-date' }
+	| { readonly kind: 'checking' | 'idle' | 'installing' | 'up-to-date' }
+	| { readonly kind: 'downloading'; readonly percent: number; readonly version: string }
+	| { readonly kind: 'failed'; readonly phase: WorkbenchUpdatePhase }
 	| { readonly kind: 'unavailable'; readonly reason: WorkbenchUpdateCheckUnavailableReason };
 
 /**
  * What one `workbench.update-check` exchange came to: where the Session Server's job stands, how its
- * last run ended, or `not-answered` when the answer was refused, lost, late, or unreadable.
+ * last run ended, or `not-answered` when the answer was refused, lost, late, or unreadable. Only a
+ * Session that lists `update-phases` answers a download or an install, and names the phase of a
+ * failure; another one's failure reads as the check's.
  */
 export type WorkbenchUpdateCheckAnswer =
-	| 'checking'
-	| 'idle'
-	| 'installed'
-	| 'not-answered'
-	| 'run-failed'
-	| 'unavailable'
-	| 'up-to-date';
+	| {
+			readonly kind:
+				| 'checking'
+				| 'idle'
+				| 'installed'
+				| 'installing'
+				| 'not-answered'
+				| 'unavailable'
+				| 'up-to-date';
+	  }
+	| {
+			readonly kind: 'downloading';
+			readonly receivedBytes: number;
+			readonly totalBytes: number;
+			readonly version: string;
+	  }
+	| { readonly kind: 'run-failed'; readonly phase: WorkbenchUpdatePhase };
 
 /**
  * Check for updates: asks the Session Server to run its automatic-update job now. A status shows
@@ -93,7 +117,7 @@ export interface WorkbenchUpdateCheck {
 	readonly start: () => void;
 	/**
 	 * A surface shows the status from now until the returned call; while one does and a run is
-	 * queued or running, the status is read about once a second.
+	 * queued or under way, the status is read about once a second.
 	 */
 	readonly show: () => () => void;
 	readonly subscribe: (listener: () => void) => () => void;

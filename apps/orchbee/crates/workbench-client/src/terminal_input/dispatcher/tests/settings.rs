@@ -622,10 +622,10 @@ fn a_press_outside_the_settings_dialog_closes_it() {
 
 /// Enter on About's Updates row reaches the port through the dispatcher: it asks for a check while
 /// no version is offered, runs the Update control's switch once one is, and asks for nothing while
-/// a check runs or none can; nothing reaches a pane.
+/// a run is under way or none can run; nothing reaches a pane.
 #[test]
 fn enter_on_about_updates_asks_for_a_check_or_the_switch() {
-    use crate::release_update::{CheckUnavailable, UpdateCheck, UpdateRequest};
+    use crate::release_update::{CheckUnavailable, UpdateCheck, UpdatePhase, UpdateRequest};
     for (offered, check, expected, outcome) in [
         (
             None,
@@ -635,7 +635,7 @@ fn enter_on_about_updates_asks_for_a_check_or_the_switch() {
         ),
         (
             None,
-            UpdateCheck::Failed,
+            UpdateCheck::Failed(UpdatePhase::Download),
             Some(UpdateRequest::Check),
             DispatchOutcome::Continue,
         ),
@@ -648,13 +648,22 @@ fn enter_on_about_updates_asks_for_a_check_or_the_switch() {
         (None, UpdateCheck::Checking, None, DispatchOutcome::Continue),
         (
             None,
+            UpdateCheck::Downloading {
+                version: "9.0.0".to_owned(),
+                percent: 42,
+            },
+            None,
+            DispatchOutcome::Continue,
+        ),
+        (
+            None,
             UpdateCheck::Unavailable(CheckUnavailable::Session),
             None,
             DispatchOutcome::Continue,
         ),
     ] {
         let mut port = Port::ready();
-        port.editor.observe_update(offered, check);
+        port.editor.observe_update(offered, check.clone());
         port.editor.edit(Edit::Select(Row::Updates));
         port.editor.draw(port.editor.view().unwrap().token());
         assert_eq!(page(&port).selected(), Row::Updates);

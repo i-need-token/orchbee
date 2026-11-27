@@ -1,7 +1,8 @@
-use super::{Decision, Outcome, Pace, Unscheduled, Wake, rule, serve};
+use super::{Decision, Outcome, Pace, Phase, Unscheduled, Wake, rule, serve};
 use orchbee_local_runtime::{
     CommandFailure, CommandOutput, EnvironmentKind, LogField, LogLevel, LogValue,
 };
+use orchbee_workbench_protocol::UpdateCheckFinish;
 use std::{
     cell::{Cell, RefCell},
     path::Path,
@@ -299,6 +300,81 @@ fn helper_output_that_is_no_update_document_never_reaches_the_record() {
     assert_eq!(
         Outcome::from_output(&failed(CommandFailure::SpawnUnavailable)),
         Outcome::NotStarted("spawn-failed")
+    );
+}
+
+/// A failed run is named by the phase its document says it stopped in, the runtime part first and
+/// then the window part, and a run without a readable document by the phase its progress reached;
+/// success stays only a clean exit without an error.
+#[test]
+fn a_failed_run_is_named_by_the_phase_it_stopped_in() {
+    let answered = |code, phase, error: Option<&str>, window: Option<(&str, Option<&str>)>| {
+        let mut document: serde_json::Value =
+            serde_json::from_str(&update_document(phase, Some("0.1.0-beta.26"), error)).unwrap();
+        if let Some((phase, error)) = window {
+            document["result"]["desktop"] = serde_json::json!({"phase": phase, "error": error});
+        }
+        Outcome::from_output(&exited(code, &document.to_string()))
+    };
+    for (phase, error, finish) in [
+        (
+            "configuration",
+            "configuration",
+            UpdateCheckFinish::CheckFailed,
+        ),
+        (
+            "source",
+            "source-unconfigured",
+            UpdateCheckFinish::CheckFailed,
+        ),
+        (
+            "manifest",
+            "signature-invalid",
+            UpdateCheckFinish::CheckFailed,
+        ),
+        ("download", "download", UpdateCheckFinish::DownloadFailed),
+        ("verify", "checksum", UpdateCheckFinish::InstallFailed),
+        ("publish", "storage", UpdateCheckFinish::InstallFailed),
+        ("activate", "activation", UpdateCheckFinish::InstallFailed),
+    ] {
+        let outcome = answered(1, phase, Some(error), Some(("download", Some("download"))));
+        assert_eq!(outcome.finish(Phase::Download), finish, "{phase}");
+    }
+    // The runtime part succeeded and the window part failed.
+    for (window, finish) in [
+        ("manifest", UpdateCheckFinish::CheckFailed),
+        ("download", UpdateCheckFinish::DownloadFailed),
+        ("verify", UpdateCheckFinish::InstallFailed),
+    ] {
+        let outcome = answered(1, "complete", None, Some((window, Some("download"))));
+        assert_eq!(outcome.finish(Phase::Check), finish, "{window}");
+    }
+    // A phase this Server does not know falls back on the progress, and so does every run that
+    // answered no document.
+    let unknown = answered(1, "rearrange", Some("internal"), None);
+    assert_eq!(
+        unknown.finish(Phase::Install),
+        UpdateCheckFinish::InstallFailed
+    );
+    for outcome in [
+        Outcome::NotStarted("no-pointer"),
+        Outcome::Unanswered { status: Some(4) },
+        Outcome::Ended("timeout"),
+    ] {
+        assert_eq!(outcome.finish(Phase::Check), UpdateCheckFinish::CheckFailed);
+        assert_eq!(
+            outcome.finish(Phase::Download),
+            UpdateCheckFinish::DownloadFailed
+        );
+    }
+    assert_eq!(
+        answered(0, "complete", None, Some(("complete", None))).finish(Phase::Install),
+        UpdateCheckFinish::Installed
+    );
+    // A run that left a folder for recovery exits nonzero without an error: it did not complete.
+    assert_eq!(
+        answered(1, "complete", None, None).finish(Phase::Install),
+        UpdateCheckFinish::InstallFailed
     );
 }
 

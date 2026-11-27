@@ -134,7 +134,9 @@ last handle closes, so the owner's end, however abrupt, ends the command's whole
 hub starts its carriers this way, and `run_contained_command_exchange`, the contained form of
 `run_windows_command_exchange`, runs the updater's `curl` and `tar`. `spawn_background` is
 `spawn_contained` at below-normal priority, which every process the command starts inherits;
-`run_background_command_exchange` runs the Session Server's automatic update helper that way. Otherwise neither platform ends owned processes when the owning
+`run_background_command_exchange` runs the Session Server's automatic update helper that way, and
+hands the caller each read of the command's standard error as it arrives, past the output bound
+too, which the Server follows for the helper's progress. Otherwise neither platform ends owned processes when the owning
 process dies abruptly:
 `PR_SET_PDEATHSIG` would need `pre_exec`, which this crate's denial of unsafe code excludes, and is
 Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an
@@ -153,7 +155,9 @@ pipes, as the leader of its own process group. On macOS it also passes
 `POSIX_SPAWN_CLOEXEC_DEFAULT`, and on Linux it closes every descriptor `/proc/self/fd` lists above
 the standard streams, so the command inherits no descriptor but its three standard streams.
 The standard library's spawn would pass the blocked mask on, so the group's `SIGTERM` could not end
-it before the grace. The caller states whether the environment is inherited or cleared, since
+it before the grace. `run_unmasked_unix_command_following` is that form handing the caller each read
+of standard error as it arrives, past the output bound too, as the Session Server follows its
+automatic update helper's progress on macOS and Linux. The caller states whether the environment is inherited or cleared, since
 `Command` does not report `env_clear`, and a command that sets a working directory is refused. The
 Client's install, update and automatic helper run the staged Client's version check, the published
 copy's completion, `curl` and `tar` through it on macOS.

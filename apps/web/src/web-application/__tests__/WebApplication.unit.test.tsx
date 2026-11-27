@@ -213,7 +213,7 @@ it.each(['en-US', 'zh-CN'] as const)(
 		let resolveStart: ((answer: WorkbenchUpdateCheckAnswer) => void) | undefined;
 		const ask = vi.fn<(action: 'read' | 'start') => Promise<WorkbenchUpdateCheckAnswer>>(
 			(action) => {
-				if (action === 'read') return Promise.resolve('idle');
+				if (action === 'read') return Promise.resolve({ kind: 'idle' });
 				return new Promise((resolve) => {
 					resolveStart = resolve;
 				});
@@ -304,7 +304,8 @@ it.each(['en-US', 'zh-CN'] as const)(
 		expect(checkButton).not.toBeNull();
 		expect(checkButton?.disabled).toBe(false);
 
-		// Press Check for updates -> transitions to Checking…, then fails and exposes the escape hatch.
+		// Press Check for updates -> transitions to Checking…, then fails in the phase it reached and
+		// exposes the escape hatch.
 		await React.act(async () => checkButton?.click());
 		expect(ask).toHaveBeenCalledWith('start');
 		expect(checkButton?.disabled).toBe(true);
@@ -312,13 +313,13 @@ it.each(['en-US', 'zh-CN'] as const)(
 		expect(container.querySelector('[data-about-download]')).toBeNull();
 
 		await React.act(async () => {
-			resolveStart?.('run-failed');
+			resolveStart?.({ kind: 'run-failed', phase: 'download' });
 			await Promise.resolve();
 		});
 		expect(checkButton?.disabled).toBe(false);
-		expect(container.querySelector('[data-settings-content="about"]')?.textContent).toContain(
-			'orchbee.com',
-		);
+		const failure = container.querySelector('[data-settings-content="about"]')?.textContent;
+		expect(failure).toContain(locale === 'en-US' ? 'Download failed.' : '下载失败。');
+		expect(failure).toContain('orchbee.com');
 		const downloadButton = container.querySelector<HTMLButtonElement>('[data-about-download]');
 		expect(downloadButton).not.toBeNull();
 		await React.act(async () => downloadButton?.click());

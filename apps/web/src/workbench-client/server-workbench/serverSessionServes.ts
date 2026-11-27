@@ -10,7 +10,8 @@ type ServerSessionAction =
 	| 'acknowledge-agent-completion'
 	| 'check-for-updates'
 	| 'follow-agent-confirmations'
-	| 'follow-terminal-runtime';
+	| 'follow-terminal-runtime'
+	| 'follow-update-phases';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
@@ -27,6 +28,9 @@ const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] 
 	// The terminal surface follows the Session's terminal-runtime read only where it is listed.
 	['terminal-runtime', ['follow-terminal-runtime']],
 	['update-check', ['check-for-updates']],
+	// Check for updates follows a run's download and install, and names a failure's phase, only
+	// where it is listed; elsewhere a run shows Checking until it ends.
+	['update-phases', ['follow-update-phases']],
 ];
 
 /**

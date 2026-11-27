@@ -222,8 +222,33 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
         for (update, check) in [
             (None, crate::release_update::UpdateCheck::Idle),
             (None, crate::release_update::UpdateCheck::Checking),
+            (
+                None,
+                crate::release_update::UpdateCheck::Downloading {
+                    version: "0.1.0-beta.26".to_owned(),
+                    percent: 100,
+                },
+            ),
+            (None, crate::release_update::UpdateCheck::Installing),
             (None, crate::release_update::UpdateCheck::UpToDate),
-            (None, crate::release_update::UpdateCheck::Failed),
+            (
+                None,
+                crate::release_update::UpdateCheck::Failed(
+                    crate::release_update::UpdatePhase::Check,
+                ),
+            ),
+            (
+                None,
+                crate::release_update::UpdateCheck::Failed(
+                    crate::release_update::UpdatePhase::Download,
+                ),
+            ),
+            (
+                None,
+                crate::release_update::UpdateCheck::Failed(
+                    crate::release_update::UpdatePhase::Install,
+                ),
+            ),
             (
                 None,
                 crate::release_update::UpdateCheck::Unavailable(
@@ -247,12 +272,21 @@ fn every_description_fits_its_row_at_the_reference_width_in_both_locales() {
                 crate::release_update::UpdateCheck::Idle,
             ),
         ] {
-            let description = locale.about_updates(update, check);
+            let description = locale.about_updates(update, &check);
             assert!(
                 crate::terminal_text::display_width(&description) <= budget,
                 "{locale:?} {update:?} {check:?} needs {} of {budget} cells: {description}",
                 crate::terminal_text::display_width(&description)
             );
+            // A run under way shows its stage whole, after the pending glyph, in the half of the
+            // row its control may take.
+            if check.running() {
+                let stage = &locale.about_running(&check)[0];
+                assert!(
+                    crate::terminal_text::display_width(stage) + 2 <= budget / 2,
+                    "{locale:?} {check:?}: {stage}"
+                );
+            }
         }
     }
 }

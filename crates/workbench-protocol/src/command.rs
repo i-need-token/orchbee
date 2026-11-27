@@ -1995,8 +1995,12 @@ fn validate_response(response: &WorkbenchResponse, encoded: &[u8]) -> Result<(),
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_TAB_DUPLICATE_RESULT_BYTES)?;
             result.validate()
         }
-        WorkbenchResponse::SessionStop(_) | WorkbenchResponse::UpdateCheck(_) => {
+        WorkbenchResponse::SessionStop(_) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)
+        }
+        WorkbenchResponse::UpdateCheck(result) => {
+            enforce_encoded_limit(encoded, MAXIMUM_ENCODED_INTENT_BYTES)?;
+            result.validate()
         }
         WorkbenchResponse::WorktreeQuery(result) => {
             enforce_encoded_limit(encoded, MAXIMUM_ENCODED_WORKTREE_QUERY_RESULT_BYTES)?;

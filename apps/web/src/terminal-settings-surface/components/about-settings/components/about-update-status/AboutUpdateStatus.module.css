@@ -16,6 +16,11 @@
 	gap: var(--ob-ref-space-2);
 }
 
+/* Check for updates, whose label carries a download's percentage in digits of one width. */
+.check {
+	font-variant-numeric: tabular-nums;
+}
+
 /* Spoken result of a check, which the description already shows. */
 .announcement {
 	position: absolute;

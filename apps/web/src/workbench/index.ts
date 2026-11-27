@@ -17,6 +17,7 @@ export type {
 	WorkbenchUpdateOffer,
 	WorkbenchUpdateCheckAnswer,
 	WorkbenchUpdateCheckUnavailableReason,
+	WorkbenchUpdatePhase,
 } from './types/workbench-client-update';
 export { WorkbenchUpdateCheckModel } from './model/WorkbenchUpdateCheckModel';
 export { invokeWorkbenchClientUpdate } from './actions/invokeWorkbenchClientUpdate';

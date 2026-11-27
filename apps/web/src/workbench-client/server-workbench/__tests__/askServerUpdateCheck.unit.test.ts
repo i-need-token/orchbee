@@ -2,6 +2,7 @@ import { parseWorkbenchResponse } from '@orchbee/workbench-client-protocol';
 import { describe, expect, it } from 'vitest';
 
 import { fixtureId, workbenchSnapshot } from '../../../__tests__/server-workbench-snapshot';
+import type { WorkbenchUpdateCheckAnswer } from '../../../workbench';
 import { askServerUpdateCheck } from '../askServerUpdateCheck';
 import type { ServerWorkbenchAnswer, ServerWorkbenchSession } from '../ServerWorkbenchSession';
 
@@ -26,24 +27,57 @@ function updateCheckResult(requestId: string, outcome: unknown): ServerWorkbench
 }
 
 describe('askServerUpdateCheck', () => {
-	it("reads the Server's answer to its own request", async () => {
-		const cases: readonly (readonly [unknown, string])[] = [
-			[{ kind: 'checking' }, 'checking'],
-			[{ kind: 'idle' }, 'idle'],
-			[{ kind: 'unavailable' }, 'unavailable'],
-			[{ kind: 'finished', result: 'up-to-date' }, 'up-to-date'],
-			[{ kind: 'finished', result: 'installed' }, 'installed'],
-			[{ kind: 'finished', result: 'failed' }, 'run-failed'],
-			[{ kind: 'denied' }, 'not-answered'],
-			[{ kind: 'rejected', reason: 'session-mismatch' }, 'not-answered'],
+	it("reads the Server's answer to its own request, a failure by the phase it names", async () => {
+		const cases: readonly (readonly [unknown, WorkbenchUpdateCheckAnswer])[] = [
+			[{ kind: 'checking' }, { kind: 'checking' }],
+			[{ kind: 'idle' }, { kind: 'idle' }],
+			[{ kind: 'unavailable' }, { kind: 'unavailable' }],
+			[
+				{ kind: 'downloading', receivedBytes: 42, totalBytes: 100, version: '1.3.0' },
+				{ kind: 'downloading', receivedBytes: 42, totalBytes: 100, version: '1.3.0' },
+			],
+			[{ kind: 'installing', version: '1.3.0' }, { kind: 'installing' }],
+			[{ kind: 'finished', result: 'up-to-date' }, { kind: 'up-to-date' }],
+			[{ kind: 'finished', result: 'installed' }, { kind: 'installed' }],
+			// A Session without phases names no phase, so its failure reads as the check's.
+			[
+				{ kind: 'finished', result: 'failed' },
+				{ kind: 'run-failed', phase: 'check' },
+			],
+			[
+				{ kind: 'finished', result: 'check-failed' },
+				{ kind: 'run-failed', phase: 'check' },
+			],
+			[
+				{ kind: 'finished', result: 'download-failed' },
+				{ kind: 'run-failed', phase: 'download' },
+			],
+			[
+				{ kind: 'finished', result: 'install-failed' },
+				{ kind: 'run-failed', phase: 'install' },
+			],
+			[{ kind: 'denied' }, { kind: 'not-answered' }],
+			[{ kind: 'rejected', reason: 'session-mismatch' }, { kind: 'not-answered' }],
 		];
 		for (const [outcome, expected] of cases) {
 			const session = sessionAnswering((request) => {
 				expect(request).toMatchObject({ action: 'start', kind: 'workbench.update-check' });
 				return updateCheckResult(request.requestId, outcome);
 			});
-			await expect(askServerUpdateCheck(session, 'start')).resolves.toBe(expected);
+			await expect(askServerUpdateCheck(session, 'start', true)).resolves.toEqual(expected);
 		}
+	});
+
+	it('asks for phases only of a Session that lists them, leaving the member out otherwise', async () => {
+		const sent: Request[] = [];
+		const session = sessionAnswering((request) => {
+			sent.push(request);
+			return updateCheckResult(request.requestId, { kind: 'idle' });
+		});
+		await askServerUpdateCheck(session, 'read', false);
+		await askServerUpdateCheck(session, 'read', true);
+		expect(sent[0]).not.toHaveProperty('phases');
+		expect(sent[1]).toMatchObject({ phases: true });
 	});
 
 	it('ends as not answered when the answer is lost, refused, of another kind, or for another request', async () => {
@@ -62,9 +96,9 @@ describe('askServerUpdateCheck', () => {
 			},
 		];
 		for (const answer of answers) {
-			await expect(askServerUpdateCheck(sessionAnswering(answer), 'read')).resolves.toBe(
-				'not-answered',
-			);
+			await expect(askServerUpdateCheck(sessionAnswering(answer), 'read', true)).resolves.toEqual({
+				kind: 'not-answered',
+			});
 		}
 	});
 });

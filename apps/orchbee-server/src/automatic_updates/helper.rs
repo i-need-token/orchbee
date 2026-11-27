@@ -1,9 +1,10 @@
 //! One helper run: the store's active Client with `--automatic-update`, named by `active.json` and
 //! spelled as that version reads it, at low priority, its standard output bounded and its end
-//! bounded by the run limit and the schedule's stop. On Windows it runs in a below-normal Job that
-//! ends with this process; on macOS and Linux in a process group of its own under `nice`, with an
-//! empty signal mask. It reads the store only to find that Client and its version.
-use super::{UpdateJob, outcome::Outcome};
+//! bounded by the run limit and the schedule's stop, its progress records on standard error
+//! followed as they arrive. On Windows it runs in a below-normal Job that ends with this process;
+//! on macOS and Linux in a process group of its own under `nice`, with an empty signal mask. It
+//! reads the store only to find that Client and its version.
+use super::{UpdateJob, outcome::Outcome, progress::ProgressLines};
 use orchbee_local_runtime::{
     AUTOMATIC_UPDATE_HELPER, CohortArtifact, CommandOutput, active_release, private_filesystem,
     release_store_root,
@@ -63,11 +64,13 @@ fn exchange(client: &Path, helper: &str, job: &UpdateJob) -> Option<CommandOutpu
         .env_remove(relaunch.current)
         .env_remove(relaunch.earlier)
         .current_dir(system);
+    let mut progress = ProgressLines::new(job);
     Some(orchbee_local_runtime::run_background_command_exchange(
         command,
         OUTPUT_LIMIT,
         Some(Instant::now() + RUN_LIMIT),
         || Ok(job.stopped()),
+        |bytes| progress.feed(bytes),
     ))
 }
 
@@ -88,12 +91,14 @@ const NICENESS: &str = "10";
 fn exchange(client: &Path, helper: &str, job: &UpdateJob) -> Option<CommandOutput> {
     let mut command = Command::new(NICE);
     command.arg("-n").arg(NICENESS).arg(client).arg(helper);
-    Some(orchbee_local_runtime::run_unmasked_unix_command(
+    let mut progress = ProgressLines::new(job);
+    Some(orchbee_local_runtime::run_unmasked_unix_command_following(
         command,
         orchbee_local_runtime::SpawnEnvironment::Inherited,
         OUTPUT_LIMIT,
         Some(Instant::now() + RUN_LIMIT),
         || Ok(job.stopped()),
+        |bytes| progress.feed(bytes),
     ))
 }
 

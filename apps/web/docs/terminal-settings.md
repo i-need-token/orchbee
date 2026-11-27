@@ -436,11 +436,14 @@ words:
   While Main offers the move of an older Session onto this window's version, it is the same Update,
   described by why the move waits, and while that move runs it shows its notice's sentence with no
   control, as [Desktop's Session update](../../desktop/README.md#session-update) describes.
-  Otherwise it is Check for updates, which reads “Checking…” and is
-  disabled, without a spinner, while a run is queued or running. When a check fails, the danger
-  description notes that installing the latest version from `orchbee.com` keeps terminals and
-  Agents running, and, where the composition supplies `openExternal`, Get installer opens
-  `https://orchbee.com/#install` in the person's browser. A Session too old to check reads
+  Otherwise it is Check for updates, which is disabled and reads the stage of a run under way:
+  “Checking…” while the run is queued or reads the feed, “Downloading 0.1.0-beta.26… 42%”, with the
+  percentage formatted in the page's locale, while it downloads, and “Installing…” while it
+  installs. When a check fails, the danger description names the phase it failed in (“Couldn't
+  check for updates.”, “Download failed.”, or “Downloaded but couldn't install.”) and notes that
+  installing the latest version from `orchbee.com` keeps terminals and Agents running, and, where
+  the composition supplies `openExternal`, Get installer opens `https://orchbee.com/#install` in the
+  person's browser. A Session too old to check reads
   “Available once the Session updates. Or install from orchbee.com—terminals and Agents keep
   running.” in a neutral tone, with the same Get installer.
 - **Automatic updates** is the `update.automatic` switch of the
@@ -448,24 +451,30 @@ words:
 
 Check for updates asks the Session Server to run its scheduled automatic-update job now, through the
 `workbench.update-check` request; the client never starts `orchbee update` itself.
-`WorkbenchUpdateCheckModel` holds the one status (Idle, Checking, Up to date, Failed, or Unavailable
-with a reason), and the Desktop composition hands it to About and the footer as part of the window's
-one update state, `WorkbenchClientUpdate`, beside Main's offer. The reason is decided before any
+`WorkbenchUpdateCheckModel` holds the one status (Idle, Checking, Downloading with the version and
+whole percent, Installing, Up to date, Failed with its phase, or Unavailable with a reason), and the
+Desktop composition hands it to About and the footer as part of the window's one update state,
+`WorkbenchClientUpdate`, beside Main's offer. The reason is decided before any
 request, in this order: a development build; a window Main can offer no newer version, which the
 bootstrap's `windowUpdatesOffered` says, and also a Server that answers `unavailable`; and a
 Session whose negotiated capabilities, from the bootstrap's `negotiatedCapabilities`, lack
 `update-check`. The window's one table from capability to actions, `serverSessionServes.ts`, reads
-an unknown list as serving nothing, so a request a Session may not know is never sent.
+an unknown list as serving nothing, so a request a Session may not know is never sent. The same table
+sends `phases` only to a Session that lists `update-phases`; another one answers Checking until its
+run ends.
 
-Pressing Check sends `start` and shows Checking. While About is shown and the status is Checking,
-the window sends `read` about once a second, one exchange at a time. `up-to-date` shows Up to date;
-`failed`, `denied`, `rejected`, `idle` after a start, and an answer that is lost, late after ten
-seconds, of another kind, or for another request fail the check, and none is repeated. `installed`
-keeps Checking until Main offers the installed version, then the Update control takes its place;
-Main follows the window pointer as it changes, and a check that sees no offer within 15 seconds
-goes back to Idle rather than claim Up to date. Showing About again clears a finished result, then
-sends one `read`: a run queued or running shows Checking, and a finished result shows only for a
-check this window started, so a background run shows nothing but its offer.
+Pressing Check sends `start` and shows Checking. While About is shown and a run is under way, the
+window sends `read` about once a second, one exchange at a time, and shows the stage it answers:
+`downloading` as Downloading, whose percent is the whole share of the bytes received, and
+`installing` as Installing. `up-to-date` shows Up to date; `check-failed`, `download-failed`, and
+`install-failed` fail the check in that phase, and `failed` from a Session without phases, `denied`,
+`rejected`, `idle` after a start, and an answer that is lost, late after ten seconds, of another
+kind, or for another request fail it as the check; none is repeated. `installed` shows Installing
+until Main offers the installed version, then the Update control takes its place; Main follows the
+window pointer as it changes, and a check that sees no offer within 15 seconds goes back to Idle
+rather than claim Up to date. Showing About again clears a finished result, then sends one `read`:
+a run under way shows its stage, and a finished result shows only for a check this window started,
+so a background run shows nothing but its offer.
 
 ## Settings discovery and navigation model
 

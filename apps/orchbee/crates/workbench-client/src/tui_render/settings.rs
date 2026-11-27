@@ -957,7 +957,7 @@ fn render_row(
                 style(Role::AccentFocus),
             );
         }
-        let control = control_text(row, page, locale, theme);
+        let control = control_text(row, page, locale, theme, available / 2);
         let control_width = button.map_or_else(
             || {
                 control
@@ -968,7 +968,7 @@ fn render_row(
         );
         let control_role = match about_control(row, page) {
             _ if pending => Role::StatusPending,
-            Some(AboutControl::Checking) => Role::StatusPending,
+            Some(AboutControl::Running) => Role::StatusPending,
             _ if enabled => Role::TextSecondary,
             _ => Role::TextDisabled,
         };
@@ -1142,7 +1142,7 @@ fn render_row(
             // A check's result carries its outcome's color, as the window's tone does.
             let description_role = match (row, page.about().update(), page.about().check()) {
                 (Row::Updates, None, UpdateCheck::UpToDate) => Role::StatusSuccess,
-                (Row::Updates, None, UpdateCheck::Failed) => Role::StatusError,
+                (Row::Updates, None, UpdateCheck::Failed(_)) => Role::StatusError,
                 _ => Role::TextMuted,
             };
             put(
@@ -1229,8 +1229,8 @@ struct ControlText {
 enum AboutControl {
     /// Check for updates, or the Update control's switch.
     Action,
-    /// A check is under way, so the action gives way to its status.
-    Checking,
+    /// A run is under way, so the action gives way to its pending status.
+    Running,
 }
 
 fn about_control(row: Row, page: PageView<'_>) -> Option<AboutControl> {
@@ -1238,13 +1238,11 @@ fn about_control(row: Row, page: PageView<'_>) -> Option<AboutControl> {
         return None;
     }
     let about = page.about();
-    Some(
-        if about.update().is_none() && about.check() == UpdateCheck::Checking {
-            AboutControl::Checking
-        } else {
-            AboutControl::Action
-        },
-    )
+    Some(if about.update().is_none() && about.check().running() {
+        AboutControl::Running
+    } else {
+        AboutControl::Action
+    })
 }
 
 /// The label of the button About's Updates row offers: the Update control's switch while a newer
@@ -1294,12 +1292,14 @@ fn update_action_spec(
     )
 }
 
-/// The text control a row shows at its right edge.
+/// The text control a row shows at its right edge, in at most `budget` cells where it has a
+/// shorter form.
 fn control_text(
     row: Row,
     page: PageView<'_>,
     locale: Locale,
     theme: &Theme,
+    budget: usize,
 ) -> Option<ControlText> {
     let value = locale.settings_value((page, row));
     let plain = |text: String| {
@@ -1315,10 +1315,27 @@ fn control_text(
                 .to_owned(),
         ),
         // The row's action is a button, which the shared control draws whole. This text stands
-        // in only where the button cannot fit, cut like any other row's value.
+        // in only where the button cannot fit, cut like any other row's value. While a run is under
+        // way it gives way to the pending glyph and the longest form of the run's stage that fits;
+        // the version downloading comes from the Server, so it is sanitized as the offered version
+        // is.
         Row::Updates => plain(match update_action_label(row, page, locale) {
             Some(label) => label.to_owned(),
-            None => locale.about_checking().to_owned(),
+            None => {
+                let forms: Vec<String> = locale
+                    .about_running(page.about().check())
+                    .iter()
+                    .map(|form| {
+                        format!(
+                            "{} {}",
+                            theme.glyphs.status_bullet,
+                            sanitize_terminal_text(form)
+                        )
+                    })
+                    .collect();
+                let fits = forms.iter().find(|form| display_width(form) <= budget);
+                fits.or(forms.last()).cloned().unwrap_or_default()
+            }
         }),
         _ if page.checked(row).is_some() => plain(
             if page.checked(row) == Some(true) {

@@ -1,5 +1,5 @@
 //! Bounded, nonblocking capture on the retained Windows Job owner thread.
-use super::super::output_drain::{drain, drain_tail};
+use super::super::output_drain::{ErrorOutput, drain, drain_tail, ignore_output};
 use super::CommandChild;
 use crate::{CommandFailure, CommandOutput};
 use orchbee_local_ipc::{ChildInputWriter, ChildOutputReader};
@@ -37,6 +37,7 @@ pub fn run_windows_command_exchange(
         output_limit,
         deadline,
         interrupted,
+        &mut ignore_output,
         CommandChild::spawn,
     )
 }
@@ -57,18 +58,21 @@ pub fn run_contained_command_exchange(
         output_limit,
         deadline,
         interrupted,
+        &mut ignore_output,
         CommandChild::spawn_contained,
     )
 }
 
 /// As [`run_contained_command_exchange`] without input, in a Job started by
 /// [`CommandChild::spawn_background`], so the command and everything it starts run at below-normal
-/// priority.
+/// priority. `error_output` receives what the command writes on standard error as it arrives, on
+/// the calling thread between polls, including what lies past `output_limit`.
 pub fn run_background_command_exchange(
     command: Command,
     output_limit: usize,
     deadline: Option<Instant>,
     interrupted: impl FnMut() -> io::Result<bool>,
+    mut error_output: impl FnMut(&[u8]),
 ) -> CommandOutput {
     exchange(
         command,
@@ -76,6 +80,7 @@ pub fn run_background_command_exchange(
         output_limit,
         deadline,
         interrupted,
+        &mut error_output,
         CommandChild::spawn_background,
     )
 }
@@ -86,6 +91,7 @@ fn exchange(
     output_limit: usize,
     deadline: Option<Instant>,
     mut interrupted: impl FnMut() -> io::Result<bool>,
+    error_output: ErrorOutput<'_>,
     spawn: fn(Command) -> Result<CommandChild, super::CommandSpawnFailure>,
 ) -> CommandOutput {
     use CommandFailure as Failure;
@@ -139,6 +145,7 @@ fn exchange(
                 &mut result.stdout_truncated,
                 false,
                 output_limit,
+                &mut ignore_output,
             )
             .and_then(|()| {
                 drain(
@@ -147,6 +154,7 @@ fn exchange(
                     &mut result.stderr_truncated,
                     false,
                     output_limit,
+                    &mut *error_output,
                 )
             })
             .and_then(|()| feed(&mut writer, &mut remaining))
@@ -159,13 +167,14 @@ fn exchange(
             } else {
                 reason
             };
-            let _drained = drain_tail(&mut out, &mut err, &mut result, output_limit);
+            let _drained = drain_tail(&mut out, &mut err, &mut result, output_limit, error_output);
             return result.failed(reason);
         }
         match child.try_wait() {
             Ok(None) => thread::sleep(Duration::from_millis(10)),
             Ok(Some(status)) => {
-                if drain_tail(&mut out, &mut err, &mut result, output_limit).is_err() {
+                if drain_tail(&mut out, &mut err, &mut result, output_limit, error_output).is_err()
+                {
                     return result.failed(Failure::Io);
                 }
                 result.exit_code = status.code();

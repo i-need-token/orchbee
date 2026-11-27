@@ -289,13 +289,18 @@ async function run(
 		return stopServerSession(session, stopId);
 	});
 
-	// Check for updates asks this Session's Server to run its update job now; what it installs
-	// reaches the window as Main's offer, refreshed directly from disk once the check settles so a
-	// coalesced filesystem watch event never delays it, and About and the footer read one state.
+	// Check for updates asks this Session's Server to run its update job now, and follows the run's
+	// download and install where the Session lists them; what it installs reaches the window as
+	// Main's offer, refreshed directly from disk once the check settles so a coalesced filesystem
+	// watch event never delays it, and About and the footer read one state.
+	const updatePhases = serverSessionServes(
+		bootstrap.negotiatedCapabilities,
+		'follow-update-phases',
+	);
 	const updateCheck = new WorkbenchUpdateCheckModel({
 		ask: async (action) => {
-			const answer = await askServerUpdateCheck(session, action);
-			if (answer === 'installed' || answer === 'up-to-date') windowUpdate.refresh();
+			const answer = await askServerUpdateCheck(session, action, updatePhases);
+			if (answer.kind === 'installed' || answer.kind === 'up-to-date') windowUpdate.refresh();
 			return answer;
 		},
 		offer: windowUpdate,

@@ -1,0 +1,354 @@
+{
+	"contractVersion": 1,
+	"valid": [
+		{
+			"name": "start-with-phases",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start",
+				"phases": true
+			}
+		},
+		{
+			"name": "read-with-phases",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "read",
+				"phases": true
+			}
+		},
+		{
+			"name": "downloading",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 44040192,
+					"totalBytes": 104857600
+				}
+			}
+		},
+		{
+			"name": "downloading-started",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0,
+					"totalBytes": 1
+				}
+			}
+		},
+		{
+			"name": "downloading-limits",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "1111111111111111111111111111111111111111111111111111111111111111",
+					"receivedBytes": 9007199254740991,
+					"totalBytes": 9007199254740991
+				}
+			}
+		},
+		{
+			"name": "installing",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing",
+					"version": "0.1.0-beta.26"
+				}
+			}
+		},
+		{
+			"name": "check-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "check-failed"
+				}
+			}
+		},
+		{
+			"name": "download-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "download-failed"
+				}
+			}
+		},
+		{
+			"name": "install-failed",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "install-failed"
+				}
+			}
+		}
+	],
+	"invalid": [
+		{
+			"name": "phases-not-boolean",
+			"direction": "request",
+			"document": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start",
+				"phases": "yes"
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-without-total",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-without-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"receivedBytes": 0,
+					"totalBytes": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-empty-total",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0,
+					"totalBytes": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-negative",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": -1,
+					"totalBytes": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-unsafe-total",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0,
+					"totalBytes": 9007199254740992
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-fractional",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0.5,
+					"totalBytes": 1
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "downloading-past-total",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 2,
+					"totalBytes": 1
+				}
+			},
+			"boundary": "semantic"
+		},
+		{
+			"name": "downloading-with-field",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "downloading",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0,
+					"totalBytes": 1,
+					"part": "window"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "installing-empty-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing",
+					"version": ""
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "installing-long-version",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing",
+					"version": "11111111111111111111111111111111111111111111111111111111111111111"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "installing-version-space",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing",
+					"version": "0.1.0 beta"
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "installing-with-bytes",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "installing",
+					"version": "0.1.0-beta.26",
+					"receivedBytes": 0
+				}
+			},
+			"boundary": "schema"
+		},
+		{
+			"name": "unknown-failed-phase",
+			"direction": "response",
+			"document": {
+				"kind": "workbench.update-check.result",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"outcome": {
+					"kind": "finished",
+					"result": "verify-failed"
+				}
+			},
+			"boundary": "schema"
+		}
+	],
+	"validJson": [
+		{
+			"name": "phases-field-order",
+			"direction": "request",
+			"json": "{\"phases\":true,\"action\":\"start\",\"sessionId\":\"00000000000000000000000000000002\",\"requestId\":\"00000000000000000000000000000001\",\"protocolVersion\":1,\"kind\":\"workbench.update-check\"}",
+			"canonical": {
+				"kind": "workbench.update-check",
+				"protocolVersion": 1,
+				"requestId": "00000000000000000000000000000001",
+				"sessionId": "00000000000000000000000000000002",
+				"action": "start",
+				"phases": true
+			}
+		}
+	]
+}

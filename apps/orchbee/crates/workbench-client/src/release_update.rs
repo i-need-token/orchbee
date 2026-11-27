@@ -11,7 +11,7 @@
 
 use crate::background_thread::BackgroundThread;
 use crate::localization::Locale;
-pub(crate) use check::{CheckContext, CheckUnavailable, UpdateCheck};
+pub(crate) use check::{CheckContext, CheckUnavailable, UpdateCheck, UpdatePhase};
 use orchbee_connection_handshake::{COMPATIBILITY_WINDOW, Generation, GenerationRange};
 use orchbee_local_runtime::{ActiveRelease, EnvironmentKind};
 use std::{
@@ -275,7 +275,7 @@ impl Updater {
     }
 
     /// What About's Updates row reports.
-    pub(crate) const fn check(&self) -> UpdateCheck {
+    pub(crate) fn check(&self) -> UpdateCheck {
         self.check.shown()
     }
 

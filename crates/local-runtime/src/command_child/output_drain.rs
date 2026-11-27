@@ -1,5 +1,6 @@
 //! Bounded draining of a child's nonblocking standard output and error, shared by each platform's
-//! capture loop: each kept output stops growing at its limit and records that it was cut.
+//! capture loop: each kept output stops growing at its limit and records that it was cut. A
+//! caller that follows standard error as it arrives is handed every read, past the limit too.
 use crate::{CommandFailure, CommandOutput};
 use orchbee_local_ipc::ChildOutputReader;
 use std::io::{self, Read};
@@ -21,11 +22,19 @@ impl CommandOutput {
     }
 }
 
+/// Receives every read of standard error as it arrives; [`ignore_output`] for a caller that only
+/// keeps it.
+pub(super) type ErrorOutput<'a> = &'a mut dyn FnMut(&[u8]);
+
+/// An [`ErrorOutput`] that follows nothing.
+pub(super) fn ignore_output(_bytes: &[u8]) {}
+
 pub(super) fn drain_tail(
     out: &mut Option<ChildOutputReader>,
     err: &mut Option<ChildOutputReader>,
     result: &mut CommandOutput,
     output_limit: usize,
+    error_output: ErrorOutput<'_>,
 ) -> io::Result<()> {
     for _ in 0..64 {
         drain(
@@ -34,6 +43,7 @@ pub(super) fn drain_tail(
             &mut result.stdout_truncated,
             true,
             output_limit,
+            &mut ignore_output,
         )?;
         drain(
             err,
@@ -41,6 +51,7 @@ pub(super) fn drain_tail(
             &mut result.stderr_truncated,
             true,
             output_limit,
+            &mut *error_output,
         )?;
         if out.is_none() && err.is_none() {
             return Ok(());
@@ -49,12 +60,15 @@ pub(super) fn drain_tail(
     Err(io::ErrorKind::TimedOut.into())
 }
 
+/// Reads what `reader` holds now, at most eight reads, keeping up to `output_limit` bytes in
+/// `kept` and handing every read to `observe`.
 pub(super) fn drain(
     reader: &mut Option<ChildOutputReader>,
     kept: &mut Vec<u8>,
     truncated: &mut bool,
     settled: bool,
     output_limit: usize,
+    observe: ErrorOutput<'_>,
 ) -> io::Result<()> {
     let Some(pipe) = reader.as_mut() else {
         return Ok(());
@@ -67,6 +81,7 @@ pub(super) fn drain(
                 return Ok(());
             }
             Ok(count) => {
+                observe(&bytes[..count]);
                 let keep = count.min(output_limit.saturating_sub(kept.len()));
                 kept.extend_from_slice(&bytes[..keep]);
                 *truncated |= keep < count;

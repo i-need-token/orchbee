@@ -7,7 +7,7 @@ use orchbee_connection_handshake::{
     AGENT_COMPLETION_ACKNOWLEDGE, AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW,
     CONFIGURED_COMMAND_SOURCE_EXITED, CapabilitySet, PROJECT_IDENTITY, PROMPT_GATED_INPUT,
     RECONNECT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK,
-    WORKSPACE_IDLE,
+    UPDATE_PHASES, WORKSPACE_IDLE,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -56,6 +56,9 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // The terminal-runtime follower reads it itself: without it, the TUI keeps its own recovery.
     (TERMINAL_RUNTIME, &[]),
     (UPDATE_CHECK, &[SessionAction::CheckForUpdates]),
+    // About's check reads it itself: without it, a run shows Checking until it ends and a failure
+    // names no phase.
+    (UPDATE_PHASES, &[]),
     // The command line reads it for a Workspace's close or move: without it, the move says it
     // could not check what runs in the Workspace and asks.
     (WORKSPACE_IDLE, &[]),

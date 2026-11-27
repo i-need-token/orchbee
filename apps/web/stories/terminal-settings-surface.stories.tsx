@@ -313,7 +313,10 @@ export const EnglishMachines: Story = {
 };
 export const EnglishAboutChecking: Story = aboutStory(englishLight, { kind: 'checking' });
 export const EnglishAboutUpToDate: Story = aboutStory(englishLight, { kind: 'up-to-date' });
-export const EnglishAboutFailed: Story = aboutStory(englishLight, { kind: 'failed' });
+export const EnglishAboutFailed: Story = aboutStory(englishLight, {
+	kind: 'failed',
+	phase: 'check',
+});
 export const EnglishAboutUnavailable: Story = aboutStory(englishLight, {
 	kind: 'unavailable',
 	reason: 'session',
@@ -348,7 +351,10 @@ export const ChineseMachines: Story = {
 export const ChineseAbout: Story = chineseDark('about');
 export const ChineseAboutChecking: Story = aboutStory(chineseDark, { kind: 'checking' });
 export const ChineseAboutUpToDate: Story = aboutStory(chineseDark, { kind: 'up-to-date' });
-export const ChineseAboutFailed: Story = aboutStory(chineseDark, { kind: 'failed' });
+export const ChineseAboutFailed: Story = aboutStory(chineseDark, {
+	kind: 'failed',
+	phase: 'check',
+});
 export const ChineseAboutUnavailable: Story = aboutStory(chineseDark, {
 	kind: 'unavailable',
 	reason: 'session',

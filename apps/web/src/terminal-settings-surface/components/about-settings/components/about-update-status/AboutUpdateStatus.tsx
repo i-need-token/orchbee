@@ -37,6 +37,13 @@ const UNAVAILABLE_DESCRIPTIONS = {
 	session: terminalSettingsMessages.pageAboutUpdatesUnavailableSession,
 } as const satisfies Readonly<Record<string, MessageDescriptor>>;
 
+/** What a failed check says, by the phase its run ended in. */
+const FAILED_DESCRIPTIONS = {
+	check: terminalSettingsMessages.pageAboutUpdatesFailed,
+	download: terminalSettingsMessages.pageAboutUpdatesDownloadFailed,
+	install: terminalSettingsMessages.pageAboutUpdatesInstallFailed,
+} as const satisfies Readonly<Record<string, MessageDescriptor>>;
+
 /** Why a Session move waits, as the window's notice words it. */
 const SESSION_WAITS = {
 	'background-programs': workbenchMessages.updateSessionBackgroundPrograms,
@@ -56,7 +63,8 @@ const subscribeToNothing = (): (() => void) => () => undefined;
 /**
  * The version this window runs and its build, and Updates, whose control is Check for updates until
  * a newer version or a move of an older Session is offered and Update after, except while that move
- * runs; the card's remaining rows follow Updates.
+ * runs. While a run is under way, Check for updates is disabled and reads its stage: checking, the
+ * version and percentage it downloads, or installing. The card's remaining rows follow Updates.
  */
 export function AboutUpdateStatus({ about, children }: AboutUpdateStatusProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -106,7 +114,8 @@ export function AboutUpdateStatus({ about, children }: AboutUpdateStatusProps): 
 	} else {
 		description = intl.formatMessage(updatesDescription(status));
 		tone = statusTone(status);
-		const checking = status.kind === 'checking';
+		const running =
+			status.kind === 'checking' || status.kind === 'downloading' || status.kind === 'installing';
 		const installerOffered = status.kind === 'failed' || isSessionUnavailable(status);
 		control = (
 			<div className={styles['actions']}>
@@ -122,18 +131,15 @@ export function AboutUpdateStatus({ about, children }: AboutUpdateStatusProps): 
 					</Button>
 				) : null}
 				<Button
+					className={styles['check']}
 					data-about-check
-					disabled={checking || status.kind === 'unavailable' || check === undefined}
+					disabled={running || status.kind === 'unavailable' || check === undefined}
 					size='sm'
 					type='button'
 					variant='outline'
 					onClick={check?.start}
 				>
-					{intl.formatMessage(
-						checking
-							? terminalSettingsMessages.pageAboutUpdatesChecking
-							: terminalSettingsMessages.pageAboutUpdatesCheck,
-					)}
+					{checkLabel(intl, status)}
 				</Button>
 			</div>
 		);
@@ -183,14 +189,36 @@ function updatesDescription(status: TerminalSettingsUpdateCheckStatus): MessageD
 	switch (status.kind) {
 		case 'idle':
 		case 'checking':
+		case 'downloading':
+		case 'installing':
 			return terminalSettingsMessages.pageAboutUpdatesSchedule;
 		case 'up-to-date':
 			return terminalSettingsMessages.pageAboutUpdatesUpToDate;
 		case 'failed':
-			return terminalSettingsMessages.pageAboutUpdatesFailed;
+			return FAILED_DESCRIPTIONS[status.phase];
 		case 'unavailable':
 			return UNAVAILABLE_DESCRIPTIONS[status.reason];
 	}
+}
+
+/** Check for updates' label: the stage of a run under way, else the action. */
+function checkLabel(
+	intl: ReturnType<typeof useOrchbeeIntl>,
+	status: TerminalSettingsUpdateCheckStatus,
+): string {
+	if (status.kind === 'checking') {
+		return intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesChecking);
+	}
+	if (status.kind === 'downloading') {
+		return intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesDownloading, {
+			progress: status.percent / 100,
+			version: status.version,
+		});
+	}
+	if (status.kind === 'installing') {
+		return intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesInstalling);
+	}
+	return intl.formatMessage(terminalSettingsMessages.pageAboutUpdatesCheck);
 }
 
 /** A Session too old to run checks, like a failed check, leaves installing from orchbee.com open. */

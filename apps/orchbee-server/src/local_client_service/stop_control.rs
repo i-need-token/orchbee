@@ -150,7 +150,8 @@ impl<'a> StopControl<'a> {
     }
 
     /// Answers an admitted Client's check for updates for the Session this Server holds. The job
-    /// answers at once under its own lock; a Server without one answers `unavailable`.
+    /// answers at once under its own lock, with the phases of a run only when the request asks
+    /// for them; a Server without one answers `unavailable`.
     pub(super) fn update_check(
         &self,
         request: &WorkbenchUpdateCheckRequest,
@@ -159,7 +160,7 @@ impl<'a> StopControl<'a> {
         let outcome = if session_matches == Some(true) {
             self.updates
                 .map_or(UpdateCheckOutcome::Unavailable {}, |job| {
-                    job.answer(request.action)
+                    job.answer(request.action, request.phases)
                 })
         } else {
             UpdateCheckOutcome::Rejected {

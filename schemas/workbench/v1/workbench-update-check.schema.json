@@ -35,10 +35,19 @@
 				"action": {
 					"description": "`start` queues a run of the update job unless one is queued or running; `read` reads where the job stands.",
 					"enum": ["start", "read"]
+				},
+				"phases": {
+					"description": "Asks for `downloading`, `installing` and the phase of a failed run; sent only to a Server whose handshake answer lists `update-phases`, and omitted when false.",
+					"type": "boolean"
 				}
 			},
 			"required": ["kind", "protocolVersion", "requestId", "sessionId", "action"],
 			"additionalProperties": false
+		},
+		"version": {
+			"description": "A release version: 1 to 64 printable ASCII characters, as a handshake's `productVersion`.",
+			"type": "string",
+			"pattern": "^[!-~]{1,64}$"
 		},
 		"outcome": {
 			"oneOf": [
@@ -53,14 +62,60 @@
 					"additionalProperties": false
 				},
 				{
+					"description": "Only an answer to a request with `phases`. Bindings additionally refuse `receivedBytes` above `totalBytes`.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "downloading"
+						},
+						"version": {
+							"$ref": "#/$defs/version"
+						},
+						"receivedBytes": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 9007199254740991
+						},
+						"totalBytes": {
+							"description": "What the run's archives hold together: the runtime and the window archive count as one download.",
+							"type": "integer",
+							"minimum": 1,
+							"maximum": 9007199254740991
+						}
+					},
+					"required": ["kind", "version", "receivedBytes", "totalBytes"],
+					"additionalProperties": false
+				},
+				{
+					"description": "Only an answer to a request with `phases`.",
+					"type": "object",
+					"properties": {
+						"kind": {
+							"const": "installing"
+						},
+						"version": {
+							"$ref": "#/$defs/version"
+						}
+					},
+					"required": ["kind", "version"],
+					"additionalProperties": false
+				},
+				{
 					"type": "object",
 					"properties": {
 						"kind": {
 							"const": "finished"
 						},
 						"result": {
-							"description": "How the last finished run, requested or scheduled, ended.",
-							"enum": ["up-to-date", "installed", "failed"]
+							"description": "How the last finished run, requested or scheduled, ended. An answer to a request with `phases` names the phase a failure ended in instead of `failed`.",
+							"enum": [
+								"up-to-date",
+								"installed",
+								"failed",
+								"check-failed",
+								"download-failed",
+								"install-failed"
+							]
 						}
 					},
 					"required": ["kind", "result"],

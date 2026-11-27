@@ -47,6 +47,11 @@ pub const TERMINAL_RUNTIME: &str = "terminal-runtime";
 /// unavailable on a Session without it.
 pub const UPDATE_CHECK: &str = "update-check";
 
+/// The `client-server` capability before a Client may ask `workbench.update-check` for `phases`:
+/// the running run's download, with its bytes, and its install, and the phase a failed run ended
+/// in. A Client whose Server lacks it reads only Checking and a failure without a phase.
+pub const UPDATE_PHASES: &str = "update-phases";
+
 /// The `client-server` capability before a Client may send `workbench.workspace-idle`, which reads
 /// whether closing a Workspace would ask first. A Client whose Server lacks it says it could not
 /// check what runs in the Workspace, and asks.
@@ -211,6 +216,7 @@ impl ConnectionKind {
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
+                UPDATE_PHASES,
                 WORKSPACE_IDLE,
             ],
             Self::WorkerHost => &[
@@ -250,6 +256,7 @@ impl ConnectionKind {
                 TERMINAL_LIMIT_REACHED,
                 TERMINAL_RUNTIME,
                 UPDATE_CHECK,
+                UPDATE_PHASES,
                 WORKSPACE_IDLE,
             ]),
             Self::WorkerHost => capability_set(&[

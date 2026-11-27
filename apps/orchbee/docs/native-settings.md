@@ -136,8 +136,8 @@ About closes the category list and shows no settings-file line. Its unnamed grou
 which names this Client's version and its build kind (release, test or development), Updates, and
 the Automatic updates switch; search lists only that switch, and Version and Updates never reach the
 Server's settings. Version has
-nothing to activate, so the status line names no primary key on it, nor on Updates while a check
-runs or none can.
+nothing to activate, so the status line names no primary key on it, nor on Updates while a run is
+under way or none can.
 
 Updates ends in a button drawn by the shared button control: Check for updates, or the Update
 control's Update while the release store names a newer version or the move of an older Session
@@ -148,17 +148,22 @@ surface. A row too narrow for the whole button beside two cells of its name show
 text instead, as other rows show a value. A press on Check for updates
 sends `workbench.update-check` `start` to the Session's Server, which runs its scheduled
 automatic-update job now through the same helper and state ([automatic updates
-proposal](../../../proposals/platform/automatic-updates.md#manual-check)). The row then shows
-Checking… and reads the run with `read` about once a second while About shows. A run that ends up to
-date or failed says so on the description line, in `status-success` or `status-error`; a run that
-installed a version stays Checking until the store watcher, asked to read at once, makes the Update
-control Ready, and the row then offers Update. Only a run this TUI asked for reports its end: a
-scheduled run About saw under way returns the row to its idle description, and returning to About
-clears an earlier result. A lost or unmatched answer ends an asked check as failed and never closes
-the TUI or the connection. The row is unavailable, with the reason on its description line, in a
-development build, where no update writes this platform's release store, on a saved-machine origin,
-while the Session's handshake answer is unknown or lacks `update-check`, or after the Server answers
-`unavailable`; no request reaches a Server that has not listed the capability.
+proposal](../../../proposals/platform/automatic-updates.md#manual-check)). The row then shows the
+`status-pending` bullet with the run's stage in place of the button, Checking…, Downloading
+0.1.0-beta.26… 42%, or Installing…, where a row too narrow for the download's whole text drops the
+version and then the verb rather than cut the percentage, and reads the run with `read` about once a
+second while About shows; a Session that does not list `update-phases` is never asked for phases and
+shows Checking… until its run ends. A run that ends up to date or failed says so on the description
+line, in `status-success` or `status-error`, a failure named by the phase it ended in (the check,
+the download, or the install); a run that installed a version shows Installing… until the store
+watcher, asked to read at once, makes the Update control Ready, and the row then offers Update. Only
+a run this TUI asked for reports its end: a scheduled run About saw under way returns the row to its
+idle description, and returning to About clears an earlier result. A lost or unmatched answer ends
+an asked check as a failed check and never closes the TUI or the connection. The row is unavailable,
+with the reason on its description line, in a development build, where no update writes this
+platform's release store, on a saved-machine origin, while the Session's handshake answer is unknown
+or lacks `update-check`, or after the Server answers `unavailable`; no request reaches a Server that
+has not listed the capability.
 
 ## Agent integrations
 

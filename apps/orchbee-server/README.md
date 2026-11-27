@@ -156,7 +156,12 @@ A run finds the store root by the `ORCHBEE_INSTALL_DIR` rule and the active vers
 `active.json`, pins that version's folder and Client as Session start does, and runs
 `<stem> --automatic-update`, spelled `--automatic-update-v1` for an active version up to
 0.1.0-beta.24, with the Server's environment, so proxy variables and a feed reach
-it, null standard input, and standard output and error each kept to 64 KiB. On Windows the helper
+it, null standard input, and standard output and error each kept to 64 KiB. Standard error is also
+read line by line as it arrives, past that limit too, for the helper's `orchbee.update.progress`
+records ([the helper's progress](../orchbee/docs/windows-cli-configuration.md#windows-release-installation)):
+a whole line of at most 1 KiB whose release version is 1 to 64 printable ASCII characters and whose
+received bytes do not pass its total of 1 to 2^53−1 moves the run to downloading or installing,
+and any other line is skipped. Progress stays in the Server's memory. On Windows the helper
 runs from the system folder in a Job this process holds, at below-normal priority, which everything
 it starts inherits, and the Job ends it with the Server however the Server ends. On macOS and Linux
 it runs through `/usr/bin/nice -n 10` from the Server's working folder, in a process group of its own, with
@@ -181,12 +186,20 @@ as it runs a scheduled one, with the same helper, record and stop, whatever `upd
 says, and the hourly grid stays where it was. A request made while a run is queued or running joins
 that run. `read` never waits: it answers `checking`, the last run's result, scheduled runs included,
 or `idle` before any run finished. Only a helper that exits 0 with error `none` finishes a run, as
-`up-to-date` or, when it made a newer version active, `installed`; every other end is `failed`. A
+`up-to-date` or, when it made a newer version active, `installed`; every other end is `failed`.
+A request with `phases` also gets where a run stands, `downloading` with its bytes or
+`installing`, once the helper reports it, and a failure named by its phase: the runtime part's
+`phase` when its `error` is not `none`, else the window part's when it failed, where
+`configuration`, `source`, and `manifest` are `check-failed`, `download` is `download-failed`,
+and `verify`, `copy`, `publish`, `activate`, and `complete` are `install-failed`; a run with no
+document, or with a phase none of these names, fails in the stage its progress reached. A request
+without it gets the answers above, so an older Client sees what it saw before. A
 Server that schedules nothing, outside a store version folder or in a build that does not
 run automatic updates, answers `unavailable`, as does one whose schedule stopped or whose thread
 ended, and drops a request it had queued. Another Session's ID is `rejected`, and the Workbench
-service, which never reaches the job, answers `denied`. The Server lists the `update-check`
-capability in every `client-server` handshake answer, whether or not it schedules.
+service, which never reaches the job, answers `denied`. The Server lists the `update-check` and
+`update-phases` capabilities in every `client-server` handshake answer, whether or not it
+schedules.
 
 ## Idle move
 

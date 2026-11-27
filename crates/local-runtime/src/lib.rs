@@ -268,6 +268,7 @@ pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(unix)]
 pub use command_child::{
     SpawnEnvironment, run_unix_command, run_unix_command_exchange, run_unmasked_unix_command,
+    run_unmasked_unix_command_following,
 };
 #[cfg(windows)]
 pub use command_child::{

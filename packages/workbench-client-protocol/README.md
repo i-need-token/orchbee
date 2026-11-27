@@ -226,7 +226,7 @@ corpus cover this direction. Worktree source query associations require nullable
 
 ## Update check binding
 
-`workbench-update-check-contract.ts` implements the [update check contract](../../schemas/workbench/v1/workbench-update-check.schema.json) and extends request/result unions. Only `finished` carries a `result` and only `rejected` a `reason`. The [shared corpus](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) exercises the independent Rust binding and structural schema. The job and its runs remain Server-owned.
+`workbench-update-check-contract.ts` implements the [update check contract](../../schemas/workbench/v1/workbench-update-check.schema.json) and extends request/result unions. Only `finished` carries a `result`, only `rejected` a `reason`, and only `downloading` and `installing` a `version`, with `downloading`'s byte counts bounded as the Rust binding bounds them. The shared corpora, [update check](../../schemas/workbench/v1/workbench-update-check-conformance-v1.json) and [phases](../../schemas/workbench/v1/workbench-update-phases-conformance-v1.json), exercise the independent Rust binding and structural schema. The job and its runs remain Server-owned.
 
 ## Client view binding
 
