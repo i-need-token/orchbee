@@ -50,11 +50,15 @@ working; the bare-glyph rule does not match it. Its composer's `│ >` row with 
 when no busy line is live, and its folder trust question is a blocker with its live choice footer. GitHub Copilot CLI
 1.0.114 shows `● Working ctrl+c interrupt` (the dot alternates) while a turn runs, and the `Interactive · <mode> ·
 / commands` footer above its composer border when idle; its folder trust box is the existing selection blocker.
-Antigravity CLI 1.5.12 shows `esc to cancel` in its footer while a turn runs, its `? for shortcuts` footer beside the
-`>` composer row is idle, and its project trust question is a blocker. The footer is found up to sixteen rows from the
-bottom, since a step list or task panel under the prompt box pushes it up, and a spinner beside any summary, such as
-`⠋ 2/4 steps · Running command...`, is working there too. A permission or question dialog that ends with a
-`Navigate · tab Amend` or `Navigate · … esc Skip` key-hint row above the footer is a blocker.
+Antigravity CLI 1.5.12 shows `esc to cancel` in its footer while a turn runs, its `? for shortcuts` footer with the
+`>` composer row is idle, and its project trust question is a blocker. The footer, the composer and the spinner are
+found up to sixteen rows from the bottom, since a step list or task panel under the prompt box pushes them up, and a
+spinner beside any summary, such as `⠋ 2/4 steps · Running command...`, is working there too. A permission or question
+dialog that ends with a `Navigate · tab Amend` or `Navigate · … esc Skip` key-hint row above the footer is a blocker.
+Background tasks, subagents and timers that a finished turn left running are not working: 1.5.16 lists them between the
+composer and the `? for shortcuts · N task(s) · /tasks` footer, in its inline and full-screen rendering modes alike,
+and that screen is idle. Its OSC 7501 record says otherwise, so the composer outranks it; see
+[Program status precedence](#program-status-precedence).
 
 Hermes writes its state into the OSC title (`⏳`, `✓`, `⚠`). For a title that carries none, Orchbee
 adds two screen rules from Windows captures: the composer's `type to redirect this turn` or the
@@ -145,8 +149,9 @@ composer.
 ## Program status precedence
 
 Programs that implement the [OSC 7501 Program Status protocol](https://www.superlogical.com/rex/docs/build/program-status)
-report their own state; opencode, pi and omp do. The Host answers the protocol's query and projects
-the terminal's root record in optional OBTF kind 7 with the real time it received the report, and
+report their own state; opencode, pi, omp and Antigravity CLI 1.4 and later do. The Host answers
+the protocol's query and projects the terminal's root record in optional OBTF kind 7 with the real
+time it received the report, and
 removes it on `state=clear`, RIS, Host reset and, for `idle`, `working` and `blocked`, at the next
 shell prompt (see the [Host runtime model](../../terminal-host/docs/runtime-model.md)).
 
@@ -159,6 +164,13 @@ record leaves the decision to the screen rules. There is no time-based expiry, b
 protocol forbids requiring a heartbeat, and switching screens does not end a record. Process exit
 needs no record rule: without a selected Agent there is no screen evidence, and a later Agent
 process is newer than any record it did not send.
+
+One record yields to the screen. From 1.5.10, Antigravity CLI keeps its `working` record while
+background tasks, subagents or timers that a finished turn started run on, with its composer back
+for the next prompt; background work after a turn is not a running turn. Beside a fresh Antigravity
+`working` record the sampler therefore also reads the rows, and a visibly idle composer decides;
+any other screen, including an unreadable one, leaves the record deciding. When the background work
+wakes the Agent, its turn is working again from both the record and the screen.
 
 | Program state | Panel state | Evidence                                                                 |
 | ------------- | ----------- | ------------------------------------------------------------------------ |

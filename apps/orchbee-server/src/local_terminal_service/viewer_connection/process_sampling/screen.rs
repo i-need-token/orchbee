@@ -656,8 +656,9 @@ pub(super) fn observe(
             projection.as_ref().and_then(|frame| frame.program_status),
             selected.created(),
         );
+        let screen_decides = status.is_none_or(|status| status.yields_to_screen(selected.provider));
         // A confirmation decision reads the screen even when a status report decides the state.
-        let captured = (status.is_none()
+        let captured = (screen_decides
             || viewer.service.reads_agent_confirmation(selected.provider))
         .then(|| {
             projection.as_ref().and_then(|frame| {
@@ -674,13 +675,17 @@ pub(super) fn observe(
             })
         })
         .flatten();
-        let detection = status.or_else(|| {
+        let screen = || {
             captured.as_ref().and_then(|captured| {
                 detector
                     .detect(Some(selected.provider), captured.input())
                     .ok()
             })
-        });
+        };
+        let detection = match status {
+            Some(status) => Some(status.or_idle_screen(selected.provider, screen)),
+            None => screen(),
+        };
         match process(viewer, template, stop) {
             Some(after) => {
                 let same = identify_host_agent(&after) == Some(selected);

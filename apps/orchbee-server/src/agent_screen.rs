@@ -62,6 +62,25 @@ impl Detection {
             visible_working: state == PanelAgentState::Working,
         }
     }
+    /// Whether the screen can outrank this report. Antigravity CLI 1.5.10 and later keep reporting
+    /// working while background tasks, subagents or timers that a finished turn started run on,
+    /// although its composer is back for the next prompt; that background work is no running turn.
+    pub(crate) fn yields_to_screen(self, provider: AgentReportProvider) -> bool {
+        self.state == PanelAgentState::Working && provider == AgentReportProvider::Antigravity
+    }
+    /// This report, or the screen's visibly idle composer where the report yields to the screen.
+    pub(crate) fn or_idle_screen(
+        self,
+        provider: AgentReportProvider,
+        screen: impl FnOnce() -> Option<Self>,
+    ) -> Self {
+        if !self.yields_to_screen(provider) {
+            return self;
+        }
+        screen()
+            .filter(|screen| screen.state == PanelAgentState::Idle && screen.visible_idle)
+            .unwrap_or(self)
+    }
 }
 /// Fully validated compiled rules; callers retain the engine instead of recompiling per sample.
 pub(crate) struct ScreenDetector(Vec<manifest::Manifest>);

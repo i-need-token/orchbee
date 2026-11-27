@@ -808,6 +808,48 @@ fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
         );
     }
 }
+#[test]
+fn antigravity_background_work_after_a_turn_is_not_working() {
+    use orchbee_terminal_protocol::TerminalProgramState;
+    // Live rows from Antigravity CLI 1.5.16, inline and full screen, after a turn that started background shell
+    // commands; the CLI reported working over OSC 7501 throughout. The model name is replaced.
+    const ONE_TASK_IDLE: &str = "  started\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\n  ● [03:27:30] ping -n 150 127.0.0.1 running\n────────────────────────────────────────────────────────────────────────────────\n? for shortcuts                                   auto · Model name · xhigh · 1 task(s) · /tasks\n";
+    const TASKS_TURN: &str = "● Running (ping -n 202 127.0.0.1) (ctrl+o to expand)\n⣯  Running command... 2s\n└ Tip: Use /cs to search in your codebase.\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\n  ● [03:28:54] ping -n 201 127.0.0.1 running\n  ● [03:28:48] ping -n 200 127.0.0.1 running\n────────────────────────────────────────────────────────────────────────────────\nesc to cancel              auto · Model name · xhigh · 2 task(s) · /tasks\n";
+    const THREE_TASKS_IDLE: &str = "○ Running (ping -n 202 127.0.0.1) (ctrl+o to expand)\n  started\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\n  ● [03:28:56] ping -n 202 127.0.0.1 running\n  ● [03:28:54] ping -n 201 127.0.0.1 running\n  ↓ 1 more\n────────────────────────────────────────────────────────────────────────────────\n? for shortcuts            auto · Model name · xhigh · 3 task(s) · /tasks\n";
+    // Only overlay chrome: no rule decides.
+    const OVERLAY: &str = "  Release notes\n  ## 1.5.16\n  - Fixed a rendering issue\n";
+    let engine = ScreenDetector::bundled().unwrap();
+    let screen = |text| engine.detect(Some(Provider::Antigravity), input(text)).ok();
+    let working = Detection::reported(TerminalProgramState::Working);
+    for (text, expected) in [
+        (ONE_TASK_IDLE, Idle),
+        (TASKS_TURN, Working),
+        (THREE_TASKS_IDLE, Idle),
+        (OVERLAY, Unknown),
+    ] {
+        assert_eq!(screen(text).unwrap().state, expected, "{text}");
+    }
+    // Its working report yields only to the visibly idle composer; other reports and providers keep deciding.
+    for (report, provider, text, expected) in [
+        (working, Provider::Antigravity, ONE_TASK_IDLE, Idle),
+        (working, Provider::Antigravity, THREE_TASKS_IDLE, Idle),
+        (working, Provider::Antigravity, TASKS_TURN, Working),
+        (working, Provider::Antigravity, OVERLAY, Working),
+        (
+            Detection::reported(TerminalProgramState::Blocked),
+            Provider::Antigravity,
+            ONE_TASK_IDLE,
+            Blocked,
+        ),
+        (working, Provider::OpenCode, ONE_TASK_IDLE, Working),
+    ] {
+        assert_eq!(
+            report.or_idle_screen(provider, || screen(text)).state,
+            expected,
+            "{provider:?} {text}"
+        );
+    }
+}
 
 #[test]
 fn qoder_droid_codebuddy_deveco_and_mastracode_follow_real_turn_captures() {

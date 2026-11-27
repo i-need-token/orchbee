@@ -1,7 +1,7 @@
 id = "agy"
-version = "2026.11.26.1"
+version = "2026.11.27.1"
 min_engine_version = 4
-updated_at = "2026-11-26T00:00:00Z"
+updated_at = "2026-11-27T00:00:00Z"
 aliases = ["antigravity", "antigravity-cli"]
 
 # Orchbee: the composer is the `>` row between two separator rules; the first separator is the area's top.
@@ -57,11 +57,12 @@ region = "bottom_non_empty_lines(16)"
 visible_working = true
 line_regex = ['^\s*esc to cancel\b']
 
+# Orchbee: the live spinner sits above the composer, so a spinner line left in the transcript decides nothing.
 [[rules]]
 id = "spinner_working"
 state = "working"
 priority = 100
-region = "whole_recent"
+region = "bottom_non_empty_lines(16)"
 visible_working = true
 line_regex = ['^\s*[\u2800-\u28FF]+\s+\p{Alphabetic}+\w*ing\b']
 
@@ -75,20 +76,14 @@ region = "bottom_non_empty_lines(16)"
 visible_working = true
 line_regex = ['^\s*[\u2801-\u28FF]+\s+\S']
 
-[[rules]]
-id = "background_tasks_working"
-state = "working"
-priority = 90
-region = "bottom_non_empty_lines(5)"
-visible_working = true
-line_regex = ['(?i)·\s*[1-9][0-9]*\s+task']
-
-# Orchbee: the idle composer is the `>` row between two separator rows, under the `? for shortcuts` footer.
+# Orchbee: the idle composer is the `>` row between two separator rows above the `? for shortcuts` footer.
+# Background tasks, subagents and timers that a finished turn left running are not working, as in Herdr's later
+# rules. Antigravity CLI 1.5.16 lists them between the composer and the footer under a rule of their own, two rows
+# and `↓ 1 more` for three tasks, and adds `· N task(s) · /tasks` to the footer.
 [[rules]]
 id = "composer_idle"
 state = "idle"
 priority = 10
-region = "bottom_non_empty_lines(4)"
+region = "bottom_non_empty_lines(16)"
 visible_idle = true
-contains = ["? for shortcuts"]
-line_regex = ['^\s*>']
+line_regex = ['^\s*\? for shortcuts\b', '^\s*>']
