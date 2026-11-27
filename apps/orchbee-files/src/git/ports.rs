@@ -1,9 +1,7 @@
 //! What the Git engine needs from the rest of the process. The file engine owns this process's file
-//! watches and the machine's trash and implements [`Watches`] for it; until it implements
-//! [`Trash`], [`NoTrash`] stands in, and a clean to the trash answers `trash-unavailable`, after
-//! which the Client may ask for permanent removal. The scopes every operation's view reads take
-//! the members the engine establishes through [`Members`], and `git.show` answers through the read
-//! transfer [`ShowRead`] the file engine opened for it.
+//! watches and the machine's trash and implements [`Watches`] and [`Trash`] for it. The scopes
+//! every operation's view reads take the members the engine establishes through [`Members`], and
+//! `git.show` answers through the read transfer [`ShowRead`] the file engine opened for it.
 
 use orchbee_files_protocol::{FilesError, WorkspaceId};
 use std::{
@@ -81,7 +79,6 @@ pub(crate) enum TrashError {
     /// The machine has no trash for the path's volume, which `trash-unavailable` reports.
     Unavailable,
     /// The trash refused or failed the move, which `trash-failed` reports.
-    #[expect(dead_code, reason = "the file engine's trash adapter returns it")]
     Failed,
 }
 
@@ -96,9 +93,11 @@ pub(crate) trait Trash: Send + Sync {
     fn trash(&self, path: &Path) -> Result<(), TrashError>;
 }
 
-/// The trash of a build without a trash adapter: every path asks for permanent removal.
+/// No trash, for tests of the engine alone: every path asks for permanent removal.
+#[cfg(test)]
 pub(crate) struct NoTrash;
 
+#[cfg(test)]
 impl Trash for NoTrash {
     fn trash(&self, _: &Path) -> Result<(), TrashError> {
         Err(TrashError::Unavailable)

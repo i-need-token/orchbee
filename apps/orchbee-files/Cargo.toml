@@ -19,6 +19,11 @@ orchbee-local-runtime = { path = "../../crates/local-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
+trash = { version = "5.4.0", default-features = false, features = [
+	"coinit_apartmentthreaded",
+	"freedesktop",
+	"jiff",
+] }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook.workspace = true

@@ -8,7 +8,7 @@
 use super::{
     super::{
         helper,
-        ports::NoWatches,
+        ports::{NoTrash, NoWatches},
         relay::{self, Answer, Asked},
         serve::Service,
     },
@@ -80,6 +80,7 @@ impl Harness {
                 None,
                 Arc::clone(&scopes),
                 Box::new(NoWatches),
+                Arc::new(NoTrash),
             )),
             scopes,
             calls,

@@ -28,7 +28,7 @@ use orchbee_local_runtime::DataRoot;
 use crate::{
     blocking::Helpers,
     calls::{Call, Calls, DuplicateCall},
-    fs::Engine,
+    fs::{Engine, MachineTrash},
     git, grants, roots,
     scope::{Scopes, View},
     subscriptions::{Leaving, Subscriptions},
@@ -54,7 +54,8 @@ impl Services {
         let scopes = Arc::new(Scopes::new());
         let roots = Arc::new(Subscriptions::new());
         let files = Engine::new(helpers.clone(), Arc::clone(&scopes), Arc::clone(&roots));
-        let git = git::Service::start(root, Arc::clone(&scopes), files.repository_watches());
+        let watches = files.repository_watches();
+        let git = git::Service::start(root, Arc::clone(&scopes), watches, Arc::new(MachineTrash));
         Arc::new(Self {
             calls,
             files,
