@@ -29,7 +29,7 @@
 use std::{
     io::{self, IsTerminal, Read},
     os::{
-        fd::{AsFd, BorrowedFd},
+        fd::{AsFd, AsRawFd, BorrowedFd},
         unix::fs::OpenOptionsExt,
     },
     time::Instant,
@@ -305,6 +305,22 @@ impl Read for BorrowedReader<'_> {
     }
 }
 
+/// The inherited stream socket's reader: `MSG_DONTWAIT` makes each receive nonblocking on its
+/// own, so the caller's descriptor flags never change, and a receive consumes exactly the bytes
+/// it returns.
+struct SocketReader<'a>(BorrowedFd<'a>);
+
+impl Read for SocketReader<'_> {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        nix::sys::socket::recv(
+            self.0.as_raw_fd(),
+            buffer,
+            nix::sys::socket::MsgFlags::MSG_DONTWAIT,
+        )
+        .map_err(io::Error::from)
+    }
+}
+
 pub(super) fn acquire_stdin(
     paste: bool,
     deadline: &mut Instant,
@@ -315,8 +331,9 @@ pub(super) fn acquire_stdin(
 
 /// Acquire `--stdin`: refuse a terminal, then dispatch on the inherited
 /// descriptor's exact `S_IFMT` type — a regular file keeps its shared
-/// offset, a FIFO is read through the native port without mutating the
-/// caller's descriptor flags, and anything else is rejected outright.
+/// offset, a FIFO is read through the native port and a stream socket
+/// through nonblocking receives, neither mutating the caller's descriptor
+/// flags, and anything else is rejected outright.
 fn acquire_stdin_limit(
     limit: usize,
     deadline: Instant,
@@ -366,6 +383,22 @@ fn acquire_stdin_limit(
                 signals,
             )?
         }
+    } else if file_type == SFlag::S_IFSOCK {
+        // A stream socket, such as the socket pair Node.js gives a child process for its
+        // standard input, is read in place with each receive gated on its poll; its end of
+        // stream is the peer's shutdown or close. A datagram socket has no end of stream.
+        let stream =
+            nix::sys::socket::getsockopt(&stdin.as_fd(), nix::sys::socket::sockopt::SockType)
+                .is_ok_and(|kind| kind == nix::sys::socket::SockType::Stream);
+        if !stream {
+            return Err(usage("--stdin", None, SendSourceCause::UnsupportedStream));
+        }
+        let mut reader = SocketReader(stdin.as_fd());
+        read_bounded(
+            &mut reader,
+            stdin_plan(stdin.as_fd(), true, deadline, limit),
+            signals,
+        )?
     } else {
         return Err(usage("--stdin", None, SendSourceCause::UnsupportedStream));
     };

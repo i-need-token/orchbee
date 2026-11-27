@@ -45,8 +45,9 @@ regex.workspace = true
 serde_json = { workspace = true, features = ["raw_value"] }
 
 [target.'cfg(unix)'.dependencies]
-# `term`: the echo-free terminal read of a `machine connect` question.
-nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "term", "user"] }
+# `term`: the echo-free terminal read of a `machine connect` question; `socket`: a stream-socket
+# `--stdin`, such as the socket pair Node.js gives a child process.
+nix = { workspace = true, features = ["dir", "fs", "poll", "signal", "socket", "term", "user"] }
 
 [target.'cfg(windows)'.dependencies]
 # System-directory lookup for the owned, cancellable stdin reader and command routing, and the

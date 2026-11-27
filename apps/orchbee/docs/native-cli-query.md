@@ -173,8 +173,11 @@ scheduling boundaries, not hard real-time guarantees.
   nonblocking file description, so the caller's descriptor flags are never mutated and
   nothing needs restoring, and the reopened description must verify as a FIFO. macOS has
   no private reopen — `/dev/fd/0` shares the caller's description — so a FIFO is read in
-  place on the borrowed descriptor, flags untouched, each read gated on its poll. Every
-  other kind (socket, device, …) is rejected.
+  place on the borrowed descriptor, flags untouched, each read gated on its poll. A stream
+  socket, such as the socket pair Node.js gives a child process for piped input, is read in
+  place on both systems with nonblocking receives (`MSG_DONTWAIT`), so its flags stay
+  untouched too, each receive gated on its poll; the peer's shutdown or close is its end.
+  Every other kind (datagram socket, device, …) is rejected.
 - **Source signal guard.** On macOS and Linux the source stage owns process signal capture for
   its duration — single-threaded, with no other signal owner and no child spawned before
   handoff. The eligible set is {SIGHUP, SIGINT, SIGQUIT, SIGTERM} minus every signal the

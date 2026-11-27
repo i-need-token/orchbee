@@ -1040,6 +1040,40 @@ fn terminal_send_stdin_pipe_lands_one_record() -> TestResult {
     Ok(())
 }
 
+/// Node.js gives a child process a stream socket pair for piped standard
+/// input; its bytes land as one record once the peer shuts down writing.
+#[test]
+fn terminal_send_stdin_stream_socket_lands_one_record() -> TestResult {
+    let base = base_dir("send-stdin-socket");
+    let scope = stage_scope(&base);
+    let peer = serve_send(&scope, "echo from socket".to_owned(), 16, false);
+    let (socket_end, mut peer_end) = UnixStream::pair().expect("socketpair");
+    let child = run_with_stdin(
+        &base,
+        &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
+        Stdio::from(std::os::fd::OwnedFd::from(socket_end)),
+    );
+    {
+        use std::io::Write as _;
+        peer_end
+            .write_all(b"echo from socket")
+            .expect("write socket bytes");
+        peer_end
+            .shutdown(std::net::Shutdown::Write)
+            .expect("shut down writing");
+    }
+    let output = wait(child);
+    peer.join().expect("peer finished");
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr={}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(envelope(&output)["result"]["recordBytes"], 16);
+    Ok(())
+}
+
 #[test]
 fn terminal_send_stdin_regular_file_inherits_offset() -> TestResult {
     let base = base_dir("send-stdin-offset");
@@ -1306,9 +1340,9 @@ fn terminal_send_stdin_inherited_ignore_excluded() -> TestResult {
 }
 
 /// stdin declared on an unsupported descriptor type is a source-stage
-/// rejection: a socket and a character device both exit 2 on the standard
-/// `invalid-usage` envelope without a single read, and provably never
-/// reach the runtime.
+/// rejection: a datagram socket and a character device both exit 2 on the
+/// standard `invalid-usage` envelope without a single read, and provably
+/// never reach the runtime.
 #[test]
 fn terminal_send_stdin_unsupported_streams() -> TestResult {
     let base = base_dir("send-stdin-unsupported");
@@ -1318,9 +1352,10 @@ fn terminal_send_stdin_unsupported_streams() -> TestResult {
     listener
         .set_nonblocking(true)
         .expect("listener nonblocking");
-    // A unix socket end as the inherited stdin — S_IFSOCK is rejected by
-    // the exact S_IFMT classification.
-    let (socket_end, _peer_end) = UnixStream::pair().expect("socketpair");
+    // A datagram socket end as the inherited stdin — only a stream socket
+    // has an end of stream.
+    let (socket_end, _peer_end) =
+        std::os::unix::net::UnixDatagram::pair().expect("datagram socketpair");
     let output = wait(run_with_stdin(
         &base,
         &["terminal", "send", TERMINAL, "--stdin", "--format", "json"],
