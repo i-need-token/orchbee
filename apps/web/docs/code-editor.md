@@ -17,7 +17,8 @@ language worker is bundled. The worker's fallback URL inside Monaco still makes 
 
 Monaco's messages, services and worker environment are page-wide, and its modules read their
 messages while they evaluate. The language of the first load therefore stays until the page
-reloads. A zh-CN load installs the pinned package's own zh-CN table first.
+reloads. A zh-CN load first installs the pinned package's own zh-CN table and writes
+`zhCNMonacoMessageOverrides` from `@orchbee/i18n` over it.
 
 ## Codicons
 
@@ -51,5 +52,7 @@ loader's chunk map lists the new chunks; the File Bar's limit for it is 10 KB gz
 1. Pin the exact version in `apps/web/package.json`.
 2. Compare the features and languages in the package's `esm/metadata.js` with `monaco-entry.ts`,
    and keep language services, the package root and `editor.main` out.
-3. Run a production build, load the editor in a Desktop window and confirm that the console
+3. Move each zh-CN override in `@orchbee/i18n`, with its English in the override test, to the
+   index that now carries that English.
+4. Run a production build, load the editor in a Desktop window and confirm that the console
    reports no content security violation, then update the sizes above.

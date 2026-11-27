@@ -21,6 +21,7 @@ export {
 
 export { getOrchbeeTextDirection, ORCHBEE_LOCALES, resolveOrchbeeLocale } from './locale';
 export type { OrchbeeLocale } from './locale';
+export { zhCNMonacoMessageOverrides } from './locales';
 export { OrchbeeI18nProvider } from './orchbee-i18n-provider';
 
 export { createOrchbeeIntl, useOrchbeeIntl } from './runtime';

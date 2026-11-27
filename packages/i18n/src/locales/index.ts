@@ -15,7 +15,7 @@ export {
 	enUSTerminalSettingsMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
-export { zhCNMessages } from './zh-CN';
+export { zhCNMessages, zhCNMonacoMessageOverrides } from './zh-CN';
 export {
 	enUSWebsiteShellMessages,
 	enUSWebsiteHomeMessages,
