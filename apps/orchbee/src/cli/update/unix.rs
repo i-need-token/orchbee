@@ -156,18 +156,23 @@ pub(super) fn execute_capturing(
 }
 
 /// Like [`execute_contained`] for the archive transfer, which ends at its own `deadline` rather
-/// than the command's; Ctrl+C still ends it at once.
+/// than the command's; Ctrl+C still ends it at once. Meanwhile the run's progress follows how far
+/// `output`, the file the transfer writes, has grown.
 pub(super) fn execute_transfer(
     command: Command,
     deadline: Instant,
     context: &mut Context,
+    output: &File,
 ) -> io::Result<CommandOutput> {
     Ok(run_unmasked_unix_command(
         command,
         SpawnEnvironment::Cleared,
         OUTPUT_LIMIT,
         Some(deadline),
-        || context.interrupted(),
+        || {
+            context.progress.poll(output);
+            context.interrupted()
+        },
     ))
 }
 

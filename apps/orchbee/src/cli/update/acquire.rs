@@ -247,6 +247,7 @@ impl Source {
                     }
                     file.write_all(&buffer[..n])
                         .map_err(|error| context.storage(path, &error))?;
+                    context.progress.received(copied);
                 }
                 if copied != size {
                     return Err(Error::Checksum);
@@ -261,7 +262,7 @@ impl Source {
                 // command's deadline stands still meanwhile, so it keeps covering the rest.
                 let started = Instant::now();
                 let deadline = started + Duration::from_secs(seconds) + TRANSFER_GRACE;
-                let result = platform::execute_transfer(command, deadline, context);
+                let result = platform::execute_transfer(command, deadline, context, file);
                 context.deadline = context
                     .deadline
                     .checked_add(started.elapsed())
@@ -276,6 +277,7 @@ impl Source {
                 }
             }
         }
+        context.progress.received(size);
         file.sync_all()
             .map_err(|error| context.storage(path, &error))?;
         Ok(())

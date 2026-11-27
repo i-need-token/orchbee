@@ -1,9 +1,9 @@
 //! The automatic helper `--automatic-update`, which the Session Server runs on its schedule. It
 //! is `update` of the selected channel with three differences: it never edits the user `Path`, and
-//! refreshes `bin\<stem>.exe` only where that file already exists; it writes nothing on standard
-//! error; and it prints only the `orchbee.update` document. A build that does not run automatic
-//! updates does not know it. Its grammar never changes; help, completion and the Agent guide leave
-//! it out.
+//! refreshes `bin\<stem>.exe` only where that file already exists; it writes only its progress
+//! records on standard error ([`super::progress`]); and it prints only the `orchbee.update`
+//! document. A build that does not run automatic updates does not know it. Its grammar never
+//! changes; help, completion and the Agent guide leave it out.
 use super::{
     Output, Report, Settled, answer, document, engine, output, settle, start, update_release,
 };
@@ -19,6 +19,7 @@ pub(crate) fn run(locale: Locale) -> Output {
         Ok(context) => context,
         Err(output) => return *output,
     };
+    context.progress.report_to(Box::new(std::io::stderr()));
     let mut report = Report::new();
     let result = update_release(
         None,
@@ -32,7 +33,7 @@ pub(crate) fn run(locale: Locale) -> Output {
 }
 
 /// The helper's whole answer for a settled run, whatever its outcome: one `orchbee.update` document
-/// on standard output and nothing on standard error.
+/// on standard output and nothing more on standard error.
 pub(super) fn answer_document(report: &Report, settled: Settled, locale: Locale) -> Output {
     let encoded =
         output::encode_document(&document(None, report, settled.error, settled.interrupted));

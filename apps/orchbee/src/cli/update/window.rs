@@ -144,6 +144,31 @@ fn version_step(
     Some(report)
 }
 
+/// The bytes of the window archive that the window part of a run whose runtime part leaves
+/// `runtime` active would download, as [`update`], [`version_step`] and [`decide`] find the window
+/// store now without a lock; 0 when it would download none. A stored offered version is verified
+/// or refused, and a version below the active one is left, without a download. It reads and
+/// changes nothing else, so a run's progress can count the window archive before the runtime
+/// part's own transfer starts.
+pub(super) fn expected_download(root: &Path, runtime: &str, offer: &WindowOffer) -> u64 {
+    let WindowOffer::Offered(window) = offer else {
+        return 0;
+    };
+    let desktop = root.join(FOLDER);
+    let downloads = window_updates_live()
+        && fs::symlink_metadata(&desktop).is_ok_and(|metadata| metadata.is_dir())
+        && compare_product_versions(runtime, &window.version) != Ordering::Less
+        && !desktop
+            .join("versions")
+            .join(&window.version)
+            .try_exists()
+            .unwrap_or(true)
+        && current_pointer(&desktop).is_none_or(|pointer| {
+            compare_product_versions(&pointer.active.product, &window.version) != Ordering::Greater
+        });
+    if downloads { window.archive.size } else { 0 }
+}
+
 /// What the window store says the part does next.
 enum Next {
     /// Up to date: nothing was requested or written.
@@ -182,6 +207,9 @@ fn offered(
             Next::Download => {
                 let archive = source.artifact(&window.archive.url)?;
                 announce(&window.version, window.archive.size);
+                context
+                    .progress
+                    .transfer(&window.version, window.archive.size, 0);
                 let verified = download.fetch(&archive, &window.archive, context)?;
                 let unpacked = download.unpack(verified, unpack, context)?;
                 report.phase = "verify";
@@ -192,6 +220,8 @@ fn offered(
                 (unpacked, list)
             }
         };
+        // The window part is the run's last, so nothing downloads after it.
+        context.progress.install(&window.version, 0);
         install(root, &from, &list, Lower::Leave, context, report)
     })();
     download.finish(&mut report.cleanup_pending);

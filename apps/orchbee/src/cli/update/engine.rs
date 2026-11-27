@@ -186,6 +186,13 @@ fn runtime(
     let result = (|| {
         // Another update may have finished while this one read the feed.
         let next = decide(root, feed, completion, context, report)?;
+        // A run that reports progress counts the window archive its window part will download
+        // after this part as part of one download.
+        let later = if context.progress.reporting() && !matches!(next, Next::Done) {
+            window::expected_download(root, &feed.version, &feed.window)
+        } else {
+            0
+        };
         let (directory, mut release, signature) = match next {
             Next::Done => return Ok(()),
             Next::Stored {
@@ -193,6 +200,7 @@ fn runtime(
                 signature,
             } => {
                 report.phase = "verify";
+                context.progress.install(&feed.version, later);
                 // The signed feed binds these bytes by their digest, which `decide` compared.
                 let release = Release::parse(
                     TrustedManifest::installed(&manifest),
@@ -208,9 +216,13 @@ fn runtime(
             Next::Download => {
                 let archive = source.artifact(&feed.archive.url)?;
                 (inputs.announce)(Part::Runtime, &feed.version, feed.archive.size);
+                context
+                    .progress
+                    .transfer(&feed.version, feed.archive.size, later);
                 let verified = download.fetch(&archive, &feed.archive, context)?;
                 let unpacked = download.unpack(verified, inputs.unpack, context)?;
                 report.phase = "verify";
+                context.progress.install(&feed.version, later);
                 let (release, signature) =
                     admit(&Source::release_directory(&unpacked)?, inputs.keys, context).map_err(
                         |error| match error {

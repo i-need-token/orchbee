@@ -28,6 +28,7 @@ mod platform;
 #[cfg(not(windows))]
 #[path = "update/unix.rs"]
 mod platform;
+mod progress;
 pub(crate) mod restart_tier;
 mod retention;
 mod running_programs;
@@ -203,6 +204,8 @@ struct Context {
     signals: ArmedSignals,
     deadline: Instant,
     curl_checked: bool,
+    /// What the run reports while it downloads and installs; only the automatic helper reports.
+    progress: progress::Progress,
     /// The first line a failed completion helper wrote to standard error, which names its cause.
     completion_diagnostic: Option<String>,
     /// Where and why the first `storage` failure happened.
@@ -479,6 +482,7 @@ fn start(
         signals,
         deadline: Instant::now() + DEADLINE,
         curl_checked: false,
+        progress: progress::Progress::default(),
         completion_diagnostic: None,
         storage_cause: None,
     })

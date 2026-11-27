@@ -1,7 +1,9 @@
 //! Engine fixtures shared by the install, update and channel tests: a private temporary root, a
 //! console-interrupt context, synthetic signed release directories for this host's platform, a
 //! probe command, and an in-process completion that never touches a user PATH or a command link.
-use super::super::{Context, Error, complete, install::Completion, manifest::own_platform};
+use super::super::{
+    Context, Error, complete, install::Completion, manifest::own_platform, progress::Progress,
+};
 use crate::{cli::console_interrupt::ArmedSignals, release_store::read_pointer};
 use orchbee_local_runtime::{CohortArtifact, PrivateCache};
 use orchbee_release_records::{Entry, Pointer};
@@ -206,6 +208,7 @@ pub(super) fn context() -> Context {
                     signals,
                     deadline: Instant::now() + Duration::from_secs(60),
                     curl_checked: false,
+                    progress: Progress::default(),
                     completion_diagnostic: None,
                     storage_cause: None,
                 };
