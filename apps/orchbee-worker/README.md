@@ -722,7 +722,14 @@ When an admitted OBCN Launch carries an explicit launch selection, the request l
 executable and argument vector, with only the Windows interactive PowerShell refinement below:
 no `PATH` search, no shell resolution, and no
 silent fallback to the default shell — a spawn failure is the Host's typed launch failure. The
-selection shares the same default environment and cwd/profile composition below.
+selection shares the same default environment and cwd/profile composition below. On macOS the
+program also gets the `PATH` a new terminal's shell has, unless its launch environment names
+`PATH`: the generation's first explicit launch runs the
+[Agent integration job's login-shell lookup](#agent-integration-job) once, on the serving thread
+within six seconds, and every later explicit launch reuses that value followed by this Worker's
+own `PATH` folders it lacks, such as the cohort's. A lookup that fails leaves this Worker's own
+`PATH` for the rest of the generation, and a profile change reaches explicit launches in the next
+Session.
 
 The shared runtime's `default_interactive_launch` module supplies the running request loop's
 launch-fact composition only when no explicit selection is present. Its transport-neutral

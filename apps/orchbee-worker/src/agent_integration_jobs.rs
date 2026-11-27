@@ -1,6 +1,6 @@
 //! Owns the node's one Agent integration job: Worker-generation fencing, one running writer
 //! thread at a time, cooperative cancellation, and bounded retention of encoded reports. The
-//! writer runs with this Worker's own home directory and `PATH`, after the folders `search_path`
+//! writer runs with this Worker's own home directory and `PATH`, after the folders `login_path`
 //! adds on this platform; this module neither renders reports nor authorizes callers.
 use orchbee_agent_integration::{
     Direction, IntegrationOperation, IntegrationReport, IntegrationRequest,
@@ -25,8 +25,6 @@ use std::{
     thread::{self, JoinHandle},
     time::{Duration, Instant},
 };
-
-mod search_path;
 
 /// Settled jobs retained for polling; admission evicts the oldest settled record first.
 const CAPACITY: usize = 8;
@@ -284,7 +282,7 @@ fn run(request: IntegrationRequest, cancel: Arc<CancelFlag>) -> Report {
         .budget_milliseconds
         .unwrap_or(MAXIMUM_INTEGRATION_BUDGET_MILLISECONDS);
     let ceiling = Instant::now() + Duration::from_millis(u64::from(budget));
-    let first = search_path::first(ceiling, || cancel.requested());
+    let first = crate::login_path::first(ceiling, || cancel.requested());
     let source: Arc<dyn TerminationSource> = cancel;
     let context = orchbee_agent_integration_writer::context_before(
         request.adapter_source.as_deref(),

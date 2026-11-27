@@ -22,6 +22,8 @@ mod host_connection;
 #[cfg(any(unix, windows))]
 mod host_programs;
 #[cfg(any(unix, windows))]
+mod login_path;
+#[cfg(any(unix, windows))]
 mod plugin_job_operation;
 #[cfg(any(unix, windows))]
 mod plugin_jobs;

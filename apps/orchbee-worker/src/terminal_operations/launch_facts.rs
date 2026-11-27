@@ -79,6 +79,20 @@ pub(super) fn resolve(
     let agent_start = powershell::agent_start(&executable, &arguments, launch.agent_start());
     #[cfg(unix)]
     let agent_start = posix::agent_start(&executable, &arguments, launch.agent_start());
+    #[cfg_attr(not(target_os = "macos"), expect(unused_mut))]
+    let mut environment = launch_environment(launch.environment(), plugin_environment, agent_start);
+    // A program started without a shell gets the `PATH` a new terminal's shell would have, unless
+    // the creation names its own.
+    #[cfg(target_os = "macos")]
+    if selection.is_some()
+        && !environment.iter().any(|entry| entry.name == "PATH")
+        && let Some(path) = system_shell.launch_path()
+    {
+        environment.push(LaunchEnvironmentEntry {
+            name: "PATH".into(),
+            value: Some(path.to_owned()),
+        });
+    }
     // An explicit authorized path requires no home-directory lookup or translation.
     let themes = launch_themes(preferences);
     let cwd = match launch.cwd() {
@@ -95,7 +109,7 @@ pub(super) fn resolve(
         CreationId::from_bytes(fresh_identity()?)?,
         executable,
         arguments,
-        launch_environment(launch.environment(), plugin_environment, agent_start),
+        environment,
         cwd,
         terminal_profile(
             preferences
