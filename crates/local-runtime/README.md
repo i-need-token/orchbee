@@ -906,9 +906,9 @@ its own tests against published zone rules; reading the system zone needs a nati
 
 ## Diagnostic log
 
-`install_diagnostic_log(role)` is called only by an executable entry point, the Client, Server and
-Worker, and `log_event` writes nothing until it has been, so library code that tests exercise never
-logs. A record is one JSON line in `logs/<YYYY-MM-DD>.jsonl`, named by local date:
+`install_diagnostic_log(role)` is called only by an executable entry point, the Client, Server,
+Worker and `orchbee-files`, and `log_event` writes nothing until it has been, so library code that
+tests exercise never logs. A record is one JSON line in `logs/<YYYY-MM-DD>.jsonl`, named by local date:
 `{"time","level","role","pid","event","fields"}`, with UTC time to the millisecond and at most
 eight camelCase fields. Event names and text values are `&'static str` tokens of letters, digits,
 `.`, `_` and `-`, at most 64 bytes, and other values are counts and flags; a token outside the

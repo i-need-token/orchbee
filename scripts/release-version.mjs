@@ -72,6 +72,7 @@ const HOST_BUILD = 'apps/terminal-host/build.zig';
 const RUST_PROGRAMS = [
 	{ manifest: 'apps/orchbee/Cargo.toml', name: 'orchbee' },
 	{ manifest: 'apps/orchbee-desktop-launcher/Cargo.toml', name: 'orchbee-desktop-launcher' },
+	{ manifest: 'apps/orchbee-files/Cargo.toml', name: 'orchbee-files' },
 	{ manifest: 'apps/orchbee-launcher/Cargo.toml', name: 'orchbee-launcher' },
 	{ manifest: 'apps/orchbee-server/Cargo.toml', name: 'orchbee-server' },
 	{ manifest: 'apps/orchbee-worker/Cargo.toml', name: 'orchbee-worker' },

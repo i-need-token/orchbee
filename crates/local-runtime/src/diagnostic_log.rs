@@ -51,6 +51,7 @@ pub enum LogRole {
     Client,
     Server,
     Worker,
+    Files,
 }
 impl LogRole {
     const fn token(self) -> &'static str {
@@ -58,10 +59,11 @@ impl LogRole {
             Self::Client => "client",
             Self::Server => "server",
             Self::Worker => "worker",
+            Self::Files => "files",
         }
     }
 }
-const ROLES: [&str; 4] = ["client", "server", "worker", "desktop-main"];
+const ROLES: [&str; 5] = ["client", "server", "worker", "files", "desktop-main"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LogLevel {

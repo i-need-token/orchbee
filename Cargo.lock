@@ -1452,6 +1452,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-files"
+version = "0.1.0-beta.26"
+dependencies = [
+ "orchbee-connection-handshake",
+ "orchbee-files-protocol",
+ "orchbee-local-ipc",
+ "orchbee-local-peer-credentials",
+ "orchbee-local-runtime",
+ "signal-hook",
+]
+
+[[package]]
 name = "orchbee-files-protocol"
 version = "0.1.0"
 

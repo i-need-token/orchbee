@@ -1,0 +1,19 @@
+[package]
+name = "orchbee-files"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
+orchbee-files-protocol = { path = "../../crates/files-protocol" }
+orchbee-local-ipc = { path = "../../crates/local-ipc" }
+orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
+orchbee-local-runtime = { path = "../../crates/local-runtime" }
+
+[target.'cfg(unix)'.dependencies]
+signal-hook.workspace = true
+
+[lints]
+workspace = true
