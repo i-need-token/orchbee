@@ -16,4 +16,4 @@ use windows as platform;
 
 pub use path::{CanonicalPath, CanonicalPathError, canonical_path};
 pub use platform::{GIT_PROGRAM, checkout_spelling, is_admissible_path, read_program};
-pub use run::{Output, OutputBounds, Run, RunError};
+pub use run::{ObserveError, Observer, Output, OutputBounds, Run, RunError};

@@ -31,7 +31,7 @@ impl Context<'_> {
         // The Windows wrapper may fail after suspended creation or Job assignment.
         // Retire on post-creation failure; an observed no-child failure preserves
         // normal error reporting and does not poison the owner.
-        match Run::new(command, BOUNDS).wait(|| self.check()) {
+        match Run::new(command).wait(BOUNDS, || self.check()) {
             Ok(output) => Ok(output),
             Err(RunError::Pipe) => {
                 self.changed = previous_effect;

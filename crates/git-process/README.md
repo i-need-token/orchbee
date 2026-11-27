@@ -36,15 +36,19 @@ a repository, and its own deadlines and error vocabulary.
 ## Runs
 
 `Run` starts one command its consumer built, with the program, arguments, working directory and
-environment that consumer chose, reading the null device. A Job on Windows and a new process group
-on Unix own its tree, as the
-[retained command](../local-runtime/README.md#retained-commands) owns it.
+environment that consumer chose. A Job on Windows and a new process group on Unix own its tree, as
+the [retained command](../local-runtime/README.md#retained-commands) owns it.
 
-- Both outputs are drained without blocking; between turns the run waits for output at most 10 ms.
-- Standard output past `OutputBounds::stdout` ends the run as `TooLarge`. Standard error keeps its
-  last `OutputBounds::stderr_tail` bytes, because Git writes its final error after any progress.
+- The command reads the null device, or the bytes given to `input`, which are written without
+  blocking as it takes them and then ended. A command that stops reading leaves the rest unwritten.
+- Both outputs are drained without blocking; between turns the run waits for output at most 10 ms,
+  and at most 1 ms while input remains.
+- `wait` keeps the output: standard output past `OutputBounds::stdout` ends the run as `TooLarge`,
+  and standard error keeps its last `OutputBounds::stderr_tail` bytes, because Git writes its final
+  error after any progress. `observe` instead hands each output to the consumer's `Observer` as it
+  arrives, which may end the run, as a status reader does once it has read enough.
 - The consumer's check runs before every turn and while the last output is drained; its error ends
-  the run as `Stopped`. Cancellation and deadlines are the consumer's.
+  the run as `Stopped`. Cancellation, deadlines and watchdogs are the consumer's.
 - Whatever ends a run early, the tree is settled before the run returns. `Unsettled` reports a
   process that was created and could not be proven gone; `Spawn` reports that none was created,
   with `NotFound` when the program does not exist.
