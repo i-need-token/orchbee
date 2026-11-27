@@ -28,6 +28,10 @@ nix = { workspace = true, features = ["fs", "poll", "signal", "socket", "user"] 
 process-wrap.workspace = true
 windows.workspace = true
 winsafe = { workspace = true, features = ["advapi", "kernel", "shell"] }
+[dev-dependencies]
+# The cohort fixtures declare canonical sha256 digests.
+sha2.workspace = true
+
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 rustix = { workspace = true, features = ["process"] }
 

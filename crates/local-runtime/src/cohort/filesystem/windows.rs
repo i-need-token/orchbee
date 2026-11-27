@@ -18,6 +18,10 @@ pub(crate) fn artifact_file_name(artifact: CohortArtifact) -> String {
         CohortArtifact::TerminalHost => format!("{}-terminal-host.exe", environment_stem()),
     }
 }
+/// The name of the cohort's optional `orchbee-files`, which the Worker starts for the File Bar.
+pub(crate) fn files_file_name() -> String {
+    format!("{}-files.exe", environment_stem())
+}
 /// An opened artifact's volume, file index, size and times. A replaced file has another index, and
 /// rewriting one changes its last write time.
 pub(crate) fn stamp(file: &File) -> io::Result<String> {

@@ -64,12 +64,15 @@ closed). Each of the two is
 written at most once a minute for each site, with `suppressed`, the number of that site's records
 left out since the last one written. `cleanup-unproven` records, with its `error` kind, background
 jobs whose stop the loop's end could not prove; it is written beside that end's `exited` record,
-which keeps the loop's own cause.
+which keeps the loop's own cause. `files-start-failed` records an
+[`orchbee-files` start](#orchbee-files-process) that failed: `error`, `osError` and `stage`
+(`previous` when the process it held did not end first, `unverified` when the file did not match
+the cohort's digest, or `spawn`).
 `request-declined` records a whole Server request the Worker declined instead of ending, with its
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
 `agent-integration-job`, `agent-probe-job`, `host-query`, `title-changes`, `plugin-job`,
-`graphics-decode`, `adopt-host` or `move-turn`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
+`graphics-decode`, `adopt-host`, `move-turn` or `files-process`) and its `cause`: `unserved` (a kind this Worker does not serve on its platform,
 or a terminal request before the first Launch), `fence` (addressed to another Worker or
 generation), `watermark` (an Agent drain acknowledgement above what this Worker offered), `handoff`
 (an ordinary request while a Server handoff is prepared), `unavailable` (a request to a replacement
@@ -516,6 +519,26 @@ person's shell. The whole probe gets six seconds before the process group settle
 before a deadline or a cancellation stay answers, and every other name, or a missing marker, is
 `Unavailable`. The lookup thread clears its signal mask before it starts the shell, because a
 child keeps the mask of the thread that starts it.
+
+## orchbee-files process
+
+`files_process::FilesProcess` answers OBCN kind 45 in both the pre-Host and Host request loops and
+is the only owner and reaper of this generation's one `orchbee-files` process, which the Server
+starts for the File Bar. Both actions are fenced to this Worker ID and generation. A start ends a
+process the Worker still holds first, since the Server asks for one only when it holds no link, so
+a generation never runs two. It then opens the cohort's `<stem>-files` and checks it against the
+digest the cohort declares; a release cohort declares none and a Worker started with explicit
+endpoints has no cohort, so both answer `Missing`. The program gets `--local-endpoint <endpoint>`
+and the token line on standard input, never among the arguments, which other processes of the user
+can read, and the environment a terminal launch starts from: on macOS a new terminal's login
+`PATH`, because a Worker that launchd started lacks the person's tools, such as a Homebrew `git`.
+On Windows it runs in a kill-on-close Job, and on macOS and Linux it leads its own process group
+through the retained spawn, so the Worker's end also ends it. The answer comes once the process
+exists, with the process ID and start time that name it exactly; its admission is between it and
+the Server, which names that identity to end a start whose link never became ready. An end settles
+only the process of that identity, `SIGTERM` and then `SIGKILL` to its group on macOS and Linux or
+its Job's end on Windows, within the five-second settle budget, which the request loop waits out.
+The loops reap a process that ended on its own, as at its idle exit, between requests.
 
 ## Background job owners and exit
 

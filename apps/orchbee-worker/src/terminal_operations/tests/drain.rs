@@ -303,6 +303,7 @@ fn server_contract_breaks_are_declined_while_the_loop_serves_on() -> TestResult 
                 crate::worktree_mutation_git::run,
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
+            files: &crate::files_process::FilesProcess::new(None),
             session_runtime: None,
         },
     );
@@ -442,6 +443,7 @@ fn admitted_request_replies_with_host_observed_event() -> TestResult {
                 crate::worktree_mutation_git::run,
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
+            files: &crate::files_process::FilesProcess::new(None),
             session_runtime: None,
         },
     );

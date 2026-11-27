@@ -493,6 +493,7 @@ fn handoff_actual_admitted_loop_preserves_host_and_cached_terminal_binding_on_ne
                 agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
                 mutation_slot: &mutations,
                 plugin_jobs: &plugins,
+                files: &crate::files_process::FilesProcess::new(None),
                 session_runtime: Some(&runtime),
             }
         )

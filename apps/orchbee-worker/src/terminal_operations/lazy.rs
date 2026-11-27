@@ -46,6 +46,9 @@ pub(crate) fn run(
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
+    // The File Bar needs no Host, so its process may start, and stays held, across the first
+    // Launch.
+    let files = crate::files_process::FilesProcess::new(Some(cohort));
     // Where the pre-Host loop was when it ended; the admitted loop classifies its own end.
     let site = crate::diagnostic_events::ServingSite::new(Site::ServerReceive);
     // Host starts that failed so far; every one is consecutive, since a started Host leaves this loop.
@@ -53,6 +56,7 @@ pub(crate) fn run(
     let outcome = (|| {
         loop {
             site.set(Site::ServerReceive);
+            files.reap();
             #[cfg(not(windows))]
             let (request, arrived) = server_transport::receive_timed(&server, None)?;
             #[cfg(windows)]
@@ -191,6 +195,15 @@ pub(crate) fn run(
                     &server,
                     None,
                     &CapabilityNodeMessage::AgentProbeJobResult(result),
+                )?;
+                continue;
+            }
+            if let CapabilityNodeMessage::FilesProcessRequest(request) = request {
+                let result = files.execute(request, worker_id, generation, system_shell);
+                let _no_host = server_transport::send(
+                    &server,
+                    None,
+                    &CapabilityNodeMessage::FilesProcessResult(result),
                 )?;
                 continue;
             }
@@ -379,6 +392,7 @@ pub(crate) fn run(
                     agent_probes: &agent_probes,
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
+                    files: &files,
                     session_runtime: Some(runtime),
                 },
                 #[cfg(windows)]

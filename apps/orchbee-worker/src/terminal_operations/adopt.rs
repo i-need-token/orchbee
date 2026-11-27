@@ -77,6 +77,7 @@ pub(crate) fn run(
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
+    let files = crate::files_process::FilesProcess::new(Some(cohort));
     let jobs = || BackgroundJobs {
         discovery: &worktree_slot,
         integrations: &agent_integrations,
@@ -134,6 +135,7 @@ pub(crate) fn run(
                     agent_probes: &agent_probes,
                     mutation_slot: &mutation_slot,
                     plugin_jobs: &plugin_jobs,
+                    files: &files,
                     session_runtime: Some(runtime),
                 },
                 #[cfg(windows)]

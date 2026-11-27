@@ -100,6 +100,19 @@ pub struct Cohort {
     identity: String,
     artifact_hashes: [String; 4],
     observation_adapters: ObservationAdaptersSidecar,
+    /// The digest the manifest declares for `orchbee-files`, which only development and test
+    /// cohorts carry.
+    files: Option<String>,
+}
+
+/// Why the cohort's `orchbee-files` cannot be started.
+#[derive(Debug)]
+pub enum FilesExecutableError {
+    /// The manifest declares no `orchbee-files`, or the cohort holds no such file.
+    Missing,
+    /// The file is not one only this user or root can change, differs from the declared digest,
+    /// or could not be read before the deadline.
+    Unverified(io::Error),
 }
 
 /// The observation-adapters payload a current cohort manifest declares. Startup
@@ -148,6 +161,9 @@ struct Artifacts {
     host: String,
     #[serde(rename = "agent-observation-adapters")]
     observation_adapters: String,
+    /// Optional, so a release manifest, which lists no `orchbee-files`, keeps its shape.
+    #[serde(rename = "orchbee-files", default)]
+    files: Option<String>,
 }
 impl Artifacts {
     fn hash(&self, artifact: CohortArtifact) -> &str {
@@ -241,7 +257,13 @@ impl Cohort {
             return Err(incompatible().into());
         }
         let manifest: Manifest = serde_json::from_slice(&encoded).map_err(|_| invalid())?;
-        if !declared_hash(&manifest.artifacts.observation_adapters) {
+        if !declared_hash(&manifest.artifacts.observation_adapters)
+            || manifest
+                .artifacts
+                .files
+                .as_deref()
+                .is_some_and(|hash| !declared_hash(hash))
+        {
             return Err(invalid().into());
         }
         let mut files = Vec::with_capacity(ARTIFACTS.len());
@@ -300,6 +322,7 @@ impl Cohort {
                 directory: directory.join(OBSERVATION_ADAPTERS),
                 declared_payload_sha256: manifest.artifacts.observation_adapters,
             },
+            files: manifest.artifacts.files,
         })
     }
     pub fn identity(&self) -> &str {
@@ -322,6 +345,46 @@ impl Cohort {
     /// digest only — never an opened or validated payload.
     pub fn observation_adapters_sidecar(&self) -> &ObservationAdaptersSidecar {
         &self.observation_adapters
+    }
+
+    /// The cohort's `orchbee-files`, opened as the cohort's own executables are and hashed against
+    /// the digest the manifest declares, so a start runs only the program this cohort shipped.
+    /// Admission never checks it: a release cohort carries none, and a damaged one fails only the
+    /// File Bar.
+    ///
+    /// # Errors
+    ///
+    /// [`FilesExecutableError::Missing`] when the manifest declares none or no such file exists,
+    /// and [`FilesExecutableError::Unverified`] for any other failure.
+    pub fn verified_files_executable(
+        &self,
+        deadline: Instant,
+    ) -> Result<PathBuf, FilesExecutableError> {
+        let declared = self.files.as_deref().ok_or(FilesExecutableError::Missing)?;
+        let name = filesystem::files_file_name();
+        let path = self.directory.join(&name);
+        let unverified = |error: io::Error| match error.kind() {
+            io::ErrorKind::NotFound => FilesExecutableError::Missing,
+            _ => FilesExecutableError::Unverified(error),
+        };
+        let descriptor = filesystem::open_directory(&self.directory).map_err(unverified)?;
+        let mut file = open_file(&descriptor, &name, true, &path).map_err(unverified)?;
+        let mut hash = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            remaining(deadline).map_err(FilesExecutableError::Unverified)?;
+            let count = file
+                .read(&mut buffer)
+                .map_err(FilesExecutableError::Unverified)?;
+            if count == 0 {
+                break;
+            }
+            hash.update(&buffer[..count]);
+        }
+        if crate::digest_hex::lower_hex(&hash.finalize()) != declared {
+            return Err(FilesExecutableError::Unverified(invalid()));
+        }
+        Ok(path)
     }
 }
 

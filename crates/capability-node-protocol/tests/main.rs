@@ -5,6 +5,7 @@ mod agent_integration_job;
 mod agent_probe_job;
 mod control;
 mod cwd_validation;
+mod files_process;
 mod graphics_decode;
 mod host_query;
 mod lifecycle;

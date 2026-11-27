@@ -26,6 +26,12 @@ pub use agent_probe_job::{
 };
 mod codec;
 mod error;
+mod files_process;
+pub use files_process::{
+    FILES_TOKEN_BYTES, FilesEndOutcome, FilesEndpoint, FilesProcessAction, FilesProcessIdentity,
+    FilesProcessOutcome, FilesProcessRequest, FilesProcessResult, FilesStartOutcome, FilesToken,
+    MAXIMUM_FILES_ENDPOINT_BYTES,
+};
 mod host_query;
 pub use host_query::{HostQueryRequest, HostQueryResult, MAXIMUM_QUERY_HOSTS};
 mod identity;

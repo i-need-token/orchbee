@@ -29,6 +29,7 @@ mod agent_integration_job;
 mod agent_probe_job;
 mod control;
 mod cwd_validation;
+mod files_process;
 mod graphics_decode;
 mod host_query;
 mod lifecycle;
@@ -110,6 +111,8 @@ pub enum CapabilityNodeMessage {
     AgentProbeJobResult(crate::AgentProbeJobResult),
     HostQueryRequest(crate::HostQueryRequest),
     HostQueryResult(crate::HostQueryResult),
+    FilesProcessRequest(crate::FilesProcessRequest),
+    FilesProcessResult(crate::FilesProcessResult),
     WorkerRequestDeclined(crate::WorkerRequestDeclined),
     /// The Worker's answer to a whole request frame it could not decode, which answers the one
     /// request the Server has outstanding.
@@ -361,6 +364,8 @@ fn encode_payload(message: &CapabilityNodeMessage) -> Vec<u8> {
         CapabilityNodeMessage::AgentProbeJobResult(value) => agent_probe_job::encode_result(value),
         CapabilityNodeMessage::HostQueryRequest(value) => host_query::encode_request(*value),
         CapabilityNodeMessage::HostQueryResult(_) => unreachable!("Host query results use OBNH"),
+        CapabilityNodeMessage::FilesProcessRequest(value) => files_process::encode_request(value),
+        CapabilityNodeMessage::FilesProcessResult(value) => files_process::encode_result(value),
         CapabilityNodeMessage::WorkerRequestDeclined(value) => request_declined::encode(*value),
         CapabilityNodeMessage::WorkerRequestUnreadable => request_declined::encode_unreadable(),
     }
@@ -475,6 +480,12 @@ fn decode_payload(payload: &[u8]) -> Result<CapabilityNodeMessage, ProtocolError
         }
         Some(adopt_host::RESULT_KIND) => {
             adopt_host::decode_result(payload).map(CapabilityNodeMessage::AdoptHostResult)
+        }
+        Some(files_process::REQUEST_KIND) => {
+            files_process::decode_request(payload).map(CapabilityNodeMessage::FilesProcessRequest)
+        }
+        Some(files_process::RESULT_KIND) => {
+            files_process::decode_result(payload).map(CapabilityNodeMessage::FilesProcessResult)
         }
         Some(request_declined::KIND) => {
             request_declined::decode(payload).map(CapabilityNodeMessage::WorkerRequestDeclined)

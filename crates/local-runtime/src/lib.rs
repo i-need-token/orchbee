@@ -234,7 +234,8 @@ pub(crate) fn test_temporary_directory() -> std::path::PathBuf {
 }
 
 pub use cohort::{
-    Cohort, CohortArtifact, CohortError, ObservationAdaptersSidecar, current_executable,
+    Cohort, CohortArtifact, CohortError, FilesExecutableError, ObservationAdaptersSidecar,
+    current_executable,
 };
 #[cfg(unix)]
 pub use rendezvous::host_lock_held;

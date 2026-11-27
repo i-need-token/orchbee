@@ -1705,6 +1705,7 @@ dependencies = [
  "orchbee-terminal-protocol",
  "process-wrap",
  "rustix",
+ "sha2 0.11.2",
  "windows",
  "winsafe",
 ]

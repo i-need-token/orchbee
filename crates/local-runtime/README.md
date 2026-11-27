@@ -1059,12 +1059,15 @@ nothing else reconnects to or adopts a Host.
 
 ## Development cohort contract
 
-`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 1` and exactly five
+`cohort.json` is bounded to 16 KiB, strict JSON with `schemaVersion: 1` and five required
 `artifacts` fields, in this canonical order: `orchbee`, `orchbee-server`,
 `orchbee-worker`, `orchbee-terminal-host`, `agent-observation-adapters`. The first four values are
 the lowercase 64-character SHA-256 of each complete executable. The fifth declares the lowercase
 SHA-256 payload digest of the observation-adapters capsule staged beside the executables — the same
-value its `capsule.json` carries as `payloadSha256`. A manifest carrying any other `schemaVersion`,
+value its `capsule.json` carries as `payloadSha256`. An optional sixth, `orchbee-files`, declares
+the SHA-256 of the File Bar's `<stem>-files` executable; development and test cohorts carry it, and
+a release cohort omits it, so a release never starts that process. A manifest carrying any other
+`schemaVersion`,
 is incompatible; a `schemaVersion: 1` manifest missing a required member, carrying
 duplicated or unknown members, or declaring a malformed digest is an invalid manifest. Both fail
 closed through the existing typed rejection. Members name the roles; the staged files carry the
@@ -1079,6 +1082,9 @@ four executables, including on warm startup. A role finds its cohort beside `cur
 its own program file; macOS reports the path a program was started through, such as the command
 link `~/.local/bin/orchbee`, so there the path is resolved first.
 Host consumes the verified sibling executable; it does not implement the manifest reader.
+Admission never opens `<stem>-files`: the Worker has `Cohort::verified_files_executable` open it as
+the executables are opened and hash it against the declared digest each time it starts the process,
+so a missing or damaged `orchbee-files` fails only the File Bar.
 
 `Cohort::current_remembered` serves an invocation that only reads, which the Client's query
 commands are. A full check records, in the data root's `internal/cache/cohort/`, the manifest's
@@ -1102,8 +1108,8 @@ result, so an absent or damaged sidecar never blocks Session startup or Agent re
 
 The exact cohort identity is lowercase SHA-256 of UTF-8 `orchbee-native-cohort-v1\n` followed,
 in the above fixed order, by each staged executable name, one NUL byte, its hexadecimal hash, and LF —
-the four executables only; the adapters declaration is deliberately excluded so a payload bump does
-not churn admission identity.
+the four executables only; the adapters and `orchbee-files` declarations are deliberately excluded
+so a payload bump or the File Bar's process does not churn admission identity.
 JSON key order is immaterial. Sibling paths come only from `CohortArtifact` names. Missing, changed,
 mixed, malformed, or unsafe artifacts fail admission before activation. Explicit endpoint test
 modes retain their existing version cohort and do not acquire managed startup authority.

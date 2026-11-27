@@ -109,6 +109,20 @@ impl CommandChild {
         self.group.as_raw_nonzero().get().cast_unsigned()
     }
 
+    /// The root's exact identity: its process ID and start time. Until this owner reaps the root,
+    /// its ID names no other process, so the start read here is the root's own.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error once the root is reaped, or when its start cannot be read.
+    pub fn exact_identity(&self) -> io::Result<(u32, u64)> {
+        if self.reaped {
+            return Err(io::ErrorKind::NotFound.into());
+        }
+        crate::process_observation::identity(self.id())
+            .map(|identity| (identity.pid(), identity.creation_time()))
+    }
+
     /// Waits up to `timeout` for the root to exit, as the Windows owner's root wait does, without
     /// reaping it or signalling its group, so the group ID stays pinned for another thread that
     /// signals the group. True once the root has exited. Runs only on the retained command owner

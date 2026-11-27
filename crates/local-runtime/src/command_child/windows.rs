@@ -86,6 +86,19 @@ impl CommandChild {
         self.child.id()
     }
 
+    /// The root's exact identity: its process ID and creation time. The retained root handle keeps
+    /// the ID from naming another process while it is opened again here.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the root cannot be opened or its times cannot be read.
+    pub fn exact_identity(&self) -> io::Result<(u32, u64)> {
+        let root = HPROCESS::OpenProcess(co::PROCESS::QUERY_LIMITED_INFORMATION, false, self.id())
+            .map_err(io::Error::other)?;
+        crate::process_observation::identity(&root)
+            .map(|identity| (identity.pid(), identity.creation_time()))
+    }
+
     /// Runs only on the retained command owner thread. A root exit is not completion
     /// until the owned Job has settled, even when a descendant holds output open. After a failed
     /// [`settle`](Self::settle) it ends the Job's members again and looks once without waiting:

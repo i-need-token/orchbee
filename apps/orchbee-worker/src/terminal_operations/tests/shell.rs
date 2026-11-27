@@ -210,6 +210,7 @@ fn admitted_worker_survives_failed_preparation_then_launches_and_fences_replay()
                 agent_probes: &crate::agent_probe_jobs::AgentProbeJobs::new(),
                 mutation_slot: &mutations,
                 plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
+                files: &crate::files_process::FilesProcess::new(None),
                 session_runtime: None,
             }
         )

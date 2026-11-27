@@ -268,6 +268,16 @@ pub(crate) fn keeper_failed(step: &'static str, error: &(dyn Error + 'static)) {
     log_event(LogLevel::Warning, "keeper-failed", &fields);
 }
 
+/// An `orchbee-files` start that failed: its `stage` token (`previous`, `unverified` or `spawn`),
+/// the closed I/O error kind, and the operating-system error code it carries.
+pub(crate) fn files_start_failed(stage: &'static str, error: &(dyn Error + 'static)) {
+    let mut fields = vec![error_kind(error), ("stage", LogValue::Token(stage))];
+    if let Some(code) = os_error(error) {
+        fields.push(("osError", LogValue::Count(u64::from(code))));
+    }
+    log_event(LogLevel::Warning, "files-start-failed", &fields);
+}
+
 /// A Host's epoch could not be written into the Session record: the closed I/O error kind.
 pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
     let fields = [error_kind(error)];
@@ -692,6 +702,7 @@ fn declined_token(kind: orchbee_capability_node_protocol::DeclinedRequestKind) -
         Kind::GraphicsDecode => "graphics-decode",
         Kind::AdoptHost => "adopt-host",
         Kind::MoveTurn => "move-turn",
+        Kind::FilesProcess => "files-process",
     }
 }
 

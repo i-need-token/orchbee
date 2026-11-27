@@ -577,6 +577,7 @@ fn real_dispatch_loop_bypasses_unrelated_closed_viewer_cleanup_for_one_lifecycle
                 crate::worktree_mutation_git::run,
             ),
             plugin_jobs: &crate::plugin_jobs::PluginJobs::new(),
+            files: &crate::files_process::FilesProcess::new(None),
             session_runtime: None,
         },
     );

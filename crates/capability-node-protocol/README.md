@@ -599,7 +599,7 @@ is still answered and never ends the Worker or its terminals. The body after the
 request's kind (`u8`: 1 Launch, 2 Start, 3 viewer, 4 control, 5 lifecycle, 6 cwd validation, 7 Send,
 8 Worktree Job, 9 Agent drain, 10 shutdown, 11 Worktree mutation, 12 titles, 13 handoff, 14 Agent
 integration job, 15 Agent probe job, 16 Host query, 17 title changes, 18 plugin job, 19 graphics
-decode, 20 AdoptHost, 21 move turn) and its 16-byte identity: the request or operation ID it carries, the Launch
+decode, 20 AdoptHost, 21 move turn, 22 files process) and its 16-byte identity: the request or operation ID it carries, the Launch
 or Start authorization's operation ID, an AdoptHost page's adoption ID, or for an Agent drain its
 token and acknowledged sequence, each a big-endian `u64`. `WorkerRequestDeclined::of` names the decline of every Server request and of no
 Worker-sent message, by an exhaustive match, so a new request kind must name its decline to build.
@@ -675,6 +675,27 @@ Done, after which no turn moves any. A result is at most 154 payload bytes. The 
 move ([several Hosts](../../apps/orchbee-worker/README.md#several-hosts)) and the Server its turns
 and the rebinding, as the [H3 design](../../proposals/platform/host-handover.md#h3-design) decides.
 Hand-derived golden bytes and malformed bounds verify this representation, and the pair follows
+this protocol's exact-cohort rule.
+
+## Files process messages
+
+Kind 45 `FilesProcessRequest` and kind 46 `FilesProcessResult` carry the start and end of the one
+`orchbee-files` process a Worker generation runs for its Server's File Bar, under frame version 1
+with no capability name. A request's body after its kind is the operation ID (16), Worker ID (16)
+and positive Worker generation (`u64`), then an action tag: 1 `Start`, with the endpoint address
+(`u16` length and 1 through 512 bytes of UTF-8 without NUL, starting with `/` or `\\`) and the
+32-byte token; or 2 `End`, with the process it names: process ID (`u32`) and start (`u64`), the
+creation time on Windows and the start time on macOS and Linux, as the Worker read them. The token
+never appears in a debug rendering.
+
+A result echoes the operation ID and the action tag, then one action-scoped outcome byte. Start
+outcomes: 1 Started, followed by the process ID and start; 2 Missing (the cohort declares or holds
+no `orchbee-files`); 3 Unverified (the file differs from the cohort's digest, or another user can
+change it); 4 Failed (the process could not be created, or the one the Worker held did not end
+first); or 12 RejectedFencing. End outcomes: 5 Ended, 10 Unknown (the Worker holds no process of
+that identity), 4 Failed (it did not end within the settle budget), or 12 RejectedFencing. The
+Server chooses the endpoint and the token and admits the process's link; the Worker
+[owns the process](../../apps/orchbee-worker/README.md#orchbee-files-process). The pair follows
 this protocol's exact-cohort rule.
 
 ## Carrier and ownership boundaries

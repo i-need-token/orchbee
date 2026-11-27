@@ -77,6 +77,8 @@ pub(crate) fn run(
     let plugin_jobs = crate::plugin_jobs::PluginJobs::new();
     let mutation_slot =
         crate::worktree_mutation_job::WorktreeMutationSlot::new(crate::worktree_mutation_git::run);
+    // A Worker started with explicit endpoints has no cohort, so it starts no `orchbee-files`.
+    let files = crate::files_process::FilesProcess::new(None);
     let outcome = run_admitted(
         server.try_clone()?,
         host,
@@ -91,6 +93,7 @@ pub(crate) fn run(
             agent_probes: &agent_probes,
             mutation_slot: &mutation_slot,
             plugin_jobs: &plugin_jobs,
+            files: &files,
             session_runtime: None,
         },
     );
@@ -106,8 +109,8 @@ pub(crate) fn run(
 
 /// Auxiliary channels admitted alongside the operation kernel: the Agent
 /// drain, this generation's System shell resolution, the WorktreeJob discovery
-/// slot, and the managed session runtime directory (`None` for unmanaged
-/// launches).
+/// slot, the generation's `orchbee-files` process, and the managed session
+/// runtime directory (`None` for unmanaged launches).
 pub(crate) struct AdmittedAux<'a> {
     pub(crate) drain: &'a Rc<RefCell<AgentDrain>>,
     pub(crate) system_shell: &'a SystemShell,
@@ -116,6 +119,7 @@ pub(crate) struct AdmittedAux<'a> {
     pub(crate) agent_probes: &'a crate::agent_probe_jobs::AgentProbeJobs,
     pub(crate) mutation_slot: &'a crate::worktree_mutation_job::WorktreeMutationSlot,
     pub(crate) plugin_jobs: &'a crate::plugin_jobs::PluginJobs,
+    pub(crate) files: &'a crate::files_process::FilesProcess<'a>,
     pub(crate) session_runtime: Option<&'a std::path::Path>,
 }
 
@@ -199,6 +203,7 @@ fn serve(
     let mut moving = moves::Moves::default();
     loop {
         hosts.end_request();
+        aux.files.reap();
         let (request, readable) = loop {
             // The Keeper's care runs between requests, never under a prepared handoff, so nothing
             // changes under one. A request that arrived while it ran waited for it, so that
@@ -390,6 +395,18 @@ fn serve(
                 &server,
                 primary,
                 &CapabilityNodeMessage::AgentProbeJobResult(result),
+            )?;
+            continue;
+        }
+        if let CapabilityNodeMessage::FilesProcessRequest(request) = request {
+            // A start answers once the process exists; its link is between it and the Server.
+            let result = aux
+                .files
+                .execute(request, worker_id, generation, aux.system_shell);
+            answer(
+                &server,
+                primary,
+                &CapabilityNodeMessage::FilesProcessResult(result),
             )?;
             continue;
         }

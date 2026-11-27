@@ -33,6 +33,10 @@ pub(crate) fn artifact_file_name(artifact: CohortArtifact) -> String {
         CohortArtifact::TerminalHost => format!("{}-terminal-host", environment_stem()),
     }
 }
+/// The name of the cohort's optional `orchbee-files`, which the Worker starts for the File Bar.
+pub(crate) fn files_file_name() -> String {
+    format!("{}-files", environment_stem())
+}
 pub(crate) fn open_file(
     directory: &std::os::fd::OwnedFd,
     name: &str,

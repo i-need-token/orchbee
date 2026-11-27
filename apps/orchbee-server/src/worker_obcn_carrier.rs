@@ -2186,8 +2186,12 @@ fn validate_response(
         }
         (_, CapabilityNodeMessage::WorkerShutdownRequest(_))
         | (_, CapabilityNodeMessage::AdoptHostRequest(_))
-        | (_, CapabilityNodeMessage::TerminalMoveTurnRequest(_)) => {
+        | (_, CapabilityNodeMessage::TerminalMoveTurnRequest(_))
+        | (_, CapabilityNodeMessage::FilesProcessRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
+        }
+        (_, CapabilityNodeMessage::FilesProcessResult(_)) => {
+            Err(WorkerResponseFailure::WrongResultKind)
         }
         (
             WorkerOperationRequest::MoveTurn(expected),
