@@ -106,6 +106,59 @@ imply endorsement by their creators.
 > DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 > OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+## File Bar process crates
+
+- Copyright notice: `trash`: Copyright 2019 Artúr Barnabás Kovács; `encoding_rs` and `chardetng`:
+  Copyright Mozilla Foundation; the WHATWG data in `encoding_rs`: Copyright © WHATWG (Apple, Google,
+  Mozilla, Microsoft)
+- Source: <https://github.com/notify-rs/notify>, <https://github.com/ArturKovacs/trash>,
+  <https://github.com/hsivonen/encoding_rs> and <https://github.com/hsivonen/chardetng>
+- Packages: `notify@9.0.0`, `trash@5.4.0`, `encoding_rs@0.8.44` and `chardetng@1.0.0` from
+  crates.io
+- License: `notify`: CC0-1.0; `trash`: MIT; `encoding_rs` and `chardetng`: MIT, chosen from
+  Apache-2.0 or MIT; the data `encoding_rs` derives from the WHATWG Encoding Standard: BSD-3-Clause
+- Use in Orchbee: file watching, moving files to the trash, and decoding, encoding and guessing the
+  encoding of text, in the File Bar's process `orchbee-files`, which development and test builds
+  carry
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+> Redistribution and use in source and binary forms, with or without modification, are permitted
+> provided that the following conditions are met:
+>
+> 1. Redistributions of source code must retain the above copyright notice, this list of conditions
+>    and the following disclaimer.
+>
+> 2. Redistributions in binary form must reproduce the above copyright notice, this list of
+>    conditions and the following disclaimer in the documentation and/or other materials provided
+>    with the distribution.
+>
+> 3. Neither the name of the copyright holder nor the names of its contributors may be used to
+>    endorse or promote products derived from this software without specific prior written
+>    permission.
+>
+> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
+> IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+> FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
+> CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+> DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+> DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER
+> IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT
+> OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 ## VS Code Terminal Colors
 
 - Copyright notice: Copyright (c) 2015 - present Microsoft Corporation
