@@ -384,9 +384,10 @@ pub(super) fn classify(error: Box<dyn Error>) -> Result<Refused, Box<dyn Error>>
     })
 }
 
-/// A refusal's reason or code as one of the tokens a diagnostic record may carry.
+/// A refusal's reason or code as one of the tokens a diagnostic record may carry: the Host's move
+/// refusals, its codes, and the Keeper refusals a `move-failed` relays.
 fn token(value: &str) -> &'static str {
-    const KNOWN: [&str; 17] = [
+    const KNOWN: [&str; 46] = [
         "not-running",
         "unheld",
         "system-console",
@@ -404,6 +405,35 @@ fn token(value: &str) -> &'static str {
         "host-draining",
         "resource-exhausted",
         "terminal-quiesced",
+        "claim-check",
+        "invalid-record",
+        "no-keeper",
+        "handle-failed",
+        "unrepresentable",
+        "unsupported",
+        "unanswered",
+        "not-registered",
+        "wrong-role",
+        "not-owner",
+        "not-target",
+        "unknown-holding",
+        "holding-exists",
+        "marked",
+        "stale-mark",
+        "identity-mismatch",
+        "capacity",
+        "draining",
+        "not-orphaned",
+        "spawn-failed",
+        "running",
+        "orphaned",
+        "busy",
+        "check-failed",
+        "exec-failed",
+        "unknown",
+        "move-failed",
+        "move-ineligible",
+        "move-passing",
     ];
     KNOWN
         .into_iter()
