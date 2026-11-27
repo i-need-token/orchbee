@@ -282,7 +282,7 @@ starts beside a running terminal.
 
 The managed Server owns one background saver after terminal restoration has settled. It watches committed Workbench revision; each change restarts a 500ms debounce.
 Every 30 seconds it also captures cached directories. Agent session rows come from the same
-capture on Windows and macOS. No terminal screen, history, Agent conversation or live controller
+capture. No terminal screen, history, Agent conversation or live controller
 state enters the payload; kept terminal output lives in its own files, which the payload names only
 by number.
 The pending work is one latest snapshot, not an unbounded queue.

@@ -50,8 +50,8 @@ export type DesktopDiagnosticsActionSource = Extract<ActionInvocationSource, 'me
 /**
  * Saves a diagnostic bundle where the person chooses through the CLI's `diagnostics create`, which
  * owns its contents and redaction. One save runs at a time; the bundle is shown in its folder when
- * it is written, and a failure says so in a dialog. The bundle command runs on Windows and macOS,
- * so the Action is hidden elsewhere.
+ * it is written, and a failure says so in a dialog. The bundle command runs on Windows, macOS and
+ * Linux, so the Action is hidden elsewhere.
  */
 export class DesktopDiagnosticsActions {
 	readonly #platform: NodeJS.Platform;

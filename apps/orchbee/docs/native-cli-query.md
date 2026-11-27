@@ -36,7 +36,7 @@ Completion never queries runtime state or invents ordinal suggestions. In PowerS
 
 ## Clear terminal output
 
-Windows and macOS `terminal clear <terminal>` clears one exact bound primary or child terminal
+`terminal clear <terminal>` clears one exact bound primary or child terminal
 in an existing Session. It removes preceding history and other output, clears selection
 and returns the viewport to the active screen. It keeps only the row the cursor is on, so a
 prompt that wraps keeps its last row; the bundled ConPTY keeps that row at the top of its own

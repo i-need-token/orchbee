@@ -91,7 +91,7 @@ pub fn valid_activation_id(text: &str) -> bool {
 /// `<root>/versions/<version>/<name>`, given the pointer read again after it failed:
 /// `<root>/versions/<previous>/<name>` with `<version>`, when the pointer still makes `<version>`
 /// active through a counting move whose `back` is true and names a `previous`. Any other pointer, or
-/// none, records nothing. Either launcher, and a macOS TUI that no launcher started, run the helper
+/// none, records nothing. Either launcher, and a macOS or Linux TUI that no launcher started, run the helper
 /// through the previous version, because the failed Client may be what broke and `back` proves that
 /// the previous version records.
 pub fn client_failure_helper(client: &Path, pointer: Option<&[u8]>) -> Option<(PathBuf, String)> {

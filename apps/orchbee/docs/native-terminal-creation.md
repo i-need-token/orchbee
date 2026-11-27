@@ -2,7 +2,7 @@
 
 ## Inputs and ownership
 
-Windows and macOS `tab create` and `panel split` create one canonical resource before optional shared ratio and Client-local
+`tab create` and `panel split` create one canonical resource before optional shared ratio and Client-local
 work. They use an existing Session; they never start a Session or retry an uncertain creation.
 `--focus` and `--no-focus` are exclusive, with no focus as the default. `--client` names one exact
 interactive Client. The total `--timeout` defaults to 30000 ms and admits 1 through 3600000 ms.

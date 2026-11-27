@@ -3,7 +3,7 @@
 //! precedes runtime-directory preparation; one absolute caller-supplied
 //! deadline bounds the whole attempt and is never reset per phase. The
 //! lock/marker/spawn order is identical for both callers; only the failure
-//! projection differs. On Windows and macOS a release or test Client outside
+//! projection differs. A release or test Client outside
 //! the release store first hands a start to the store's active version (see
 //! `store_start`), then runs this same sequence to join. A Session whose Server
 //! is ending by a stop is waited out without the activation lock, and the whole

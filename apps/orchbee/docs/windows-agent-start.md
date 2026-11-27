@@ -43,7 +43,7 @@ it needs `--focus`, and without `--focus` the start is refused as a usage error.
 Agent arguments follow `--`. Repeated `--arg=<value>` is an alternative to trailing arguments;
 mixing both forms is refused. Empty arguments are retained, control characters are refused, and the
 command line this platform's shells read must fit 8000 bytes: the encoded PowerShell command on
-Windows, the [quoted words](#typed-start-in-zsh-and-bash) on macOS.
+Windows, the [quoted words](#typed-start-in-zsh-and-bash) on macOS and Linux.
 
 A new Tab or split is created with the TUI's Server operations, `tab.create` or `panel.split`,
 under one stale-view-retried request identity. A start with no arguments and no name is exactly
@@ -78,7 +78,7 @@ The [Start Agent picker](start-agent-picker.md) lists from the Session's
 Worker's [Agent probe](../../orchbee-worker/README.md#agent-probe-job); the Client looks at no
 `PATH` of its own and runs no lookup process. Each opening of the picker asks the Server to look
 again. Found means found on the `PATH` a new shell on the Session's machine starts with: on
-Windows before its profile runs, on macOS after an interactive login shell's startup files have
+Windows before its profile runs, on macOS and Linux after an interactive login shell's startup files have
 run. Either is a hint, never proof: a provider listed as not found still starts, and once
 it runs the Server lists it as found. Cursor starts and is checked with the `cursor-agent` alias
 from its [CLI installation](https://prod.cursor.com/docs/cli/installation). Grok can supply its

@@ -1116,8 +1116,8 @@ fn kept_keepers(
 
 /// The evidence a clean stop leaves beside its matching receipt. A Windows Server publishes its
 /// final checkpoint before the receipt, so a missing one means lost layout data. On macOS and Linux
-/// the matching receipt is the whole evidence: a Linux Server keeps no checkpoint, and macOS
-/// Sessions stopped before their Server kept one have none.
+/// the matching receipt is the whole evidence: a Session stopped before its Server kept a
+/// checkpoint has none.
 fn stopped_evidence(checkpoint: &Path) -> io::Result<()> {
     #[cfg(windows)]
     return stopped_checkpoint_evidence(checkpoint);

@@ -113,7 +113,7 @@ writes](windows-panel-agent-reports.md#exact-member-targets) select an explicit 
 
 ## Current member enrichment
 
-Windows and macOS `panel current` v1 resolves one canonical Presentation before joining observations.
+`panel current` v1 resolves one canonical Presentation before joining observations.
 Explicit Panel targets choose their primary (including an unbound primary), caller metadata
 chooses that exact bound terminal, and Client targets use the passive exact-member read.
 `currentPresentation` identifies this member, its canonical label/override/binding and origin

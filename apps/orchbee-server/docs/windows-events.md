@@ -2,12 +2,12 @@
 
 ## Accepted behavior
 
-Windows and macOS scripts observe actual Workspace, Tab, Panel, worktree, Agent and Client changes, or wait for a specific change through the owned event stream. Current snapshots cannot substitute for retained history. The Linux CLI answers `unsupported-platform`.
+Scripts observe actual Workspace, Tab, Panel, worktree, Agent and Client changes, or wait for a specific change through the owned event stream. Current snapshots cannot substitute for retained history.
 
 Native names and payloads follow canonical Workspace/Tab/Panel identities and Client-local focus
 and viewport ownership. A Panel is the observed terminal unit; a source may explicitly identify a child
 Presentation. Native typed receipts and structured terminal rows remain authoritative. The CLI is
-the only event consumer; Desktop adds none. On macOS the stream writes its records to the inherited
+the only event consumer; Desktop adds none. On macOS and Linux the stream writes its records to the inherited
 stdout in place, and Ctrl+C or `SIGTERM` reaches it through the CLI interrupt-pair port.
 
 ## Event ownership and ordering

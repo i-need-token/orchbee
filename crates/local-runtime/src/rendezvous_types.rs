@@ -39,7 +39,7 @@ impl HostSlot {
 
 /// One of a Session's two Keeper slots, each with its own registration and endpoint. The current
 /// Keeper runs in one; a Keeper update starts the Keeper that replaces it in the other, so the
-/// current Keeper's slot alternates. Only a Windows or macOS Session runs a Keeper.
+/// current Keeper's slot alternates.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum KeeperSlot {

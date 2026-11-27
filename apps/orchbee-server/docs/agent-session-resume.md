@@ -1,6 +1,6 @@
 # Agent session resume
 
-Status: implemented for the managed Windows and macOS Sessions: the
+Status: implemented for managed Sessions on Windows, macOS and Linux: the
 `terminal.restore_after_restart` setting, the retained format, capture, delivery after a restart at a prompt the Host confirms, the
 one-shot notice when a resume is given up, carry-forward of a delivered reference, the run's own
 [carried options](#carried-options), and three [process sources](#process-source) that need no
@@ -320,8 +320,8 @@ entry when it exits normally, and leaves it behind when it is killed.
   1601 UTC. Claude Code's native Windows build writes `procStart` as that same count in decimal.
   Its PowerShell fallback writes CIM creation ticks, local and microsecond-precise, and its POSIX
   build writes `ps -o lstart` text; neither ever equals a sampled value, so those entries give none.
-  The macOS Host samples creation times in the same unit, so no entry there could ever match, and
-  the Server reads no Claude Code entry outside Windows (`SAMPLED_START`).
+  On macOS and Linux Claude Code is that POSIX build, so no entry there could ever match, and the
+  Server reads no Claude Code entry outside Windows (`SAMPLED_START`).
 - **Coverage.** A `claude` the person typed is covered like a board start, since identity and the
   published run do not depend on who started it.
 
@@ -511,7 +511,7 @@ The records are one paste of the line, then Right for PowerShell, then Enter, as
 types them. The token is 16 bytes of operating-system entropy as 32 lowercase hex digits; without
 entropy the reference is skipped. Managed PowerShell, zsh and bash strip the prefix, echo the token
 in the command's start and finish markers and keep the line out of history, as for an Agent start
-([Windows and macOS Agent start](../../orchbee/docs/windows-agent-start.md)). A word POSIX quoting
+([Agent start](../../orchbee/docs/windows-agent-start.md)). A word POSIX quoting
 cannot type, which no id grammar admits, skips the reference.
 
 ### Startup
@@ -586,10 +586,10 @@ nothing else can be waiting for input there. Agent start delivery does not count
 The shell-only rule is the strict idle-shell rule an Agent start uses, shared in
 `orchbee-agent-observation-protocol`. The directory, the reported one else the root's, must equal
 the retained one by the platform's own rule. On Windows the two compare ASCII case-insensitively
-with one trailing separator trimmed, except a drive root's. On macOS they are equal byte for byte
+with one trailing separator trimmed, except a drive root's. On macOS and Linux they are equal byte for byte
 after one trailing `/` is trimmed, except the root's, or both are absolute and name the same
 existing directory by device and inode, as zsh and bash decide whether `$PWD` still names the
-current directory; a link, the `/private` spelling of `/tmp` and `/var`, and another case on a
+current directory; a link, the `/private` spelling macOS gives `/tmp` and `/var`, and another case on a
 case-insensitive volume therefore match. Another directory skips: resuming elsewhere fails for
 Claude Code, whose session lookup is per project, misplaces Codex, and for other providers changes
 the outcome where the [table](#rows) says so. No directory evidence waits.
@@ -788,9 +788,9 @@ It does not prove:
 
 - the managed PowerShell line, which has no end-to-end witness that keeps a real provider out of
   reach;
-- anything on macOS, which has no automated end-to-end witness: the zsh and bash line, the POSIX
-  directory rule, capture there and the stop and start paths rest on the decision tables and on
-  manual runs with stub providers in a scratch home;
+- anything on macOS or Linux, which have no automated end-to-end witness: the zsh and bash line,
+  the POSIX directory rule, capture there and the stop and start paths rest on the decision tables
+  and, on macOS, on manual runs with stub providers in a scratch home;
 - a refused send's retry, a give-up or its notice, which no CLI read can provoke or observe; they
   rest on the decision tables and the end batch's real-window checks;
 - the capture rule's hook candidates and every row only a hook names, Letta's forms, Kilo's and
@@ -808,7 +808,7 @@ It does not prove:
   Node writes `procStart` as the sampled creation time, and whether it rewrites `sessionId` on
   `/clear` or `/resume`. The format and the native build's equality with the Host's sample were
   read from one 2.1.322 run, and a 2.1.331 run resumed;
-- any run table or session store on macOS, any Agent version other than those run, or Cline at
+- any run table or session store on macOS or Linux, any Agent version other than those run, or Cline at
   all: store layouts change between versions, and a changed layout gives no entry;
 - that a real OpenCode 2.x loads both plugins without a plugin error, or that its TUI context
   behaves as the 2.2.5 TUI plugin API types it: the adapter follows those sources, and a real

@@ -1,4 +1,4 @@
-//! The requester of a Server restart that keeps terminals, on Windows and macOS. It asks the running
+//! The requester of a Server restart that keeps terminals. It asks the running
 //! Server whether its restart keeps terminals, then, holding the Session's activation lock so that no
 //! activation starts a Server beside the restart, starts the successor Server suspended (on Windows
 //! outside its own Job), names it in the Session record with a fresh ticket and the activation identifier it

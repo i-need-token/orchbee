@@ -213,7 +213,7 @@ fn serve(
             } else {
                 (None, None)
             };
-            // A macOS Worker takes no handoff.
+            // A POSIX Worker takes no handoff.
             #[cfg(unix)]
             let (wake, cared) = if hosts.is_managed() {
                 hosts.settle_programs(aux.plugin_jobs);

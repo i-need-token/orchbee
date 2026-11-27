@@ -17,7 +17,7 @@ starts an AI provider automatically.
 Quick preparation leaves the sidebar and current Tab intact and immediately displays a pending
 sidebar item using the generated name and a current top Tab. The top Tab uses the localized automatic Tab 1
 title from [Tab labels](native-tab-labels.md). Accepted creation progress appears in the content region without a modal.
-This feedback improvement is scoped to the Windows and macOS TUI. GUI creation retains its existing
+This feedback improvement is scoped to the TUI. GUI creation retains its existing
 activation owner and the same canonical creation semantics.
 
 Ordinary and worktree-backed Workspaces are peers. Each can contain multiple Agents, listed directly
@@ -171,7 +171,7 @@ replays it.
 
 ## Explicit directory and label editing
 
-The Windows and macOS creation menu and global action menu also offer **Choose directory for new Workspace…**.
+The TUI creation menu and global action menu also offer **Choose directory for new Workspace…**.
 This uses the same read-only preparation, then displays the prepared path and generated name in
 the existing two-field draft with directory focus. It submits nothing until an explicit, drawn
 Submit/Enter; Esc cancels without creating resources and displays no pending item before then.

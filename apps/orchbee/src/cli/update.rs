@@ -1,5 +1,5 @@
 //! Native release installation: `install` from the signed release directory the running Client
-//! sits in, cohort updates on Windows and macOS with their window part, save-then-update channel
+//! sits in, cohort updates with their window part, save-then-update channel
 //! changes on Windows, the automatic helper the Session Server runs, the completion helper a
 //! published copy runs, the Client-failure helper a launcher runs, and the window installer helper
 //! Setup and install.sh run; none starts a Session. This entry layer owns the build checks and

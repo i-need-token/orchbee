@@ -114,9 +114,9 @@ the observation exit classes and bounded cleanup reserve.
 
 ## Interactive attach
 
-`terminal attach <terminal>` and `agent attach <target>` are Windows and macOS terminal
-interfaces. macOS polls a duplicate of the inherited terminal input, the reader the startup wait
-uses, and `TerminalModeGuard` owns its termios raw mode.
+`terminal attach <terminal>` and `agent attach <target>` are terminal interfaces. macOS and Linux
+poll a duplicate of the inherited terminal input, the reader the startup wait uses, and
+`TerminalModeGuard` owns its termios raw mode.
 They accept `--takeover`, `--timeout <ms>` and `--mouse on|off` (default on); Agent selectors also
 accept `--panel`. Grammar validation precedes admission of inherited
 interactive stdin/stdout. Neither interface starts a Session, changes Workbench focus or falls back

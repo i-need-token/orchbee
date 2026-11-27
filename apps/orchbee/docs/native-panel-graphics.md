@@ -63,9 +63,9 @@ The fallback does not claim negotiated Kitty/Sixel or pixel mouse support. Manag
 file leases and complete file-frame CLI inputs are implemented by the [Session graphics
 owner](../../orchbee-server/docs/windows-graphics.md). The physical Kitty path is integrated with
 bounded probing, uploads, placements and restoration; pixel mouse is not advertised. Real composed
-graphics workflows in Windows and macOS outer terminals and final full regression remain required
-before alignment. macOS runs the same probe, renderers and restoration as Windows; no TLA, Linux
-runtime or manual focus-stealing Desktop test is run.
+graphics workflows in Windows, macOS and Linux outer terminals and final full regression remain
+required before alignment. macOS and Linux run the same probe, renderers and restoration as
+Windows; no TLA, Linux outer-terminal run or manual focus-stealing Desktop test is run.
 
 ## Program-printed Kitty images
 

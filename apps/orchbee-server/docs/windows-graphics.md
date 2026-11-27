@@ -65,7 +65,7 @@ an upload shortcut. A lost write receipt remains unknown and is not replayed.
 
 ## Producer file ownership
 
-Managed Windows and macOS Sessions lazily allocate one private directory for each admitted producer. A pure
+Managed Sessions lazily allocate one private directory for each admitted producer. A pure
 open preparation first proves canonical source, connection ownership and capacity; directory I/O
 then runs outside canonical locks, and commit repeats the source and producer checks. Idempotent
 open returns the same directory. Allocation failure preserves the old static layer. Unmanaged
@@ -151,7 +151,7 @@ Linux runs the same module.
 
 ## Client rendering and truthful information
 
-The native Client on Windows and macOS must consume the installed layer catalog and complete pixels. Its
+The native Client must consume the installed layer catalog and complete pixels. Its
 ordinary cell surface provides a color raster fallback; negotiated pixel transports can improve
 resolution without changing layer ownership. Pixel transport, physical cell dimensions and pixel
 mouse are reported only after actual capability evidence. Unknown dimensions remain unknown.
@@ -175,7 +175,7 @@ The Windows Session layer transactions and read-only Host PNG adapter are implem
 
 OBWP kinds 57/58 carry closed requests and results. OBNG carries a bounded viewer-scoped PNG request; existing correlated OBNR records carry its result. Terminal Host kinds 80/81 use the distinct graphics-image encoding (5), bounded at 32 MiB plus its 56-byte result header; ordinary input bounds are unchanged.
 
-The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Managed Windows and macOS producers now own private file-frame directories and complete bounded copies, with preparation/read tokens, maintenance retry and clean-stop settlement. Unmanaged endpoint mode advertises no directory. Physical pixel transports and final composed/full acceptance remain pending; these four comparison rows still await exact reference review and Windows acceptance. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
+The native CLI upload/stream paths and [native TUI cell raster consumer](../../orchbee/docs/native-panel-graphics.md) are implemented. The dedicated read lane stages complete, revision-pinned resources; the authenticated Client publisher records successful uncovered draw observations. Info uses fresh matching Client facts and leaves unknown physical pixel geometry null. Managed producers now own private file-frame directories and complete bounded copies, with preparation/read tokens, maintenance retry and clean-stop settlement. Unmanaged endpoint mode advertises no directory. Physical pixel transports and final composed/full acceptance remain pending; these four comparison rows still await exact reference review and Windows acceptance. The complete native cohort is versioned and restaged for final integration; no main integration or old-cohort substitution is authorized by this checkpoint.
 
 Focused evidence includes the 62-case Rust/TypeScript/JSON Schema corpus, image and carrier bounds, eight layer-owner tests, seven production Server session/observer/file witnesses and a Client freshness/scope test, and five Host PNG/graphics tests including actual Windows PTY creation and PNG decoding. This is component evidence, not composed renderer or final acceptance.
 

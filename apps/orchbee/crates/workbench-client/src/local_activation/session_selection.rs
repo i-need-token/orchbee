@@ -1,6 +1,4 @@
-//! Immutable invocation selection; environment is consulted only during runtime discovery. Windows
-//! and macOS admit `--session`; Linux refuses it before selection, so only the environment selects
-//! there.
+//! Immutable invocation selection; environment is consulted only during runtime discovery.
 use orchbee_local_runtime::{SessionName, SessionScope};
 use std::{ffi::OsString, io, path::PathBuf, sync::OnceLock};
 

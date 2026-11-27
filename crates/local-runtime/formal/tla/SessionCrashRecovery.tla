@@ -1,7 +1,7 @@
 -------------------- MODULE SessionCrashRecovery --------------------
 EXTENDS Naturals, FiniteSets, TLC
 CONSTANTS Clients, Nobody, MaxGeneration, MaxIncarnation, Handover
-\* The Keeper roles of Windows and macOS are left out. In the implementation a registered Keeper
+\* The Keeper roles are left out. In the implementation a registered Keeper
 \* whose exact process runs blocks recovery as any other live role does, and cold adoption keeps
 \* the live Keepers only beside the Hosts it keeps (`kept_keepers` in the catalog).
 Roles == {"server", "worker", "host"}

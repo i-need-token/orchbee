@@ -222,8 +222,8 @@ development or test build reads only its own `<stem>` store and looks only for `
 `<stem>`. It never runs the release installation or another build's, so nothing of theirs starts
 and nothing is written into their data folder; a remote without its own installation reads as
 `remote-not-installed`, whose sentence in a development or test build says that this environment's
-Orchbee is not there. A macOS store is filled by `install.sh`, or by the desktop application the
-first time it starts a Session; a Linux store by `install.sh`. See
+Orchbee is not there. A macOS or Linux store is filled by `install.sh`, or by the desktop application
+the first time it starts a Session. See
 [Windows release installation](windows-cli-configuration.md#windows-release-installation).
 No protocol version, product version, or cohort is compared across machines beyond what the link's
 offer and the remote Session's handshake admit.

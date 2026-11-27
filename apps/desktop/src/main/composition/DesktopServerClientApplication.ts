@@ -283,8 +283,8 @@ function isSupersededLoad(error: unknown): boolean {
  * Desktop as a Server Client: one window, whose every document holds one Client connection through
  * an `orchbee server connect` relay. Main keeps what belongs to this computer: the window, its place
  * on screen, and the native folder picker a new Project starts from. Closing the window ends only
- * this Client, and the Session's terminals keep running; on Windows and macOS, a close while they
- * run hides the window instead, as the background lifecycle decides.
+ * this Client, and the Session's terminals keep running; a close while they run hides the window
+ * instead, as the background lifecycle decides.
  */
 export class DesktopServerClientApplication {
 	/** The current document's connection, which Quit All's Session stop goes through. */

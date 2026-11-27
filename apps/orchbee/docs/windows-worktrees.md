@@ -112,7 +112,7 @@ query/create/open exercises relative and tilde operands.
 
 ## Project close-all
 
-Ordinary `workspace close <target> --confirm` closes only the selected Workspace, including a main-checkout Workspace with linked peers. It does not delete a checkout or branch. `project close-all <target> --confirm` explicitly closes the current members of one organizational Project, even when they span repositories. The Project remains after closure; `project dissolve <target>` is a separate metadata action that ungroups and retains all Workspaces. Windows and macOS serve `project close-all`; Linux refuses it before any effect.
+Ordinary `workspace close <target> --confirm` closes only the selected Workspace, including a main-checkout Workspace with linked peers. It does not delete a checkout or branch. `project close-all <target> --confirm` explicitly closes the current members of one organizational Project, even when they span repositories. The Project remains after closure; `project dissolve <target>` is a separate metadata action that ungroups and retains all Workspaces.
 
 Admission freezes at most 256 exact Workspace IDs in global navigation order. Empty Projects are valid. Newly added Workspaces are not silently included. Each captured child is handed to ordinary Workspace Close; grouping and checkout ancestry do not broaden that scope. A changed or unavailable member produces retained partial truth. Closed terminals are not resurrected.
 

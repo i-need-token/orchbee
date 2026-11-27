@@ -1,6 +1,6 @@
-//! Agent resume rides on a Windows or macOS checkpoint: a save records each terminal's retained
-//! Agent session, a restore resumes it where it was recorded, in managed PowerShell or cmd on
-//! Windows and managed zsh or bash on macOS, and a held restore resumes its one Presentation once
+//! Agent resume rides on a checkpoint: a save records each terminal's retained Agent session, a
+//! restore resumes it where it was recorded, in managed PowerShell or cmd on Windows and managed
+//! zsh or bash on macOS and Linux, and a held restore resumes its one Presentation once
 //! its shell started there. The Session's settings turn it on.
 
 use crate::{

@@ -224,7 +224,7 @@ impl LocalTerminalService {
     /// Stops new sampling and joins admitted work; unresolved viewer cleanup transfers to Session shutdown.
     pub(crate) fn stop_process_observer_before(&self, deadline: Instant) -> io::Result<()> {
         // A start line reads through this observer and types through the Worker, so its delivery
-        // stops first, while both still answer. A Windows or macOS Session already stopped it beside
+        // stops first, while both still answer. The managed Session already stopped it beside
         // resume, and stopping it again returns at once.
         self.stop_agent_start_delivery_before(deadline)?;
         self.process_observer.stop_before(deadline)

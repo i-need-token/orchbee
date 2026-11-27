@@ -488,8 +488,7 @@ fenced to this Worker ID and generation before owner access. Start runs one look
 requested command names; while it runs, another Start answers `Busy`, and a replayed Start with the
 same names answers `Accepted`. Poll returns one result per name in request order; Cancel sets the
 flag every query observes. Eight settled jobs stay pollable, and admission evicts the oldest
-settled one first. macOS and Windows have a lookup; other POSIX Workers answer every Start
-`Unsupported`.
+settled one first. Windows, macOS and Linux each have a lookup.
 
 On Windows the lookup, which no Client runs on its own, uses the system directory's
 `where.exe /Q $PATH:<name>` with a cleared environment, the fixed `PATHEXT` `.EXE;.COM;.CMD;.BAT;.PS1`,
@@ -507,10 +506,11 @@ manager's shim directory, is searched, but a directory a shell profile adds, suc
 `mise activate`, nvm or fnm puts on `PATH`, is not, so an Agent that only a profile enables reads
 `Missing` although it starts in a Panel.
 
-On macOS a new terminal starts a login shell, so the lookup searches the `PATH` such a shell ends
+On macOS and Linux a new terminal starts a login shell, so the lookup searches the `PATH` such a shell ends
 up with. It starts the system shell a new terminal starts (`$SHELL`, the account shell, then
 `/bin/sh`) once as `-i -l -c 'exec /bin/sh -c "$ORCHBEE_AGENT_PROBE"'`, with standard input from
-`/dev/null` and its own process group: `/etc/zprofile`'s `path_helper`, the person's profile and
+`/dev/null` and its own process group: the system profile (on macOS `/etc/zprofile`'s
+`path_helper`), the person's profile and
 their interactive startup file run first, then `/bin/sh` runs the script in that variable, which
 prints a marker line and then `found` or `missing` for each name in `ORCHBEE_AGENT_PROBE_COMMANDS`
 by `command -v`, with globbing off. Neither the names nor the script are ever parsed by the

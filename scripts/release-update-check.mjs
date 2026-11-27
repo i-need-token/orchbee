@@ -1,5 +1,5 @@
-// The update check after publication, shared by the Windows and macOS release smoke scripts, and
-// the published-release reads and release gate flow both platforms share. A published release can
+// The update check after publication, shared by the Windows, macOS and Linux release smoke
+// scripts, and the published-release reads and release gate flow the Windows and macOS scripts share. A published release can
 // be updated to when the version people have now, installed from its own published archive, updates
 // to it through its own `update` reading the release's feed asset, including the window store
 // (`<store root>/desktop/`) when both feeds carry `extensions.desktop`. Each platform script owns

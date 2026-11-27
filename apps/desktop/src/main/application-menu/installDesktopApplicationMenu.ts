@@ -45,7 +45,7 @@ export interface DesktopApplicationMenuText {
 	readonly intl: IntlShape;
 }
 
-/** The Windows and macOS diagnostic bundle Action, placed in the Help menu. */
+/** The diagnostic bundle Action, placed in the Help menu. */
 interface DesktopApplicationMenuDiagnostics {
 	getAvailability(): ActionAvailability;
 	invoke(source: DesktopDiagnosticsActionSource): boolean;

@@ -662,7 +662,7 @@ The Client attaches only the snapshot's exact Session/Worker/Terminal binding th
 
 ## Windows explicit Session stop
 
-`server stop --confirm` ends the existing managed Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `operation status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). macOS stops the same way and publishes a final checkpoint, so the next start relaunches its terminals in their saved directories; Linux has no `server stop` yet. The release build replaces `--confirm` with the [release confirmation](#release-destructive-confirmation).
+`server stop --confirm` ends the existing managed Session and its terminal processes. Use `--detach` for admission only and retain the returned ID for `operation status <id>`. Explicit retry requires `--retry --request-id <id> --confirm`. Cancellation or timeout does not cancel an accepted stop. A matching stopped record and free lifetime lock prove completion; the next `server start` consumes that record and creates a fresh Session. See the [CLI stop contract](docs/native-cli-query.md#windows-session-stop). macOS and Linux stop the same way and publish a final checkpoint, so the next start relaunches their terminals in their saved directories. The release build replaces `--confirm` with the [release confirmation](#release-destructive-confirmation).
 
 ## Release destructive confirmation
 
