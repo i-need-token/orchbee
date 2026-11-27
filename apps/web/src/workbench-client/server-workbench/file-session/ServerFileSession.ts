@@ -10,11 +10,11 @@ import type {
 	FileStatItem,
 	FileTreePort,
 	FileWorkspaceSession,
-	GitPort,
 } from '../../../file-session';
 import { FILES_OPERATIONS } from '../../server-connection';
 import type { ServerFileChannel, ServerFileServiceFollower } from './ServerFileChannel';
 import { ServerFileRootStream } from './ServerFileRootStream';
+import { ServerGitPort } from './ServerGitPort';
 import { readServerFile } from './readServerFile';
 import { CANCELLED, fileFailure, pathBatches, untilAborted } from './server-file-exchange';
 
@@ -32,7 +32,6 @@ interface GrantRecord {
 interface ServerFileSessionOptions {
 	readonly capabilities: ReadonlySet<FileCapability>;
 	readonly channel: ServerFileChannel;
-	readonly git: GitPort;
 	readonly machine: string;
 	/** The session closed, so its port forgets it. */
 	readonly onClosed: () => void;
@@ -52,7 +51,7 @@ const PATHS_PER_STAT = 256;
 export class ServerFileSession implements FileWorkspaceSession, ServerFileServiceFollower {
 	readonly capabilities: ReadonlySet<FileCapability>;
 	readonly content: FileContentPort;
-	readonly git: GitPort;
+	readonly git: ServerGitPort;
 	readonly grants: FileGrantPort;
 	readonly machine: string;
 	readonly tree: FileTreePort;
@@ -72,7 +71,7 @@ export class ServerFileSession implements FileWorkspaceSession, ServerFileServic
 
 	constructor(options: ServerFileSessionOptions) {
 		this.capabilities = options.capabilities;
-		this.git = options.git;
+		this.git = new ServerGitPort(options.channel, options.workspaceId);
 		this.machine = options.machine;
 		this.workspaceId = options.workspaceId;
 		this.#channel = options.channel;
@@ -110,6 +109,7 @@ export class ServerFileSession implements FileWorkspaceSession, ServerFileServic
 		this.#abort.abort();
 		this.#unfollow();
 		this.#root.close();
+		this.git.close();
 		const { loads } = this.#channel;
 		for (const folder of this.#loaded) loads.drop(this.workspaceId, folder);
 		this.#loaded.clear();

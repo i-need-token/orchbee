@@ -116,6 +116,31 @@ export function encodeFilesRequestRecord(body: Uint8Array): Uint8Array | null {
 	return record;
 }
 
+/**
+ * Frames one piece of an upload as an OBFB Put at `offset` of its transfer; the final piece is
+ * flagged `last` and `commit`, which applies the upload. Null for a zero transfer or beyond 128 KiB.
+ */
+export function encodeFilesPutRecord(
+	transfer: bigint,
+	offset: bigint,
+	final: boolean,
+	data: Uint8Array,
+): Uint8Array | null {
+	if (transfer === 0n || data.byteLength > MAXIMUM_DATA_BYTES) return null;
+	const length = PUT_PREFIX_BYTES + data.byteLength;
+	const record = new Uint8Array(HEADER_BYTES + length);
+	const view = new DataView(record.buffer);
+	record.set(MAGIC);
+	view.setUint16(4, RECORD_VERSION);
+	view.setUint16(6, PUT);
+	view.setUint32(8, length);
+	view.setBigUint64(HEADER_BYTES, transfer);
+	view.setBigUint64(HEADER_BYTES + 8, offset);
+	view.setUint8(HEADER_BYTES + 16, final ? LAST | COMMIT : 0);
+	record.set(data, HEADER_BYTES + PUT_PREFIX_BYTES);
+	return record;
+}
+
 /** Takes apart a record a Server sent at `place`; null unless `checkFilesRecord` admits it there. */
 export function decodeFilesRecord(
 	record: Uint8Array,

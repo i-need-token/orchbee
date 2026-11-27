@@ -2,8 +2,11 @@ export { decodeAgentReadResult, encodeAgentReadRequest } from './agent-read-carr
 export { createClientServerRequestId } from './client-server-carrier';
 export {
 	FILES_OPERATIONS,
+	FILES_PUT,
 	FILES_READ_CHUNK,
+	FILES_RELAY_STREAM,
 	FILES_ROOT_STREAM,
+	FILES_SCM_STREAM,
 	type FilesReply,
 	type FilesRootSnapshot,
 	type FilesRootUpdate,

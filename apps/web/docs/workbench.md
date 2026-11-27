@@ -176,7 +176,9 @@ shows. A window without the input opens no session. Desktop passes it where it o
 Bar and the shown Session's handshake lists `files`: that Session's runtime opens sessions through
 `ServerFileSessionPort` over its connection and closes them when it is disposed. No build offers
 `files` before its Server relays File Bar streams to `orchbee-files`, so no window opens a session
-yet, and a session's Source Control answers every request `unavailable`.
+yet. A session's Source Control shares its connection: its summary and prompt streams stay open
+while something follows them, and each Git change runs on a lane of its own, so a change its caller
+gives up stops its Git process.
 
 Where the File Bar is offered, the Workbench also holds a `WorkbenchNotificationQueue` and shows
 its cards above the floating status notice, at the toast layer and so above the overlay. A card has

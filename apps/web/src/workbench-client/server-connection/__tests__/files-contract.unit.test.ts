@@ -3,7 +3,13 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import { FILES_OPERATIONS, FILES_READ_CHUNK, FILES_ROOT_STREAM } from '../files-contract';
+import {
+	FILES_OPERATIONS,
+	FILES_READ_CHUNK,
+	FILES_RELAY_STREAM,
+	FILES_ROOT_STREAM,
+	FILES_SCM_STREAM,
+} from '../files-contract';
 import { readFilesJson } from '../files-json';
 
 async function readSchemaFile(name: string): Promise<unknown> {
@@ -52,13 +58,27 @@ function frame(kind: number, body: Uint8Array): Uint8Array {
 	return record;
 }
 
-/** How this binding reads each operation's Result; the Git operations are not bound yet. */
+interface BoundStream {
+	readonly decodeFailure: (record: Uint8Array) => unknown;
+	readonly decodeNotice: (kind: 'snapshot' | 'update', record: Uint8Array) => unknown;
+	readonly encode: (request: never) => Uint8Array | null;
+}
+
+const EVENTS_STREAMS: ReadonlyMap<string, BoundStream> = new Map<string, BoundStream>([
+	['fs.subscribe', FILES_ROOT_STREAM],
+	['relay.subscribe', FILES_RELAY_STREAM],
+	['scm.subscribe', FILES_SCM_STREAM],
+]);
+
+/** How this binding reads each operation's Result. */
 const replyReaders = new Map<string, (record: Uint8Array) => unknown>([
 	...Object.entries(FILES_OPERATIONS).map(
 		([op, operation]) => [op, (record: Uint8Array) => operation.decode(record)] as const,
 	),
 	['fs.read-chunk', (record) => FILES_READ_CHUNK.decode(record)],
-	['fs.subscribe', (record) => FILES_ROOT_STREAM.decodeFailure(record)],
+	...[...EVENTS_STREAMS].map(
+		([op, stream]) => [op, (record: Uint8Array) => stream.decodeFailure(record)] as const,
+	),
 ]);
 
 function readReply(document: z.output<typeof documentCase>): unknown {
@@ -67,11 +87,10 @@ function readReply(document: z.output<typeof documentCase>): unknown {
 	return read(frame(RESULT, bodyOf(document)));
 }
 
-function readRootNotice(document: z.output<typeof documentCase>): unknown {
-	return FILES_ROOT_STREAM.decodeNotice(
-		document.kind ?? 'snapshot',
-		frame(NOTICE, bodyOf(document)),
-	);
+function readNotice(document: z.output<typeof documentCase>): unknown {
+	const stream = EVENTS_STREAMS.get(document.op ?? '');
+	if (stream === undefined) throw new Error(`No stream for ${document.op ?? 'a missing op'}.`);
+	return stream.decodeNotice(document.kind ?? 'snapshot', frame(NOTICE, bodyOf(document)));
 }
 
 /** How this binding frames each operation's request. */
@@ -80,7 +99,18 @@ const requestEncoders = new Map<string, (request: never) => Uint8Array | null>([
 		([op, operation]) => [op, (request: never) => operation.encode(request)] as const,
 	),
 	['fs.read-chunk', (request) => FILES_READ_CHUNK.encode(request)],
-	['fs.subscribe', (request) => FILES_ROOT_STREAM.encode(request)],
+	...[...EVENTS_STREAMS].map(
+		([op, stream]) => [op, (request: never) => stream.encode(request)] as const,
+	),
+]);
+/** Booleans a request requires, which its encoder writes even when false. */
+const REQUIRED_FLAGS: ReadonlyMap<string, readonly string[]> = new Map([
+	['client.focus', ['focused']],
+	['git.commit', ['amend', 'noVerify', 'signoff']],
+	['git.fetch', ['background', 'prune']],
+	['git.pull', ['rebase']],
+	['git.push', ['setUpstream', 'tags']],
+	['git.sync', ['rebase']],
 ]);
 const requestOp = z.looseObject({ op: z.string() });
 
@@ -96,7 +126,8 @@ const boundRequest = ({ json, text }: z.output<typeof documentCase>): boolean =>
 	return text === undefined && parsed.success && requestEncoders.has(parsed.data.op);
 };
 const boundReply = ({ op }: z.output<typeof documentCase>): boolean => replyReaders.has(op ?? '');
-const rootNotice = ({ op }: z.output<typeof documentCase>): boolean => op === 'fs.subscribe';
+const boundNotice = ({ op }: z.output<typeof documentCase>): boolean =>
+	EVENTS_STREAMS.has(op ?? '');
 
 describe('File Bar contract binding', () => {
 	it.each(corpus.replies.valid.filter(boundReply))('admits the $op reply $name', (document) => {
@@ -107,14 +138,14 @@ describe('File Bar contract binding', () => {
 		expect(readReply(document)).toBeNull();
 	});
 
-	it.each(corpus.notices.valid.filter(rootNotice))('admits the root notice $name', (document) => {
-		expect(readRootNotice(document)).not.toBeNull();
+	it.each(corpus.notices.valid.filter(boundNotice))('admits the $op notice $name', (document) => {
+		expect(readNotice(document)).not.toBeNull();
 	});
 
-	it.each(corpus.notices.invalid.filter(rootNotice))(
-		'refuses the root notice $name',
+	it.each(corpus.notices.invalid.filter(boundNotice))(
+		'refuses the $op notice $name',
 		(document) => {
-			expect(readRootNotice(document)).toBeNull();
+			expect(readNotice(document)).toBeNull();
 		},
 	);
 
@@ -159,7 +190,10 @@ describe('File Bar contract binding', () => {
 
 		expect(validateRequest(json)).toBe(true);
 		// Encoders omit an optional boolean that is false.
-		expect(Object.values(z.record(z.string(), z.unknown()).parse(json))).not.toContain(false);
+		const members = z.record(z.string(), z.unknown()).parse(json);
+		const required = REQUIRED_FLAGS.get(requestOp.parse(json).op) ?? [];
+		const optional = Object.entries(members).filter(([name]) => !required.includes(name));
+		expect(optional.map(([, value]) => value)).not.toContain(false);
 	});
 
 	it.each(corpus.requests.invalid.filter(boundRequest))(

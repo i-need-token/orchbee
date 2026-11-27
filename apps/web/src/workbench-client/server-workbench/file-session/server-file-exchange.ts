@@ -62,8 +62,14 @@ export function untilAborted<Value>(
 	});
 }
 
-/** Splits paths into requests within the path count and record size a request may carry. */
-export function pathBatches(paths: readonly string[]): readonly (readonly string[])[] {
+/**
+ * Splits paths into requests within the path count and record size a request may carry; most
+ * requests take 256 paths, `git.check-ignore` 1,000.
+ */
+export function pathBatches(
+	paths: readonly string[],
+	pathsPerRequest = PATHS_PER_REQUEST,
+): readonly (readonly string[])[] {
 	const batches: string[][] = [];
 	let batch: string[] = [];
 	let bytes = 0;
@@ -71,7 +77,7 @@ export function pathBatches(paths: readonly string[]): readonly (readonly string
 		const pathBytes = pathEncoder.encode(JSON.stringify(path)).byteLength + 1;
 		if (
 			batch.length > 0 &&
-			(batch.length === PATHS_PER_REQUEST || bytes + pathBytes > PATH_BYTES_PER_REQUEST)
+			(batch.length === pathsPerRequest || bytes + pathBytes > PATH_BYTES_PER_REQUEST)
 		) {
 			batches.push(batch);
 			batch = [];

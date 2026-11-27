@@ -23,6 +23,8 @@ interface ServerFileRequestOptions {
 	readonly laneId?: bigint | undefined;
 	/** Gives up waiting for room; a request already sent still runs. */
 	readonly signal?: AbortSignal | undefined;
+	/** How long the Result may take once sent, for calls that outlast the connection's default. */
+	readonly timeoutMilliseconds?: number | undefined;
 }
 
 /** Bytes each chunk asks for: 128 KiB from this computer's Server, 32 KiB from another's. */
@@ -119,10 +121,12 @@ export class ServerFileChannel {
 		try {
 			let result: Uint8Array;
 			try {
-				result = await this.connection.exchange(
-					record,
-					options.laneId === undefined ? {} : { laneId: options.laneId },
-				);
+				result = await this.connection.exchange(record, {
+					...(options.laneId === undefined ? {} : { laneId: options.laneId }),
+					...(options.timeoutMilliseconds === undefined
+						? {}
+						: { timeoutMilliseconds: options.timeoutMilliseconds }),
+				});
 			} catch (error) {
 				return { error: unansweredError(error), kind: 'error' };
 			}

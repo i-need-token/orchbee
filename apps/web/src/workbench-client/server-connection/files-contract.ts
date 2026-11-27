@@ -1,20 +1,27 @@
 /**
  * The web Client's binding of the File Bar operations `schemas/files` states, for the operations
- * its file sessions send: listing, stat, grants, reads and the root stream. It frames requests only
- * once they meet the contract, so a request that would break it fails here instead of on the
- * Server, and it reads replies and notices under the contract's JSON rules and the Client's
- * compatibility rules: an error code it does not know reads as `failed`, an `unavailable` reason it
- * does not know is absent, and a notice it cannot read is absent. The Git operations join with the
- * Git adapter.
+ * its file sessions send: listing, stat, grants, reads, Source Control and the Events streams. It
+ * frames requests only once they meet the contract, so a request that would break it fails here
+ * instead of on the Server, and it reads replies and notices under the contract's JSON rules and the
+ * Client's compatibility rules: an error code it does not know reads as `failed`, an `unavailable`
+ * reason it does not know is absent, and a notice it cannot read is absent.
  */
 import { z } from 'zod';
 
 import { isWellFormedText, readFilesJson } from './files-json';
-import { type FilesChunk, decodeFilesRecord, encodeFilesRequestRecord } from './files-record-codec';
+import {
+	type FilesChunk,
+	decodeFilesRecord,
+	encodeFilesPutRecord,
+	encodeFilesRequestRecord,
+} from './files-record-codec';
 
 const MAXIMUM_PATH_BYTES = 4096;
 const MAXIMUM_NAME_BYTES = 1024;
 const MAXIMUM_DETAIL_BYTES = 4096;
+const MAXIMUM_PROMPT_BYTES = 4096;
+const MAXIMUM_MESSAGE_BYTES = 16_384;
+const MAXIMUM_OUTPUT_BYTES = 131_072;
 const MAXIMUM_U64 = 18_446_744_073_709_551_615n;
 
 /** The error codes `schemas/files` names; `remote-disconnected` is the Client's own. */
@@ -138,6 +145,13 @@ const flagSchema = z
 	.optional()
 	.transform((flag) => (flag === true ? true : undefined));
 
+/** A counter the Client counts with, which must stay within a safe integer. */
+const countSchema = counterSchema.transform(Number).refine(Number.isSafeInteger);
+const safeIntegerSchema = z.int().min(0);
+const commitSchema = z.string().regex(/^(?:[0-9a-f]{40}|[0-9a-f]{64})$/);
+/** A remote or branch name, which never starts with `-`, so git never reads it as an option. */
+const gitNameSchema = textSchema(MAXIMUM_NAME_BYTES, 1).refine((name) => !name.startsWith('-'));
+
 const errorSchema = z
 	.strictObject({
 		code: tokenSchema,
@@ -257,6 +271,236 @@ export type FilesRootSnapshot = z.output<typeof fsSnapshotSchema>;
 /** One change an `fs.subscribe` stream reports after its snapshot. */
 export type FilesRootUpdate = z.output<typeof fsUpdateSchema>;
 
+const statusLetterSchema = z.enum(['.', 'M', 'T', 'A', 'D', 'R', 'C', 'U', '?', '!']);
+const statusEntrySchema = z
+	.strictObject({
+		original: pathSchema.optional(),
+		path: pathSchema,
+		submodule: z.boolean(),
+		x: statusLetterSchema,
+		y: statusLetterSchema,
+	})
+	.transform(({ original, ...entry }) => ({ ...entry, original: original ?? null }));
+const gitStatusPageResultSchema = z
+	.strictObject({
+		cursor: pageCursorSchema.optional(),
+		entries: z.array(statusEntrySchema).max(2000),
+	})
+	.transform(({ cursor, entries }) => ({ cursor: cursor ?? null, entries }));
+
+const scmRepositorySchema = z
+	.strictObject({
+		busy: z
+			.enum([
+				'clean',
+				'commit',
+				'discard',
+				'fetch',
+				'pull',
+				'push',
+				'stage',
+				'stage-content',
+				'sync',
+				'unstage',
+			])
+			.optional(),
+		counts: z.strictObject({
+			index: safeIntegerSchema,
+			merge: safeIntegerSchema,
+			untracked: safeIntegerSchema,
+			workingTree: safeIntegerSchema,
+		}),
+		head: z.strictObject({
+			branch: textSchema(MAXIMUM_NAME_BYTES, 1).optional(),
+			commit: commitSchema.optional(),
+			detached: z.boolean(),
+			unborn: z.boolean(),
+		}),
+		kind: z.enum(['file', 'nested', 'parent', 'root']),
+		operation: z.enum(['cherry-pick', 'merge', 'none', 'rebase', 'revert']),
+		repository: pathSchema,
+		revision: countSchema,
+		stale: z.boolean(),
+		truncated: z.boolean(),
+		upstream: z
+			.strictObject({
+				ahead: safeIntegerSchema,
+				behind: safeIntegerSchema,
+				name: textSchema(MAXIMUM_NAME_BYTES, 1),
+			})
+			.optional(),
+		warm: z.boolean(),
+	})
+	.transform(({ busy, head, upstream, ...repository }) => ({
+		...repository,
+		busy: busy !== undefined,
+		head: {
+			branch: head.branch ?? null,
+			commit: head.commit ?? null,
+			detached: head.detached,
+			unborn: head.unborn,
+		},
+		upstream: upstream ?? null,
+	}));
+const scmSummarySchema = z.strictObject({
+	candidates: z.array(pathSchema).max(256),
+	git: z
+		.strictObject({
+			state: z.enum(['missing', 'ok', 'too-old']),
+			version: textSchema(64, 1).optional(),
+		})
+		.transform(({ state, version }) => ({ state, version: version ?? null })),
+	repositories: z.array(scmRepositorySchema).max(256),
+	repositoriesTruncated: z.boolean(),
+	unsafe: z.array(pathSchema).max(256),
+});
+
+const promptSchema = z
+	.strictObject({
+		id: identitySchema,
+		kind: z.enum(['editor', 'host-key', 'passphrase', 'password', 'username']),
+		path: pathSchema.optional(),
+		repository: pathSchema,
+		text: textSchema(MAXIMUM_PROMPT_BYTES, 0),
+	})
+	.transform(({ path, ...prompt }) => ({ ...prompt, path: path ?? null }));
+const relaySnapshotSchema = z
+	.strictObject({ prompts: z.array(promptSchema).max(16) })
+	.transform(({ prompts }) => prompts);
+const relayUpdateSchema = z.union([
+	z.strictObject({ kind: z.literal('prompt'), prompt: promptSchema }),
+	z.strictObject({ id: identitySchema, kind: z.literal('closed') }),
+]);
+
+const gitRefsResultSchema = z
+	.strictObject({
+		cursor: pageCursorSchema.optional(),
+		refs: z
+			.array(
+				z
+					.strictObject({
+						commit: commitSchema,
+						name: textSchema(MAXIMUM_NAME_BYTES, 1),
+						type: z.enum(['head', 'remote-head', 'tag']),
+						upstream: z.strictObject({ name: gitNameSchema, remote: gitNameSchema }).optional(),
+					})
+					.transform(({ upstream, ...ref }) => ({
+						...ref,
+						upstream: upstream === undefined ? null : `${upstream.remote}/${upstream.name}`,
+					})),
+			)
+			.max(2000),
+		remotes: z
+			.array(
+				z
+					.strictObject({
+						fetchUrl: textSchema(MAXIMUM_PATH_BYTES, 1).optional(),
+						name: gitNameSchema,
+						pushUrl: textSchema(MAXIMUM_PATH_BYTES, 1).optional(),
+					})
+					.transform(({ fetchUrl, name, pushUrl }) => ({
+						fetchUrl: fetchUrl ?? null,
+						name,
+						pushUrl: pushUrl ?? null,
+					})),
+			)
+			.max(256),
+	})
+	.transform(({ cursor, refs, remotes }) => ({ cursor: cursor ?? null, refs, remotes }));
+const gitUserConfigResultSchema = z
+	.strictObject({
+		email: textSchema(MAXIMUM_NAME_BYTES, 0).optional(),
+		name: textSchema(MAXIMUM_NAME_BYTES, 0).optional(),
+	})
+	.transform(({ email, name }) => ({ email: email ?? null, name: name ?? null }));
+const gitOutputResultSchema = z.strictObject({
+	cursor: counterSchema,
+	dropped: countSchema,
+	text: textSchema(MAXIMUM_OUTPUT_BYTES, 0),
+});
+
+const gitCleanItemsSchema = z
+	.array(
+		z
+			.strictObject({ error: errorSchema.optional(), path: pathSchema })
+			.transform(({ error, path }) => ({ error: error ?? null, path })),
+	)
+	.min(1)
+	.max(256);
+const doneSchema = emptyResultSchema.transform(() => ({ kind: 'done' as const }));
+const gitCleanResultSchema = z
+	.strictObject({ items: gitCleanItemsSchema })
+	.transform(({ items }) => ({ items, kind: 'cleaned' as const }));
+const gitCommitResultSchema = z
+	.strictObject({ commit: commitSchema })
+	.transform(({ commit }) => ({ commit, kind: 'committed' as const }));
+const gitInitResultSchema = z
+	.strictObject({ repository: pathSchema })
+	.transform(({ repository }) => ({ kind: 'initialized' as const, repository }));
+/** A mutation's recorded Result, as `request.outcome` repeats it. */
+const mutationReplySchema = z.union([
+	errorReplySchema.transform(({ error }) => ({ error, kind: 'error' as const })),
+	z
+		.union([doneSchema, gitCleanResultSchema, gitCommitResultSchema, gitInitResultSchema])
+		.transform((value) => ({ kind: 'ok' as const, value })),
+]);
+const requestOutcomeResultSchema = z.union([
+	z.strictObject({ result: mutationReplySchema, state: z.literal('completed') }),
+	z.strictObject({ state: z.enum(['running', 'unknown']) }),
+]);
+
+const gitPathsRequestSchema = <Op extends 'git.discard' | 'git.stage' | 'git.unstage'>(op: Op) =>
+	z.strictObject({
+		op: z.literal(op),
+		paths: pathsSchema,
+		repository: pathSchema,
+		requestId: identitySchema,
+		workspaceId: identitySchema,
+	});
+const gitPullRequestSchema = <Op extends 'git.pull' | 'git.sync'>(op: Op) =>
+	z.strictObject({
+		op: z.literal(op),
+		rebase: z.boolean(),
+		repository: pathSchema,
+		requestId: identitySchema,
+		workspaceId: identitySchema,
+	});
+const gitPathRequestSchema = <Op extends 'git.init' | 'git.mark-safe'>(op: Op) =>
+	z.strictObject({
+		op: z.literal(op),
+		path: pathSchema,
+		requestId: identitySchema,
+		workspaceId: identitySchema,
+	});
+/** A false member that only names the other form of a request, which an encoder omits. */
+const otherFormSchema = z
+	.literal(false)
+	.optional()
+	.transform(() => undefined);
+const commitFields = {
+	all: z.enum(['all', 'none', 'tracked']),
+	amend: z.boolean(),
+	noVerify: z.boolean(),
+	op: z.literal('git.commit'),
+	repository: pathSchema,
+	requestId: identitySchema,
+	signoff: z.boolean(),
+	workspaceId: identitySchema,
+};
+const fetchFields = {
+	background: z.boolean(),
+	op: z.literal('git.fetch'),
+	prune: z.boolean(),
+	repository: pathSchema,
+	requestId: identitySchema,
+	workspaceId: identitySchema,
+};
+const answerFields = {
+	op: z.literal('relay.answer'),
+	prompt: identitySchema,
+	workspaceId: identitySchema,
+};
+
 const pathsRequestSchema = <Op extends 'fs.release' | 'fs.stat' | 'fs.ungrant'>(op: Op) =>
 	z.strictObject({ op: z.literal(op), paths: pathsSchema, workspaceId: identitySchema });
 const repositoryRequestSchema = <Op extends 'repository.close' | 'repository.consent'>(op: Op) =>
@@ -302,6 +546,14 @@ function requestOperation<RequestSchema extends z.ZodType, Value>(
 
 /** The request-mode operations whose Result carries JSON, by their wire names. */
 export const FILES_OPERATIONS = {
+	'client.focus': requestOperation(
+		z.strictObject({
+			focused: z.boolean(),
+			op: z.literal('client.focus'),
+			workspaceId: identitySchema,
+		}),
+		emptyResultSchema,
+	),
 	'fs.grant': requestOperation(
 		z.strictObject({
 			op: z.literal('fs.grant'),
@@ -345,6 +597,137 @@ export const FILES_OPERATIONS = {
 	'fs.release': requestOperation(pathsRequestSchema('fs.release'), emptyResultSchema),
 	'fs.stat': requestOperation(pathsRequestSchema('fs.stat'), fsStatResultSchema),
 	'fs.ungrant': requestOperation(pathsRequestSchema('fs.ungrant'), emptyResultSchema),
+	'git.check-ignore': requestOperation(
+		z.strictObject({
+			op: z.literal('git.check-ignore'),
+			paths: z.array(pathSchema).min(1).max(1000),
+			repository: pathSchema,
+			workspaceId: identitySchema,
+		}),
+		z.strictObject({ ignored: z.array(pathSchema).max(1000) }).transform(({ ignored }) => ignored),
+	),
+	'git.clean': requestOperation(
+		z.strictObject({
+			mode: z.enum(['permanent', 'trash']),
+			op: z.literal('git.clean'),
+			paths: pathsSchema,
+			repository: pathSchema,
+			requestId: identitySchema,
+			workspaceId: identitySchema,
+		}),
+		gitCleanResultSchema,
+	),
+	'git.commit': requestOperation(
+		z.union([
+			z.strictObject({
+				...commitFields,
+				editor: otherFormSchema,
+				message: textSchema(MAXIMUM_MESSAGE_BYTES, 0),
+			}),
+			z.strictObject({ ...commitFields, editor: z.literal(true) }),
+		]),
+		gitCommitResultSchema,
+	),
+	'git.discard': requestOperation(gitPathsRequestSchema('git.discard'), doneSchema),
+	'git.fetch': requestOperation(
+		z.union([
+			z.strictObject({ ...fetchFields, all: otherFormSchema, remote: gitNameSchema }),
+			z.strictObject({ ...fetchFields, all: flagSchema }),
+		]),
+		doneSchema,
+	),
+	'git.init': requestOperation(gitPathRequestSchema('git.init'), gitInitResultSchema),
+	'git.mark-safe': requestOperation(gitPathRequestSchema('git.mark-safe'), doneSchema),
+	'git.output': requestOperation(
+		z.strictObject({
+			cursor: counterSchema.optional(),
+			op: z.literal('git.output'),
+			workspaceId: identitySchema,
+		}),
+		gitOutputResultSchema,
+	),
+	'git.pull': requestOperation(gitPullRequestSchema('git.pull'), doneSchema),
+	'git.push': requestOperation(
+		z.strictObject({
+			branch: gitNameSchema.optional(),
+			force: z.enum(['force', 'lease', 'none']),
+			op: z.literal('git.push'),
+			remote: gitNameSchema.optional(),
+			repository: pathSchema,
+			requestId: identitySchema,
+			setUpstream: z.boolean(),
+			tags: z.boolean(),
+			workspaceId: identitySchema,
+		}),
+		doneSchema,
+	),
+	'git.refs': requestOperation(
+		z.strictObject({
+			cursor: pageCursorSchema.optional(),
+			op: z.literal('git.refs'),
+			repository: pathSchema,
+			workspaceId: identitySchema,
+		}),
+		gitRefsResultSchema,
+	),
+	'git.show': requestOperation(
+		z.strictObject({
+			encoding: encodingSchema.optional(),
+			limit: z.int().min(0),
+			mode: z.enum(['bytes', 'text']),
+			op: z.literal('git.show'),
+			path: pathSchema,
+			ref: z.string().regex(/^(?:HEAD|index|[0-9a-f]{40}|[0-9a-f]{64})$/),
+			repository: pathSchema,
+			transfer: transferSchema,
+			workspaceId: identitySchema,
+		}),
+		readResultSchema,
+	),
+	'git.stage': requestOperation(gitPathsRequestSchema('git.stage'), doneSchema),
+	'git.stage-content': requestOperation(
+		z.strictObject({
+			op: z.literal('git.stage-content'),
+			path: pathSchema,
+			repository: pathSchema,
+			requestId: identitySchema,
+			size: safeIntegerSchema,
+			transfer: transferSchema,
+			workspaceId: identitySchema,
+		}),
+		doneSchema,
+	),
+	'git.status-page': requestOperation(
+		z.strictObject({
+			cursor: pageCursorSchema.optional(),
+			op: z.literal('git.status-page'),
+			repository: pathSchema,
+			revision: counterSchema,
+			workspaceId: identitySchema,
+		}),
+		gitStatusPageResultSchema,
+	),
+	'git.sync': requestOperation(gitPullRequestSchema('git.sync'), doneSchema),
+	'git.unstage': requestOperation(gitPathsRequestSchema('git.unstage'), doneSchema),
+	'git.user-config': requestOperation(
+		z.strictObject({
+			op: z.literal('git.user-config'),
+			repository: pathSchema,
+			workspaceId: identitySchema,
+		}),
+		gitUserConfigResultSchema,
+	),
+	'relay.answer': requestOperation(
+		z.union([
+			z.strictObject({
+				...answerFields,
+				cancelled: otherFormSchema,
+				value: textSchema(MAXIMUM_PROMPT_BYTES, 0),
+			}),
+			z.strictObject({ ...answerFields, cancelled: flagSchema }),
+		]),
+		emptyResultSchema,
+	),
 	'repository.close': requestOperation(
 		repositoryRequestSchema('repository.close'),
 		emptyResultSchema,
@@ -352,6 +735,14 @@ export const FILES_OPERATIONS = {
 	'repository.consent': requestOperation(
 		repositoryRequestSchema('repository.consent'),
 		emptyResultSchema,
+	),
+	'request.outcome': requestOperation(
+		z.strictObject({
+			op: z.literal('request.outcome'),
+			requestId: identitySchema,
+			workspaceId: identitySchema,
+		}),
+		requestOutcomeResultSchema,
 	),
 	'transfer.close': requestOperation(
 		z.strictObject({
@@ -390,38 +781,74 @@ export const FILES_READ_CHUNK = {
 	},
 };
 
-const fsSubscribeRequestSchema = z.strictObject({
-	op: z.literal('fs.subscribe'),
-	workspaceId: identitySchema,
-});
+/** A Put, one piece of an upload behind its opening request, which a Result answers. */
+export const FILES_PUT = {
+	decode: (record: Uint8Array): FilesReply<null> | null => decodeResult(record, emptyResultSchema),
+	encode: encodeFilesPutRecord,
+};
 
-/** `fs.subscribe`, an Events stream that a Result answers only to fail. */
-export const FILES_ROOT_STREAM = {
+/** An Events stream, which a Result answers only to fail. */
+interface FilesEventsStream<Request, Snapshot, Update> {
 	/** The failure a Result reported; null when the record reports none. */
-	decodeFailure(record: Uint8Array): FilesError | null {
-		const failure = decodeResult(record, null);
-		return failure?.kind === 'error' ? failure.error : null;
-	},
+	decodeFailure(record: Uint8Array): FilesError | null;
 	/** A Snapshot or Update frame's notice; null for a notice this Client cannot read. */
 	decodeNotice(
 		kind: 'snapshot' | 'update',
 		record: Uint8Array,
 	):
-		| { readonly kind: 'snapshot'; readonly snapshot: FilesRootSnapshot }
-		| { readonly kind: 'update'; readonly update: FilesRootUpdate }
-		| null {
-		const decoded = decodeFilesRecord(record, 'notice-frame');
-		if (decoded?.kind !== 'notice') return null;
-		const read = readFilesJson(decoded.body);
-		if (read.kind === 'malformed') return null;
-		if (kind === 'snapshot') {
-			const snapshot = fsSnapshotSchema.safeParse(read.value);
-			return snapshot.success ? { kind, snapshot: snapshot.data } : null;
-		}
-		const update = fsUpdateSchema.safeParse(read.value);
-		return update.success ? { kind, update: update.data } : null;
-	},
-	encode(request: z.input<typeof fsSubscribeRequestSchema>): Uint8Array | null {
-		return encodeRequest(fsSubscribeRequestSchema, request);
-	},
-};
+		| { readonly kind: 'snapshot'; readonly snapshot: Snapshot }
+		| { readonly kind: 'update'; readonly update: Update }
+		| null;
+	encode(request: Request): Uint8Array | null;
+}
+
+function eventsStream<RequestSchema extends z.ZodType, Snapshot, Update>(
+	request: RequestSchema,
+	snapshot: z.ZodType<Snapshot>,
+	update: z.ZodType<Update>,
+): FilesEventsStream<z.input<RequestSchema>, Snapshot, Update> {
+	return {
+		decodeFailure(record) {
+			const failure = decodeResult(record, null);
+			return failure?.kind === 'error' ? failure.error : null;
+		},
+		decodeNotice(kind, record) {
+			const decoded = decodeFilesRecord(record, 'notice-frame');
+			if (decoded?.kind !== 'notice') return null;
+			const read = readFilesJson(decoded.body);
+			if (read.kind === 'malformed') return null;
+			if (kind === 'snapshot') {
+				const parsed = snapshot.safeParse(read.value);
+				return parsed.success ? { kind, snapshot: parsed.data } : null;
+			}
+			const parsed = update.safeParse(read.value);
+			return parsed.success ? { kind, update: parsed.data } : null;
+		},
+		encode: (value) => encodeRequest(request, value),
+	};
+}
+
+const subscribeRequestSchema = <Op extends 'fs.subscribe' | 'relay.subscribe' | 'scm.subscribe'>(
+	op: Op,
+) => z.strictObject({ op: z.literal(op), workspaceId: identitySchema });
+
+/** `fs.subscribe`: the root's facts, then its changes. */
+export const FILES_ROOT_STREAM = eventsStream(
+	subscribeRequestSchema('fs.subscribe'),
+	fsSnapshotSchema,
+	fsUpdateSchema,
+);
+
+/** `scm.subscribe`: the whole Source Control summary, again on every change. */
+export const FILES_SCM_STREAM = eventsStream(
+	subscribeRequestSchema('scm.subscribe'),
+	scmSummarySchema,
+	scmSummarySchema,
+);
+
+/** `relay.subscribe`: the prompts open for this connection, then each prompt and its closing. */
+export const FILES_RELAY_STREAM = eventsStream(
+	subscribeRequestSchema('relay.subscribe'),
+	relaySnapshotSchema,
+	relayUpdateSchema,
+);

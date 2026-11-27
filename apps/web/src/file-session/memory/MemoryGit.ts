@@ -113,6 +113,7 @@ export class MemoryGit {
 	private readonly answered: MemoryGitAnswer[] = [];
 	private commits = 0;
 	private handler: MemoryGitHandler;
+	private readonly focuses = new Map<string, boolean>();
 	private readonly ignored = new Map<string, ReadonlySet<string>>();
 	private nextCursor = 1;
 	private readonly outputs = new Map<string, string>();
@@ -243,6 +244,11 @@ export class MemoryGit {
 		}
 	}
 
+	/** What the Workspace's sessions last told of focus; null before any did. */
+	public focusOf(workspaceId: string): boolean | null {
+		return this.focuses.get(workspaceId) ?? null;
+	}
+
 	/** Ends a closed session's status cursors. */
 	public release(session: MemorySessionState): void {
 		for (const [cursor, position] of this.statusCursors) {
@@ -260,6 +266,9 @@ export class MemoryGit {
 					this.closePrompt(workspaceId, promptId);
 					return ok(null);
 				}),
+			focus: (focused) => {
+				if (!session.closed) this.focuses.set(workspaceId, focused);
+			},
 			checkIgnore: (request, signal) =>
 				this.answering.answer(session, signal, () => {
 					const ignored = this.ignored.get(request.repository);

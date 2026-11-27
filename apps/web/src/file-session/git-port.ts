@@ -80,9 +80,9 @@ export interface GitRef {
 }
 
 export interface GitRemote {
-	readonly fetchUrl: string;
+	readonly fetchUrl: string | null;
 	readonly name: string;
-	readonly pushUrl: string;
+	readonly pushUrl: string | null;
 }
 
 interface GitRefsPage {
@@ -198,6 +198,11 @@ export interface GitPort {
 		request: { readonly paths: readonly string[]; readonly repository: string },
 		signal: AbortSignal,
 	): Promise<FileResult<readonly string[]>>;
+	/**
+	 * Tells the backend whether the window has focus while it shows this Workspace: automatic status
+	 * refreshes after file changes wait for a focused Client.
+	 */
+	focus(focused: boolean): void;
 	/** Answers whether a change sent with this ID ran, so an uncertain one is never repeated. */
 	outcome(requestId: string, signal: AbortSignal): Promise<FileResult<GitRequestOutcome>>;
 	output(cursor: string | null, signal: AbortSignal): Promise<FileResult<GitOutputPage>>;

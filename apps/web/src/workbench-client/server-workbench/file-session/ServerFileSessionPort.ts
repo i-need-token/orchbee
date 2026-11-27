@@ -2,7 +2,6 @@ import type { FileCapability, FileSessionPort, FileWorkspaceSession } from '../.
 import { ServerFileChannel } from './ServerFileChannel';
 import { ServerFileSession } from './ServerFileSession';
 import type { ServerFileConnection } from './server-file-exchange';
-import { UNAVAILABLE_GIT_PORT } from './unavailable-git-port';
 
 export interface ServerFileSessionOptions {
 	/** The capabilities the Session's handshake negotiated; the File Bar's are kept. */
@@ -44,7 +43,6 @@ export class ServerFileSessionPort implements FileSessionPort {
 		const session: ServerFileSession = new ServerFileSession({
 			capabilities: this.#capabilities,
 			channel: this.#channel,
-			git: UNAVAILABLE_GIT_PORT,
 			machine: this.#machine,
 			onClosed: () => this.#sessions.delete(session),
 			workspaceId,
