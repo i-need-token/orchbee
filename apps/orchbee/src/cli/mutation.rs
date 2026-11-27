@@ -701,9 +701,12 @@ mod workflow {
     /// read a fresh snapshot on the same session and prepare again under the original deadline;
     /// submit again, under a fresh request identity, only when the resolved action and every
     /// further value `prepare` derived from the snapshot are unchanged, at most
-    /// `stale_retry::RETRIES` times. Any other end, including a preparation that now fails or
-    /// differs or a fresh read that fails, reports the last refusal. On success `snapshot` is the
-    /// one the committed command was prepared from.
+    /// `stale_retry::RETRIES` times. A close refused `terminal-busy`, because another Close, such
+    /// as a detached `tab close`, or a starting terminal still holds one of its members, is
+    /// submitted again the same way after a short pause for as long as the deadline allows. Any
+    /// other end, including a preparation that now fails or differs or a fresh read that fails,
+    /// reports the last refusal. On success `snapshot` is the one the committed command was
+    /// prepared from.
     fn submit_fresh<P, I: PartialEq, S: SignalWatch>(
         client: &mut LocalClient,
         snapshot: &mut Snapshot,
@@ -717,6 +720,7 @@ mod workflow {
     ) -> Result<(P, Receipt, WorkbenchAction), Failure> {
         let mut retry = StaleRetry::new(true);
         let mut refused = None;
+        let mut pause = BUSY_PAUSE;
         loop {
             let (prepared, resolved, derived) = match prepare(client, snapshot, signals) {
                 Ok(attempt) => attempt,
@@ -735,7 +739,14 @@ mod workflow {
                 Ok(receipt) => return Ok((prepared, receipt, action)),
                 Err(failure) => failure.source(source),
             };
-            if !retry.reread(Ended::submission(&failure)) {
+            if busy_close(&action, &failure) {
+                if Instant::now() + pause >= deadline
+                    || crate::agent_runtime::wait_backoff(signals.poll_fd(), pause)
+                {
+                    return Err(failure);
+                }
+                pause = (pause * 2).min(BUSY_PAUSE_MAXIMUM);
+            } else if !retry.reread(Ended::submission(&failure)) {
                 return Err(failure);
             }
             match refresh_snapshot(
@@ -750,6 +761,28 @@ mod workflow {
             }
             refused = Some(failure);
         }
+    }
+
+    /// The first pause before a close refused `terminal-busy` is submitted again; each later pause
+    /// doubles up to `BUSY_PAUSE_MAXIMUM`.
+    const BUSY_PAUSE: std::time::Duration = std::time::Duration::from_millis(50);
+    const BUSY_PAUSE_MAXIMUM: std::time::Duration = std::time::Duration::from_millis(400);
+
+    /// A close the Server refused before any effect only because one of its members is still held
+    /// by another lifecycle operation, which settles by itself.
+    fn busy_close(action: &WorkbenchAction, failure: &Failure) -> bool {
+        matches!(
+            action,
+            WorkbenchAction::TabClose { .. }
+                | WorkbenchAction::WorkspaceClose { .. }
+                | WorkbenchAction::PanelClose { .. }
+        ) && failure.kind == FailureKind::ServiceUnavailable
+            && failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("reason"))
+                .and_then(serde_json::Value::as_str)
+                == Some("terminal-busy")
     }
 
     /// The label and bound-terminal count a Tab or Workspace close ends.

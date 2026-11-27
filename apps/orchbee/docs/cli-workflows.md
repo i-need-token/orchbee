@@ -286,7 +286,9 @@ orchbee workspace close "$WS" --confirm     # closes the whole context's termina
 while the Session completes the close asynchronously. `workspace close` reuses
 the same lifecycle at the Workspace's context scope, removes the Workspace
 and its terminal context after cleanup, and preserves its checkout,
-branch, and directories. The retained operation stays answerable by its close request ID
+branch, and directories. A close that reaches a member another close still holds, such as a Tab a
+`tab close --detach` is finishing, waits for that close and is submitted again within its submission
+budget instead of failing `terminal-busy` at once. The retained operation stays answerable by its close request ID
 even after the Workspace leaves the active projection:
 
 ```sh
