@@ -26,6 +26,8 @@ flowchart TB
  Native["apps/orchbee<br/>native CLI / TUI"] <-->|"local Client protocol"| Server["apps/orchbee-server<br/>local Session and Workbench authority"]
  Server <-->|"Worker protocol"| Worker["apps/orchbee-worker<br/>terminal execution coordination"]
  Worker <-->|"terminal protocol / private IPC"| Host["apps/terminal-host<br/>PTY / process / Ghostty VT / history authority"]
+ Worker -. "starts on the Server's request" .-> Files["apps/orchbee-files<br/>File Bar file and Git effects"]
+ Server <-->|"private File Bar link"| Files
  Web["apps/web<br/>React Workbench renderer"] <-->|"local Client protocol, relayed by Desktop Main"| Server
  Web -. "composes" .-> Terminal["@orchbee/terminal<br/>projected terminal client surface"]
  Web -->|"Electron renderer"| Desktop["apps/desktop<br/>local Main / preload and capability brokers"]

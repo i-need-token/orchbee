@@ -171,14 +171,15 @@ they never mutate every connected client's view implicitly.
 
 The durable ownership split is:
 
-| State or effect                                                                  | Owner                                      |
-| -------------------------------------------------------------------------------- | ------------------------------------------ |
-| Project, Workspace, shared Tab/Panel structure, Agent task, and scheduling state | Server product coordinator                 |
-| Worker registration, capability placement, operation authorization, and fencing  | Server product coordinator                 |
-| Terminal launch admission                                                        | Exact Worker                               |
-| PTY, process tree, and terminal state                                            | Exact Terminal Host                        |
-| Optional Checkout, file, Git, and Agent-executor effects                         | Exact separately admitted capability owner |
-| Active location, selection, focus, maximization, window geometry, and clipboard  | Exact Client Session or client platform    |
+| State or effect                                                                  | Owner                                                                                    |
+| -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Project, Workspace, shared Tab/Panel structure, Agent task, and scheduling state | Server product coordinator                                                               |
+| Worker registration, capability placement, operation authorization, and fencing  | Server product coordinator                                                               |
+| Terminal launch admission                                                        | Exact Worker                                                                             |
+| PTY, process tree, and terminal state                                            | Exact Terminal Host                                                                      |
+| The File Bar's file and Git effects                                              | `orchbee-files`, which the Worker starts per Session and the Server scopes per Workspace |
+| Optional Checkout, managed Worktree Git, and Agent-executor effects              | Exact separately admitted capability owner                                               |
+| Active location, selection, focus, maximization, window geometry, and clipboard  | Exact Client Session or client platform                                                  |
 
 ## Accepted names and contract timing
 

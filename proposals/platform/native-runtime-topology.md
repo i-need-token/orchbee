@@ -34,7 +34,9 @@ The accepted direction is:
 - Terminal Host as a separate node-local process and the sole PTY/VT authority; and
 - a narrow Worker baseline for code-agnostic Terminal launch, with Agent runtime effects admitted
   only as an optional capability extension, not a generic Files, Git, remote shell, or
-  arbitrary-command service.
+  arbitrary-command service; the File Bar's file and Git effects belong to the separate
+  `orchbee-files` process, a closed operation set under the Server's Workspace scope, which the
+  Worker only starts.
 
 Terminal creation does not depend on a Project, repository, Checkout, or Worktree. The baseline
 launch contract selects one Worker and carries an optional node-local starting working directory;
@@ -115,6 +117,7 @@ This proposal does not:
 - treat the current Terminal Host wire as the Client-Server or Server-Worker contract, or define a
   durable storage schema, complete public command grammar, or complete UI design;
 - authorize a generic Files, Git, filesystem, remote-shell, or arbitrary-command Worker capability;
+  `orchbee-files` is the scoped owner of the File Bar's file and Git effects, not such a capability;
 - require a Project, repository, Checkout, or Worktree before a terminal can be created;
 - require Agent Bridge, Agent orchestration, or managed Worktree in a terminal-only cohort;
 - select production TLS, Internet relay, NAT traversal, multi-user tenancy, high availability, or
@@ -159,17 +162,20 @@ one-shot ingress helper, not a long-running logical authority or a terminal depe
 
 ## Native executable set
 
-| Executable              | Language | Visibility | Lifetime                        | Accepted responsibility                                                                                                      |
-| ----------------------- | -------- | ---------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `orchbee`               | Rust     | Public     | One-shot CLI or interactive TUI | Human command entry, TUI Client, local Session discovery, and explicit lifecycle commands                                    |
-| `orchbee-server`        | Rust     | Private    | Long-running Session service    | Server authority, Client sessions, canonical product state, placement, optional Agent orchestration, and remote Client relay |
-| `orchbee-worker`        | Rust     | Private    | Long-running per execution node | Node identity, scoped code-agnostic launch, Host brokering, and optional Agent runtime effects                               |
-| `orchbee-terminal-host` | Zig      | Private    | On-demand retained node service | PTY, process tree, canonical Ghostty VT, terminal history, input, and attachment authority                                   |
-| `orchbee-agent-bridge`  | Rust     | Private    | One bounded provider callback   | Sanitize one provider observation, deliver it to the local Worker, and emit private correlation only after exact acceptance  |
+| Executable              | Language | Visibility | Lifetime                                            | Accepted responsibility                                                                                                          |
+| ----------------------- | -------- | ---------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `orchbee`               | Rust     | Public     | One-shot CLI or interactive TUI                     | Human command entry, TUI Client, local Session discovery, and explicit lifecycle commands                                        |
+| `orchbee-server`        | Rust     | Private    | Long-running Session service                        | Server authority, Client sessions, canonical product state, placement, optional Agent orchestration, and remote Client relay     |
+| `orchbee-worker`        | Rust     | Private    | Long-running per execution node                     | Node identity, scoped code-agnostic launch, Host brokering, and optional Agent runtime effects                                   |
+| `orchbee-terminal-host` | Zig      | Private    | On-demand retained node service                     | PTY, process tree, canonical Ghostty VT, terminal history, input, and attachment authority                                       |
+| `orchbee-agent-bridge`  | Rust     | Private    | One bounded provider callback                       | Sanitize one provider observation, deliver it to the local Worker, and emit private correlation only after exact acceptance      |
+| `orchbee-files`         | Rust     | Private    | On demand per Session; exits after ten idle minutes | The File Bar's file and Git effects: a closed operation set over the Server's link, inside the Workspace scope the Server states |
 
 The first four executable roles form the terminal-capable baseline. A full Agent-capable
 distribution also recognizes `orchbee-agent-bridge`; it is installed as a versioned Capsule asset
-and is not resident when unused.
+and is not resident when unused. `orchbee-files` serves the File Bar: the Worker starts it beside
+itself when the Server asks, and it connects back to that Server alone. Development and test
+cohorts carry it; a release cohort omits it until the File Bar ships.
 
 The proposed installed layout keeps one user-facing name:
 
