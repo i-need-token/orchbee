@@ -37,7 +37,7 @@ use crate::{
 /// Every service of the process and the state they share.
 pub(crate) struct Services {
     calls: Arc<Calls>,
-    scopes: Scopes,
+    scopes: Arc<Scopes>,
     helpers: Helpers,
     /// The file engine's listings and read transfers.
     files: Engine,
@@ -51,13 +51,15 @@ impl Services {
     /// The services of one link; `root` keeps what they persist.
     pub(crate) fn new(calls: Arc<Calls>, root: Option<DataRoot>) -> Arc<Self> {
         let helpers = Helpers::new();
+        let scopes = Arc::new(Scopes::new());
+        let git = git::Service::start(root, Arc::clone(&scopes));
         Arc::new(Self {
             calls,
-            scopes: Scopes::new(),
+            scopes,
             files: Engine::new(helpers.clone()),
             helpers,
             roots: Subscriptions::new(),
-            git: git::Service::start(root),
+            git,
         })
     }
 
@@ -106,8 +108,12 @@ impl Services {
     /// The Server stated a Workspace's scope, which applies to every call that starts after it.
     pub(crate) fn scope(self: &Arc<Self>, update: ScopeUpdate) {
         let workspace = update.workspace;
-        self.git.scope(&update);
-        if self.scopes.update(update) && self.roots.any_in(workspace) {
+        let statement = update.clone();
+        let changed = self.scopes.update(update);
+        // The engine learns of the statement after the scopes, so the members it states for the
+        // Workspace find it stated.
+        self.git.scope(&statement);
+        if changed && self.roots.any_in(workspace) {
             let services = Arc::clone(self);
             let refresh = move || {
                 roots::refresh(

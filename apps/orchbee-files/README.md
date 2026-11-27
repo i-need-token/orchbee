@@ -37,8 +37,12 @@ would leave Client streams open; the Server restarts it on the next demand.
 These rules are the contract a Client builds on; no single declaration holds them.
 
 - A path is in scope when it lies lexically inside its Workspace's root, spelled as the Workbench
-  reported it or as the real location `fs.subscribe` reports, or when it names a file the requesting
-  connection opened. A Client builds its paths under the root `fs.subscribe` reported.
+  reported it or as the real location `fs.subscribe` reports; inside the working tree of a
+  repository consented to in that Workspace, spelled as `scm.subscribe` names it, from the consent's
+  answer until `repository.close` answers or the summary stops listing it; when it is the file an
+  editor prompt of the Workspace names, from the prompt's arrival until it closes; or when it names
+  a file the requesting connection opened. A Client builds its paths under the root `fs.subscribe`
+  reported.
 - `fs.grant` from a tree, a diff or a Save As dialog needs the path in scope already; a terminal
   link, a restored tab or the operating system's open may name any path, since the person chose it
   explicitly. The entry is read before the grant is recorded, so a grant that fails grants nothing,

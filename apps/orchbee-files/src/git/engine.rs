@@ -19,7 +19,7 @@ use super::{
     mutations::{self, Cleaned, Commit, Context},
     native_paths,
     output::{GitOutput, Page},
-    ports::{Change, Report, Trash, Watches},
+    ports::{Change, Members, Report, Trash, Watches},
     reads::{self, RefsPage, UserConfig},
     relay::{self, Answer, Ask, Relay, Token},
     remote::{self, Fetch, Push},
@@ -239,12 +239,13 @@ impl Git {
         root: Option<DataRoot>,
         trash: Arc<dyn Trash>,
         watches: Box<dyn Watches>,
+        members: Box<dyn Members>,
     ) -> io::Result<Self> {
         let (sender, receiver) = mpsc::channel();
         let own = sender.clone();
         let actor = thread::Builder::new()
             .name("orchbee-files-git".into())
-            .spawn(move || Actor::new(own, root, trash, watches).run(&receiver))?;
+            .spawn(move || Actor::new(own, root, trash, watches, members).run(&receiver))?;
         Ok(Self {
             sender,
             actor: Some(actor),
@@ -779,6 +780,9 @@ struct Actor {
     consents: Consents,
     trash: Arc<dyn Trash>,
     watches: Box<dyn Watches>,
+    members: Box<dyn Members>,
+    /// The members last stated per Workspace; a Workspace without any is absent.
+    stated_members: HashMap<WorkspaceId, Vec<String>>,
     spaces: HashMap<WorkspaceId, Space>,
     tokens: HashMap<Token, Operation>,
     prompts: Vec<Open>,
@@ -792,6 +796,7 @@ impl Actor {
         root: Option<DataRoot>,
         trash: Arc<dyn Trash>,
         watches: Box<dyn Watches>,
+        members: Box<dyn Members>,
     ) -> Self {
         let (program, version) = program();
         Self {
@@ -804,6 +809,8 @@ impl Actor {
             consents: Consents::new(root),
             trash,
             watches,
+            members,
+            stated_members: HashMap::new(),
             spaces: HashMap::new(),
             tokens: HashMap::new(),
             prompts: Vec::new(),
@@ -837,6 +844,7 @@ impl Actor {
                 None => {}
             }
             self.poll(now);
+            self.state_members();
         }
         self.shut_down();
     }
@@ -942,6 +950,9 @@ impl Actor {
                 reply,
             } => {
                 let answered = self.consent(now, workspace, &repository, consented);
+                // A repository's working tree enters the scope before its Client learns of the
+                // consent and leaves it before the Client learns of the close.
+                self.state_members();
                 reply(answered);
             }
             Message::Mutate {
@@ -1802,17 +1813,19 @@ impl Actor {
             } else {
                 CREDENTIAL_PROMPT
             };
-        if let Some(space) = self.spaces.get_mut(&workspace) {
-            space.relay_send(connection, &RelayEvent::Opened(prompt.clone()));
-        }
         self.prompts.push(Open {
             token: ask.token,
             workspace,
             connection,
-            prompt,
+            prompt: prompt.clone(),
             expires,
             answer: ask.answer,
         });
+        // The file an editor prompt names is in scope before its Client learns of the prompt.
+        self.state_members();
+        if let Some(space) = self.spaces.get_mut(&workspace) {
+            space.relay_send(connection, &RelayEvent::Opened(prompt));
+        }
     }
 
     /// How many open prompts are routed to `connection` in `workspace`.
@@ -1925,6 +1938,40 @@ impl Actor {
         for open in ended {
             self.close_prompt(open, None);
         }
+    }
+
+    /// States each Workspace's members that changed since they were last stated: the working trees
+    /// of its displayed consented repositories and the files its open editor prompts name. An
+    /// editor's file is taken as Git names it, without checking that it lies in the Git directory:
+    /// only the commands of the prompting operation hold the token that opens a prompt, and each of
+    /// them already runs as the user.
+    fn state_members(&mut self) {
+        let mut current: HashMap<WorkspaceId, Vec<String>> = HashMap::new();
+        for (workspace, space) in &self.spaces {
+            let consented = space.workspace.consented();
+            if !consented.is_empty() {
+                current.insert(*workspace, consented);
+            }
+        }
+        for open in &self.prompts {
+            if let (PromptKind::Editor, Some(path)) = (open.prompt.kind, &open.prompt.path) {
+                current
+                    .entry(open.workspace)
+                    .or_default()
+                    .push(path.clone());
+            }
+        }
+        for (workspace, members) in &current {
+            if self.stated_members.get(workspace) != Some(members) {
+                self.members.state(*workspace, members);
+            }
+        }
+        for workspace in self.stated_members.keys() {
+            if !current.contains_key(workspace) {
+                self.members.state(*workspace, &[]);
+            }
+        }
+        self.stated_members = current;
     }
 
     /// Stops every run the engine started; their replies end with their calls.

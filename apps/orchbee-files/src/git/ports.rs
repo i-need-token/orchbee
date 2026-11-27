@@ -1,8 +1,9 @@
-//! What the Git engine needs from the file engine, which owns this process's file watches and the
-//! machine's trash and implements [`Watches`] and [`Trash`] for it. Until it does, [`NoWatches`]
-//! and [`NoTrash`] stand in: status then refreshes only when a Client subscribes, after a write,
-//! on Agent completion and on an explicit refresh, and a clean to the trash answers
-//! `trash-unavailable`, after which the Client may ask for permanent removal.
+//! What the Git engine needs from the rest of the process. The file engine owns this process's file
+//! watches and the machine's trash and implements [`Watches`] and [`Trash`] for it. Until it does,
+//! [`NoWatches`] and [`NoTrash`] stand in: status then refreshes only when a Client subscribes,
+//! after a write, on Agent completion and on an explicit refresh, and a clean to the trash answers
+//! `trash-unavailable`, after which the Client may ask for permanent removal. The scopes every
+//! operation's view reads take the members the engine establishes through [`Members`].
 
 use orchbee_files_protocol::WorkspaceId;
 use std::{path::Path, sync::Arc};
@@ -102,4 +103,15 @@ impl Trash for NoTrash {
     fn trash(&self, _: &Path) -> Result<(), TrashError> {
         Err(TrashError::Unavailable)
     }
+}
+
+/// Where the engine states the scope members it establishes in a Workspace: the working trees of
+/// its displayed consented repositories and the files its open editor prompts name. A path inside
+/// one is read as a path inside the root is.
+///
+/// The engine calls it on its own thread before the Client learns of the consent or the prompt,
+/// so it may not block for long.
+pub(crate) trait Members: Send {
+    /// Replaces `workspace`'s members, each an absolute native path; none once they all ended.
+    fn state(&mut self, workspace: WorkspaceId, members: &[String]);
 }

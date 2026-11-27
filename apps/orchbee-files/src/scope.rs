@@ -2,11 +2,13 @@
 //! it, and the check a requested path passes when its operation starts. The Server alone decides
 //! a Workspace's root, from the Workbench's current path; this process decides what lies inside.
 //! A path is readable when it is lexically inside the root, spelled as the Workbench reported it
-//! or as its real location, or when it is a file the requesting connection opened in that
-//! Workspace; links inside are followed, as VS Code follows them. An operation keeps the view it
-//! started under, so a later root change never moves it. Opened files outlive their Workspace's
-//! close and end with `fs.ungrant` or their connection; each successful `fs.grant` of a file adds
-//! one grant of it, and the file stays opened while one remains.
+//! or as its real location, or inside a member the Git engine establishes: the working tree of a
+//! repository consented to in that Workspace, or the file an open editor prompt names. It is also
+//! readable when it is a file the requesting connection opened in that Workspace. Links inside are
+//! followed, as VS Code follows them. An operation keeps the view it started under, so a later
+//! root change never moves it. Opened files outlive their Workspace's close and end with
+//! `fs.ungrant` or their connection; each successful `fs.grant` of a file adds one grant of it,
+//! and the file stays opened while one remains.
 
 pub(crate) mod path;
 
@@ -43,6 +45,8 @@ struct Workspace {
     /// Counts the Server's changes to this scope, so a fact read under an older one is known stale.
     generation: u64,
     stated: Stated,
+    /// The members the Git engine last stated.
+    git: Vec<NativePath>,
 }
 
 enum Stated {
@@ -106,6 +110,7 @@ impl Scopes {
             .or_insert(Workspace {
                 generation: 0,
                 stated: Stated::Closed,
+                git: Vec::new(),
             });
         // A root restated as it was keeps the real location already read.
         if workspace.generation > 0 && same_statement(&workspace.stated, &stated) {
@@ -122,6 +127,15 @@ impl Scopes {
             .workspaces
             .get(&workspace)
             .map_or(0, |workspace| workspace.generation)
+    }
+
+    /// Replaces the members the Git engine established in `workspace`, a Workspace the Server
+    /// stated: its consented repositories' working trees and the files its open editor prompts
+    /// name.
+    pub(crate) fn set_git_members(&self, workspace: WorkspaceId, members: Vec<NativePath>) {
+        if let Some(stated) = self.lock().workspaces.get_mut(&workspace) {
+            stated.git = members;
+        }
     }
 
     /// Releases every file `connection` opened, in every Workspace.
@@ -144,15 +158,28 @@ impl Scopes {
         operation: Operation,
     ) -> Result<View, FilesError> {
         let state = self.lock();
-        let members = match state
-            .workspaces
-            .get(&workspace)
-            .map(|stated| &stated.stated)
-        {
-            Some(Stated::Root(root)) => root.admitted.iter().chain(&root.real).cloned().collect(),
-            Some(Stated::NoRoot) => Vec::new(),
-            Some(Stated::Closed) if operation.after_close() => Vec::new(),
-            Some(Stated::Closed) | None => return Err(FilesError::new(ErrorCode::Denied)),
+        let members = match state.workspaces.get(&workspace) {
+            Some(Workspace {
+                stated: Stated::Root(root),
+                git,
+                ..
+            }) => root
+                .admitted
+                .iter()
+                .chain(&root.real)
+                .chain(git)
+                .cloned()
+                .collect(),
+            Some(Workspace {
+                stated: Stated::NoRoot,
+                git,
+                ..
+            }) => git.clone(),
+            Some(Workspace {
+                stated: Stated::Closed,
+                ..
+            }) if operation.after_close() => Vec::new(),
+            Some(_) | None => return Err(FilesError::new(ErrorCode::Denied)),
         };
         Ok(View {
             workspace,
@@ -242,6 +269,7 @@ impl Scopes {
                 Some(Workspace {
                     generation,
                     stated: Stated::Root(root),
+                    ..
                 }) => (*generation, root.reported.clone(), root.admitted.clone()),
                 current => {
                     return RootFact {
@@ -269,6 +297,7 @@ impl Scopes {
                 if let Some(Workspace {
                     generation: current,
                     stated: Stated::Root(root),
+                    ..
                 }) = state.workspaces.get_mut(&workspace)
                     && *current == generation
                 {
@@ -305,7 +334,8 @@ fn same_statement(current: &Stated, stated: &Stated) -> bool {
 }
 
 impl View {
-    /// Admits `path` for reading: lexically inside the root, or a file the connection opened.
+    /// Admits `path` for reading: lexically inside the root or a member the Git engine
+    /// established, or a file the connection opened.
     ///
     /// # Errors
     ///

@@ -7,7 +7,7 @@ use super::{
     super::{
         engine::{Call, Done, Ended, Git, Mutation, Reply, ScmSummary, Sink},
         errors::GitError,
-        ports::{NoTrash, NoWatches},
+        ports::{Members, NoTrash, NoWatches},
         remote::{Fetch, FetchRemotes},
     },
     fixture::Fixture,
@@ -29,6 +29,13 @@ use std::{
 };
 
 const WAIT: Duration = Duration::from_secs(60);
+
+/// Members go nowhere: these tests read no path through a scope.
+struct Unscoped;
+
+impl Members for Unscoped {
+    fn state(&mut self, _: WorkspaceId, _: &[String]) {}
+}
 
 /// A subscription that keeps every summary it was sent.
 struct Recorded(Arc<Mutex<Vec<ScmSummary>>>);
@@ -88,7 +95,13 @@ fn writes_queue_per_repository_answer_once_per_identity_and_share_fetches() {
     );
     fixture.git("repo", &["push", "-q", "-u", "origin", "main"]);
 
-    let git = Git::start(None, Arc::new(NoTrash), Box::new(NoWatches)).unwrap();
+    let git = Git::start(
+        None,
+        Arc::new(NoTrash),
+        Box::new(NoWatches),
+        Box::new(Unscoped),
+    )
+    .unwrap();
     let workspace = WorkspaceId::from_bytes([1; 16]).unwrap();
     let connection = ConnectionId::new(7).unwrap();
     git.scope(workspace, WorkspaceScope::Root(fixture.path("repo")));

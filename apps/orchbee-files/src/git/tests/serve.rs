@@ -1,17 +1,19 @@
 //! The engine as the dispatch reaches it: a subscription's first summary opens its stream and a
 //! later one shows the discovered repository, a write answers with its Result record and its
-//! outcome repeats it, and a cancelled subscription closes.
+//! outcome repeats it, and a cancelled subscription closes. A consented repository's working tree
+//! is in scope from the consent's answer until the close's.
 
 use super::{super::serve::Service, fixture::Fixture};
-use crate::{calls::Calls, outbound::Outbound};
+use crate::{calls::Calls, outbound::Outbound, scope::Scopes};
 use orchbee_files_protocol::{
     CallClose, CallId, ConnectionId, Empty, FilePath, FilesNotice, FilesRecord, FilesReply,
     GitPaths, LaneId, LinkFrame, LinkMessage, LinkSide, List, MutationReply, MutationState,
-    NoticeKind, Operation, RecordPlace, RepositoryKind, RequestId, RequestOutcome, ScopeUpdate,
-    WorkspaceId, WorkspaceScope, decode_files_record, decode_link_message, parse_notice,
-    parse_reply,
+    NoticeKind, Operation, RecordPlace, RepositoryKind, RepositoryRequest, RequestId,
+    RequestOutcome, ScmSummary, ScopeUpdate, WorkspaceId, WorkspaceScope, decode_files_record,
+    decode_link_message, parse_notice, parse_reply,
 };
 use std::{
+    path::MAIN_SEPARATOR,
     sync::{Arc, mpsc},
     thread,
     time::Duration,
@@ -19,13 +21,27 @@ use std::{
 
 const WAIT: Duration = Duration::from_secs(60);
 
-/// The frames queued for the Server, in order.
-struct Frames(mpsc::Receiver<Vec<u8>>);
+fn connection() -> ConnectionId {
+    ConnectionId::new(1).unwrap()
+}
 
-impl Frames {
-    fn new(outbound: &Arc<Outbound>) -> Self {
-        let (sent, received) = mpsc::channel();
-        let writer = Arc::clone(outbound);
+/// The service with the call queue it answers through, the scopes it states members to, and the
+/// frames it queued for the Server, in order.
+struct Harness {
+    service: Option<Service>,
+    scopes: Arc<Scopes>,
+    calls: Arc<Calls>,
+    outbound: Arc<Outbound>,
+    frames: mpsc::Receiver<Vec<u8>>,
+}
+
+impl Harness {
+    fn new() -> Self {
+        let outbound = Arc::new(Outbound::new());
+        let calls = Calls::new(Arc::clone(&outbound));
+        let scopes = Arc::new(Scopes::new());
+        let (sent, frames) = mpsc::channel();
+        let writer = Arc::clone(&outbound);
         thread::spawn(move || {
             while let Some(frame) = writer.next() {
                 writer.written();
@@ -34,14 +50,42 @@ impl Frames {
                 }
             }
         });
-        Self(received)
+        Self {
+            service: Some(Service::start(None, Arc::clone(&scopes))),
+            scopes,
+            calls,
+            outbound,
+            frames,
+        }
+    }
+
+    fn service(&self) -> &Service {
+        self.service.as_ref().unwrap()
+    }
+
+    /// States `workspace`'s scope as the dispatch does: to the scopes, then to the engine.
+    fn state(&self, workspace: WorkspaceId, scope: WorkspaceScope) {
+        let update = ScopeUpdate { workspace, scope };
+        self.scopes.update(update.clone());
+        self.service().scope(&update);
+    }
+
+    fn open(&self, id: u64) -> crate::calls::Call {
+        self.calls
+            .open(
+                CallId::new(id).unwrap(),
+                connection(),
+                LaneId::new(id).unwrap(),
+            )
+            .unwrap()
+            .unwrap()
     }
 
     /// The next frame of call `id`; other calls' frames before it are dropped.
     fn next(&self, id: u64) -> LinkMessage {
         loop {
             let frame = self
-                .0
+                .frames
                 .recv_timeout(WAIT)
                 .expect("the service sends a frame");
             let message = decode_link_message(&frame, LinkSide::Files).unwrap();
@@ -56,15 +100,29 @@ impl Frames {
         }
     }
 
-    fn notice(&self, id: u64, kind: NoticeKind) -> FilesNotice {
-        let LinkMessage::Frame(LinkFrame { record, .. }) = self.next(id) else {
-            panic!("expected a notice of call {id}");
-        };
-        let Ok(FilesRecord::Notice(json)) = decode_files_record(&record, RecordPlace::NoticeFrame)
-        else {
-            panic!("expected a Notice record");
-        };
-        parse_notice(Operation::ScmSubscribe, kind, &json).unwrap()
+    /// Summaries of subscription call `id`, from its Snapshot on, until `found` finds what it
+    /// waits for in one.
+    fn summary<T>(&self, id: u64, found: impl Fn(&ScmSummary) -> Option<T>) -> T {
+        let mut kind = NoticeKind::Snapshot;
+        loop {
+            let LinkMessage::Frame(LinkFrame { record, .. }) = self.next(id) else {
+                panic!("expected a notice of call {id}");
+            };
+            let Ok(FilesRecord::Notice(json)) =
+                decode_files_record(&record, RecordPlace::NoticeFrame)
+            else {
+                panic!("expected a Notice record");
+            };
+            let Ok(FilesNotice::ScmSummary(summary)) =
+                parse_notice(Operation::ScmSubscribe, kind, &json)
+            else {
+                panic!("expected a summary");
+            };
+            kind = NoticeKind::Update;
+            if let Some(value) = found(&summary) {
+                return value;
+            }
+        }
     }
 
     fn reply(&self, id: u64, operation: Operation) -> FilesReply {
@@ -89,6 +147,13 @@ impl Frames {
     }
 }
 
+impl Drop for Harness {
+    fn drop(&mut self) {
+        self.service.take();
+        self.outbound.close();
+    }
+}
+
 #[test]
 fn requests_reach_the_engine_and_its_answers_return_as_records() {
     let fixture = Fixture::new();
@@ -97,48 +162,25 @@ fn requests_reach_the_engine_and_its_answers_return_as_records() {
     fixture.git("repo", &["add", "seed"]);
     fixture.git("repo", &["commit", "-q", "-m", "seed"]);
 
-    let outbound = Arc::new(Outbound::new());
-    let calls = Calls::new(Arc::clone(&outbound));
-    let frames = Frames::new(&outbound);
-    let service = Service::start(None);
+    let harness = Harness::new();
     let workspace = WorkspaceId::from_bytes([3; 16]).unwrap();
-    let open = |id: u64| {
-        calls
-            .open(
-                CallId::new(id).unwrap(),
-                ConnectionId::new(1).unwrap(),
-                LaneId::new(id).unwrap(),
-            )
-            .unwrap()
-            .unwrap()
-    };
-    service.scope(&ScopeUpdate {
-        workspace,
-        scope: WorkspaceScope::Root(fixture.path("repo")),
-    });
+    harness.state(workspace, WorkspaceScope::Root(fixture.path("repo")));
 
-    service.subscribe(open(1), workspace);
-    let mut kind = NoticeKind::Snapshot;
-    let shown = loop {
-        let FilesNotice::ScmSummary(summary) = frames.notice(1, kind) else {
-            panic!("expected a summary");
-        };
-        kind = NoticeKind::Update;
-        if let Some(shown) = summary
+    harness.service().subscribe(harness.open(1), workspace);
+    let shown = harness.summary(1, |summary| {
+        summary
             .repositories
             .as_slice()
             .first()
             .filter(|shown| shown.revision.get() >= 1)
-        {
-            break shown.clone();
-        }
-    };
+            .cloned()
+    });
     assert_eq!(shown.kind, RepositoryKind::Root);
 
     fixture.write("repo/added", "added");
     let request_id = RequestId::from_bytes([5; 16]).unwrap();
-    service.stage(
-        open(2),
+    harness.service().stage(
+        harness.open(2),
         &GitPaths {
             workspace_id: workspace,
             request_id,
@@ -146,15 +188,15 @@ fn requests_reach_the_engine_and_its_answers_return_as_records() {
             paths: List::new(vec![FilePath::new(fixture.path("repo/added")).unwrap()]).unwrap(),
         },
     );
-    assert_eq!(frames.reply(2, Operation::GitStage), FilesReply::Empty);
-    service.outcome(
-        open(3),
+    assert_eq!(harness.reply(2, Operation::GitStage), FilesReply::Empty);
+    harness.service().outcome(
+        harness.open(3),
         &RequestOutcome {
             workspace_id: workspace,
             request_id,
         },
     );
-    let FilesReply::RequestOutcome(outcome) = frames.reply(3, Operation::RequestOutcome) else {
+    let FilesReply::RequestOutcome(outcome) = harness.reply(3, Operation::RequestOutcome) else {
         panic!("expected an outcome");
     };
     assert_eq!(
@@ -162,8 +204,47 @@ fn requests_reach_the_engine_and_its_answers_return_as_records() {
         MutationState::Completed(MutationReply::Empty(Empty {}))
     );
 
-    calls.cancel(CallId::new(1).unwrap());
-    assert_eq!(frames.closed(1), CallClose::Cancelled);
-    drop(service);
-    outbound.close();
+    harness.calls.cancel(CallId::new(1).unwrap());
+    assert_eq!(harness.closed(1), CallClose::Cancelled);
+}
+
+#[test]
+fn a_consented_repository_is_in_scope_until_it_closes() {
+    let fixture = Fixture::new();
+    fixture.repository("repo");
+    fixture.write("repo/root/inside", "inside");
+    fixture.write("repo/beside", "beside");
+
+    let harness = Harness::new();
+    let workspace = WorkspaceId::from_bytes([4; 16]).unwrap();
+    harness.state(workspace, WorkspaceScope::Root(fixture.path("repo/root")));
+    harness.service().subscribe(harness.open(1), workspace);
+    let parent = harness.summary(1, |summary| summary.candidates.as_slice().first().cloned());
+    let beside = FilePath::new(format!("{}{MAIN_SEPARATOR}beside", parent.as_str())).unwrap();
+    let readable = || {
+        harness
+            .scopes
+            .view(workspace, connection(), Operation::FsRead)
+            .unwrap()
+            .read(&beside)
+            .is_ok()
+    };
+    assert!(!readable());
+
+    let request = RepositoryRequest {
+        workspace_id: workspace,
+        repository: parent,
+    };
+    harness.service().consent(harness.open(2), &request);
+    assert_eq!(
+        harness.reply(2, Operation::RepositoryConsent),
+        FilesReply::Empty
+    );
+    assert!(readable());
+    harness.service().close(harness.open(3), &request);
+    assert_eq!(
+        harness.reply(3, Operation::RepositoryClose),
+        FilesReply::Empty
+    );
+    assert!(!readable());
 }

@@ -8,12 +8,15 @@ use super::{
     engine::{self, Git, Mutation, Sink},
     errors::GitError,
     mutations::{Commit, Message},
-    ports::{NoTrash, NoWatches},
+    ports::{Members, NoTrash, NoWatches},
     records,
     relay::Answer,
     remote::{self, Fetch, Push},
 };
-use crate::calls::{Call, Events};
+use crate::{
+    calls::{Call, Events},
+    scope::{Scopes, path::NativePath},
+};
 use orchbee_files_protocol::{
     CallClose, ClientFocus, CommitMessage, ConnectionId, Counter, ErrorCode, FetchRemotes,
     FilePath, FilesError, FilesNotice, FilesReply, GitCheckIgnore, GitClean, GitCommit, GitFetch,
@@ -32,11 +35,18 @@ pub(crate) struct Service {
 }
 
 impl Service {
-    /// Starts the engine; `root` keeps the consents to repositories beyond a root.
-    pub(crate) fn start(root: Option<DataRoot>) -> Self {
+    /// Starts the engine; `root` keeps the consents to repositories beyond a root, and `scopes`
+    /// takes the members the engine establishes.
+    pub(crate) fn start(root: Option<DataRoot>, scopes: Arc<Scopes>) -> Self {
         Self {
             // The file engine's adapters replace these stand-ins once it implements the ports.
-            git: Git::start(root, Arc::new(NoTrash), Box::new(NoWatches)).ok(),
+            git: Git::start(
+                root,
+                Arc::new(NoTrash),
+                Box::new(NoWatches),
+                Box::new(ScopeMembers(scopes)),
+            )
+            .ok(),
         }
     }
 
@@ -461,6 +471,20 @@ fn finish(call: Call, reply: &FilesReply) {
         call.reply(reply);
     } else {
         call.reply(&FilesReply::Error(FilesError::new(ErrorCode::Failed)));
+    }
+}
+
+/// The members the engine establishes, stated to the scopes every operation's view reads.
+struct ScopeMembers(Arc<Scopes>);
+
+impl Members for ScopeMembers {
+    fn state(&mut self, workspace: WorkspaceId, members: &[String]) {
+        // A path in a form this machine does not admit admits nothing.
+        let members = members
+            .iter()
+            .filter_map(|member| NativePath::parse(member).ok())
+            .collect();
+        self.0.set_git_members(workspace, members);
     }
 }
 

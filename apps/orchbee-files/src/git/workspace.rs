@@ -487,6 +487,22 @@ impl Workspace {
         self.displayed_index(path).is_some()
     }
 
+    /// The toplevels of the displayed repositories a consent admitted, whose working trees are in
+    /// scope while they stay displayed.
+    pub(super) fn consented(&self) -> Vec<String> {
+        self.repositories
+            .iter()
+            .filter(|repository| {
+                !repository.warm
+                    && matches!(
+                        repository.kind,
+                        RepositoryKind::Parent | RepositoryKind::File
+                    )
+            })
+            .map(|repository| repository.found.toplevel.clone())
+            .collect()
+    }
+
     /// Whether `path` is a candidate the user may consent to, or a closed repository to reopen.
     pub(super) fn consentable(&self, path: &str) -> bool {
         self.candidates
