@@ -26,7 +26,7 @@ import type {
 
 /**
  * Lets Windows remember the person's "show in the taskbar" choice for the release icon across runs,
- * and macOS the place the person dragged it to in the menu bar. Test and Dev run from paths that
+ * and macOS the place the person dragged it to in the menu bar; Linux ignores it. Test and Dev run from paths that
  * change, and Windows ties a GUID to an unsigned executable's path, so they set none rather than
  * fail to create the icon. Never change it: both systems key the person's choice to it.
  */
@@ -52,21 +52,23 @@ export interface DesktopBackgroundTrayOptions extends DesktopBackgroundSurfaceAc
 	readonly applicationName: string;
 	readonly distribution: 'development' | 'release' | 'test';
 	/**
-	 * The folder holding the generated icons: `resources/brand/ico/tray/` on Windows and
-	 * `resources/brand/png/tray/` on macOS.
+	 * The folder holding the generated icons: `resources/brand/ico/tray/` on Windows,
+	 * `resources/brand/png/tray/` on macOS and `resources/brand/png/linux/tray/` on Linux.
 	 */
 	readonly iconDirectory: string;
 	readonly intl: IntlShape;
-	readonly platform: 'darwin' | 'win32';
+	readonly platform: 'darwin' | 'linux' | 'win32';
 }
 
 /**
- * The icon Desktop shows from start until quit: in the notification area on Windows, and in the menu
- * bar on macOS. Its image marks the environment outside a release; on Windows it also marks the most
- * urgent Agent state, and on macOS the item shows beside it how many Agents need the person. Its
- * tooltip and its menu's first line say how many terminals run, or that Quit All is stopping them.
- * On Windows a click or double-click shows and focuses the window; on macOS a click opens the menu,
- * as menu-bar icons do.
+ * The icon Desktop shows from start until quit: in the notification area on Windows, in the menu bar
+ * on macOS, and on Linux as a StatusNotifierItem, which the panel shows where the desktop hosts
+ * them. Its image marks the environment outside a release; on Windows and Linux it also marks the
+ * most urgent Agent state, and on macOS the item shows beside it how many Agents need the person.
+ * Its tooltip and its menu's first line say how many terminals run, or that Quit All is stopping
+ * them. On Windows a click or double-click shows and focuses the window, and on Linux the
+ * activation the panel sends, a click on most; on macOS a click opens the menu, as menu-bar icons
+ * do.
  */
 export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 	#image: string | undefined;
@@ -89,20 +91,23 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 
 	/**
 	 * Shows the one-time notice: the icon's balloon on Windows, which withholds it during Do Not
-	 * Disturb and reports `balloon-show` only for one it shows, and a notification on macOS, which
-	 * counts only once macOS reports it shown. A withheld notice is shown again at the next hide.
+	 * Disturb and reports `balloon-show` only for one it shows, and a notification on macOS and
+	 * Linux, which counts only once the system reports it shown. A withheld notice is shown again at
+	 * the next hide.
 	 */
 	showNotice(runningTerminals: number): void {
-		const { applicationName, intl } = this.#options;
+		const { applicationName, intl, platform } = this.#options;
 		const title = intl.formatMessage(desktopTrayMessages.noticeTitle, {
 			application: applicationName,
 		});
-		if (this.#options.platform === 'darwin') {
+		if (platform !== 'win32') {
 			if (!Notification.isSupported()) return;
+			const body =
+				platform === 'darwin'
+					? desktopTrayMessages.noticeMenuBarBody
+					: desktopTrayMessages.noticePanelBody;
 			const notice = new Notification({
-				body: intl.formatMessage(desktopTrayMessages.noticeMenuBarBody, {
-					terminals: runningTerminals,
-				}),
+				body: intl.formatMessage(body, { terminals: runningTerminals }),
 				title,
 			});
 			notice.once('show', () => this.#options.onNoticeShown());
@@ -236,38 +241,43 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 			this.#options.distribution === 'release'
 				? new Tray(image, RELEASE_TRAY_GUID)
 				: new Tray(image);
+		const reopen = (): void => this.#options.onReopen();
 		// A macOS menu-bar icon opens its menu when clicked and reports no click of its own.
 		if (this.#options.platform === 'win32') {
-			const reopen = (): void => this.#options.onReopen();
 			tray.on('click', reopen);
 			tray.on('double-click', reopen);
 			tray.on('balloon-click', reopen);
 			tray.on('balloon-show', () => this.#options.onNoticeShown());
+		} else if (this.#options.platform === 'linux') {
+			// The panel's activation, which the StatusNotifierItem specification leaves to each desktop.
+			tray.on('click', reopen);
 		}
 		return tray;
 	}
 
 	/**
-	 * The icon as the tray takes it: the `.ico` file on Windows, and on macOS one template image of the
-	 * 18 point picture and its `-2x` double. Electron would join a `@2x` file by itself, but that name
-	 * is outside the window file list's path grammar, which every reader of an update checks.
+	 * The icon as the tray takes it: the `.ico` file on Windows, and elsewhere one image of the picture
+	 * and its `-2x` double, on macOS the 18 point template image. Electron would join a `@2x` file by
+	 * itself, but that name is outside the window file list's path grammar, which every reader of an
+	 * update checks.
 	 */
 	#trayImage(iconPath: string): NativeImage | string {
-		if (this.#options.platform !== 'darwin') return iconPath;
+		const { platform } = this.#options;
+		if (platform === 'win32') return iconPath;
 		const image = nativeImage.createEmpty();
 		image.addRepresentation({ buffer: readFileSync(iconPath), scaleFactor: 1 });
 		image.addRepresentation({
 			buffer: readFileSync(iconPath.replace(/\.png$/u, '-2x.png')),
 			scaleFactor: 2,
 		});
-		image.setTemplateImage(true);
+		if (platform === 'darwin') image.setTemplateImage(true);
 		return image;
 	}
 
 	/**
-	 * The Windows icon marks each Agent state in its color. The macOS icon is a template image, which
-	 * macOS draws in the menu bar's own color, so it marks no state; the item's title counts the
-	 * Agents instead.
+	 * The Windows and Linux icons mark each Agent state in its color. The macOS icon is a template
+	 * image, which macOS draws in the menu bar's own color, so it marks no state; the item's title
+	 * counts the Agents instead.
 	 */
 	#iconPath(status: DesktopTrayStatus): string {
 		const { distribution, iconDirectory, platform } = this.#options;
@@ -275,6 +285,10 @@ export class DesktopBackgroundTray implements DesktopBackgroundSurface {
 		if (platform === 'darwin') {
 			return path.join(iconDirectory, `orchbee${environment}Template.png`);
 		}
-		return path.join(iconDirectory, `orchbee${environment}${STATUS_FILE_SUFFIXES[status]}.ico`);
+		const extension = platform === 'linux' ? 'png' : 'ico';
+		return path.join(
+			iconDirectory,
+			`orchbee${environment}${STATUS_FILE_SUFFIXES[status]}.${extension}`,
+		);
 	}
 }

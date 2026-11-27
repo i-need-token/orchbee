@@ -14,10 +14,10 @@ const DARWIN_BADGES = {
 	release: '',
 };
 
-// The Windows notification-area icon: the mark, with the most urgent Agent state as a hexagon in
-// the lower-right corner, in the fixed status colors every theme uses, and outside a release the
-// environment's badge in the upper-left corner, a circle for Dev and a square for Test, so neither
-// reads as a state. Their ink outline keeps them apart from the hive ring at 16 px.
+// The Windows notification-area and Linux panel icon: the mark, with the most urgent Agent state as
+// a hexagon in the lower-right corner, in the fixed status colors every theme uses, and outside a
+// release the environment's badge in the upper-left corner, a circle for Dev and a square for Test,
+// so neither reads as a state. Their ink outline keeps them apart from the hive ring at 16 px.
 const TRAY_STATUS_COLORS = {
 	none: null,
 	failed: '#FF5F57',
@@ -32,6 +32,12 @@ const TRAY_BADGES = {
 // A pointy-top hexagon, the TUI's ⬢, unlike the hive's flat-top cells.
 const TRAY_STATUS_HEXAGON = 'M760 520 967.8 640V880L760 1000 552.2 880V640Z';
 const TRAY_ICON_SIZES = [16, 20, 24, 32, 40, 48];
+// The Linux panel icon is the same picture as PNGs, since a StatusNotifierItem takes no `.ico`: the
+// 24 px size panels draw and its `-2x` double, which Desktop joins into one image as on macOS.
+const LINUX_TRAY_SCALES = [
+	['', 24],
+	['-2x', 48],
+];
 
 // The macOS menu-bar icon is a template image, which macOS draws in the menu bar's own color, so it
 // carries shapes only: the mark's hive ring without its tile, cropped to the ring, and outside a
@@ -212,6 +218,14 @@ export function brandAssetPlan() {
 				svg: `tray-${name}`,
 				sizes: TRAY_ICON_SIZES,
 			});
+			for (const [suffix, size] of LINUX_TRAY_SCALES) {
+				plan.set(`png/linux/tray/${name}${suffix}.png`, {
+					kind: 'png',
+					svg: `tray-${name}`,
+					width: size,
+					height: size,
+				});
+			}
 		}
 	}
 	for (const variant of Object.keys(MENU_BAR_BADGES)) {

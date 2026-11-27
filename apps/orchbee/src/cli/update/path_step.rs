@@ -12,7 +12,7 @@ mod windows;
 pub(super) use unix::{
     follow_up, location, own_link, plan, refresh_launcher, refresh_present, run, store_link,
 };
-#[cfg(target_os = "macos")]
+#[cfg(not(windows))]
 pub(super) use unix::{profile_present, remove_profile};
 #[cfg(windows)]
 pub(super) use windows::{follow_up, location, plan, refresh_launcher, refresh_present, run};

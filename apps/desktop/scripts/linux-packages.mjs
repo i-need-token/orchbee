@@ -10,7 +10,7 @@
 // `/opt/<stem>/` with its menu entry, its icons and an AppArmor profile that lets it create the user
 // namespaces Chromium's sandbox needs where the system restricts them, as Ubuntu 23.10 and later
 // do; `dpkg-deb` builds it. Where the system restricts them and no profile covers the program, the
-// AppImage, like the store window, starts without the sandbox. Node.js built-ins only.
+// AppImage, like the store window, starts without the sandbox.
 import { execFileSync } from 'node:child_process';
 import {
 	chmod,
@@ -24,6 +24,8 @@ import {
 	writeFile,
 } from 'node:fs/promises';
 import path from 'node:path';
+
+import { createOrchbeeIntl, desktopDiagnosticsMessages } from '@orchbee/i18n';
 
 /** The hicolor sizes the brand's icon set provides and the menu entry installs. */
 const ICON_SIZES = [16, 24, 32, 48, 64, 128, 256, 512];
@@ -49,13 +51,23 @@ const ARCHITECTURES = {
 };
 
 /**
+ * The window's switch that opens Save Diagnostic Bundle…, as the Windows Jump List task passes it
+ * (SAVE_DIAGNOSTIC_BUNDLE_SWITCH in src/main/composition/entry.ts).
+ */
+const SAVE_DIAGNOSTIC_BUNDLE_SWITCH = '--save-diagnostic-bundle';
+
+/**
  * The menu entry of the program `exec`: the window is named `applicationName`, its icon and the
  * entry's file are named after the environment stem, and on X11 its windows group under the entry by
- * the class Electron gives them, the application's name.
+ * the class Electron gives them, the application's name. Its one action, which the desktop shows in
+ * the entry's own menu as Windows shows the Jump List, saves a diagnostic bundle, named in English
+ * and, for every Chinese locale, as the window names it in `zh-CN`.
  */
 function menuEntry({ applicationName, exec, stem }) {
 	if (/\p{Cc}/u.test(applicationName))
 		throw new Error('The application name holds a control character');
+	const saveBundle = (locale) =>
+		createOrchbeeIntl(locale).formatMessage(desktopDiagnosticsMessages.saveBundle);
 	return [
 		'[Desktop Entry]',
 		'Type=Application',
@@ -65,6 +77,12 @@ function menuEntry({ applicationName, exec, stem }) {
 		'Terminal=false',
 		'Categories=System;TerminalEmulator;Development;',
 		`StartupWMClass=${applicationName}`,
+		'Actions=save-diagnostic-bundle;',
+		'',
+		'[Desktop Action save-diagnostic-bundle]',
+		`Name=${saveBundle('en-US')}`,
+		`Name[zh]=${saveBundle('zh-CN')}`,
+		`Exec=${exec} ${SAVE_DIAGNOSTIC_BUNDLE_SWITCH}`,
 		'',
 	].join('\n');
 }

@@ -77,8 +77,8 @@ impl super::CliText {
             ),
             (CommandPath::MachineConnect, "--remember") => (
                 "",
-                "After a sign-in that succeeds, remember a password or key passphrase typed here in the system credential store. Windows and macOS for now.",
-                "登录成功后，把在这里输入的密码或密钥口令记在系统的凭据存储里。目前仅限 Windows 和 macOS。",
+                "After a sign-in that succeeds, remember a password or key passphrase typed here in the system credential store.",
+                "登录成功后，把在这里输入的密码或密钥口令记在系统的凭据存储里。",
             ),
             (CommandPath::TerminalRun, "--wait") => (
                 "",

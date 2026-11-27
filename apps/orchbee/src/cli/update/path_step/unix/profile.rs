@@ -1,8 +1,10 @@
-//! The macOS reach of the PATH step: a new Mac's shells do not search `~/.local/bin`, so the step
-//! also adds two lines that put it on `PATH` to the startup file of the person's shell, and
-//! uninstall removes exactly those lines. zsh, the default, reads `~/.zshenv` in every shell; bash
-//! reads the first of `~/.bash_profile`, `~/.bash_login` and `~/.profile` in a login shell, which
-//! Terminal and iTerm2 start. Another shell gets no file and `install` prints the line to add. The
+//! The reach of the PATH step: a new Mac's shells do not search `~/.local/bin`, nor do many Linux
+//! ones until the next login, so the step also adds two lines that put it on `PATH` to the startup
+//! file of the person's shell, and uninstall removes exactly those lines. zsh reads `~/.zshenv` in
+//! every shell. On macOS, where zsh is the default, bash reads the first of `~/.bash_profile`,
+//! `~/.bash_login` and `~/.profile` in a login shell, which Terminal and iTerm2 start; on Linux,
+//! where bash is the default, a terminal starts an interactive shell that is not a login shell,
+//! which reads `~/.bashrc`. Another shell gets no file and `install` prints the line to add. The
 //! edit is best effort: a file that cannot be read or written leaves the link in place, and the
 //! install goes on.
 use orchbee_local_runtime::environment_stem;
@@ -25,23 +27,29 @@ fn marker() -> String {
     )
 }
 
-/// The startup file the shell `shell` names reads, under `home`: zsh's when none is named, and
-/// none for a shell other than zsh or bash.
+/// The startup file the shell `shell` names reads, under `home`: the system default shell's when
+/// none is named, zsh on macOS and bash elsewhere, and none for a shell other than zsh or bash.
 pub(super) fn target(home: &Path, shell: Option<&OsStr>) -> Option<PathBuf> {
-    match shell
+    let named = shell
         .map(Path::new)
         .and_then(Path::file_name)
-        .and_then(OsStr::to_str)
-    {
-        None | Some("zsh") => Some(home.join(".zshenv")),
-        Some("bash") => Some(
+        .and_then(OsStr::to_str);
+    let shell = named.unwrap_or(if cfg!(target_os = "macos") {
+        "zsh"
+    } else {
+        "bash"
+    });
+    match shell {
+        "zsh" => Some(home.join(".zshenv")),
+        "bash" if cfg!(target_os = "macos") => Some(
             [".bash_profile", ".bash_login"]
                 .into_iter()
                 .map(|name| home.join(name))
                 .find(|file| file.exists())
                 .unwrap_or_else(|| home.join(".profile")),
         ),
-        Some(_) => None,
+        "bash" => Some(home.join(".bashrc")),
+        _ => None,
     }
 }
 
@@ -96,11 +104,17 @@ pub(super) fn add(home: &Path, shell: Option<&OsStr>) -> Option<PathBuf> {
 
 /// Every file that holds this environment's two lines, whichever shell they were added for.
 pub(super) fn holders(home: &Path) -> Vec<PathBuf> {
-    [".zshenv", ".bash_profile", ".bash_login", ".profile"]
-        .into_iter()
-        .map(|name| home.join(name))
-        .filter(|file| fs::read_to_string(file).is_ok_and(|text| without(&text).is_some()))
-        .collect()
+    [
+        ".zshenv",
+        ".bash_profile",
+        ".bash_login",
+        ".profile",
+        ".bashrc",
+    ]
+    .into_iter()
+    .map(|name| home.join(name))
+    .filter(|file| fs::read_to_string(file).is_ok_and(|text| without(&text).is_some()))
+    .collect()
 }
 
 /// Removes every copy of this environment's two lines from each file that holds them and keeps the

@@ -107,7 +107,7 @@ export function installDesktopApplicationMenu(
 	): MenuItemConstructorOptions => ({ label: format(descriptor), role });
 	const darwin = platform === 'darwin';
 	const background = darwin ? actions.background : undefined;
-	const diagnostics = platform === 'win32' || darwin ? actions.saveDiagnosticBundle : undefined;
+	const diagnostics = actions.saveDiagnosticBundle;
 
 	const separator = (): MenuItemConstructorOptions => ({ type: 'separator' });
 	const root = (

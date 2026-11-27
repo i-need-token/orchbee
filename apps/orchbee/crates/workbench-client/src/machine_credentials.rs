@@ -8,6 +8,8 @@
 //! from the caller's buffer and leaves no copy behind. No failure carries the store's own error,
 //! which may hold an answer's bytes, and nothing here logs.
 
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(windows)]
@@ -78,8 +80,9 @@ impl Item {
         }
     }
 
-    /// The item's name in the store, the Credential Manager target name on Windows and the
-    /// Keychain service on macOS: `Orchbee/<environment>/machine/<machine id>/<kind>`.
+    /// The item's name in the store, the Credential Manager target name on Windows, the Keychain
+    /// service on macOS and the Secret Service item's `service` attribute on Linux:
+    /// `Orchbee/<environment>/machine/<machine id>/<kind>`.
     pub fn target_name(&self) -> String {
         format!(
             "Orchbee/{}/machine/{}/{}",
@@ -139,8 +142,8 @@ pub struct Secret(Vec<u8>);
 
 impl Secret {
     #[cfg_attr(
-        not(any(windows, target_os = "macos")),
-        expect(dead_code, reason = "only Windows and macOS have an adapter yet")
+        not(any(windows, target_os = "macos", target_os = "linux")),
+        expect(dead_code, reason = "only Windows, macOS and Linux have an adapter")
     )]
     fn new(bytes: Vec<u8>) -> Self {
         Self(bytes)
@@ -190,9 +193,8 @@ impl fmt::Debug for Store {
 }
 
 impl Store {
-    /// The selection rule: Windows Credential Manager on Windows and the login Keychain on macOS.
-    /// Linux has no adapter yet and answers unavailable; its own joins here (the Secret Service,
-    /// otherwise the kernel's per-user keyring) without changing any caller.
+    /// The selection rule: Windows Credential Manager on Windows, the login Keychain on macOS and
+    /// the Secret Service on Linux. Any other system has no adapter and answers unavailable.
     pub fn select() -> Self {
         #[cfg(windows)]
         {
@@ -206,7 +208,13 @@ impl Store {
                 adapter: Some(&macos::LoginKeychain),
             }
         }
-        #[cfg(not(any(windows, target_os = "macos")))]
+        #[cfg(target_os = "linux")]
+        {
+            Self {
+                adapter: Some(&linux::SecretService),
+            }
+        }
+        #[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
         {
             Self::unavailable()
         }

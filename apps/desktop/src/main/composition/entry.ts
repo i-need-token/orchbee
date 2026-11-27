@@ -384,7 +384,7 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 				sessionArguments,
 				resolveClientEnvironment(),
 			),
-		// Windows and macOS replace a Terminal Host; a window with no background runtime stops nothing.
+		// A window started hidden has no background runtime and stops nothing.
 		stopSession: () => background?.stopSession() ?? Promise.resolve(false),
 		watchPointer: watchWindowPointer,
 	});
@@ -409,28 +409,31 @@ function resolveLinuxWindowIcon(): string | null {
 }
 
 /**
- * The icons of the notification area or the menu bar: the package's copy, or in a checkout the
- * generated brand assets, `.ico` files on Windows and template PNGs on macOS.
+ * The icons of the notification area, the menu bar or the panel: the package's copy, or in a
+ * checkout the generated brand assets, `.ico` files on Windows, template PNGs on macOS and PNGs on
+ * Linux.
  */
 function resolveTrayIconDirectory(): string {
 	if (packaged || distribution.dataScope.kind !== 'development') {
 		return path.join(process.resourcesPath, PACKAGED_TRAY_ICON_DIRECTORY);
 	}
-	const format = process.platform === 'darwin' ? 'png' : 'ico';
-	return path.join(distribution.dataScope.sourceRoot, 'resources', 'brand', format, 'tray');
+	const brand = path.join(distribution.dataScope.sourceRoot, 'resources', 'brand');
+	if (process.platform === 'darwin') return path.join(brand, 'png', 'tray');
+	if (process.platform === 'linux') return path.join(brand, 'png', 'linux', 'tray');
+	return path.join(brand, 'ico', 'tray');
 }
 
 /**
- * Desktop's icon, from start until quit: in the notification area on Windows and the menu bar on
- * macOS. Closing the window while terminals run keeps Desktop running behind it, and on macOS in the
- * Dock whatever runs. A window started hidden for automation keeps no icon, and Linux keeps its
- * close behavior.
+ * Desktop's icon, from start until quit: in the notification area on Windows, the menu bar on macOS
+ * and the panel on Linux. Closing the window while terminals run keeps Desktop running behind it,
+ * and on macOS in the Dock whatever runs. A window started hidden for automation keeps no icon.
  */
 async function createBackground(
 	sessionArguments: readonly string[],
 ): Promise<DesktopBackgroundRuntime | undefined> {
 	const platform = process.platform;
-	if (windowHidden || (platform !== 'win32' && platform !== 'darwin')) return undefined;
+	if (windowHidden || (platform !== 'win32' && platform !== 'darwin' && platform !== 'linux'))
+		return undefined;
 	const record = new FileDesktopTrayRecord(dataRoot.trayStateFile);
 	const clientExecutable = resolveClientExecutable();
 	const clientEnvironment = resolveClientEnvironment();
@@ -595,7 +598,7 @@ let application: DesktopServerClientApplication | undefined;
 let background: DesktopBackgroundRuntime | undefined;
 let removePlatformActions: (() => void) | undefined;
 let windowUpdate: DesktopWindowUpdate | undefined;
-/** The saved machines' process, started once Desktop runs where it offers remote machines. */
+/** The saved machines' process, started once Desktop runs. */
 let machines: DesktopMachinesProcess | undefined;
 let saveDiagnosticBundle: (() => boolean) | undefined;
 let windowStoreTendTimer: ReturnType<typeof setTimeout> | undefined;
@@ -675,15 +678,13 @@ async function start(): Promise<void> {
 	}
 	windowUpdate = createWindowUpdate(sessionArguments);
 	windowUpdate.start();
-	// Desktop offers remote machines where the TUI reaches them: Windows and macOS.
-	if (process.platform === 'win32' || process.platform === 'darwin') {
-		machines = new DesktopMachinesProcess({
-			clientEnvironment: resolveClientEnvironment(),
-			clientExecutable: resolveClientExecutable(),
-			recordEvent,
-		});
-		machines.start();
-	}
+	// The process answers whether this host reaches saved machines, as the TUI's capability does.
+	machines = new DesktopMachinesProcess({
+		clientEnvironment: resolveClientEnvironment(),
+		clientExecutable: resolveClientExecutable(),
+		recordEvent,
+	});
+	machines.start();
 	const started = new DesktopServerClientApplication({
 		applicationVersion: ownVersion,
 		background,

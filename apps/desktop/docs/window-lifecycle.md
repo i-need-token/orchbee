@@ -65,12 +65,12 @@ hidden for automation neither restores nor records its place.
 
 ## Running in the notification area
 
-On Windows and macOS, Desktop shows an icon from the moment it starts until it quits, whether its
-window shows, is hidden, or has not opened yet: in the notification area on Windows, and in the menu
-bar on macOS ([Running in the menu bar](#running-in-the-menu-bar)), so long-running terminals and
-Agents stay one click away.
+Desktop shows an icon from the moment it starts until it quits, whether its window shows, is
+hidden, or has not opened yet: in the notification area on Windows, in the menu bar on macOS
+([Running in the menu bar](#running-in-the-menu-bar)), and on Linux in the panel, as a
+StatusNotifierItem, so long-running terminals and Agents stay one click away.
 
-On Windows a close while terminals run hides the window instead of closing it, so Desktop and its
+On Windows and Linux a close while terminals run hides the window instead of closing it, so Desktop and its
 Client connection keep running with the window's document intact. The page reports a summary over
 its background-status port: running terminals, which exclude ended, failed, and unstarted ones, and
 the Agents that are working, failed, need attention, or finished a turn not yet seen. Main keeps the
@@ -81,14 +81,14 @@ reports none.
 application as running, `quitting`, or `session-ending`; Quit All as `idle`, `confirming`,
 `stopping`, or `failed` with its reason; the latest summary; whether the one-time notice has been
 shown; and the platform's release, what ends a hidden window that nothing is left to reopen for
-(`quit` on Windows, `close-window` on macOS). `transitionDesktopBackground` applies close, show,
+(`quit` on Windows and Linux, `close-window` on macOS). `transitionDesktopBackground` applies close, show,
 closed, summary, quit, session-end, notice, and Quit All events and returns `hide-window`,
 `close-window`, `quit`, `show-notice`, `record-notice`, `confirm-quit-all`, `stop-session`, and
 `report-quit-all-failure` commands; `projectDesktopTray` derives the icon and
 `projectDesktopBackgroundMenu` its menu, which the macOS application menu's background items follow.
-`DesktopBackgroundRuntime` runs the model for both platforms behind one surface port,
+`DesktopBackgroundRuntime` runs the model for every platform behind one surface port,
 `desktop-background-surface.ts`, which `DesktopBackgroundTray` implements as the notification-area
-icon on Windows and the menu-bar icon on macOS.
+icon on Windows, the menu-bar icon on macOS and the panel icon on Linux.
 
 - A close while the window shows with terminals running becomes a hide. Without a running
   terminal, the close proceeds and Desktop quits, as it always has.
@@ -117,10 +117,11 @@ icon on Windows and the menu-bar icon on macOS.
 - When the last terminal ends while the window is hidden, Desktop quits, unless a Quit All is
   stopping the Session, which ends every terminal before it completes, or has failed. A connected
   machine's terminals count too, since the icon and notifications follow them.
-- The first hide shows a notice from the icon, which Windows withholds during Do Not Disturb. Only a
-  notice Windows reports as shown is recorded in `internal/state/desktop-tray.json`, so a withheld
-  one is shown at a later hide. Each distribution profile records its own.
-- Clicking or double-clicking the icon or its notice, Open Orchbee, starting Orchbee again, and a
+- The first hide shows a notice: from the icon on Windows, which withholds it during Do Not
+  Disturb, and as a notification on Linux. Only a notice the system reports as shown is recorded in
+  `internal/state/desktop-tray.json`, so a withheld one is shown at a later hide. Each distribution profile records its own.
+- Clicking or double-clicking the icon or its notice, on Linux the activation the panel sends for
+  the icon, a click on most desktops, Open Orchbee, starting Orchbee again, and a
   notification clicked while the window is hidden all show and focus the window: a hidden window
   shows, a minimized one is restored, and a shown one comes forward. The page asks Main for it,
   because a page cannot show a window Main hid. Quit Orchbee quits Desktop
@@ -142,9 +143,11 @@ icon on Windows and the menu-bar icon on macOS.
   bootstrap's `quitAllAvailable` offers the button only to a window whose Main keeps Quit All.
   While the stop runs, the menu holds only its status line and Open Orchbee.
 - Only a release icon has a fixed GUID, so Windows remembers whether it is shown in the taskbar and
-  macOS keeps the place the person dragged it to in the menu bar. Test and Dev run from changing
-  paths, to which Windows ties an unsigned executable's GUID.
-- A window started hidden for automation and Linux keep no icon and close as before; macOS follows
+  macOS keeps the place the person dragged it to in the menu bar; Linux ignores it. Test and Dev
+  run from changing paths, to which Windows ties an unsigned executable's GUID.
+- A Linux desktop that hosts no StatusNotifierItem, such as GNOME without its AppIndicator
+  extension, shows no icon. The close still hides the window, and starting Orchbee again shows it.
+- A window started hidden for automation keeps no icon and closes as before; macOS follows
   [Running in the menu bar](#running-in-the-menu-bar).
 
 ## Running in the menu bar

@@ -1,13 +1,12 @@
 //! The macOS and Linux PATH step: the link `~/.local/bin/<stem>` names the Client of the version
 //! directory, `<root>/versions/<version>/<stem>`, so a shell that searches `~/.local/bin` finds the
-//! installed version by name. When the installing process's `PATH` lacks that folder, macOS also
+//! installed version by name. When the installing process's `PATH` lacks that folder, the step also
 //! puts it on new shells' `PATH` through the person's shell startup file (`profile`), and `install`
 //! prints the line that adds it wherever that did not happen. The link is the step's only entry in
 //! `~/.local/bin`: something else at its name, a file or a link that names no Orchbee version's
 //! Client, is never replaced, and the step fails and leaves it. A link to another store's version is
 //! Orchbee's and is replaced. Each placement renames a new link over the old one, so the name never
 //! stands empty.
-#[cfg(target_os = "macos")]
 mod profile;
 
 use super::super::{Error, PathStep};
@@ -23,19 +22,17 @@ use std::{
 };
 
 /// Links the Client of the version directory `product` names under `root` at `~/.local/bin/<stem>`,
-/// creating the folder when it is missing, then on macOS reaches it from new shells. A failure to
+/// creating the folder when it is missing, then reaches it from new shells. A failure to
 /// link stops the step before the pointer moves.
 pub(in crate::cli::update) fn run(root: &Path, product: &str) -> Result<(), Error> {
     let link = own_link().ok_or(Error::PathLauncher)?;
     place(&link, &client(root, product), root).map_err(|_| Error::PathLauncher)?;
-    #[cfg(target_os = "macos")]
     reach(&link);
     Ok(())
 }
 
-/// On macOS, puts `~/.local/bin` on new shells' `PATH` through the startup file of the shell
-/// `SHELL` names when this process's `PATH` lacks it; best effort, as `profile` says.
-#[cfg(target_os = "macos")]
+/// Puts `~/.local/bin` on new shells' `PATH` through the startup file of the shell `SHELL` names
+/// when this process's `PATH` lacks it; best effort, as `profile` says.
 fn reach(link: &Path) {
     if let Some(folder) = link.parent()
         && !names_folder(std::env::var_os("PATH").as_deref(), folder)
@@ -100,7 +97,7 @@ pub(in crate::cli::update) fn location(_root: &Path) -> Option<String> {
 }
 
 /// The note `install` adds after the step's line when this process's `PATH` lacks `~/.local/bin`:
-/// on macOS, that a startup file now puts it there; otherwise the line that does.
+/// that a startup file now puts it there, or else the line that does.
 pub(in crate::cli::update) fn follow_up(step: PathStep) -> Option<&'static str> {
     let linked = matches!(
         step,
@@ -110,13 +107,10 @@ pub(in crate::cli::update) fn follow_up(step: PathStep) -> Option<&'static str> 
     if !linked || names_folder(std::env::var_os("PATH").as_deref(), &folder) {
         return None;
     }
-    #[cfg(target_os = "macos")]
     let reached = folder
         .parent()
         .and_then(Path::parent)
         .is_some_and(|home| !profile::holders(home).is_empty());
-    #[cfg(not(target_os = "macos"))]
-    let reached = false;
     Some(if reached {
         "path-profile"
     } else {
@@ -232,19 +226,16 @@ pub(in crate::cli::update) fn store_link(link: &Path, root: &Path) -> io::Result
 }
 
 /// Whether a startup file holds the two lines the step added to put `~/.local/bin` on `PATH`.
-#[cfg(target_os = "macos")]
 pub(in crate::cli::update) fn profile_present() -> bool {
     home().is_some_and(|home| !profile::holders(&home).is_empty())
 }
 
 /// Removes those two lines from every startup file that holds them.
-#[cfg(target_os = "macos")]
 pub(in crate::cli::update) fn remove_profile() -> io::Result<()> {
     home().map_or(Ok(()), |home| profile::remove(&home))
 }
 
 /// The person's home, from `HOME`, when it is an absolute path.
-#[cfg(target_os = "macos")]
 fn home() -> Option<PathBuf> {
     std::env::var_os("HOME")
         .map(PathBuf::from)

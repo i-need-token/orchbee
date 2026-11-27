@@ -19,9 +19,8 @@
 # 3. Downloads the .tar.gz the feed names, checks its size and SHA-256 against the feed, unpacks
 #    it into a temporary folder and runs its `orchbee install`, which verifies the signed
 #    release.json, activates the version under ~/.local/share/orchbee, links ~/.local/bin/orchbee,
-#    and, when the shell lacks ~/.local/bin, on macOS adds the lines that put it on PATH to the
-#    shell's startup file, elsewhere prints the line. --no-path is
-#    passed on.
+#    and, when the shell lacks ~/.local/bin, adds the lines that put it on PATH to the shell's
+#    startup file, or prints the line where it has none. --no-path is passed on.
 # 4. With --desktop on macOS, it first downloads the window archive the feed names in
 #    extensions.desktop and checks its size and SHA-256 against the feed; after the install it
 #    unpacks it, has the application's bundled Client add that window version to the store with

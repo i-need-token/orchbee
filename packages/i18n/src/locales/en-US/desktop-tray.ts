@@ -3,6 +3,8 @@ export const enUSDesktopTrayMessages = {
 		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click the Orchbee icon at the lower right to reopen it, or right-click it to stop the Session.',
 	'desktop.tray.notice.menuBarBody':
 		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Click Orchbee in the Dock to reopen it, or click the Orchbee icon in the menu bar to stop the Session.',
+	'desktop.tray.notice.panelBody':
+		'{terminals, plural, one {# terminal keeps working.} other {# terminals keep working.}} Open Orchbee again to return to it, or use the Orchbee icon in the panel to stop the Session.',
 	'desktop.tray.notice.title': '{application} is still running in the background',
 	'desktop.tray.open': 'Open Orchbee',
 	'desktop.tray.quitAll': 'Stop Session…',

@@ -76,6 +76,16 @@ apple-native-keyring-store = { version = "1.0.2", default-features = false, feat
 	"keychain",
 ] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+# Remembered login answers in the Secret Service's default collection over the session bus, named
+# exactly by the remembered-answer item names: oo7's D-Bus client, in pure Rust so the static musl
+# Client carries it, with RustCrypto for the encrypted session and never its file keyring. Its
+# async calls run under futures-lite's `block_on`, bounded by an async-io timer on the reactor
+# zbus already runs; both crates come with oo7 and serve only the Linux credential adapter.
+oo7 = { version = "0.7.3", default-features = false, features = ["async-std", "native_crypto"] }
+futures-lite = { version = "2.6.1", default-features = false, features = ["std"] }
+async-io = { version = "2.6.0", default-features = false }
+
 [dev-dependencies]
 # Bounded fake peers and controlled transport clocks for unit tests only.
 orchbee-local-client = { path = "../local-client", features = ["test-support"] }

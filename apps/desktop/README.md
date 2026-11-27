@@ -19,9 +19,9 @@ and the new document connects again; a second crash within a minute of the last 
 and a native dialog, like VS Code's, offers Reopen or Close (Esc closes). Closing destroys the dead
 page, so the window opens afresh later. Closing the window or quitting asks nothing, because nothing ends
 with it: Main records the window's place and the Session's terminals keep running. From start until
-quit, Desktop shows an icon in the Windows notification area or the macOS menu bar, with or without
-a window, whose menu counts the running terminals. On Windows, closing the window while terminals
-run hides it, and Desktop keeps running until the window is reopened, Orchbee is quit from the
+quit, Desktop shows an icon in the Windows notification area, the macOS menu bar or the Linux panel,
+with or without a window, whose menu counts the running terminals. On Windows and Linux, closing the
+window while terminals run hides it, and Desktop keeps running until the window is reopened, Orchbee is quit from the
 icon, or the last terminal ends, as
 [Window lifecycle](docs/window-lifecycle.md#running-in-the-notification-area) describes; with no
 terminal running, closing it quits as before. On macOS the same close hides the window, and Desktop
@@ -47,14 +47,14 @@ notification-area or menu-bar icon, on Linux and for a window started hidden, it
 All's Session stop, which the page sends through its Server connection because Main never speaks
 the Client protocol. The fourth is its window-update port, described under
 [Window Update](#window-update). The fifth is its machines port, which `src/main/remote-machines/` connects to
-the saved machines' process, `orchbee --desktop-machines` ([contract](../orchbee/docs/machines.md#desktop-machines-process)),
-on Windows and macOS; the page's Settings › Machines, the sidebar's other machines and Change machine read it. On Linux Main starts no such process and closes the port at once, so no view arrives and Settings shows no Machines category.
+the saved machines' process, `orchbee --desktop-machines` ([contract](../orchbee/docs/machines.md#desktop-machines-process));
+the page's Settings › Machines, the sidebar's other machines and Change machine read it. Where the process answers that the host lacks saved machines, Main closes the port, so no view arrives and Settings shows no Machines category.
 For each saved machine the hub reads online, the page asks for a connection to its Session, and
 Main starts that machine's session relay, `orchbee --machine-session` ([contract](../orchbee/docs/machines.md#desktop-session-relay)),
 reads only its first line within 30 seconds, and hands the page the relay's port under the
 connection relay's bounds, or the reason there is none (`desktop-machine-session-contract.ts`). A
 document holds one per machine, with no cap; closing the port or the document ends the relay, never
-the remote Session. On Linux Main refuses every such request. No contract carries the far
+the remote Session. No contract carries the far
 computer's home, so a remote surface starts New Workspace, with no Workspace focused, in the folder
 of that Session's first Workspace, and leaves the directories its terminals report to its Server. The process owns activation, peer validation and admission, and the page
 owns the protocol. A document asks for its connection once it is listening, through the preload,
@@ -254,13 +254,13 @@ the restart, again.
 
 - A hidden title bar, with the system's controls drawn over the page. On macOS the traffic lights sit
   at `(12, 12)`, and the renderer centers the sidebar toggle in the same `36px` horizontal Tab row
-  at x `76`, after the reserved native-control space. On Windows the caption buttons draw over the
-  page's top end, so the horizontal Tab bar, the mobile bar, and the Tab list each end in a trailing
+  at x `76`, after the reserved native-control space. On Windows and Linux the caption buttons draw
+  over the page's top end, so the horizontal Tab bar, the mobile bar, and the Tab list each end in a trailing
   reserve as wide as the window leaves past `env(titlebar-area-x)` and `env(titlebar-area-width)`;
   Tabs that do not fit overflow within the remaining width, and the New Tab control stays clear of
   the caption buttons at every window width.
-- On Windows, caption buttons in the page's theme. They draw with no background, so the page's own
-  chrome shows beneath them, and their symbols read as the top bar's own icons: the color the page's
+- On Windows and Linux, caption buttons in the page's theme. They draw with no background, so the
+  page's own chrome shows beneath them, and their symbols read as the top bar's own icons: the color the page's
   theme gives `--ob-sys-color-icon-secondary`, named color themes included, blended over the bar's
   surface (`--ob-sys-color-surface-canvas` with `--ob-sys-color-surface-subtle` over it) into an
   opaque color. The page posts that color, converted to `#rrggbb`, to its own window whenever its
@@ -270,8 +270,7 @@ the restart, again.
   hover fill behind minimize and maximize stays Electron's. Setting `nativeTheme.themeSource` from
   the page's theme was rejected: Electron gives the overlay the classic system button colors
   whatever that source says, so the buttons would not change, and the override would also redefine
-  `prefers-color-scheme`, from which the page resolves a theme that follows the system. Linux keeps
-  the default overlay.
+  `prefers-color-scheme`, from which the page resolves a theme that follows the system.
 - The window's title is its page's, which the taskbar and window switcher show; the page follows the
   Session's title policy as the TUI's outer title does.
 - Files and folders dropped on a terminal paste their paths into it as ordinary paste, the terminal
@@ -298,8 +297,9 @@ the restart, again.
   `resources/tray`. The Dock keeps the system's own menu. The application menu ends with Stop
   Session… and then `Command+Q` Quit Orchbee, and the Window menu holds Open Orchbee while no window
   shows.
-- On Windows and macOS, Save Diagnostic Bundle… in the Help menu, and on Windows also in the
-  taskbar's Jump List of a packaged build, since the title bar overlay hides the menu bar. It asks
+- Save Diagnostic Bundle… in the Help menu, and, since the title bar overlay hides the menu bar,
+  on Windows also in the taskbar's Jump List of a packaged build and on Linux in the menu entry's
+  own menu, as its one action, which the dock and application grid show. It asks
   where to save, starting in the
   Desktop folder, or in the home folder when the system cannot name the Desktop, runs
   `orchbee diagnostics create`, shows the bundle in its folder, and says in a dialog when it failed;
@@ -462,7 +462,7 @@ The bundle identifier is also the Windows AppUserModelID: a packaged Windows app
 startup and the installer's Start menu shortcut carries it, so Windows groups the window, its
 taskbar button and its notifications under that shortcut.
 
-On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. The disk image background in `resources/brand/png/dmg/` comes from the same kit. After changing `resources/icon.svg` or a kit definition in the repository's `scripts/brand-assets.mjs`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`. A Linux package carries the brand's PNG icons as `resources/linux/icons/<n>x<n>.png` beside its menu entry template `resources/linux/<stem>.desktop`, whose `StartupWMClass` is the application name, and Main gives each window the 256 px icon, which X11 window managers show.
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. The disk image background in `resources/brand/png/dmg/` comes from the same kit. After changing `resources/icon.svg` or a kit definition in the repository's `scripts/brand-assets.mjs`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`. A Linux package carries the brand's PNG icons as `resources/linux/icons/<n>x<n>.png` beside its menu entry template `resources/linux/<stem>.desktop`, whose `StartupWMClass` is the application name and whose one action passes `--save-diagnostic-bundle`, and Main gives each window the 256 px icon, which X11 window managers show.
 
 Packages name their native cohort by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>` and `ob-dev-<scope-digest>-server`, with `.exe` on Windows. The packaged Windows Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. Every cohort also compiles in the stem, which the handshake compares, so a release Client in a development or test Desktop's terminal is refused.
 

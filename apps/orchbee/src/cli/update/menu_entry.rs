@@ -1,6 +1,7 @@
 //! The person's Linux menu entry for the window store: `<data>/applications/<stem>.desktop`, whose
-//! every `Exec=` line names the store's window entry `<root>/desktop/<stem>-desktop` by absolute
-//! path, and its icons `<data>/icons/hicolor/<n>x<n>/apps/<stem>.png`, where `<data>` is
+//! every `Exec=` line starts the store's window entry `<root>/desktop/<stem>-desktop` by absolute
+//! path, the main entry with no argument and each action with the arguments the template gives it,
+//! and its icons `<data>/icons/hicolor/<n>x<n>/apps/<stem>.png`, where `<data>` is
 //! `XDG_DATA_HOME` when that is an absolute path and `~/.local/share` otherwise. The active window
 //! version carries both as `resources/linux/<stem>.desktop` and `resources/linux/icons/<n>x<n>.png`;
 //! the window layout copies them out after it places the entry, and uninstall removes them while the
@@ -87,7 +88,7 @@ impl MenuEntry {
         }
     }
 
-    /// Whether the menu entry is a file whose every `Exec=` line names this store's window entry.
+    /// Whether the menu entry is a file whose every `Exec=` line starts this store's window entry.
     pub(super) fn names_store(&self) -> bool {
         let Some(own) = exec_line(&self.program) else {
             return false;
@@ -100,7 +101,11 @@ impl MenuEntry {
             return false;
         }
         let mut lines = text.lines().filter(|line| line.starts_with("Exec="));
-        lines.clone().next().is_some() && lines.all(|line| line == own)
+        lines.clone().next().is_some()
+            && lines.all(|line| {
+                line.strip_prefix(own.as_str())
+                    .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
+            })
     }
 
     /// Removes the icons the menu entry names, once the entry itself is gone; each one that cannot
@@ -126,16 +131,21 @@ impl MenuEntry {
             .join(format!("{}.png", environment_stem()))
     }
 
-    /// `template` with every `Exec=` line naming the window entry; none when the entry's path
-    /// cannot be written in a menu entry or the template has no `Exec=` line.
+    /// `template` with the program of every `Exec=` line, its first word, replaced by the window
+    /// entry and the arguments after it kept; none when the entry's path cannot be written in a menu
+    /// entry or the template has no `Exec=` line.
     fn entry_text(&self, template: &str) -> Option<String> {
         let own = exec_line(&self.program)?;
         let mut found = false;
         let mut text = String::with_capacity(template.len() + own.len());
         for line in template.lines() {
-            if line.starts_with("Exec=") {
+            if let Some(command) = line.strip_prefix("Exec=") {
                 found = true;
                 text.push_str(&own);
+                if let Some((_, arguments)) = command.split_once(' ') {
+                    text.push(' ');
+                    text.push_str(arguments);
+                }
             } else {
                 text.push_str(line);
             }

@@ -22,16 +22,19 @@
 //
 // - archive: the system tar unpacks the `.tar.gz` into one folder named like it, whose four programs
 //   are executable; its Client's `install` activates the version in `~/.local/share/<stem>` and
-//   links `~/.local/bin/<stem>`, which answers `--version`; `uninstall` through the link removes the
-//   store root and the link.
+//   links `~/.local/bin/<stem>`, which answers `--version`, and adds the lines that put
+//   `~/.local/bin` on `PATH` to `~/.bashrc`; `uninstall` through the link removes the store root,
+//   the link and the `~/.bashrc` install made.
 // - install-script: runs apps/website/public/install.sh as `curl … | sh` does, the script on the
 //   standard input of /bin/sh, against a signed copy of the row's feed (`feed.json` and
 //   `feed.json.sig`) that names its archive by file name, in a folder beside the `.tar.gz`, reached
 //   through ORCHBEE_INSTALL_SH_FEED, a file: address. It must verify `feed.json.sig`, activate the
-//   version, link the command and leave its temporary folder empty. With `--desktop` it also
+//   version, link the command, add the PATH lines to `~/.bashrc` and leave its temporary folder
+//   empty. With `--desktop` it also
 //   installs the window archive the feed names: the window store must name that window version, its
 //   entry must be executable, and the menu entry and its icon must name that entry. `uninstall`
-//   through the link then removes the store root, the link, the menu entry and its icons.
+//   through the link then removes the store root, the link, `~/.bashrc`, the menu entry and its
+//   icons.
 // - packages: the AppImage extracts itself with `--appimage-extract` into an AppDir whose `AppRun`,
 //   menu entry, icon and window program are in place, and the Debian package's fields and files are
 //   the row's: `/opt/<stem>/<stem>-desktop`, the menu entry, the icons, the AppArmor profile and
@@ -201,9 +204,11 @@ function scratchEnvironment(home) {
 	const kept = Object.entries(process.env).filter(
 		([name]) => !/^(?:ORCHBEE_|XDG_|npm_config_|NPM_CONFIG_)/u.test(name),
 	);
+	// bash, so install's PATH lines go to ~/.bashrc whatever shell the runner has.
 	return {
 		...Object.fromEntries(kept),
 		HOME: home,
+		SHELL: '/bin/bash',
 		npm_config_cache: path.join(home, '.npm'),
 	};
 }
@@ -292,6 +297,12 @@ function expectLink(identity, home, root, env, what) {
 	if (!inside(realpathSync(root), realpathSync(link)))
 		throw new StepFailure(`${link} names ${readlinkSync(link)}, outside ${root}`);
 	expectVersion(identity, run(link, ['--version'], { env }), `${identity.stem} --version`);
+	const bashrc = path.join(home, '.bashrc');
+	if (
+		!existsSync(bashrc) ||
+		!readFileSync(bashrc, 'utf8').includes('export PATH="$HOME/.local/bin:$PATH"')
+	)
+		throw new StepFailure(`${what} added no line that puts ~/.local/bin on PATH to ${bashrc}`);
 	return link;
 }
 
@@ -370,6 +381,7 @@ function archive(identity, work) {
 	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
+	expectGone(path.join(home, '.bashrc'), 'The ~/.bashrc install made');
 	expectNoProcesses(work);
 }
 
@@ -420,6 +432,7 @@ function installScriptStep(identity, work) {
 	uninstall(identity, link, env);
 	expectGone(root, 'The store root');
 	expectGone(link, 'The command link');
+	expectGone(path.join(home, '.bashrc'), 'The ~/.bashrc install.sh made');
 	for (const file of menuFiles) expectGone(file, 'The menu file');
 	expectNoProcesses(work);
 }
@@ -458,7 +471,9 @@ function expectWindowStore(identity, home, root, version) {
 	const exec = readFileSync(menuEntry, 'utf8')
 		.split('\n')
 		.filter((line) => line.startsWith('Exec='));
-	if (exec.length === 0 || exec.some((line) => line !== `Exec="${entry}"`))
+	// The entry itself, then its Save Diagnostic Bundle… action.
+	const expected = [`Exec="${entry}"`, `Exec="${entry}" --save-diagnostic-bundle`];
+	if (exec.join('\n') !== expected.join('\n'))
 		throw new StepFailure(`${menuEntry} does not start ${entry}: ${exec.join(' | ')}`);
 	const icon = path.join(data, 'icons', 'hicolor', '256x256', 'apps', `${identity.stem}.png`);
 	if (!existsSync(icon)) throw new StepFailure(`The menu icon ${icon} is missing`);

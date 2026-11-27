@@ -5,6 +5,8 @@ export const zhCNDesktopTrayMessages = {
 		'{terminals, plural, other {# 个终端继续工作。}}点击右下角的 Orchbee 图标重新打开，右键可停止会话。',
 	'desktop.tray.notice.menuBarBody':
 		'{terminals, plural, other {# 个终端继续工作。}}点按程序坞中的 Orchbee 重新打开，点按菜单栏中的 Orchbee 图标可停止会话。',
+	'desktop.tray.notice.panelBody':
+		'{terminals, plural, other {# 个终端继续工作。}}再次打开 Orchbee 即可回到窗口，也可以用面板中的 Orchbee 图标停止会话。',
 	'desktop.tray.notice.title': '{application} 仍在后台运行',
 	'desktop.tray.open': '打开 Orchbee',
 	'desktop.tray.quitAll': '停止会话…',

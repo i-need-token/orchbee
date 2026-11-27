@@ -129,18 +129,15 @@ pub(super) fn shortcut_removed(locations: &Locations) {
     let _ = locations;
 }
 
-/// Whether the command link names a version of the store `root`, or on macOS a startup file holds
-/// the PATH lines install added; a link elsewhere, or anything else at its name, is not install's
+/// Whether the command link names a version of the store `root`, or a startup file holds the PATH
+/// lines install added; a link elsewhere, or anything else at its name, is not install's
 /// and stays.
 pub(super) fn path_entry_present(locations: &Locations, root: &Path) -> io::Result<bool> {
-    let linked = path_step::store_link(&locations.link, root)?;
-    #[cfg(target_os = "macos")]
-    let linked = linked || path_step::profile_present();
-    Ok(linked)
+    Ok(path_step::store_link(&locations.link, root)? || path_step::profile_present())
 }
 
-/// Removes the command link while it still names a version of the store `root`, and on macOS the
-/// PATH lines install added to the person's shell startup file; a link that no longer names this
+/// Removes the command link while it still names a version of the store `root`, and the PATH lines
+/// install added to the person's shell startup file; a link that no longer names this
 /// store is left. The folder stays.
 pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Result<()> {
     if path_step::store_link(&locations.link, root)? {
@@ -149,7 +146,6 @@ pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Resul
             _ => {}
         }
     }
-    #[cfg(target_os = "macos")]
     path_step::remove_profile()?;
     Ok(())
 }

@@ -920,10 +920,18 @@ application calls no store.
   program that created an item by its code signature. A release build is signed with the project's
   Developer ID, whose signature names the team rather than one build, so an update keeps that
   trust; an ad-hoc-signed development or test build gets a new signature with every build, so after
-  a rebuild macOS asks once more before it reads an answer it remembered earlier. Linux answers "unavailable" in this build: a current limit, not the
-  design, which gives it the Secret Service, otherwise the kernel's per-user keyring, as adapters of
-  the same port that change no caller. A store that cannot be reached, such as Credential Manager
-  in an SSH logon or a Keychain this session cannot reach, also answers unavailable: the TUI shows
+  a rebuild macOS asks once more before it reads an answer it remembered earlier. Linux uses the
+  Secret Service's default collection, the login keyring that GNOME Keyring, KWallet or KeePassXC
+  serve: an item whose attributes are `service`, the item's name, and `username` `orchbee`, and
+  whose label is the readable label, written through `oo7`'s D-Bus client on the session bus,
+  whose address is `DBUS_SESSION_BUS_ADDRESS` or else `$XDG_RUNTIME_DIR/bus`, and never through its
+  file keyring. A write makes the default collection where the service has none. A locked
+  collection or item is unlocked first, which shows the desktop's unlock prompt; a dismissed
+  prompt fails the call, and so does one unanswered after 60 seconds, the bound on every call,
+  since a prompt can go unseen, as in an SSH login to a computer whose desktop session holds the
+  keyring. A store that cannot be reached, such as Credential Manager in an SSH
+  logon, a Keychain this session cannot reach, or a Linux login with no session bus or no Secret
+  Service on it, as on a server or in WSL, answers unavailable: the TUI shows
   "Passwords can't be remembered in this kind of login." in place of the box. The TUI asks the
   store, and the `ssh` release below, on a thread of its own when the first password or passphrase
   question arrives or a remote row is first selected, and shows the box once they answered. A

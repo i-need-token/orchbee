@@ -12,6 +12,8 @@ import {
 import { desktopDiagnosticsMessages } from '@orchbee/i18n';
 
 const SAVE_DIAGNOSTIC_BUNDLE_ACTION_ID = 'desktop.diagnostics.save-bundle';
+/** The systems whose bundled Client writes a bundle. */
+const BUNDLE_PLATFORMS: ReadonlySet<NodeJS.Platform> = new Set(['darwin', 'linux', 'win32']);
 
 interface DesktopDiagnosticsActionCatalog {
 	readonly [SAVE_DIAGNOSTIC_BUNDLE_ACTION_ID]: ActionSignature<void>;
@@ -116,7 +118,7 @@ export class DesktopDiagnosticsActions {
 	}
 
 	#availability(): ActionAvailability {
-		if (this.#platform !== 'win32' && this.#platform !== 'darwin') return { kind: 'hidden' };
+		if (!BUNDLE_PLATFORMS.has(this.#platform)) return { kind: 'hidden' };
 		return this.#saving ? { kind: 'disabled' } : { kind: 'enabled' };
 	}
 

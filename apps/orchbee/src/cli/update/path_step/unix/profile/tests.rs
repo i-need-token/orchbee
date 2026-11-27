@@ -50,16 +50,23 @@ fn the_lines_are_added_once_and_removed_exactly() {
     );
     assert!(holders(&home).is_empty());
 
-    // bash gets its first login file; another shell gets none.
+    // bash gets the file its terminal shells read: on macOS the first login file, on Linux
+    // ~/.bashrc; the system's default shell stands in for none; another shell gets none.
     let bash = Some(OsStr::new("/bin/bash"));
-    assert_eq!(target(&home, bash), Some(home.join(".profile")));
-    fs::write(home.join(".bash_profile"), "").unwrap();
-    assert_eq!(target(&home, bash), Some(home.join(".bash_profile")));
+    if cfg!(target_os = "macos") {
+        assert_eq!(target(&home, bash), Some(home.join(".profile")));
+        fs::write(home.join(".bash_profile"), "").unwrap();
+        assert_eq!(target(&home, bash), Some(home.join(".bash_profile")));
+        assert_eq!(target(&home, None), Some(zshenv));
+    } else {
+        fs::write(home.join(".bash_profile"), "").unwrap();
+        assert_eq!(target(&home, bash), Some(home.join(".bashrc")));
+        assert_eq!(target(&home, None), Some(home.join(".bashrc")));
+    }
     assert_eq!(
         target(&home, Some(OsStr::new("/opt/homebrew/bin/fish"))),
         None
     );
-    assert_eq!(target(&home, None), Some(zshenv));
 
     fs::remove_dir_all(&home).unwrap();
 }

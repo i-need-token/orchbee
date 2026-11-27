@@ -127,8 +127,11 @@ export interface DesktopServerClientApplicationOptions {
 }
 
 const MACOS_TRAFFIC_LIGHT_POSITION = { x: 12, y: 12 } as const;
-/** The Windows caption buttons show the page's chrome beneath them, in whatever theme it has. */
-const WINDOWS_CAPTION_BACKGROUND = '#00000000';
+/**
+ * The Windows and Linux caption buttons show the page's chrome beneath them, in whatever theme it
+ * has.
+ */
+const CAPTION_BACKGROUND = '#00000000';
 const HIDDEN_WINDOW_BOUNDS = { height: 720, width: 1100 } as const;
 /** How often a window whose Server ended reads its Session while it waits for one. */
 const REJOIN_READ_INTERVAL_MILLISECONDS = 1_000;
@@ -160,8 +163,8 @@ function windowFocus(window: BrowserWindow): DesktopWindowUpdateFocus {
 }
 
 /**
- * The Windows caption buttons' symbols take the color the page's theme gives them, each time it
- * changes; until the first document says, they keep the system's.
+ * The Windows and Linux caption buttons' symbols take the color the page's theme gives them, each
+ * time it changes; until the first document says, they keep the system's.
  */
 function followPageCaptionColor(
 	window: BrowserWindow,
@@ -374,10 +377,7 @@ export class DesktopServerClientApplication {
 			show: false,
 			...(options.platform === 'darwin'
 				? { trafficLightPosition: MACOS_TRAFFIC_LIGHT_POSITION }
-				: {
-						titleBarOverlay:
-							options.platform === 'win32' ? { color: WINDOWS_CAPTION_BACKGROUND } : true,
-					}),
+				: { titleBarOverlay: { color: CAPTION_BACKGROUND } }),
 			titleBarStyle: 'hidden',
 			...(options.windowIcon === null ? {} : { icon: options.windowIcon }),
 			webPreferences: {
@@ -393,7 +393,7 @@ export class DesktopServerClientApplication {
 			},
 		});
 		this.#window = window;
-		if (options.platform === 'win32') followPageCaptionColor(window, options.recordEvent);
+		if (options.platform !== 'darwin') followPageCaptionColor(window, options.recordEvent);
 		const endPageFaults = recordPageFaults(window, options.recordEvent);
 		let attachment: DesktopWindowStateAttachment | undefined;
 		if (!options.windowHidden) {

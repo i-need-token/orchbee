@@ -43,7 +43,7 @@ describe('DesktopDiagnosticsActions', () => {
 	it('is hidden where the bundle command is unsupported', () => {
 		const actions = new DesktopDiagnosticsActions(
 			target('C:\\b.zip', Promise.resolve({ kind: 'created', path: 'C:\\b.zip' })),
-			'linux',
+			'freebsd',
 		);
 		expect(actions.getSaveBundleAvailability()).toEqual({ kind: 'hidden' });
 		expect(actions.invokeSaveBundle('menu')).toBe(false);
