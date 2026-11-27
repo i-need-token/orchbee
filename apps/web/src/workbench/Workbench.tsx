@@ -13,7 +13,7 @@ import {
 	ResizablePanelGroup,
 } from '@orchbee/ui/components';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { keyboardShortcutMessages, terminalSettingsMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
@@ -23,6 +23,7 @@ import {
 	MINIMUM_LEFT_PANEL_WIDTH,
 	type WorkbenchLayoutStorage,
 } from '../workbench-layout-storage';
+import { WorkbenchKeyboardScopeContext } from '../workbench-keyboard-scopes';
 import { WorkbenchAgentConfirmationOffer } from './components/workbench-agent-confirmation-offer/WorkbenchAgentConfirmationOffer';
 import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
 import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
@@ -72,7 +73,9 @@ import { workbenchEnvironmentMarkerView } from './model/workbenchEnvironmentMark
 import { WORKBENCH_RESIZE_TARGET_SIZE_PX } from './model/workbench-resize-target';
 import type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
 import {
+	defaultWorkbenchScopedShortcutBindings,
 	defaultWorkbenchShortcutBindings,
+	type WorkbenchScopedShortcutBinding,
 	type WorkbenchShortcutBindings,
 } from './utils/workbench-shortcuts';
 import styles from './Workbench.module.css';
@@ -119,6 +122,11 @@ interface WorkbenchProps {
 	readonly searchProviders?: readonly WorkbenchSearchProvider[] | undefined;
 	/** Whether the window offers Search in the Workbench. Search defaults to withheld. */
 	readonly searchOffered?: boolean | undefined;
+	/**
+	 * The keys of the File Bar family's shortcuts. A window that offers the File Bar defaults to their
+	 * platform defaults; one that does not has none, whatever this says.
+	 */
+	readonly scopedShortcutBindings?: readonly WorkbenchScopedShortcutBinding[] | undefined;
 	readonly shortcutBindings?: WorkbenchShortcutBindings | undefined;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Suppresses the window-level Update failure toast while another surface presents it. */
@@ -155,6 +163,7 @@ export function Workbench({
 	projectFolderAcquisition,
 	searchProviders = EMPTY_WORKBENCH_SEARCH_PROVIDERS,
 	searchOffered = false,
+	scopedShortcutBindings,
 	shortcutBindings,
 	shortcutPlatform,
 	suppressClientUpdateFailureNotice = false,
@@ -168,8 +177,12 @@ export function Workbench({
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
+	const effectiveScopedShortcutBindings = fileBarOffered
+		? (scopedShortcutBindings ?? defaultWorkbenchScopedShortcutBindings(shortcutPlatform))
+		: undefined;
 	const shortcutLabelForAction = useWorkbenchActionShortcutLabel({
 		configuredCommandKeys: configuredCommandKeys.keys,
+		scopedShortcutBindings: effectiveScopedShortcutBindings,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		terminalActionShortcutLabels,
@@ -191,6 +204,7 @@ export function Workbench({
 		projectFolderAcquisition,
 		projectWorkspaceRuntime,
 		searchOffered,
+		scopedShortcutBindings: effectiveScopedShortcutBindings,
 		shortcutBindings: effectiveShortcutBindings,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -472,7 +486,8 @@ export function Workbench({
 		);
 	}
 
-	return (
+	const sequenceNotice = view.shortcutSequenceNotice;
+	const workbench = (
 		<div
 			className={styles['root']}
 			data-workbench-touch={view.touchSizes || undefined}
@@ -481,6 +496,18 @@ export function Workbench({
 			ref={view.shortcutScopeReference}
 		>
 			<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
+				{sequenceNotice === null ? null : (
+					<span className={styles['statusNoticeText']}>
+						{sequenceNotice.kind === 'waiting'
+							? intl.formatMessage(keyboardShortcutMessages.sequenceWaiting, {
+									leader: sequenceNotice.leader,
+								})
+							: intl.formatMessage(keyboardShortcutMessages.sequenceMissed, {
+									key: sequenceNotice.step,
+									leader: sequenceNotice.leader,
+								})}
+					</span>
+				)}
 				{preferencesUnreadable ? (
 					<button
 						className={styles['statusNoticeText']}
@@ -502,6 +529,7 @@ export function Workbench({
 				{/* An offer never covers what just happened: it shows once the line is free. */}
 				{confirmationOffer === null ||
 				preferencesUnreadable ||
+				sequenceNotice !== null ||
 				view.authorityNotice !== null ? null : (
 					<WorkbenchAgentConfirmationOffer
 						agentLabel={confirmationOffer.agentLabel}
@@ -726,5 +754,10 @@ export function Workbench({
 				view={view.projectCreation}
 			/>
 		</div>
+	);
+	return (
+		<WorkbenchKeyboardScopeContext.Provider value={view.keyboardScopeRegistry}>
+			{workbench}
+		</WorkbenchKeyboardScopeContext.Provider>
 	);
 }

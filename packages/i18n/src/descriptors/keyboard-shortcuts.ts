@@ -116,6 +116,14 @@ export const keyboardShortcutMessages = defineMessages({
 	scopeFocusedTerminal: message('keyboard.shortcuts.scope.focusedTerminal'),
 	scopeFocusedTerminalOrFind: message('keyboard.shortcuts.scope.focusedTerminalOrFind'),
 	scopeWorkbench: message('keyboard.shortcuts.scope.workbench'),
+	sequenceMissed: message(
+		'keyboard.shortcuts.sequence.missed',
+		'Status notice, as VS Code words it, when the key pressed after the first key of a two-key shortcut names no command. leader is that first key, such as Ctrl+K; key is the second.',
+	),
+	sequenceWaiting: message(
+		'keyboard.shortcuts.sequence.waiting',
+		'Status notice, as VS Code words it, after the first key of a two-key shortcut while the window waits for the second. leader is that key, such as Ctrl+K.',
+	),
 	sourceCustom: message('keyboard.shortcuts.source.custom'),
 	sourceDefault: message('keyboard.shortcuts.source.default'),
 	takenByConfiguredCommand: message(

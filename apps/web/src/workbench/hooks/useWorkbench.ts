@@ -73,8 +73,11 @@ import {
 import {
 	formatWorkbenchShortcut,
 	WORKBENCH_SHORTCUTS,
+	type WorkbenchScopedShortcutBinding,
+	type WorkbenchScopedShortcutDefinition,
 	type WorkbenchShortcutBindings,
 } from '../utils/workbench-shortcuts';
+import { WorkbenchKeyboardScopeRegistry } from '../../workbench-keyboard-scopes';
 import {
 	WORKBENCH_ACTION_IDS,
 	type WorkbenchAgentConfirmationChooseInput,
@@ -134,7 +137,11 @@ import {
 import { useWorkbenchFocusRouting } from './useWorkbenchFocusRouting';
 import { useWorkbenchNewTabChoices } from './useWorkbenchNewTabChoices';
 import type { WorkbenchTerminalFocusRequest } from '../model/resolveWorkbenchFocusTarget';
-import { useWorkbenchShortcuts } from './useWorkbenchShortcuts';
+import {
+	useWorkbenchShortcuts,
+	type WorkbenchShortcutScopes,
+	type WorkbenchShortcutSequenceNotice,
+} from './useWorkbenchShortcuts';
 import { useWorkbenchAgentNavigation } from './useWorkbenchAgentNavigation';
 import { useWorkbenchTabSelectionFocus } from './useWorkbenchTabSelectionFocus';
 import { useWorkbenchTerminalLocationActivation } from './useWorkbenchTerminalLocationActivation';
@@ -262,6 +269,10 @@ interface WorkbenchView {
 	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly onRootFocusCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
+	/** Where the File Bar family's regions register the keys they own. */
+	readonly keyboardScopeRegistry: WorkbenchKeyboardScopeRegistry;
+	/** What the status notice says about a `Mod+K` sequence, if anything. */
+	readonly shortcutSequenceNotice: WorkbenchShortcutSequenceNotice | null;
 	readonly sidebarShortcutId: string;
 	/** Absent while a configured command holds the chord. */
 	readonly sidebarShortcutLabel: string | undefined;
@@ -361,6 +372,8 @@ interface WorkbenchView {
 	readonly worktreeCommands: WorkbenchWorktreeCommands | undefined;
 }
 
+const NO_SCOPED_SHORTCUT_BINDINGS: readonly WorkbenchScopedShortcutBinding[] = Object.freeze([]);
+
 interface UseWorkbenchOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly agentObservationSource?: WorkbenchAgentSource | undefined;
@@ -386,6 +399,8 @@ interface UseWorkbenchOptions {
 	 * and keeps only the Actions filter, the TUI's action menu counterpart.
 	 */
 	readonly searchOffered: boolean;
+	/** The File Bar family's keys, where the File Bar is offered. */
+	readonly scopedShortcutBindings?: readonly WorkbenchScopedShortcutBinding[] | undefined;
 	readonly shortcutBindings: WorkbenchShortcutBindings;
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	readonly storage: WorkbenchLayoutStorage | undefined;
@@ -409,6 +424,7 @@ export function useWorkbench({
 	projectFolderAcquisition,
 	projectWorkspaceRuntime,
 	searchOffered,
+	scopedShortcutBindings = NO_SCOPED_SHORTCUT_BINDINGS,
 	shortcutBindings,
 	shortcutPlatform,
 	storage,
@@ -984,12 +1000,41 @@ export function useWorkbench({
 		);
 		return true;
 	});
+	// A File Bar family shortcut runs its Action in the scope of the region that owns its keys.
+	const invokeScopedShortcut = useMemoizedFn(
+		(definition: WorkbenchScopedShortcutDefinition, scope: ActionScope | undefined): boolean => {
+			const invocation = { scope: scope ?? actions.scope, source: 'keyboard' } as const;
+			if (
+				actionRuntime.resolveAction(definition.actionId, undefined, invocation)?.availability
+					.kind !== 'enabled'
+			) {
+				return false;
+			}
+			authorityNotice.reportActionOutcome(invocation.source, () =>
+				actionRuntime.execute(definition.actionId, undefined, invocation),
+			);
+			return true;
+		},
+	);
+	const [keyboardScopeRegistry] = React.useState(() => new WorkbenchKeyboardScopeRegistry());
+	const [shortcutSequenceNotice, setShortcutSequenceNotice] =
+		React.useState<WorkbenchShortcutSequenceNotice | null>(null);
+	const shortcutScopes = React.useMemo<WorkbenchShortcutScopes>(
+		() => ({
+			bindings: scopedShortcutBindings,
+			invoke: invokeScopedShortcut,
+			registry: keyboardScopeRegistry,
+			reportSequence: setShortcutSequenceNotice,
+		}),
+		[invokeScopedShortcut, keyboardScopeRegistry, scopedShortcutBindings],
+	);
 	const shortcutScopeReference = useWorkbenchShortcuts(
 		isShortcutScopeActive,
 		shortcutPlatform,
 		shortcutBindings,
 		actions.invokeShortcut,
 		invokeConfiguredCommandKey,
+		shortcutScopes,
 	);
 
 	// The sidebar, the Tab bar and the panels skip renders whose inputs keep their identity, so the
@@ -1215,6 +1260,8 @@ export function useWorkbench({
 		onRootBlurCapture: focusRouting.onBlurCapture,
 		onRootFocusCapture: focusRouting.onFocusCapture,
 		shortcutScopeReference,
+		keyboardScopeRegistry,
+		shortcutSequenceNotice,
 		sidebarShortcutId: WORKBENCH_SHORTCUTS.toggleSidebar.id,
 		sidebarShortcutLabel: visibleShortcutLabel(
 			formatWorkbenchShortcut('toggleSidebar', shortcutPlatform, shortcutBindings),

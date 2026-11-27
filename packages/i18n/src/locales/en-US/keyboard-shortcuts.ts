@@ -101,6 +101,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.scope.focusedTerminal': 'Focused terminal',
 	'keyboard.shortcuts.scope.focusedTerminalOrFind': 'Focused terminal or Find',
 	'keyboard.shortcuts.scope.workbench': 'Window',
+	'keyboard.shortcuts.sequence.missed': 'The key combination ({leader}, {key}) is not a command.',
+	'keyboard.shortcuts.sequence.waiting': '({leader}) was pressed. Waiting for second key of chord…',
 	'keyboard.shortcuts.source.custom': 'Custom',
 	'keyboard.shortcuts.source.default': 'Default',
 	'keyboard.shortcuts.takenByConfiguredCommand':

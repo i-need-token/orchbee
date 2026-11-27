@@ -6,6 +6,14 @@ const WORKBENCH_EXCLUSIVE_FOCUS_SURFACE_SELECTOR =
 /** The surface whose rows run focus Actions, which act once it has closed and given focus back. */
 const WORKBENCH_COMMAND_SURFACE_SELECTOR = '[data-workbench-command-surface="true"]';
 
+/** An element that takes typed text or keys of its own: a text field, a select, editable content. */
+const TEXT_ENTRY_SELECTOR = [
+	'input:not([type="button"]):not([type="checkbox"]):not([type="color"]):not([type="file"]):not([type="image"]):not([type="radio"]):not([type="range"]):not([type="reset"]):not([type="submit"])',
+	'select',
+	'textarea',
+	'[contenteditable]:not([contenteditable="false"])',
+].join(', ');
+
 export function resolveWorkbenchFocusRegionFromTarget(
 	target: EventTarget | null,
 ): WorkbenchFocusRegion | null {
@@ -37,6 +45,13 @@ export function hasWorkbenchExclusiveFocusSurface(
 	return Array.from(root.querySelectorAll(WORKBENCH_EXCLUSIVE_FOCUS_SURFACE_SELECTOR)).some(
 		(surface) => !isInCommandSurface(surface),
 	);
+}
+
+/** Whether `target` is in a text field inside `root`, as an inline rename field inside a tree is. */
+export function isWorkbenchTextEntryWithin(target: EventTarget | null, root: Element): boolean {
+	if (!(target instanceof Element)) return false;
+	const entry = target.closest(TEXT_ENTRY_SELECTOR);
+	return entry !== null && entry !== root && root.contains(entry);
 }
 
 export function hasWorkbenchCommandSurface(root: ParentNode): boolean {

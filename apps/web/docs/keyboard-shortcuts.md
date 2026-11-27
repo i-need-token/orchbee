@@ -171,6 +171,42 @@ resolve from the active Tab's remembered focused Panel rather than the keyboard 
 sidebar or document-body focus does not redirect them. An unavailable Action preserves state and
 does not call `preventDefault()`.
 
+### Keyboard scopes
+
+Configured commands, Workbench bindings, and the File Bar family's bindings resolve in that one
+listener, which runs in the document's capture phase. Configured commands moved there from the
+window's capture phase so that one ordered walk decides every key; they now follow the sidebar
+drag, which takes every key while it holds the pointer, and an until-press notice's dismissal, as
+Workbench bindings already did.
+
+Where the File Bar is offered, a region that owns keys registers a keyboard scope while it is
+mounted: the File Bar column, the file overlay, a code editor, or a tree or list widget. The
+listener walks the scopes around focus from narrowest to widest, then configured commands, then the
+window's bindings, and the first available match takes the key. A focused terminal is inside no
+registered scope, so neither File Bar keys nor `Mod+K` sequences reach it. Without the offer no
+scope registers and no scoped binding exists, so the walk is the configured-command and Workbench
+dispatch it always was.
+
+A tree or list widget gets keys in two edits. Its component declares the scope once and registers
+the element that holds focus:
+
+```tsx
+const EXPLORER_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'widget', widget: 'explorer' };
+
+const treeReference = React.useRef<HTMLDivElement>(null);
+useWorkbenchKeyboardScope(treeReference, EXPLORER_KEYBOARD_SCOPE);
+```
+
+Each key is then a row in `WORKBENCH_SCOPED_SHORTCUTS` with the scope `widget:explorer`, its Action
+ID and its platform defaults; an unmodified or Shift-only default such as F2 is legal there. Pass
+the widget's Action scope as `actionScope` when its Actions register below the Workbench's scope. A
+code editor registers `{ kind: 'code-editor', yields }`, where `yields` lists the chords the editor
+binds itself.
+
+A sequence's waiting text and a missed step's text replace the status notice for as long as they
+last: five seconds of waiting, ten seconds for the miss. The confirmation offer waits for that line
+as it waits for any other notice.
+
 While a visible Panel selector is active, its workspace root owns DOM focus and publishes an
 exclusive keyboard-capture marker. The document-level Workbench shortcut listener skips events
 inside that marker, then the workspace consumes every physical label, Backspace, Escape,

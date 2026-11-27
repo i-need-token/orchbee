@@ -3,6 +3,7 @@ import {
 	matchesKeyboardShortcutChord,
 	type KeyboardShortcutChord,
 	type KeyboardShortcutEvent,
+	type KeyboardShortcutSequence,
 } from '@orchbee/keyboard-shortcuts';
 
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
@@ -480,6 +481,87 @@ export interface WorkbenchShortcutBinding {
 	readonly action: WorkbenchShortcutAction;
 	readonly chord: KeyboardShortcutChord;
 	readonly shortcutId: WorkbenchShortcutId;
+}
+
+/**
+ * Where a scoped shortcut applies: the window (`shell`), or a region that registers its keyboard
+ * scope with `useWorkbenchKeyboardScope`. A `widget:<name>` scope applies to the widgets registered
+ * with that name.
+ */
+export type WorkbenchScopedShortcutScope =
+	| 'code-editor'
+	| 'file-bar'
+	| 'file-overlay'
+	| 'shell'
+	| `widget:${string}`;
+
+/**
+ * A shortcut of the File Bar family. Its keys follow the scope's rule: a window scope keeps a
+ * modifier other than Shift; a widget scope may bind an unmodified or Shift-only key. Every scope
+ * but `shell` also admits a `Mod+K` sequence. The Action resolves in the scope's Action scope.
+ */
+export interface WorkbenchScopedShortcutDefinition {
+	readonly actionId: string;
+	readonly defaults: Readonly<Record<WorkbenchShortcutPlatform, KeyboardShortcutSequence>>;
+	readonly scope: WorkbenchScopedShortcutScope;
+	readonly shortcutId: string;
+}
+
+/**
+ * The File Bar family's shortcuts. They exist only where the File Bar is offered; the modules that
+ * own their Actions declare them here, so Settings and conflict checks can list every binding.
+ */
+const WORKBENCH_SCOPED_SHORTCUTS = {
+	// VS Code's Toggle Secondary Side Bar keys, outside the File Bar.
+	fileBarToggle: {
+		actionId: WORKBENCH_ACTION_IDS.toggleFileBar,
+		defaults: {
+			apple: [chord('KeyB', ['alt', 'mod'])],
+			standard: [chord('KeyB', ['alt', 'mod'])],
+		},
+		scope: 'shell',
+		shortcutId: 'workbench.file-bar.toggle',
+	},
+	// VS Code's Toggle Side Bar keys, inside the File Bar or the file overlay.
+	fileBarToggleInFileBar: {
+		actionId: WORKBENCH_ACTION_IDS.toggleFileBar,
+		defaults: {
+			apple: [chord('KeyB', ['mod'])],
+			standard: [chord('KeyB', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'workbench.file-bar.toggle.in-file-bar',
+	},
+} as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
+
+/** One offered scoped shortcut and the keys it holds now. */
+export interface WorkbenchScopedShortcutBinding {
+	readonly definition: WorkbenchScopedShortcutDefinition;
+	readonly sequence: KeyboardShortcutSequence;
+}
+
+function defaultScopedShortcutBindings(
+	platform: WorkbenchShortcutPlatform,
+): readonly WorkbenchScopedShortcutBinding[] {
+	return Object.freeze(
+		Object.values(WORKBENCH_SCOPED_SHORTCUTS).map((definition) =>
+			Object.freeze({ definition, sequence: definition.defaults[platform] }),
+		),
+	);
+}
+
+const DEFAULT_SCOPED_SHORTCUT_BINDINGS: Readonly<
+	Record<WorkbenchShortcutPlatform, readonly WorkbenchScopedShortcutBinding[]>
+> = Object.freeze({
+	apple: defaultScopedShortcutBindings('apple'),
+	standard: defaultScopedShortcutBindings('standard'),
+});
+
+/** The File Bar family's shortcuts at their platform defaults. */
+export function defaultWorkbenchScopedShortcutBindings(
+	platform: WorkbenchShortcutPlatform,
+): readonly WorkbenchScopedShortcutBinding[] {
+	return DEFAULT_SCOPED_SHORTCUT_BINDINGS[platform];
 }
 
 const WORKBENCH_SHORTCUT_ACTIONS = Object.freeze([

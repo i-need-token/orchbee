@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	captureKeyboardShortcutChord,
 	formatKeyboardShortcutChord,
+	formatKeyboardShortcutSequence,
 	keyboardShortcutChordKey,
 	matchesKeyboardShortcutChord,
 	normalizeKeyboardShortcutChord,
@@ -169,6 +170,52 @@ describe('keyboard shortcut chords', () => {
 		expect(
 			normalizeKeyboardShortcutChord({ code: 'NumpadAdd', modifiers: ['mod'] }, 'apple'),
 		).toBeNull();
+	});
+});
+
+describe('keyboard shortcut rules and sequences', () => {
+	it('admits unmodified keys only where a rule allows them and never Tab', () => {
+		const f2 = { code: 'F2', modifiers: [] };
+		expect(normalizeKeyboardShortcutChord(f2, 'standard')).toBeNull();
+		expect(normalizeKeyboardShortcutChord(f2, 'standard', 'widget')).toEqual(f2);
+		expect(normalizeKeyboardShortcutChord(f2, 'standard', 'second-step')).toEqual(f2);
+		expect(
+			normalizeKeyboardShortcutChord({ code: 'Delete', modifiers: ['shift'] }, 'apple', 'widget'),
+		).toEqual({ code: 'Delete', modifiers: ['shift'] });
+		for (const rule of ['window', 'widget', 'second-step'] as const) {
+			expect(
+				normalizeKeyboardShortcutChord({ code: 'Tab', modifiers: [] }, 'apple', rule),
+			).toBeNull();
+		}
+		expect(
+			captureKeyboardShortcutChord(shortcutEvent({ code: 'F2' }), 'standard', 'widget'),
+		).toEqual({ chord: f2, kind: 'captured' });
+		expect(captureKeyboardShortcutChord(shortcutEvent({ code: 'F2' }), 'standard')).toEqual({
+			kind: 'ignored',
+			reason: 'missing-modifier',
+		});
+	});
+
+	it('admits Escape only as a declared widget default, never as a capture', () => {
+		const escape = { code: 'Escape', modifiers: [] };
+		expect(normalizeKeyboardShortcutChord(escape, 'apple', 'widget')).toEqual(escape);
+		expect(normalizeKeyboardShortcutChord(escape, 'apple', 'second-step')).toBeNull();
+		expect(
+			captureKeyboardShortcutChord(shortcutEvent({ code: 'Escape' }), 'apple', 'widget'),
+		).toEqual({ kind: 'ignored', reason: 'unsupported-code' });
+		expect(matchesKeyboardShortcutChord(shortcutEvent({ code: 'Escape' }), escape, 'apple')).toBe(
+			true,
+		);
+		expect(formatKeyboardShortcutChord(escape, 'standard')).toBe('Escape');
+	});
+
+	it('formats a sequence one platform chord per step', () => {
+		const sequence = [
+			{ code: 'KeyK', modifiers: ['mod'] },
+			{ code: 'KeyW', modifiers: ['mod'] },
+		] as const;
+		expect(formatKeyboardShortcutSequence(sequence, 'standard')).toBe('Ctrl+K Ctrl+W');
+		expect(formatKeyboardShortcutSequence(sequence, 'apple')).toBe('⌘K ⌘W');
 	});
 });
 

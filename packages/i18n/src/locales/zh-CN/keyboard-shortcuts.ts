@@ -97,6 +97,8 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.scope.focusedTerminal': '已聚焦的终端',
 	'keyboard.shortcuts.scope.focusedTerminalOrFind': '已聚焦的终端或查找框',
 	'keyboard.shortcuts.scope.workbench': '窗口',
+	'keyboard.shortcuts.sequence.missed': '组合键 ({leader}, {key}) 不是命令。',
+	'keyboard.shortcuts.sequence.waiting': '已按下 ({leader})，正在等待组合键的第二个键…',
 	'keyboard.shortcuts.source.custom': '自定义',
 	'keyboard.shortcuts.source.default': '默认',
 	'keyboard.shortcuts.takenByConfiguredCommand': '{shortcut} 已被配置的命令“{command}”占用。',

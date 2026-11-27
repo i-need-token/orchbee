@@ -18,7 +18,7 @@ Define bindings once in a responsibility-focused `*-shortcuts.ts` owner module. 
 - Match letter shortcuts with `KeyboardEvent.code`, such as `KeyK`, so the physical binding remains stable across modifier-produced characters. Text-entry behavior that intentionally depends on the produced character uses `key` and documents that distinction.
 - Match the complete modifier set. Reject unexpected Shift, Alt, Control, or Meta modifiers instead of accepting an ambiguous superset.
 - Ignore composing and repeated keydown events unless the named action explicitly supports repetition.
-- Call `preventDefault()` only after a currently available action matches. Do not call `stopPropagation()` unless a reviewed scope boundary requires it.
+- Call `preventDefault()` only after a currently available action matches. Do not call `stopPropagation()` unless a reviewed scope boundary requires it; a consumed sequence step is one, so neither step of a sequence reaches the focused widget.
 - Platform detection belongs at the application composition boundary. Product packages receive a validated platform category and do not read `navigator` or operating-system globals.
 
 ## Context and availability
@@ -53,9 +53,27 @@ Binding resolution operates over an enumerable binding set, not the incidental o
 
 Before adding a binding, search all scopes for the same canonical chord. Conditions for bindings in the same scope must be mutually exclusive; otherwise the owner must declare and test a stable precedence. Registration order and first-match listener order are not conflict policies.
 
+## Sequences and widget keys
+
+- A binding is one chord or a two-step sequence whose first step is exactly `Mod+K`. Sequences
+  apply only while focus is in a scope that admits them; elsewhere, such as in a terminal, `Mod+K`
+  keeps the meaning it has there.
+- Where sequences apply, `Mod+K` is consumed whatever its second steps' availability and starts a
+  waiting state. The next key other than a modifier is the second step: an available binding runs,
+  and any other key is consumed and reported as naming no command. Waiting ends after five seconds,
+  on window blur, or when a key arrives where no scope admits sequences. The status line announces
+  waiting and a missed step in VS Code's wording.
+- A tree or list widget may bind unmodified or Shift-only keys, which apply while focus is on the
+  widget and not in a text field inside it. No binding takes Tab, and Escape only as a declared
+  default that recording never captures.
+- A code editor declares the keys it binds itself. While focus is inside it, the resolver yields
+  those keys and no wider scope takes them; `Mod+K` and a sequence's second step stay with the
+  resolver.
+
 ## Display and localization
 
 - Store one canonical binding and derive its display form. Do not maintain separate matching and tooltip strings.
+- Display a sequence as its steps separated by a space, each in the platform chord format: `⌘K ⌘W` on Apple platforms and `Ctrl+K Ctrl+W` elsewhere.
 - Display `Mod` as `⌘` on Apple platforms and `Ctrl` elsewhere. Use `Kbd` or `KbdGroup` for key presentation.
 - Order Apple modifier glyphs as Control, Option, Shift, Command (`⌃⌥⇧⌘`), matching platform menu conventions.
 - Localize the action name, not key codes, modifier glyphs, or platform names embedded in the chord formatter.

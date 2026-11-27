@@ -14,9 +14,23 @@ Product features continue to define their default bindings once in their owning
 `*-shortcuts.ts` module. An application may persist validated overrides and use
 `keyboardShortcutChordKey(...)` with its own scope-overlap policy to diagnose conflicts.
 
-Only single-step physical chords with at least one non-Shift modifier are supported. Text entry,
-unmodified typing, modifier-only events, Escape, Tab, input-method composition, and repeated
-keydown events are deliberately outside the capture contract.
+A chord's admission rule depends on where its owner binds it:
+
+| Rule          | Admits                                                                     |
+| ------------- | -------------------------------------------------------------------------- |
+| `window`      | At least one modifier other than Shift; the default everywhere             |
+| `widget`      | Also unmodified and Shift-only keys, and Escape as a declared default only |
+| `second-step` | Also unmodified and Shift-only keys, as the step after `Mod+K`; no Escape  |
+
+No rule admits Tab, and capture never records Escape, so Escape and Tab keep cancelling recording
+and moving focus. Text entry, modifier-only events, input-method composition, and repeated keydown
+events stay outside matching and capture. A widget rule exists for tree and list keys such as F2 or
+Delete; the owner, not this package, decides that focus is on the widget and not in a text field.
+
+A binding is one chord or a two-step sequence whose first step is
+`KEYBOARD_SHORTCUT_SEQUENCE_LEADER` (`Mod+K`). The package formats sequences one platform chord per
+step (`⌘K ⌘W`, `Ctrl+K Ctrl+W`) and formats a raw press for a key that names nothing; waiting for
+the second step, its timeout, and where sequences apply belong to the resolving application.
 
 Apple display text follows the platform menu order Control, Option, Shift, Command (`⌃⌥⇧⌘`);
 non-Apple display text uses named modifiers separated by `+`.
