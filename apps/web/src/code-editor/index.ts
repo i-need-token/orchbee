@@ -1,0 +1,1 @@
+export { prefetchCodeEditor } from './prefetchCodeEditor';

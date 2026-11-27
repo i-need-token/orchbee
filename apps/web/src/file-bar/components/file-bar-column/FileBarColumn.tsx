@@ -1,5 +1,7 @@
-import { useRef, type ReactNode } from 'react';
+import { resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
+import { useEffect, useRef, type ReactNode } from 'react';
 
+import { prefetchCodeEditor } from '../../../code-editor';
 import {
 	useWorkbenchKeyboardScope,
 	type WorkbenchKeyboardScope,
@@ -13,6 +15,9 @@ const FILE_BAR_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'file-bar' };
 export function FileBarColumn(): ReactNode {
 	const rootReference = useRef<HTMLDivElement>(null);
 	useWorkbenchKeyboardScope(rootReference, FILE_BAR_KEYBOARD_SCOPE);
+	const locale = resolveOrchbeeLocale([useOrchbeeIntl().locale]);
+	// The editor loads at idle once the column shows, so the first file opened does not wait for it.
+	useEffect(() => prefetchCodeEditor(locale), [locale]);
 	return (
 		<div className={styles['root']} ref={rootReference}>
 			<div className={styles['togglesRow']} data-slot='file-bar-toggles-row' />

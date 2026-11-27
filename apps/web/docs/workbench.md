@@ -166,7 +166,7 @@ column after the terminal area, except in the mobile layout, which offers no Act
 Workbench owns that column, its visibility and its Actions; the File Bar's views reach it only
 through `loadFileBar()`, the `file-bar` module's only runtime export, which loads them as their
 own chunk the first time a window shows the column. A failed load says so inside the column and
-tries again the next time it shows.
+tries again the next time it shows. A shown column loads the [code editor](code-editor.md) at idle.
 
 While the column shows, the Workbench holds the active Workspace's file session from its
 `fileSessionPort` input through a `FileSessionRegistry`, which opens a Workspace's session on its
