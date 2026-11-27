@@ -1404,8 +1404,9 @@ published key file all derive from it, so adding a key starts there.
 
 A key's `SettingScope` says whose file holds it. `Client` keys describe how one Client looks and
 takes input (`general.language`, `appearance.*`, the terminal font, padding, opacity, Option,
-selection-copy and blank-row keys, `notifications.*`, `keys.*`) and are read from the file on that
-Client's machine. `Server` keys describe what the Server does (`terminal.new_cwd`,
+selection-copy and blank-row keys, `notifications.*`, `keys.*`, and the File Bar's `explorer.*` and
+`git.*`) and are read from the file on that Client's machine. `Server` keys describe what the
+Server does (`terminal.new_cwd`,
 `scrollback_bytes`, `restore_after_restart`, the launch profiles and default profile,
 `worktrees.directory`, `agents.auto_allow.claude`, `agents.auto_allow.codex`, `agents.auto_allow.gemini`, `agents.auto_allow.opencode`, `agents.auto_allow.offer`, `update.channel`, `update.automatic`)
 and are read from the attached Server's file. With a local Server both are the same file.
@@ -1431,7 +1432,8 @@ repository formatter's layout, so commit it as written.
 
 Each top-level table names the page category whose keys it mainly holds: `[general]`,
 `[appearance]`, `[terminal]`, `[notifications]`, `[keys]` (Keyboard) and `[agents]`;
-`[worktrees]` and `[update]` hold one key each. The page category is metadata,
+`[worktrees]` and `[update]` hold one key each. `[explorer]` and `[git]` keep VS Code's names for
+keys of the File Bar category. The page category is metadata,
 so a key can appear under another category's group, as the table below shows. Themes is the one
 category without a table of its own: its two keys keep their `[appearance]` paths, the single
 exception to a table naming its category. `<platform>` stands for `windows`, `macos` or `linux`,
@@ -1449,6 +1451,7 @@ every key's purpose, allowed values and default.
 | `appearance.window_title`                                                                   | `"{hostname}: {workspace}"`      | file only                            |
 | `appearance.sidebar.workspaces.rows`                                                        | workspace and Git, then location | file only                            |
 | `appearance.sidebar.workspaces.row_gap`                                                     | `0`                              | file only                            |
+| `appearance.file_bar.position`                                                              | `"right"`                        | file only (Desktop)                  |
 | `terminal.new_cwd`                                                                          | unset (no override)              | file only                            |
 | `terminal.copy_on_select`                                                                   | `false`                          | Terminal / Input                     |
 | `terminal.macos_option_as_alt`                                                              | `"off"`                          | Terminal / Input (Desktop)           |
@@ -1476,12 +1479,22 @@ every key's purpose, allowed values and default.
 | `agents.auto_allow.offer`                                                                   | `true`                           | file only                            |
 | `agents.quota_resume.enabled`                                                               | `false`                          | Agents / Resume after quota reset    |
 | `agents.quota_resume.prompt`                                                                | `"continue"`                     | Agents / Resume after quota reset    |
+| `explorer.confirm_delete`, `confirm_drag_and_drop`, `confirm_paste_native`                  | `true`                           | file only (Desktop)                  |
+| `git.open_repository_in_parent_folders`                                                     | `"prompt"`                       | file only (Desktop)                  |
+| `git.enable_smart_commit`, `suggest_smart_commit`                                           | `false`, `true`                  | file only (Desktop)                  |
+| `git.confirm_sync`, `confirm_force_push`                                                    | `true`                           | file only (Desktop)                  |
+| `git.autofetch`, `ignore_limit_warning`, `ignore_missing_git_warning`                       | `false`                          | file only (Desktop)                  |
 | `update.channel`                                                                            | `"stable"`                       | file only, not in the reference      |
 | `update.automatic`                                                                          | `true`                           | About / Updates                      |
 
 `update.automatic` appears on the settings page and in the reference from
 [automatic updates](../../proposals/platform/automatic-updates.md#phases) slice 1, the release
 whose builds run automatic updates.
+
+The File Bar's keys stay out of the reference while releases withhold the File Bar, and none of
+them reaches the page before the behavior it governs
+([File Bar settings](../../proposals/workbench/file-bar.md#settings)). Only a window that offers
+the File Bar reads them; the Server and the TUI never do.
 
 The old `[ui]` names are gone without migration or aliases: `[ui]` is one unknown key. The keys
 that carry a `UserSettingsField` and the launch profiles parse into `UserSettings::values`, the

@@ -23,6 +23,9 @@ pub enum SettingCategory {
     /// Holds the light and dark theme choices, whose keys stay in the `appearance` table.
     Themes,
     Terminal,
+    /// The File Bar's placement and what its views confirm; only a window that offers the File Bar
+    /// shows it.
+    FileBar,
     Notifications,
     Keyboard,
     Agents,
@@ -38,6 +41,7 @@ impl SettingCategory {
             Self::Appearance => "appearance",
             Self::Themes => "themes",
             Self::Terminal => "terminal",
+            Self::FileBar => "file-bar",
             Self::Notifications => "notifications",
             Self::Keyboard => "keyboard",
             Self::Agents => "agents",
@@ -69,6 +73,12 @@ pub enum SettingGroup {
     How,
     Prefix,
     Commands,
+    /// The File Bar's side of the terminal area.
+    Placement,
+    /// What the File Bar's Explorer confirms before it changes files.
+    Explorer,
+    /// How the File Bar's Source Control view works with Git.
+    SourceControl,
 }
 
 impl SettingGroup {
@@ -95,6 +105,9 @@ impl SettingGroup {
             Self::How => "how",
             Self::Prefix => "prefix",
             Self::Commands => "commands",
+            Self::Placement => "placement",
+            Self::Explorer => "explorer",
+            Self::SourceControl => "source-control",
         }
     }
 }
@@ -395,6 +408,18 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Blank space between Workspace rows.",
     ),
+    // The File Bar's keys, here and in the `explorer` and `git` tables, which keep VS Code's names. They
+    // stay out of the reference while releases withhold the File Bar.
+    key(
+        "appearance.file_bar.position",
+        V::Choice(&["right", "left"]),
+        D::Text("right"),
+        (C::FileBar, G::Placement),
+        CLIENT,
+        "Docking side of the File Bar: right or left of the terminal area.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
     key(
         "terminal.new_cwd",
         V::Text {
@@ -862,6 +887,116 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Prompt to submit when Orchbee resumes an Agent after a quota reset.",
     )
     .page(),
+    key(
+        "explorer.confirm_delete",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::Explorer),
+        CLIENT,
+        "Explorer asks before it deletes files and folders.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "explorer.confirm_drag_and_drop",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::Explorer),
+        CLIENT,
+        "Explorer asks before it moves files and folders by drag and drop.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "explorer.confirm_paste_native",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::Explorer),
+        CLIENT,
+        "Explorer asks before it pastes files copied outside Orchbee.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.open_repository_in_parent_folders",
+        V::Choice(&["always", "never", "prompt"]),
+        D::Text("prompt"),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git repositories in a parent folder of a Workspace's directory: always opened, never, or after asking.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.enable_smart_commit",
+        V::Boolean,
+        D::Boolean(false),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git commits every change when nothing is staged.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.suggest_smart_commit",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git suggests smart commit when a commit finds nothing staged.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.confirm_sync",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git asks before it syncs a branch with its remote.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.confirm_force_push",
+        V::Boolean,
+        D::Boolean(true),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git asks before it force pushes.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.autofetch",
+        V::Boolean,
+        D::Boolean(false),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git fetches each repository's remotes periodically.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.ignore_limit_warning",
+        V::Boolean,
+        D::Boolean(false),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git stays quiet about a repository with too many changes.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
+    key(
+        "git.ignore_missing_git_warning",
+        V::Boolean,
+        D::Boolean(false),
+        (C::FileBar, G::SourceControl),
+        CLIENT,
+        "Git missing from the machine raises no warning.",
+    )
+    .clients(DESKTOP)
+    .unreferenced(),
     key(
         "update.channel",
         V::Choice(&["stable", "preview"]),

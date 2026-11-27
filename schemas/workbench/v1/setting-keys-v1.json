@@ -124,6 +124,18 @@
 			"page": false
 		},
 		{
+			"path": "appearance.file_bar.position",
+			"type": "choice",
+			"choices": ["right", "left"],
+			"default": "right",
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "placement",
+			"page": false
+		},
+		{
 			"path": "terminal.new_cwd",
 			"type": "text",
 			"maximumBytes": 4096,
@@ -696,6 +708,128 @@
 			"category": "agents",
 			"group": "quota-resume",
 			"page": true
+		},
+		{
+			"path": "explorer.confirm_delete",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "explorer",
+			"page": false
+		},
+		{
+			"path": "explorer.confirm_drag_and_drop",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "explorer",
+			"page": false
+		},
+		{
+			"path": "explorer.confirm_paste_native",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "explorer",
+			"page": false
+		},
+		{
+			"path": "git.open_repository_in_parent_folders",
+			"type": "choice",
+			"choices": ["always", "never", "prompt"],
+			"default": "prompt",
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.enable_smart_commit",
+			"type": "boolean",
+			"default": false,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.suggest_smart_commit",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.confirm_sync",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.confirm_force_push",
+			"type": "boolean",
+			"default": true,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.autofetch",
+			"type": "boolean",
+			"default": false,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.ignore_limit_warning",
+			"type": "boolean",
+			"default": false,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
+		},
+		{
+			"path": "git.ignore_missing_git_warning",
+			"type": "boolean",
+			"default": false,
+			"scope": "client",
+			"clients": "desktop",
+			"effect": "immediate",
+			"category": "file-bar",
+			"group": "source-control",
+			"page": false
 		},
 		{
 			"path": "update.channel",
