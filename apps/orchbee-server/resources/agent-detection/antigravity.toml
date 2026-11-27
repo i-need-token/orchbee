@@ -1,7 +1,7 @@
 id = "agy"
-version = "2026.11.19.2"
+version = "2026.11.26.1"
 min_engine_version = 4
-updated_at = "2026-11-19T00:00:00Z"
+updated_at = "2026-11-26T00:00:00Z"
 aliases = ["antigravity", "antigravity-cli"]
 
 # Orchbee: the composer is the `>` row between two separator rules; the first separator is the area's top.
@@ -18,6 +18,25 @@ visible_blocker = true
 contains = ["requesting permission for:"]
 any = [{ contains = ["do you want to proceed?"] }, { contains = ["tab amend", "edit command"] }]
 
+# Herdr's Antigravity CLI 1.2.17 evidence: a dialog that replaces the prompt box ends with a key-hint row above the
+# footer, `↑/↓ Navigate · tab Amend · …` for a permission and `↑/↓ Navigate · enter Select · esc Skip` for a question.
+# Orchbee: the usage row under the 1.5.12 footer is in the region too.
+[[rules]]
+id = "permission_dialog"
+state = "blocked"
+priority = 310
+region = "bottom_non_empty_lines(3)"
+visible_blocker = true
+contains = ["navigate", "tab amend"]
+
+[[rules]]
+id = "question_dialog"
+state = "blocked"
+priority = 290
+region = "bottom_non_empty_lines(3)"
+visible_blocker = true
+contains = ["navigate", "esc skip"]
+
 # Orchbee: Antigravity CLI 1.5.12 asks whether to trust a new project folder before its first turn; the
 # question and its navigation footer are both required.
 [[rules]]
@@ -28,14 +47,15 @@ region = "whole_recent"
 visible_blocker = true
 contains = ["do you trust the contents of this project?", "enter confirm"]
 
-# Orchbee: the footer reads `esc to cancel` while a turn runs.
+# Orchbee: the footer reads `esc to cancel` while a turn runs. A step list or task panel under the prompt box
+# pushes the footer up from the bottom rows.
 [[rules]]
 id = "esc_cancel_working"
 state = "working"
 priority = 95
-region = "bottom_non_empty_lines(3)"
+region = "bottom_non_empty_lines(16)"
 visible_working = true
-contains = ["esc to cancel"]
+line_regex = ['^\s*esc to cancel\b']
 
 [[rules]]
 id = "spinner_working"
@@ -44,6 +64,16 @@ priority = 100
 region = "whole_recent"
 visible_working = true
 line_regex = ['^\s*[\u2800-\u28FF]+\s+\p{Alphabetic}+\w*ing\b']
+
+# Herdr's evidence: the spinner can lead a thought summary or a step count, such as `\u280B 2/4 steps \u00B7 Running
+# command...`, in place of an -ing word.
+[[rules]]
+id = "spinner_summary_working"
+state = "working"
+priority = 100
+region = "bottom_non_empty_lines(16)"
+visible_working = true
+line_regex = ['^\s*[\u2801-\u28FF]+\s+\S']
 
 [[rules]]
 id = "background_tasks_working"

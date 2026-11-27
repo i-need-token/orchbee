@@ -766,6 +766,11 @@ fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
     const ANTIGRAVITY_TRUST: &str = "Accessing workspace:\n\n  C:\\work\\scratch-folder\n\nDo you trust the contents of this project?\n\nAntigravity CLI requires permission to read, edit, and execute files here.\n\n> Yes, I trust this folder\n  No, exit\n\n  ↑/↓ Navigate · enter Confirm\n";
     const ANTIGRAVITY_TURN: &str = "> reply with the word ok\n⣷  Generating...\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\nesc to cancel                                     auto · Model name · high\nCtx: 0.00% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
     const ANTIGRAVITY_IDLE: &str = "> reply with the word ok\n▸ Thought for 4s, 217 tokens\n  ok\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\n? for shortcuts                                   auto · Model name · high\nCtx: 1.33% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
+    // Shaped from a reported step list and Herdr's dialog rows rather than captured: a step count beside the spinner,
+    // a step list under the prompt box that pushes the footer up, and a question that replaces the prompt box.
+    const ANTIGRAVITY_STEP_SPINNER: &str = "> run the build\n⠋ 2/4 steps · Running command...\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\nesc to cancel                                     auto · Model name · high\nCtx: 0.40% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
+    const ANTIGRAVITY_STEP_LIST: &str = "> run the build\n  2/4 steps · Running command...\n────────────────────────────────────────────────────────────────────────────────\n>\n────────────────────────────────────────────────────────────────────────────────\nesc to cancel                                     auto · Model name · high\nCtx: 0.40% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n  ✓ Read the build script\n  ✓ Plan the change\n  ● Running command\n  ○ Summarize\n";
+    const ANTIGRAVITY_QUESTION: &str = "Which file should change?\n> src/main.rs\n  src/lib.rs\n\n  ↑/↓ Navigate · enter Select · esc Skip\nesc to cancel                                     auto · Model name · high\nCtx: 0.40% │ Plan: - Wk: 0.00% │ 3P: - Wk: 0.00%\n";
     let engine = ScreenDetector::bundled().unwrap();
     for (provider, screen, expected) in [
         (Provider::Kimi, KIMI_TRUST, Blocked),
@@ -777,6 +782,9 @@ fn kimi_copilot_and_antigravity_follow_real_turn_captures() {
         (Provider::Antigravity, ANTIGRAVITY_TRUST, Blocked),
         (Provider::Antigravity, ANTIGRAVITY_TURN, Working),
         (Provider::Antigravity, ANTIGRAVITY_IDLE, Idle),
+        (Provider::Antigravity, ANTIGRAVITY_STEP_SPINNER, Working),
+        (Provider::Antigravity, ANTIGRAVITY_STEP_LIST, Working),
+        (Provider::Antigravity, ANTIGRAVITY_QUESTION, Blocked),
     ] {
         let detected = engine.detect(Some(provider), input(screen)).unwrap();
         assert_eq!(detected.state, expected, "{screen}");

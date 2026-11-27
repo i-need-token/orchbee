@@ -51,7 +51,10 @@ when no busy line is live, and its folder trust question is a blocker with its l
 1.0.114 shows `● Working ctrl+c interrupt` (the dot alternates) while a turn runs, and the `Interactive · <mode> ·
 / commands` footer above its composer border when idle; its folder trust box is the existing selection blocker.
 Antigravity CLI 1.5.12 shows `esc to cancel` in its footer while a turn runs, its `? for shortcuts` footer beside the
-`>` composer row is idle, and its project trust question is a blocker.
+`>` composer row is idle, and its project trust question is a blocker. The footer is found up to sixteen rows from the
+bottom, since a step list or task panel under the prompt box pushes it up, and a spinner beside any summary, such as
+`⠋ 2/4 steps · Running command...`, is working there too. A permission or question dialog that ends with a
+`Navigate · tab Amend` or `Navigate · … esc Skip` key-hint row above the footer is a blocker.
 
 Hermes writes its state into the OSC title (`⏳`, `✓`, `⚠`). For a title that carries none, Orchbee
 adds two screen rules from Windows captures: the composer's `type to redirect this turn` or the
