@@ -131,13 +131,20 @@ Windows `agent focus <target> [--client <id>]` resolves a canonical Session or t
 ## Client-relative Workbench queries
 
 `workspace list/get`, `tab list/get` and `panel list/get` accept optional
-`--client <id>`. Without it, queries keep their canonical headless projection.
-With it, one exact current Ready Client supplies global `focused` flags; Panel reads also
+`--client <id>`. Without it, queries keep their canonical headless projection, except that
+when exactly one current Ready Client exists, its published selection answers `focused`. That
+adds one Client list and no Client read, fence or provenance; with no such Client, or several,
+`focused` stays null. With it, one exact current Ready Client supplies global `focused` flags; Panel reads also
 admit Busy for the read-only viewport contract above. Workspace
 rows also carry `activeTabId`, including the remembered selection in inactive
-Workspaces. Null means an empty context. Focus means selected in that TUI, not
+Workspaces. Null means an empty context. Focus means selected in that Client, not
 operating-system window focus. Missing, inadmissibly busy, stale or ambiguous facts fail; no
 other Client is substituted.
+
+A Client that refuses a read as `unsupported`, as the desktop window does for every control but
+navigation, does not fail the query. `focused` still comes from its published selection, while
+Workspace `activeTabId` stays null and each Panel `scrollObservation` and Agent Session `client`
+is `{"kind":"unsupported"}`.
 
 The read-only `Selections` intent carries 1–128 unique TerminalContext IDs. The
 TUI resolves current selection or its private navigation memory against one fresh
@@ -155,7 +162,7 @@ Client refused only as stale or busy is addressed again, under a new operation I
 Client's current view revision, at most eight times in all. One total five-second deadline
 and signal owner cover every phase. No partial success, operation replay, navigation,
 acknowledgement, terminal attachment or input effect occurs. Selected results include Client/operation/view provenance; unselected
-results never invent focused or active fields. Cancellation closes the connection
+results never invent active fields and carry `focused` only from a sole Ready Client. Cancellation closes the connection
 and exits130; unavailable or changed observations retain typed failures.
 
 Agent summaries, Panel process/title and Client scroll use their separate observation owners;

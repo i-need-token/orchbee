@@ -224,6 +224,7 @@ fn canonical_agent_inspection(with_client: bool) -> Box<crate::cli::results::Age
         revision: AgentSafeInteger::new(2),
         session: Box::new(session),
         client,
+        client_unsupported: false,
         runtime: AgentRuntimeDoc::Unavailable("unbound"),
         terminal: None,
         management: AgentManagementDoc {
@@ -503,6 +504,7 @@ fn unified_agent_get_physical_inspection_requires_current_semantics() {
         row,
         detail: Box::new(Projection::AgentTerminalInspection {
             client_view: None,
+            client_unsupported: false,
             binding,
             terminal,
             semantic: crate::cli::results::terminal_agent::TerminalAgentRead {

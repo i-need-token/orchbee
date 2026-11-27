@@ -45,6 +45,7 @@ pub(in crate::cli) fn document(
         })
         .collect();
     Document {
+        client_unsupported: false,
         revision: AgentSafeInteger::new(9),
         requests: vec![ObapRequestId::parse(&format!("{:032x}", 99)).unwrap()],
         sessions,
@@ -172,6 +173,7 @@ fn attachments_require_live_navigable_primary_membership_and_deduplicate() {
         .presentation_attachments
         .push(session.presentation_attachments[0].clone());
     let doc = Document {
+        client_unsupported: false,
         revision: AgentSafeInteger::new(9),
         requests: vec![],
         sessions: vec![Session {

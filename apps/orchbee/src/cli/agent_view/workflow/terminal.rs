@@ -61,11 +61,19 @@ pub(super) fn read(
         fields["metadata"] = metadata.value(&panel_id);
         fields["reportedAgent"] = metadata.report_value(&panel_id);
     }
-    let attention = selected
+    let mut client_unsupported = false;
+    let attention = match selected
         .map(|selected| {
             super::terminal_attention::read(client, snapshot, selected, &binding, deadline, signals)
         })
-        .transpose()?;
+        .transpose()
+    {
+        Err(failure) if crate::cli::client_control::exchange::unsupported(&failure) => {
+            client_unsupported = true;
+            None
+        }
+        attention => attention?,
+    };
     let semantic = query::terminal_agent::read(
         client,
         snapshot,
@@ -95,6 +103,7 @@ pub(super) fn read(
         results::snapshot_source(snapshot),
         results::Projection::AgentTerminalInspection {
             client_view: attention.map(|attention| attention.corroborate(&semantic)),
+            client_unsupported,
             binding,
             terminal: fields,
             semantic,

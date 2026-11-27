@@ -87,6 +87,7 @@ fn workspace_metadata_query_batches_fail_closed_and_share_original_deadline() {
                 }
             }
             super::worktrees::snapshot(&mut stream, count, true);
+            list_reply(&mut stream, Vec::new());
             assert_closed(&mut stream);
         });
         let workspace = id(100);

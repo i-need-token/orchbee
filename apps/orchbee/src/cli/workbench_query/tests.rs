@@ -45,6 +45,7 @@ fn document(command: &QueryCommand, state: &Snapshot) -> Document {
         current_member: None,
         projection: Box::new(results::project(command, state).unwrap()),
         client: Some(record()),
+        sole_selection: None,
         agents: None,
         terminals: None,
         panel_metadata: super::super::panel_metadata_query::empty_fixture(
@@ -186,6 +187,47 @@ fn selected_queries_publish_global_focus_and_client_memory_with_closed_schemas()
                     .contains(CliText::new(locale).cli_query_client_labels()[0])
             );
         }
+    }
+}
+
+/// A query that names no Client takes `focused` from the one Ready Client's published selection and
+/// still carries no Client provenance or Client-read member.
+#[cfg(windows)]
+#[test]
+fn a_sole_ready_client_answers_focus_without_client_provenance() {
+    let state = snapshot();
+    for (command, key) in [
+        (QueryCommand::TabGet(Target::Id(id(5))), "tab"),
+        (QueryCommand::PanelGet(Target::Id(id(6))), "panel"),
+    ] {
+        let published = crate::cli::schema::answer(
+            Some(results::schema_id(&command)),
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        let catalog: Value = serde_json::from_slice(&published.stdout).unwrap();
+        let validator =
+            jsonschema::validator_for(&catalog["result"]["schema"]["document"]).unwrap();
+        let mut document = document(&command, &state);
+        document.sole_selection = document
+            .client
+            .take()
+            .and_then(|client| client.view.selection);
+        document.viewports = None;
+        document.contexts.clear();
+        document.operations.clear();
+        let output = success_output(
+            Projection::WorkbenchQuery(Box::new(document)),
+            results::snapshot_source(&state),
+            &command,
+            OutputFormat::Json,
+            Locale::EnUs,
+        );
+        assert_eq!(output.status, 0);
+        let doc: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(validator.is_valid(&doc), "schema rejected {key}");
+        assert_eq!(doc["result"][key]["focused"], true);
+        assert!(doc["result"]["client"].is_null());
     }
 }
 

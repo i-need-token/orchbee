@@ -160,6 +160,8 @@ fn workbench_queries_join_only_primary_agents_and_reject_changed_client_without_
                 );
             } else if case != "headless" {
                 client_get::selected_reply(&mut stream, case == "busy");
+            } else {
+                list_reply(&mut stream, Vec::new());
             }
             assert_closed(&mut stream);
         });

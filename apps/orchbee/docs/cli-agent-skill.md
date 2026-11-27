@@ -62,7 +62,7 @@ A Workspace has a directory and may belong to a Project; Project grouping is opt
 
 Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `terminal`, `launch-profile`, `client`, or `agent` list/get command. Reuse returned IDs and prefer printed handles such as `@panel:0x1`: they omit leading zeros without changing identity when other resources come or go. Quote handles in PowerShell. IDs and compact handles are scoped to the selected Session and underlying identity lifetime; rediscover runtime terminal IDs after Server restart.
 
-Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback.
+Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback. `workspace`, `tab` and `panel` list/get report `focused` from the only ready Client when exactly one exists; otherwise pass `--client <id>` or `focused` stays null.
 
 ## Create and arrange terminals
 

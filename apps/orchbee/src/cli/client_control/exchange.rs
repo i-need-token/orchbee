@@ -308,6 +308,14 @@ pub(in crate::cli) fn submission_refusal(
     Some(failure)
 }
 
+/// Whether the Client refused a read only because it does not run that kind of read, as a desktop
+/// window that answers navigation alone does. A query then reports the read as unsupported for
+/// this Client instead of failing.
+pub(in crate::cli) fn unsupported(failure: &Failure) -> bool {
+    failure.kind == FailureKind::Rejected
+        && failure.client_refusal == Some(ClientViewControlReason::Unsupported)
+}
+
 /// The Client's typed reason for refusing, or not finishing, one submitted step.
 pub(in crate::cli) fn refusal_reason(
     outcome: Option<&ClientViewOutcome>,

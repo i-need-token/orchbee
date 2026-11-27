@@ -1191,6 +1191,8 @@ pub(crate) enum Projection {
     AgentInspection(Box<AgentInspectionDoc>),
     AgentTerminalInspection {
         client_view: Option<terminal_agent::ClientAttention>,
+        /// The selected Client does not read Agent attention.
+        client_unsupported: bool,
         binding: orchbee_agent_observation_protocol::AgentLaunchBinding,
         terminal: Value,
         semantic: terminal_agent::TerminalAgentRead,
@@ -1278,6 +1280,8 @@ pub(crate) struct AgentInspectionDoc {
     pub(crate) revision: AgentSafeInteger,
     pub(crate) session: Box<AgentSessionDetail>,
     pub(crate) client: Option<Box<AgentClientViewDoc>>,
+    /// The selected Client does not read Agent attention.
+    pub(crate) client_unsupported: bool,
     pub(crate) runtime: AgentRuntimeDoc,
     pub(crate) terminal: Option<Value>,
     pub(crate) management: AgentManagementDoc,
@@ -1392,23 +1396,27 @@ impl Projection {
                 terminal,
                 semantic,
                 client_view,
+                client_unsupported,
             } => {
                 let mut doc = json!({
                 "kind":"terminal-found", "target":{"kind":"terminal","binding":binding},
                 "terminal":terminal, "semantic":semantic.document(),
                 });
-                doc["clientView"] = client_view
-                    .as_ref()
-                    .map_or(Value::Null, |view| view.document());
+                doc["clientView"] = match client_view {
+                    Some(view) => view.document(),
+                    None if *client_unsupported => json!({"kind":"unsupported"}),
+                    None => Value::Null,
+                };
                 doc
             }
             Self::AgentInspection(doc) => {
                 let mut result = json!({"kind":"found","revision":doc.revision,"session":doc.session,"runtime":doc.runtime.document(),"management":doc.management.document()});
                 result["terminal"] = json!(doc.terminal);
-                result["client"] = doc
-                    .client
-                    .as_ref()
-                    .map_or(Value::Null, |client| client.document());
+                result["client"] = match &doc.client {
+                    Some(client) => client.document(),
+                    None if doc.client_unsupported => json!({"kind":"unsupported"}),
+                    None => Value::Null,
+                };
                 result
             }
             Self::AgentWait(doc) => {

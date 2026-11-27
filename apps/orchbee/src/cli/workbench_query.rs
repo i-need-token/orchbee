@@ -19,8 +19,9 @@ use crate::{
 use orchbee_workbench_protocol::{
     ClientContextSelection, ClientNavigationSnapshot, ClientViewAction, ClientViewAvailability,
     ClientViewControl, ClientViewControlStatus, ClientViewIntent, ClientViewObservation,
-    ClientViewOutcome, ClientViewPhase, ClientViewRecord, MAXIMUM_CLIENT_SELECTION_CONTEXTS,
-    Snapshot, WorkbenchClientId, WorkbenchRequestId, WorkbenchTerminalContextId,
+    ClientViewOutcome, ClientViewPhase, ClientViewRecord, ClientViewSelection,
+    MAXIMUM_CLIENT_SELECTION_CONTEXTS, Snapshot, WorkbenchClientId, WorkbenchRequestId,
+    WorkbenchTerminalContextId,
 };
 use serde_json::{Map, Value, json};
 use std::time::{Duration, Instant};
@@ -32,6 +33,9 @@ mod tests;
 pub(crate) struct Document {
     pub(super) projection: Box<Projection>,
     client: Option<ClientViewRecord>,
+    /// Without a selected Client, the selection of the one current Ready Client, which answers
+    /// `focused` alone.
+    sole_selection: Option<ClientViewSelection>,
     current_member: Option<super::current_presentation::Resolved>,
     agents: Option<super::workbench_agents::Document>,
     terminals: Option<super::workbench_terminals::Document>,
@@ -64,6 +68,7 @@ impl Document {
         Self {
             projection: Box::new(projection),
             client: None,
+            sole_selection: None,
             current_member: None,
             agents: None,
             terminals: None,
@@ -282,7 +287,7 @@ fn execute(
         } => ListJoin::NotRequested,
         _ => ListJoin::Observe,
     };
-    collect(
+    let (source, mut document) = collect(
         &mut client,
         &snapshot,
         projection,
@@ -291,7 +296,41 @@ fn execute(
         worktrees,
         deadline,
         signals,
-    )
+    )?;
+    if selected.is_none() {
+        document.sole_selection = sole_ready_selection(&mut client, &snapshot, deadline, signals)?;
+    }
+    Ok((source, document))
+}
+
+/// The selection of the one current Ready Client, or none when no Client or several are. A query
+/// that names no Client reads only this published selection, so it adds no Client read or fence.
+fn sole_ready_selection(
+    client: &mut crate::local_client::LocalClient,
+    snapshot: &Snapshot,
+    deadline: Instant,
+    signals: &mut impl SignalWatch,
+) -> Result<Option<ClientViewSelection>, Failure> {
+    signals.check_before(deadline)?;
+    let result = control::exchange(
+        client,
+        &snapshot.session_id,
+        ClientViewAction::List {},
+        deadline,
+        signals,
+    )?;
+    signals.check_before(deadline)?;
+    let ClientViewOutcome::Listed { clients } = result.outcome else {
+        return Ok(None);
+    };
+    let mut ready = clients.into_iter().filter(|client| {
+        client.availability == ClientViewAvailability::Current
+            && client.view.phase == ClientViewPhase::Ready
+    });
+    Ok(match (ready.next(), ready.next()) {
+        (Some(only), None) => only.view.selection,
+        _ => None,
+    })
 }
 
 /// Text lists print only the snapshot table; `--worktrees` asks for the joined form.
@@ -362,7 +401,7 @@ pub(super) fn collect(
             .client
             .as_ref()
             .ok_or_else(|| Failure::new(FailureKind::InternalFailure))?;
-        let (operation_id, navigation, view) = fence.address(
+        let read = fence.address(
             client,
             &snapshot.session_id,
             record,
@@ -371,7 +410,13 @@ pub(super) fn collect(
             |client, current, signals| {
                 read_selections(client, snapshot, current, ids, deadline, signals)
             },
-        )?;
+        );
+        // A Client that does not read selections leaves each Workspace's active Tab unknown; its
+        // published selection still answers `focused`.
+        let (operation_id, navigation, view) = match read {
+            Err(failure) if control::unsupported(&failure) => break,
+            read => read?,
+        };
         if navigation.workbench_revision != snapshot.revision {
             return Err(super::query::workbench_failure("workbench-changed"));
         }
@@ -638,10 +683,11 @@ impl Document {
             self.client.as_ref().and(self.viewports.as_ref()),
             &mut value,
         );
-        let Some(client) = &self.client else {
-            return value;
+        let selected = match (&self.client, &self.sole_selection) {
+            (Some(client), _) => client.view.selection.as_ref(),
+            (None, Some(selection)) => Some(selection),
+            (None, None) => return value,
         };
-        let selected = client.view.selection.as_ref();
         let enrich = |row: &mut Value, family: &str| {
             let context = if family == "workspace" || family == "panel-list" {
                 row["terminalContextId"].as_str()
@@ -684,7 +730,9 @@ impl Document {
                 enrich(&mut value[key], key);
             }
         }
-        value["client"] = json!({ "clientId": client.client_id, "viewRevision": client.view_revision, "operationIds": self.operations, "view": client.view });
+        if let Some(client) = &self.client {
+            value["client"] = json!({ "clientId": client.client_id, "viewRevision": client.view_revision, "operationIds": self.operations, "view": client.view });
+        }
         value
     }
     pub(super) fn render(

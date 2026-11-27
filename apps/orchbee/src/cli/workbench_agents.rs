@@ -36,6 +36,8 @@ struct Session {
 
 #[derive(Debug)]
 pub(super) struct Document {
+    /// The selected Client does not read Agent attention, so no Session has a Client view.
+    client_unsupported: bool,
     revision: AgentSafeInteger,
     requests: Vec<ObapRequestId>,
     sessions: Vec<Session>,
@@ -203,10 +205,11 @@ pub(super) fn read<S: SignalWatch>(
         .collect::<Vec<_>>();
     let mut reads = Vec::new();
     let mut owners = BTreeMap::new();
+    let mut client_unsupported = false;
     if let Some((selected, fence)) = selected {
         for chunk in ids.chunks(PAGE_SIZE) {
             // Each read addresses the Client's current view revision itself.
-            let read = fence.address(
+            let read = match fence.address(
                 client,
                 &snapshot.session_id,
                 selected,
@@ -222,7 +225,15 @@ pub(super) fn read<S: SignalWatch>(
                         signals,
                     )
                 },
-            )?;
+            ) {
+                Err(failure) if super::client_control::exchange::unsupported(&failure) => {
+                    client_unsupported = true;
+                    reads.clear();
+                    owners.clear();
+                    break;
+                }
+                read => read?,
+            };
             if !fence.holds(selected, read.view()) {
                 return Err(failure("client-changed"));
             }
@@ -252,7 +263,7 @@ pub(super) fn read<S: SignalWatch>(
         .filter(|item| matches(item, &presentations))
         .collect::<Vec<_>>();
     let mut joined = BTreeMap::new();
-    if selected.is_some() {
+    if selected.is_some() && !client_unsupported {
         for (index, read) in reads.iter().enumerate() {
             // A Session appearing after the first list is missing from that checkpoint;
             // the first authenticated batch supplies an explicit missing projection.
@@ -272,6 +283,7 @@ pub(super) fn read<S: SignalWatch>(
     }
     signals.check_before(deadline)?;
     Ok(Document {
+        client_unsupported,
         revision,
         requests,
         rows,
@@ -370,6 +382,7 @@ impl Document {
         result["agents"] = json!({"revision":self.revision,"requestIds":self.requests,"sessions":self.sessions.iter().map(|session| {
             let mut row = json!({"session":session.summary});
             if let Some(client) = &session.client { row["client"] = client.document(); }
+            else if self.client_unsupported { row["client"] = json!({"kind":"unsupported"}); }
             row
         }).collect::<Vec<_>>()});
     }

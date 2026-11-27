@@ -102,6 +102,7 @@ fn workspace_queries_join_git_without_trust_and_fail_closed_on_changed_or_lost_s
                 super::metadata::read_reply(&mut stream, "stable", 0);
             }
             snapshot(&mut stream, count, case == "no-directory");
+            list_reply(&mut stream, Vec::new());
             assert_closed(&mut stream);
         });
         let started = Instant::now();

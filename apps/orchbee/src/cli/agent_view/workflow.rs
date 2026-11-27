@@ -121,7 +121,8 @@ pub(super) fn run(
                 ));
             }
         };
-        let attention = selected
+        let mut client_unsupported = false;
+        let attention = match selected
             .map(|selected| {
                 read(
                     &mut client,
@@ -132,7 +133,14 @@ pub(super) fn run(
                     &mut signals,
                 )
             })
-            .transpose()?;
+            .transpose()
+        {
+            Err(failure) if crate::cli::client_control::exchange::unsupported(&failure) => {
+                client_unsupported = true;
+                None
+            }
+            attention => attention?,
+        };
         let initial = query::read_agent_observation(&mut client, &id, deadline, signals.poll_fd())?;
         let (canonical, mut runtime, terminal) =
             runtime::read(&mut client, &snapshot, initial, deadline, &mut signals)?;
@@ -188,6 +196,7 @@ pub(super) fn run(
                             revision: canonical.revision,
                             session: canonical.session,
                             client: view,
+                            client_unsupported,
                             runtime,
                             terminal,
                             management,

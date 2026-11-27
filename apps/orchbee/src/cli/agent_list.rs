@@ -149,7 +149,7 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
             }
         }
         if let Some(selected) = selected {
-            client_memory(
+            match client_memory(
                 &mut client,
                 &snapshot,
                 &checkpoint,
@@ -157,7 +157,15 @@ pub(super) fn run(command: &QueryCommand, format: OutputFormat, locale: Locale) 
                 selected,
                 deadline,
                 &mut signals,
-            )?;
+            ) {
+                // A Client that does not read Agent attention has no view of any row.
+                Err(failure) if super::client_control::exchange::unsupported(&failure) => {
+                    for item in &mut items {
+                        item.client = Some(json!({"kind":"unsupported"}));
+                    }
+                }
+                memory => memory?,
+            }
         }
         confirm(
             &mut client,

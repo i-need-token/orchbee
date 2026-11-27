@@ -210,6 +210,7 @@ fn panel_metadata_queries_enforce_exact_batches_binding_fences_and_original_dead
                 return;
             }
             snapshot(&mut stream, count);
+            list_reply(&mut stream, Vec::new());
             assert_closed(&mut stream);
         });
         let target = id(6);

@@ -18,6 +18,8 @@ use std::{collections::BTreeMap, time::Instant};
 pub(super) struct Document {
     pub(super) operations: Vec<WorkbenchRequestId>,
     rows: BTreeMap<String, ClientViewportObservation>,
+    /// The selected Client does not read viewports, so no row has a scroll observation.
+    unsupported: bool,
 }
 impl Document {
     pub(super) fn render(
@@ -25,6 +27,9 @@ impl Document {
         out: &mut super::output::Bounded,
         locale: crate::localization::Locale,
     ) -> Result<(), super::output::TooLarge> {
+        if self.unsupported {
+            return Ok(());
+        }
         out.write(format_args!(
             "{}\n",
             CliText::new(locale).cli_scroll_heading()
@@ -71,6 +76,7 @@ pub(super) fn unobserved_fixture(projection: &Projection) -> Option<Document> {
     };
     Some(Document {
         operations: vec![],
+        unsupported: false,
         rows: rows
             .into_iter()
             .map(|row| {
@@ -107,6 +113,7 @@ pub(super) fn read<S: SignalWatch>(
     let mut document = Document {
         operations: vec![],
         rows: BTreeMap::new(),
+        unsupported: false,
     };
     for batch in rows.chunks(MAXIMUM_CLIENT_VIEWPORT_PANELS) {
         signals.check_before(deadline)?;
@@ -114,14 +121,22 @@ pub(super) fn read<S: SignalWatch>(
             .iter()
             .map(|row| WorkbenchPanelId::parse(&row.panel_id).map_err(|_| invalid()))
             .collect::<Result<Vec<_>, _>>()?;
-        let (operation_id, viewport, view) = fence.address(
+        let read = fence.address(
             client,
             &snapshot.session_id,
             selected,
             deadline,
             signals,
             |client, record, signals| submit(client, snapshot, record, &ids, deadline, signals),
-        )?;
+        );
+        let (operation_id, viewport, view) = match read {
+            Err(failure) if super::client_control::exchange::unsupported(&failure) => {
+                document.rows.clear();
+                document.unsupported = true;
+                return Ok(Some(document));
+            }
+            read => read?,
+        };
         // The Client never answers below the snapshot's revision; a later one is a Workbench change.
         if viewport.workbench_revision != snapshot.revision {
             return Err(super::query::workbench_failure("workbench-changed"));
@@ -205,6 +220,8 @@ fn submit(
     Ok((command.operation_id, viewport, view))
 }
 pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
+    let unsupported = document.is_some_and(|document| document.unsupported);
+    let document = document.filter(|document| !document.unsupported);
     let mut row = |row: &mut Value| {
         let observation = document.map(|document| {
             document
@@ -217,8 +234,11 @@ pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
             // Only comparable ready viewport observations can prove the scroll change or enrich this view.
             _ => Value::Null,
         };
-        row["scrollObservation"] =
-            observation.map_or_else(|| json!({"state":"no-client"}), |value| json!(value));
+        row["scrollObservation"] = if unsupported {
+            json!({"kind":"unsupported"})
+        } else {
+            observation.map_or_else(|| json!({"state":"no-client"}), |value| json!(value))
+        };
     };
     if let Some(rows) = result.get_mut("panels").and_then(Value::as_array_mut) {
         rows.iter_mut().for_each(&mut row);
@@ -232,6 +252,7 @@ pub(super) fn enrich(document: Option<&Document>, result: &mut Value) {
 pub(super) fn from_current(member: &super::current_presentation::Resolved) -> Option<Document> {
     member.client().map(|read| Document {
         operations: vec![],
+        unsupported: false,
         rows: BTreeMap::from([(
             member.panel_id.to_string(),
             read.member

@@ -33,6 +33,9 @@ fn panel_runtime_uses_one_attachment_and_preserves_unavailable_metadata_without_
                         if mode == "changed-workbench" { 13 } else { 12 },
                     );
                 }
+                if !current && !matches!(mode, "wrong-epoch" | "deadline" | "changed-workbench") {
+                    list_reply(&mut stream, Vec::new());
+                }
                 assert_closed(&mut stream);
             });
             let started = Instant::now();
