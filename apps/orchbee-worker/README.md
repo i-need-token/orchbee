@@ -440,11 +440,9 @@ The serialized request loop admits OBCN worktree-job requests (start/poll/cancel
 `git rev-parse --path-format=absolute --git-common-dir` probe followed by `git worktree list
 --porcelain -z` inside the Server-supplied directory; a source query adds `--show-toplevel`
 to the same probe and splits its two lines, so one Git start answers both. Neither read starts
-a helper program, so on Windows, when the first `git.exe` process creation would find (in the
-Worker's folder, the system folders, then `PATH`) is the Git for Windows launcher
-(`<installation>\cmd\git.exe` or `<installation>\bin\git.exe`), they start the one
-`<installation>\<architecture>\bin\git.exe` that launcher would start; any other first match
-or any doubt keeps `git.exe`. Status reads and mutations keep `git.exe`. Both reads run under a fixed five-second TTL counted
+a helper program, so both start the
+[read program](../../crates/git-process/README.md#program), which on Windows can be the Git that
+the Git for Windows launcher would start. Status reads and mutations keep `git.exe`. Both reads run under a fixed five-second TTL counted
 from admission and one shared 64 KiB stdout budget across both stages; the stage that crosses
 the combined budget owns the `too-large` attribution. Every request is fenced by the exact
 `{workerId, generation, jobId}` tuple and answers a typed result frame; `rejected-fencing`,
@@ -1509,11 +1507,12 @@ process traces cover reused Terminal IDs and refusal of the old Worker context.
 The [private mutation contract](../../crates/capability-node-protocol/README.md#worktree-mutation-job-contract)
 owns the checked intents and wire vocabulary. `worktree_mutation_job` owns admission,
 retained intent identity, one physical thread and completion receipts; the
-`worktree_mutation_git` adapter owns literal argv, bounded output and exact process settlement
-through the shared [retained command](../../crates/local-runtime/README.md#retained-commands): a
-Job on Windows, a process group on Linux and macOS. Shared `git_repository` prepares every Git
-command; its `windows` and `unix` children own the program name and path spelling. The Server
-continuation remains responsible for Workspace association and end-to-end CLI recovery.
+`worktree_mutation_git` adapter owns literal argv and its failure vocabulary; each command is a
+[Git run](../../crates/git-process/README.md#runs), which owns bounded output and exact process
+settlement: a Job on Windows, a process group on Linux and macOS. Shared `git_repository` prepares
+every Git command's environment and trust; `orchbee-git-process` owns the program name and path
+spelling. The Server continuation remains responsible for Workspace association and end-to-end CLI
+recovery.
 
 Start validates Worker identity/generation before touching the slot. Equal retained
 ID/intent observes Existing; changed intent conflicts. One running job excludes another,

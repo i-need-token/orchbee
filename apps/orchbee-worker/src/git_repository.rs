@@ -1,19 +1,14 @@
-//! Literal repository selection and command-local Git trust shared by reads and mutations. Path
-//! syntax, canonical spelling and the Git program belong to the platform adapter.
+//! The Worker's Git environment: literal repository selection and command-local Git trust shared
+//! by reads and mutations, and the canonical spelling it reports. The Git program and path syntax
+//! belong to `orchbee-git-process`.
+use orchbee_capability_node_protocol::AbsoluteCwd;
 use std::{path::Path, process::Command};
 
-#[cfg(unix)]
-mod unix;
-#[cfg(windows)]
-mod windows;
-#[cfg(unix)]
-pub(crate) use unix::{
-    GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path, read_program,
-};
-#[cfg(windows)]
-pub(crate) use windows::{
-    GIT_PROGRAM, canonical_path, checkout_spelling, is_admissible_path, read_program,
-};
+/// A path as the filesystem resolves it, in the spelling Git prints: forward slashes on Windows.
+pub(crate) fn canonical_path(path: &Path) -> Result<AbsoluteCwd, ()> {
+    let canonical = orchbee_git_process::canonical_path(path).map_err(|_| ())?;
+    AbsoluteCwd::new(&canonical.git_spelling()).map_err(|_| ())
+}
 
 pub(crate) fn configure(command: &mut Command, at: &Path, trust: bool) -> Result<(), ()> {
     // A long-lived Worker must not inherit repository selection or config injection.

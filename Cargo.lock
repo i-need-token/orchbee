@@ -1452,6 +1452,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-git-process"
+version = "0.1.0"
+dependencies = [
+ "orchbee-local-ipc",
+ "orchbee-local-runtime",
+ "winsafe",
+]
+
+[[package]]
 name = "orchbee-launcher"
 version = "0.1.0-beta.26"
 dependencies = [
@@ -1665,6 +1674,7 @@ dependencies = [
  "orchbee-capability-node-protocol",
  "orchbee-color-themes",
  "orchbee-connection-handshake",
+ "orchbee-git-process",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
  "orchbee-local-runtime",

@@ -1,11 +1,12 @@
 //! Git worktree effects; the job slot owns this function's whole lifetime.
-use crate::git_repository::{canonical_path, checkout_spelling, is_admissible_path};
+use crate::git_repository::canonical_path;
 use orchbee_capability_node_protocol::{
     AbsoluteCwd, GitReference, WorktreeCheckout, WorktreeCheckoutSelector, WorktreeMutation,
     WorktreeMutationCompletion as Completion, WorktreeMutationEffect,
     WorktreeMutationError as Error, WorktreeMutationFailure, WorktreeMutationIntent,
     WorktreeMutationStage as Stage,
 };
+use orchbee_git_process::{checkout_spelling, is_admissible_path};
 use std::{path::Path, sync::atomic::AtomicBool, time::Instant};
 
 mod command;

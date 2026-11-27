@@ -32,7 +32,7 @@ impl Fixture {
         fixture
     }
     fn git(&self, args: &[&str]) {
-        let mut command = Command::new(crate::git_repository::GIT_PROGRAM);
+        let mut command = Command::new(orchbee_git_process::GIT_PROGRAM);
         crate::git_repository::configure(&mut command, &self.root.join("repo"), false).unwrap();
         command
             .args([
@@ -160,7 +160,7 @@ fn main_and_linked_subdirectories_report_checkout_and_common_directory() {
 #[test]
 fn source_command_trust_is_an_exact_argument_and_invalid_source_is_typed() {
     let fixture = Fixture::new();
-    let mut command = Command::new(crate::git_repository::GIT_PROGRAM);
+    let mut command = Command::new(orchbee_git_process::GIT_PROGRAM);
     crate::git_repository::configure(&mut command, &fixture.root.join("repo"), true).unwrap();
     let args: Vec<_> = command
         .get_args()

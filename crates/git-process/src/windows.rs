@@ -1,12 +1,14 @@
-//! Windows repository paths: absolute drive paths only, compared without case or separator style.
-use orchbee_capability_node_protocol::AbsoluteCwd;
+//! Windows Git program and paths: the Git for Windows launcher's own Git for reads, and absolute
+//! drive paths only, compared without case or separator style.
 use std::{
+    borrow::Cow,
     ffi::OsString,
     io,
     path::{Path, PathBuf},
 };
 
-pub(crate) const GIT_PROGRAM: &str = "git.exe";
+/// The name process creation resolves to the first `git.exe` it finds.
+pub const GIT_PROGRAM: &str = "git.exe";
 
 /// The folders a Git for Windows installation keeps its Git in, one per build architecture.
 const INSTALLATION_GIT_FOLDERS: [&str; 3] = ["mingw64", "clangarm64", "mingw32"];
@@ -17,15 +19,15 @@ const INSTALLATION_GIT_FOLDERS: [&str; 3] = ["mingw64", "clangarm64", "mingw32"]
 /// and starts `<installation>\<architecture>\bin\git.exe`, the read starts that Git itself and
 /// spares one process start. Any other first match, and any doubt, keeps the name, which process
 /// creation resolves exactly as before.
-pub(crate) fn read_program() -> OsString {
+pub fn read_program() -> OsString {
     searched_folders()
         .and_then(launcher_target)
         .map_or_else(|| GIT_PROGRAM.into(), PathBuf::into_os_string)
 }
 
 /// The folders process creation searches for a bare program name, in its order, when the command
-/// leaves `PATH` as the Worker has it: the Worker's own folder, the system folder, the Windows
-/// folder that holds it, then the Worker's `PATH`.
+/// leaves `PATH` as the running process has it: the process's own folder, the system folder, the
+/// Windows folder that holds it, then the process's `PATH`.
 fn searched_folders() -> Option<Vec<PathBuf>> {
     let application = std::env::current_exe().ok()?.parent()?.to_owned();
     let system = PathBuf::from(winsafe::GetSystemDirectory().ok()?);
@@ -79,32 +81,33 @@ fn first_holding_git(folders: Vec<PathBuf>) -> Option<PathBuf> {
     None
 }
 
-pub(crate) fn is_admissible_path(path: &Path) -> bool {
+/// Whether `path` is one a Git owner may resolve: an absolute drive path, verbatim or not. Network,
+/// device and relative paths are not.
+pub fn is_admissible_path(path: &Path) -> bool {
     use std::path::{Component, Prefix};
     path.is_absolute()
         && matches!(path.components().next(), Some(Component::Prefix(prefix))
             if matches!(prefix.kind(), Prefix::Disk(_) | Prefix::VerbatimDisk(_)))
 }
 
-pub(crate) fn canonical_path(path: &Path) -> Result<AbsoluteCwd, ()> {
-    // Filesystem access belongs to the Git job owner, never serialized ingress.
-    if !is_admissible_path(path) {
-        return Err(());
+/// A resolved path without its verbatim prefix; none for a network location.
+pub(crate) fn native_spelling(resolved: String) -> Option<String> {
+    if resolved.starts_with("\\\\?\\UNC\\") {
+        return None;
     }
-    let canonical = std::fs::canonicalize(path).map_err(|_| ())?;
-    let value = canonical.to_str().ok_or(())?;
-    if value.starts_with("\\\\?\\UNC\\") {
-        return Err(());
-    }
-    let normalized = value
-        .strip_prefix("\\\\?\\")
-        .unwrap_or(value)
-        .replace('\\', "/");
-    AbsoluteCwd::new(&normalized).map_err(|_| ())
+    Some(match resolved.strip_prefix("\\\\?\\") {
+        Some(native) => native.to_owned(),
+        None => resolved,
+    })
+}
+
+/// Git prints and accepts a Windows path with forward slashes.
+pub(crate) fn git_spelling(native: &str) -> Cow<'_, str> {
+    Cow::Owned(native.replace('\\', "/"))
 }
 
 /// The spelling under which a checkout path Git recorded names the same checkout.
-pub(crate) fn checkout_spelling(value: &str) -> String {
+pub fn checkout_spelling(value: &str) -> String {
     value
         .replace('\\', "/")
         .trim_end_matches('/')

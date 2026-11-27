@@ -128,7 +128,7 @@ enum Program {
 impl CommandSpec {
     fn prepare(&self) -> io::Result<Command> {
         let mut command = match &self.program {
-            Program::GitRead => Command::new(crate::git_repository::read_program()),
+            Program::GitRead => Command::new(orchbee_git_process::read_program()),
             Program::Exact(program) => Command::new(program),
         };
         if let Some((path, trust)) = &self.git_context {
@@ -295,7 +295,7 @@ fn status_commands(directory: &Path) -> JobCommands {
         probe: CommandSpec {
             git_context: Some((directory.to_owned(), false)),
             // Status can start clean filters, which may need the launcher's search path.
-            program: Program::Exact(crate::git_repository::GIT_PROGRAM.into()),
+            program: Program::Exact(orchbee_git_process::GIT_PROGRAM.into()),
             args: [
                 "-c",
                 "core.fsmonitor=false",
@@ -378,7 +378,7 @@ impl WorktreeDiscoverySlot {
         directory: &Path,
         trust: bool,
     ) -> StartOutcome {
-        if !crate::git_repository::is_admissible_path(directory) {
+        if !orchbee_git_process::is_admissible_path(directory) {
             return StartOutcome::InvalidDirectory;
         }
         self.start_with(
@@ -390,7 +390,7 @@ impl WorktreeDiscoverySlot {
     }
 
     pub(crate) fn start_status(&self, job_id: JobId, directory: &Path) -> StartOutcome {
-        if !crate::git_repository::is_admissible_path(directory) {
+        if !orchbee_git_process::is_admissible_path(directory) {
             return StartOutcome::InvalidDirectory;
         }
         self.start_with(job_id, directory, JOB_TTL, status_commands(directory))
