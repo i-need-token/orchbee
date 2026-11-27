@@ -42,6 +42,13 @@ consider them together, or submission starts an external effect.
 | Modal Dialog                | One explicit task meets the [modal admission](#modal-admission) contract                       | The surface merely reports information, collects convenience metadata, or contains a long flow |
 | Dedicated task surface      | The task is long, multistep, navigable, or needs substantial context and recovery              | One brief decision can safely return to the current context                                    |
 
+A quick input is the command surface's request-driven form: one top-center pick or one short input
+that a feature requests and awaits. It holds at most one session; a new request cancels the current
+one, and every request settles exactly once as accepted or cancelled. Escape cancels, a blur
+cancels unless the request asks to survive it, as a credential prompt does, and a value check shows
+only the current value's answer. Use it for a brief choice or entry that a feature needs before it
+continues, not for a multi-value draft or a decision that needs its own explanation.
+
 Any surface that makes the rest of the application inert is modal, regardless of whether its
 component is named Dialog, Sheet, Drawer, or Popover. Responsive presentation may change geometry,
 but it preserves modality, commit, cancellation, and focus behavior.

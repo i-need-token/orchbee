@@ -1124,6 +1124,26 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.retry'],
 		description: 'Button label for retrying one failed unified-search provider.',
 	},
+	quickInputBusy: {
+		id: 'workbench.quickInput.busy',
+		defaultMessage: enUSWorkbenchMessages['workbench.quickInput.busy'],
+		description: 'Status shown while the feature that opened a quick input is still working.',
+	},
+	quickInputLabel: {
+		id: 'workbench.quickInput.label',
+		defaultMessage: enUSWorkbenchMessages['workbench.quickInput.label'],
+		description: 'Accessible name of a quick input that its feature gave no title.',
+	},
+	quickInputNoMatches: {
+		id: 'workbench.quickInput.noMatches',
+		defaultMessage: enUSWorkbenchMessages['workbench.quickInput.noMatches'],
+		description: 'Shown when the typed filter matches none of a quick pick’s items.',
+	},
+	quickInputStep: {
+		id: 'workbench.quickInput.step',
+		defaultMessage: enUSWorkbenchMessages['workbench.quickInput.step'],
+		description: 'Progress through a quick input with several steps, as numbers.',
+	},
 	searchResultsCount: {
 		id: 'workbench.search.results.count',
 		defaultMessage: enUSWorkbenchMessages['workbench.search.results.count'],

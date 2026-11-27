@@ -35,6 +35,8 @@ import type { WorkbenchOtherMachines } from './types/workbench-other-machines';
 import { WorkbenchProjectCreation } from './components/workbench-project-creation/WorkbenchProjectCreation';
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
+import { WorkbenchQuickInputSurface } from './components/workbench-search-surface/components/workbench-quick-input-surface/WorkbenchQuickInputSurface';
+import { useWorkbenchQuickInputSessions } from './components/workbench-search-surface/hooks/useWorkbenchQuickInputSessions';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchMobileBar';
 import { WorkbenchTabList } from './components/workbench-tab-list/WorkbenchTabList';
@@ -181,6 +183,7 @@ export function Workbench({
 	const tabStripMessages = useWorkbenchTabStripMessages();
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
+	const quickInputSessions = useWorkbenchQuickInputSessions();
 	const effectiveScopedShortcutBindings = fileBarOffered
 		? (scopedShortcutBindings ?? defaultWorkbenchScopedShortcutBindings(shortcutPlatform))
 		: undefined;
@@ -737,6 +740,7 @@ export function Workbench({
 					update={view.updateSearch}
 				/>
 			)}
+			{fileBarOffered ? <WorkbenchQuickInputSurface sessions={quickInputSessions} /> : null}
 			{view.agentStart === undefined ? null : (
 				<WorkbenchAgentStartDialog
 					catalog={view.agentStart.catalog}

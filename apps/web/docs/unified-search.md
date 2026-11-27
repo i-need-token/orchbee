@@ -127,6 +127,28 @@ to the engineering caller and never become raw product copy.
 - Closing, provider cancellation, picker cancellation, highlight, hover, and prefetch invoke no
   product Action.
 
+## Quick input sessions
+
+Where the File Bar is offered, the Workbench holds one `WorkbenchQuickInputSessions` coordinator and
+renders its current session with the search surface's geometry. A feature requests a pick session
+(items, separators, descriptions, title, step and busy state; it settles with one item's value) or
+an input session (prompt, value, masking, a value check with severity, and surviving blur on
+request; it settles with the value). The first feature that requests sessions exposes the
+coordinator to its owner; no distribution requests one today.
+
+- One session is current at a time. A new request cancels the current one before it opens, and
+  every request settles exactly once, as accepted or cancelled; Escape, a blur the session does not
+  survive, and unmounting the Workbench cancel it.
+- An event names its session, so one that arrives after that session ended changes nothing.
+- An input session shows only the current value's check: a change aborts the previous check, and an
+  answer for an older value is dropped. Enter accepts only once the current check answered without
+  an error.
+- An open session registers the `quick-input` keyboard scope, the narrowest, so keys a picker binds
+  win over wider bindings while it has focus; see
+  [Keyboard scopes](keyboard-shortcuts.md#keyboard-scopes).
+
+Multiple selection, item and inline buttons, and an initial value selection are not built yet.
+
 ## Maintenance
 
 - Keep provider transitions, coordinator, React adapters and deterministic/generated regressions aligned when provider lifecycle semantics change.
