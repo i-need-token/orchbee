@@ -11,6 +11,11 @@ mod error;
 mod exit;
 #[expect(
     dead_code,
+    reason = "no operation this build dispatches reaches the file engine"
+)]
+mod fs;
+#[expect(
+    dead_code,
     reason = "the file engine implements the ports and the Git engine uses them in later slices"
 )]
 mod git;
