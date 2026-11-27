@@ -11,6 +11,15 @@ use crate::{
 use orchbee_workbench_protocol::{ClientViewControlStatus, ClientViewOutcome, WorkbenchClientId};
 use serde_json::{Value, json};
 
+/// The created Workspace's identities repeated at the top of `result`.
+const TOP_LEVEL_IDS: [&str; 5] = [
+    "workspaceId",
+    "terminalContextId",
+    "tabId",
+    "panelId",
+    "presentationId",
+];
+
 pub(super) struct Receipt {
     pub(super) workspace: Option<mutation::Receipt>,
     pub(super) directory: super::source::Directory,
@@ -37,7 +46,19 @@ impl Receipt {
         }
     }
     pub(super) fn document(&self) -> Value {
-        json!({"schema":"orchbee.workspace.creation","version":1,"result":{"resolvedLaunch":null,"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}}})
+        let mut document = json!({"schema":"orchbee.workspace.creation","version":1,"result":{"resolvedLaunch":null,"workspace":self.workspace.as_ref().map(mutation::Receipt::document),"directory":self.directory.document(),"clientId":self.client_id,"requestedFocus":self.requested_focus,"focus":self.focus.as_ref().map(Answer::document),"stage":self.stage,"failure":self.failure.as_ref().map(Failure::observation),"outcome":if self.complete() {"completed"} else {"incomplete"}}});
+        // The created Workspace's identities also sit beside `workspace`, so a caller reads them
+        // where `tab create` reports its own.
+        if let (Some(workspace), Some(result)) =
+            (&self.workspace, document["result"].as_object_mut())
+        {
+            for (key, id) in workspace.ids() {
+                if TOP_LEVEL_IDS.contains(&key) {
+                    result.insert(key.to_owned(), json!(id));
+                }
+            }
+        }
+        document
     }
     pub(super) fn emit(&self, format: OutputFormat, locale: Locale) -> Output {
         let document = self.document();

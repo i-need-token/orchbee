@@ -4999,6 +4999,21 @@
 						}
 					]
 				},
+				"workspaceId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"terminalContextId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"tabId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"panelId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
+				"presentationId": {
+					"$ref": "#/$defs/canonical/$defs/id"
+				},
 				"requestedFocus": {
 					"type": "boolean"
 				},

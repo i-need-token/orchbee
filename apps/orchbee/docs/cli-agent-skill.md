@@ -72,7 +72,7 @@ orchbee panel list --format json
 orchbee panel split <panel-id> --direction right
 ```
 
-Inspect each creation receipt: committed layout membership does not prove a process started. Commands that need a Client refuse missing, ambiguous or unready Clients; use `client list` and an explicit `--client`.
+Inspect each creation receipt: committed layout membership does not prove a process started. `workspace create`, `tab create` and `panel split` report the new IDs at the top of `result`; `terminal read`, `wait-output`, `send` and `run` accept the new Panel ID and act on its terminal. Commands that need a Client refuse missing, ambiguous or unready Clients; use `client list` and an explicit `--client`.
 
 `tab create`, `panel split` and `panel create-terminal` support the declared launch choices, cwd and literal environment entries. Use `--profile` for a saved Launch Profile or `--exec` with repeatable `--arg` for an explicit program; add `--close-on-exit` for a one-off task whose Panel should close once it exits with code 0. The directory must already exist. Inspect help for `--cwd home|current|workspace`, absolute overrides, complete terminal geometry and the bounds on `--env NAME=VALUE`. These overrides do not modify a saved profile.
 

@@ -81,6 +81,11 @@ impl Receipt {
         &self.request_id
     }
 
+    /// Every identity the receipt reports, in order; `None` is a `null` member.
+    pub(super) fn ids(&self) -> impl Iterator<Item = (&'static str, Option<&str>)> {
+        self.ids.iter().map(|(key, id)| (*key, id.as_deref()))
+    }
+
     pub(super) fn id_value(&self, name: &str) -> Option<&str> {
         self.ids
             .iter()

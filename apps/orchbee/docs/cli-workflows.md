@@ -44,11 +44,11 @@ function Invoke-OrchbeeJson([string[]]$Words) {
 $project = Invoke-OrchbeeJson -Words @('project', 'create', '--label', 'demo')
 $created = Invoke-OrchbeeJson -Words @('workspace', 'create', '--project', $project.result.projectId,
     '--label', 'main', '--cwd', 'C:\existing\repo', '--env', 'DEMO=hello')
-$created.result.workspace.result
-& $cli workspace get $created.result.workspace.result.workspaceId --format json
+$created.result
+& $cli workspace get $created.result.workspaceId --format json
 & $cli tui
 # Close this Workspace when finished:
-& $cli workspace close $created.result.workspace.result.workspaceId --confirm --format json
+& $cli workspace close $created.result.workspaceId --confirm --format json
 # Or stop the whole Windows Session and all its terminals (development and test cohorts):
 $stopped = Invoke-OrchbeeJson -Words @('server', 'stop', '--confirm')
 & $cli operation status $stopped.result.requestId --format json
@@ -168,7 +168,7 @@ field, so `set -e` or per-step checking halts the sequence.
 
 ```sh
 PROJECT=$(orchbee project create --label demo --format json | jq -er .result.projectId)
-WS=$(orchbee workspace create --project "$PROJECT" --label main --format json | jq -er .result.workspace.result.workspaceId)
+WS=$(orchbee workspace create --project "$PROJECT" --label main --format json | jq -er .result.workspaceId)
 # Replace with an existing absolute project directory on this machine:
 DIR=$(orchbee workspace set-directory "$WS" --path /absolute/path/to/existing-repo --format json | jq -er .result.directoryId)
 ```
@@ -183,9 +183,12 @@ directory. `set-directory` returns `result.directoryId` (plus
 ## 3. Launch a terminal
 
 ```sh
-TAB=$(orchbee tab create --workspace "$WS" --label shell \
-  --format json | jq -er .result.tabId)
+CREATED=$(orchbee tab create --workspace "$WS" --label shell --format json)
+TAB=$(printf '%s' "$CREATED" | jq -er .result.tabId)
+PANEL=$(printf '%s' "$CREATED" | jq -er .result.panelId)
 ```
+
+`workspace create` reports the same identities at the top of `result`.
 
 Add `--exec /abs/path [--arg v]...`
 to replace the default shell for that one request — repeat `--arg` once
@@ -196,7 +199,8 @@ the program exits with code 0, as a shell's Panel does; another exit keeps its o
 
 ## 4. Read, wait, and send input
 
-Find the terminal bound under the new tab — `terminal list` rows carry
+`terminal read`, `wait-output`, `send`, and `run` take the Panel ID and act on that Panel's
+terminal. Other terminal commands name the terminal itself; `terminal list` rows carry
 `boundTo.tabId`, `boundTo.panelId`, and `boundTo.presentationId`:
 
 ```sh
@@ -208,20 +212,20 @@ A deterministic send-then-wait pair — the `wait-output` text is the one
 the previous `send` provably produced:
 
 ```sh
-orchbee terminal send "$TERM_ID" --text 'echo READY-MARKER' --enter
-orchbee terminal wait-output "$TERM_ID" --match 'READY-MARKER' --timeout 30000
+orchbee terminal send "$PANEL" --text 'echo READY-MARKER' --enter
+orchbee terminal wait-output "$PANEL" --match 'READY-MARKER' --timeout 30000
 ```
 
 Independent reads and the remaining send forms:
 
 ```sh
-orchbee terminal read "$TERM_ID" --source visible                    # visible frame
-orchbee terminal read "$TERM_ID" --source recent --lines 50          # recent physical lines
-orchbee terminal read "$TERM_ID" --source recent-unwrapped --lines 20 # last 20 logical lines
-orchbee terminal wait-output "$TERM_ID" --regex 'build (ok|FAILED)'  # alternate search
-orchbee terminal send "$TERM_ID" --key ctrl+c
-printf 'summarize this\n' | orchbee terminal send "$TERM_ID" --stdin --enter
-orchbee terminal send "$TERM_ID" --file prompt.txt --enter
+orchbee terminal read "$PANEL" --source visible                    # visible frame
+orchbee terminal read "$PANEL" --source recent --lines 50          # recent physical lines
+orchbee terminal read "$PANEL" --source recent-unwrapped --lines 20 # last 20 logical lines
+orchbee terminal wait-output "$PANEL" --regex 'build (ok|FAILED)'  # alternate search
+orchbee terminal send "$PANEL" --key ctrl+c
+printf 'summarize this\n' | orchbee terminal send "$PANEL" --stdin --enter
+orchbee terminal send "$PANEL" --file prompt.txt --enter
 ```
 
 `send` submits one input sequence from exactly one source family: literal
