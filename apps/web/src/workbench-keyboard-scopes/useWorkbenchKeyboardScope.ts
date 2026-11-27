@@ -46,6 +46,7 @@ function registeredScope(
 			return { actionScope, kind, widget: widget ?? '' };
 		case 'file-bar':
 		case 'file-overlay':
+		case 'quick-input':
 			return { actionScope, kind };
 	}
 }

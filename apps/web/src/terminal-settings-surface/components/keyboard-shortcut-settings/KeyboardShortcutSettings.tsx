@@ -48,7 +48,7 @@ export function KeyboardShortcutSettings({
 		takenByConfiguredCommands,
 	});
 	const searching = query.trim() !== '';
-	const total = controller.declarations.length;
+	const total = controller.declarations.length + controller.scopedDeclarations.length;
 	const filterVisible = !searching && total > SETTINGS_LIST_FILTER_THRESHOLD;
 
 	return (
@@ -116,15 +116,15 @@ export function KeyboardShortcutSettings({
 				<SettingsListFilterEmpty message={view.noResults} />
 			) : null}
 			{view.rows.map((row) => {
-				const note = row.configuredCommandNote;
-				const noteId = `keyboard-shortcuts.${row.shortcutId}.configured-command`;
+				const note = row.note;
+				const noteId = `keyboard-shortcuts.${row.shortcutId}.note`;
 				const instructionId = `keyboard-shortcuts.${row.shortcutId}.recording`;
 				const describedBy = [
 					note === null ? null : noteId,
 					row.recording ? instructionId : null,
 				].filter((id): id is string => id !== null);
 				const recorderContent = row.recording ? (
-					<span className={styles['prompt']}>{view.recordingPrompt}</span>
+					<span className={styles['prompt']}>{row.recordingPrompt}</span>
 				) : (
 					<>
 						{note === null ? null : (
@@ -138,6 +138,7 @@ export function KeyboardShortcutSettings({
 				return (
 					<SettingsRow
 						key={row.shortcutId}
+						description={row.description}
 						label={row.actionName}
 						modified={row.sourceKind === 'custom'}
 						query={query}
@@ -154,7 +155,7 @@ export function KeyboardShortcutSettings({
 								{/* The recorder shows a short prompt; the full instruction is spoken only. */}
 								{row.recording ? (
 									<span className={styles['liveRegion']} id={instructionId} role='status'>
-										{view.recordingInstruction}
+										{row.recordingInstruction}
 									</span>
 								) : null}
 								<SettingFailure message={row.error} />

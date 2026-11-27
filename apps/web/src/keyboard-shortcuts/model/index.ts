@@ -2,14 +2,23 @@ export {
 	KeyboardShortcutSettingsController,
 	keyboardShortcutBindingSource,
 } from './keyboard-shortcut-settings-controller';
-export { keyboardShortcutDeclaration } from './keyboard-shortcut-catalog';
+export { isKeyboardShortcutId, keyboardShortcutDeclaration } from './keyboard-shortcut-catalog';
+export {
+	findKeyboardShortcutScopedShadow,
+	keyboardShortcutScopedDeclaration,
+	keyboardShortcutScopedRecording,
+	keyboardShortcutScopedSequence,
+} from './keyboard-shortcut-scoped-catalog';
+export type {
+	KeyboardShortcutAnyId,
+	KeyboardShortcutScopedDeclaration,
+} from './keyboard-shortcut-scoped-catalog';
 export { formatKeyboardShortcutActionName } from './formatKeyboardShortcutActionName';
 export { keyboardShortcutClaims } from './keyboardShortcutClaims';
 export type { KeyboardShortcutSettingsSnapshot } from './keyboard-shortcut-settings-controller';
 export type {
 	KeyboardShortcutAvailability,
 	KeyboardShortcutDeclaration,
-	KeyboardShortcutId,
 	KeyboardShortcutScope,
 } from './keyboard-shortcut-catalog';
 export {

@@ -262,6 +262,7 @@ export const WebApplication = React.memo(function WebApplication({
 					}
 					projectWorkspaceRuntime={projectWorkspaceRuntime}
 					projectFolderAcquisition={projectFolderAcquisition}
+					scopedShortcutBindings={keyboardShortcuts.scopedBindings}
 					searchOffered={searchOffered}
 					shortcutBindings={keyboardShortcuts.bindings}
 					shortcutPlatform={shortcutPlatform}

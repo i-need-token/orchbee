@@ -198,10 +198,8 @@ describe('useKeyboardShortcutSettingsView', () => {
 		const searchRow = () =>
 			view.result.current.rows.find((row) => row.shortcutId === 'workbench.search.actions.open');
 
-		expect(searchRow()?.configuredCommandNote).toContain('deploy');
-		expect(
-			view.result.current.rows.filter((row) => row.configuredCommandNote !== null),
-		).toHaveLength(1);
+		expect(searchRow()?.note).toContain('deploy');
+		expect(view.result.current.rows.filter((row) => row.note !== null)).toHaveLength(1);
 
 		act(() => {
 			controller.setShortcut('workbench.search.actions.open', {
@@ -209,7 +207,7 @@ describe('useKeyboardShortcutSettingsView', () => {
 				modifiers: ['mod', 'alt'],
 			});
 		});
-		expect(searchRow()?.configuredCommandNote).toBeNull();
+		expect(searchRow()?.note).toBeNull();
 		controller.dispose();
 	});
 });

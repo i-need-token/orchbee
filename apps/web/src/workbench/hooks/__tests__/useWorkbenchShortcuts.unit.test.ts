@@ -463,8 +463,17 @@ const CLOSE_TAB = scopedBinding('file-overlay.close', 'file-bar', [
 const RENAME = scopedBinding('file-explorer.rename', 'widget:explorer', [
 	{ code: 'F2', modifiers: [] },
 ]);
+/** Search's next result: a function key alone, which a region scope admits. */
+const NEXT_RESULT = scopedBinding('search.result.next', 'file-bar', [
+	{ code: 'F4', modifiers: [] },
+]);
+/** Search actions' window keys, which an open picker takes for its previous item. */
+const PICKER_PREVIOUS = scopedBinding('quick-input.item.previous', 'quick-input', [
+	{ code: 'KeyP', modifiers: ['mod', 'shift'] },
+]);
 const EXPLORER_ACTION_SCOPE = new ActionRuntime().createScope('explorer');
 const FILE_BAR_SCOPE: WorkbenchKeyboardScope = { kind: 'file-bar' };
+const PICKER_SCOPE: WorkbenchKeyboardScope = { kind: 'quick-input' };
 const EXPLORER_SCOPE: WorkbenchKeyboardScope = {
 	actionScope: EXPLORER_ACTION_SCOPE,
 	kind: 'widget',
@@ -513,6 +522,15 @@ function ScopedShortcutsHarness({
 			{ ref: rootReference },
 			createElement('textarea', { 'aria-label': 'Terminal input' }),
 			createElement(
+				'div',
+				{ 'aria-label': 'Picker', role: 'dialog' },
+				createElement(
+					ScopedRegion,
+					{ label: 'Quick input', scope: PICKER_SCOPE },
+					createElement('input', { 'aria-label': 'Picker input' }),
+				),
+			),
+			createElement(
 				ScopedRegion,
 				{ label: 'File Bar', scope: FILE_BAR_SCOPE },
 				createElement(
@@ -538,7 +556,7 @@ function renderScopedShortcuts() {
 	);
 	const reportSequence = vi.fn<WorkbenchShortcutScopes['reportSequence']>();
 	const scopes: WorkbenchShortcutScopes = {
-		bindings: [CLOSE_TAB, RENAME],
+		bindings: [CLOSE_TAB, NEXT_RESULT, PICKER_PREVIOUS, RENAME],
 		invoke,
 		registry: new WorkbenchKeyboardScopeRegistry(),
 		reportSequence,
@@ -548,6 +566,7 @@ function renderScopedShortcuts() {
 		editor: screen.getByRole('textbox', { name: 'Editor input' }),
 		invoke,
 		invokeShortcut,
+		pickerInput: screen.getByRole('textbox', { name: 'Picker input' }),
 		renameField: screen.getByRole('textbox', { name: 'Rename field' }),
 		reportSequence,
 		row: screen.getByRole('button', { name: 'Explorer row' }),
@@ -608,6 +627,25 @@ describe('useWorkbenchShortcuts keyboard scopes', () => {
 		expect(press(terminal, 'KeyJ', { metaKey: true }).defaultPrevented).toBe(false);
 		expect(reportSequence).toHaveBeenLastCalledWith(null);
 		expect(invoke).not.toHaveBeenCalled();
+	});
+
+	it('takes a function key alone in the File Bar and gives an open picker its keys before the window', () => {
+		const { invoke, invokeShortcut, pickerInput, row, terminal } = renderScopedShortcuts();
+
+		expect(press(row, 'F4').defaultPrevented).toBe(true);
+		expect(invoke).toHaveBeenCalledWith(NEXT_RESULT.definition, undefined);
+		expect(press(terminal, 'F4').defaultPrevented).toBe(false);
+
+		// A dialog keeps every key but those its picker declares.
+		expect(press(pickerInput, 'KeyP', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(
+			true,
+		);
+		expect(invoke).toHaveBeenLastCalledWith(PICKER_PREVIOUS.definition, undefined);
+		expect(press(pickerInput, 'KeyB', { metaKey: true }).defaultPrevented).toBe(false);
+		expect(invokeShortcut).not.toHaveBeenCalled();
+		expect(press(terminal, 'KeyP', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(true);
+		expect(invokeShortcut).toHaveBeenCalledOnce();
+		expect(invoke).toHaveBeenCalledTimes(2);
 	});
 
 	it('runs a widget key outside its text fields and yields a code editor key past wider scopes', () => {

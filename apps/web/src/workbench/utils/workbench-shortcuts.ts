@@ -2,6 +2,7 @@ import {
 	formatKeyboardShortcutChord,
 	matchesKeyboardShortcutChord,
 	type KeyboardShortcutChord,
+	type KeyboardShortcutChordRule,
 	type KeyboardShortcutEvent,
 	type KeyboardShortcutSequence,
 } from '@orchbee/keyboard-shortcuts';
@@ -492,17 +493,20 @@ export type WorkbenchScopedShortcutScope =
 	| 'code-editor'
 	| 'file-bar'
 	| 'file-overlay'
+	| 'quick-input'
 	| 'shell'
 	| `widget:${string}`;
 
 /**
- * A shortcut of the File Bar family. Its keys follow the scope's rule: a window scope keeps a
- * modifier other than Shift; a widget scope may bind an unmodified or Shift-only key. Every scope
- * but `shell` also admits a `Mod+K` sequence. The Action resolves in the scope's Action scope.
+ * A shortcut of the File Bar family. Its keys follow the scope's rule: the window scope keeps a
+ * modifier other than Shift; a region scope also takes a function key alone, such as F4; a widget
+ * scope may bind any unmodified or Shift-only key. Every scope but `shell` and `quick-input` also
+ * admits a `Mod+K` sequence. A shortcut without a default on a platform does not exist there. The
+ * Action resolves in the scope's Action scope.
  */
 export interface WorkbenchScopedShortcutDefinition {
 	readonly actionId: string;
-	readonly defaults: Readonly<Record<WorkbenchShortcutPlatform, KeyboardShortcutSequence>>;
+	readonly defaults: Readonly<Partial<Record<WorkbenchShortcutPlatform, KeyboardShortcutSequence>>>;
 	readonly scope: WorkbenchScopedShortcutScope;
 	readonly shortcutId: string;
 }
@@ -511,7 +515,7 @@ export interface WorkbenchScopedShortcutDefinition {
  * The File Bar family's shortcuts. They exist only where the File Bar is offered; the modules that
  * own their Actions declare them here, so Settings and conflict checks can list every binding.
  */
-const WORKBENCH_SCOPED_SHORTCUTS = {
+export const WORKBENCH_SCOPED_SHORTCUTS = {
 	// VS Code's Toggle Secondary Side Bar keys, outside the File Bar.
 	fileBarToggle: {
 		actionId: WORKBENCH_ACTION_IDS.toggleFileBar,
@@ -534,6 +538,62 @@ const WORKBENCH_SCOPED_SHORTCUTS = {
 	},
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 
+export type WorkbenchScopedShortcutId =
+	(typeof WORKBENCH_SCOPED_SHORTCUTS)[keyof typeof WORKBENCH_SCOPED_SHORTCUTS]['shortcutId'];
+
+/**
+ * The chord rule a scope's single keys follow. The window keeps a modifier, since a focused terminal
+ * receives what it does not take; a region that owns keys may also take a function key alone; a
+ * widget may take any key alone.
+ */
+export function workbenchScopedShortcutRule(
+	scope: WorkbenchScopedShortcutScope,
+): KeyboardShortcutChordRule {
+	if (scope === 'shell') return 'window';
+	return scope.startsWith('widget:') ? 'widget' : 'region';
+}
+
+/** Whether `Mod+K` starts a sequence in a scope. The window and a picker take it as one chord. */
+export function workbenchScopeAdmitsSequences(scope: WorkbenchScopedShortcutScope): boolean {
+	return scope !== 'shell' && scope !== 'quick-input';
+}
+
+const NO_WIDER_SCOPES: readonly WorkbenchScopedShortcutScope[] = Object.freeze([]);
+const WINDOW_SCOPE: readonly WorkbenchScopedShortcutScope[] = Object.freeze(['shell']);
+const WIDGET_WIDER_SCOPES: readonly WorkbenchScopedShortcutScope[] = Object.freeze([
+	'file-bar',
+	'shell',
+]);
+const FILE_OVERLAY_WIDER_SCOPES = WIDGET_WIDER_SCOPES;
+const CODE_EDITOR_WIDER_SCOPES: readonly WorkbenchScopedShortcutScope[] = Object.freeze([
+	'file-overlay',
+	'file-bar',
+	'shell',
+]);
+
+/**
+ * The scopes a key pressed inside `scope` reaches next when that scope binds nothing for it, from
+ * narrower to wider. Widgets sit in the File Bar and a code editor in the file overlay, which
+ * counts as inside the File Bar; a picker stands on its own; `shell` is the window itself, where
+ * every walk ends.
+ */
+export function widerWorkbenchShortcutScopes(
+	scope: WorkbenchScopedShortcutScope,
+): readonly WorkbenchScopedShortcutScope[] {
+	if (scope.startsWith('widget:')) return WIDGET_WIDER_SCOPES;
+	switch (scope) {
+		case 'code-editor':
+			return CODE_EDITOR_WIDER_SCOPES;
+		case 'file-overlay':
+			return FILE_OVERLAY_WIDER_SCOPES;
+		case 'file-bar':
+		case 'quick-input':
+			return WINDOW_SCOPE;
+		default:
+			return NO_WIDER_SCOPES;
+	}
+}
+
 /** One offered scoped shortcut and the keys it holds now. */
 export interface WorkbenchScopedShortcutBinding {
 	readonly definition: WorkbenchScopedShortcutDefinition;
@@ -544,9 +604,11 @@ function defaultScopedShortcutBindings(
 	platform: WorkbenchShortcutPlatform,
 ): readonly WorkbenchScopedShortcutBinding[] {
 	return Object.freeze(
-		Object.values(WORKBENCH_SCOPED_SHORTCUTS).map((definition) =>
-			Object.freeze({ definition, sequence: definition.defaults[platform] }),
-		),
+		Object.values(WORKBENCH_SCOPED_SHORTCUTS).flatMap((definition) => {
+			const defaults: WorkbenchScopedShortcutDefinition['defaults'] = definition.defaults;
+			const sequence = defaults[platform];
+			return sequence === undefined ? [] : [Object.freeze({ definition, sequence })];
+		}),
 	);
 }
 

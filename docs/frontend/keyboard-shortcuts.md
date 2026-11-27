@@ -66,6 +66,19 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
 - A tree or list widget may bind unmodified or Shift-only keys, which apply while focus is on the
   widget and not in a text field inside it. No binding takes Tab, and Escape only as a declared
   default that recording never captures.
+- A region that owns keys, such as a side bar, an overlay, an editor, or a picker, keeps the
+  modifier rule but may bind a function key alone or with Shift. Focus outside the region leaves
+  the key to its native owner, such as a terminal's shell.
+- A temporary surface that declares bindings, such as a picker, is the narrowest scope. Its keys win
+  over every wider binding while focus is inside it, and every other key stays with the surface.
+- A binding exists only on the platforms its owner gives a default. Where the platforms place a key
+  differently, each placement is its own binding with its own platform defaults.
+- Recording follows the row's scope: it accepts the keys that scope admits, and where sequences
+  apply it records `Mod+K` and then a second step. Tab is never recorded; Escape or moving focus
+  away cancels.
+- Conflicts follow the resolution walk. The same keys in the same scope conflict and are refused. A
+  narrower binding for a wider binding's keys is a shadow, which the narrower row notes. Keys no
+  press could reach, such as a lone `Mod+K` where it starts a sequence, are refused.
 - A code editor declares the keys it binds itself. While focus is inside it, the resolver yields
   those keys and no wider scope takes them; `Mod+K` and a sequence's second step stay with the
   resolver.

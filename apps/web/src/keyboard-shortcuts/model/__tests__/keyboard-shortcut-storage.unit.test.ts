@@ -2,10 +2,30 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
 	readKeyboardShortcutOverrides,
+	readKeyboardShortcutSteps,
 	writeKeyboardShortcutOverrides,
+	writeKeyboardShortcutSteps,
 } from '../keyboard-shortcut-storage';
 
 const STORAGE_KEY = 'orchbee:web:keyboard-shortcut-overrides:v1';
+const STEPS_STORAGE_KEY = 'orchbee:web:keyboard-shortcut-overrides:v2';
+const V1_RECORD = JSON.stringify({
+	overrides: [
+		{
+			chord: { code: 'KeyY', modifiers: ['mod', 'shift'] },
+			shortcutId: 'workbench.search.all.open',
+		},
+	],
+	version: 1,
+});
+const WINDOW_OVERRIDE = {
+	chord: { code: 'KeyY', modifiers: ['mod', 'shift'] },
+	shortcutId: 'workbench.search.all.open',
+} as const;
+const FILE_BAR_SEQUENCE = [
+	{ code: 'KeyK', modifiers: ['mod'] },
+	{ code: 'KeyB', modifiers: [] },
+] as const;
 
 describe('keyboard shortcut storage', () => {
 	it('restores one strict, sorted, canonical v1 override record', () => {
@@ -156,6 +176,110 @@ describe('keyboard shortcut storage', () => {
 			STORAGE_KEY,
 			'{"overrides":[{"chord":{"code":"KeyY","modifiers":["mod","shift"]},"shortcutId":"workbench.search.all.open"}],"version":1}',
 		);
+	});
+});
+
+describe('keyboard shortcut steps storage', () => {
+	it('keeps a release on v1 and reads v1 as one-step bindings until a v2 record exists', () => {
+		const v2Record = JSON.stringify({
+			overrides: [
+				{ shortcutId: 'workbench.file-bar.toggle.in-file-bar', steps: FILE_BAR_SEQUENCE },
+			],
+			version: 2,
+		});
+		const getItem = vi.fn<(key: string) => string | null>((key) =>
+			key === STORAGE_KEY ? V1_RECORD : v2Record,
+		);
+		expect(
+			readKeyboardShortcutOverrides({ getItem, setItem: () => undefined }, 'standard'),
+		).toEqual({ issue: null, overrides: [WINDOW_OVERRIDE] });
+		expect(getItem.mock.calls).toEqual([[STORAGE_KEY]]);
+
+		const setItem = vi.fn<(key: string, value: string) => void>();
+		expect(
+			readKeyboardShortcutSteps(
+				{ getItem: (key) => (key === STORAGE_KEY ? V1_RECORD : null), setItem },
+				'standard',
+			),
+		).toEqual({ issue: null, overrides: [WINDOW_OVERRIDE], scopedOverrides: [] });
+		expect(setItem).not.toHaveBeenCalled();
+
+		expect(
+			readKeyboardShortcutSteps(
+				storageWith({ [STEPS_STORAGE_KEY]: v2Record, [STORAGE_KEY]: V1_RECORD }),
+				'standard',
+			),
+		).toEqual({
+			issue: null,
+			overrides: [],
+			scopedOverrides: [
+				{ sequence: FILE_BAR_SEQUENCE, shortcutId: 'workbench.file-bar.toggle.in-file-bar' },
+			],
+		});
+	});
+
+	it('writes every override as steps, then the window overrides alone as v1', () => {
+		const setItem = vi.fn<(key: string, value: string) => void>();
+		const scopedOverrides = [
+			{ sequence: FILE_BAR_SEQUENCE, shortcutId: 'workbench.file-bar.toggle.in-file-bar' },
+		] as const;
+		expect(
+			writeKeyboardShortcutSteps(
+				{ getItem: () => null, setItem },
+				[WINDOW_OVERRIDE],
+				scopedOverrides,
+			),
+		).toBe(true);
+		expect(setItem.mock.calls.map(([key]) => key)).toEqual([STEPS_STORAGE_KEY, STORAGE_KEY]);
+		expect(setItem.mock.calls[1]?.[1]).toBe(V1_RECORD.replace(/\s/gu, ''));
+		const written = new Map(setItem.mock.calls.map(([key, value]) => [key, value]));
+		expect(readKeyboardShortcutSteps(storageWith(Object.fromEntries(written)), 'standard')).toEqual(
+			{
+				issue: null,
+				overrides: [WINDOW_OVERRIDE],
+				scopedOverrides,
+			},
+		);
+	});
+
+	it('restores defaults from a v2 record no key press could follow', () => {
+		const invalidRecords = [
+			// The window scope admits no sequence.
+			[{ shortcutId: 'workbench.file-bar.toggle', steps: FILE_BAR_SEQUENCE }],
+			// Inside the File Bar a lone Mod+K always starts a sequence.
+			[{ shortcutId: 'workbench.file-bar.toggle.in-file-bar', steps: [FILE_BAR_SEQUENCE[0]] }],
+			// A window shortcut has one step.
+			[{ shortcutId: 'workbench.search.all.open', steps: FILE_BAR_SEQUENCE }],
+			// A default is never stored.
+			[
+				{
+					shortcutId: 'workbench.file-bar.toggle.in-file-bar',
+					steps: [{ code: 'KeyB', modifiers: ['mod'] }],
+				},
+			],
+			// The window scope holds Search actions' keys already.
+			[
+				{
+					shortcutId: 'workbench.file-bar.toggle',
+					steps: [{ code: 'KeyP', modifiers: ['mod', 'shift'] }],
+				},
+			],
+			[
+				{ shortcutId: 'workbench.file-bar.toggle.in-file-bar', steps: FILE_BAR_SEQUENCE },
+				{
+					shortcutId: 'workbench.file-bar.toggle',
+					steps: [{ code: 'KeyJ', modifiers: ['mod', 'alt'] }],
+				},
+			],
+		];
+		for (const overrides of invalidRecords) {
+			expect(
+				readKeyboardShortcutSteps(
+					storageWith({ [STEPS_STORAGE_KEY]: JSON.stringify({ overrides, version: 2 }) }),
+					'standard',
+				),
+			).toEqual({ issue: 'invalid-record', overrides: [], scopedOverrides: [] });
+		}
 	});
 });
 

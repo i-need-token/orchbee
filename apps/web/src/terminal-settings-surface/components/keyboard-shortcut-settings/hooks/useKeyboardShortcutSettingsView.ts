@@ -1,23 +1,35 @@
 import {
+	KEYBOARD_SHORTCUT_SEQUENCE_LEADER,
 	captureKeyboardShortcutChord,
 	formatKeyboardShortcutChord,
+	formatKeyboardShortcutSequence,
+	keyboardShortcutChordKey,
+	type KeyboardShortcutChord,
+	type KeyboardShortcutEvent,
 	type KeyboardShortcutPlatform,
+	type KeyboardShortcutSequence,
 } from '@orchbee/keyboard-shortcuts';
 import { keyboardShortcutMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
 	INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
+	findKeyboardShortcutScopedShadow,
 	formatKeyboardShortcutActionName,
+	isKeyboardShortcutId,
 	keyboardShortcutSearchQueryValue,
 	keyboardShortcutBindingSource,
 	keyboardShortcutDeclaration,
+	keyboardShortcutScopedDeclaration,
+	keyboardShortcutScopedRecording,
+	keyboardShortcutScopedSequence,
 	resolveKeyboardShortcutSearch,
 	transitionKeyboardShortcutSearch,
 	useKeyboardShortcutSettings,
+	type KeyboardShortcutAnyId,
 	type KeyboardShortcutAvailability,
 	type KeyboardShortcutDeclaration,
-	type KeyboardShortcutId,
+	type KeyboardShortcutScopedDeclaration,
 	type KeyboardShortcutSearchEvent,
 	type KeyboardShortcutSearchState,
 	type KeyboardShortcutScope,
@@ -28,13 +40,22 @@ interface KeyboardShortcutSettingsRowView {
 	readonly actionName: string;
 	readonly availability: string;
 	readonly chord: string;
-	/** Says which configured command runs this shortcut's default chord instead of it. */
-	readonly configuredCommandNote: string | null;
+	/** Where a File Bar family shortcut applies; a window shortcut's line says nothing more. */
+	readonly description: string | null;
 	readonly error: string | null;
+	/**
+	 * Says which configured command runs this shortcut's default keys instead of it, or which wider
+	 * shortcut's keys this one takes while focus is inside its scope.
+	 */
+	readonly note: string | null;
 	readonly recording: boolean;
+	/** The full recording instruction, spoken while the line records. */
+	readonly recordingInstruction: string;
+	/** The few words a recording line shows in place of its keys. */
+	readonly recordingPrompt: string;
 	readonly resetLabel: string;
 	readonly scope: string;
-	readonly shortcutId: KeyboardShortcutId;
+	readonly shortcutId: KeyboardShortcutAnyId;
 	readonly source: string;
 	readonly sourceKind: 'custom' | 'default';
 	readonly onBlur: React.FocusEventHandler<HTMLButtonElement>;
@@ -47,10 +68,6 @@ interface KeyboardShortcutSettingsView {
 	readonly changeLabel: (action: string) => string;
 	readonly noResults: string;
 	readonly persistenceWarning: string | null;
-	/** The full recording instruction, spoken while a line records. */
-	readonly recordingInstruction: string;
-	/** The few words a recording line shows in place of its chord. */
-	readonly recordingPrompt: string;
 	readonly rows: readonly KeyboardShortcutSettingsRowView[];
 	readonly search: KeyboardShortcutSearchView;
 }
@@ -80,14 +97,33 @@ interface UseKeyboardShortcutSettingsViewOptions {
 	readonly takenByConfiguredCommands?: ReadonlyMap<string, string> | undefined;
 }
 
+type KeyboardShortcutRowTarget =
+	| { readonly declaration: KeyboardShortcutDeclaration; readonly kind: 'window' }
+	| { readonly declaration: KeyboardShortcutScopedDeclaration; readonly kind: 'scoped' };
+
+type ScopedShortcutScope = KeyboardShortcutScopedDeclaration['definition']['scope'];
+
+/** The line that records, and the `Mod+K` it holds while it waits for a sequence's second step. */
+interface KeyboardShortcutRecording {
+	readonly leader: KeyboardShortcutChord | null;
+	readonly shortcutId: KeyboardShortcutAnyId;
+}
+
+type RecordedKeys =
+	| { readonly keys: KeyboardShortcutSequence; readonly kind: 'keys' }
+	| { readonly kind: 'ignored' }
+	| { readonly kind: 'invalid' }
+	| { readonly kind: 'leader'; readonly leader: KeyboardShortcutChord };
+
 export function useKeyboardShortcutSettingsView({
 	controller,
 	platform,
 	takenByConfiguredCommands,
 }: UseKeyboardShortcutSettingsViewOptions): KeyboardShortcutSettingsView {
 	const intl = useOrchbeeIntl();
-	const actionNameFor = (declaration: KeyboardShortcutDeclaration): string =>
-		formatKeyboardShortcutActionName(intl, declaration);
+	const actionNameFor = (
+		declaration: KeyboardShortcutDeclaration | KeyboardShortcutScopedDeclaration,
+	): string => formatKeyboardShortcutActionName(intl, declaration);
 	const scopeNameFor = (scope: KeyboardShortcutScope): string => {
 		switch (scope) {
 			case 'active-panel':
@@ -100,6 +136,22 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.scopeFocusedTerminal);
 			case 'focused-terminal-or-find':
 				return intl.formatMessage(keyboardShortcutMessages.scopeFocusedTerminalOrFind);
+		}
+	};
+	const scopedScopeNameFor = (scope: ScopedShortcutScope): string => {
+		switch (scope) {
+			case 'shell':
+				return intl.formatMessage(keyboardShortcutMessages.scopeWorkbench);
+			case 'file-bar':
+				return intl.formatMessage(keyboardShortcutMessages.scopeFileBar);
+			case 'file-overlay':
+				return intl.formatMessage(keyboardShortcutMessages.scopeFileOverlay);
+			case 'code-editor':
+				return intl.formatMessage(keyboardShortcutMessages.scopeCodeEditor);
+			case 'quick-input':
+				return intl.formatMessage(keyboardShortcutMessages.scopeQuickInput);
+			default:
+				return intl.formatMessage(keyboardShortcutMessages.scopeWidget);
 		}
 	};
 	const availabilityNameFor = (availability: KeyboardShortcutAvailability): string => {
@@ -132,147 +184,239 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityTabPosition);
 		}
 	};
+	const scopedAvailabilityNameFor = (scope: ScopedShortcutScope): string => {
+		switch (scope) {
+			case 'shell':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityWorkbench);
+			case 'file-bar':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityFileBar);
+			case 'file-overlay':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityFileOverlay);
+			case 'code-editor':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityCodeEditor);
+			case 'quick-input':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityQuickInput);
+			default:
+				return intl.formatMessage(keyboardShortcutMessages.availabilityWidget);
+		}
+	};
 	const snapshot = useKeyboardShortcutSettings(controller);
-	const [recordingShortcutId, setRecordingShortcutId] = React.useState<KeyboardShortcutId | null>(
-		null,
-	);
+	const [recording, setRecording] = React.useState<KeyboardShortcutRecording | null>(null);
 	const searchInputReference = React.useRef<HTMLInputElement>(null);
 	const [searchState, dispatchSearch] = React.useReducer(
 		(current: KeyboardShortcutSearchState, event: KeyboardShortcutSearchEvent) =>
 			transitionKeyboardShortcutSearch(current, event, platform),
 		INITIAL_KEYBOARD_SHORTCUT_SEARCH_STATE,
 	);
-	const [errors, setErrors] = React.useState<Readonly<Partial<Record<KeyboardShortcutId, string>>>>(
-		{},
-	);
+	const [errors, setErrors] = React.useState<Readonly<Partial<Record<string, string>>>>({});
 	const sourceLabel = (source: 'custom' | 'default'): string =>
 		intl.formatMessage(
 			source === 'custom'
 				? keyboardShortcutMessages.sourceCustom
 				: keyboardShortcutMessages.sourceDefault,
 		);
-	const projectedRows = controller.declarations.map((declaration) => {
-		const actionName = actionNameFor(declaration);
-		const scope = scopeNameFor(declaration.scope);
-		const availability = availabilityNameFor(declaration.availability);
-		const binding = snapshot.bindings[declaration.shortcutId];
-		const chord = formatKeyboardShortcutChord(binding, platform);
-		const sourceKind = keyboardShortcutBindingSource(snapshot, declaration.shortcutId);
+	const describeShortcut = (
+		shortcutId: KeyboardShortcutAnyId,
+	): { readonly action: string; readonly availability: string; readonly scope: string } | null => {
+		const scoped = keyboardShortcutScopedDeclaration(shortcutId, platform);
+		if (scoped !== undefined) {
+			return {
+				action: actionNameFor(scoped),
+				availability: scopedAvailabilityNameFor(scoped.definition.scope),
+				scope: scopedScopeNameFor(scoped.definition.scope),
+			};
+		}
+		if (!isKeyboardShortcutId(shortcutId)) return null;
+		const declaration = keyboardShortcutDeclaration(shortcutId);
 		return {
-			actionName,
-			binding,
+			action: actionNameFor(declaration),
+			availability: availabilityNameFor(declaration.availability),
+			scope: scopeNameFor(declaration.scope),
+		};
+	};
+	const windowRows = controller.declarations.map((declaration) => {
+		const binding = snapshot.bindings[declaration.shortcutId];
+		const configuredCommand = takenByConfiguredCommands?.get(declaration.shortcutId);
+		const chord = formatKeyboardShortcutChord(binding, platform);
+		return {
+			actionName: actionNameFor(declaration),
+			availability: availabilityNameFor(declaration.availability),
+			chord,
+			description: null,
+			note:
+				configuredCommand === undefined
+					? null
+					: intl.formatMessage(keyboardShortcutMessages.takenByConfiguredCommand, {
+							command: configuredCommand,
+							shortcut: chord,
+						}),
+			scope: scopeNameFor(declaration.scope),
+			steps: [binding],
+			target: { declaration, kind: 'window' } satisfies KeyboardShortcutRowTarget,
+		};
+	});
+	const scopedRows = controller.scopedDeclarations.map((declaration) => {
+		const sequence = keyboardShortcutScopedSequence(declaration, snapshot.scopedOverrides);
+		const chord = formatKeyboardShortcutSequence(sequence, platform);
+		const availability = scopedAvailabilityNameFor(declaration.definition.scope);
+		const shadowedShortcutId = findKeyboardShortcutScopedShadow(
+			snapshot.bindings,
+			snapshot.scopedOverrides,
+			declaration,
+			platform,
+		);
+		const shadowed = shadowedShortcutId === null ? null : describeShortcut(shadowedShortcutId);
+		return {
+			actionName: actionNameFor(declaration),
 			availability,
 			chord,
-			declaration,
-			scope,
-			source: sourceLabel(sourceKind),
-			sourceKind,
+			description: availability,
+			note:
+				shadowed === null
+					? null
+					: intl.formatMessage(keyboardShortcutMessages.takesWiderShortcut, {
+							action: shadowed.action,
+							availability,
+							shortcut: chord,
+						}),
+			scope: scopedScopeNameFor(declaration.definition.scope),
+			steps: sequence,
+			target: { declaration, kind: 'scoped' } satisfies KeyboardShortcutRowTarget,
 		};
+	});
+	const projectedRows = [...windowRows, ...scopedRows].map((row) => {
+		const shortcutId = row.target.declaration.shortcutId;
+		const sourceKind = keyboardShortcutBindingSource(snapshot, shortcutId);
+		return { ...row, shortcutId, source: sourceLabel(sourceKind), sourceKind };
 	});
 	const searchResult = resolveKeyboardShortcutSearch(
 		projectedRows.map((row) => ({
-			actionId: row.declaration.actionId,
+			actionId:
+				row.target.kind === 'window'
+					? row.target.declaration.actionId
+					: row.target.declaration.definition.actionId,
 			actionName: row.actionName,
 			availability: row.availability,
-			chord: row.binding,
 			scope: row.scope,
-			shortcutId: row.declaration.shortcutId,
+			shortcutId: row.shortcutId,
 			source: row.source,
+			steps: row.steps,
 		})),
 		searchState.query,
 		platform,
 	);
 	const matchingShortcutIds = new Set(searchResult.matchingShortcutIds);
+	const leaderLabel = formatKeyboardShortcutChord(KEYBOARD_SHORTCUT_SEQUENCE_LEADER, platform);
 	const rows = projectedRows
-		.filter((row) => matchingShortcutIds.has(row.declaration.shortcutId))
+		.filter((row) => matchingShortcutIds.has(row.shortcutId))
 		.map((row) => {
-			const { actionName, availability, chord, declaration, scope, source, sourceKind } = row;
-			const configuredCommand = takenByConfiguredCommands?.get(declaration.shortcutId);
+			const { actionName, availability, chord, description, note, scope, shortcutId } = row;
+			const { source, sourceKind } = row;
+			const target: KeyboardShortcutRowTarget = row.target;
+			const rowRecording = recording?.shortcutId === shortcutId ? recording : null;
+			const sequences =
+				target.kind === 'scoped' && keyboardShortcutScopedRecording(target.declaration).sequences;
+			const setError = (error: string | undefined): void => {
+				setErrors((current) => ({ ...current, [shortcutId]: error }));
+			};
 			return {
 				actionName,
 				availability,
 				chord,
-				configuredCommandNote:
-					configuredCommand === undefined
-						? null
-						: intl.formatMessage(keyboardShortcutMessages.takenByConfiguredCommand, {
-								command: configuredCommand,
-								shortcut: chord,
+				description,
+				error: errors[shortcutId] ?? null,
+				note,
+				recording: rowRecording !== null,
+				recordingInstruction: sequences
+					? intl.formatMessage(keyboardShortcutMessages.recordingSequence, {
+							leader: leaderLabel,
+						})
+					: intl.formatMessage(keyboardShortcutMessages.recording),
+				recordingPrompt:
+					rowRecording?.leader === null || rowRecording === null
+						? intl.formatMessage(keyboardShortcutMessages.recordingPrompt)
+						: intl.formatMessage(keyboardShortcutMessages.recordingSecondStepPrompt, {
+								leader: formatKeyboardShortcutChord(rowRecording.leader, platform),
 							}),
-				error: errors[declaration.shortcutId] ?? null,
-				recording: recordingShortcutId === declaration.shortcutId,
 				resetLabel: intl.formatMessage(keyboardShortcutMessages.reset),
 				scope,
-				shortcutId: declaration.shortcutId,
+				shortcutId,
 				source,
 				sourceKind,
 				onBlur: (): void => {
-					setRecordingShortcutId((current) =>
-						current === declaration.shortcutId ? null : current,
-					);
+					setRecording((current) => (current?.shortcutId === shortcutId ? null : current));
 				},
 				onChangeClick: (): void => {
 					dispatchSearch({ type: 'recording-stopped' });
-					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-					setRecordingShortcutId(declaration.shortcutId);
+					setError(undefined);
+					setRecording({ leader: null, shortcutId });
 				},
 				onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>): void => {
-					if (recordingShortcutId !== declaration.shortcutId) return;
+					if (rowRecording === null) return;
 					if (event.key === 'Tab') {
-						setRecordingShortcutId(null);
+						setRecording(null);
 						return;
 					}
 					event.preventDefault();
 					event.stopPropagation();
 					if (event.key === 'Escape') {
-						setRecordingShortcutId(null);
+						setRecording(null);
 						return;
 					}
-					const captured = captureKeyboardShortcutChord(event.nativeEvent, platform);
-					if (captured.kind === 'ignored') {
-						if (captured.reason === 'missing-modifier' || captured.reason === 'unsupported-code') {
-							setErrors((current) => ({
-								...current,
-								[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
-							}));
-						}
+					const recorded = recordKeys(target, rowRecording.leader, event.nativeEvent, platform);
+					if (recorded.kind === 'ignored') return;
+					if (recorded.kind === 'leader') {
+						setRecording({ leader: recorded.leader, shortcutId });
 						return;
 					}
-					const result = controller.setShortcut(declaration.shortcutId, captured.chord);
+					if (recorded.kind === 'invalid') {
+						setRecording({ leader: null, shortcutId });
+						setError(
+							intl.formatMessage(
+								acceptsUnmodifiedKeys(target, rowRecording.leader)
+									? keyboardShortcutMessages.invalidKey
+									: keyboardShortcutMessages.invalid,
+							),
+						);
+						return;
+					}
+					const [firstStep] = recorded.keys;
+					const result =
+						target.kind === 'window'
+							? controller.setShortcut(target.declaration.shortcutId, firstStep)
+							: controller.setScopedShortcut(target.declaration.shortcutId, recorded.keys);
 					if (result.kind === 'conflict') {
-						const conflictDeclaration = keyboardShortcutDeclaration(
-							result.conflict.conflictingShortcutId,
+						const conflicting = describeShortcut(result.conflict.conflictingShortcutId);
+						setRecording({ leader: null, shortcutId });
+						setError(
+							conflicting === null
+								? intl.formatMessage(keyboardShortcutMessages.invalid)
+								: intl.formatMessage(keyboardShortcutMessages.conflict, {
+										...conflicting,
+										shortcut: formatKeyboardShortcutSequence(result.conflict.sequence, platform),
+										source: sourceLabel(
+											keyboardShortcutBindingSource(
+												snapshot,
+												result.conflict.conflictingShortcutId,
+											),
+										),
+									}),
 						);
-						const conflictSource = keyboardShortcutBindingSource(
-							snapshot,
-							result.conflict.conflictingShortcutId,
-						);
-						setErrors((current) => ({
-							...current,
-							[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.conflict, {
-								action: actionNameFor(conflictDeclaration),
-								availability: availabilityNameFor(conflictDeclaration.availability),
-								scope: scopeNameFor(conflictDeclaration.scope),
-								shortcut: formatKeyboardShortcutChord(result.conflict.chord, platform),
-								source: sourceLabel(conflictSource),
-							}),
-						}));
 						return;
 					}
 					if (result.kind === 'invalid') {
-						setErrors((current) => ({
-							...current,
-							[declaration.shortcutId]: intl.formatMessage(keyboardShortcutMessages.invalid),
-						}));
+						setRecording({ leader: null, shortcutId });
+						setError(intl.formatMessage(keyboardShortcutMessages.invalid));
 						return;
 					}
-					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-					setRecordingShortcutId(null);
+					setError(undefined);
+					setRecording(null);
 				},
 				onReset: (): void => {
-					controller.resetShortcut(declaration.shortcutId);
-					setErrors((current) => ({ ...current, [declaration.shortcutId]: undefined }));
-					setRecordingShortcutId(null);
+					if (target.kind === 'window') controller.resetShortcut(target.declaration.shortcutId);
+					else controller.resetScopedShortcut(target.declaration.shortcutId);
+					setError(undefined);
+					setRecording(null);
 				},
 			};
 		});
@@ -310,8 +454,6 @@ export function useKeyboardShortcutSettingsView({
 			intl.formatMessage(keyboardShortcutMessages.change, { action }),
 		noResults: intl.formatMessage(keyboardShortcutMessages.noResults),
 		persistenceWarning,
-		recordingInstruction: intl.formatMessage(keyboardShortcutMessages.recording),
-		recordingPrompt: intl.formatMessage(keyboardShortcutMessages.recordingPrompt),
 		rows,
 		search: {
 			clearLabel: intl.formatMessage(keyboardShortcutMessages.searchClear),
@@ -357,7 +499,7 @@ export function useKeyboardShortcutSettingsView({
 				}
 			},
 			onRecordingToggle: (): void => {
-				setRecordingShortcutId(null);
+				setRecording(null);
 				dispatchSearch({
 					type: searchState.mode === 'recording' ? 'recording-stopped' : 'recording-started',
 				});
@@ -378,4 +520,56 @@ export function useKeyboardShortcutSettingsView({
 			status: searchStatus,
 		},
 	};
+}
+
+/**
+ * Turns one press on a recording line into keys. A window line takes one chord with a modifier. A
+ * scoped line follows its scope's rule; where sequences apply, `Mod+K` waits for a second step,
+ * which may be any key but Tab and Escape.
+ */
+function recordKeys(
+	target: KeyboardShortcutRowTarget,
+	leader: KeyboardShortcutChord | null,
+	event: KeyboardShortcutEvent,
+	platform: KeyboardShortcutPlatform,
+): RecordedKeys {
+	if (target.kind === 'window') {
+		const captured = captureKeyboardShortcutChord(event, platform);
+		return captured.kind === 'captured'
+			? { keys: [captured.chord], kind: 'keys' }
+			: refusedPress(captured.reason);
+	}
+	if (leader !== null) {
+		const captured = captureKeyboardShortcutChord(event, platform, 'second-step');
+		return captured.kind === 'captured'
+			? { keys: [leader, captured.chord], kind: 'keys' }
+			: refusedPress(captured.reason);
+	}
+	const { rule, sequences } = keyboardShortcutScopedRecording(target.declaration);
+	const captured = captureKeyboardShortcutChord(event, platform, rule);
+	if (captured.kind !== 'captured') return refusedPress(captured.reason);
+	return sequences &&
+		keyboardShortcutChordKey(captured.chord, platform) ===
+			keyboardShortcutChordKey(KEYBOARD_SHORTCUT_SEQUENCE_LEADER, platform)
+		? { kind: 'leader', leader: captured.chord }
+		: { keys: [captured.chord], kind: 'keys' };
+}
+
+/** A modifier press or a repeat waits for the next key; an unusable key is refused aloud. */
+function refusedPress(
+	reason: 'composing' | 'missing-modifier' | 'modifier-only' | 'repeat' | 'unsupported-code',
+): RecordedKeys {
+	return reason === 'missing-modifier' || reason === 'unsupported-code'
+		? { kind: 'invalid' }
+		: { kind: 'ignored' };
+}
+
+function acceptsUnmodifiedKeys(
+	target: KeyboardShortcutRowTarget,
+	leader: KeyboardShortcutChord | null,
+): boolean {
+	return (
+		target.kind === 'scoped' &&
+		(leader !== null || keyboardShortcutScopedRecording(target.declaration).rule === 'widget')
+	);
 }

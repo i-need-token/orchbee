@@ -60,8 +60,11 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.actions.toggleSidebar': 'Toggle sidebar',
 	'keyboard.shortcuts.availability.activePanel': 'When an active terminal panel is available',
 	'keyboard.shortcuts.availability.activeTerminal': 'When a terminal tab is active',
+	'keyboard.shortcuts.availability.codeEditor': 'When focus is in the editor',
 	'keyboard.shortcuts.availability.directionalPanel':
 		'When an adjacent panel exists in that direction',
+	'keyboard.shortcuts.availability.fileBar': 'When focus is in the File Bar or the file overlay',
+	'keyboard.shortcuts.availability.fileOverlay': 'When focus is in the file overlay',
 	'keyboard.shortcuts.availability.focusedTerminal': 'When a terminal is focused',
 	'keyboard.shortcuts.availability.focusedTerminalWithSelection':
 		'When a focused terminal has a selection',
@@ -71,13 +74,16 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.movableTab':
 		'When the active tab can move inside its pinned or unpinned section',
 	'keyboard.shortcuts.availability.panelPosition': 'When that panel position exists',
+	'keyboard.shortcuts.availability.quickInput': 'When focus is in a picker',
 	'keyboard.shortcuts.availability.tabPosition': 'When that tab position exists',
+	'keyboard.shortcuts.availability.widget': 'When a list or tree row has focus',
 	'keyboard.shortcuts.availability.workbench': 'Anywhere in the window',
 	'keyboard.shortcuts.category': 'Keyboard shortcuts',
 	'keyboard.shortcuts.conflict':
 		'{shortcut} conflicts with {action} ({scope}, {source}; {availability}).',
 	'keyboard.shortcuts.description': 'Customize frequently used shortcuts on this device.',
 	'keyboard.shortcuts.invalid': 'Press a supported key with Control, Command, Alt, or Super.',
+	'keyboard.shortcuts.invalidKey': 'Press a supported key.',
 	'keyboard.shortcuts.noResults': 'No keyboard shortcuts found.',
 	'keyboard.shortcuts.persistence.invalidWarning':
 		'Saved keyboard shortcuts are invalid. Platform defaults are in use.',
@@ -87,6 +93,14 @@ export const enUSKeyboardShortcutMessages = {
 		"Couldn't save your keyboard shortcut changes; they apply only for now.",
 	'keyboard.shortcuts.recording': 'Press a shortcut. Escape or moving focus away cancels.',
 	'keyboard.shortcuts.recordingPrompt': 'Press a shortcut',
+	'keyboard.shortcuts.recordingSecondStepPrompt': '{leader}, then a key',
+	'keyboard.shortcuts.recordingSequence':
+		'Press a shortcut, or {leader} and then a second key. Escape or moving focus away cancels.',
+	'keyboard.shortcuts.scope.codeEditor': 'Editor',
+	'keyboard.shortcuts.scope.fileBar': 'File Bar',
+	'keyboard.shortcuts.scope.fileOverlay': 'File overlay',
+	'keyboard.shortcuts.scope.quickInput': 'Picker',
+	'keyboard.shortcuts.scope.widget': 'List or tree',
 	'keyboard.shortcuts.search.clear': 'Clear shortcut search',
 	'keyboard.shortcuts.search.placeholder': 'Search actions or shortcuts',
 	'keyboard.shortcuts.search.recordKeys': 'Record keys',
@@ -107,6 +121,8 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.source.default': 'Default',
 	'keyboard.shortcuts.takenByConfiguredCommand':
 		'{shortcut} is used by configured command "{command}".',
+	'keyboard.shortcuts.takesWiderShortcut':
+		'{shortcut} runs this instead of {action} while focus is there.',
 	'keyboard.shortcuts.title': 'Keyboard shortcuts',
 } as const;
 

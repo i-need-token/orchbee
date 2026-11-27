@@ -2,9 +2,9 @@ import type { ActionScope } from '@orchbee/actions';
 import type { KeyboardShortcutChord } from '@orchbee/keyboard-shortcuts';
 
 /**
- * A region that owns keys while focus is inside it. From narrowest to widest: a code editor, a tree
- * or list widget, the file overlay and the File Bar; the terminal and the window keep their own
- * owners. Each kind admits `Mod+K` sequences.
+ * A region that owns keys while focus is inside it. From narrowest to widest: a picker, a code
+ * editor, a tree or list widget, the file overlay and the File Bar; the terminal and the window keep
+ * their own owners. Every kind but a picker admits `Mod+K` sequences.
  */
 export type WorkbenchKeyboardScope =
 	| {
@@ -27,8 +27,11 @@ export type WorkbenchKeyboardScope =
 			readonly widget: string;
 	  }
 	| {
-			/** The overlay counts as inside the File Bar, so File Bar bindings apply there too. */
-			readonly kind: 'file-bar' | 'file-overlay';
+			/**
+			 * The overlay counts as inside the File Bar, so File Bar bindings apply there too. A
+			 * picker, `quick-input`, registers while it is open and is the narrowest scope there is.
+			 */
+			readonly kind: 'file-bar' | 'file-overlay' | 'quick-input';
 			readonly actionScope?: ActionScope | undefined;
 	  };
 

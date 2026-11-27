@@ -5,8 +5,10 @@ import {
 	formatKeyboardShortcutChord,
 	formatKeyboardShortcutSequence,
 	keyboardShortcutChordKey,
+	keyboardShortcutSequenceKey,
 	matchesKeyboardShortcutChord,
 	normalizeKeyboardShortcutChord,
+	normalizeKeyboardShortcutSequence,
 	type KeyboardShortcutEvent,
 } from '../keyboard-shortcut';
 
@@ -182,7 +184,15 @@ describe('keyboard shortcut rules and sequences', () => {
 		expect(
 			normalizeKeyboardShortcutChord({ code: 'Delete', modifiers: ['shift'] }, 'apple', 'widget'),
 		).toEqual({ code: 'Delete', modifiers: ['shift'] });
-		for (const rule of ['window', 'widget', 'second-step'] as const) {
+		const f4 = { code: 'F4', modifiers: [] };
+		expect(normalizeKeyboardShortcutChord(f4, 'standard', 'region')).toEqual(f4);
+		expect(
+			normalizeKeyboardShortcutChord({ code: 'F4', modifiers: ['shift'] }, 'apple', 'region'),
+		).toEqual({ code: 'F4', modifiers: ['shift'] });
+		expect(
+			normalizeKeyboardShortcutChord({ code: 'KeyP', modifiers: ['shift'] }, 'apple', 'region'),
+		).toBeNull();
+		for (const rule of ['window', 'region', 'widget', 'second-step'] as const) {
 			expect(
 				normalizeKeyboardShortcutChord({ code: 'Tab', modifiers: [] }, 'apple', rule),
 			).toBeNull();
@@ -209,13 +219,60 @@ describe('keyboard shortcut rules and sequences', () => {
 		expect(formatKeyboardShortcutChord(escape, 'standard')).toBe('Escape');
 	});
 
-	it('formats a sequence one platform chord per step', () => {
-		const sequence = [
+	it('requires Mod+K before a second step and formats each step', () => {
+		const sequence = normalizeKeyboardShortcutSequence(
+			[
+				{ code: 'KeyK', modifiers: ['control'] },
+				{ code: 'KeyW', modifiers: ['mod'] },
+			],
+			'standard',
+		);
+		expect(sequence).toEqual([
 			{ code: 'KeyK', modifiers: ['mod'] },
 			{ code: 'KeyW', modifiers: ['mod'] },
-		] as const;
+		]);
+		if (sequence === null) return;
 		expect(formatKeyboardShortcutSequence(sequence, 'standard')).toBe('Ctrl+K Ctrl+W');
 		expect(formatKeyboardShortcutSequence(sequence, 'apple')).toBe('⌘K ⌘W');
+		expect(
+			normalizeKeyboardShortcutSequence(
+				[
+					{ code: 'KeyK', modifiers: ['mod'] },
+					{ code: 'Enter', modifiers: [] },
+				],
+				'apple',
+			),
+		).not.toBeNull();
+		for (const invalid of [
+			[
+				{ code: 'KeyJ', modifiers: ['mod'] },
+				{ code: 'KeyW', modifiers: ['mod'] },
+			],
+			[
+				{ code: 'KeyK', modifiers: ['mod', 'shift'] },
+				{ code: 'KeyW', modifiers: [] },
+			],
+			[
+				{ code: 'KeyK', modifiers: ['mod'] },
+				{ code: 'Escape', modifiers: [] },
+			],
+			[
+				{ code: 'KeyK', modifiers: ['mod'] },
+				{ code: 'Tab', modifiers: [] },
+			],
+			[],
+		]) {
+			expect(normalizeKeyboardShortcutSequence(invalid, 'apple')).toBeNull();
+		}
+		const single = normalizeKeyboardShortcutSequence(
+			[{ code: 'KeyW', modifiers: ['mod'] }],
+			'apple',
+		);
+		expect(single).not.toBeNull();
+		if (single === null) return;
+		expect(keyboardShortcutSequenceKey(single, 'apple')).not.toBe(
+			keyboardShortcutSequenceKey(sequence, 'apple'),
+		);
 	});
 });
 

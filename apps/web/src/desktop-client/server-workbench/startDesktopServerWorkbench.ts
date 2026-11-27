@@ -348,6 +348,7 @@ async function run(
 	);
 	// Shortcut overrides are this device's own, so browser storage keeps them.
 	const keyboardShortcutSettingsController = new KeyboardShortcutSettingsController({
+		fileBarOffered,
 		platform: shortcutPlatform,
 		searchOffered,
 		storage: storage.preferences,

@@ -83,7 +83,14 @@ export type {
 	WorkbenchHeldRestores,
 	WorkbenchTabDuplicationStop,
 } from './types/workbench-authority';
-export { WORKBENCH_SHORTCUTS, defaultWorkbenchShortcutBindings } from './utils/workbench-shortcuts';
+export {
+	WORKBENCH_SCOPED_SHORTCUTS,
+	WORKBENCH_SHORTCUTS,
+	defaultWorkbenchShortcutBindings,
+	widerWorkbenchShortcutScopes,
+	workbenchScopeAdmitsSequences,
+	workbenchScopedShortcutRule,
+} from './utils/workbench-shortcuts';
 export type {
 	WorkbenchPublication,
 	WorkbenchPublishedTab,
@@ -128,7 +135,14 @@ export type {
 	WorkbenchWorkspaceLocation,
 	WorkbenchWorkspaceLocationSource,
 } from './types/workbench-workspace-location';
-export type { WorkbenchShortcutBindings, WorkbenchShortcutId } from './utils/workbench-shortcuts';
+export type {
+	WorkbenchScopedShortcutBinding,
+	WorkbenchScopedShortcutDefinition,
+	WorkbenchScopedShortcutId,
+	WorkbenchScopedShortcutScope,
+	WorkbenchShortcutBindings,
+	WorkbenchShortcutId,
+} from './utils/workbench-shortcuts';
 export type {
 	WorkbenchTerminalActionContextProvider,
 	WorkbenchTerminalPresentation,

@@ -180,14 +180,15 @@ drag, which takes every key while it holds the pointer, and an until-press notic
 Workbench bindings already did.
 
 Where the File Bar is offered, a region that owns keys registers a keyboard scope while it is
-mounted: the File Bar column, the file overlay, a code editor, or a tree or list widget. The
+mounted: the File Bar column, the file overlay, a code editor, a tree or list widget, or an open
+picker. The
 listener walks the scopes around focus from narrowest to widest, then configured commands, then the
 window's bindings, and the first available match takes the key. A focused terminal is inside no
 registered scope, so neither File Bar keys nor `Mod+K` sequences reach it. Without the offer no
 scope registers and no scoped binding exists, so the walk is the configured-command and Workbench
 dispatch it always was.
 
-A tree or list widget gets keys in two edits. Its component declares the scope once and registers
+A tree or list widget gets keys in three edits. Its component declares the scope once and registers
 the element that holds focus:
 
 ```tsx
@@ -199,9 +200,20 @@ useWorkbenchKeyboardScope(treeReference, EXPLORER_KEYBOARD_SCOPE);
 
 Each key is then a row in `WORKBENCH_SCOPED_SHORTCUTS` with the scope `widget:explorer`, its Action
 ID and its platform defaults; an unmodified or Shift-only default such as F2 is legal there. Pass
-the widget's Action scope as `actionScope` when its Actions register below the Workbench's scope. A
-code editor registers `{ kind: 'code-editor', yields }`, where `yields` lists the chords the editor
-binds itself.
+the widget's Action scope as `actionScope` when its Actions register below the Workbench's scope.
+Last, the row's Settings name goes in `SCOPED_SHORTCUT_NAMES` in
+`model/keyboard-shortcut-scoped-catalog.ts`, which `formatKeyboardShortcutActionName` localizes;
+typecheck refuses a row without one. A code editor registers `{ kind: 'code-editor', yields }`,
+where `yields` lists the chords the editor binds itself.
+
+A row's keys follow its scope's rule. The window, `shell`, keeps a modifier other than Shift,
+because a focused terminal receives every key the window does not take. The File Bar, the overlay,
+a code editor and a picker also take a function key alone or with Shift, and a widget takes any key
+but Tab. A row without a default for a platform does not exist there, so a key that applies to the
+whole window on one platform and only inside the File Bar on another is two rows. A picker
+registers `{ kind: 'quick-input' }` while it is open and is the narrowest scope: inside a dialog or
+a menu, which otherwise keeps every key, its rows still run and nothing wider does. A picker admits
+no sequence, so `Mod+K` there is one chord.
 
 A sequence's waiting text and a missed step's text replace the status notice for as long as they
 last: five seconds of waiting, ten seconds for the miss. The confirmation offer waits for that line
@@ -464,6 +476,13 @@ conflicting Action, scope, binding source, and availability condition. During di
 current availability before execution or `preventDefault()`; an unavailable binding falls through
 to the terminal or browser.
 
+Where the File Bar is offered, Settings also lists the File Bar family's rows with their scope and
+availability, and records each under its scope's rule. Their conflicts follow the resolution walk
+instead of global uniqueness: the same keys in the same scope conflict, where the window scope holds
+every catalog chord and every `shell` row, and a narrower row with a wider binding's keys is a
+shadow that the row notes. Keys no press could reach are refused: a sequence in the window or a
+picker, and a lone `Mod+K` where it starts one.
+
 A configured command's direct key sits outside this catalog and is not a conflicting edit: it takes
 a default's chord and yields to one the person set (see [Workbench](workbench.md)). Web resolves that
 once, from the claims `keyboardShortcutClaims` projects, and hands the one result to both the
@@ -507,7 +526,15 @@ only the latest pending complete record is written after the active call returns
 disposed write cannot replace the current snapshot or clear a newer failure. An update returning
 while its write is still queued reports `applied-session-only`; disposal drops queued writes.
 
-Only the current key is read. Missing data uses platform defaults; invalid records report an issue and use defaults. Old keys are neither read, migrated nor deleted. The `keyboard-shortcut-overrides` name avoids accepting a shape-compatible development record from the old `keyboard-shortcuts:v1` key.
+Where the File Bar is offered, `orchbee:web:keyboard-shortcut-overrides:v2` holds every override as
+steps, `{ "version": 2, "overrides": [{ "shortcutId": "…", "steps": [chord] }] }` with one or two
+chords per entry, ordered by shortcut ID. Each write stores it first and then the window overrides
+alone as the v1 record, so a build without the offer still reads what this one wrote. A read
+prefers v2; without one it reads v1 as one-step bindings in memory and writes nothing. A v2 record
+is invalid under the v1 rules and also when a window entry has two steps or a File Bar entry holds
+keys its scope could never reach. Without the offer only v1 is read and written.
+
+Only the current keys are read. Missing data uses platform defaults; invalid records report an issue and use defaults. Old keys are neither read, migrated nor deleted. The `keyboard-shortcut-overrides` name avoids accepting a shape-compatible development record from the old `keyboard-shortcuts:v1` key.
 
 The Desktop composition creates and disposes one controller against its origin-local storage and
 passes the controller's narrow binding source through

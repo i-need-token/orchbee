@@ -8,11 +8,12 @@ export interface KeyboardShortcutChord {
 
 /**
  * Which chords a binding may hold. A window binding keeps at least one modifier other than Shift. A
- * widget binding, in a tree or list scope, may be unmodified or Shift-only and may hold Escape as a
- * declared default. The second step of a sequence may be unmodified but is never Escape. No rule
- * admits Tab.
+ * region binding, in a part of the window that owns keys such as a side bar or a picker, does too,
+ * except that a function key may be unmodified or Shift-only. A widget binding, in a tree or list
+ * scope, may be unmodified or Shift-only and may hold Escape as a declared default. The second step
+ * of a sequence may be unmodified but is never Escape. No rule admits Tab.
  */
-export type KeyboardShortcutChordRule = 'second-step' | 'widget' | 'window';
+export type KeyboardShortcutChordRule = 'region' | 'second-step' | 'widget' | 'window';
 
 /** One chord, or the sequence leader `Mod+K` followed by a second step. */
 export type KeyboardShortcutSequence =
@@ -126,7 +127,8 @@ export function normalizeKeyboardShortcutChord(
 	if (!isRecord(input) || !hasExactKeys(input, ['code', 'modifiers'])) return null;
 	if (typeof input['code'] !== 'string' || !isAdmittedCode(input['code'], rule)) return null;
 	if (!Array.isArray(input['modifiers'])) return null;
-	if (rule === 'window' && input['modifiers'].length === 0) return null;
+	const modifierRequired = requiresModifier(input['code'], rule);
+	if (modifierRequired && input['modifiers'].length === 0) return null;
 	const inputModifiers: KeyboardShortcutModifier[] = [];
 	for (const value of input['modifiers']) {
 		if (!isKeyboardShortcutModifier(value) || inputModifiers.includes(value)) return null;
@@ -136,7 +138,7 @@ export function normalizeKeyboardShortcutChord(
 		normalizeModifier(modifier, platform),
 	);
 	if (new Set(effectiveModifiers).size !== effectiveModifiers.length) return null;
-	if (rule === 'window' && !effectiveModifiers.some((modifier) => modifier !== 'shift')) {
+	if (modifierRequired && !effectiveModifiers.some((modifier) => modifier !== 'shift')) {
 		return null;
 	}
 	return Object.freeze({
@@ -248,6 +250,41 @@ function formatPress(
 		.join('+');
 }
 
+/**
+ * Validates a binding of one chord under `rule`, or of the leader `Mod+K` and a second step.
+ * Sequences belong only to scopes that admit them; the caller decides which.
+ */
+export function normalizeKeyboardShortcutSequence(
+	input: unknown,
+	platform: KeyboardShortcutPlatform,
+	rule: KeyboardShortcutChordRule = 'window',
+): KeyboardShortcutSequence | null {
+	if (!Array.isArray(input)) return null;
+	if (input.length === 1) {
+		const chord = normalizeKeyboardShortcutChord(input[0], platform, rule);
+		return chord === null ? null : Object.freeze([chord] as const);
+	}
+	if (input.length !== 2) return null;
+	const leader = normalizeKeyboardShortcutChord(input[0], platform);
+	if (
+		leader === null ||
+		keyboardShortcutChordKey(leader, platform) !==
+			keyboardShortcutChordKey(KEYBOARD_SHORTCUT_SEQUENCE_LEADER, platform)
+	) {
+		return null;
+	}
+	const step = normalizeKeyboardShortcutChord(input[1], platform, 'second-step');
+	return step === null ? null : Object.freeze([leader, step] as const);
+}
+
+/** The platform-effective identity of a binding of one step or two. */
+export function keyboardShortcutSequenceKey(
+	sequence: KeyboardShortcutSequence,
+	platform: KeyboardShortcutPlatform,
+): string {
+	return sequence.map((step) => keyboardShortcutChordKey(step, platform)).join(' ');
+}
+
 /** Apple `⌘K ⌘W`, Standard `Ctrl+K Ctrl+W`: each step in the platform's chord format. */
 export function formatKeyboardShortcutSequence(
 	sequence: KeyboardShortcutSequence,
@@ -292,6 +329,12 @@ function keyLabelFor(code: string): string {
 	return KEY_LABELS[code] ?? code;
 }
 
+const FUNCTION_KEY_CODE = /^F(?:[1-9]|1\d|2[0-4])$/u;
+
+function requiresModifier(code: string, rule: KeyboardShortcutChordRule): boolean {
+	return rule === 'window' || (rule === 'region' && !FUNCTION_KEY_CODE.test(code));
+}
+
 function isAdmittedCode(code: string, rule: KeyboardShortcutChordRule): boolean {
 	return isSupportedCode(code) || (rule === 'widget' && code === 'Escape');
 }
@@ -300,7 +343,7 @@ function isSupportedCode(code: string): boolean {
 	return (
 		/^Key[A-Z]$/u.test(code) ||
 		/^Digit\d$/u.test(code) ||
-		/^F(?:[1-9]|1\d|2[0-4])$/u.test(code) ||
+		FUNCTION_KEY_CODE.test(code) ||
 		NAMED_CODES.has(code)
 	);
 }

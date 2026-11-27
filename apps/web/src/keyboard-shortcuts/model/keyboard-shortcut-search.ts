@@ -10,7 +10,8 @@ export interface KeyboardShortcutSearchEntry {
 	readonly actionId: string;
 	readonly actionName: string;
 	readonly availability: string;
-	readonly chord: KeyboardShortcutChord;
+	/** The binding's steps: one chord, or `Mod+K` and a second step. */
+	readonly steps: readonly KeyboardShortcutChord[];
 	readonly scope: string;
 	readonly shortcutId: string;
 	readonly source: string;
@@ -171,7 +172,9 @@ function resolveExactChord(
 	if (normalized === null) return [];
 	const queryKey = keyboardShortcutChordKey(normalized, platform);
 	return entries
-		.filter((entry) => keyboardShortcutChordKey(entry.chord, platform) === queryKey)
+		.filter((entry) =>
+			entry.steps.some((step) => keyboardShortcutChordKey(step, platform) === queryKey),
+		)
 		.map((entry) => entry.shortcutId);
 }
 
@@ -190,15 +193,17 @@ function resolveText(
 	const hasKeyTerm = terms.some((term) => !MODIFIER_SEARCH_TERMS.has(term));
 	return entries
 		.filter((entry) => {
-			const chordText = chordSearchText(entry.chord, platform);
 			if (chordLike) {
-				const chordTerms = new Set(chordText.split(/[\s+]+/u));
-				if (!terms.every((term) => chordTerms.has(term))) return false;
-				return (
-					!hasKeyTerm ||
-					setsEqual(requestedModifierFamilies, modifierFamiliesForChord(entry.chord, platform))
-				);
+				return entry.steps.some((step) => {
+					const chordTerms = new Set(chordSearchText(step, platform).split(/[\s+]+/u));
+					if (!terms.every((term) => chordTerms.has(term))) return false;
+					return (
+						!hasKeyTerm ||
+						setsEqual(requestedModifierFamilies, modifierFamiliesForChord(step, platform))
+					);
+				});
 			}
+			const chordText = entry.steps.map((step) => chordSearchText(step, platform)).join(' ');
 			const searchableText = normalizeSearchText(
 				[
 					entry.actionId,
@@ -216,7 +221,8 @@ function resolveText(
 }
 
 function chordSearchText(chord: KeyboardShortcutChord, platform: KeyboardShortcutPlatform): string {
-	const normalized = normalizeKeyboardShortcutChord(chord, platform);
+	// A widget step may be unmodified; every window chord also passes the widget rule.
+	const normalized = normalizeKeyboardShortcutChord(chord, platform, 'widget');
 	if (normalized === null) return '';
 	return normalizeSearchText(
 		[
@@ -303,7 +309,7 @@ function modifierFamiliesForChord(
 	chord: KeyboardShortcutChord,
 	platform: KeyboardShortcutPlatform,
 ): Set<string> {
-	const normalized = normalizeKeyboardShortcutChord(chord, platform);
+	const normalized = normalizeKeyboardShortcutChord(chord, platform, 'widget');
 	const families = new Set<string>();
 	if (normalized === null) return families;
 	for (const modifier of normalized.modifiers) {

@@ -21,6 +21,7 @@ import {
 } from '../utils/workbench-focus-dom';
 import {
 	resolveWorkbenchShortcut,
+	workbenchScopeAdmitsSequences,
 	type WorkbenchScopedShortcutBinding,
 	type WorkbenchScopedShortcutDefinition,
 	type WorkbenchScopedShortcutScope,
@@ -115,15 +116,22 @@ export function useWorkbenchShortcuts(
 	});
 
 	const handleKeyDown = useMemoizedFn((event: KeyboardEvent): void => {
-		if (!active || isWorkbenchExclusiveFocusTarget(event.target)) {
-			if (pending.current !== null) forgetSequence();
-			return;
+		// A dialog or a menu keeps every key but those a picker inside it declares.
+		const exclusive = isWorkbenchExclusiveFocusTarget(event.target);
+		if (pending.current !== null && (!active || exclusive)) forgetSequence();
+		if (!active) return;
+		const frames = scopeFrames(event.target, scopes?.registry, scopedBindings, exclusive);
+		if (exclusive && frames.length === 0) return;
+		if (!exclusive) {
+			frames.push(
+				{ bindings: [], fallback: CONFIGURED_COMMAND_TARGET, sequences: false },
+				{
+					bindings: scopedBindings.get('shell') ?? [],
+					fallback: WORKBENCH_TARGET,
+					sequences: false,
+				},
+			);
 		}
-		const frames = scopeFrames(event.target, scopes?.registry, scopedBindings);
-		frames.push(
-			{ bindings: [], fallback: CONFIGURED_COMMAND_TARGET, sequences: false },
-			{ bindings: scopedBindings.get('shell') ?? [], fallback: WORKBENCH_TARGET, sequences: false },
-		);
 		const now = Date.now();
 		const resolution = resolveKeyboardScopes(
 			{ event, frames, now, pending: pending.current, platform },
@@ -221,10 +229,13 @@ function scopeFrames(
 	target: EventTarget | null,
 	registry: WorkbenchKeyboardScopeRegistry | undefined,
 	groups: ScopedBindingGroups,
+	pickersOnly: boolean,
 ): KeyboardScopeFrame<WorkbenchShortcutTarget>[] {
 	const frames: KeyboardScopeFrame<WorkbenchShortcutTarget>[] = [];
 	if (registry === undefined) return frames;
-	const entries = registry.scopesAt(target);
+	const entries = registry
+		.scopesAt(target)
+		.filter((entry) => !pickersOnly || entry.scope.kind === 'quick-input');
 	const bindingsIn = (
 		scope: WorkbenchScopedShortcutScope,
 		actionScope: ActionScope | undefined,
@@ -252,7 +263,11 @@ function scopeFrames(
 				break;
 			case 'file-overlay':
 			case 'file-bar':
-				frames.push({ bindings: bindingsIn(scope.kind, scope.actionScope), sequences: true });
+			case 'quick-input':
+				frames.push({
+					bindings: bindingsIn(scope.kind, scope.actionScope),
+					sequences: workbenchScopeAdmitsSequences(scope.kind),
+				});
 				break;
 		}
 	}

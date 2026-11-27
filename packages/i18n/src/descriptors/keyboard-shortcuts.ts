@@ -7,6 +7,11 @@ const message = createMessageDescriptorFactory(enUSKeyboardShortcutMessages);
 
 export const keyboardShortcutMessages = defineMessages({
 	actionsSearch: message('keyboard.shortcuts.actions.actionsSearch'),
+	availabilityCodeEditor: message('keyboard.shortcuts.availability.codeEditor'),
+	availabilityFileBar: message('keyboard.shortcuts.availability.fileBar'),
+	availabilityFileOverlay: message('keyboard.shortcuts.availability.fileOverlay'),
+	availabilityQuickInput: message('keyboard.shortcuts.availability.quickInput'),
+	availabilityWidget: message('keyboard.shortcuts.availability.widget'),
 	change: message(
 		'keyboard.shortcuts.actions.change',
 		'Accessible label for the shortcut recorder. action is a localized action name.',
@@ -34,6 +39,10 @@ export const keyboardShortcutMessages = defineMessages({
 	globalSearch: message('keyboard.shortcuts.actions.globalSearch'),
 	hints: message('keyboard.shortcuts.actions.hints'),
 	increaseTerminalFontSize: message('keyboard.shortcuts.actions.increaseTerminalFontSize'),
+	invalidKey: message(
+		'keyboard.shortcuts.invalidKey',
+		'Inline error when a recorded key is refused on a line that accepts keys without modifiers.',
+	),
 	maximizePanel: message('keyboard.shortcuts.actions.maximizePanel'),
 	movePanelDown: message('keyboard.shortcuts.actions.movePanelDown'),
 	movePanelLeft: message('keyboard.shortcuts.actions.movePanelLeft'),
@@ -41,6 +50,19 @@ export const keyboardShortcutMessages = defineMessages({
 	movePanelUp: message('keyboard.shortcuts.actions.movePanelUp'),
 	moveTabBackward: message('keyboard.shortcuts.actions.moveTabBackward'),
 	moveTabForward: message('keyboard.shortcuts.actions.moveTabForward'),
+	recordingSecondStepPrompt: message(
+		'keyboard.shortcuts.recordingSecondStepPrompt',
+		'Short prompt a recording line shows after the first key of a two-key shortcut. leader is that key, such as Ctrl+K.',
+	),
+	recordingSequence: message(
+		'keyboard.shortcuts.recordingSequence',
+		'Spoken instruction while a line that accepts two-key shortcuts records. leader is the first key of every two-key shortcut, such as Ctrl+K.',
+	),
+	scopeCodeEditor: message('keyboard.shortcuts.scope.codeEditor'),
+	scopeFileBar: message('keyboard.shortcuts.scope.fileBar'),
+	scopeFileOverlay: message('keyboard.shortcuts.scope.fileOverlay'),
+	scopeQuickInput: message('keyboard.shortcuts.scope.quickInput'),
+	scopeWidget: message('keyboard.shortcuts.scope.widget'),
 	setTabTitle: message('keyboard.shortcuts.actions.setTabTitle'),
 	newTerminal: message('keyboard.shortcuts.actions.newTerminal'),
 	newTerminalCurrentDirectory: message('keyboard.shortcuts.actions.newTerminalCurrentDirectory'),
@@ -73,6 +95,10 @@ export const keyboardShortcutMessages = defineMessages({
 	splitBelow: message('keyboard.shortcuts.actions.splitBelow'),
 	splitRight: message('keyboard.shortcuts.actions.splitRight'),
 	swapPanelVisible: message('keyboard.shortcuts.actions.swapPanelVisible'),
+	takesWiderShortcut: message(
+		'keyboard.shortcuts.takesWiderShortcut',
+		'Inline note on a shortcut that applies only in part of the window and uses the keys of a shortcut that applies more widely. shortcut is a localized key combination; action is the action name of the wider shortcut.',
+	),
 	toggleSidebar: message('keyboard.shortcuts.actions.toggleSidebar'),
 	availabilityActivePanel: message('keyboard.shortcuts.availability.activePanel'),
 	availabilityActiveTerminal: message('keyboard.shortcuts.availability.activeTerminal'),

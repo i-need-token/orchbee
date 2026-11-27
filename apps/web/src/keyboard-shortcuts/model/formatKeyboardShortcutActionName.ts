@@ -1,13 +1,16 @@
-import { keyboardShortcutMessages, type IntlShape } from '@orchbee/i18n';
+import { fileBarMessages, keyboardShortcutMessages, type IntlShape } from '@orchbee/i18n';
 
 import type { KeyboardShortcutDeclaration } from './keyboard-shortcut-catalog';
+import type { KeyboardShortcutScopedDeclaration } from './keyboard-shortcut-scoped-catalog';
 
 /** The name the shortcut settings give the action a shortcut runs. */
 export function formatKeyboardShortcutActionName(
 	intl: IntlShape,
-	declaration: KeyboardShortcutDeclaration,
+	declaration: KeyboardShortcutDeclaration | KeyboardShortcutScopedDeclaration,
 ): string {
 	switch (declaration.name) {
+		case 'toggle-file-bar':
+			return intl.formatMessage(fileBarMessages.toggle);
 		case 'actions-search':
 			return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
 		case 'clear-terminal':

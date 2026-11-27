@@ -6,11 +6,14 @@ export {
 	formatKeyboardShortcutSequence,
 	isKeyboardShortcutModifierCode,
 	keyboardShortcutChordKey,
+	keyboardShortcutSequenceKey,
 	matchesKeyboardShortcutChord,
 	normalizeKeyboardShortcutChord,
+	normalizeKeyboardShortcutSequence,
 } from './keyboard-shortcut';
 export type {
 	KeyboardShortcutChord,
+	KeyboardShortcutChordRule,
 	KeyboardShortcutEvent,
 	KeyboardShortcutPlatform,
 	KeyboardShortcutSequence,
