@@ -147,9 +147,9 @@ impl Services {
     ) {
         let json = match decode_files_record(record, RecordPlace::RequestOpen) {
             Ok(FilesRecord::Request(json)) => json,
-            // No operation of this build takes a Put.
-            Ok(_) => return call.close(CallClose::Unsupported),
-            Err(_) => return call.close(CallClose::InvalidRequest),
+            // A Put names no Workspace: it brings data to an upload its connection opened.
+            Ok(FilesRecord::Put(put)) => return self.files.put(call, put),
+            Ok(_) | Err(_) => return call.close(CallClose::InvalidRequest),
         };
         let request = match parse_request(&json) {
             Ok(request) => request,
@@ -256,10 +256,18 @@ impl Services {
                 self.files
                     .show_read(call, request.transfer, mode, encoding, limit)
             }),
-            // Content staging takes Puts, which no operation of this build reads.
-            FilesRequest::FsRelease(_) | FilesRequest::GitStageContent(_) => {
-                call.close(CallClose::Unsupported);
+            FilesRequest::GitStageContent(request) => {
+                // An open upload holds the services weakly, so it never keeps them alive.
+                let services = Arc::downgrade(self);
+                let (transfer, size) = (request.transfer, request.size.get());
+                self.files
+                    .upload(call, transfer, size, move |call, content| {
+                        if let Some(services) = services.upgrade() {
+                            services.git.stage_content(call, &request, content);
+                        }
+                    });
             }
+            FilesRequest::FsRelease(_) => call.close(CallClose::Unsupported),
         }
     }
 

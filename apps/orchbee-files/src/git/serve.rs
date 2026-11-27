@@ -21,9 +21,9 @@ use crate::{
 use orchbee_files_protocol::{
     CallClose, ClientFocus, CommitMessage, ConnectionId, Counter, ErrorCode, FetchRemotes,
     FilePath, FilesError, FilesNotice, FilesReply, GitCheckIgnore, GitClean, GitCommit, GitFetch,
-    GitOutput, GitPath, GitPaths, GitPull, GitPush, GitRefs, GitShow, GitStatusPage,
-    MAXIMUM_REPLY_BYTES, PromptAnswer, RelayAnswer, RepositoryRequest, RequestId, RequestOutcome,
-    ScopeUpdate, ShowRef, WorkspaceId, encode_notice, encode_reply,
+    GitOutput, GitPath, GitPaths, GitPull, GitPush, GitRefs, GitShow, GitStageContent,
+    GitStatusPage, MAXIMUM_REPLY_BYTES, PromptAnswer, RelayAnswer, RepositoryRequest, RequestId,
+    RequestOutcome, ScopeUpdate, ShowRef, WorkspaceId, encode_notice, encode_reply,
 };
 use orchbee_local_runtime::DataRoot;
 use std::sync::Arc;
@@ -257,6 +257,21 @@ impl Service {
     /// `git.unstage`.
     pub(crate) fn unstage(&self, call: Call, request: &GitPaths) {
         let mutation = Mutation::Unstage(strings(request.paths.as_slice()));
+        self.mutate(
+            call,
+            request.workspace_id,
+            request.request_id,
+            &request.repository,
+            mutation,
+        );
+    }
+
+    /// `git.stage-content` once its Puts brought the content.
+    pub(crate) fn stage_content(&self, call: Call, request: &GitStageContent, content: Vec<u8>) {
+        let mutation = Mutation::StageContent {
+            path: request.path.as_str().to_owned(),
+            content,
+        };
         self.mutate(
             call,
             request.workspace_id,

@@ -11,7 +11,7 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
-    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
+    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation, Put,
     ReadMode, StatItem, TransferId, TransferRequest,
 };
 
@@ -21,23 +21,27 @@ use super::{
     listing::{CursorId, Listings},
     reading::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
     timer::Timer,
+    uploads::Uploads,
     wire,
 };
 use crate::{blocking::Helpers, calls::Call, entry, error, git::ports, scope::path::NativePath};
 
-/// The listings and read transfers of every connection.
+/// The listings, read transfers and uploads of every connection.
 pub(crate) struct Engine {
     helpers: Helpers,
     listings: Arc<Listings>,
     transfers: Transfers,
+    uploads: Uploads,
 }
 
 impl Engine {
     /// An engine whose filesystem work runs on `helpers`.
     pub(crate) fn new(helpers: Helpers) -> Self {
+        let timer = Arc::new(Timer::new());
         Self {
-            listings: Arc::new(Listings::new(Arc::new(Timer::new()))),
+            listings: Arc::new(Listings::new(Arc::clone(&timer))),
             transfers: Transfers::new(helpers.clone()),
+            uploads: Uploads::new(timer),
             helpers,
         }
     }
@@ -186,6 +190,23 @@ impl Engine {
         );
     }
 
+    /// Opens upload `transfer` on the call's lane for the `size` bytes an operation receives as
+    /// Puts; `commit` receives the call and the data once the Put flagged `commit` completes it.
+    pub(crate) fn upload(
+        &self,
+        call: Call,
+        transfer: TransferId,
+        size: u64,
+        commit: impl FnOnce(Call, Vec<u8>) + Send + 'static,
+    ) {
+        self.uploads.open(call, transfer, size, commit);
+    }
+
+    /// One Put of an upload, answered on its own call.
+    pub(crate) fn put(&self, call: Call, put: Put) {
+        self.uploads.put(call, put);
+    }
+
     /// `transfer.close`.
     pub(crate) fn close_transfer(&self, call: Call, request: &TransferRequest) {
         let closed = self.transfers.close(call.connection(), request.transfer);
@@ -195,17 +216,20 @@ impl Engine {
     /// Drops what `lane` of `connection` holds.
     pub(crate) fn lane_closed(&self, connection: ConnectionId, lane: LaneId) {
         self.transfers.lane_closed(connection, lane);
+        self.uploads.lane_closed(connection, lane);
     }
 
     /// Drops what `connection` holds.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.listings.connection_lost(connection);
         self.transfers.connection_lost(connection);
+        self.uploads.connection_lost(connection);
     }
 
-    /// Drops every transfer, answering the chunk requests that wait on them.
+    /// Drops every transfer, answering the chunk requests that wait on them, and every upload.
     pub(crate) fn drain(&self) {
         self.transfers.drain();
+        self.uploads.drain();
     }
 }
 

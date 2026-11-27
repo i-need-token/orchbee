@@ -14,9 +14,9 @@ use orchbee_files_protocol::{
     CallClose, CallId, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice, FilesRecord,
     FilesReply, FilesRequest, FrameKind, FsGrant, FsSnapshot, FsUpdate, GitPath, GrantClass,
     GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, NoticeKind,
-    Operation, PathsRequest, RecordPlace, RequestId, Root, ScopeUpdate, WatchState, WorkspaceId,
-    WorkspaceRequest, WorkspaceScope, decode_files_record, decode_link_message,
-    encode_files_record, encode_request, parse_notice, parse_reply,
+    Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root, ScopeUpdate, TransferId,
+    WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, decode_files_record,
+    decode_link_message, encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
 use super::Services;
@@ -77,6 +77,21 @@ impl Link {
     fn request(&self, id: u64, request: &FilesRequest) {
         let record = encode_files_record(&FilesRecord::Request(encode_request(request))).unwrap();
         self.send(id, GrantClass::TerminalCreate, request.workspace(), record);
+    }
+
+    /// Sends `put` as the Server relays one: on a call of its own, naming no Workspace.
+    fn put(&self, id: u64, put: Put) {
+        let record = encode_files_record(&FilesRecord::Put(put)).unwrap();
+        self.services
+            .request(LinkRequest {
+                call: call(id),
+                connection: ConnectionId::new(1).unwrap(),
+                lane: LaneId::new(id).unwrap(),
+                workspace: None,
+                grant: GrantClass::TerminalCreate,
+                record,
+            })
+            .unwrap();
     }
 
     fn next(&self) -> LinkMessage {
@@ -219,6 +234,21 @@ fn a_record_closes_by_its_validity_grant_class_and_workspace() {
     assert_ne!(
         error(link.reply(7, Operation::GitMarkSafe)),
         ErrorCode::Denied
+    );
+
+    // A Put answers on its own call; this one names no upload its connection opened.
+    link.put(
+        8,
+        Put {
+            transfer: TransferId::new(1).unwrap(),
+            offset: 0,
+            end: PutEnd::Commit,
+            bytes: Vec::new(),
+        },
+    );
+    assert_eq!(
+        error(link.reply(8, Operation::GitStageContent)),
+        ErrorCode::InvalidRequest
     );
 }
 

@@ -110,29 +110,12 @@ pub(super) enum Mutation {
     Stage(Vec<String>),
     Unstage(Vec<String>),
     Discard(Vec<String>),
-    #[expect(
-        dead_code,
-        reason = "git.stage-content is routed once the dispatch reads a transfer's Puts"
-    )]
-    StageContent {
-        path: String,
-        content: Vec<u8>,
-    },
-    Clean {
-        paths: Vec<String>,
-        mode: CleanMode,
-    },
+    StageContent { path: String, content: Vec<u8> },
+    Clean { paths: Vec<String>, mode: CleanMode },
     Commit(Commit),
-    Fetch {
-        fetch: Fetch,
-        background: bool,
-    },
-    Pull {
-        rebase: bool,
-    },
-    Sync {
-        rebase: bool,
-    },
+    Fetch { fetch: Fetch, background: bool },
+    Pull { rebase: bool },
+    Sync { rebase: bool },
     Push(Push),
 }
 
