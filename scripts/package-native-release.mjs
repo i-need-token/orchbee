@@ -20,6 +20,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RIPGREP_NOTICES, ripgrepDigest, ripgrepFileName } from './ripgrep.mjs';
 import { verifiedCapsuleDigest } from './stage-local-runtime.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
@@ -286,6 +287,16 @@ export function packageRelease(
 		throw new Error('A release cohort carries no orchbee-files');
 	if (filesProcess?.sha256 !== manifest.artifacts['orchbee-files'])
 		throw new Error('Cohort orchbee-files digest mismatch');
+	// rg travels with the File Bar's process, with the notices of what it carries, as pinned.
+	const ripgrep = files.find((entry) => entry.path === ripgrepFileName(platform));
+	const ripgrepNotices = files.find((entry) => entry.path === RIPGREP_NOTICES.path);
+	if (
+		filesProcess === undefined
+			? ripgrep !== undefined || ripgrepNotices !== undefined
+			: ripgrep?.sha256 !== ripgrepDigest(platform) ||
+				ripgrepNotices?.sha256 !== RIPGREP_NOTICES.sha256
+	)
+		throw new Error('Cohort rg does not match apps/orchbee-files/ripgrep.json');
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])
 		throw new Error('Cohort adapter capsule digest mismatch');

@@ -181,6 +181,18 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 				constants.COPYFILE_EXCL,
 			);
 			filesDigest = createHash('sha256').update(readFileSync(staged)).digest('hex');
+			// The rg the File Bar's process searches with, and the notices of what rg carries.
+			execFileSync(
+				process.execPath,
+				[
+					path.join(root, 'scripts', 'ripgrep.mjs'),
+					'--platform',
+					process.arch === 'arm64' ? 'windows-aarch64' : 'windows-x86_64',
+					'--output',
+					prepared,
+				],
+				{ cwd: root, stdio: 'inherit', windowsHide: true },
+			);
 		}
 		// The Windows launchers: the command launcher a release installs as `bin\<stem>.exe`, and
 		// the window launcher it installs as the window entry `desktop\orchbee-desktop.exe`. Neither

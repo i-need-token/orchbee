@@ -1,0 +1,36 @@
+{
+	"package": "@vscode/ripgrep-universal",
+	"version": "1.18.0",
+	"url": "https://registry.npmjs.org/@vscode/ripgrep-universal/-/ripgrep-universal-1.18.0.tgz",
+	"sha256": "76a03f429dc13a90f53b60995211a54308ab4f67b2521bac00f9c4be953dff52",
+	"targets": {
+		"windows-x86_64": {
+			"source": "package/bin/win32-x64/rg.exe",
+			"sha256": "f9dde63498b3193f098355dbec97af99dc4f6b8fa0df5ed04114a03012c042cb"
+		},
+		"windows-aarch64": {
+			"source": "package/bin/win32-arm64/rg.exe",
+			"sha256": "0015ba7dfb2d8b62c39332d64e50c6e85f75230125e10c50a950ed14995c79bf"
+		},
+		"macos-aarch64": {
+			"source": "package/bin/darwin-arm64/rg",
+			"sha256": "6ef40346bf31fcce79d9614c7745c198542925a0c7d4911e1ffe794c53392ac1"
+		},
+		"macos-x86_64": {
+			"source": "package/bin/darwin-x64/rg",
+			"sha256": "f999495980a5e6f1e7d26461ef5768b4013a62df610ed7d77a8b2de247a5b228"
+		},
+		"linux-x86_64": {
+			"source": "package/bin/linux-x64/rg",
+			"sha256": "193906679498de4d939345b937fa24e0e69a03c244bd70c859f5e41232713f21"
+		},
+		"linux-aarch64": {
+			"source": "package/bin/linux-arm64/rg",
+			"sha256": "e152ea689d6e8420357e592f0d8253b96476c164118ca3e6e13074fa1705ddda"
+		}
+	},
+	"notices": {
+		"name": "ripgrep-notices.txt",
+		"sha256": "9cf278576a60fd85ec45255ba7a78ccdf90ee699732d2c9ba111e63c920bcf3d"
+	}
+}

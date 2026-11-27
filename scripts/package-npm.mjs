@@ -91,7 +91,7 @@ export function readRelease(directory, version) {
  * The platform, program stem and programs of the parsed release manifest `manifest`, named `label`
  * in errors, checked against the version this run publishes. `programs` are the cohort programs
  * at the release directory's top level, which must stay executable off Windows: the four roles, and
- * the File Bar's process that a test release carries.
+ * the File Bar's process and its rg that a test release carries.
  */
 export function describeRelease(manifest, version, label) {
 	if (
@@ -127,8 +127,8 @@ export function describeRelease(manifest, version, label) {
 		throw new Error(`${label} must list exactly one orchbee or ob-test-<16 hex> program`);
 	const stem = stems[0];
 	const programs = programSuffixes.map((suffix) => stem + suffix + executable);
-	const filesProgram = `${stem}-files${executable}`;
-	if (manifest.files.some((file) => file.path === filesProgram)) programs.push(filesProgram);
+	for (const program of [`${stem}-files${executable}`, `rg${executable}`])
+		if (manifest.files.some((file) => file.path === program)) programs.push(program);
 	return { platform, stem, executable, programs };
 }
 

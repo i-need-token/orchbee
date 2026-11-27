@@ -107,6 +107,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		path.join(sourceRoot, 'target', 'release', `orchbee-files${suffix}`),
 		path.join(hostPrefix, 'bin', `orchbee-terminal-host${suffix}`),
 		path.join(hostRoot, 'windows-conpty.json'),
+		path.join(sourceRoot, 'apps', 'orchbee-files', 'ripgrep.json'),
 		path.join(
 			sourceRoot,
 			'crates',

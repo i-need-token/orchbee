@@ -434,6 +434,13 @@ async function verifyBundledCohort(directory, stagedFiles) {
 	) {
 		throw new Error('The bundled orchbee-files does not match cohort.json.');
 	}
+	// Staging checked rg and its notices against their pins; they travel with orchbee-files.
+	const ripgrep = bundled.filter(
+		(entry) => entry.path === 'rg' || entry.path === 'licenses/ripgrep-notices.txt',
+	);
+	if (ripgrep.length !== (filesProcess === undefined ? 0 : 2)) {
+		throw new Error('The bundled rg does not travel with orchbee-files.');
+	}
 	if (!signsReleaseDirectory) return;
 	const releaseManifest = JSON.parse(await readFile(path.join(directory, 'release.json'), 'utf8'));
 	const listed = (Array.isArray(releaseManifest?.files) ? releaseManifest.files : [])

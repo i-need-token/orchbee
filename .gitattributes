@@ -2,4 +2,5 @@
 
 # Integrity-checked resources must retain identical bytes on every checkout.
 crates/agent-integration-writer/agent-observation-adapters/** text eol=lf
+apps/orchbee-files/licenses/** text eol=lf
 apps/terminal-host/licenses/Microsoft.ConPTY-LICENSE.txt -text

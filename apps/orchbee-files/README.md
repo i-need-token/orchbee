@@ -54,6 +54,21 @@ These rules are the contract a Client builds on; no single declaration holds the
 - Grants live in this process. After it restarts, which ends every subscription, a Client grants
   its open files again.
 
+## ripgrep
+
+Development and test cohorts carry rg beside this executable, as `rg` (`rg.exe` on Windows), with
+the notices of everything compiled into it in `licenses/ripgrep-notices.txt`; a release cohort
+carries neither until the File Bar ships. [`ripgrep.json`](ripgrep.json) pins, by SHA-256, the
+`@vscode/ripgrep-universal` archive, the program in it for each release platform and the notices,
+and staging runs [`scripts/ripgrep.mjs`](../../scripts/ripgrep.mjs), which refuses any other bytes.
+The pinned programs are ripgrep 15.0.0 with PCRE2 10.46 and its just-in-time compiler; the Linux
+ones are static musl builds that allocate with jemalloc. `rg --version` names PCRE2 10.45 because
+the bindings of `pcre2-sys` 0.2.10 still carry that number, while the library compiled in is the
+10.46 source the crate bundles. Every program loads only system libraries. A new archive
+regenerates the notices from that ripgrep's `Cargo.lock`, taking each crate it links on some
+platform and the license files that crate ships, and changes the ripgrep entry of
+[`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md#ripgrep) with them.
+
 ## Adding a service
 
 A service joins in `src/operations.rs`: its state as a field of `Services`, its operations as arms of

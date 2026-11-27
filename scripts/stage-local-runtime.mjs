@@ -16,6 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { RIPGREP_NOTICES } from './ripgrep.mjs';
 import {
 	ARTIFACT_STEM_PATTERN,
 	stageWindows,
@@ -287,6 +288,13 @@ function main() {
 	// architecture, or musl on Linux.
 	const cross = linuxTarget ?? (macosTarget?.arch === process.arch ? undefined : macosTarget);
 	const built = cross === undefined ? 'release' : path.posix.join(cross.rust, 'release');
+	// The release platform whose rg the cohort carries: the row's own, else the host's, and a WSL
+	// cohort is always x86_64 Linux.
+	const ripgrepPlatform =
+		selected['--platform'] ??
+		(distro
+			? 'linux-x86_64'
+			: `${process.platform === 'darwin' ? 'macos' : 'linux'}-${process.arch === 'arm64' ? 'aarch64' : 'x86_64'}`);
 	let temporary;
 	let outputCreated = false;
 	try {
@@ -357,6 +365,24 @@ function main() {
 			);
 			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 			filesDigest = createHash('sha256').update(readFileSync(staged)).digest('hex');
+			// The rg the File Bar's process searches with, and the notices of what rg carries.
+			execFileSync(
+				process.execPath,
+				[
+					path.join(root, 'scripts', 'ripgrep.mjs'),
+					'--platform',
+					ripgrepPlatform,
+					'--output',
+					destination,
+				],
+				{ cwd: root, stdio: 'inherit' },
+			);
+			runCommand('chmod', ['700', path.posix.join(output, 'rg')]);
+			runCommand('chmod', [
+				'700',
+				path.posix.join(output, path.posix.dirname(RIPGREP_NOTICES.path)),
+			]);
+			runCommand('chmod', ['600', path.posix.join(output, RIPGREP_NOTICES.path)]);
 		}
 		if (windowLauncher !== undefined) {
 			// No cohort role, so `cohort.json` does not list it; the release manifest inventories it.

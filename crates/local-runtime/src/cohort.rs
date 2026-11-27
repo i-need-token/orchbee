@@ -353,6 +353,12 @@ impl Cohort {
         filesystem::files_file_name()
     }
 
+    /// The file name of the rg a development or test cohort carries beside `orchbee-files`.
+    #[must_use]
+    pub fn ripgrep_file_name() -> &'static str {
+        if cfg!(windows) { "rg.exe" } else { "rg" }
+    }
+
     /// The cohort's `orchbee-files`, opened as the cohort's own executables are and hashed against
     /// the digest the manifest declares, so a start runs only the program this cohort shipped.
     /// Admission never checks it: a release cohort carries none, and a damaged one fails only the
