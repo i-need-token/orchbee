@@ -1,0 +1,68 @@
+.root {
+	height: 100%;
+	min-height: 0;
+	min-width: 0;
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.viewer {
+	box-sizing: border-box;
+	display: flex;
+	width: 100%;
+	height: 100%;
+	overflow: hidden;
+	user-select: none;
+}
+
+.viewer[hidden] {
+	display: none;
+}
+
+/* An outline inside the edge, which a zoomed image scrolling under it cannot cover. */
+.viewer:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: calc(var(--ob-sys-focus-ring-width) * -1);
+}
+
+.viewer[data-ready] {
+	cursor: zoom-in;
+}
+
+.viewer[data-ready][data-zoom-out] {
+	cursor: zoom-out;
+}
+
+.viewer[data-zoomed] {
+	overflow: auto;
+}
+
+/* A checkerboard behind transparent pixels, from the canvas and its neighboring surface. */
+.image {
+	margin: auto;
+	background-image: conic-gradient(
+		var(--ob-sys-color-surface-subtle) 25%,
+		transparent 25% 50%,
+		var(--ob-sys-color-surface-subtle) 50% 75%,
+		transparent 75%
+	);
+	background-size: var(--ob-ref-space-4) var(--ob-ref-space-4);
+}
+
+.image:not([src]) {
+	visibility: hidden;
+}
+
+.image[data-fit] {
+	max-width: calc(100% - 2 * var(--ob-ref-space-2));
+	max-height: calc(100% - 2 * var(--ob-ref-space-2));
+	object-fit: contain;
+}
+
+/* A zoomed image may outgrow the viewer and keeps its explicit size. */
+.image:not([data-fit]) {
+	flex-shrink: 0;
+}
+
+.image[data-pixelated] {
+	image-rendering: pixelated;
+}

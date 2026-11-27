@@ -51,6 +51,12 @@ tabs creates no editor. Each file's scroll and selection outlive its tab, up to 
 A tab's owner may dispose of a document before the view unmounts, so a view saves the view state
 when its model is about to be disposed of.
 
+## Image preview
+
+Images show from `data:` URLs, because the production policy's `img-src` admits `data:` but not
+`blob:`. As in VS Code, the preview reads the whole file whatever its size, and a reload that fails
+keeps the image it shows.
+
 ## Codicons
 
 Monaco ships a newer Codicon font than the product's `@vscode/codicons` 0.0.45 under the same
@@ -82,11 +88,11 @@ a change that grows them reports the new sizes.
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
 | 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
 | Largest grammar chunk                            | 18,564 B    | 4,463 B     |
-| Theme, JSON languages, documents and views       | 14,051 B    | 4,796 B     |
-| Views' stylesheet                                | 655 B       | 367 B       |
-| Main bundle growth                               | 12,443 B    | 4,242 B     |
+| Theme, JSON languages, documents and views       | 21,139 B    | 6,946 B     |
+| Views' stylesheet                                | 1,749 B     | 698 B       |
+| Main bundle growth                               | 13,248 B    | 4,453 B     |
 | Main stylesheet growth                           | 5,154 B     | 795 B       |
-| Production web build growth                      | 4,658,395 B | 1,262,229 B |
+| Production web build growth                      | 4,667,383 B | 1,264,920 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit, the loader's
 chunk map lists the new chunks, and `@orchbee/i18n` carries the editor's messages with every other

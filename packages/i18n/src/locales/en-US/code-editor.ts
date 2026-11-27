@@ -1,4 +1,7 @@
 export const enUSCodeEditorMessages = {
+	'codeEditor.imagePreview.label': 'Image Preview: {name}',
+	'codeEditor.imagePreview.loadFailed': 'An error occurred while loading the image.',
+	'codeEditor.imagePreview.openAsText': 'Open in Text Editor',
 	'codeEditor.placeholder.binary':
 		'The file is not displayed in the text editor because it is either binary or uses an unsupported text encoding.',
 	'codeEditor.placeholder.directory':

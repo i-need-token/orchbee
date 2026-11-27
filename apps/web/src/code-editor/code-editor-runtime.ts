@@ -16,5 +16,8 @@ export { editor, languages };
 export { CodeEditorModelRegistry } from './CodeEditorModelRegistry';
 export { CodeEditorTextDocument } from './CodeEditorTextDocument';
 export { CodeEditorViewStates } from './CodeEditorViewStates';
+export { ImagePreviewDocument } from './ImagePreviewDocument';
 export { CodeEditorTextView } from './components/code-editor-text-view/CodeEditorTextView';
+export { ImagePreview } from './components/image-preview/ImagePreview';
+export { imagePreviewMimeType } from './imagePreviewMimeType';
 export { languageIdForPath } from './languageIdForPath';

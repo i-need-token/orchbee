@@ -5,7 +5,7 @@ import { createMessageDescriptorFactory } from './createMessageDescriptorFactory
 
 const message = createMessageDescriptorFactory(enUSCodeEditorMessages);
 
-/** The File Bar's editors, which show files in Monaco. */
+/** The File Bar's editors: text files in Monaco and images in the image preview. */
 export const codeEditorMessages = defineMessages({
 	binary: message(
 		'codeEditor.placeholder.binary',
@@ -19,6 +19,14 @@ export const codeEditorMessages = defineMessages({
 		'codeEditor.placeholder.failed',
 		'Shown in place of the editor when reading the file failed for any other reason, above a Try Again button.',
 	),
+	imageLoadFailed: message(
+		'codeEditor.imagePreview.loadFailed',
+		'Shown in place of an image whose content could not be decoded as an image, above an Open in Text Editor button.',
+	),
+	imagePreview: message(
+		'codeEditor.imagePreview.label',
+		'Accessible name of an image preview; {name} is the file name.',
+	),
 	notFound: message(
 		'codeEditor.placeholder.notFound',
 		'Shown in place of the editor when the file no longer exists.',
@@ -26,6 +34,10 @@ export const codeEditorMessages = defineMessages({
 	openAnyway: message(
 		'codeEditor.placeholder.openAnyway',
 		'Button that opens a binary or very large file in the text editor despite the message above it.',
+	),
+	openAsText: message(
+		'codeEditor.imagePreview.openAsText',
+		'Button under an image that failed to load; reopens the file in the text editor.',
 	),
 	retry: message(
 		'codeEditor.placeholder.retry',
