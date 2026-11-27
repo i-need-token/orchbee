@@ -1452,6 +1452,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "orchbee-files-protocol"
+version = "0.1.0"
+
+[[package]]
 name = "orchbee-git-process"
 version = "0.1.0"
 dependencies = [

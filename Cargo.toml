@@ -15,6 +15,7 @@ members = [
 	"crates/client-server-protocol",
 	"crates/color-themes",
 	"crates/connection-handshake",
+	"crates/files-protocol",
 	"crates/git-process",
 	"crates/local-client-protocol",
 	"crates/local-ipc",
