@@ -33,7 +33,7 @@ export const enUSWebsiteHomeMessages = {
 		'The sidebar lists every agent in every project with its state: working, waiting for you, done or idle. You know which one needs you without opening each terminal.',
 	'website.home.benefits.persistTitle': 'Close the window, keep the work',
 	'website.home.benefits.persistBody':
-		'A Session keeps running in the background after its window closes, with every shell and agent in it. Attach again from the terminal, the desktop app or the command line, even all three at once.',
+		'A Session keeps running in the background after its window closes, with every shell and agent in it. Attach again from the desktop app, the terminal or the command line, even all three at once.',
 	'website.home.benefits.delegateTitle': 'Agents that delegate',
 	'website.home.benefits.delegateBody':
 		'With the <code>orchbee</code> command, an agent can start another agent, send it a prompt, wait for it to finish and read its output. Claude Code can hand a task to Codex while you watch.',
@@ -48,7 +48,7 @@ export const enUSWebsiteHomeMessages = {
 	'website.home.clients.kicker': 'clients',
 	'website.home.clients.title': 'One Session, three ways in',
 	'website.home.clients.lead':
-		'The terminal interface, the desktop app and the command line show and control the same Session. Use whichever fits the moment.',
+		'The desktop app, the terminal interface and the command line show and control the same Session. Use whichever fits the moment.',
 	'website.home.faq.kicker': 'faq',
 	'website.home.faq.title': 'Common questions',
 	'website.home.faq.freeQuestion': 'Is Orchbee free?',

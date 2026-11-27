@@ -19,13 +19,13 @@ const LINKS: readonly {
 	full: MessageDescriptor;
 	label: string;
 }[] = [
+	{ page: 'desktop', short: messages.navDesktop, full: messages.clientDesktop, label: '/desktop' },
 	{
 		page: 'terminal',
 		short: messages.navTerminal,
 		full: messages.clientTerminal,
 		label: '/terminal',
 	},
-	{ page: 'desktop', short: messages.navDesktop, full: messages.clientDesktop, label: '/desktop' },
 	{ page: 'cli', short: messages.navCli, full: messages.clientCli, label: '/cli' },
 ];
 

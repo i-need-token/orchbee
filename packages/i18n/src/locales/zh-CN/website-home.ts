@@ -29,7 +29,7 @@ export const zhCNWebsiteHomeMessages = {
 		'侧边栏列出所有项目里的每个 Agent 及其状态：工作中、等你处理、已完成或空闲。不用逐个打开终端，就知道该看哪一个。',
 	'website.home.benefits.persistTitle': '关掉窗口，工作照常',
 	'website.home.benefits.persistBody':
-		'窗口关闭后，会话连同其中的 Shell 和 Agent 继续在后台运行。之后可以从终端界面、桌面应用或命令行重新接入，三者也能同时接入。',
+		'窗口关闭后，会话连同其中的 Shell 和 Agent 继续在后台运行。之后可以从桌面应用、终端界面或命令行重新接入，三者也能同时接入。',
 	'website.home.benefits.delegateTitle': 'Agent 之间互相派活',
 	'website.home.benefits.delegateBody':
 		'借助 <code>orchbee</code> 命令，一个 Agent 可以启动另一个 Agent、给它发 prompt、等它完成并读取输出。比如让 Claude Code 把任务交给 Codex，你在一旁看着就行。',
@@ -43,7 +43,7 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.agents.all': '查看全部 {count} 种可识别的 Agent',
 	'website.home.clients.kicker': '客户端',
 	'website.home.clients.title': '一个会话，三种接入方式',
-	'website.home.clients.lead': '终端界面、桌面应用和命令行呈现并控制同一个会话，按场景选用即可。',
+	'website.home.clients.lead': '桌面应用、终端界面和命令行呈现并控制同一个会话，按场景选用即可。',
 	'website.home.faq.kicker': '问答',
 	'website.home.faq.title': '常见问题',
 	'website.home.faq.freeQuestion': 'Orchbee 免费吗？',

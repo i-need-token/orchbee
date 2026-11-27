@@ -20,16 +20,16 @@ import styles from './HeroStage.module.css';
 // The clients the stage shows the Session in, in switch order; the first is shown first.
 const VIEWS = [
 	{
-		id: 'terminal',
-		name: websiteShellMessages.clientTerminal,
-		shortName: websiteShellMessages.navTerminal,
-		Window: SessionTerminalInterface,
-	},
-	{
 		id: 'desktop',
 		name: websiteShellMessages.clientDesktop,
 		shortName: websiteShellMessages.navDesktop,
 		Window: SessionDesktopApplication,
+	},
+	{
+		id: 'terminal',
+		name: websiteShellMessages.clientTerminal,
+		shortName: websiteShellMessages.navTerminal,
+		Window: SessionTerminalInterface,
 	},
 	{
 		id: 'cli',

@@ -19,16 +19,16 @@ const CLIENTS: readonly {
 	label: string;
 }[] = [
 	{
-		page: 'terminal',
-		name: messages.clientTerminal,
-		summary: messages.clientTerminalSummary,
-		label: '/terminal',
-	},
-	{
 		page: 'desktop',
 		name: messages.clientDesktop,
 		summary: messages.clientDesktopSummary,
 		label: '/desktop',
+	},
+	{
+		page: 'terminal',
+		name: messages.clientTerminal,
+		summary: messages.clientTerminalSummary,
+		label: '/terminal',
 	},
 	{ page: 'cli', name: messages.clientCli, summary: messages.clientCliSummary, label: '/cli' },
 ];
