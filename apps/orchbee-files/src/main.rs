@@ -9,6 +9,11 @@ mod calls;
 mod entry;
 mod error;
 mod exit;
+#[expect(
+    dead_code,
+    reason = "the file engine implements the ports and the Git engine uses them in later slices"
+)]
+mod git;
 mod grants;
 mod invocation;
 mod link;
