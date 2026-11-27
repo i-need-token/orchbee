@@ -1494,6 +1494,7 @@ version = "0.1.0-beta.26"
 dependencies = [
  "chardetng",
  "encoding_rs",
+ "getrandom 0.3.4",
  "orchbee-connection-handshake",
  "orchbee-files-protocol",
  "orchbee-git-process",

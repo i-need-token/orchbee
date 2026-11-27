@@ -20,6 +20,14 @@ mod invocation;
 mod link;
 mod operations;
 mod outbound;
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the Git engine serves request.outcome once it is routed"
+    )
+)]
+mod requests;
 mod roots;
 mod scope;
 #[cfg(unix)]
