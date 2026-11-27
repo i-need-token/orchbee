@@ -2,8 +2,8 @@
  * The Monaco editor as Orchbee composes it: the core API, the editor features a fresh VS Code
  * offers without language services, every Monarch basic language the package lists, and the editor
  * worker. Apart from `monaco-messages.ts`, which must run first, this is the only module that
- * imports `monaco-editor`, and only `loadCodeEditor` loads it, so the main bundle never
- * contains the editor.
+ * imports `monaco-editor` at run time, and only `code-editor-runtime.ts`, which `loadCodeEditor`
+ * loads, imports it, so the main bundle never contains the editor.
  */
 import 'monaco-editor/features/anchorSelect/register';
 import 'monaco-editor/features/bracketMatching/register';

@@ -1,8 +1,8 @@
 import type { OrchbeeLocale } from '@orchbee/i18n';
 
-import type * as MonacoEntry from './monaco-entry';
+import type * as CodeEditorRuntimeModule from './code-editor-runtime';
 
-type CodeEditorRuntime = typeof MonacoEntry;
+type CodeEditorRuntime = typeof CodeEditorRuntimeModule;
 
 /**
  * Monaco's services, worker environment and message table are page-wide, so the first load fixes
@@ -25,5 +25,5 @@ export function loadCodeEditor(locale: OrchbeeLocale): Promise<CodeEditorRuntime
 async function importCodeEditorRuntime(locale: OrchbeeLocale): Promise<CodeEditorRuntime> {
 	// Monaco reads its messages while its modules evaluate, so the table must be in place first.
 	if (locale === 'zh-CN') await import('./monaco-messages');
-	return import('./monaco-entry');
+	return import('./code-editor-runtime');
 }

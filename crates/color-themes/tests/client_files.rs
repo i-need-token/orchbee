@@ -386,6 +386,20 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     {
         colors.push((format!("machine-{name}"), color.to_string()));
     }
+    // Highlighted code takes the theme's Tab-group accents, each already raised to body contrast.
+    let groups = roles.tab_groups;
+    for (role, color) in [
+        ("comment", groups.grey),
+        ("keyword", groups.purple),
+        ("string", groups.green),
+        ("constant", groups.orange),
+        ("type", groups.yellow),
+        ("tag", groups.red),
+        ("attribute", groups.cyan),
+        ("variable", groups.blue),
+    ] {
+        colors.push((format!("syntax-{role}"), color.to_string()));
+    }
     colors
 }
 

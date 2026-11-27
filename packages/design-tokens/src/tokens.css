@@ -768,6 +768,15 @@
 	--ob-sys-color-machine-brown: var(--ob-ref-color-amber-800);
 	--ob-sys-color-machine-slate: var(--ob-ref-color-slate-600);
 	--ob-sys-color-machine-grey: var(--ob-ref-color-neutral-600);
+	/* Highlighted code: each role keeps 4.5:1 on the canvas, the current line and a selection. */
+	--ob-sys-color-syntax-comment: var(--ob-ref-color-neutral-600);
+	--ob-sys-color-syntax-keyword: var(--ob-ref-color-purple-700);
+	--ob-sys-color-syntax-string: var(--ob-ref-color-green-800);
+	--ob-sys-color-syntax-constant: var(--ob-ref-color-orange-800);
+	--ob-sys-color-syntax-type: var(--ob-ref-color-yellow-800);
+	--ob-sys-color-syntax-tag: var(--ob-ref-color-red-700);
+	--ob-sys-color-syntax-attribute: var(--ob-ref-color-cyan-800);
+	--ob-sys-color-syntax-variable: var(--ob-ref-color-blue-700);
 }
 
 :root {
@@ -1151,6 +1160,15 @@
 	);
 	--ob-sys-color-machine-slate: var(--ob-ref-color-slate-400);
 	--ob-sys-color-machine-grey: var(--ob-ref-color-neutral-400);
+	/* Highlighted code: each role keeps 4.5:1 on the canvas, the current line and a selection. */
+	--ob-sys-color-syntax-comment: var(--ob-ref-color-neutral-400);
+	--ob-sys-color-syntax-keyword: var(--ob-ref-color-purple-300);
+	--ob-sys-color-syntax-string: var(--ob-ref-color-green-300);
+	--ob-sys-color-syntax-constant: var(--ob-ref-color-orange-300);
+	--ob-sys-color-syntax-type: var(--ob-ref-color-yellow-200);
+	--ob-sys-color-syntax-tag: var(--ob-ref-color-red-300);
+	--ob-sys-color-syntax-attribute: var(--ob-ref-color-cyan-300);
+	--ob-sys-color-syntax-variable: var(--ob-ref-color-blue-300);
 }
 
 /* The product website: its dark palette, type, shadows, motion, layers and lengths, and those of

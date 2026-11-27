@@ -77,6 +77,7 @@ The system tier is a finite cross-component language. Choose the closest existin
 | Status     | info, success, warning, and danger; each status has rest, hover, pressed, surface, surface-hover, border, border-hover, text, text-hover, and text-pressed roles |
 | Brand      | accent, accent-hover, and on-accent for branded calls to action and identity emphasis; never substitute them for status                                          |
 | Data       | five categorical series colors                                                                                                                                   |
+| Syntax     | comment, keyword, string, constant, type, tag, attribute, and variable for highlighted code; each keeps body contrast on the canvas, current line, and selection |
 | Typography | body sm/md/lg/xl, display sm/md/lg, control sm, label xs/sm/md/lg, heading xs/sm/md/lg/xl, and code sm/md                                                        |
 | Other      | link decoration rest/hover/focus, semantic motion duration/easing, focus-ring geometry, disabled/muted opacity, and raised/overlay shadow                        |
 

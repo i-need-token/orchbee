@@ -20,6 +20,17 @@ messages while they evaluate. The language of the first load therefore stays unt
 reloads. A zh-CN load first installs the pinned package's own zh-CN table and writes
 `zhCNMonacoMessageOverrides` from `@orchbee/i18n` over it.
 
+## Theme
+
+Monaco's theme is page-wide, so one theme serves every editor and follows the document's: it is
+defined when the editor loads and again whenever `data-theme` or `data-color-theme` changes on the
+root element, without a reload. Monaco parses only hex colors, so the system tokens are read through
+a 1×1 canvas, which resolves `oklch()` and `color-mix()` into sRGB bytes. Monaco takes token colors
+as opaque, so text colors are painted over the canvas color first; fills keep their alpha and layer
+as the page's do. The syntax roles color the tokens of every language, and the theme inherits no
+rules from Monaco's own, whose colors would show through every named theme. Colors the theme leaves
+out keep Monaco's defaults for the polarity.
+
 ## Codicons
 
 Monaco ships its own Codicon font under the same `codicon` family as the product's
