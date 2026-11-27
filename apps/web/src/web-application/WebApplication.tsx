@@ -20,6 +20,7 @@ import {
 	useWorkbenchConfiguredCommandKeys,
 } from '../workbench';
 import type { WorkbenchLayoutStorage } from '../workbench-layout-storage';
+import type { FileSessionPort } from '../file-session';
 import { useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
@@ -78,6 +79,8 @@ export interface WebApplicationProps {
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
 	/** Whether the window offers the File Bar, which the Workbench follows. It defaults to withheld. */
 	readonly fileBarOffered?: boolean | undefined;
+	/** Where the File Bar's file sessions come from, which the Workbench follows. */
+	readonly fileSessionPort?: FileSessionPort | undefined;
 	readonly keyboardShortcutSettingsController: KeyboardShortcutSettingsController;
 	readonly layoutStorage?: WorkbenchLayoutStorage | undefined;
 	readonly macosTerminalInputSettingsController?: MacosTerminalInputSettingsController | undefined;
@@ -124,6 +127,7 @@ export const WebApplication = React.memo(function WebApplication({
 	clientUpdate,
 	environmentMarker,
 	fileBarOffered,
+	fileSessionPort,
 	keyboardShortcutSettingsController,
 	layoutStorage,
 	macosTerminalInputSettingsController,
@@ -245,6 +249,7 @@ export const WebApplication = React.memo(function WebApplication({
 					configuredCommandKeys={configuredCommandKeys}
 					environmentMarker={environmentMarker}
 					fileBarOffered={fileBarOffered}
+					fileSessionPort={fileSessionPort}
 					hostActionScope={hostActionScope}
 					isShortcutScopeActive={!view.settingsOpen}
 					layoutStorage={layoutStorage}

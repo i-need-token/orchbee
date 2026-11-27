@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, onTestFinished, vi } from 'vitest';
 
 import { ApplicationLocaleController } from '../../../application-locale';
+import { MemoryFileSessionPort } from '../../../file-session';
 import { KeyboardShortcutSettingsController } from '../../../keyboard-shortcuts';
 import { TerminalSettingsController } from '../../../terminal-settings';
 import { WebApplication } from '../../../web-application';
@@ -15,6 +16,10 @@ import { inertWorkbenchAuthority } from '../../../__tests__/inertWorkbenchAuthor
 import { memoryUserSettings } from '../../../__tests__/memoryUserSettings';
 import {
 	createSnapshotRuntime,
+	fixtureWorkspaceId,
+	snapshotContext,
+	snapshotDirectory,
+	snapshotWorkspace,
 	workbenchSnapshot,
 } from '../../../__tests__/server-workbench-snapshot';
 import { offersFileBar } from '../offersFileBar';
@@ -25,7 +30,7 @@ const FILE_BAR_ACTION_PREFIX = 'workbench.file-bar.';
 
 /**
  * The window the Desktop composition root builds for a distribution, down to the Workbench, with
- * the storage reads and Actions it makes observable.
+ * the storage reads, Actions and file sessions it makes observable. Workspace 1 of two is active.
  */
 async function composeWindow(distribution: Distribution) {
 	class TestResizeObserver {
@@ -48,6 +53,17 @@ async function composeWindow(distribution: Distribution) {
 	};
 	const actionRuntime = new ActionRuntime();
 	const createScope = vi.spyOn(actionRuntime, 'createScope');
+	const fileSessions = new MemoryFileSessionPort();
+	const projectWorkspaceRuntime = createSnapshotRuntime(
+		workbenchSnapshot(
+			1,
+			{
+				directories: [snapshotDirectory(1), snapshotDirectory(2)],
+				workspaces: [snapshotWorkspace(1), snapshotWorkspace(2)],
+			},
+			[snapshotContext(1, []), snapshotContext(2, [])],
+		),
+	);
 	const terminalSettingsController = new TerminalSettingsController({
 		themeTarget: { dataset: {} },
 		userSettings: memoryUserSettings(),
@@ -86,11 +102,10 @@ async function composeWindow(distribution: Distribution) {
 						applicationLocaleController={applicationLocaleController}
 						authority={inertWorkbenchAuthority()}
 						fileBarOffered={offersFileBar(distribution)}
+						fileSessionPort={fileSessions}
 						keyboardShortcutSettingsController={keyboardShortcutSettingsController}
 						layoutStorage={storage}
-						projectWorkspaceRuntime={createSnapshotRuntime(
-							workbenchSnapshot(1, { workspaces: [] }, []),
-						)}
+						projectWorkspaceRuntime={projectWorkspaceRuntime}
 						shortcutPlatform='standard'
 						terminalSettingsController={terminalSettingsController}
 					/>
@@ -109,7 +124,21 @@ async function composeWindow(distribution: Distribution) {
 		actionRuntime
 			.discover({ scope: windowScope(), source: 'command-surface' }, { includeDescendants: true })
 			.filter((result) => result.descriptor.id.startsWith(FILE_BAR_ACTION_PREFIX));
-	return { actionRuntime, container, fileBarActions, storageReads };
+	const toggleFileBar = async (): Promise<void> => {
+		const toggle = fileBarActions()[0];
+		if (toggle?.kind !== 'ready') throw new Error('Toggle File Bar takes no input.');
+		await React.act(async () => {
+			await actionRuntime.executePrepared(toggle.invocation).completion;
+		});
+	};
+	return {
+		container,
+		fileBarActions,
+		fileSessions,
+		projectWorkspaceRuntime,
+		storageReads,
+		toggleFileBar,
+	};
 }
 
 describe('the Desktop window composition', () => {
@@ -118,6 +147,7 @@ describe('the Desktop window composition', () => {
 
 		expect(composed.container.querySelector('[data-slot="file-bar"]')).toBeNull();
 		expect(composed.fileBarActions()).toEqual([]);
+		expect(composed.fileSessions.openWorkspaces()).toEqual([]);
 		expect(
 			composed.storageReads.filter(
 				(key) => key.startsWith('orchbee:file-bar:') || key.startsWith('orchbee:file-overlay:'),
@@ -129,16 +159,15 @@ describe('the Desktop window composition', () => {
 		'offers the File Bar in a %s build and loads its views when it first shows',
 		async (distribution) => {
 			const composed = await composeWindow(distribution);
-			const actions = composed.fileBarActions();
-			expect(actions.map((action) => action.descriptor.id)).toEqual(['workbench.file-bar.toggle']);
-			// It starts hidden, so nothing of it renders until a person shows it.
+			expect(composed.fileBarActions().map((action) => action.descriptor.id)).toEqual([
+				'workbench.file-bar.toggle',
+			]);
+			// It starts hidden, so nothing of it renders and no file session starts until a person
+			// shows it.
 			expect(composed.container.querySelector('[data-slot="file-bar"]')).toBeNull();
+			expect(composed.fileSessions.openWorkspaces()).toEqual([]);
 
-			const toggle = actions[0];
-			if (toggle?.kind !== 'ready') throw new Error('Toggle File Bar takes no input.');
-			await React.act(async () => {
-				await composed.actionRuntime.executePrepared(toggle.invocation).completion;
-			});
+			await composed.toggleFileBar();
 
 			const fileBar = composed.container.querySelector('aside[data-slot="file-bar"]');
 			expect(fileBar?.getAttribute('aria-label')).toBe('File Bar');
@@ -147,4 +176,21 @@ describe('the Desktop window composition', () => {
 			);
 		},
 	);
+
+	it('holds the file session of the Workspace the File Bar shows, and none while it hides', async () => {
+		const composed = await composeWindow('development');
+		await composed.toggleFileBar();
+		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(1)]);
+
+		await React.act(async () => {
+			composed.projectWorkspaceRuntime.transition({
+				type: 'workspace-activated',
+				workspaceId: fixtureWorkspaceId(2),
+			});
+		});
+		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(2)]);
+
+		await composed.toggleFileBar();
+		expect(composed.fileSessions.openWorkspaces()).toEqual([]);
+	});
 });

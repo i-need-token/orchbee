@@ -168,6 +168,12 @@ through `loadFileBar()`, the `file-bar` module's only runtime export, which load
 own chunk the first time a window shows the column. A failed load says so inside the column and
 tries again the next time it shows.
 
+While the column shows, the Workbench holds the active Workspace's file session from its
+`fileSessionPort` input through a `FileSessionRegistry`, which opens a Workspace's session on its
+first hold and closes it on the last release. Switching Workspaces moves the hold, and a hidden,
+withheld or mobile File Bar holds none, so no session exists for a Workspace whose files nothing
+shows. A window without the input opens no session; the wire adapters will provide it.
+
 ### Search modeling record
 
 - **Problem and inputs:** A person needs to discover and invoke product capabilities without knowing a menu location or shortcut. Trusted inputs are a reviewed open filter, the mounted Action scope, localized Action descriptors, and pointer or keyboard events. Query text is local user input. Missing Action input remains an unbound runtime token and is never guessed.

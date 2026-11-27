@@ -21,6 +21,7 @@ export function WorkbenchRoute(): ReactNode {
 		clientUpdate,
 		environmentMarker,
 		fileBarOffered,
+		fileSessionPort,
 		keyboardShortcutSettingsController,
 		layoutStorage,
 		macosTerminalInputSettingsController,
@@ -54,6 +55,7 @@ export function WorkbenchRoute(): ReactNode {
 			clientUpdate={clientUpdate}
 			environmentMarker={environmentMarker}
 			fileBarOffered={fileBarOffered}
+			fileSessionPort={fileSessionPort}
 			keyboardShortcutSettingsController={keyboardShortcutSettingsController}
 			layoutStorage={layoutStorage}
 			macosTerminalInputSettingsController={macosTerminalInputSettingsController}

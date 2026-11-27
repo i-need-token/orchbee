@@ -4,6 +4,7 @@ import { fileBarMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import { loadFileBar, type FileBarModule } from '../../file-bar';
+import { FileSessionRegistry, type FileSessionPort } from '../../file-session';
 import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFileBarActions';
 import type { WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 
@@ -43,17 +44,24 @@ interface UseWorkbenchFileBarOptions {
 	readonly mobile: boolean;
 	/** Whether this window offers the File Bar; without the offer nothing registers or loads. */
 	readonly offered: boolean;
+	/** Where file sessions come from; without it the File Bar opens none. */
+	readonly sessionPort: FileSessionPort | undefined;
+	/** The active Workspace, whose files the File Bar shows; null outside a Workspace. */
+	readonly workspaceId: string | null;
 }
 
 /**
  * The File Bar's place in the Workbench. It starts hidden; Toggle File Bar shows it, and the first
- * show loads its views through the File Bar's lazy entry.
+ * show loads its views through the File Bar's lazy entry. While it shows, it holds the active
+ * Workspace's file session, so a session starts only for a Workspace whose files it shows.
  */
 export function useWorkbenchFileBar({
 	actionRuntime,
 	actionScope,
 	mobile,
 	offered,
+	sessionPort,
+	workspaceId,
 }: UseWorkbenchFileBarOptions): WorkbenchFileBarView {
 	const intl = useOrchbeeIntl();
 	const [visible, setVisible] = React.useState(false);
@@ -80,6 +88,15 @@ export function useWorkbenchFileBar({
 		return () => registration.dispose();
 	}, [actionScope, reachable, toggle, typedRuntime, visible]);
 	const docked = reachable && visible;
+	const sessions = React.useMemo(
+		() => (sessionPort === undefined ? null : new FileSessionRegistry(sessionPort)),
+		[sessionPort],
+	);
+	React.useEffect(() => {
+		if (sessions === null || !docked || workspaceId === null) return undefined;
+		const hold = sessions.hold(workspaceId);
+		return () => hold.release();
+	}, [docked, sessions, workspaceId]);
 	React.useEffect(() => {
 		if (!docked || load.kind !== 'idle') return undefined;
 		let current = true;

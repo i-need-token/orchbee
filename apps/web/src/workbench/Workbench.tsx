@@ -18,6 +18,7 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
 
+import type { FileSessionPort } from '../file-session';
 import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
 	MINIMUM_LEFT_PANEL_WIDTH,
@@ -105,6 +106,8 @@ interface WorkbenchProps {
 	readonly environmentMarker?: WorkbenchEnvironmentMarker | undefined;
 	/** Whether the window offers the File Bar, which is withheld unless offered. */
 	readonly fileBarOffered?: boolean | undefined;
+	/** Where the File Bar's file sessions come from; without it the File Bar opens none. */
+	readonly fileSessionPort?: FileSessionPort | undefined;
 	/**
 	 * The host's Action scope: the Workbench's Actions resolve under it, and Update registers in it,
 	 * so the host's own surfaces, such as Settings' About, run the footer's Action.
@@ -151,6 +154,7 @@ export function Workbench({
 	configuredCommandKeys = NO_CONFIGURED_COMMAND_KEYS,
 	environmentMarker,
 	fileBarOffered = false,
+	fileSessionPort,
 	hostActionScope,
 	isShortcutScopeActive = true,
 	layoutStorage,
@@ -217,6 +221,11 @@ export function Workbench({
 		actionScope: view.actionScope,
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
+		sessionPort: fileSessionPort,
+		workspaceId:
+			view.projectWorkspaceState.activeLocation.kind === 'workspace'
+				? view.projectWorkspaceState.activeLocation.workspaceId
+				: null,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
 	const agentPresentation = useWorkbenchAgentPresentation({
