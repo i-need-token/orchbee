@@ -27,7 +27,7 @@ import {
 import { WorkbenchKeyboardScopeContext } from '../workbench-keyboard-scopes';
 import { WorkbenchAgentConfirmationOffer } from './components/workbench-agent-confirmation-offer/WorkbenchAgentConfirmationOffer';
 import { WorkbenchAgentStartDialog } from './components/workbench-agent-start-dialog/WorkbenchAgentStartDialog';
-import { WorkbenchSidebarToggle } from './components/workbench-sidebar-toggle/WorkbenchSidebarToggle';
+import { WorkbenchColumnToggle } from './components/workbench-column-toggle/WorkbenchColumnToggle';
 import { WorkbenchEmptyWorkspace } from './components/workbench-empty-workspace/WorkbenchEmptyWorkspace';
 import { WorkbenchMachineCard } from './components/workbench-machine-card/WorkbenchMachineCard';
 import { WorkbenchSidebar } from './components/workbench-sidebar/WorkbenchSidebar';
@@ -230,9 +230,14 @@ export function Workbench({
 	const fileBar = useWorkbenchFileBar({
 		actionRuntime,
 		actionScope: view.actionScope,
+		focusTerminal: view.returnToTerminal,
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
+		reportActionOutcome: view.reportActionOutcome,
+		restoreSidebarWidth: view.restoreSidebarWidth,
 		sessionPort: fileSessionPort,
+		shortcutPlatform,
+		storage: layoutStorage,
 		workspaceId: activeWorkspaceId,
 	});
 	useWorkbenchFileOverlay({
@@ -243,6 +248,13 @@ export function Workbench({
 		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
+	// The Sidebar and the File Bar share the panel group, so both follow its layout.
+	const onLayoutChanged = useMemoizedFn(
+		(layout: Readonly<Record<string, number>>, meta: { readonly isUserInteraction: boolean }) => {
+			view.onLayoutChanged(layout, meta);
+			fileBar.onLayoutChanged(layout, meta);
+		},
+	);
 	const agentPresentation = useWorkbenchAgentPresentation({
 		confirmations: view.authority.agentConfirmations,
 		nameSource: agentNameSource,
@@ -265,10 +277,11 @@ export function Workbench({
 		(input: WorkbenchAgentConfirmationChooseInput) => view.chooseAgentConfirmation(input, 'menu'),
 	);
 	const sidebarToggle = (
-		<WorkbenchSidebarToggle
-			isSidebarVisible={view.isSidebarVisible}
+		<WorkbenchColumnToggle
+			column='sidebar'
 			label={view.sidebarToggleLabel}
 			onToggle={view.toggleSidebar}
+			pressed={view.isSidebarVisible}
 			shortcutId={view.sidebarShortcutId}
 			shortcutLabel={view.sidebarShortcutLabel}
 			touch={view.touchSizes}
@@ -492,6 +505,7 @@ export function Workbench({
 		tabChrome = (
 			<WorkbenchTabBar
 				actionRuntime={actionRuntime}
+				atWindowEnd={fileBar.column === null}
 				newTabSections={view.newTabSections}
 				onNewTerminal={view.newTab}
 				onCloseTabs={view.onCloseTabs}
@@ -501,6 +515,7 @@ export function Workbench({
 				onSetTabTitle={view.setTabTitle}
 				onTabsChange={view.onTabsChange}
 				parentActionScope={view.actionScope}
+				reserveFileBarToggleSpace={fileBar.toggle !== null && fileBar.column === null}
 				reserveSidebarToggleSpace={view.sidebarPresentation !== 'docked'}
 				tabModel={terminalContext.tabModel}
 				statusAdornments={agentPresentation.tabStatusAdornments}
@@ -647,7 +662,7 @@ export function Workbench({
 			>
 				<ResizablePanelGroup
 					disableCursor
-					onLayoutChanged={view.onLayoutChanged}
+					onLayoutChanged={onLayoutChanged}
 					orientation='horizontal'
 					resizeTargetMinimumSize={WORKBENCH_RESIZE_TARGET_SIZE_PX}
 				>
@@ -726,20 +741,33 @@ export function Workbench({
 					</ResizablePanel>
 					{fileBar.column === null ? null : (
 						<>
-							<ResizableHandle className={styles['resizeHandle']} />
+							<ResizableHandle
+								className={styles['resizeHandle']}
+								onDoubleClick={fileBar.column.onDividerDoubleClick}
+								onKeyDown={fileBar.column.onDividerKeyDown}
+							/>
 							<ResizablePanel
-								id='file-bar'
+								id={fileBar.column.id}
 								defaultSize={fileBar.column.defaultSize}
 								minSize={fileBar.column.minSize}
 								maxSize={fileBar.column.maxSize}
 								groupResizeBehavior='preserve-pixel-size'
+								onResize={fileBar.column.onResize}
+								panelRef={fileBar.column.panelReference}
 							>
 								<aside
 									aria-label={fileBar.column.label}
 									className={styles['fileBarPanel']}
 									data-slot='file-bar'
+									ref={fileBar.column.elementReference}
 								>
-									{FileBarColumn === null ? null : <FileBarColumn />}
+									{FileBarColumn === null ? null : (
+										<FileBarColumn
+											activeView={fileBar.column.activeView}
+											onSelectView={fileBar.column.onSelectView}
+											viewFocusRequest={fileBar.column.viewFocusRequest}
+										/>
+									)}
 									{fileBar.column.failure === null ? null : (
 										<p className={styles['fileBarFailure']}>{fileBar.column.failure}</p>
 									)}
@@ -749,6 +777,21 @@ export function Workbench({
 					)}
 				</ResizablePanelGroup>
 			</div>
+			{/* The File Bar button floats over the top end of whichever chrome lies beneath it: the File
+			    Bar's toggles row while it is docked, else the Tab bar or the no-Workspace row. It follows
+			    the layout, so its no-drag region comes after the toggles row's drag region. */}
+			{fileBar.toggle === null ? null : (
+				<div className={styles['fileBarToggle']} data-slot='workbench-file-bar-toggle-position'>
+					<WorkbenchColumnToggle
+						column='file-bar'
+						label={fileBar.toggle.label}
+						onToggle={fileBar.toggle.onToggle}
+						pressed={fileBar.toggle.shown}
+						shortcutId={WORKBENCH_ACTION_IDS.toggleFileBar}
+						shortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleFileBar)}
+					/>
+				</div>
+			)}
 			{view.searchState.kind === 'closed' ? null : (
 				<WorkbenchSearchSurface
 					actionRuntime={actionRuntime}

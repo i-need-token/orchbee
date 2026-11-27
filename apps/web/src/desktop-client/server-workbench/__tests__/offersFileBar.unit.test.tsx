@@ -125,7 +125,9 @@ async function composeWindow(distribution: Distribution) {
 			.discover({ scope: windowScope(), source: 'command-surface' }, { includeDescendants: true })
 			.filter((result) => result.descriptor.id.startsWith(FILE_BAR_ACTION_PREFIX));
 	const toggleFileBar = async (): Promise<void> => {
-		const toggle = fileBarActions()[0];
+		const toggle = fileBarActions().find(
+			(action) => action.descriptor.id === 'workbench.file-bar.toggle',
+		);
 		if (toggle?.kind !== 'ready') throw new Error('Toggle File Bar takes no input.');
 		await React.act(async () => {
 			await actionRuntime.executePrepared(toggle.invocation).completion;
@@ -159,9 +161,9 @@ describe('the Desktop window composition', () => {
 		'offers the File Bar in a %s build and loads its views when it first shows',
 		async (distribution) => {
 			const composed = await composeWindow(distribution);
-			expect(composed.fileBarActions().map((action) => action.descriptor.id)).toEqual([
+			expect(composed.fileBarActions().map((action) => action.descriptor.id)).toContain(
 				'workbench.file-bar.toggle',
-			]);
+			);
 			// It starts hidden, so nothing of it renders and no file session starts until a person
 			// shows it.
 			expect(composed.container.querySelector('[data-slot="file-bar"]')).toBeNull();

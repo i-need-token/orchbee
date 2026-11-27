@@ -15,6 +15,13 @@
 	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
 }
 
+/* The File Bar button's fill and 8 px on each side, as the File Bar's toggles row keeps it. */
+.fileBarTogglePlace {
+	box-sizing: border-box;
+	height: 100%;
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
+}
+
 /* Empty unless a desktop window's controls stand at the top end. */
 .trailingActions {
 	box-sizing: border-box;

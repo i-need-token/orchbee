@@ -264,6 +264,8 @@ interface WorkbenchView {
 	readonly onLeftPanelResize: (size: ResizablePanelSize) => void;
 	/** Returns the sidebar to its default width. */
 	readonly resetSidebarWidth: () => void;
+	/** Lays the docked sidebar back at its own width after the panel group restored an older layout. */
+	readonly restoreSidebarWidth: () => void;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly returnToTerminal: () => void;
 	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
@@ -521,6 +523,9 @@ export function useWorkbench({
 		panel.resize(next);
 		leftPanelWidth.current = next;
 		writeWorkbenchLeftPanelWidth(storage, next);
+	});
+	const restoreSidebarWidth = useMemoizedFn(() => {
+		leftPanelReference.current?.resize(leftPanelWidth.current);
 	});
 	const [searchState, updateSearch] = React.useReducer(
 		transitionWorkbenchSearch,
@@ -1256,6 +1261,7 @@ export function useWorkbench({
 			leftPanelWidth.current = size.inPixels;
 		},
 		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
+		restoreSidebarWidth,
 		returnToTerminal,
 		onRootBlurCapture: focusRouting.onBlurCapture,
 		onRootFocusCapture: focusRouting.onFocusCapture,

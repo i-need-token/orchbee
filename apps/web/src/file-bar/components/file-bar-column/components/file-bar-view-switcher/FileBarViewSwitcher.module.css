@@ -1,0 +1,25 @@
+.root {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}
+
+.tab {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.tab:hover,
+.tab:focus-visible {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+/* The selected toggle is the current navigation item of the column. */
+.tab[aria-selected='true'] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.tab[aria-selected='true']:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
+}

@@ -161,12 +161,20 @@ The dialog keeps DOM focus in its combobox. Up and Down move `aria-activedescend
 The File Bar is unfinished, so only a development or test Desktop window offers it: the renderer
 passes `fileBarOffered` from its distribution, and a release window and a Web Client, which gets the
 Workbench's default, register none of its Actions, render none of it and read none of its storage.
-Where it is offered it starts hidden; Toggle File Bar (`workbench.file-bar.toggle`) docks it as a
-column after the terminal area, except in the mobile layout, which offers no Action for it yet. The
-Workbench owns that column, its visibility and its Actions; the File Bar's views reach it only
-through `loadFileBar()`, the `file-bar` module's only runtime export, which loads them as their
-own chunk the first time a window shows the column. A failed load says so inside the column and
-tries again the next time it shows. A shown column loads the [code editor](code-editor.md) at idle.
+Where it is offered it docks as a column after the terminal area, except in the mobile layout, which
+offers no Action or button for it yet. The Workbench owns that column, its width, visibility and
+active view, its button and its Actions, and keeps them in the `file-bar` module's layout record;
+the File Bar's views reach it only through `loadFileBar()`, which loads them as their own chunk the
+first time a window shows the column. A failed load says so inside the column and tries again the
+next time it shows. A shown column loads the [code editor](code-editor.md) at idle.
+
+The File Bar button floats at the window's top end over whichever chrome lies beneath it: the File
+Bar's toggles row while it is docked, else a reserve at the end of the horizontal Tab bar. Like the
+Sidebar button, it is one element in every state rather than one per row, so it keeps focus as it
+toggles. It follows the layout in the document because Electron folds app regions in document order
+and its no-drag region must come after the toggles row's drag region. Where Windows and Linux draw
+their caption buttons over the row, the button stands left of them and the File Bar's minimum width
+grows so that its toggles still fit.
 
 While the column shows, the Workbench holds the active Workspace's file session from its
 `fileSessionPort` input through a `FileSessionRegistry`, which opens a Workspace's session on its

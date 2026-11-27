@@ -5,7 +5,36 @@
 	min-height: 0;
 }
 
+/* The toggles start 8 px in, as the Sidebar button does at the other edge. */
 .togglesRow {
+	display: flex;
 	flex: none;
+	align-items: center;
 	height: var(--ob-comp-workbench-horizontal-chrome-height);
+	padding-inline-start: var(--ob-ref-space-2);
+}
+
+/* The File Bar toggle's fill and 8 px on each side, as the Tab bar reserves it while the File Bar
+   is hidden. */
+.fileBarTogglePlace {
+	flex: none;
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-4));
+	height: 100%;
+	margin-inline-start: auto;
+}
+
+/* Empty unless a desktop window's caption buttons stand at the top end. */
+.windowControlsPlace {
+	flex: none;
+	height: 100%;
+}
+
+.view {
+	min-height: 0;
+	flex: 1;
+	outline: none;
+}
+
+.view:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }

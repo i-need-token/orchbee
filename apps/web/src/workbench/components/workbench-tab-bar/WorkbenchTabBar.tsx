@@ -25,6 +25,11 @@ import styles from './WorkbenchTabBar.module.css';
 
 interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
+	/**
+	 * Whether the bar reaches the window's top end, where a desktop window's own controls may draw over
+	 * it. A docked File Bar takes that end instead.
+	 */
+	readonly atWindowEnd?: boolean | undefined;
 	readonly parentActionScope: ActionScope;
 	readonly newTabSections?: readonly TabStripNewTabSection[] | undefined;
 	readonly onNewTerminal: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
@@ -43,6 +48,8 @@ interface WorkbenchTabBarProps {
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
+	/** Keeps a place at the end for the File Bar button, which floats over it while the File Bar hides. */
+	readonly reserveFileBarToggleSpace?: boolean | undefined;
 	readonly reserveSidebarToggleSpace: boolean;
 	readonly tabIdentityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	readonly tabModel: TabModel;
@@ -54,6 +61,7 @@ interface WorkbenchTabBarProps {
 
 export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 	actionRuntime,
+	atWindowEnd = true,
 	fill = false,
 	newTabSections,
 	onNewTerminal,
@@ -65,6 +73,7 @@ export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 	onSetTabTitle,
 	onTabsChange,
 	parentActionScope,
+	reserveFileBarToggleSpace = false,
 	reserveSidebarToggleSpace,
 	tabIdentityIcons,
 	tabModel,
@@ -87,9 +96,26 @@ export const WorkbenchTabBar = memo(function WorkbenchTabBar({
 				<TabStrip
 					actionRuntime={actionRuntime}
 					focusRequest={focusRequest}
-					// A desktop window's own controls at the top end, where they draw over the page.
+					// The File Bar button's place, then a desktop window's own controls at the top end, where
+					// they draw over the page.
 					horizontalTrailingActions={
-						<div className={styles['trailingActions']} data-slot='workbench-tab-bar-trailing' />
+						reserveFileBarToggleSpace || atWindowEnd ? (
+							<>
+								{reserveFileBarToggleSpace ? (
+									<div
+										className={styles['fileBarTogglePlace']}
+										data-file-bar-toggle-place=''
+										data-slot='workbench-tab-bar-file-bar-toggle-place'
+									/>
+								) : null}
+								{atWindowEnd ? (
+									<div
+										className={styles['trailingActions']}
+										data-slot='workbench-tab-bar-trailing'
+									/>
+								) : null}
+							</>
+						) : null
 					}
 					horizontalLeadingActions={
 						reserveSidebarToggleSpace ? (

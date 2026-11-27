@@ -65,6 +65,17 @@ button.statusNoticeText {
 	z-index: var(--ob-ref-layer-raised);
 }
 
+/* The File Bar button stands at the top end as the sidebar button stands at the start. It stays under
+   the overlay sidebar's scrim, which takes the click that closes the overlay. */
+.fileBarToggle {
+	position: absolute;
+	inset-block-start: calc(
+		(var(--ob-comp-workbench-horizontal-chrome-height) - var(--ob-ref-size-control-sm)) / 2
+	);
+	inset-inline-end: var(--ob-ref-space-2);
+	z-index: var(--ob-ref-layer-base);
+}
+
 .confirmationContent {
 	font: var(--ob-sys-typography-body-sm);
 }

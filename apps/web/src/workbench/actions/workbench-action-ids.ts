@@ -85,6 +85,8 @@ export const WORKBENCH_ACTION_IDS = {
 	selectNextTab: 'workbench.tab.select-next',
 	selectPreviousTab: 'workbench.tab.select-previous',
 	selectTabByPosition: 'workbench.tab.select-by-position',
+	showExplorer: 'workbench.file-bar.show-explorer',
+	showSourceControl: 'workbench.file-bar.show-source-control',
 	closeActiveTerminal: 'workbench.terminal.active.close',
 	splitActivePanelAbove: 'workbench.panel.active.split-above',
 	splitActivePanelBelow: 'workbench.panel.active.split-below',
@@ -341,6 +343,8 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
+	readonly [WORKBENCH_ACTION_IDS.showExplorer]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.showSourceControl]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeActiveTerminal]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelAbove]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.splitActivePanelBelow]: ActionSignature<WorkbenchAgentStartOption>;

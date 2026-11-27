@@ -7,14 +7,15 @@
 /* Electron folds the app regions in document order, each drag region adding its box and each
    no-drag region removing its own, so a drag region later in the document covers an earlier
    control. Each drag region therefore precedes every control that sits over it: a control inside
-   a drag region follows it, the sidebar button's place in the chrome beneath it is no-drag after
-   that chrome's drag region, and a covered layout, which follows the surfaces over it, claims no
-   region. */
+   a drag region follows it, the sidebar and File Bar buttons' places in the chrome beneath them are
+   no-drag after that chrome's drag region, the File Bar button follows the layout whose toggles row
+   it covers, and a covered layout, which follows the surfaces over it, claims no region. */
 .root
 	:global(
 		:is(
 			[data-slot='workbench-window-drag-region'],
 			[data-slot='workbench-tab-bar'][data-orientation='horizontal'],
+			[data-slot='file-bar-toggles-row'],
 			[data-slot='workbench-mobile-bar'],
 			[data-slot='workbench-tab-list'][data-open] [data-slot='workbench-tab-list-band']
 		):not([data-covered] *)
@@ -28,9 +29,12 @@
 		:is(
 			[data-slot='workbench-sidebar-toggle-position'],
 			[data-sidebar-toggle-place],
+			[data-slot='workbench-file-bar-toggle-position'],
+			[data-file-bar-toggle-place],
 			[data-slot='workbench-sidebar-scrim'],
 			[data-slot='workbench-tab-bar'][data-orientation='horizontal']
 				:is([data-tab-id], [data-group-id], button),
+			[data-slot='file-bar-toggles-row'] button,
 			[data-slot='workbench-mobile-bar'] button,
 			[data-slot='workbench-tab-list-band'] button
 		):not([data-covered] *)
@@ -69,6 +73,16 @@
 	);
 }
 
+/* The File Bar button stands 12 px from the window's end, as the traffic lights stand 12 px from its
+   start. */
+.root[data-window-controls='leading'] :global([data-slot='workbench-file-bar-toggle-position']) {
+	inset-inline-end: var(--ob-ref-space-3);
+}
+
+.root[data-window-controls='leading'] :global([data-file-bar-toggle-place]) {
+	width: calc(var(--ob-ref-space-2) + var(--ob-ref-size-control-sm) + var(--ob-ref-space-3));
+}
+
 /* The mobile bar's start never yields the traffic lights or the sidebar button's place. */
 .root[data-window-controls='leading'] :global([data-slot='workbench-mobile-bar-start']) {
 	min-width: calc(
@@ -99,13 +113,22 @@
 	);
 }
 
-/* Windows draws its caption buttons over the page's top end: the horizontal Tab bar, the mobile bar
-   and the Tab list keep clear what the window leaves past its title-bar area. */
+/* Windows draws its caption buttons over the page's top end: the horizontal Tab bar, the File Bar's
+   toggles row, the mobile bar and the Tab list keep clear what the window leaves past its title-bar
+   area, and the File Bar button stands left of it. */
 .root[data-window-controls='trailing'] :global([data-slot='workbench-tab-bar-trailing']),
+.root[data-window-controls='trailing'] :global([data-slot='file-bar-window-controls-place']),
 .root[data-window-controls='trailing'] :global([data-slot='workbench-mobile-bar-trailing']),
 .root[data-window-controls='trailing'] :global([data-slot='workbench-tab-list-trailing']) {
 	width: calc(
 		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width)
+	);
+}
+
+.root[data-window-controls='trailing'] :global([data-slot='workbench-file-bar-toggle-position']) {
+	inset-inline-end: calc(
+		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width) +
+			var(--ob-ref-space-2)
 	);
 }
 

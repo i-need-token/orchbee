@@ -71,6 +71,10 @@
 	composes: codicon-ellipsis from global;
 }
 
+.files {
+	composes: codicon-files from global;
+}
+
 .folder {
 	composes: codicon-folder from global;
 }
@@ -157,6 +161,18 @@
 
 .sidebarLeft {
 	composes: codicon-layout-sidebar-left from global;
+}
+
+.sidebarRight {
+	composes: codicon-layout-sidebar-right from global;
+}
+
+.sidebarRightOff {
+	composes: codicon-layout-sidebar-right-off from global;
+}
+
+.sourceControl {
+	composes: codicon-source-control from global;
 }
 
 .splitDown {
