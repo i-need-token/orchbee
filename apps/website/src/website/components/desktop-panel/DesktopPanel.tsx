@@ -44,7 +44,7 @@ export function DesktopPanel({
 					className={state === undefined ? styles['titleGroup'] : styles['titleGroupWithGlyph']}
 				>
 					{state === undefined ? null : (
-						<StateGlyph state={state} selected={focus} bind={bind?.state} product='small' />
+						<StateGlyph state={state} bind={bind?.state} product='small' />
 					)}
 					<span className={styles['title']} data-scene-text={bind?.title}>
 						{title}

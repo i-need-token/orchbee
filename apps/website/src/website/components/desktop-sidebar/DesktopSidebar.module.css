@@ -150,36 +150,29 @@
 .behind {
 	color: var(--ob-sys-color-status-warning-text);
 }
-/* An Agent row's glyph stands in its Workspace's folder column and its title aligns with the name;
-   a 1 px guide runs down the gutter before the glyphs. No Agent takes a current fill: the current
-   Agent has a 2 px stretch of the guide in the selection accent, a solid glyph and a heavier
-   title. */
+/* One level in: an Agent row's glyph starts at its Workspace name's edge, the hexagon's 2 px inset
+   taken back, and a 1 px guide runs down under the Workspace's folder center, from 2 px inside the
+   first row to 2 px inside the last. */
 .agent {
 	position: relative;
 	display: grid;
 	grid-template-columns: var(--ob-ref-size-icon-sm) minmax(0, 1fr) auto;
 	column-gap: var(--ob-ref-space-1-5);
 	height: var(--ob-ref-size-control-sm);
-	padding: 0 var(--ob-ref-space-2);
+	padding: 0 var(--ob-ref-space-2) 0
+		calc(
+			var(--ob-ref-space-2) + var(--ob-ref-size-icon-sm) + var(--ob-ref-space-1-5) -
+				var(--ob-ref-space-0-5)
+		);
 	border-radius: var(--ob-ref-radius-ui-md);
 	color: var(--ob-sys-color-text-muted);
-}
-.agent[data-current] {
-	color: var(--ob-sys-color-text-primary);
-}
-.agent[data-current]::after {
-	position: absolute;
-	inset-block: var(--ob-ref-space-1);
-	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-strong) / 2);
-	width: var(--ob-ref-border-width-strong);
-	border-radius: var(--ob-ref-radius-full);
-	background: var(--ob-sys-color-border-selected);
-	content: '';
 }
 .agent::before {
 	position: absolute;
 	inset-block: calc(var(--ob-ref-space-0-5) / -2);
-	inset-inline-start: calc(var(--ob-ref-space-1) - var(--ob-ref-border-width-default) / 2);
+	inset-inline-start: calc(
+		var(--ob-ref-space-2) + var(--ob-ref-size-icon-sm) / 2 - var(--ob-ref-border-width-default) / 2
+	);
 	width: var(--ob-ref-border-width-default);
 	background: var(--ob-sys-color-border-subtle);
 	content: '';
@@ -206,10 +199,7 @@
 .title {
 	flex: 0 1 auto;
 }
-.agent[data-current] .title {
-	font: var(--ob-sys-typography-label-sm-strong);
-}
-/* The provider stays whole while the title truncates first. */
+/* A product without a mark is named after the title, whole while the title truncates first. */
 .provider {
 	flex: 0 0 auto;
 	max-width: 70%;
@@ -218,6 +208,13 @@
 .provider::before {
 	padding-inline: var(--ob-ref-space-1);
 	content: '·';
+}
+/* The row's end: the unread dot, then the product mark. The marks line up down the list, whether or
+   not a row has the dot. */
+.end {
+	display: flex;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
 }
 .unread {
 	margin-inline: calc(var(--ob-ref-space-1) * -1);

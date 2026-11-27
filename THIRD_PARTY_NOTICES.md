@@ -384,7 +384,7 @@ Codicons is licensed separately from Orchbee. The upstream copyright and license
 - Source: <https://github.com/lobehub/lobe-icons>
 - Package and revision: `@lobehub/icons-static-svg@1.94.0`, `fbd2d56e3f734e889f1373e71c8368cc4e60e0d7`
 - License: MIT
-- Use in Orchbee: adapted SVG path data for the Amp, Antigravity, Claude Code, Cline, CodeBuddy, Codex, Cursor, Devin, Gemini CLI, GitHub Copilot, Grok, Hermes Agent, Kilo, Kimi, Kiro, MastraCode, MiMo Code, MiniMax Code, OpenClaw, OpenCode, Pi, Qoder CLI, and Qwen Code Agent identity icons, plus the Huawei and Meta marks for DevEco Code and Muse Code
+- Use in Orchbee: adapted SVG path data for the Amp, Antigravity, Claude Code, Cline, CodeBuddy, Codex, Cursor, Devin, Gemini CLI, GitHub Copilot, Grok, Hermes Agent, Kilo, Kimi, Kiro, MastraCode, MiMo Code, MiniMax Code, OpenClaw, OpenCode, Pi, Qoder CLI, and Qwen Code Agent identity icons, plus the Huawei and Meta marks for DevEco Code and Muse Code; the website's drawings of the desktop application use the Claude Code, Codex, and OpenCode icons
 
 The product names and trademarks represented by these icons remain the property of their respective owners. Their descriptive use does not imply endorsement.
 

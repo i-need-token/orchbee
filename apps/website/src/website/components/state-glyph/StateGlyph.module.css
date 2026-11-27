@@ -33,10 +33,10 @@
 .glyph[data-state='failed'] {
 	color: var(--ob-sys-color-website-state-failed);
 }
-.glyph[data-fill='hollow'] .fill {
+.glyph[data-state='idle'] .fill {
 	display: none;
 }
-.glyph[data-fill='hollow'] .ring {
+.glyph[data-state='idle'] .ring {
 	display: inline;
 }
 /* In a drawn desktop application the glyph takes the product's icon size and status colors. */

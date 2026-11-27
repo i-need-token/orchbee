@@ -1,0 +1,17 @@
+/* The product's mark box: a 16 px cell with the mark drawn at 14 px inside it, in primary text where
+   a mark takes the text color. It is quieter than the title, as the product draws it on an Agent
+   that is neither current nor under the pointer; the drawings make no Agent current. */
+.mark {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	width: var(--ob-ref-size-icon-md);
+	height: var(--ob-ref-size-icon-md);
+	color: var(--ob-sys-color-text-primary);
+	opacity: var(--ob-sys-opacity-muted);
+}
+.mark > svg {
+	width: var(--ob-ref-size-icon-sm);
+	height: var(--ob-ref-size-icon-sm);
+}

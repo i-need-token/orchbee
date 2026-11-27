@@ -31,9 +31,7 @@ export function TuiPanel({
 		<div className={styles['cell']} data-focus={focus ? '' : undefined} data-leaf={leaf}>
 			<div className={styles['panel']}>
 				<header className={styles['header']}>
-					{state === undefined ? null : (
-						<StateGlyph state={state} selected={focus} bind={bind?.state} />
-					)}
+					{state === undefined ? null : <StateGlyph state={state} bind={bind?.state} />}
 					<span data-scene-text={bind?.title}>{title}</span>
 				</header>
 				<TerminalText rows={rows} host='panel' bind={bind?.rows} />

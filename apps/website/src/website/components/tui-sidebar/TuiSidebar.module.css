@@ -30,11 +30,11 @@
 .selectedWorkspace {
 	background: var(--ob-comp-website-terminal-row-selection);
 }
-/* A Workspace's disclosure stands in its Agents' state column, one cell in, and its name and branch
-   in their title column. */
-.workspace,
-.selectedWorkspace {
-	padding-left: calc(var(--ob-ref-length-website-12) + var(--ob-ref-length-website-1ch));
+/* A Workspace's disclosure, or its mark, takes the list edge, quiet at rest; its name and branch
+   follow a cell after it. Only the selected Workspace's name is primary text. */
+.workspace .name,
+.disclosure {
+	color: var(--ob-comp-website-terminal-dim);
 }
 .identity {
 	display: flex;
@@ -48,31 +48,26 @@
 	padding-left: calc(2 * var(--ob-ref-length-website-1ch));
 	color: var(--ob-comp-website-terminal-dim);
 }
-/* The guide runs down the list edge, a cell before the state column. */
+/* Agents sit one level in: the guide under their Workspace's disclosure, the state glyph in its
+   name's column. A blank line closes the list before the next Workspace. */
+.agents:not(:last-child) {
+	margin-bottom: 1lh;
+}
 .agent {
 	display: flex;
 	align-items: center;
 	gap: var(--ob-ref-length-website-1ch);
-	padding: 0 var(--ob-ref-length-website-12) 0
-		calc(var(--ob-ref-length-website-12) - var(--ob-ref-length-website-1ch));
+	padding: 0 var(--ob-ref-length-website-12);
 	white-space: nowrap;
 }
 .guide {
 	flex: none;
 	color: var(--ob-comp-website-terminal-line);
 }
-.agent[data-current] .guide {
-	color: var(--ob-comp-website-terminal-ansi-12);
-}
-/* Agent rows take no current fill: the current Agent's title is bold and every other one dim. */
 .title {
 	overflow: hidden;
 	color: var(--ob-comp-website-terminal-dim);
 	text-overflow: ellipsis;
-}
-.agent[data-current] .title {
-	color: var(--ob-comp-website-terminal-bold);
-	font: var(--ob-sys-typography-website-terminal-strong);
 }
 .provider {
 	flex: none;
@@ -82,13 +77,9 @@
 	margin-left: auto;
 	color: var(--ob-comp-website-terminal-ansi-12);
 }
-/* The mini layout drops the provider names; the upright duo window sets smaller text, and the
-   current title keeps to it. */
+/* The mini layout drops the provider names. */
 @container window-fit (max-width: 48rem) {
 	[data-size='full'] .provider {
 		display: none;
-	}
-	[data-size='duo'] .agent[data-current] .title {
-		font: var(--ob-sys-typography-website-terminal-compact-strong);
 	}
 }

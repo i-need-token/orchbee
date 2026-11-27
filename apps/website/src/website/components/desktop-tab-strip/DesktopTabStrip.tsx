@@ -29,7 +29,7 @@ export function DesktopTabStrip({
 					{state === undefined ? (
 						<Codicon name='terminal' />
 					) : (
-						<StateGlyph state={state} selected bind={bind?.state} product='small' />
+						<StateGlyph state={state} bind={bind?.state} product='small' />
 					)}
 				</span>
 				<span className={styles['title']}>{title}</span>

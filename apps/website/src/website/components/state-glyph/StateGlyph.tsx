@@ -7,21 +7,19 @@ import styles from './StateGlyph.module.css';
 export type AgentState = 'working' | 'attention' | 'done' | 'failed' | 'idle';
 
 /**
- * The product's hexagon status glyph: its color names the state, and it is solid for the current
- * Agent, the selected Tab or the focused Panel (`selected`) and hollow everywhere else, legends
- * included. Working breathes slowly and attention quickly. `bind` names the scene state that
- * script writes into `data-state`. Inside a drawn desktop application, `product` draws it at the
- * product's icon size (`regular`, or `small` in Tabs and Panel headers) in the product's status
- * colors, which follow the window's appearance.
+ * The product's hexagon status glyph: its color names the state and its shape whether the Agent is
+ * at rest, hollow while idle and solid otherwise, wherever it stands and whatever is selected.
+ * Working breathes slowly and attention quickly. `bind` names the scene state that script writes
+ * into `data-state`, which sets the shape too. Inside a drawn desktop application, `product` draws
+ * it at the product's icon size (`regular`, or `small` in Tabs and Panel headers) in the product's
+ * status colors, which follow the window's appearance.
  */
 export function StateGlyph({
 	state,
-	selected = false,
 	bind,
 	product,
 }: {
 	state: AgentState;
-	selected?: boolean;
 	bind?: string | undefined;
 	product?: 'regular' | 'small';
 }): ReactElement {
@@ -34,7 +32,6 @@ export function StateGlyph({
 			)}
 			viewBox='0 0 14 14'
 			data-state={state}
-			data-fill={selected ? 'solid' : 'hollow'}
 			data-scene-state={bind}
 			aria-hidden='true'
 		>
