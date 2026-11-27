@@ -235,11 +235,16 @@ disk image `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz`, the window archiv
 application's `Info.plist` name it as their minimum, whatever release the runner has. A Linux row
 builds on a runner of its own architecture with `--platform linux-<cpu>`, which links every program
 statically against musl, so the cohort runs on any distribution; its directory holds what a macOS
-directory holds. It ships no window yet: `release-artifacts.mjs collect --release-directory` makes
-the `.tar.gz`, the feed document without a window archive, and the platform package
-`@orchbee/cli-linux-<cpu>` from the signed release directory, and `release-smoke-linux.mjs` proves
-the archive, install.sh and npm routes. Both Linux rows build, so every rehearsal and candidate
-proves them, and publish nothing yet. A platform row is published only after a rehearsal in which
+directory holds. The row's package job then builds the window around the signed cohort, with the
+AppImage `Orchbee-<version>-linux-<cpu>.AppImage` and the Debian package
+`Orchbee-<version>-linux-<cpu>.deb`; the AppImage starts with a runtime the job builds in Docker
+from the AppImage/type2-runtime commit `TYPE2_RUNTIME_COMMIT` pins, so moving that pin is a release
+change like any other. `collect` adds the `.tar.gz`, the window archive
+`orchbee-desktop-<version>-linux-<cpu>.tar.gz`, the feed document and the platform package
+`@orchbee/cli-linux-<cpu>`. `release-smoke-linux.mjs` proves the archive, install.sh with
+`--desktop`, the two packages' contents and the npm route, and its `window-update` step presses
+Update in a real Test window on a virtual display. Both Linux rows build, so every rehearsal and
+candidate proves them, and publish nothing yet. A platform row is published only after a rehearsal in which
 its build, package, smoke and join jobs passed; then set `"publish": true` on its row of
 `RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
 

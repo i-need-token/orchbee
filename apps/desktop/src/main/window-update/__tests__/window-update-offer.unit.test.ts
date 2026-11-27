@@ -74,6 +74,32 @@ describe('locateWindowDesktopRoot', () => {
 	});
 });
 
+describe('locateWindowDesktopRoot on Linux', () => {
+	const store = '/home/a/.local/share/orchbee';
+	const locateLinux = (executablePath: string) =>
+		locateWindowDesktopRoot({
+			development: false,
+			executablePath,
+			ownVersion: '0.2.0',
+			platform: 'linux',
+			storeRoot: store,
+		});
+
+	// The AppImage and the Debian package relaunch through the store's entry.
+	it('reads its own version folder’s desktop, or the store’s from outside the store', () => {
+		expect(locateLinux('/opt/orchbee/orchbee-desktop')).toBe(`${store}/desktop`);
+		expect(locateLinux(`${store}/desktop/versions/0.2.0/orchbee-desktop`)).toBe(`${store}/desktop`);
+		expect(locateLinux('/srv/o/desktop/versions/0.2.0/orchbee-desktop')).toBe('/srv/o/desktop');
+		expect(locateLinux('/tmp/.mount_Orchbe1/orchbee-desktop')).toBe(`${store}/desktop`);
+	});
+
+	it('never offers from another place inside the store’s desktop', () => {
+		expect(locateLinux(`${store}/desktop/versions/0.1.0/orchbee-desktop`)).toBeNull();
+		expect(locateLinux(`${store}/desktop/orchbee-desktop`)).toBeNull();
+		expect(locateLinux('orchbee-desktop')).toBeNull();
+	});
+});
+
 describe('resolvePosixReleaseStoreRoot', () => {
 	it('follows the Client’s rule and refuses what it refuses', () => {
 		expect(resolvePosixReleaseStoreRoot({ HOME: '/Users/a' }, 'orchbee')).toBe(STORE);

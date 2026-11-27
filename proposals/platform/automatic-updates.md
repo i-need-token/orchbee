@@ -622,8 +622,8 @@ Citations name today's code; `orchbee.iss` is `apps/desktop/installer/windows/or
   The window's bundled Client hands its Session start to the store as on Windows, so the swap
   changes no program the Session starts later; with no active version it first installs its own,
   as Setup would. The macOS window archive, its file list, the window
-  part and install.sh follow in [macOS window versions](#macos-window-versions). Linux follows when
-  it ships.
+  part and install.sh follow in [macOS window versions](#macos-window-versions), and Linux in
+  [Linux window versions](#linux-window-versions).
 
 ### Window archive and file list
 
@@ -894,6 +894,43 @@ unpacking, and a bundle the launcher swaps at the click.
   archive reader would split by platform; the code signature in place of the list, because a stored
   version must stay checkable against the signed feed without Apple's certificate chain, which an ad
   hoc signature lacks.
+
+### Linux window versions
+
+Chosen, the packages and their sandbox decided 2026-11-26 by the product owner: the Windows layout
+with the macOS list's modes, and the AppImage and the `.deb` in the disk image's part.
+
+- A window version folder holds the packaged application with `desktop-files.json` at its root, as
+  on Windows; a file its owner may run carries `"executable": true`, as on macOS. The application
+  has no links.
+- The window archive is `<stem>-desktop-<version>-linux-<arch>.tar.gz`, which the system tar reads
+  where no unzip may be installed; it records 0755 where the list marks a file executable and 0644
+  otherwise. `extensions.desktop` names it with format `tar.gz`.
+- The window part installs it with the Windows part's locks, stage, checks and pointer, executables
+  0700 and every other file 0600. The arrangement places the entry `desktop/<stem>-desktop`, a copy
+  of the version's window launcher renamed over the old one, which a running launcher never
+  prevents; then, for the default store root, the person's menu entry
+  `~/.local/share/applications/<stem>.desktop` naming that entry and its icons, both from the
+  version's `resources/linux/`. Window versions go as on Windows, their processes found through
+  `/proc`.
+- The launcher starts the active version as on Windows. Where unprivileged user namespaces are
+  restricted, as Ubuntu 23.10 and later restrict them, it adds `--no-sandbox`, because no AppArmor
+  profile can name a program in the person's home folder.
+- install.sh `--desktop` unpacks the window archive, has its bundled Client run
+  `--installer-window`, and points the person to the application menu.
+- The AppImage and the `.deb` play the disk image's part: the window's bundled Client installs its
+  release directory into the store at a Session start while the store has no active version or a
+  lower one, and later window versions arrive through `update`. The window outside the store offers
+  Update, which relaunches through the store's entry; from then on the person's menu entry, which
+  shares the `.deb`'s file name and comes first in the XDG search order, opens the store's window.
+- The `.deb` keeps Chromium's sandbox: it installs an AppArmor profile for
+  `/opt/<stem>/<stem>-desktop` where `apparmor_parser` accepts it, and makes `chrome-sandbox`
+  setuid root only where user namespaces are disabled outright. The AppImage adds `--no-sandbox`
+  only where they are restricted. Its runtime is built from a pinned AppImage/type2-runtime commit,
+  since that project publishes rolling builds only.
+- Rejected: electron-builder, a new dependency for two packages that `mksquashfs` and `dpkg-deb`
+  build from the packaged application; a zip window archive, which needs a program a Linux system
+  may lack.
 
 ### Taskbar and Jump List
 

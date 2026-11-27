@@ -2,17 +2,15 @@
 // checks such a directory after it has been moved, as the release workflow does between runners.
 //
 //   node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory>
-//     [--repository-url https://<host>/<owner>/<name>] [--release-directory <absolute directory>]
+//     [--repository-url https://<host>/<owner>/<name>]
 //   node scripts/release-artifacts.mjs check <directory>
 //   node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...
 //
-// `collect` runs on Windows or macOS and reads what `pnpm desktop:installer:<profile>` (on macOS,
-// `apps/desktop/scripts/package.mjs --installer`) left under apps/desktop/out/<profile>/: the
-// packaged application with its window file list (on macOS beside the bundle), its bundled runtime,
-// which that build made a signed release directory, and the installer. On Linux, which ships no
-// window yet, `--release-directory` names the signed release directory instead, and there is no
-// installer or window archive. `<platform>` is the signed manifest's. It writes, without signing
-// the release directory again:
+// `collect` runs on the platform it collects and reads what `pnpm desktop:installer:<profile>` (on
+// macOS and Linux, `apps/desktop/scripts/package.mjs --installer`) left under
+// apps/desktop/out/<profile>/: the packaged application with its window file list (on macOS beside
+// the bundle), its bundled runtime, which that build made a signed release directory, and the
+// installers. `<platform>` is the signed manifest's. It writes, without signing the release directory again:
 //
 //   <stem>-<version>-<platform>/   the signed release directory, every file checked against release.json
 //   <stem>-<version>-<platform>.zip  Windows: that directory as one top-level folder, for the command
@@ -23,13 +21,16 @@
 //   <stem>-desktop-<version>-<platform>.zip  the window archive (scripts/desktop-files.mjs): one
 //                                  top-level folder of that name holding the packaged application
 //                                  and its `desktop-files.json`; on macOS just the list and the
-//                                  signed bundle, links and modes kept
+//                                  signed bundle, links and modes kept; on Linux a `.tar.gz` whose
+//                                  files record 0755 where the list marks them executable and 0644
+//                                  otherwise
 //   <stem>-<version>-<platform>.feed.json  the update feed document naming the runtime archive and,
 //                                  in `extensions.desktop`, the window archive
 //                                  (scripts/release-feed.mjs)
 //   <stem>-<version>-<platform>.feed.json.sig  test profile only: its signature with the test key;
 //                                  the release path's feed job signs with the release key
 //   <setup name>.exe | <name>.dmg  the installer: Setup on Windows, the disk image on macOS
+//   <name>.AppImage, <name>.deb    the Linux installers
 //   <npm tarballs>                 the folders of scripts/package-npm.mjs, packed by `npm pack`
 //   SHA256SUMS                     `<64 hex>  <name>` and LF for every other top-level file except the
 //                                  feed signature, in name order
@@ -44,8 +45,8 @@
 // reader's rules and matches its archive and release directory. A feed's `extensions.desktop`
 // must name the window archive of the feed's version beside it, by the same kind of address as the
 // runtime archive, and that archive must hold one top-level folder whose list matches the entry's
-// digest and names exactly the folder's other files (on macOS also its links and execute bits), the
-// bundled `release.json` being the feed's own. A feed signature, which SHA256SUMS
+// digest and names exactly the folder's other files (on Linux also their execute bits, on macOS
+// also its links and execute bits), the bundled `release.json` being the feed's own. A feed signature, which SHA256SUMS
 // does not list, must verify with a key of the build's table: RELEASE_KEYS for the release stem,
 // TEST_KEYS otherwise. The release gate's copy of the feed, `<...>.gate.feed.json` with its `.sig`,
 // placed beside the archive after the feed job, is not listed either: it must carry its signature
@@ -87,12 +88,14 @@ import {
 	DESKTOP_FILES,
 	checkDesktopArchive,
 	desktopReleaseName,
+	desktopRules,
 	readDesktopFiles,
 } from './desktop-files.mjs';
 import { copyRelease, describeRelease, packageNpm, readRelease } from './package-npm.mjs';
 import {
 	GATE_FEED_SUFFIX,
 	archiveFormat,
+	desktopArchiveFormat,
 	desktopProblems,
 	feedDocument,
 	feedName,
@@ -124,10 +127,13 @@ const checksumLine = /^([0-9a-f]{64}) {2}([^/\\\r\n]+)$/u;
 const tarGzipSuffix = '.tar.gz';
 // The npm platform packages whose programs must stay executable, as `npm pack` names them.
 const posixNpmPackage = /-cli-(?:darwin|linux)-(?:arm64|x64)-[^/\\]+\.tgz$/u;
+// A Linux window archive, which checkFeed checks against the feed that names it rather than as a
+// release archive.
+const windowTarGzip = /-desktop-[^/\\]+\.tar\.gz$/u;
 const npmRelease = 'package/release/';
 const npmManifest = 'package/package.json';
 const usage =
-	'Usage: node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory> [--repository-url https://<host>/<owner>/<name>] [--release-directory <absolute directory>]\n' +
+	'Usage: node scripts/release-artifacts.mjs collect --profile <test|release> --output <absolute new directory> [--repository-url https://<host>/<owner>/<name>]\n' +
 	'       node scripts/release-artifacts.mjs check <directory>\n' +
 	'       node scripts/release-artifacts.mjs join --output <absolute new directory> <directory>...';
 
@@ -162,12 +168,12 @@ function manifestVersion(directory) {
  * The bytes of the window list apps/desktop/scripts/package.mjs wrote into the packaged
  * application, after checking it names `version`; the archive check confirms it against the files.
  */
-function readWindowList(application, version, macos) {
+function readWindowList(application, version, rules) {
 	const filename = path.join(application, DESKTOP_FILES);
 	if (!existsSync(filename))
 		throw new Error(`${application} holds no ${DESKTOP_FILES}; package it again on this commit`);
 	const bytes = readFileSync(filename);
-	const { list, problems } = readDesktopFiles(bytes, { macos });
+	const { list, problems } = readDesktopFiles(bytes, { rules });
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	if (list.version !== version)
 		throw new Error(`${DESKTOP_FILES} names version ${list.version}, not ${version}`);
@@ -244,6 +250,35 @@ function archiveTarGzip(directory, release, archive) {
 		} else throw new Error(`${filename} is neither a file nor a directory`);
 	}
 	writeFileSync(archive, tarGzip(entries), { flag: 'wx' });
+}
+
+/**
+ * Writes the Linux window archive `<output>/<name>.tar.gz`: the packaged application `application`
+ * as one top-level folder `name`, each file recording 0755 when `list` marks it executable and 0644
+ * otherwise, so the archive carries the list's modes whatever the copy on disk says.
+ */
+function archiveLinuxWindow(application, output, name, list) {
+	const archive = path.join(output, `${name}.tar.gz`);
+	const runnable = new Set(list.files.filter((file) => file.executable).map((file) => file.path));
+	const entries = [
+		{ path: name, directory: true, mode: 0o755, mtime: seconds(lstatSync(application)) },
+	];
+	const found = readdirSync(application, { recursive: true, withFileTypes: true })
+		.map((entry) => path.relative(application, path.join(entry.parentPath, entry.name)))
+		.map((relative) => relative.split(path.sep).join('/'))
+		.toSorted(byName);
+	for (const relative of found) {
+		const filename = path.join(application, ...relative.split('/'));
+		const metadata = lstatSync(filename);
+		const entry = { path: `${name}/${relative}`, mtime: seconds(metadata) };
+		if (metadata.isDirectory()) entries.push({ ...entry, directory: true, mode: 0o755 });
+		else if (metadata.isFile()) {
+			const mode = runnable.has(relative) ? 0o755 : 0o644;
+			entries.push({ ...entry, mode, bytes: readFileSync(filename) });
+		} else throw new Error(`${filename} is neither a file nor a directory`);
+	}
+	writeFileSync(archive, tarGzip(entries), { flag: 'wx' });
+	return archive;
 }
 
 /**
@@ -416,13 +451,13 @@ function checkArchive(directory, member, archiveName, label, releaseTag) {
  */
 function checkWindow(directory, feed, stem, releaseTag) {
 	const { desktop } = feed.extensions;
-	const entryProblems = desktopProblems(desktop);
+	const entryProblems = desktopProblems(desktop, feed.platform);
 	if (entryProblems.length > 0) return entryProblems;
 	// The tooling writes the window of the feed's own version; an earlier one is not beside it.
 	if (desktop.version !== feed.version)
 		return [`extensions.desktop.version is ${desktop.version}, not ${feed.version}`];
 	const folder = desktopReleaseName(stem, desktop.version, feed.platform);
-	const archiveName = `${folder}.zip`;
+	const archiveName = `${folder}.${desktopArchiveFormat(feed.platform)}`;
 	const { bytes, problems } = checkArchive(
 		directory,
 		desktop.archive,
@@ -431,8 +466,9 @@ function checkWindow(directory, feed, stem, releaseTag) {
 		releaseTag,
 	);
 	if (bytes === undefined) return problems;
-	const macos = feed.platform.startsWith('macos-');
-	const window = checkDesktopArchive(bytes, folder, { macos });
+	const rules = desktopRules(feed.platform);
+	const macos = rules === 'macos';
+	const window = checkDesktopArchive(bytes, folder, { rules });
 	problems.push(...window.problems.map((problem) => `${archiveName} ${problem}`));
 	if (window.problems.length > 0) return problems;
 	if (sha256(window.listBytes) !== desktop.manifest.sha256)
@@ -575,7 +611,7 @@ export function checkArtifacts(directory) {
 			problems.push(`${entry.name} does not match ${checksumsName}`);
 		if (entry.isFile() && entry.name.endsWith('.feed.json'))
 			problems.push(...checkFeed(directory, entry.name));
-		if (entry.isFile() && entry.name.endsWith(tarGzipSuffix))
+		if (entry.isFile() && entry.name.endsWith(tarGzipSuffix) && !windowTarGzip.test(entry.name))
 			problems.push(...checkReleaseArchive(directory, entry.name));
 		if (entry.isFile() && posixNpmPackage.test(entry.name))
 			problems.push(...checkPlatformPackage(directory, entry.name));
@@ -617,13 +653,12 @@ function archiveAddress({ profile, repositoryUrl, version, archiveName }) {
 }
 
 /**
- * Writes the feed document beside `archive`, the archive of `releaseDirectory`, naming on Windows
- * the window archive `desktop.archive` with the window list `desktop.list`, and signs it for a test
- * build.
+ * Writes the feed document beside `archive`, the archive of `releaseDirectory`, naming the window
+ * archive `desktop.archive` with the window list `desktop.list`, and signs it for a test build.
  */
 function writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, desktop }) {
 	const archiveBytes = readFileSync(archive);
-	const desktopBytes = desktop === undefined ? undefined : readFileSync(desktop.archive);
+	const desktopBytes = readFileSync(desktop.archive);
 	const { manifest } = release;
 	const document = feedDocument({
 		channel: manifest.channel,
@@ -636,14 +671,11 @@ function writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, de
 			size: archiveBytes.length,
 			sha256: sha256(archiveBytes),
 		},
-		desktop:
-			desktop === undefined
-				? undefined
-				: {
-						version: manifest.version,
-						manifestSha256: sha256(desktop.list),
-						archive: { url: desktop.url, size: desktopBytes.length, sha256: sha256(desktopBytes) },
-					},
+		desktop: {
+			version: manifest.version,
+			manifestSha256: sha256(desktop.list),
+			archive: { url: desktop.url, size: desktopBytes.length, sha256: sha256(desktopBytes) },
+		},
 	});
 	const feed = path.join(
 		path.dirname(releaseDirectory),
@@ -655,11 +687,9 @@ function writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, de
 }
 
 /** Gathers the artifacts of the `profile` installer build into `output`. */
-function collect({ profile, output, repositoryUrl = runRepository(), releaseSource }) {
+function collect({ profile, output, repositoryUrl = runRepository() }) {
 	if (!path.isAbsolute(output)) throw new UsageError('The output directory must be absolute');
 	if (existsSync(output)) throw new Error(`Refusing to write into an existing ${output}`);
-	if (releaseSource !== undefined)
-		return collectRelease({ profile, output, repositoryUrl, releaseSource });
 	const built = path.join(repository, 'apps', 'desktop', 'out', profile);
 	const application = single(
 		built,
@@ -689,23 +719,30 @@ function collect({ profile, output, repositoryUrl = runRepository(), releaseSour
 		throw new Error(`The ${profile} profile cannot carry the ${release.stem} programs`);
 	const { platform } = release.manifest;
 	const windows = release.platform.os === 'win32';
-	if (!windows && release.platform.os !== 'darwin')
-		throw new Error(`A ${platform} release is collected with --release-directory`);
+	const rules = desktopRules(platform);
 	if (release.platform.os !== process.platform)
 		throw new Error(`The bundled runtime is for ${platform}, not this host`);
 	if (!application.endsWith(`-${release.platform.cpu}`))
 		throw new Error(`${application} is not packaged for ${platform}`);
-	const installer = windows
-		? single(
-				path.join(built, 'installer'),
-				(entry) => entry.isFile() && entry.name.endsWith('-setup.exe'),
-				'setup file',
-			)
-		: single(
-				path.join(built, 'installer'),
-				(entry) => entry.isFile() && entry.name.endsWith(`-${version}-${platform}.dmg`),
-				`disk image of ${version} for ${platform}`,
-			);
+	const installerOf = (suffix, description) =>
+		single(
+			path.join(built, 'installer'),
+			(entry) => entry.isFile() && entry.name.endsWith(suffix),
+			description,
+		);
+	const installers = {
+		windows: () => [installerOf('-setup.exe', 'setup file')],
+		macos: () => [
+			installerOf(`-${version}-${platform}.dmg`, `disk image of ${version} for ${platform}`),
+		],
+		linux: () =>
+			['AppImage', 'deb'].map((extension) =>
+				installerOf(
+					`-${version}-${platform}.${extension}`,
+					`${extension} package of ${version} for ${platform}`,
+				),
+			),
+	}[rules]();
 	const releaseName = `${release.stem}-${version}-${platform}`;
 	const desktopName = desktopReleaseName(release.stem, version, platform);
 	const archiveName = `${releaseName}.${archiveFormat(platform)}`;
@@ -716,9 +753,9 @@ function collect({ profile, output, repositoryUrl = runRepository(), releaseSour
 		profile,
 		repositoryUrl,
 		version,
-		archiveName: `${desktopName}.zip`,
+		archiveName: `${desktopName}.${desktopArchiveFormat(platform)}`,
 	});
-	const desktopList = readWindowList(application, version, bundle !== undefined);
+	const desktopList = readWindowList(application, version, rules);
 	mkdirSync(output, { recursive: true });
 	const releaseDirectory = path.join(output, releaseName);
 	// The copy restores the programs' executable bit off Windows.
@@ -727,41 +764,22 @@ function collect({ profile, output, repositoryUrl = runRepository(), releaseSour
 	if (windows) archiveRelease(releaseDirectory, archive);
 	else archiveTarGzip(releaseDirectory, release, archive);
 	const desktop = {
-		archive: archiveWindow(application, output, desktopName, bundle),
+		archive:
+			rules === 'linux'
+				? archiveLinuxWindow(
+						application,
+						output,
+						desktopName,
+						readDesktopFiles(desktopList, { rules }).list,
+					)
+				: archiveWindow(application, output, desktopName, bundle),
 		url: desktopUrl,
 		list: desktopList,
 	};
 	writeFeed({ profile, archive, archiveUrl, release, releaseDirectory, desktop });
-	copyFileSync(installer, path.join(output, path.basename(installer)));
+	for (const installer of installers)
+		copyFileSync(installer, path.join(output, path.basename(installer)));
 	return finishCollection(output, version, releaseDirectory);
-}
-
-/**
- * `collect` for a row that ships no window yet, Linux: the signed release directory
- * `releaseSource` in place of a packaged application, and no installer or window archive.
- */
-function collectRelease({ profile, output, repositoryUrl, releaseSource }) {
-	if (!path.isAbsolute(releaseSource))
-		throw new UsageError('The release directory must be absolute');
-	const version = manifestVersion(releaseSource);
-	const release = readRelease(releaseSource, version);
-	if ((profile === 'release') !== (release.stem === 'orchbee'))
-		throw new Error(`The ${profile} profile cannot carry the ${release.stem} programs`);
-	const { platform } = release.manifest;
-	if (release.platform.os !== 'linux')
-		throw new Error(`A ${platform} release is collected from its packaged window`);
-	if (release.platform.os !== process.platform)
-		throw new Error(`The release directory is for ${platform}, not this host`);
-	const releaseName = `${release.stem}-${version}-${platform}`;
-	const archiveName = `${releaseName}.${archiveFormat(platform)}`;
-	const archiveUrl = archiveAddress({ profile, repositoryUrl, version, archiveName });
-	mkdirSync(output, { recursive: true });
-	const copied = path.join(output, releaseName);
-	copyRelease(releaseSource, release, copied);
-	const archive = path.join(output, archiveName);
-	archiveTarGzip(copied, release, archive);
-	writeFeed({ profile, archive, archiveUrl, release, releaseDirectory: copied });
-	return finishCollection(output, version, copied);
 }
 
 /** Packs the npm packages of `releaseDirectory` into `output`, then lists and checks every file. */
@@ -922,10 +940,7 @@ function parseArguments(argv) {
 		const options = {};
 		for (let index = 0; index < rest.length; index += 2) {
 			const [option, value] = [rest[index], rest[index + 1]];
-			if (
-				!['--profile', '--output', '--repository-url', '--release-directory'].includes(option) ||
-				value === undefined
-			)
+			if (!['--profile', '--output', '--repository-url'].includes(option) || value === undefined)
 				throw new UsageError(usage);
 			const key = option.slice(2);
 			if (options[key] !== undefined) throw new UsageError(usage);
@@ -933,18 +948,12 @@ function parseArguments(argv) {
 		}
 		if (!['test', 'release'].includes(options.profile) || options.output === undefined)
 			throw new UsageError(usage);
-		const {
-			profile,
-			output,
-			'repository-url': repositoryUrl,
-			'release-directory': releaseSource,
-		} = options;
+		const { profile, output, 'repository-url': repositoryUrl } = options;
 		return {
 			command,
 			profile,
 			output,
 			...(repositoryUrl === undefined ? {} : { repositoryUrl }),
-			...(releaseSource === undefined ? {} : { releaseSource }),
 		};
 	}
 	throw new UsageError(usage);

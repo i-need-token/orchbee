@@ -7,21 +7,24 @@
 // regular file of the directory once, by a `/`-separated path, under the release manifest's file
 // rules (scripts/package-native-release.mjs), and is itself at most 1 MiB. The update feed binds it
 // by its SHA-256 in `extensions.desktop.manifest` (scripts/release-feed.mjs), so the feed signature
-// covers every file of the window. The release zips the directory, list included, as
-// `<stem>-desktop-<version>-<platform>.zip` under one top-level folder of that name.
+// covers every file of the window. The release archives the directory, list included, as
+// `<stem>-desktop-<version>-<platform>.zip` on Windows and macOS and `.tar.gz` on Linux, under one
+// top-level folder of that name.
 //
-// On macOS the window directory holds the list beside the signed `<name>.app`, since a file at a
-// bundle's root breaks its signature's seal, and the list names only the bundle. There a path
-// starts with `<name>.app/` and a part also admits spaces and parentheses; a file its owner may run
-// carries `"executable": true`; and the bundle's symbolic links form the optional member
+// The rules follow the platform, as the Client's reader does. On Linux a file its owner may run
+// carries `"executable": true`. On macOS the window directory holds the list beside the signed
+// `<name>.app`, since a file at a bundle's root breaks its signature's seal, and the list names only
+// the bundle. There a path starts with `<name>.app/` and a part also admits spaces and parentheses;
+// a file carries the same executable mark; and the bundle's symbolic links form the optional member
 // `links: [{"path", "target"}]`, each target relative, inside the bundle, and naming a listed file,
 // a listed link or a folder holding listed entries. Files and links share the 4096 entries and
 // their uniqueness ignoring case. Windows lists carry none of these.
 //
 //   node scripts/desktop-files.mjs write <absolute packaged window directory> <version> [<name>.app]
 //
-// apps/desktop/scripts/package.mjs runs `write` after the packager returns, after signing on macOS,
-// and before Setup or the disk image is made, so the installer and the archive carry the same list.
+// apps/desktop/scripts/package.mjs runs `write` on the platform it packages for, after the packager
+// returns, after signing on macOS, and before Setup, the disk image or a Linux package is made, so
+// the installer and the archive carry the same list.
 // The written form is `JSON.stringify` of the members in this order, files and links in path order,
 // then one LF. Node built-ins only.
 import {
@@ -41,6 +44,7 @@ import { inflateRawSync } from 'node:zlib';
 
 import { releaseFiles, validReleaseFilePath } from './package-native-release.mjs';
 import { sha256, validVersion } from './release-feed.mjs';
+import { readTarGzip } from './tar-gzip.mjs';
 
 /** The list's name at the root of a window directory. */
 export const DESKTOP_FILES = 'desktop-files.json';
@@ -50,6 +54,17 @@ const fileLimit = 512 * 1024 * 1024;
 const totalLimit = 2 * 1024 * 1024 * 1024;
 const fileCountLimit = 4096;
 const sha256Hex = /^[0-9a-f]{64}$/u;
+
+/**
+ * The list rules of a platform, as `readDesktopFiles` names them: `windows`, `linux` or `macos`,
+ * from a Node.js platform or a release platform such as `linux-x86_64`.
+ */
+export function desktopRules(platform) {
+	if (platform === 'win32' || platform.startsWith('windows-')) return 'windows';
+	if (platform === 'darwin' || platform.startsWith('macos-')) return 'macos';
+	if (platform === 'linux' || platform.startsWith('linux-')) return 'linux';
+	throw new Error(`No window ships for ${platform}`);
+}
 
 /** The name of the window archive of one version and platform, and of its top-level folder. */
 export function desktopReleaseName(stem, version, platform) {
@@ -128,18 +143,23 @@ function byPath(left, right) {
 }
 
 /**
- * The exact bytes of the list of the window directory `directory` at `version`; on macOS, of the
- * bundle `application` inside it.
+ * The exact bytes of the list of the window directory `directory` at `version` under `rules`; on
+ * macOS, of the bundle `application` inside it.
  */
-export function desktopFilesDocument(directory, version, application = undefined) {
+export function desktopFilesDocument(directory, version, rules, application = undefined) {
 	if (!validVersion(version))
 		throw new Error('The window version must be SemVer of at most 64 bytes');
+	if ((rules === 'macos') !== (application !== undefined))
+		throw new Error('A macOS window list names its bundle, and only a macOS one');
 	let document;
 	if (application === undefined) {
+		const runnable = (file) =>
+			(lstatSync(path.join(directory, ...file.path.split('/'))).mode & 0o100) !== 0;
 		const files = releaseFiles(directory, { exclude: [DESKTOP_FILES] }).map((file) => ({
 			path: file.path,
 			size: file.size,
 			sha256: file.sha256,
+			...(rules === 'linux' && runnable(file) ? { executable: true } : {}),
 		}));
 		document = { schemaVersion: 1, version, files };
 	} else {
@@ -147,7 +167,7 @@ export function desktopFilesDocument(directory, version, application = undefined
 		document = { schemaVersion: 1, version, files, ...(links.length > 0 ? { links } : {}) };
 	}
 	const bytes = Buffer.from(JSON.stringify(document) + '\n', 'utf8');
-	const { problems } = readDesktopFiles(bytes, { macos: application !== undefined });
+	const { problems } = readDesktopFiles(bytes, { rules });
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	return bytes;
 }
@@ -170,10 +190,12 @@ function linkDestination(link, target) {
 }
 
 /**
- * The list of `bytes` and every reader rule it breaks; none means a reader admits it. `macos`
- * admits the bundle's paths, the executable mark and the links.
+ * The list of `bytes` and every reader rule it breaks under `rules`; none means a reader admits it.
+ * `linux` admits the executable mark, and `macos` also the bundle's paths and the links.
  */
-export function readDesktopFiles(bytes, { macos = false } = {}) {
+export function readDesktopFiles(bytes, { rules }) {
+	const macos = rules === 'macos';
+	const executables = rules === 'linux' || macos;
 	if (bytes.length > listLimit) return { problems: [`${DESKTOP_FILES} exceeds 1 MiB`] };
 	let list;
 	try {
@@ -213,7 +235,7 @@ export function readDesktopFiles(bytes, { macos = false } = {}) {
 	const seen = new Set();
 	let total = 0;
 	for (const file of list.files) {
-		if (!closed(file, ['path', 'size', 'sha256'], macos ? ['executable'] : [])) {
+		if (!closed(file, ['path', 'size', 'sha256'], executables ? ['executable'] : [])) {
 			problems.push('a file must have exactly path, size and sha256');
 			continue;
 		}
@@ -271,12 +293,13 @@ function reachesListed(destination, files, targets) {
 	return false;
 }
 
-/** Writes the list into `directory`, never replacing a file. */
+/** Writes the list of this platform's window into `directory`, never replacing a file. */
 function writeDesktopFiles(directory, version, application) {
 	if (!path.isAbsolute(directory))
 		throw new Error('Expected an absolute path to a packaged window directory');
 	const destination = path.join(directory, DESKTOP_FILES);
-	const bytes = desktopFilesDocument(directory, version, application);
+	const rules = desktopRules(process.platform);
+	const bytes = desktopFilesDocument(directory, version, rules, application);
 	const fd = openSync(destination, 'wx');
 	try {
 		writeFileSync(fd, bytes);
@@ -371,13 +394,16 @@ function entryBytes(bytes, entry) {
 }
 
 /**
- * Checks the window archive `bytes` against the shape a release writes: one top-level folder
- * `folder`, and a list at its root that admits and names exactly the archive's other files, each by
- * size and SHA-256. A Windows archive holds no links; a macOS one (`macos`) holds exactly the links
- * its list names, with their targets, and each file's owner execute bit as the list marks it.
- * Returns the list's bytes, the list, and every problem found.
+ * Checks the window archive `bytes` against the shape a release writes under `rules`: one top-level
+ * folder `folder`, and a list at its root that admits and names exactly the archive's other files,
+ * each by size and SHA-256. A Linux archive is a tar.gz and the others zips. Windows and Linux
+ * archives hold no links; a macOS one holds exactly the links its list names, with their targets.
+ * On Linux and macOS each file's owner execute bit is as the list marks it. Returns the list's bytes,
+ * the list, and every problem found.
  */
-export function checkDesktopArchive(bytes, folder, { macos = false } = {}) {
+export function checkDesktopArchive(bytes, folder, { rules }) {
+	if (rules === 'linux') return checkDesktopTarGzip(bytes, folder);
+	const macos = rules === 'macos';
 	let entries;
 	try {
 		entries = zipEntries(bytes);
@@ -403,7 +429,7 @@ export function checkDesktopArchive(bytes, folder, { macos = false } = {}) {
 	files.delete(DESKTOP_FILES);
 	try {
 		const listBytes = entryBytes(bytes, listEntry);
-		const { list, problems: listProblems } = readDesktopFiles(listBytes, { macos });
+		const { list, problems: listProblems } = readDesktopFiles(listBytes, { rules });
 		problems.push(...listProblems.map((problem) => `${DESKTOP_FILES}: ${problem}`));
 		if (listProblems.length > 0) return { problems };
 		for (const file of list.files) {
@@ -437,6 +463,44 @@ export function checkDesktopArchive(bytes, folder, { macos = false } = {}) {
 			problems: [...problems, error instanceof RangeError ? 'is not a zip archive' : error.message],
 		};
 	}
+}
+
+/** `checkDesktopArchive` for a Linux tar.gz, whose reader admits only files and directories. */
+function checkDesktopTarGzip(bytes, folder) {
+	let entries;
+	try {
+		entries = readTarGzip(bytes);
+	} catch (error) {
+		return { problems: [error.message] };
+	}
+	const problems = [];
+	const files = new Map();
+	for (const entry of entries) {
+		if (entry.path !== folder && !entry.path.startsWith(`${folder}/`))
+			problems.push(`holds ${entry.path} outside the one top-level folder ${folder}`);
+		else if (entry.type === 'file') files.set(entry.path.slice(folder.length + 1), entry);
+	}
+	const listEntry = files.get(DESKTOP_FILES);
+	if (listEntry === undefined) return { problems: [...problems, `holds no ${DESKTOP_FILES}`] };
+	files.delete(DESKTOP_FILES);
+	const listBytes = listEntry.bytes;
+	const { list, problems: listProblems } = readDesktopFiles(listBytes, { rules: 'linux' });
+	problems.push(...listProblems.map((problem) => `${DESKTOP_FILES}: ${problem}`));
+	if (listProblems.length > 0) return { problems };
+	for (const file of list.files) {
+		const entry = files.get(file.path);
+		files.delete(file.path);
+		if (entry === undefined) {
+			problems.push(`lacks the listed ${file.path}`);
+			continue;
+		}
+		if (entry.bytes.length !== file.size || sha256(entry.bytes) !== file.sha256)
+			problems.push(`holds ${file.path} with other bytes than ${DESKTOP_FILES} lists`);
+		if (((entry.mode & 0o100) !== 0) !== (file.executable === true))
+			problems.push(`holds ${file.path} with another execute bit than ${DESKTOP_FILES} marks`);
+	}
+	for (const name of files.keys()) problems.push(`holds ${name}, which ${DESKTOP_FILES} omits`);
+	return { listBytes, list, problems };
 }
 
 if (

@@ -109,7 +109,7 @@ function windowEntries(root, manifest) {
 		['resources/cohort/release.json', manifest],
 	]);
 	for (const [name, bytes] of files) writeFileSync(path.join(window, ...name.split('/')), bytes);
-	files.set('desktop-files.json', desktopFilesDocument(window, version));
+	files.set('desktop-files.json', desktopFilesDocument(window, version, 'windows'));
 	const folder = `${stem}-desktop-${version}-${platform}`;
 	rmSync(window, { recursive: true });
 	return [
@@ -262,7 +262,7 @@ test('a macOS window list admits links that stay in the bundle and refuses any o
 					links: links.map(([name, target]) => ({ path: `A b.app/${name}`, target })),
 				}),
 			),
-			{ macos: true },
+			{ rules: 'macos' },
 		).problems;
 	// The framework layout: a link to a folder, and links through it.
 	assert.deepEqual(
@@ -275,13 +275,15 @@ test('a macOS window list admits links that stay in the bundle and refuses any o
 	);
 	for (const target of ['../../../outside', '/Contents/MacOS/A b', 'Versions/B', '../.', ''])
 		assert.equal(list([['Contents/F.framework/x', target]]).length, 1, target);
-	// A Windows list carries none of the macOS members.
-	assert.notDeepEqual(
-		readDesktopFiles(
-			Buffer.from(JSON.stringify({ schemaVersion: 1, version, files: [], links: [] })),
-		).problems,
-		[],
-	);
+	// A Windows or Linux list carries none of the macOS members.
+	for (const rules of ['windows', 'linux'])
+		assert.notDeepEqual(
+			readDesktopFiles(
+				Buffer.from(JSON.stringify({ schemaVersion: 1, version, files: [], links: [] })),
+				{ rules },
+			).problems,
+			[],
+		);
 });
 
 /**

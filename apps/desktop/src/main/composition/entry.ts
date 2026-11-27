@@ -123,9 +123,10 @@ const debugPort = readDebugPort(automationEnvironment[DEBUG_PORT_ENVIRONMENT_KEY
 // `DevToolsActivePort` in the Electron folder, which the release workflow's real-window check reads.
 if (debugPort !== null) app.commandLine.appendSwitch('remote-debugging-port', debugPort);
 /**
- * The store's `desktop` folder, never for a development build: on Windows when this window runs
- * from `desktop\versions\<its own version>\`, whose window entry starts whichever window version is
- * active; on macOS when it runs from an application bundle outside the store.
+ * The store's `desktop` folder, never for a development build: on Windows and Linux when this window
+ * runs from `desktop\versions\<its own version>\`, whose window entry starts whichever window version
+ * is active; on macOS when it runs from an application bundle outside the store, and on Linux from
+ * anywhere outside the store, as the AppImage and the Debian package do.
  */
 const windowDesktopRoot = locateWindowDesktopRoot({
 	development: !packaged || distribution.dataScope.kind === 'development',
@@ -133,9 +134,9 @@ const windowDesktopRoot = locateWindowDesktopRoot({
 	ownVersion,
 	platform: process.platform,
 	storeRoot:
-		process.platform === 'darwin'
-			? resolvePosixReleaseStoreRoot(process.env, distribution.artifactStem)
-			: null,
+		process.platform === 'win32'
+			? null
+			: resolvePosixReleaseStoreRoot(process.env, distribution.artifactStem),
 });
 /** What starts this window's program: the Windows window entry when there is one, else the program. */
 const windowStartProgram =
@@ -151,11 +152,9 @@ if (process.platform === 'win32' && packaged) {
 }
 const dataRoot = prepareOrRefuseDesktopDataRoot();
 app.setPath('userData', dataRoot.electronDirectory);
-// Main writes the natives' daily logs on Windows and macOS; Linux Desktop keeps writing none.
-const recordEvent: DesktopDiagnosticRecorder =
-	process.platform === 'win32' || process.platform === 'darwin'
-		? new DesktopDiagnosticLog(dataRoot.logDirectory).recorder()
-		: () => undefined;
+const recordEvent: DesktopDiagnosticRecorder = new DesktopDiagnosticLog(
+	dataRoot.logDirectory,
+).recorder();
 
 /**
  * Prepares the data root, or, when its layout is one this version cannot open or the bundled Client
@@ -389,6 +388,24 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		stopSession: () => background?.stopSession() ?? Promise.resolve(false),
 		watchPointer: watchWindowPointer,
 	});
+}
+
+/**
+ * The Linux window icon: the package's menu icon, or in a checkout the brand's; null elsewhere.
+ */
+function resolveLinuxWindowIcon(): string | null {
+	if (process.platform !== 'linux') return null;
+	if (packaged || distribution.dataScope.kind !== 'development') {
+		return path.join(process.resourcesPath, 'linux', 'icons', '256x256.png');
+	}
+	return path.join(
+		distribution.dataScope.sourceRoot,
+		'resources',
+		'brand',
+		'png',
+		'icon',
+		'orchbee-icon-256.png',
+	);
 }
 
 /**
@@ -694,6 +711,7 @@ async function start(): Promise<void> {
 		machines,
 		platform: process.platform,
 		preloadPath: path.join(__dirname, '..', 'preload', 'preload.cjs'),
+		windowIcon: resolveLinuxWindowIcon(),
 		recordEvent,
 		relaunchPlace: readRelaunchPlace(process.argv),
 		rendererUrl,

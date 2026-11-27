@@ -91,6 +91,8 @@ export interface DesktopServerClientApplicationOptions {
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	readonly platform: NodeJS.Platform;
 	readonly preloadPath: string;
+	/** The window icon on Linux, whose X11 window managers show the window's own; null elsewhere. */
+	readonly windowIcon: string | null;
 	/** Where the first document opens when Update relaunched this window; null otherwise. */
 	readonly relaunchPlace: DesktopRelaunchPlace | null;
 	readonly rendererUrl: URL;
@@ -377,6 +379,7 @@ export class DesktopServerClientApplication {
 							options.platform === 'win32' ? { color: WINDOWS_CAPTION_BACKGROUND } : true,
 					}),
 			titleBarStyle: 'hidden',
+			...(options.windowIcon === null ? {} : { icon: options.windowIcon }),
 			webPreferences: {
 				allowRunningInsecureContent: false,
 				// A document behind other windows still has to keep its terminal current.

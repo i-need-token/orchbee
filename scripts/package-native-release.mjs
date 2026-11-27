@@ -296,11 +296,11 @@ export function packageRelease(
 		for (const script of ['zsh/.zshenv', 'zsh/orchbee.zsh', 'bash/orchbee.bash'])
 			if (!files.some((entry) => entry.path === `shell-integration/${script}`))
 				throw new Error(`Missing shell-integration/${script}`);
-		// The window launcher a window version's bundle runs when the window relaunches; like the
-		// Windows launchers, it belongs to no component.
+		// The window launcher a macOS window version's bundle runs when the window relaunches and the
+		// Linux window store places as its entry; like the Windows launchers, it belongs to no
+		// component.
 		const launcher = `${stem}-desktop-launcher`;
-		if (platform.startsWith('macos-') && !files.some((entry) => entry.path === launcher))
-			throw new Error(`Missing ${launcher}`);
+		if (!files.some((entry) => entry.path === launcher)) throw new Error(`Missing ${launcher}`);
 	}
 	const bytes =
 		JSON.stringify({

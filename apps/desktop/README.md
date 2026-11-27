@@ -159,6 +159,17 @@ install that fails leaves the start to the bundle's own cohort, as before, and i
 the next start. Because `desktop/` may first appear during that start, the window follows
 `desktop/active.json` from the first document served after a start that found no folder to watch.
 
+On Linux the window store has the Windows layout: each window version is
+`desktop/versions/<version>/` with its program `<stem>-desktop`, the entry `desktop/<stem>-desktop`
+is a copy of the active version's window launcher, and the person's menu entry names that entry. A
+window that runs from a version folder offers and switches as on Windows. A packaged window
+anywhere else, such as an AppImage's mount or the Debian package's `/opt/<stem>/`, reads
+`desktop/active.json` under the store root as on macOS, offers Update for a window version of higher
+precedence there, and switches through the store's entry, `desktop/<stem>-desktop`, after the same
+start check; it never moves to the store unasked. Its bundled Client brings its runtime version into
+the store and makes an empty window store as an application dragged from the macOS disk image does,
+so the window part of each later update installs window versions there.
+
 The page has the Client authority of the Session it joined. That adds nothing to what it could
 already do by typing into a terminal. A link the page opens asks for a window, which Main refuses,
 handing an `http`, `https`, or `mailto` address to the person's browser instead; top-level
@@ -451,7 +462,7 @@ The bundle identifier is also the Windows AppUserModelID: a packaged Windows app
 startup and the installer's Start menu shortcut carries it, so Windows groups the window, its
 taskbar button and its notifications under that shortcut.
 
-On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. The disk image background in `resources/brand/png/dmg/` comes from the same kit. After changing `resources/icon.svg` or a kit definition in the repository's `scripts/brand-assets.mjs`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`; Linux packages still use the Electron default icon.
+On macOS each profile uses its committed `.icns` from `resources/brand/icns/`, drawn on Apple's 824 px icon grid with the Dev or Test badge over the lower-right corner. The disk image background in `resources/brand/png/dmg/` comes from the same kit. After changing `resources/icon.svg` or a kit definition in the repository's `scripts/brand-assets.mjs`, run `pnpm generate:brand-assets` (requires Google Chrome); `pnpm audit:brand-assets` fails while `resources/brand/` is stale. Every Windows profile uses `resources/brand/ico/orchbee.ico`. A Linux package carries the brand's PNG icons as `resources/linux/icons/<n>x<n>.png` beside its menu entry template `resources/linux/<stem>.desktop`, whose `StartupWMClass` is the application name, and Main gives each window the 256 px icon, which X11 window managers show.
 
 Packages name their native cohort by an environment stem, so the operating system and the agent can tell the release, development, and test processes apart. The stem is `orchbee` for release, `ob-dev-<scope-digest>` for dev (one per checkout, so parallel worktrees never share names), and `ob-test-<home-digest>` for test (one per home directory). The Client, Server, Worker, and Terminal Host carry the same stem, for example `ob-dev-<scope-digest>` and `ob-dev-<scope-digest>-server`, with `.exe` on Windows. The packaged Windows Desktop executable is `<stem>-desktop.exe` (release `orchbee-desktop.exe`), so the shell never shares an image name with its own Client; the packaged output folder takes that executable's name. Display names and bundle identifiers do not change, and every data root is the same stem with a leading dot. Every cohort also compiles in the stem, which the handshake compares, so a release Client in a development or test Desktop's terminal is refused.
 
@@ -476,15 +487,15 @@ pnpm desktop:package:test
 an explicit dev/test/release profile. Each command builds Web resources and the Main and preload
 bundles, then stages the whole native cohort with `scripts/stage-local-runtime.mjs`: the Client,
 Server, Worker, Terminal Host, the observation Capsule, the platform's terminal runtime, and on
-macOS the window launcher that a relaunch runs ([Window Update](#window-update)). The
-application carries it because the window's Session may run it: on Windows and macOS the bundled
-Client of a test or release package hands a Session start to the store's active version, which on
-Windows that Client installs, and starts this cohort only when the store holds no usable version
+macOS and Linux the window launcher that a relaunch runs ([Window Update](#window-update)). The
+application carries it because the window's Session may run it: on every system the bundled
+Client of a test or release package hands a Session start to the store's active version, and starts
+this cohort only when the store holds no usable version
 ([store start](../orchbee/docs/windows-cli-configuration.md#windows-release-installation)); a
-development package, and Linux, run this cohort. The cohort and the Web resources stay
+development package runs this cohort. The cohort and the Web resources stay
 outside `app.asar` as `resources/cohort` and `resources/dist`.
 
-On Windows and macOS the test and release commands then make the cohort a signed release directory
+On every system the test and release commands then make the cohort a signed release directory
 before packaging it: `scripts/package-native-release.mjs` writes its `release.json` for the `stable`
 channel, the workspace version (which must equal this package's version) and a build id, and
 `scripts/sign-release-manifest.mjs` signs it. `--build-id <id>` sets the build id, which the release
@@ -508,6 +519,9 @@ On macOS they write it beside the signed application once signing is done, since
 bundle's root would break its seal; it lists only the bundle, with its links and execute bits, and
 the window archive carries the list and the bundle
 ([macOS window versions](../../proposals/platform/automatic-updates.md#macos-window-versions)).
+On Linux they write it at the packaged directory's root as on Windows, marking each file its owner
+may run as executable
+([Linux window versions](../../proposals/platform/automatic-updates.md#linux-window-versions)).
 
 On macOS the package command then signs the packaged application ad hoc
 (`codesign --force --deep --sign -`) and checks it with `codesign --verify --deep --strict`: Apple
@@ -520,7 +534,8 @@ and stops on any difference.
 
 All three package commands write beneath their profile-specific directory in `apps/desktop/out/`.
 They do not perform Developer ID signing, notarization, publication, or update distribution; the
-Windows installer and the macOS disk image below are built from the test and release packages.
+Windows installer, the macOS disk image and the Linux packages below are built from the test and
+release packages.
 
 ### Windows installer
 
@@ -677,6 +692,23 @@ without the quarantine attribute opens directly.
 The image carries no window list beside the application, so the application's first start brings
 its runtime version into the store and makes an empty window store, as the window section above
 says, and updates reach it from then on.
+
+### Linux packages
+
+On Linux, `pnpm desktop:installer:test` and `pnpm desktop:installer:release` package their profile
+as above and then write an AppImage and a Debian package into
+`apps/desktop/out/<profile>/installer/` with `scripts/linux-packages.mjs`, named like the disk image
+with `.AppImage` and `.deb`. Both copy the packaged application with its folders and programs 0755
+and its other files 0644, since the staged cohort is private to the builder and every user of the
+installed copy runs its bundled Client. The AppImage needs `mksquashfs` and an AppImage runtime
+named by an absolute path in `ORCHBEE_APPIMAGE_RUNTIME`, which the release workflow builds from a
+pinned AppImage/type2-runtime commit; its `AppRun` adds `--no-sandbox` only where the system
+restricts unprivileged user namespaces. The Debian package needs `dpkg-deb`, installs the
+application under `/opt/<stem>/` with its menu entry and icons under `/usr/share/`, and keeps
+Chromium's sandbox: its `postinst` loads an AppArmor profile that lets `/opt/<stem>/<stem>-desktop`
+create user namespaces when `apparmor_parser` accepts it, and makes `chrome-sandbox` setuid root
+only where user namespaces are disabled outright. Neither stores its own window version; the
+[Window Update](#window-update) section says how they reach the store.
 
 ### Verification
 

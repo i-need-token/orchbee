@@ -64,6 +64,18 @@ export function archiveFormat(platform) {
 	return undefined;
 }
 
+/**
+ * The format, and file extension, of the window archive of the release platform `platform`: `zip`
+ * on Windows and macOS, whose bundle links a zip keeps, and `tar.gz` on Linux, whose systems carry
+ * tar but not always unzip; none otherwise.
+ */
+export function desktopArchiveFormat(platform) {
+	if (typeof platform !== 'string') return undefined;
+	if (platform.startsWith('windows-') || platform.startsWith('macos-')) return 'zip';
+	if (platform.startsWith('linux-')) return 'tar.gz';
+	return undefined;
+}
+
 /** What the gate copy's name ends with, in place of the feed's `.feed.json`. */
 export const GATE_FEED_SUFFIX = '.gate.feed.json';
 
@@ -164,7 +176,7 @@ function archiveProblems(archive, name, format) {
  * `readFeed` does not apply these rules; the release tooling never writes or admits an entry that
  * breaks one.
  */
-export function desktopProblems(desktop) {
+export function desktopProblems(desktop, platform) {
 	const name = 'extensions.desktop';
 	if (!closed(desktop, ['version', 'manifest', 'archive'], ['extensions']))
 		return [`${name} must have exactly the members version, manifest, archive`];
@@ -175,8 +187,9 @@ export function desktopProblems(desktop) {
 		problems.push(`${name}.version is not a SemVer version of at most 64 bytes`);
 	if (!closed(desktop.manifest, ['sha256']) || !sha256Hex.test(desktop.manifest.sha256))
 		problems.push(`${name}.manifest must be exactly a lowercase sha256`);
-	// The window archive is a zip on every platform that has one.
-	problems.push(...archiveProblems(desktop.archive, `${name}.archive`, 'zip'));
+	problems.push(
+		...archiveProblems(desktop.archive, `${name}.archive`, desktopArchiveFormat(platform)),
+	);
 	return problems;
 }
 
@@ -258,7 +271,7 @@ export function feedDocument({
 							desktop: {
 								version: desktop.version,
 								manifest: { sha256: desktop.manifestSha256 },
-								archive: archiveMember('zip', desktop.archive),
+								archive: archiveMember(desktopArchiveFormat(platform), desktop.archive),
 							},
 						},
 					}),
@@ -267,7 +280,7 @@ export function feedDocument({
 	);
 	const { feed, problems } = readFeed(bytes);
 	if (desktop !== undefined && problems.length === 0)
-		problems.push(...desktopProblems(feed.extensions.desktop));
+		problems.push(...desktopProblems(feed.extensions.desktop, feed.platform));
 	if (problems.length > 0) throw new Error(problems.join('\n'));
 	return bytes;
 }

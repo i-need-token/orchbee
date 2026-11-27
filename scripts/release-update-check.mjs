@@ -276,11 +276,11 @@ export function installRelease(port, release, storeRoot, env) {
 	port.expectActive(storeRoot, release.stem, release.manifest.version, env);
 }
 
-/** Validates `extensions.desktop` when present on a feed. */
-function checkDesktopMember(feed, what) {
+/** Validates `extensions.desktop` when present on a feed, for the archive format `platform` unpacks. */
+function checkDesktopMember(feed, what, platform) {
 	const desktop = feed.extensions?.desktop;
 	if (desktop === undefined) return undefined;
-	const problems = desktopProblems(desktop);
+	const problems = desktopProblems(desktop, platform);
 	if (problems.length > 0) throw new StepFailure(`${what}: ${problems.join('; ')}`);
 	return desktop;
 }
@@ -357,8 +357,16 @@ export function seedWindowStore({
 	unpackWindow = unpackWindowDirectory,
 	runInstaller = runExactDocument,
 }) {
-	const olderDesktop = checkDesktopMember(olderFeed, `The feed of ${olderFeed.version}`);
-	const offeredDesktop = checkDesktopMember(offeredFeed, `The feed of ${offeredFeed.version}`);
+	const olderDesktop = checkDesktopMember(
+		olderFeed,
+		`The feed of ${olderFeed.version}`,
+		port.platform,
+	);
+	const offeredDesktop = checkDesktopMember(
+		offeredFeed,
+		`The feed of ${offeredFeed.version}`,
+		port.platform,
+	);
 	if (olderDesktop === undefined || offeredDesktop === undefined) return { seeded: false };
 
 	const archive = fetchWindow(source, olderDesktop, work, 'older-window');
@@ -786,7 +794,11 @@ export function runGatePath(options, progress, port, usage) {
 	if (version === older)
 		throw new StepFailure(`The gate feed names ${older}, the older release itself`);
 	verifyGateArchiveBeside(options.feed, offered.archive, 'archive');
-	const offeredDesktop = checkDesktopMember(offered, `The gate feed ${options.feed}`);
+	const offeredDesktop = checkDesktopMember(
+		offered,
+		`The gate feed ${options.feed}`,
+		port.platform,
+	);
 	if (offeredDesktop !== undefined) {
 		verifyGateArchiveBeside(options.feed, offeredDesktop.archive, 'window archive');
 	}

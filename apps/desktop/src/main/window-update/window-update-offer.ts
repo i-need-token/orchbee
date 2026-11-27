@@ -111,14 +111,17 @@ export function windowVersionResources(input: {
  * development build. On Windows the window must run from `desktop\versions\<its own version>\`, so
  * a flat layout or a build's output folder offers nothing. On macOS the application bundle is the
  * entry: a window in a bundle reads `desktop` under the store root, `storeRoot`, unless the bundle
- * is one of the store's own copies there, which the launcher would otherwise replace.
+ * is one of the store's own copies there, which the launcher would otherwise replace. On Linux a
+ * window in `desktop/versions/<its own version>/` reads that `desktop`, as on Windows, and a window
+ * outside the store's `desktop`, such as the AppImage's or the Debian package's, reads the store's,
+ * whose entry it relaunches through.
  */
 export function locateWindowDesktopRoot(input: {
 	readonly development: boolean;
 	readonly executablePath: string;
 	readonly ownVersion: string;
 	readonly platform: NodeJS.Platform;
-	/** On macOS, the store root (`resolvePosixReleaseStoreRoot`); unused elsewhere. */
+	/** On macOS and Linux, the store root (`resolvePosixReleaseStoreRoot`); unused on Windows. */
 	readonly storeRoot: string | null;
 }): string | null {
 	if (input.development) return null;
@@ -134,15 +137,21 @@ export function locateWindowDesktopRoot(input: {
 	const paths = input.platform === 'win32' ? path.win32 : path.posix;
 	const sameName = (name: string, expected: string): boolean =>
 		input.platform === 'win32' ? name.toLowerCase() === expected : name === expected;
+	if (!paths.isAbsolute(input.executablePath)) return null;
 	const versionDirectory = paths.dirname(input.executablePath);
 	const versionsDirectory = paths.dirname(versionDirectory);
 	const desktopRoot = paths.dirname(versionsDirectory);
-	return paths.isAbsolute(input.executablePath) &&
+	if (
 		paths.basename(versionDirectory) === input.ownVersion &&
 		sameName(paths.basename(versionsDirectory), VERSIONS_DIRECTORY) &&
 		sameName(paths.basename(desktopRoot), DESKTOP_DIRECTORY)
-		? desktopRoot
-		: null;
+	) {
+		return desktopRoot;
+	}
+	if (input.platform !== 'linux' || input.storeRoot === null) return null;
+	const storeDesktopRoot = path.posix.join(input.storeRoot, DESKTOP_DIRECTORY);
+	const relative = path.posix.relative(storeDesktopRoot, input.executablePath);
+	return relative === '..' || relative.startsWith('../') ? storeDesktopRoot : null;
 }
 
 /** The version a `--fallback-from=<version>` argument names, or null without a valid one. */

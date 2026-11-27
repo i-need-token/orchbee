@@ -33,7 +33,7 @@ Browser storage under `internal/desktop/` holds view state, such as terminal foc
 the keyboard shortcut overrides. None of it is a stable contract: a release may reset or reshape it
 without migration.
 
-On Windows and macOS Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason
+Main appends `started`, `startup-failed`, `renderer-gone` with Electron's reason
 and whether the page was reloaded or the person asked, `renderer-crash-answered` with their choice,
 diagnostic bundle outcomes, Window Update's `window-update-joinable`, `window-update-restarted`,
 `window-update-host-replacement`, with the `terminals` left on a Host the newer version must replace
@@ -50,9 +50,11 @@ not parse, `server-connection-request-dropped` once per window and
 [daily diagnostic log](../../../crates/local-runtime/README.md#diagnostic-log), creating
 `logs/` with its first record. It writes the natives' records with role `desktop-main` under their
 retention, cap, and exclusive-open rules; its event names and text values are string literals in
-the source. On macOS the open takes the file's exclusive `flock` lock through `O_EXLOCK`, never
-follows a link, and writes only to a single-link regular file and a folder private to the user;
-Linux Main writes no log.
+the source. On macOS the open takes the file's exclusive `flock` lock through `O_EXLOCK`. Node cannot
+take that lock on Linux, so Linux Main appends through `O_APPEND` without it: no record overwrites
+another, and only records appended while Main reads the file's size can carry the day past its
+limit. On both the open never follows a link, and Main writes only to a single-link regular file
+and a folder private to the user.
 
 Electron 42 ignores `--disk-cache-dir`, and moving `sessionData` would move browser storage with
 the caches, so Chromium's caches stay in `internal/desktop/` rather than `internal/cache/`.

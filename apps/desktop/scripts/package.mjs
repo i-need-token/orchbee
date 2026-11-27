@@ -32,6 +32,7 @@ import {
 	resolveDesktopTestApplicationName,
 	resolveDesktopWindowsInstallerIdentity,
 } from '../src/distribution/tooling/index.ts';
+import { writeLinuxMenuFiles, writeLinuxPackages } from './linux-packages.mjs';
 import { macDiskImageName, writeMacDiskImage } from './mac-disk-image.mjs';
 
 const electronPackage = createRequire(import.meta.url)('electron/package.json');
@@ -70,25 +71,27 @@ if (distributionProfile.profileId === 'release' && cohortEnvironmentStem !== 'or
 		`Release packaging refuses the ${cohortEnvironmentStem} cohort; it requires orchbee.`,
 	);
 }
-// On Windows and macOS a test or release cohort ships as a signed release directory, so its bundled
-// Client's `orchbee install` can publish it into the store; a development cohort cannot be packaged
-// that way. The installer is Setup on Windows and the disk image on macOS.
+// A test or release cohort ships as a signed release directory, so its bundled Client's
+// `orchbee install` can publish it into the store; a development cohort cannot be packaged that way.
+// The installer is Setup on Windows, the disk image on macOS, and the AppImage and Debian package on
+// Linux.
 const signsReleaseDirectory =
-	(process.platform === 'win32' || process.platform === 'darwin') && profileId !== 'dev';
+	['win32', 'darwin', 'linux'].includes(process.platform) && profileId !== 'dev';
 if (packaging.installer && !signsReleaseDirectory) {
 	throw new Error(
-		'The installer is built on Windows and macOS, for the test and release profiles only.',
+		'The installer is built on Windows, macOS and Linux, for the test and release profiles only.',
 	);
 }
 if (packaging.cohort !== undefined && !signsReleaseDirectory) {
 	throw new Error(
-		'A signed cohort is packaged on Windows and macOS, for the test and release profiles only.',
+		'A signed cohort is packaged on Windows, macOS and Linux, for the test and release profiles only.',
 	);
 }
-// On Windows the shell is `<stem>-desktop.exe`, so its image name differs from the Client's `<stem>.exe`
-// and from every other environment's (ORC-382).
+// On Windows and Linux the shell is `<stem>-desktop`, so its process name differs from the Client's
+// `<stem>` and from every other environment's (ORC-382); on Linux it is also the program the window
+// store's entry starts.
 const packagedExecutableName =
-	process.platform === 'win32'
+	process.platform === 'win32' || process.platform === 'linux'
 		? `${cohortEnvironmentStem}-desktop`
 		: distributionProfile.applicationName;
 const applicationPackage = JSON.parse(
@@ -136,8 +139,11 @@ await Promise.all([
 const packageWorkspace = await mkdtemp(path.join(tmpdir(), 'orchbee-desktop-package-'));
 const stagingRoot = path.join(packageWorkspace, 'application');
 const cohortRoot = path.join(packageWorkspace, cohortDirectoryName);
-// The packaged Electron's architecture: the host's, or a signed macOS cohort's platform, which a
-// Mac of the other architecture may package.
+// Linux carries its menu entry template and icons as `resources/linux`, which the window store copies
+// out (apps/orchbee/src/cli/update/menu_entry.rs) and the Linux packages install.
+const linuxMenuRoot = path.join(packageWorkspace, 'linux');
+// The packaged Electron's architecture: the host's, or a signed macOS or Linux cohort's platform,
+// which a host of the other architecture may package.
 let packagedArchitecture;
 try {
 	if (packaging.cohort === undefined) {
@@ -166,15 +172,20 @@ try {
 			packagedArchitecture = { 'macos-aarch64': 'arm64', 'macos-x86_64': 'x64' }[manifest.platform];
 			if (packagedArchitecture === undefined)
 				throw new Error(`The signed cohort is for ${String(manifest.platform)}, not macOS.`);
+		} else if (process.platform === 'linux') {
+			packagedArchitecture = { 'linux-aarch64': 'arm64', 'linux-x86_64': 'x64' }[manifest.platform];
+			if (packagedArchitecture === undefined)
+				throw new Error(`The signed cohort is for ${String(manifest.platform)}, not Linux.`);
 		}
 	}
 	await access(path.join(cohortRoot, 'cohort.json'));
 	// Staging names the Client after the stem it compiled, so this proves the cohort's stem.
-	if (process.platform === 'win32') {
-		await access(path.join(cohortRoot, `${cohortEnvironmentStem}.exe`));
-	} else if (process.platform === 'darwin') {
-		await access(path.join(cohortRoot, cohortEnvironmentStem));
-	}
+	await access(
+		path.join(
+			cohortRoot,
+			process.platform === 'win32' ? `${cohortEnvironmentStem}.exe` : cohortEnvironmentStem,
+		),
+	);
 	if (signsReleaseDirectory && packaging.cohort === undefined) {
 		// Every version is published on `stable` until `channel set preview` is released.
 		runNode('package-native-release.mjs', [
@@ -188,6 +199,14 @@ try {
 	// macOS signs the application after packaging; this record proves signing left the cohort as it was.
 	const stagedCohortFiles =
 		process.platform === 'darwin' ? await cohortFileDigests(cohortRoot) : undefined;
+	if (process.platform === 'linux') {
+		await writeLinuxMenuFiles({
+			applicationName: distributionProfile.applicationName,
+			directory: linuxMenuRoot,
+			repositoryRoot,
+			stem: cohortEnvironmentStem,
+		});
+	}
 	await mkdir(stagingRoot, { mode: 0o700 });
 	await cp(desktopBuild, path.join(stagingRoot, 'dist'), { recursive: true });
 	await writeFile(
@@ -195,6 +214,10 @@ try {
 		`${JSON.stringify(
 			{
 				description: applicationPackage.description,
+				// Electron takes the Linux window's Wayland application id from it, matching the menu entry.
+				...(process.platform === 'linux'
+					? { desktopName: `${cohortEnvironmentStem}.desktop` }
+					: {}),
 				main: 'dist/main/main.cjs',
 				name: distributionProfile.packageName,
 				private: true,
@@ -222,6 +245,7 @@ try {
 			rendererBuild,
 			cohortRoot,
 			...(trayIconDirectory === undefined ? [] : [trayIconDirectory]),
+			...(process.platform === 'linux' ? [linuxMenuRoot] : []),
 		],
 		helperBundleId: `${distributionProfile.bundleIdentifier}.helper`,
 		...(applicationIcon === undefined ? {} : { icon: applicationIcon }),
@@ -248,9 +272,7 @@ try {
 					)
 				: path.join(
 						output,
-						process.platform === 'win32'
-							? `${packagedExecutableName}.exe`
-							: distributionProfile.applicationName,
+						process.platform === 'win32' ? `${packagedExecutableName}.exe` : packagedExecutableName,
 					);
 		await access(executablePath);
 		if (process.platform === 'darwin') {
@@ -273,7 +295,8 @@ try {
 		// release path grammar.
 		if (signsReleaseDirectory) runNode('desktop-files.mjs', ['write', output, productVersion]);
 		console.info(`Packaged Orchbee Desktop (${distributionProfile.profileId}): ${output}`);
-		if (packaging.installer) await compileWindowsInstaller(output);
+		if (packaging.installer && process.platform === 'linux') await createLinuxPackages(output);
+		else if (packaging.installer) await compileWindowsInstaller(output);
 	}
 } finally {
 	await rm(packageWorkspace, { force: true, recursive: true });
@@ -448,6 +471,40 @@ async function createMacDiskImage(application) {
 		workspace,
 	});
 	console.info(`Created the macOS disk image (${profileId}): ${image}`);
+}
+
+/**
+ * Writes `<out>/<profile>/installer/<name>-<version>-<platform>.AppImage` and `.deb` from the
+ * packaged application, named for the signed manifest's platform.
+ */
+async function createLinuxPackages(applicationDirectory) {
+	const releaseManifest = JSON.parse(
+		await readFile(
+			path.join(applicationDirectory, 'resources', cohortDirectoryName, 'release.json'),
+			'utf8',
+		),
+	);
+	const outputDirectory = path.join(
+		applicationRoot,
+		'out',
+		distributionProfile.outputDirectoryName,
+		'installer',
+	);
+	await rm(outputDirectory, { force: true, recursive: true });
+	await mkdir(outputDirectory, { recursive: true });
+	const workspace = path.join(packageWorkspace, 'linux-packages');
+	await mkdir(workspace);
+	const written = await writeLinuxPackages({
+		applicationDirectory,
+		applicationName: distributionProfile.applicationName,
+		artifactName: profileId === 'release' ? 'Orchbee' : distributionProfile.artifactStem,
+		outputDirectory,
+		platform: releaseManifest?.platform,
+		stem: cohortEnvironmentStem,
+		version: productVersion,
+		workspace,
+	});
+	for (const file of written) console.info(`Created the Linux package (${profileId}): ${file}`);
 }
 
 /** The total size in bytes of the regular files below `directory`. */

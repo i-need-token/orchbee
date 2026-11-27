@@ -44,6 +44,8 @@ const OTHERS_ACCESS = 0o077;
 const SHARING_WAIT_MILLISECONDS = 500;
 const SHARING_RETRY_MILLISECONDS = 10;
 const DAY_MILLISECONDS = 86_400_000;
+/** Whether the open appends (platformOpenFlags) rather than writing at the size it read. */
+const appends = process.platform !== 'win32' && process.platform !== 'darwin';
 
 type DesktopLogLevel = 'error' | 'info' | 'warning';
 type DesktopLogValue = boolean | number | string;
@@ -124,7 +126,8 @@ export class DesktopDiagnosticLog {
 			}
 			const size = fstatSync(descriptor).size;
 			const line = admittedLine(size, readTail(descriptor, size), record, capped);
-			if (line !== undefined) writeSync(descriptor, line, size, 'utf8');
+			// An `O_APPEND` descriptor writes at the end of the file wherever it stands.
+			if (line !== undefined) writeSync(descriptor, line, appends ? null : size, 'utf8');
 		} finally {
 			closeSync(descriptor);
 		}
@@ -222,7 +225,8 @@ function readTail(descriptor: number, size: number): string {
 
 /**
  * Opens the day's file held against every other writer, waiting briefly while another writer holds
- * it: without sharing on Windows, and on macOS under its exclusive lock, never through a link.
+ * it: without sharing on Windows, and on macOS under its exclusive lock, never through a link. Linux
+ * opens it to append without the lock.
  */
 function openExclusive(file: string): number {
 	const flags = constants.O_RDWR | constants.O_CREAT | platformOpenFlags();
@@ -239,7 +243,12 @@ function openExclusive(file: string): number {
 	}
 }
 
-/** The open's hold on the file; Linux Main writes no log, so its open takes no lock. */
+/**
+ * The open's hold on the file. Node cannot take the natives' `flock` lock on Linux, so Linux Main
+ * appends through `O_APPEND` without it, as the natives append under it: no record overwrites
+ * another, and only the records appended while Main reads the file's size can carry the day past its
+ * limit.
+ */
 function platformOpenFlags(): number {
 	switch (process.platform) {
 		case 'win32':
@@ -247,7 +256,7 @@ function platformOpenFlags(): number {
 		case 'darwin':
 			return DARWIN_O_EXLOCK | constants.O_NONBLOCK | constants.O_NOFOLLOW;
 		default:
-			return constants.O_NONBLOCK | constants.O_NOFOLLOW;
+			return constants.O_APPEND | constants.O_NOFOLLOW;
 	}
 }
 

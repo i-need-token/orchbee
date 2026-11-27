@@ -1,18 +1,20 @@
 // The real-window Update check of the release path, `window-update` in
-// scripts/release-smoke-windows.mjs and scripts/release-smoke-macos.mjs. It presses Update in the
-// real window of a packaged Test build as a person whose window version is older does when a newer
-// one is installed, in the steps of apps/desktop/README.md (Window Update, Manual self-test):
+// scripts/release-smoke-windows.mjs, scripts/release-smoke-macos.mjs and
+// scripts/release-smoke-linux.mjs. It presses Update in the real window of a packaged Test build as
+// a person whose window version is older does when a newer one is installed, in the steps of
+// apps/desktop/README.md (Window Update, Manual self-test):
 //
 // 1. Settings › About › Update relaunches the window into the newer version.
 // 2. With the newer version's bundled Client moved aside, the sidebar footer's Update shows the
 //    waiting notice, and the window keeps running.
 // 3. With the file the relaunch starts moved aside (Windows: the window entry
-//    `desktop\<stem>-desktop.exe`; macOS: the newer version's `<stem>-desktop-launcher`), it shows
-//    the failure notice, and the window keeps running.
+//    `desktop\<stem>-desktop.exe`; Linux: the window entry `desktop/<stem>-desktop`; macOS: the
+//    newer version's `<stem>-desktop-launcher`), it shows the failure notice, and the window keeps
+//    running.
 // 4. The footer's Update relaunches the window into the newer version.
 //
 // A relaunch counts when the older window process exits, the data root's diagnostic log gains a
-// `window-relaunch-started` record, one new window process runs (on Windows from
+// `window-relaunch-started` record, one new window process runs (on Windows and Linux from
 // `desktop\versions\<newer>\`; on macOS from the bundle the person opened, which the launcher
 // replaced), it shows the Workspace the older window showed, and its Settings › About names the
 // newer version. A terminal the CLI opened prints `tick-<n>` every second throughout and must print
@@ -56,7 +58,7 @@ import {
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { DESKTOP_FILES, desktopFilesDocument } from './desktop-files.mjs';
+import { DESKTOP_FILES, desktopFilesDocument, desktopRules } from './desktop-files.mjs';
 import { readRelease } from './package-npm.mjs';
 import {
 	diagnosticLogTail,
@@ -449,7 +451,7 @@ function standIn(built, version, work, port) {
 	port.seal(directory, built.application);
 	writeFileSync(
 		path.join(directory, DESKTOP_FILES),
-		desktopFilesDocument(directory, version, built.application),
+		desktopFilesDocument(directory, version, desktopRules(process.platform), built.application),
 	);
 	log(`The stand-in window ${version} is a copy of ${built.version}.`);
 	return { ...built, directory, version };

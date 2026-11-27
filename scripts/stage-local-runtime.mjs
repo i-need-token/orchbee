@@ -269,9 +269,13 @@ function main() {
 		(distro ? '/tmp/orchbee-native-' + checkout + '-target' : path.join(root, 'target'));
 	if (!path.posix.isAbsolute(target)) throw new Error('Cargo target directory must be absolute');
 	const destination = accessible(output);
-	// A macOS cohort also carries the window launcher, which a window version's bundle runs to
-	// replace the application when the window relaunches (apps/orchbee-desktop-launcher/README.md).
-	const windowLauncher = process.platform === 'darwin' ? 'orchbee-desktop-launcher' : undefined;
+	// A macOS or Linux cohort also carries the window launcher (apps/orchbee-desktop-launcher/README.md):
+	// a macOS window version's bundle runs it to replace the application when the window relaunches,
+	// and the Linux window store copies it out as the window entry. A WSL cohort serves no window.
+	const windowLauncher =
+		process.platform === 'darwin' || process.platform === 'linux'
+			? 'orchbee-desktop-launcher'
+			: undefined;
 	const macosTarget = MACOS_TARGETS.get(selected['--platform'] ?? '');
 	const linuxTarget = LINUX_TARGETS.get(selected['--platform'] ?? '');
 	if (linuxTarget !== undefined && linuxTarget.arch !== process.arch)
