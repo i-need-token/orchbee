@@ -1,6 +1,6 @@
 #!/bin/sh
 # Installs the Orchbee command line on macOS or Linux from the release the stable channel names,
-# and on macOS with --desktop the window application too:
+# and with --desktop the window application too:
 #
 #   curl -fsSL https://orchbee.com/install.sh | sh
 #   curl -fsSL https://orchbee.com/install.sh | sh -s -- [--desktop] [--no-path] [--version <version>]
@@ -35,6 +35,10 @@
 #    updates are not switched on yet does not know that word; its application is copied alone. A
 #    download through curl carries no quarantine attribute, so the application opens without the
 #    Gatekeeper prompt a browser download meets.
+#    With --desktop on Linux, the window archive is a .tar.gz, checked the same way; after the
+#    install the application's bundled Client adds that window version to the store with
+#    --installer-window, which also writes its application menu entry and icons, and nothing is
+#    copied elsewhere. An open window of an older version offers Update to switch to it.
 # 5. Removes the temporary folder on every exit, interrupted or not.
 #
 # Where a verifier exists, the feed signature (here) is checked before the feed is trusted, so an
@@ -432,9 +436,12 @@ EOF
 			"发布源给出的版本是 ${ob_version}，不是 ${ob_wanted}。未安装任何内容。"
 	fi
 	if [ "$ob_desktop" = 1 ]; then
-		# The window archive in extensions.desktop; a release whose window did not change may name
-		# an earlier window version.
-		ob_window_fields=$(printf '%s\n' "$ob_feed" | sed -n 's/^.*,"extensions":{"desktop":{"version":"\([0-9A-Za-z.-]*\)","manifest":{"sha256":"[0-9a-f]\{64\}"},"archive":{"format":"zip","url":"\([^"]*\)","size":\([0-9]\{1,10\}\),"sha256":"\([0-9a-f]\{64\}\)"}.*$/\1 \2 \3 \4/p')
+		# The window archive in extensions.desktop, a zip on macOS and a .tar.gz on Linux; a release
+		# whose window did not change may name an earlier window version.
+		ob_window_format=zip
+		[ "$ob_os" = linux ] && ob_window_format=tar.gz
+		ob_window_format_pattern=$(printf '%s' "$ob_window_format" | sed 's/\./\\./')
+		ob_window_fields=$(printf '%s\n' "$ob_feed" | sed -n 's/^.*,"extensions":{"desktop":{"version":"\([0-9A-Za-z.-]*\)","manifest":{"sha256":"[0-9a-f]\{64\}"},"archive":{"format":"'"$ob_window_format_pattern"'","url":"\([^"]*\)","size":\([0-9]\{1,10\}\),"sha256":"\([0-9a-f]\{64\}\)"}.*$/\1 \2 \3 \4/p')
 		if [ -z "$ob_window_fields" ]; then
 			ob_fail "Release $ob_version offers no desktop app for $ob_platform. Nothing was installed." \
 				"$ob_version 版本没有提供适用于 $ob_platform 的桌面应用。未安装任何内容。"
@@ -485,7 +492,7 @@ ob_fetch_window() {
 	ob_window_url=$ob_resolved
 	ob_window_name=${ob_window_url##*/}
 	ob_window_folder="$ob_stem-desktop-$ob_window_version-$ob_platform"
-	if [ "$ob_window_name" != "$ob_window_folder.zip" ]; then
+	if [ "$ob_window_name" != "$ob_window_folder.$ob_window_format" ]; then
 		ob_fail "The feed names $ob_window_name, which is not the desktop app of $ob_window_version for $ob_platform. Nothing was installed." \
 			"发布源给出的 $ob_window_name 不是 $ob_platform 的 $ob_window_version 桌面应用。未安装任何内容。"
 	fi
@@ -520,19 +527,29 @@ ob_applications() {
 			"无法创建 ${ob_destination}；命令行已安装，桌面应用未安装。"
 }
 
-# Whether any process of the current user runs from the path prefix $1, as pgrep -f matches it.
-ob_running_under() {
-	ob_pattern=$(printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g')
+# The text $1 as an extended regular expression that matches it literally.
+ob_regex() {
+	printf '%s' "$1" | sed 's/[][\\.^$*+?(){}|]/\\&/g'
+}
+
+# Whether any process of the current user has a command line the extended regular expression $1
+# matches, as pgrep -f matches it.
+ob_running_matching() {
 	ob_uid=$(id -u 2>/dev/null || true)
 	if [ -n "$ob_uid" ]; then
-		pgrep -u "$ob_uid" -f "^$ob_pattern" >/dev/null 2>&1
+		pgrep -u "$ob_uid" -f "$1" >/dev/null 2>&1
 		ob_pgrep=$?
 		case $ob_pgrep in
 		0) return 0 ;;
 		1) return 1 ;;
 		esac
 	fi
-	pgrep -f "^$ob_pattern" >/dev/null 2>&1
+	pgrep -f "$1" >/dev/null 2>&1
+}
+
+# Whether any process of the current user runs from the path prefix $1.
+ob_running_under() {
+	ob_running_matching "^$(ob_regex "$1")"
 }
 
 # Whether any process of the current user runs from the application bundle $1: its window or a Session.
@@ -573,10 +590,55 @@ ob_open_bundle() {
 	"$ob_open" "$1" </dev/null >/dev/null 2>&1 || true
 }
 
+# On Linux the window version goes into the store alone: the bundled Client's --installer-window
+# installs it under desktop/versions/, makes it active and writes the window entry, the application
+# menu entry and its icons, through which the window starts.
+ob_install_linux_desktop() {
+	if ! tar -x -z -f "$ob_tmp/$ob_window_name" -C "$ob_tmp/window" </dev/null; then
+		ob_fail "Could not unpack $ob_window_name; $ob_partial." "无法解压 ${ob_window_name}；${ob_partial_zh}。"
+	fi
+	ob_helper="$ob_tmp/window/$ob_window_folder/resources/cohort/$ob_stem"
+	if [ ! -f "$ob_helper" ] || [ ! -x "$ob_helper" ]; then
+		ob_fail "$ob_window_name holds no runnable $ob_stem; $ob_partial." "$ob_window_name 中没有可运行的 ${ob_stem}；${ob_partial_zh}。"
+	fi
+	ob_answer=$("$ob_helper" --installer-window </dev/null 2>"$ob_tmp/window.err")
+	ob_code=$?
+	case $ob_answer in
+	*'"schema": "orchbee.install"'*) ;;
+	*)
+		cat "$ob_tmp/window.err" >&2
+		ob_fail "The desktop app's $ob_stem exited $ob_code; $ob_partial." \
+			"桌面应用中的 $ob_stem 以 $ob_code 退出；${ob_partial_zh}。"
+		;;
+	esac
+	if [ "$ob_code" != 0 ]; then
+		ob_error=$(printf '%s\n' "$ob_answer" | sed -n 's/^[[:space:]]*"error": "\([a-z0-9-]*\)".*$/\1/p')
+		ob_fail "Could not add the desktop app to the Orchbee store (${ob_error:-exit $ob_code}); $ob_partial." \
+			"无法把桌面应用加入 Orchbee 存储（${ob_error:-退出码 $ob_code}）；${ob_partial_zh}。"
+	fi
+	# The installed version's folder, desktop/versions/<version>; the single window that may run
+	# has its program `<stem>-desktop` in one such folder.
+	ob_release=$(printf '%s\n' "$ob_answer" | sed -n 's/^[[:space:]]*"releasePath": "\([^"\\]*\)",*$/\1/p')
+	if [ -n "$ob_release" ] && ob_running_under "$ob_release/$ob_stem-desktop"; then
+		ob_say "Orchbee $ob_window_version is already running." "Orchbee $ob_window_version 已在运行。"
+	elif [ -n "$ob_release" ] &&
+		ob_running_matching "^$(ob_regex "${ob_release%/*}")/[^/]+/$(ob_regex "$ob_stem")-desktop( |\$)"; then
+		ob_say "Added Orchbee $ob_window_version; click Update in the open Orchbee window to switch to it." \
+			"已添加 Orchbee ${ob_window_version}；请在已打开的 Orchbee 窗口中点击“更新”切换过去。"
+	else
+		ob_say "Installed Orchbee $ob_window_version; open it from the application menu." \
+			"已安装 Orchbee ${ob_window_version}；请从应用菜单打开。"
+	fi
+}
+
 ob_install_desktop() {
 	ob_partial='the command line is installed, the desktop app is not'
 	ob_partial_zh='命令行已安装，桌面应用未安装'
 	mkdir "$ob_tmp/window" || exit 1
+	if [ "$ob_os" = linux ]; then
+		ob_install_linux_desktop
+		return 0
+	fi
 	# The system tar reads a zip as well.
 	if ! tar -x -f "$ob_tmp/$ob_window_name" -C "$ob_tmp/window" </dev/null; then
 		ob_fail "Could not unpack $ob_window_name; $ob_partial." "无法解压 ${ob_window_name}；${ob_partial_zh}。"
@@ -742,10 +804,6 @@ ob_main() {
 	done
 	ob_find_verifier
 	ob_detect_platform
-	if [ "$ob_desktop" = 1 ] && [ "$ob_os" != macos ]; then
-		ob_fail "--desktop is not available on $ob_platform yet. Nothing was installed." \
-			"--desktop 暂不支持 ${ob_platform}。未安装任何内容。"
-	fi
 
 	ob_proto='=https'
 	if [ -n "${ORCHBEE_INSTALL_SH_FEED:-}" ]; then

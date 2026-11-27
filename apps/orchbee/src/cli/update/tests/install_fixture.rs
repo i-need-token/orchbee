@@ -258,7 +258,6 @@ pub(super) fn in_process_completion(
 }
 
 /// The unpack step of a run that must end before any archive is unpacked.
-#[cfg(any(windows, target_os = "macos"))]
 pub(super) fn never_unpack(_unpacked: &Path, _context: &mut Context) -> Result<(), Error> {
     unreachable!("this run never unpacks an archive")
 }

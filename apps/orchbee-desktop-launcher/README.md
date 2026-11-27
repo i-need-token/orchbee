@@ -1,6 +1,6 @@
 # Orchbee Desktop Launcher
 
-The window launcher of a release installation, on Windows and macOS.
+The window launcher of a release installation, on Windows, macOS and Linux.
 
 On Windows a release directory carries it as `<stem>-desktop-launcher.exe`, and every window version
 holds its own copy under `resources\cohort\`. The window step of the store places the active window
@@ -18,33 +18,50 @@ bundle's `Contents/Resources/cohort/`. The bundle itself is the entry there, so 
 only when a window relaunches into a newer window version ([macOS](#macos)). Staging builds it into
 every macOS cohort and release packaging requires it.
 
-On Linux it prints that it runs only on Windows and macOS and exits `4`.
+On Linux a release directory carries it as `<stem>-desktop-launcher`, and every window version holds
+its own copy under `resources/cohort/`. The window step of the store places the active window
+version's copy at the window entry `<store root>/desktop/<stem>-desktop`, the program the
+application menu entry names, so starting Orchbee starts the active window version, as on Windows.
+Staging builds it into every Linux cohort and release packaging requires it.
+
+On any other system it prints that it runs only on Windows, macOS and Linux and exits `4`.
 
 ## Behavior
 
-The Windows decision is one pure function in `src/decision.rs` of the pointer, the arguments, the
-parent check and which programs exist; its steps run in this order.
+The Windows and Linux decision is one pure function in `src/decision.rs` of the pointer, the
+arguments, the parent check and which programs exist; `src/launch.rs` runs it, and `src/windows.rs`
+and `src/linux.rs` hold what differs. Paths are written with `/`; the Windows names end in `.exe`.
+The steps run in this order.
 
-1. From its own path `<root>\<name>.exe` it reads `<root>\active.json`, at most 16 KiB, with the
-   store pointer's parser from `orchbee-release-records`, and starts
-   `<root>\versions\<active>\<name>.exe`. It reads no other file and no configuration.
+1. From its own path `<root>/<name>` it reads `<root>/active.json`, at most 16 KiB, with the store
+   pointer's parser from `orchbee-release-records`, and starts `<root>/versions/<active>/<name>`. It
+   reads no other file and no configuration.
 2. When its first two arguments are `--relaunch-after <process id>`, it drops them. When that
-   process is its parent, which started no later than the launcher, it first waits up to 30 seconds
+   process is its parent, which started no later than the launcher (on Linux by the start times in
+   `/proc`), it first waits up to 30 seconds
    for it to end, because the window's single-instance lock would otherwise hand the new command
    line to the old window. After 30 seconds it starts anyway.
 3. It passes the remaining arguments one by one and the environment unchanged, with the version
-   folder as working folder, and starts no Job: the window outlives the launcher.
+   folder as working folder, and starts no Job: the window outlives the launcher. On Linux the
+   window leads a process group of its own, so an interrupt in the terminal that started the
+   launcher leaves it, and where the system restricts unprivileged user namespaces
+   (`/proc/sys/kernel/apparmor_restrict_unprivileged_userns` reads 1,
+   `/proc/sys/kernel/unprivileged_userns_clone` 0 or `/proc/sys/user/max_user_namespaces` 0) the
+   launcher passes `--no-sandbox` before those arguments, since Chromium's sandbox then cannot start
+   and no AppArmor profile can name a program in the person's home folder.
 4. When the pointer names a `previous` version whose program exists, the active window receives
    the [launcher protocol](../orchbee-launcher/README.md#relaunch-protocol) variable
    `ORCHBEE_RELAUNCH` with the launcher's process id, and the launcher watches it for 120
-   seconds. If it cannot start, or ends within them with a non-zero status, the launcher starts the
+   seconds. If it cannot start, or ends within them with a non-zero status or, on Linux, by a
+   signal, the launcher starts the
    previous version once with `--fallback-from=<active version>` before the same arguments and
    without the variable. A window that ends with status 0, as a second instance does, is no failure.
    Without such a version, no start receives the variable, and the launcher exits once the window
    has started.
-5. When no window starts, it shows the command launcher's message for the same failure in a message
-   box, in the Windows display language (`zh` is `zh-CN`, anything else `en-US`), and exits `1`.
-   Otherwise it exits `0`.
+5. When no window starts, it reports the command launcher's message for the same failure and exits
+   `1`: on Windows in a message box, in the Windows display language, and on Linux on standard
+   error, in the language `LC_ALL`, `LC_MESSAGES` or `LANG` names (`zh` is `zh-CN`, anything else
+   `en-US`). Otherwise it exits `0`.
 
 It moves no pointer and records no failure: a window failure says nothing about the runtime, whose
 fallback keeps its own count.
@@ -135,6 +152,7 @@ cargo clippy -p orchbee-desktop-launcher --all-targets --locked --target x86_64-
 cargo clippy -p orchbee-desktop-launcher --all-targets --locked --target aarch64-apple-darwin -- -D warnings
 ```
 
-The unit tests cover both decisions and the locale; the macOS ones run on a Mac. The wait, the
+The unit tests cover both decisions and the locale; the macOS ones run on a Mac and the Linux ones
+on Linux. The wait, the
 watch, the message box, the replacement and the icon need a staged test package and a real window
 run.

@@ -5,7 +5,8 @@
 //! the pointer and the download folder are as they were, save the folder's lock. The automatic
 //! helper's run of the same engine has its own Windows case: no PATH step, the launcher refreshed
 //! only where it exists, `busy` under either held lock, and one document as its whole answer.
-//! macOS runs every case but that one and the junction's, with its own system tar's probes.
+//! macOS and Linux run every case but that one and the junction's, with their own system tar's
+//! probes.
 use super::super::{
     Context, Error, Report,
     archive::{self, Unpack},
@@ -511,7 +512,7 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
     }
     // The launch sets no working directory there, so the archive and the folder are the only
     // paths, and the environment is empty.
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     {
         use std::ffi::OsStr;
         assert_eq!(program, Path::new("/usr/bin/tar"));
@@ -538,7 +539,7 @@ fn the_system_tar_unpacks_the_one_top_folder_from_fixed_arguments_and_refuses_a_
     fs::write(packed.join("orchbee-0.2.0/sub/file.txt"), b"inside").unwrap();
     #[cfg(windows)]
     let create = ["-a", "-c", "-f", archive::ARCHIVE, "orchbee-0.2.0"];
-    #[cfg(target_os = "macos")]
+    #[cfg(unix)]
     let create = ["-c", "-z", "-f", archive::ARCHIVE, "orchbee-0.2.0"];
     let packing = std::process::Command::new(command.get_program())
         .current_dir(&packed)

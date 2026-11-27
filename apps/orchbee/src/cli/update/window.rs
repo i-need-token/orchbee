@@ -11,8 +11,7 @@
 //! version with the same list is verified and reused; one with another list is a conflict. The
 //! install touches no running window and no path outside `desktop/versions/` and
 //! `desktop/active.json`; after it, [`layout::tend`] places the window entry, moves a flat layout on
-//! and removes old window versions. Windows and macOS only, and only where [`window_updates_live`]
-//! holds.
+//! and removes old window versions. Only where [`window_updates_live`] holds.
 pub(super) mod layout;
 
 use super::{
@@ -44,8 +43,6 @@ use std::{
 
 /// The window store's folder in the store root.
 pub(super) const FOLDER: &str = "desktop";
-/// Whether this platform has window versions; Linux has no window release yet.
-const PLATFORM: bool = cfg!(any(windows, target_os = "macos"));
 
 /// What one window part did: the `desktop` member of `orchbee.update`, and the facts of
 /// `--installer-window`'s answer.
@@ -105,7 +102,7 @@ pub(super) fn update(
     announce: &dyn Fn(&str, u64),
     context: &mut Context,
 ) -> Option<WindowReport> {
-    if !(PLATFORM && window_updates_live()) {
+    if !window_updates_live() {
         return None;
     }
     let desktop = root.join(FOLDER);
@@ -526,35 +523,24 @@ fn at(directory: &Path, relative: &str) -> PathBuf {
         .fold(directory.to_path_buf(), |path, part| path.join(part))
 }
 
-/// The window directory the running Client is bundled in: `<window>\resources\cohort\` on Windows
-/// and `<window>/<name>.app/Contents/Resources/cohort/` on macOS, where the list sits beside the
-/// bundle. A Client anywhere else has none.
+/// The window directory the running Client is bundled in: `<window>\resources\cohort\` on Windows,
+/// `<window>/resources/cohort/` on Linux and `<window>/<name>.app/Contents/Resources/cohort/` on
+/// macOS, where the list sits beside the bundle. A Client anywhere else has none.
 fn bundled_window() -> Result<PathBuf, Error> {
     let cohort = own_directory()?;
-    let window = if cfg!(target_os = "macos") {
-        orchbee_local_runtime::bundle_of_cohort(&cohort).and_then(Path::parent)
-    } else {
-        let mut folders = cohort.ancestors();
-        let named = |folder: Option<&Path>, name: &str| {
-            folder
-                .and_then(Path::file_name)
-                .is_some_and(|own| own == name)
-        };
-        let shaped = named(folders.next(), "cohort") && named(folders.next(), "resources");
-        folders.next().filter(|_| shaped)
-    };
-    window
+    orchbee_local_runtime::window_of_cohort(&cohort)
         .map(Path::to_path_buf)
         .ok_or(Error::NotReleaseDirectory)
 }
 
-/// Whether `install` also makes the window store: on macOS, where window updates run, when the
-/// running Client is a window application's bundled one. A copy dragged from the disk image carries
-/// no window list, which sits beside the bundle because a file inside it would break its seal, so
-/// its version cannot be stored as a window version; the store gains the empty window store
-/// instead, and the window part of every later update installs the next window version there.
+/// Whether `install` also makes the window store: on macOS and Linux, where window updates run,
+/// when the running Client is a window application's bundled one. A copy dragged from the macOS
+/// disk image carries no window list, which sits beside the bundle because a file inside it would
+/// break its seal, and a Linux AppImage or `.deb` window is not stored either, so neither is a
+/// window version; the store gains the empty window store instead, and the window part of every
+/// later update installs the next window version there. Windows Setup runs `--installer-window`.
 pub(super) fn install_makes_store() -> bool {
-    cfg!(target_os = "macos") && window_updates_live() && bundled_window().is_ok()
+    cfg!(unix) && window_updates_live() && bundled_window().is_ok()
 }
 
 /// Creates the window store `<root>/desktop/` with its lock and `versions/` when it is missing,
@@ -571,8 +557,7 @@ pub(super) fn make_store(root: &Path, context: &mut Context) -> Result<(), Error
 /// versions and flat-layout leftovers whose process has exited leave disk without waiting for a
 /// later update.
 pub(crate) fn tend_store() -> Output {
-    if PLATFORM
-        && window_updates_live()
+    if window_updates_live()
         && environment_kind() != EnvironmentKind::Development
         && let Ok(root) = platform::install_root()
     {

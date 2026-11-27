@@ -105,12 +105,12 @@ pub(in crate::cli::update) fn no_process_runs_from(_folder: &Path) -> io::Result
     Err(io::ErrorKind::Unsupported.into())
 }
 
-/// Whether a complete listing shows no process whose start path lies inside `folder`; a listing
-/// that fails part way tells nothing. Only a folder whose every program Orchbee itself starts by
-/// absolute path can rely on this, since a program a shell started by name is not found: a macOS
-/// window version, whose bundle no window runs from because the launcher copies it into the
-/// Applications folder.
-#[cfg(target_os = "macos")]
+/// Whether a complete listing shows no process whose program lies inside `folder`; a listing that
+/// fails part way tells nothing. Only a folder whose every program Orchbee itself starts by absolute
+/// path can rely on this, since on macOS a program a shell started by name is not found, and a
+/// library loaded from the folder is not seen: a macOS window version, whose bundle no window runs
+/// from because the launcher copies it into the Applications folder, and a Linux window version,
+/// whose window and bundled release programs the launcher and the window start.
 pub(in crate::cli::update) fn no_process_started_from(folder: &Path) -> io::Result<bool> {
     match processes_inside(folder, &[]) {
         (processes, true) => Ok(processes.is_empty()),

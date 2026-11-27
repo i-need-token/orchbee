@@ -16,6 +16,8 @@ mod feed;
 mod install;
 mod installed;
 mod manifest;
+#[cfg(target_os = "linux")]
+mod menu_entry;
 mod path_limit;
 mod path_step;
 #[cfg(windows)]

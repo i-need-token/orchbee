@@ -60,7 +60,7 @@ impl ReleaseStore {
         })
     }
     /// The root this lock guards.
-    #[cfg(windows)]
+    #[cfg(not(target_os = "macos"))]
     pub(crate) fn root(&self) -> &Path {
         &self.root
     }

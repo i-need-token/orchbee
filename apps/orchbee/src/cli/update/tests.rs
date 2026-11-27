@@ -8,7 +8,6 @@ mod feed_admission;
 mod held_version;
 mod install_fixture;
 mod manifest_admission;
-#[cfg(any(windows, target_os = "macos"))]
 mod offered_update;
 #[cfg(windows)]
 mod offline_install;
@@ -23,7 +22,6 @@ mod signature_admission;
 mod unix_install;
 #[cfg(windows)]
 mod window_layout;
-#[cfg(any(windows, target_os = "macos"))]
 mod window_update;
 
 #[cfg(windows)]

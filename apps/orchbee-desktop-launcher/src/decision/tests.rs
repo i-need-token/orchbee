@@ -4,12 +4,18 @@ use super::{Failure, Next, Plan, Start, Watched, after, plan};
 use std::{
     cell::RefCell,
     ffi::OsString,
-    os::windows::ffi::OsStringExt,
     path::{Path, PathBuf},
 };
 
 const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const LAUNCHER: &str = r"C:\Store\desktop\orchbee-desktop.exe";
+#[cfg(windows)]
+const STORE: &str = r"C:\Store\desktop";
+#[cfg(windows)]
+const PROGRAM: &str = "orchbee-desktop.exe";
+#[cfg(target_os = "linux")]
+const STORE: &str = "/store/desktop";
+#[cfg(target_os = "linux")]
+const PROGRAM: &str = "orchbee-desktop";
 const PARENT: u32 = 4242;
 
 fn pointer(active: &str, previous: Option<&str>) -> String {
@@ -19,21 +25,43 @@ fn pointer(active: &str, previous: Option<&str>) -> String {
     format!(r#"{{"version":1,"active":{{"product":"{active}","manifest":"{DIGEST}"}}{previous}}}"#)
 }
 
+fn launcher() -> PathBuf {
+    Path::new(STORE).join(PROGRAM)
+}
+
+fn pointer_path() -> PathBuf {
+    Path::new(STORE).join("active.json")
+}
+
+/// An argument that is not Unicode.
+#[cfg(windows)]
+fn invalid() -> OsString {
+    use std::os::windows::ffi::OsStringExt;
+    OsString::from_wide(&[0xD800])
+}
+
+/// An argument that is not Unicode.
+#[cfg(target_os = "linux")]
+fn invalid() -> OsString {
+    use std::os::unix::ffi::OsStringExt;
+    OsString::from_vec(vec![0xFF])
+}
+
 fn strings(arguments: &[&str]) -> Vec<OsString> {
     arguments.iter().map(OsString::from).collect()
 }
 
 fn start(version: &str, arguments: &[&str], announced: bool) -> Start {
-    let folder = PathBuf::from(format!(r"C:\Store\desktop\versions\{version}"));
+    let folder = Path::new(STORE).join("versions").join(version);
     Start {
-        window: folder.join("orchbee-desktop.exe"),
+        window: folder.join(PROGRAM),
         folder,
         arguments: strings(arguments),
         announced,
     }
 }
 
-/// Decides for `LAUNCHER` over `bytes` as its pointer, with `PARENT` as its confirmed parent and
+/// Decides for `launcher()` over `bytes` as its pointer, with `PARENT` as its confirmed parent and
 /// the window programs of `present` versions on disk; records which pointer the launcher asked for.
 fn decide(
     bytes: Option<&str>,
@@ -42,7 +70,7 @@ fn decide(
 ) -> Result<Plan, Failure> {
     let asked = RefCell::new(Vec::new());
     let decision = plan(
-        Path::new(LAUNCHER),
+        &launcher(),
         |path| {
             asked.borrow_mut().push(path.to_path_buf());
             bytes.map(|text| text.as_bytes().to_vec())
@@ -55,10 +83,7 @@ fn decide(
                 .any(|version| path == start(version, &[], false).window)
         },
     );
-    assert_eq!(
-        asked.into_inner(),
-        [PathBuf::from(r"C:\Store\desktop\active.json")]
-    );
+    assert_eq!(asked.into_inner(), [pointer_path()]);
     decision
 }
 
@@ -133,13 +158,14 @@ fn the_active_version_starts_with_the_launchers_own_name_folder_and_arguments() 
 
 #[test]
 fn nothing_starts_without_an_active_version_or_any_program() {
-    let pointer_path = PathBuf::from(r"C:\Store\desktop\active.json");
+    let pointer_path = pointer_path();
     for bytes in [
         None,
         Some(String::new()),
         Some(pointer("0.2.0", None)[..30].to_owned()),
         Some(pointer("0.2.0", None).replace(r#""version":1"#, r#""version":2"#)),
         Some(pointer(r"..\\..\\Windows", None)),
+        Some(pointer("../../etc", None)),
         Some(pointer("0.2.0+build.7", None)),
         Some(pointer("0.2.0", Some("0.1"))),
     ] {
@@ -163,7 +189,7 @@ fn nothing_starts_without_an_active_version_or_any_program() {
 fn only_a_leading_relaunch_switch_is_the_launchers_and_it_waits_only_for_its_parent() {
     let parent = PARENT.to_string();
     let other = (PARENT + 1).to_string();
-    let invalid = OsString::from_wide(&[0xD800]);
+    let invalid = invalid();
     let cases: [(Vec<OsString>, Option<u32>, Vec<OsString>); 12] = [
         (
             strings(&["--relaunch-after", &parent, "--select-workspace=w"]),
@@ -249,7 +275,7 @@ fn only_a_leading_relaunch_switch_is_the_launchers_and_it_waits_only_for_its_par
     }
     // A launcher whose parent is unknown waits for nobody.
     let unknown = plan(
-        Path::new(LAUNCHER),
+        &launcher(),
         |_| Some(pointer("0.2.0", None).into_bytes()),
         strings(&["--relaunch-after", &parent]),
         None,
@@ -263,12 +289,14 @@ fn a_watched_failure_gives_way_to_the_previous_version_once() {
     for (watched, fallback, next) in [
         (Watched::NotStarted, true, Next::Fallback),
         (Watched::Ended(1), true, Next::Fallback),
-        // Access violation, as a crashed window ends.
+        // Access violation, as a crashed window ends on Windows.
         (
             Watched::Ended(0xC000_0005_u32.cast_signed()),
             true,
             Next::Fallback,
         ),
+        // A segmentation fault, as a crashed window ends on Linux.
+        (Watched::Ended(128 + 11), true, Next::Fallback),
         // A second instance hands its command line to the running window and ends with 0.
         (Watched::Ended(0), true, Next::Done),
         (Watched::Running, true, Next::Done),

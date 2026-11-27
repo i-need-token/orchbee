@@ -19,7 +19,7 @@ fn any_chinese_tag_selects_zh_cn_and_everything_else_en_us() {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 #[test]
 fn every_failure_names_its_path_in_both_locales() {
     use super::failure;

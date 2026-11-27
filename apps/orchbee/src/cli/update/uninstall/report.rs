@@ -4,6 +4,14 @@ use crate::{cli_text::CliText, localization::Locale, native_path};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 
+/// The `installerEntries` name of the shortcut entry: on Linux the window store's menu entry
+/// stands in the Start menu shortcut's place.
+const SHORTCUT: &str = if cfg!(target_os = "linux") {
+    "menu-entry"
+} else {
+    "start-menu-shortcut"
+};
+
 /// The result of one removal or stop, as the document spells it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Outcome {
@@ -251,7 +259,7 @@ impl Report {
                 })).collect::<Vec<_>>(),
                 "pathEntry": {"key": self.path_key, "result": self.path_entry.token()},
                 "installerEntries": [
-                    {"entry": "start-menu-shortcut", "location": path(&self.shortcut),
+                    {"entry": SHORTCUT, "location": path(&self.shortcut),
                         "result": self.shortcut_outcome.token()},
                     {"entry": "uninstall-registration", "location": self.registration,
                         "result": self.registration_outcome.token()},
@@ -291,7 +299,7 @@ impl Report {
             lines.push(format!("  {}{}", phrase("path-entry"), display(location)));
         }
         let entries: Vec<&str> = [
-            (self.shortcut_outcome, "start-menu-shortcut"),
+            (self.shortcut_outcome, SHORTCUT),
             (self.registration_outcome, "uninstall-registration"),
         ]
         .into_iter()

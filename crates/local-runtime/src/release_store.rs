@@ -122,23 +122,28 @@ pub fn is_release_version_directory(directory: &Path) -> bool {
             .is_some_and(|parent| parent.eq_ignore_ascii_case(RELEASE_VERSIONS))
 }
 
-/// The application bundle whose bundled release directory `directory` is: `<name>.app` when
-/// `directory` is `<name>.app/Contents/Resources/cohort`, where a macOS window carries its Client.
-/// The shape alone decides, wherever the bundle lies.
-pub fn bundle_of_cohort(directory: &Path) -> Option<&Path> {
+/// The window directory whose bundled release directory `directory` is, where a window carries its
+/// Client: `<window>` when `directory` is `<window>/<name>.app/Contents/Resources/cohort` on macOS,
+/// where the window's file list sits beside the bundle, and `<window>/resources/cohort` elsewhere.
+/// The shape alone decides, wherever the window lies.
+pub fn window_of_cohort(directory: &Path) -> Option<&Path> {
     let mut folders = directory.ancestors();
     let named = |folder: Option<&Path>, name: &str| {
         folder
             .and_then(Path::file_name)
             .is_some_and(|own| own == name)
     };
-    let shaped = named(folders.next(), "cohort")
-        && named(folders.next(), "Resources")
-        && named(folders.next(), "Contents");
-    folders.next().filter(|bundle| {
-        shaped
-            && bundle
-                .extension()
-                .is_some_and(|extension| extension == "app")
-    })
+    let shaped = if cfg!(target_os = "macos") {
+        named(folders.next(), "cohort")
+            && named(folders.next(), "Resources")
+            && named(folders.next(), "Contents")
+            && folders.next().is_some_and(|bundle| {
+                bundle
+                    .extension()
+                    .is_some_and(|extension| extension == "app")
+            })
+    } else {
+        named(folders.next(), "cohort") && named(folders.next(), "resources")
+    };
+    folders.next().filter(|_| shaped)
 }

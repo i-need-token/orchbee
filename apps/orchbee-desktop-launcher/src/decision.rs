@@ -1,18 +1,19 @@
 //! The window launcher's decisions: which arguments are its own, which window version it starts,
 //! with which arguments and in which folder, whether it watches that start, and what it does after
 //! it. They read no clock, start nothing, and see the process tree and the file system only
-//! through the facts their callers pass in. The macOS launcher shares the arguments, the fallback
-//! arguments and the step after a start, and decides its replacement in `replacement`.
-#[cfg(windows)]
+//! through the facts their callers pass in. Windows and Linux share every decision; the macOS
+//! launcher shares the arguments, the fallback arguments and the step after a start, and decides its
+//! replacement in `replacement`.
+#[cfg(any(windows, target_os = "linux"))]
 use orchbee_release_records::Pointer;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 use std::path::Path;
 use std::{
     ffi::{OsStr, OsString},
     path::PathBuf,
 };
 
-#[cfg(all(test, windows))]
+#[cfg(all(test, any(windows, target_os = "linux")))]
 mod tests;
 
 /// The launcher protocol variable shared with the command launcher: the launcher's own process id
@@ -29,7 +30,7 @@ pub(crate) const POINTER: &str = "active.json";
 pub(crate) const VERSIONS: &str = "versions";
 
 /// Why the launcher starts no window.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) enum Failure {
     /// The pointer at this path is missing, unreadable, or names no active version.
@@ -41,8 +42,8 @@ pub(crate) enum Failure {
 /// One window start.
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Start {
-    /// The window program: on Windows `versions\<version>\<the launcher's own file name>`, on macOS
-    /// the program inside the application bundle.
+    /// The window program: on Windows and Linux `versions/<version>/<the launcher's own file name>`,
+    /// on macOS the program inside the application bundle.
     pub(crate) window: PathBuf,
     /// Its working folder, the folder of the program, so no window holds another version's folder.
     pub(crate) folder: PathBuf,
@@ -53,7 +54,7 @@ pub(crate) struct Start {
 }
 
 /// What the launcher does, in order: wait, start `first`, and start `fallback` when `after` says so.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct Plan {
     /// The process to wait for before the first start: the one `--relaunch-after` named, only
@@ -75,7 +76,7 @@ pub(crate) struct Plan {
 ///
 /// `NoActiveVersion` when the pointer names no active version, and `ClientUnavailable` when
 /// neither the active window version nor a previous one can start.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub(crate) fn plan(
     launcher: &Path,
     read: impl FnOnce(&Path) -> Option<Vec<u8>>,
@@ -158,7 +159,8 @@ fn process_id(text: &str) -> Option<u32> {
 pub(crate) enum Watched {
     /// No window process started.
     NotStarted,
-    /// The window ended inside the watch with this exit code; an `NTSTATUS` reads as negative.
+    /// The window ended inside the watch with this exit code; an `NTSTATUS` reads as negative, and
+    /// on Linux a signal reads as 128 plus its number.
     Ended(i32),
     /// The window still ran when the watch ended, or the launcher did not watch it.
     Running,

@@ -1,8 +1,9 @@
 //! The window launcher. On Windows it is installed as `desktop\orchbee-desktop.exe` in the release
-//! store, the path every shortcut names. It reads the window pointer `active.json` beside it and
-//! starts `versions\<active>\<its own file name>` with its own arguments and environment in that
-//! version's folder. Asked to relaunch, it first waits for the window that asked; when the active
-//! window cannot start or soon ends with a failure, it starts the pointer's previous version once.
+//! store, the path every shortcut names, and on Linux as `desktop/orchbee-desktop`, the program the
+//! menu entry names. It reads the window pointer `active.json` beside it and starts
+//! `versions/<active>/<its own file name>` with its own arguments and environment in that version's
+//! folder. Asked to relaunch, it first waits for the window that asked; when the active window
+//! cannot start or soon ends with a failure, it starts the pointer's previous version once.
 //!
 //! On macOS the application bundle is the entry, and the launcher runs only to relaunch, from the
 //! cohort of a window version's bundle in the store: once the asking window has ended, it replaces
@@ -11,8 +12,12 @@
 //! anything, or owns the window it starts.
 #![cfg_attr(windows, windows_subsystem = "windows")]
 
-#[cfg(any(windows, target_os = "macos"))]
+#[cfg(any(windows, target_os = "linux", target_os = "macos"))]
 mod decision;
+#[cfg(any(windows, target_os = "linux"))]
+mod launch;
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(not(target_os = "macos"))]
 mod localization;
 #[cfg(target_os = "macos")]
@@ -24,16 +29,28 @@ mod windows;
 
 use std::process::ExitCode;
 
+/// Exit code `1`: no window started.
 #[cfg(windows)]
 fn main() -> ExitCode {
-    match windows::launch() {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(failure) => {
+    windows::launch().map_or_else(
+        |failure| {
             windows::show(&failure);
-            // Exit code `1`: no window started.
             ExitCode::FAILURE
-        }
-    }
+        },
+        |()| ExitCode::SUCCESS,
+    )
+}
+
+/// Exit code `1`: no window started.
+#[cfg(target_os = "linux")]
+fn main() -> ExitCode {
+    linux::launch().map_or_else(
+        |failure| {
+            linux::show(&failure);
+            ExitCode::FAILURE
+        },
+        |()| ExitCode::SUCCESS,
+    )
 }
 
 /// Exit code `1`: the request is no relaunch the launcher serves, or no window started.
@@ -43,7 +60,7 @@ fn main() -> ExitCode {
 }
 
 /// Exit code `4`: this platform cannot serve the request.
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn main() -> ExitCode {
     let tag = ["LC_ALL", "LC_MESSAGES", "LANG"]
         .into_iter()

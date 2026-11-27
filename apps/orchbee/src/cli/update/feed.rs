@@ -8,9 +8,9 @@
 //! folder is a signed release directory. Additions go into `extensions`, which this reader ignores
 //! except for `extensions.desktop`, the window archive of the window self-update release: a closed
 //! object of `version`, `manifest: {sha256}` (the SHA-256 of the archive's `desktop-files.json`),
-//! `archive: {format: "zip", url, size, sha256}` and an optional `extensions`, each bounded as the
-//! feed's own member of that name. A malformed `extensions.desktop` never refuses the feed: it only
-//! makes the window part fail.
+//! `archive: {format, url, size, sha256}`, its format `zip` on Windows and macOS and `tar.gz` on
+//! Linux, and an optional `extensions`, each bounded as the feed's own member of that name. A
+//! malformed `extensions.desktop` never refuses the feed: it only makes the window part fail.
 use super::{
     manifest::{Release, channel, label, semantic_version, token, valid_https},
     signature::TrustedFeed,
@@ -104,7 +104,9 @@ impl Feed {
             .and_then(|extensions| extensions.get("desktop"))
         {
             None => WindowOffer::Absent,
-            Some(value) => window(value).map_or(WindowOffer::Invalid, WindowOffer::Offered),
+            Some(value) => {
+                window(value, platform).map_or(WindowOffer::Invalid, WindowOffer::Offered)
+            }
         };
         Some(Self {
             channel,
@@ -151,8 +153,8 @@ fn archive(value: &Value, format: &str) -> Option<Archive> {
     })
 }
 
-/// The window archive `extensions.desktop` names; its archive is a zip on every platform.
-fn window(value: &Value) -> Option<Window> {
+/// The window archive `extensions.desktop` names in a feed for `platform`.
+fn window(value: &Value, platform: &str) -> Option<Window> {
     let object = closed_object(value, &["version", "manifest", "archive"], &["extensions"])?;
     check_extensions(object)?;
     let list = closed_object(object.get("manifest")?, &["sha256"], &[])?
@@ -163,8 +165,20 @@ fn window(value: &Value) -> Option<Window> {
     Some(Window {
         version: semantic_version(object.get("version")?)?,
         list,
-        archive: archive(object.get("archive")?, "zip")?,
+        archive: archive(object.get("archive")?, window_archive_format(platform)?)?,
     })
+}
+
+/// The window archive's format in a feed for `platform`: a zip on Windows and macOS, and on Linux a
+/// tar.gz, which the system tar there reads where it reads no zip.
+fn window_archive_format(platform: &str) -> Option<&'static str> {
+    if platform.starts_with("linux-") {
+        Some("tar.gz")
+    } else if platform.starts_with("windows-") || platform.starts_with("macos-") {
+        Some("zip")
+    } else {
+        None
+    }
 }
 
 /// The archive format a feed for `platform` names, as the release tool writes it

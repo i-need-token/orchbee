@@ -18,19 +18,33 @@ use std::{
 
 /// The window archive's name beside the feed.
 const WINDOW_ARCHIVE: &str = "window.zip";
+/// The window archive format a feed of this platform names.
+const WINDOW_FORMAT: &str = if cfg!(target_os = "linux") {
+    "tar.gz"
+} else {
+    "zip"
+};
 
 /// One file of a window directory: its list path, its bytes and whether the list marks it
 /// executable.
 type WindowSource = (&'static str, &'static [u8], bool);
 
-/// A window directory of `version` under the fixture and its list: two files, and on macOS a bundle
-/// path with spaces and parentheses, an executable file and an in-bundle link.
+/// A window directory of `version` under the fixture and its list: two files, on Linux one of them
+/// executable, and on macOS a bundle path with spaces and parentheses, an executable file and an
+/// in-bundle link.
 fn window(fixture: &Fixture, version: &str) -> (PathBuf, Vec<u8>) {
     let directory = fixture.0.join(format!("window-{version}"));
     let (files, links): (&[WindowSource], Value) = match Rules::own() {
         Rules::Windows => (
             &[
                 ("orchbee-desktop.exe", b"window".as_slice(), false),
+                ("resources/app.asar", b"page".as_slice(), false),
+            ],
+            Value::Null,
+        ),
+        Rules::Linux => (
+            &[
+                ("orchbee-desktop", b"window".as_slice(), true),
                 ("resources/app.asar", b"page".as_slice(), false),
             ],
             Value::Null,
@@ -100,7 +114,7 @@ fn update_installs_the_offered_window_after_the_runtime() {
         |feed| {
             feed["extensions"] = json!({"desktop": {
                 "version": "0.2.0", "manifest": {"sha256": sha(&list)},
-                "archive": {"format": "zip", "url": WINDOW_ARCHIVE, "size": window_archive.len(),
+                "archive": {"format": WINDOW_FORMAT, "url": WINDOW_ARCHIVE, "size": window_archive.len(),
                     "sha256": sha(window_archive)},
             }});
         },
@@ -169,6 +183,19 @@ fn update_installs_the_offered_window_after_the_runtime() {
             Path::new("A")
         );
     }
+    #[cfg(target_os = "linux")]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mode = |path: &str| {
+            fs::metadata(stored.join(path))
+                .unwrap()
+                .permissions()
+                .mode()
+                & 0o777
+        };
+        assert_eq!(mode("orchbee-desktop"), 0o700);
+        assert_eq!(mode("resources/app.asar"), 0o600);
+    }
 
     // Both parts are now current: nothing is fetched, and the window part says so.
     fs::remove_file(fixture.0.join("feed").join(WINDOW_ARCHIVE)).unwrap();
@@ -177,8 +204,8 @@ fn update_installs_the_offered_window_after_the_runtime() {
     assert!(again.announced.is_empty());
     assert_eq!(again.rendered["result"]["desktop"]["upToDate"], true);
 
-    // A later release advances `desktop/versions/` while bounding disk: Windows keeps active +
-    // previous (`0.2.0`, `0.3.0`), and macOS keeps only active (`0.3.0`).
+    // A later release advances `desktop/versions/` while bounding disk: Windows and Linux keep
+    // active + previous (`0.2.0`, `0.3.0`), and macOS keeps only active (`0.3.0`).
     let (newest, newest_manifest) = release(&fixture, "newest", "0.3.0", "test");
     let (newest_window_tree, newest_list) = window(&fixture, "0.3.0");
     offer(
@@ -189,7 +216,7 @@ fn update_installs_the_offered_window_after_the_runtime() {
         |feed| {
             feed["extensions"] = json!({"desktop": {
                 "version": "0.3.0", "manifest": {"sha256": sha(&newest_list)},
-                "archive": {"format": "zip", "url": WINDOW_ARCHIVE, "size": window_archive.len(),
+                "archive": {"format": WINDOW_FORMAT, "url": WINDOW_ARCHIVE, "size": window_archive.len(),
                     "sha256": sha(window_archive)},
             }});
         },

@@ -7,9 +7,10 @@
 //! the refusal it meets, or starts its own Server as before. Each start decision writes one
 //! `session-start-source` record with tokens and counts only.
 //!
-//! On macOS the window application's bundled Client is the only installer a copy dragged from the
-//! disk image has. Where no store version is active, or the store's active version is lower than
-//! this bundle's, it first installs its own release directory (`install` when no store version is
+//! On macOS and Linux the window application's bundled Client is the only installer a copy dragged
+//! from the macOS disk image, a Linux AppImage or a Debian package's `/opt` folder has. Where no
+//! store version is active, or the store's active version is lower than this window's, it first
+//! installs its own release directory (`install` when no store version is
 //! active so new shells reach `~/.local/bin`, or `install --no-path` when upgrading a lower store
 //! so an existing store link and `desktop/` advance without repeating the profile step) and hands a
 //! fresh start to the version it installed; when joining a Session that is already running, it
@@ -150,7 +151,7 @@ pub(super) enum Decision {
 /// version's folder. A fact is read only when every earlier one allows the store, so a development
 /// build or a store Client reads nothing. Without an active version or when the active version is
 /// lower than `own_version`, `installs` says whether this Client installs its own release directory
-/// first, as a macOS window application's bundled Client does.
+/// first, as a macOS or Linux window application's bundled Client does.
 pub(super) fn decide(
     kind: EnvironmentKind,
     own_directory: &Path,
@@ -194,9 +195,9 @@ pub(super) fn decide(
 
 /// Before this Client's own activation: when the selected Session's Client endpoint is absent and
 /// the rule chooses the store, runs the store's Client and waits for it until `deadline`. When the
-/// Session is already running and a macOS bundle's Client is newer than the store (or the store has
-/// no active version), starts a non-blocking background store install so `~/.local/share/orchbee`
-/// and `desktop/` catch up without delaying the join. Answers whether the store's Client reports it
+/// Session is already running and a macOS or Linux window's Client is newer than the store (or the
+/// store has no active version), starts a non-blocking background store install so the store and
+/// `desktop/` catch up without delaying the join. Answers whether the store's Client reports it
 /// started the Session. At the deadline the answer is `TimedOut` and the store's Client keeps
 /// running.
 pub(super) fn start_if_absent(
@@ -218,10 +219,9 @@ pub(super) fn start_if_absent(
             |client| admit(client).is_ok(),
         )
     };
-    let installs = cfg!(target_os = "macos")
-        && orchbee_local_runtime::bundle_of_cohort(own_directory).is_some();
+    let installs = cfg!(unix) && orchbee_local_runtime::window_of_cohort(own_directory).is_some();
     if !session_absent(base, scope) {
-        #[cfg(target_os = "macos")]
+        #[cfg(unix)]
         if installs && let Decision::Install { no_path } = decide_now(true) {
             spawn_install_own(own_client, no_path);
         }
@@ -264,9 +264,9 @@ pub(super) fn start_if_absent(
 /// The store version folder from which `server restart`, run by this Client from outside the
 /// store, starts the new Server and Worker: the store's active version folder when that version is
 /// this Client's own, so the Session keeps running from the store, as a store start leaves it, and
-/// a window's files stay replaceable while its terminals run. A macOS bundle's Client whose version
-/// the store lacks first installs its own release directory, or, when another start of the bundle
-/// already installs it in the background, waits up to [`INSTALL_WAIT`] for it to become active.
+/// a window's files stay replaceable while its terminals run. A macOS or Linux window's Client whose
+/// version the store lacks first installs its own release directory, or, when another start of the
+/// window already installs it in the background, waits up to [`INSTALL_WAIT`] for it to become active.
 /// `None` leaves the restart to this Client's own cohort: a store Client, a development build, a
 /// store without this version, or one this rule cannot read.
 pub fn restart_cohort_directory(own_client: &Path, deadline: Instant) -> Option<PathBuf> {
@@ -282,8 +282,7 @@ pub fn restart_cohort_directory(own_client: &Path, deadline: Instant) -> Option<
             |client| admit(client).is_ok(),
         )
     };
-    let installs = cfg!(target_os = "macos")
-        && orchbee_local_runtime::bundle_of_cohort(own_directory).is_some();
+    let installs = cfg!(unix) && orchbee_local_runtime::window_of_cohort(own_directory).is_some();
     let mut decision = decide_now(installs);
     if let Decision::Install { no_path } = decision {
         if !install_own(own_client, no_path, deadline) {
@@ -424,10 +423,10 @@ fn install_own(own_client: &Path, no_path: bool, deadline: Instant) -> bool {
 }
 
 /// Starts this Client's `install [--no-path] --format json` detached in the background while
-/// joining an already-running Session on macOS, so the store, its `~/.local/bin` link, and
-/// `desktop/` advance to this bundle's version without delaying the join. It starts through a
+/// joining an already-running Session on macOS and Linux, so the store, its `~/.local/bin` link,
+/// and `desktop/` advance to this window's version without delaying the join. It starts through a
 /// `DetachedChild` with null standard streams, which inherits no descriptor but those three.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn spawn_install_own(own_client: &Path, no_path: bool) {
     let mut command = Command::new(own_client);
     command.arg("install");
@@ -503,7 +502,7 @@ fn null_device(write: bool) -> io::Result<OwnedFd> {
 }
 
 /// Null standard input, output and error for a child that outlives this Client.
-#[cfg(target_os = "macos")]
+#[cfg(unix)]
 fn null_streams() -> io::Result<[OwnedFd; 3]> {
     Ok([null_device(false)?, null_device(true)?, null_device(true)?])
 }

@@ -925,10 +925,10 @@ destructive request log, its generation, and any other name are never daily file
 admitted while the file plus the record plus a 256-byte reserve stays within
 `DAILY_LOG_LIMIT_BYTES`, 7 MiB; the first record refused closes the day with one `log-capped`
 record, so the folder holds at most 51 MiB with the destructive log. Every error is a non-event.
-Desktop Main writes the same records with role `desktop-main` on Windows and macOS, where its open
-takes the same `flock` lock through `O_EXLOCK`; search for `daily-diagnostic-log` before changing
-the shape, a limit, or the names. Linux processes write the same files; only
-Windows and macOS runs prove them.
+Desktop Main writes the same records with role `desktop-main`; on macOS its open takes the same
+`flock` lock through `O_EXLOCK`, and on Linux, where Node takes no `flock` lock, it appends through
+`O_APPEND` without it. Search for `daily-diagnostic-log` before changing the shape, a limit, or the
+names.
 
 ## Diagnostic bundle redaction
 
@@ -1642,10 +1642,11 @@ reads `active.json` through `PrivateCache::read_existing` and parses it with
 active version, and an unsafe root or pointer, or one over 16 KiB, is an error. A read that meets
 the writer's momentary rename fails like any other and may be retried. `is_release_version_directory`
 answers whether a folder has a store version folder's shape: a version name below a folder named
-`versions` in any letter case. `bundle_of_cohort` answers whether a folder is a macOS window's
-bundled release directory, `<name>.app/Contents/Resources/cohort`, and names the bundle; the
-Session start installs from such a folder when the store has no active version, and `install` then
-also makes the window store. The Client's install, update and uninstall commands and its Session
+`versions` in any letter case. `window_of_cohort` answers whether a folder is a window's bundled
+release directory, `<window>/<name>.app/Contents/Resources/cohort` on macOS and
+`<window>/resources/cohort` elsewhere, and names the window directory; on macOS and Linux the
+Session start installs from such a folder when the store has no active version or a lower one, and
+`install` then also makes the window store. The Client's install, update and uninstall commands and its Session
 start read the store through these, and the CLI's `release_store` writer takes the folder and
 pointer names and the bound from here. Reading takes no lock, creates nothing and starts no
 process.

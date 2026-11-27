@@ -1,10 +1,13 @@
 //! macOS and Linux effects of uninstall outside the two roots: the command link install's PATH step
 //! placed, `~/.local/bin/<stem>`, removed only while it names a version of this store, and on macOS the
-//! two lines it added to the person's shell startup file; the
+//! two lines it added to the person's shell startup file; on Linux the window store's menu entry and
+//! its icons, removed only while the entry names this store, in the shortcut's place; the
 //! processes running from the store, through the shared process scan; the npm carrier; and the
-//! machine hub, through its client's ending path. No installer leaves files, entries or a
-//! registration here. A running program's files can be deleted here, so the removal never waits
-//! for this process to exit.
+//! machine hub, through its client's ending path. No installer leaves files or a registration here.
+//! A running program's files can be deleted here, so the removal never waits for this process to
+//! exit.
+#[cfg(target_os = "linux")]
+use super::super::menu_entry::MenuEntry;
 use super::super::path_step;
 pub(super) use super::super::running_programs::{StoreProcess, ancestors, inside, same};
 use orchbee_local_runtime::DataRoot;
@@ -19,6 +22,9 @@ use std::{
 pub(super) struct Locations {
     /// The command link, `~/.local/bin/<stem>`.
     link: PathBuf,
+    /// The window store's menu entry and its file, while that names this store's window entry.
+    #[cfg(target_os = "linux")]
+    menu: Option<(MenuEntry, PathBuf)>,
 }
 
 /// No platform installer leaves files in the store root here.
@@ -67,10 +73,23 @@ pub(super) fn protected_folders() -> Vec<PathBuf> {
     folders
 }
 
-/// This environment's link, from `HOME`.
+/// This environment's link, from `HOME`, and on Linux the store's menu entry.
 pub(super) fn locations() -> io::Result<Locations> {
     Ok(Locations {
         link: path_step::own_link().ok_or(io::ErrorKind::NotFound)?,
+        #[cfg(target_os = "linux")]
+        menu: store_root()
+            .ok()
+            .and_then(|root| {
+                let entry = format!("{}-desktop", orchbee_local_runtime::environment_stem());
+                let program = root.join(super::super::window::FOLDER).join(entry);
+                MenuEntry::of(&root, program)
+            })
+            .filter(MenuEntry::names_store)
+            .map(|menu| {
+                let path = menu.path();
+                (menu, path)
+            }),
     })
 }
 
@@ -90,9 +109,24 @@ impl Locations {
         None
     }
 
+    /// On Linux the window store's menu entry, which stands where Windows keeps its Start menu
+    /// shortcut; none elsewhere.
     pub(super) fn shortcut(&self) -> Option<&Path> {
+        #[cfg(target_os = "linux")]
+        return self.menu.as_ref().map(|(_, path)| path.as_path());
+        #[cfg(not(target_os = "linux"))]
         None
     }
+}
+
+/// What goes once the shortcut is removed: on Linux the menu entry's icons.
+pub(super) fn shortcut_removed(locations: &Locations) {
+    #[cfg(target_os = "linux")]
+    if let Some((menu, _)) = &locations.menu {
+        menu.remove_icons();
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = locations;
 }
 
 /// Whether the command link names a version of the store `root`, or on macOS a startup file holds

@@ -121,7 +121,7 @@
 						"required": ["entry", "location", "result"],
 						"properties": {
 							"entry": {
-								"enum": ["start-menu-shortcut", "uninstall-registration"]
+								"enum": ["start-menu-shortcut", "menu-entry", "uninstall-registration"]
 							},
 							"location": {
 								"type": ["string", "null"]

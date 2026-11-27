@@ -131,6 +131,9 @@ impl Locations {
     }
 }
 
+/// Nothing goes with the Start menu shortcut.
+pub(super) fn shortcut_removed(_locations: &Locations) {}
+
 /// Removes the entries the PATH step wrote by the exact inverse of its edit, keeping every other
 /// entry byte for byte and the value's registry type. Nothing is broadcast.
 pub(super) fn remove_path_entry(locations: &Locations, root: &Path) -> io::Result<()> {

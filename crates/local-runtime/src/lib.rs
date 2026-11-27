@@ -43,8 +43,8 @@ mod release_store;
 pub use release_store::{
     ActiveRelease, FallbackEvent, FallbackOutcome, FallbackRecorder, RELEASE_POINTER,
     RELEASE_POINTER_LIMIT, RELEASE_VERSIONS, Recorded, VersionHeld, activation_text,
-    active_release, bundle_of_cohort, complete_move, held_versions, is_release_version_directory,
-    record_event, release_store_root,
+    active_release, complete_move, held_versions, is_release_version_directory, record_event,
+    release_store_root, window_of_cohort,
 };
 mod keeper;
 #[cfg(windows)]

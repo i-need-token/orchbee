@@ -5,7 +5,7 @@
 //!
 //! The folder holds `download.lock`, the archive (`archive.zip` on Windows, `archive.tar.gz` on
 //! macOS, the runtime archive's format as its extension) and `unpacked\`. The window part fetches
-//! its archive, a zip on every platform, under the same name after the runtime part has finished
+//! its archive, a zip on Windows and macOS and a tar.gz on Linux, under the same name after the runtime part has finished
 //! with the folder: the system tar reads the format from the bytes, not from the name. Whoever
 //! holds the lock removes the archive and the unpacked tree when it takes the lock and again when
 //! it finishes, so a run that crashed leaves at most one of each for the next run to remove. The

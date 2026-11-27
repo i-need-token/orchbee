@@ -705,7 +705,8 @@ fn disable_integrations(report: &mut Report, signals: &mut ArmedSignals) -> Resu
     Ok(())
 }
 
-/// Step d: the user `Path` entry, then the Start menu shortcut and the uninstall registration.
+/// Step d: the user `Path` entry, then the Start menu shortcut (on Linux the menu entry) and the
+/// uninstall registration.
 fn remove_entries(
     report: &mut Report,
     inventory: &Inventory,
@@ -742,6 +743,7 @@ fn remove_entries(
         }
         report.shortcut_outcome = Outcome::Removed;
         report.changed = true;
+        platform::shortcut_removed(&inventory.locations);
     }
     if report.registration_outcome != Outcome::Absent {
         if platform::remove_registration(&inventory.locations).is_err() {

@@ -6,7 +6,8 @@
 //! pointer bind it by its SHA-256, so its digest covers every file of the window.
 //!
 //! A Windows list sits at the root of the window directory and names its other files by release
-//! paths. A macOS list sits beside the signed `<name>.app` and names only the bundle: every path
+//! paths. A Linux list sits there too, and marks a file its owner may run with `"executable": true`.
+//! A macOS list sits beside the signed `<name>.app` and names only the bundle: every path
 //! starts with `<name>.app/`, whose parts also admit spaces and parentheses; a file its owner may
 //! run carries `"executable": true`; and the bundle's symbolic links form the optional
 //! `links: [{"path", "target"}]`, each target relative, inside the bundle and naming a listed file,
@@ -27,19 +28,22 @@ pub(super) const LIMIT: usize = 1024 * 1024;
 /// The most links a path may pass through on its way to a listed entry, as the system resolves it.
 const HOPS: usize = 40;
 
-/// Whose list rules apply: Windows release paths, or a macOS bundle with modes and links.
+/// Whose list rules apply: Windows release paths, Linux release paths with modes, or a macOS
+/// bundle with modes and links.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum Rules {
     Windows,
+    Linux,
     Macos,
 }
 
 impl Rules {
-    /// The rules of the platform this build runs on: macOS's there, and Windows' elsewhere, since
-    /// only Windows and macOS have window versions.
+    /// The rules of the platform this build runs on.
     pub(super) const fn own() -> Self {
         if cfg!(target_os = "macos") {
             Self::Macos
+        } else if cfg!(target_os = "linux") {
+            Self::Linux
         } else {
             Self::Windows
         }
@@ -48,9 +52,14 @@ impl Rules {
     /// The grammar of a listed path.
     pub(super) const fn grammar(self) -> PathGrammar {
         match self {
-            Self::Windows => PathGrammar::Release,
+            Self::Windows | Self::Linux => PathGrammar::Release,
             Self::Macos => PathGrammar::Bundle,
         }
+    }
+
+    /// Whether a listed file may carry `executable`; a Windows list never marks one.
+    const fn marks_executables(self) -> bool {
+        !matches!(self, Self::Windows)
     }
 }
 
@@ -62,7 +71,7 @@ pub(super) struct WindowFiles {
     pub identity: String,
     pub version: String,
     pub files: Vec<WindowFile>,
-    /// macOS only; empty in a Windows list.
+    /// macOS only; empty in a Windows or Linux list.
     pub links: Vec<WindowLink>,
 }
 
@@ -71,7 +80,7 @@ pub(super) struct WindowFile {
     pub path: String,
     pub size: u64,
     pub sha256: String,
-    /// Whether its owner may run it: a macOS list marks it, and a Windows list never does.
+    /// Whether its owner may run it: a macOS or Linux list marks it, and a Windows list never does.
     pub executable: bool,
 }
 
@@ -131,7 +140,11 @@ impl WindowFiles {
             let entry = closed_object(
                 value,
                 &["path", "size", "sha256"],
-                if macos { &["executable"] } else { &[] },
+                if rules.marks_executables() {
+                    &["executable"]
+                } else {
+                    &[]
+                },
             )?;
             let path = entry.get("path")?.as_str()?;
             if !admitted(path) || !seen.insert(path.to_ascii_lowercase()) {

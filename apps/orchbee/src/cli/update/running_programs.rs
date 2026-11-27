@@ -2,17 +2,16 @@
 //! program file lies inside a folder, and the write probe, which finds a program or library loaded
 //! by a process the scan cannot query. Uninstall waits on the scan; store cleanup removes a folder
 //! only when both find nothing, which only Windows can tell, so elsewhere cleanup removes nothing,
-//! except macOS window versions, which only Orchbee starts programs from and the scan alone covers.
+//! except window versions, which only Orchbee starts programs from and the scan alone covers.
 #[cfg(not(windows))]
 mod unix;
 #[cfg(windows)]
 mod windows;
 
-#[cfg(target_os = "macos")]
-pub(super) use unix::no_process_started_from;
 #[cfg(not(windows))]
 pub(super) use unix::{
-    StoreProcess, ancestors, inside, no_process_runs_from, processes_inside, same,
+    StoreProcess, ancestors, inside, no_process_runs_from, no_process_started_from,
+    processes_inside, same,
 };
 #[cfg(windows)]
 pub(super) use windows::{
