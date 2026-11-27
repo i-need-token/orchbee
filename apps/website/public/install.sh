@@ -38,6 +38,8 @@
 #    install the application's bundled Client adds that window version to the store with
 #    --installer-window, which also writes its application menu entry and icons, and nothing is
 #    copied elsewhere. An open window of an older version offers Update to switch to it.
+#    Either way, the bundled Client of a release up to 0.1.0-beta.24 is asked with
+#    --installer-window-v1, the only spelling of that word it knows.
 # 5. Removes the temporary folder on every exit, interrupted or not.
 #
 # Where a verifier exists, the feed signature (here) is checked before the feed is trusted, so an
@@ -589,6 +591,15 @@ ob_open_bundle() {
 	"$ob_open" "$1" </dev/null >/dev/null 2>&1 || true
 }
 
+# The window installer helper as the window version's bundled Client reads it: releases up to
+# 0.1.0-beta.24 answer only its earlier spelling.
+ob_window_helper_word() {
+	case $ob_window_version in
+	0.1.0-beta.[1-9] | 0.1.0-beta.1[0-9] | 0.1.0-beta.2[0-4]) printf '%s\n' --installer-window-v1 ;;
+	*) printf '%s\n' --installer-window ;;
+	esac
+}
+
 # On Linux the window version goes into the store alone: the bundled Client's --installer-window
 # installs it under desktop/versions/, makes it active and writes the window entry, the application
 # menu entry and its icons, through which the window starts.
@@ -600,7 +611,7 @@ ob_install_linux_desktop() {
 	if [ ! -f "$ob_helper" ] || [ ! -x "$ob_helper" ]; then
 		ob_fail "$ob_window_name holds no runnable $ob_stem; $ob_partial." "$ob_window_name 中没有可运行的 ${ob_stem}；${ob_partial_zh}。"
 	fi
-	ob_answer=$("$ob_helper" --installer-window </dev/null 2>"$ob_tmp/window.err")
+	ob_answer=$("$ob_helper" "$(ob_window_helper_word)" </dev/null 2>"$ob_tmp/window.err")
 	ob_code=$?
 	case $ob_answer in
 	*'"schema": "orchbee.install"'*) ;;
@@ -661,7 +672,7 @@ ob_install_desktop() {
 	# orchbee.install document answers; a build without window updates refuses the word as a usage
 	# error (exit 2) and answers none.
 	ob_window_stored=0
-	ob_answer=$("$ob_helper" --installer-window </dev/null 2>"$ob_tmp/window.err")
+	ob_answer=$("$ob_helper" "$(ob_window_helper_word)" </dev/null 2>"$ob_tmp/window.err")
 	ob_code=$?
 	case $ob_answer in
 	*'"schema": "orchbee.install"'*)

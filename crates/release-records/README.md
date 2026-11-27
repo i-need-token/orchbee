@@ -1,7 +1,7 @@
 # Release Records
 
 Private, experimental Rust library for the closed JSON records of Orchbee's native release
-distribution. The Client's install and update owners, the local runtime's store reader, which
+distribution and the names one release passes to another. The Client's install and update owners, the local runtime's store reader, which
 Session start uses, and the Windows launcher read the same grammar from here, so the store pointer
 has one parser.
 
@@ -23,9 +23,14 @@ has one parser.
   the format alone; the local runtime's
   [release store](../local-runtime/README.md#fallback-after-a-failed-move) owns its transitions.
 - `client_failure_helper` names the previous version's Client that records a failed start or join
-  of a store Client, from that Client's path and the pointer read again, only while the failed
+  of a store Client, and that version, from that Client's path and the pointer read again, only while the failed
   version is active through a counting move whose `back` is true. The Windows launcher and a macOS or
   Linux TUI that no launcher started share it; the npm launcher keeps its own copy of the rule.
+- `CrossBuildName` is a name one release passes to another, such as a hidden helper, a launcher
+  switch or the relaunch protocol's variable, in its current and its earlier spelling. `is`
+  accepts either; `for_release` gives the one a release reads: the earlier spelling for
+  0.1.0-beta.1 through 0.1.0-beta.24, which know only that one, and the current one for any other
+  version.
 
 The record layouts are owned by
 [Release distribution](../../proposals/platform/release-distribution.md#runtime-store). This crate

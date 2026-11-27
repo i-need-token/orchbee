@@ -1,4 +1,4 @@
-use super::client_failure_helper;
+use super::{ClientFailureHelper, client_failure_helper};
 use std::path::Path;
 
 const DIGEST: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -23,7 +23,11 @@ fn a_failed_client_is_recorded_through_the_previous_version_only_while_its_move_
     let counting = pointer("0.2.0", Some("0.1.0"), "0.2.0", true);
     assert_eq!(
         client_failure_helper(&client, Some(counting.as_bytes())),
-        Some((versions.join("0.1.0").join("orchbee"), "0.2.0".to_owned()))
+        Some(ClientFailureHelper {
+            program: versions.join("0.1.0").join("orchbee"),
+            previous: "0.1.0".to_owned(),
+            version: "0.2.0".to_owned(),
+        })
     );
     for (case, bytes) in [
         (

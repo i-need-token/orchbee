@@ -25,6 +25,15 @@ describe('window relaunch arguments', () => {
 			kind: 'workspace',
 			workspaceId: WORKSPACE,
 		});
+		// A window up to 0.1.0-beta.24 names the place in the earlier spelling.
+		expect(readRelaunchPlace(['--select-terminal-v1=' + PRESENTATION])).toEqual({
+			kind: 'terminal',
+			presentationId: PRESENTATION,
+		});
+		expect(readRelaunchPlace(['--select-workspace-v1=' + WORKSPACE])).toEqual({
+			kind: 'workspace',
+			workspaceId: WORKSPACE,
+		});
 		// A terminal identity that does not parse leaves the Workspace.
 		expect(readRelaunchPlace(['--select-terminal=', '--select-workspace=' + WORKSPACE])).toEqual({
 			kind: 'workspace',
@@ -72,18 +81,21 @@ describe('window relaunch arguments', () => {
 
 describe('relaunch announcement', () => {
 	it('always removes the variable, and announces only when it names the parent', () => {
-		for (const [value, announced] of [
-			['1200', true],
-			['1201', false],
-			['01200', false],
-			['+1200', false],
-			['', false],
-			[undefined, false],
-		] as const) {
-			const environment: NodeJS.ProcessEnv = { KEEP: 'yes' };
-			if (value !== undefined) environment['ORCHBEE_RELAUNCH'] = value;
-			expect(takeRelaunchAnnouncement(environment, 1200)).toBe(announced);
-			expect(environment).toEqual({ KEEP: 'yes' });
+		// Launchers up to 0.1.0-beta.24 set only the earlier spelling.
+		for (const key of ['ORCHBEE_RELAUNCH', 'ORCHBEE_RELAUNCH_V1']) {
+			for (const [value, announced] of [
+				['1200', true],
+				['1201', false],
+				['01200', false],
+				['+1200', false],
+				['', false],
+				[undefined, false],
+			] as const) {
+				const environment: NodeJS.ProcessEnv = { KEEP: 'yes' };
+				if (value !== undefined) environment[key] = value;
+				expect(takeRelaunchAnnouncement(environment, 1200)).toBe(announced);
+				expect(environment).toEqual({ KEEP: 'yes' });
+			}
 		}
 	});
 

@@ -19,8 +19,8 @@ use std::ffi::OsString;
 mod tests;
 
 /// The one start a development or test stand-in makes with the variable set that is not a
-/// question: the far end it runs as the link helper.
-const STAND_IN_ENTRY: &str = "--machine-link";
+/// question: the far end it runs as the link helper, in either spelling the helper answers.
+const STAND_IN_ENTRY: [&str; 2] = ["--machine-link", "--machine-link-v1"];
 
 /// What a start with the variable set is.
 #[derive(Debug, Eq, PartialEq)]
@@ -47,7 +47,8 @@ pub(crate) fn run_if_selected() -> Option<std::process::ExitCode> {
 /// spaces, since `ssh` passes one and how a launcher splits it is not proven; only a build that is
 /// not a release lets the stand-in's own entry through, alone.
 fn start(arguments: &[OsString], release: bool) -> Start {
-    if !release && matches!(arguments, [only] if only == STAND_IN_ENTRY) {
+    if !release && matches!(arguments, [only] if STAND_IN_ENTRY.iter().any(|entry| only == *entry))
+    {
         return Start::StandIn;
     }
     let mut prompt = OsString::new();

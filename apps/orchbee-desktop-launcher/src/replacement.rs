@@ -5,8 +5,8 @@
 //! replaces, which window version from the store replaces it, and the arguments of each start.
 //! Like `decision`, it reads no clock, starts nothing, and sees the file system only through the
 //! facts its callers pass in.
-use crate::decision::{self, POINTER, VERSIONS};
-use orchbee_release_records::Pointer;
+use crate::decision::{self, FALLBACK_FROM, POINTER, RELAUNCH_AFTER, VERSIONS};
+use orchbee_release_records::{CrossBuildName, Pointer};
 use std::{
     ffi::{OsStr, OsString},
     os::unix::ffi::OsStrExt,
@@ -17,8 +17,12 @@ use std::{
 mod tests;
 
 /// Prefixed to the application bundle the asking window runs from, as the argument after
-/// `--relaunch-after <process id>`: the application the launcher replaces.
-const REPLACE_APPLICATION: &str = "--replace-application=";
+/// `--relaunch-after <process id>`: the application the launcher replaces. A window up to
+/// 0.1.0-beta.24 sends the earlier spelling.
+const REPLACE_APPLICATION: CrossBuildName = CrossBuildName {
+    current: "--replace-application=",
+    earlier: "--replace-application-v1=",
+};
 /// The folders from a window version's bundle down to the launcher, outermost first.
 const COHORT: [&str; 3] = ["Contents", "Resources", "cohort"];
 /// The folders from an application bundle down to its program.
@@ -36,6 +40,8 @@ pub(crate) struct Relaunch {
     pub(crate) program: PathBuf,
     /// The arguments every window start passes on, after the launcher's own.
     pub(crate) arguments: Vec<OsString>,
+    /// The spelling of `--fallback-from=` the window that ran before reads: the one it asked in.
+    fallback_from: &'static str,
     /// `<desktop>`, which holds the window pointer and `versions`.
     desktop: PathBuf,
     /// The bundle name every window version's folder holds, `<name>.app`.
@@ -56,6 +62,14 @@ pub(crate) struct Source {
 /// `desktop` folder that spells no `.` or `..` component. `None` serves nothing.
 pub(crate) fn relaunch(launcher: &Path, arguments: Vec<OsString>, parent: u32) -> Option<Relaunch> {
     let (desktop, bundle) = store_layout(launcher)?;
+    let fallback_from = if arguments
+        .first()
+        .is_some_and(|first| first == RELAUNCH_AFTER.earlier)
+    {
+        FALLBACK_FROM.earlier
+    } else {
+        FALLBACK_FROM.current
+    };
     let (relaunch_after, mut arguments) = decision::own_arguments(arguments);
     if relaunch_after != Some(parent) {
         return None;
@@ -63,9 +77,10 @@ pub(crate) fn relaunch(launcher: &Path, arguments: Vec<OsString>, parent: u32) -
     let application = arguments
         .first()
         .and_then(|first| {
+            let first = first.as_bytes();
             first
-                .as_bytes()
-                .strip_prefix(REPLACE_APPLICATION.as_bytes())
+                .strip_prefix(REPLACE_APPLICATION.current.as_bytes())
+                .or_else(|| first.strip_prefix(REPLACE_APPLICATION.earlier.as_bytes()))
         })
         .map(|value| PathBuf::from(OsStr::from_bytes(value)))?;
     arguments.remove(0);
@@ -93,6 +108,7 @@ pub(crate) fn relaunch(launcher: &Path, arguments: Vec<OsString>, parent: u32) -
         application,
         program,
         arguments,
+        fallback_from,
         desktop,
         bundle,
     })
@@ -121,11 +137,12 @@ impl Relaunch {
     }
 
     /// The arguments of the window that ran before, started again after `failed` could not
-    /// replace it or failed inside the watch: `--fallback-from=<failed>` first when one is known.
+    /// replace it or failed inside the watch: `--fallback-from=<failed>`, in the spelling that
+    /// window reads, first when one is known.
     pub(crate) fn fallback_arguments(&self, failed: Option<&str>) -> Vec<OsString> {
         failed.map_or_else(
             || self.arguments.clone(),
-            |version| decision::fallback_arguments(version, &self.arguments),
+            |version| decision::fallback_arguments(self.fallback_from, version, &self.arguments),
         )
     }
 }

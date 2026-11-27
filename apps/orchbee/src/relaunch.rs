@@ -87,14 +87,21 @@ const fn counts_against_version(failure: &StartupFailure) -> bool {
     )
 }
 
-/// Announcing when `ORCHBEE_RELAUNCH` holds the process id of this process's parent, so a value
-/// a later process inherited does nothing.
+/// Announcing when `ORCHBEE_RELAUNCH`, or its earlier spelling `ORCHBEE_RELAUNCH_V1` that
+/// launchers up to 0.1.0-beta.24 set, holds the process id of this process's parent, so a value a
+/// later process inherited does nothing.
 fn launcher() -> Launcher {
-    let announced = std::env::var_os(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
-        .and_then(|value| value.into_string().ok())
-        .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
-        .and_then(|value| value.parse::<u32>().ok());
-    if announced.is_some() && announced == parent_process_id() {
+    let relaunch = orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE;
+    let announced = [relaunch.current, relaunch.earlier].map(|name| {
+        std::env::var_os(name)
+            .and_then(|value| value.into_string().ok())
+            .filter(|value| !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+            .and_then(|value| value.parse::<u32>().ok())
+    });
+    // Only a present value looks up the parent, which on Windows takes a process snapshot.
+    if announced.iter().flatten().next().is_some()
+        && parent_process_id().is_some_and(|parent| announced.contains(&Some(parent)))
+    {
         Launcher::Announcing
     } else {
         Launcher::Absent
@@ -146,8 +153,9 @@ fn record_own_failure() {
 /// Records that the Client at `client` failed to start or to join, as a launcher records a Client
 /// it started: when the pointer of the store `client` runs from, read again now, still makes its
 /// version active through a counting move that may fall back, the previous version's Client runs
-/// the Client-failure helper with null standard streams, and this process waits for it at most
-/// five seconds. A Client outside a store version folder records nothing.
+/// the Client-failure helper, spelled as that version reads it, with null standard streams, and
+/// this process waits for it at most five seconds. A Client outside a store version folder records
+/// nothing.
 #[cfg(unix)]
 fn record_failure(client: &std::path::Path) {
     use std::{io::Read, process::Stdio};
@@ -166,14 +174,13 @@ fn record_failure(client: &std::path::Path) {
     let read = std::fs::File::open(root.join(orchbee_local_runtime::RELEASE_POINTER))
         .and_then(|file| file.take(limit + 1).read_to_end(&mut pointer));
     let pointer = (read.is_ok() && pointer.len() as u64 <= limit).then_some(pointer);
-    let Some((helper, version)) =
-        orchbee_release_records::client_failure_helper(client, pointer.as_deref())
+    let Some(helper) = orchbee_release_records::client_failure_helper(client, pointer.as_deref())
     else {
         return;
     };
-    let Ok(mut child) = std::process::Command::new(helper)
-        .arg(orchbee_local_runtime::CLIENT_FAILURE_HELPER)
-        .arg(version)
+    let Ok(mut child) = std::process::Command::new(&helper.program)
+        .arg(orchbee_local_runtime::CLIENT_FAILURE_HELPER.for_release(&helper.previous))
+        .arg(&helper.version)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

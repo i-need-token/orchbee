@@ -83,7 +83,8 @@ pub(crate) fn launch() -> Result<i32, Failure> {
 }
 
 /// Starts `client` with the launcher's own command line in a Job and waits for it. With `announced`,
-/// the Client receives the launcher's process id in the protocol variable.
+/// the Client receives the launcher's process id in both spellings of the protocol variable, so
+/// a Client of any release reads it.
 fn run(client: &Path, announced: Option<u32>) -> Outcome {
     let mut command = Command::new(client);
     let line = winsafe::GetCommandLine();
@@ -98,7 +99,10 @@ fn run(client: &Path, announced: Option<u32>) -> Outcome {
         }
     }
     if let Some(process) = announced {
-        command.env(relaunch::PROTOCOL_VARIABLE, process.to_string());
+        let process = process.to_string();
+        command
+            .env(relaunch::PROTOCOL_VARIABLE.current, &process)
+            .env(relaunch::PROTOCOL_VARIABLE.earlier, &process);
     }
     let mut wrapped = CommandWrap::from(command);
     wrapped
@@ -114,23 +118,22 @@ fn run(client: &Path, announced: Option<u32>) -> Outcome {
 }
 
 /// After the Client at `client` failed to start or to join, reads the pointer again and, when
-/// [`orchbee_release_records::client_failure_helper`] names a helper, runs it outside the Client's
-/// Job with null standard streams and waits for it at most five seconds. A helper still running then
-/// is left to finish; one that cannot start records nothing. Either way the launcher goes on as it
-/// would without it.
+/// [`orchbee_release_records::client_failure_helper`] names a helper, runs it, spelled as the
+/// previous version reads it, outside the Client's Job with null standard streams and waits for it
+/// at most five seconds. A helper still running then is left to finish; one that cannot start
+/// records nothing. Either way the launcher goes on as it would without it.
 fn record_failure(launcher: &Path, client: &Path) {
     let Some(root) = launcher.parent().and_then(Path::parent) else {
         return;
     };
     let pointer = read_pointer(&root.join("active.json"));
-    let Some((helper, version)) =
-        orchbee_release_records::client_failure_helper(client, pointer.as_deref())
+    let Some(helper) = orchbee_release_records::client_failure_helper(client, pointer.as_deref())
     else {
         return;
     };
-    let Ok(mut child) = Command::new(helper)
-        .arg(orchbee_local_runtime::CLIENT_FAILURE_HELPER)
-        .arg(version)
+    let Ok(mut child) = Command::new(&helper.program)
+        .arg(orchbee_local_runtime::CLIENT_FAILURE_HELPER.for_release(&helper.previous))
+        .arg(&helper.version)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())

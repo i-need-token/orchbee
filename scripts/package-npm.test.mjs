@@ -262,15 +262,33 @@ test('the launcher records a failed Client through the previous version only whi
 	const started = `C:\\Store\\versions\\0.2.0\\${stem}.exe`;
 	assert.deepEqual(clientFailureHelper(started, pointer({}), 'win32'), {
 		program: `C:\\Store\\versions\\0.1.0\\${stem}.exe`,
+		argument: '--record-client-failure',
 		version: '0.2.0',
 	});
+	// A previous version up to 0.1.0-beta.24 reads only the helper's earlier spelling.
+	assert.deepEqual(
+		clientFailureHelper(
+			`C:\\Store\\versions\\0.1.0-beta.26\\${stem}.exe`,
+			pointer({ active: '0.1.0-beta.26', previous: '0.1.0-beta.24' }),
+			'win32',
+		),
+		{
+			program: `C:\\Store\\versions\\0.1.0-beta.24\\${stem}.exe`,
+			argument: '--record-client-failure-v1',
+			version: '0.1.0-beta.26',
+		},
+	);
 	assert.deepEqual(
 		clientFailureHelper(
 			`/Users/a/.local/share/${stem}/versions/0.2.0/${stem}`,
 			pointer({}),
 			'darwin',
 		),
-		{ program: `/Users/a/.local/share/${stem}/versions/0.1.0/${stem}`, version: '0.2.0' },
+		{
+			program: `/Users/a/.local/share/${stem}/versions/0.1.0/${stem}`,
+			argument: '--record-client-failure',
+			version: '0.2.0',
+		},
 	);
 	for (const [name, text] of [
 		['may not fall back', pointer({ back: false })],

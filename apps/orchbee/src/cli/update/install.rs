@@ -13,7 +13,7 @@ use orchbee_local_runtime::{
     Cohort, CohortArtifact, CommandFailure, automatic_updates_live, compare_product_versions,
     held_versions,
 };
-use orchbee_release_records::{Entry, Pointer};
+use orchbee_release_records::{CrossBuildName, Entry, Pointer};
 use sha2::{Digest, Sha256};
 use std::{
     cmp::Ordering,
@@ -22,9 +22,12 @@ use std::{
     process::Command,
 };
 
-/// The helper a published copy runs to complete its own install. Its grammar never changes; a
-/// change adds a new helper name.
-pub(super) const COMPLETION_HELPER: &str = "--complete-install";
+/// The helper a published copy runs to complete its own install, in the spelling of that copy's
+/// version. Its grammar never changes; a change adds a new helper name.
+pub(super) const COMPLETION_HELPER: CrossBuildName = CrossBuildName {
+    current: "--complete-install",
+    earlier: "--complete-install-v1",
+};
 
 /// The cohort's programs, which a stage makes executable where the system asks that of a program.
 const PROGRAMS: [CohortArtifact; 4] = [
@@ -72,20 +75,23 @@ pub(super) fn version_probe(client: &Path) -> Command {
 /// The most of a failed helper's first standard-error line kept for the person.
 const DIAGNOSTIC_LIMIT: usize = 1024;
 
-/// Runs the published copy's completion helper; its exit status `3` is the lower-version refusal,
-/// or `version-held` when the pointer, read again, holds the version. Any other failure keeps the
-/// helper's first standard-error line, which names the cause, such as a PATH step that could not
-/// finish. A helper stopped by a cancellation or a deadline has ended and answers `cancelled` or
-/// `timeout`; `activate` reads the pointer afterwards, since the helper may have moved it first. A
-/// helper not confirmed to have ended is `activation-unknown`.
+/// Runs the published copy's completion helper, spelled as the copy's version reads it, so an
+/// update can also move to a release up to 0.1.0-beta.24, which answers only the earlier spelling.
+/// Its exit status `3` is the lower-version refusal, or `version-held` when the pointer, read
+/// again, holds the version. Any other failure keeps the helper's first standard-error line, which
+/// names the cause, such as a PATH step that could not finish. A helper stopped by a cancellation
+/// or a deadline has ended and answers `cancelled` or `timeout`; `activate` reads the pointer
+/// afterwards, since the helper may have moved it first. A helper not confirmed to have ended is
+/// `activation-unknown`.
 pub(super) fn run_completion(
     root: &Path,
     version: &Path,
     completion: Completion,
     context: &mut Context,
 ) -> Result<(), Error> {
+    let name = version.file_name().and_then(|name| name.to_str());
     let mut command = Command::new(version.join(CohortArtifact::Client.file_name()));
-    command.arg(COMPLETION_HELPER);
+    command.arg(COMPLETION_HELPER.for_release(name.unwrap_or_default()));
     if !completion.path {
         command.arg("--no-path");
     }
@@ -99,10 +105,7 @@ pub(super) fn run_completion(
         Some(CommandFailure::Timeout) => Err(Error::Timeout),
         Some(CommandFailure::PhysicalUnknown) => Err(Error::ActivationUnknown),
         Some(CommandFailure::ExitFailure) if result.exit_code == Some(3) => {
-            let held = version
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| held(root, name));
+            let held = name.is_some_and(|name| held(root, name));
             Err(if held {
                 Error::VersionHeld
             } else {

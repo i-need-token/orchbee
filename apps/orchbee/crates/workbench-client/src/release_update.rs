@@ -542,7 +542,8 @@ pub(crate) fn session_facts(
 /// Whether the launcher that started this TUI announced the relaunch protocol.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Launcher {
-    /// `ORCHBEE_RELAUNCH` names this process's parent.
+    /// `ORCHBEE_RELAUNCH`, or its earlier spelling `ORCHBEE_RELAUNCH_V1`, names this process's
+    /// parent.
     Announcing,
     Absent,
 }

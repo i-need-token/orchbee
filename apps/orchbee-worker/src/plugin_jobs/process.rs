@@ -74,8 +74,10 @@ pub(super) fn context_removals() -> Vec<std::ffi::OsString> {
         "ORCHBEE_PANEL_ID",
         "ORCHBEE_TERMINAL_ID",
         "ORCHBEE_WORKER_ID",
-        // A Server started by an announced TUI inherits its launcher's relaunch variable.
-        orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE,
+        // A Server started by an announced TUI inherits its launcher's relaunch variable, in
+        // either spelling.
+        orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.current,
+        orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.earlier,
     ]
     .map(std::ffi::OsString::from);
     plugin.chain(fixed).collect()

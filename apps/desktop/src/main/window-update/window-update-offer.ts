@@ -9,9 +9,13 @@ import { z } from 'zod';
 
 import { isNewerProductVersion } from '../product-version';
 
-/** The switch a window launcher adds when it starts the previous window version after a failure. */
+/**
+ * The switch a window launcher adds when it starts the previous window version after a failure, in
+ * the spelling of releases from 0.1.0-beta.25 on and in the earlier one of releases up to
+ * 0.1.0-beta.24; a window reads either.
+ */
 // Cross-build contract: every window launcher from the window self-update release on passes it.
-const FALLBACK_FROM_SWITCH = '--fallback-from=';
+const FALLBACK_FROM_SWITCHES = ['--fallback-from=', '--fallback-from-v1='] as const;
 const VERSIONS_DIRECTORY = 'versions';
 const DESKTOP_DIRECTORY = 'desktop';
 /** The bounds of the macOS and Linux store root rule (`crates/local-runtime/src/release_store.rs`). */
@@ -154,12 +158,18 @@ export function locateWindowDesktopRoot(input: {
 	return relative === '..' || relative.startsWith('../') ? storeDesktopRoot : null;
 }
 
-/** The version a `--fallback-from=<version>` argument names, or null without a valid one. */
+/**
+ * The version the first `--fallback-from=<version>` argument, in either spelling, names, or null
+ * without a valid one.
+ */
 export function readFallbackFromVersion(argumentsList: readonly string[]): string | null {
-	const argument = argumentsList.find((candidate) => candidate.startsWith(FALLBACK_FROM_SWITCH));
-	if (argument === undefined) return null;
-	const version = ReleaseVersionSchema.safeParse(argument.slice(FALLBACK_FROM_SWITCH.length));
-	return version.success ? version.data : null;
+	for (const argument of argumentsList) {
+		const prefix = FALLBACK_FROM_SWITCHES.find((spelling) => argument.startsWith(spelling));
+		if (prefix === undefined) continue;
+		const version = ReleaseVersionSchema.safeParse(argument.slice(prefix.length));
+		return version.success ? version.data : null;
+	}
+	return null;
 }
 
 /** The active window version a window pointer names, or null when the text is no such pointer. */

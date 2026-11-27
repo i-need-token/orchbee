@@ -31,7 +31,8 @@ const busyRetryMilliseconds = 250;
 
 // The relaunch protocol, the same as `apps/orchbee-launcher/src/relaunch.rs`: the variable carries the
 // launcher's process id, and a Client uses the statuses below only when that process is its parent.
-const relaunchVariable = 'ORCHBEE_RELAUNCH';
+// The variable is set in both spellings, since Clients up to 0.1.0-beta.24 read only the second.
+const relaunchVariables = ['ORCHBEE_RELAUNCH', 'ORCHBEE_RELAUNCH_V1'];
 const relaunchStatus = 75;
 // A Client that could not join its Session; without the protocol it ends as a startup failure.
 const joinFailedStatus = 76;
@@ -45,8 +46,12 @@ const consoleExitStatus = 0xc000013a;
 const relaunchLimit = 3;
 const relaunchWindowMilliseconds = 10_000;
 // The helper that records a failed Client through the previous version, `CLIENT_FAILURE_HELPER` in
-// `crates/local-runtime/src/automatic_updates.rs`, and how long the launcher waits for it.
+// `crates/local-runtime/src/automatic_updates.rs`, in its current and its earlier spelling, and how
+// long the launcher waits for it. The releases that read only the earlier spelling are those
+// `CrossBuildName` in `crates/release-records/src/cross_build.rs` names.
 const clientFailureHelperArgument = '--record-client-failure';
+const earlierClientFailureHelperArgument = '--record-client-failure-v1';
+const earlierSpellingRelease = /^0\.1\.0-beta\.(?:[1-9]|1[0-9]|2[0-4])$/u;
 const clientFailureWaitMilliseconds = 5_000;
 // The release-build half of the local runtime's automatic-update switch, `IN_RELEASE_BUILDS` in
 // `crates/local-runtime/src/automatic_updates.rs`: the change that turns one on turns on both.
@@ -275,10 +280,11 @@ export function storeRoot(stem, platform, environment) {
 /**
  * The helper that records a failed start or join of the Client at `started`,
  * `<root>/versions/<version>/<name>` on `platform`'s paths, given the pointer `text` read again after
- * it failed: `{ program: <root>/versions/<previous>/<name>, version }` when the pointer still makes
- * `<version>` active through a counting move that may fall back and names a previous version, or
- * null. The previous version runs it because the failed Client may be what broke. Only the relaunch
- * protocol uses it.
+ * it failed: `{ program: <root>/versions/<previous>/<name>, argument, version }` when the pointer
+ * still makes `<version>` active through a counting move that may fall back and names a previous
+ * version, or null, where `argument` is the helper spelled as the previous version reads it. The
+ * previous version runs it because the failed Client may be what broke. Only the relaunch protocol
+ * uses it.
  */
 export function clientFailureHelper(started, text, platform = process.platform) {
 	const paths = platform === 'win32' ? path.win32 : path.posix;
@@ -289,6 +295,9 @@ export function clientFailureHelper(started, text, platform = process.platform) 
 		return null;
 	return {
 		program: paths.join(versions, record.previous, paths.basename(started)),
+		argument: earlierSpellingRelease.test(record.previous)
+			? earlierClientFailureHelperArgument
+			: clientFailureHelperArgument,
 		version,
 	};
 }
@@ -481,7 +490,7 @@ function recordClientFailure(helper, then) {
 	};
 	let child;
 	try {
-		child = spawn(helper.program, [clientFailureHelperArgument, helper.version], {
+		child = spawn(helper.program, [helper.argument, helper.version], {
 			stdio: 'ignore',
 		});
 	} catch {
@@ -494,14 +503,15 @@ function recordClientFailure(helper, then) {
 }
 
 /**
- * `run` under the relaunch protocol: each start receives this process's id in the
- * protocol variable, and `nextStart` decides after each one. A relaunch reads the pointer again; a
+ * `run` under the relaunch protocol: each start receives this process's id in both spellings of
+ * the protocol variable, and `nextStart` decides after each one. A relaunch reads the pointer again; a
  * pointer that names no version counts as a relaunched Client that did not start. After a failed
  * start or join, the failure is recorded through the previous version first when the pointer still
  * makes the failed version active through a move that may fall back.
  */
 function runWithRelaunch(program, root, programName, text) {
-	const environment = { ...process.env, [relaunchVariable]: String(process.pid) };
+	const environment = { ...process.env };
+	for (const name of relaunchVariables) environment[name] = String(process.pid);
 	const relaunches = [];
 	let replaced = null;
 	function decide(current, start, code, error) {

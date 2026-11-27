@@ -87,6 +87,17 @@ pub fn valid_activation_id(text: &str) -> bool {
             .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
+/// The run of the Client-failure helper that [`client_failure_helper`] names.
+#[derive(Debug, Eq, PartialEq)]
+pub struct ClientFailureHelper {
+    /// The previous version's Client, `<root>/versions/<previous>/<name>`.
+    pub program: PathBuf,
+    /// The previous version, which decides the spelling of the helper's name that `program` reads.
+    pub previous: String,
+    /// The failed version, the helper's one operand.
+    pub version: String,
+}
+
 /// The helper that records a failed start or join of the Client at
 /// `<root>/versions/<version>/<name>`, given the pointer read again after it failed:
 /// `<root>/versions/<previous>/<name>` with `<version>`, when the pointer still makes `<version>`
@@ -94,20 +105,21 @@ pub fn valid_activation_id(text: &str) -> bool {
 /// none, records nothing. Either launcher, and a macOS or Linux TUI that no launcher started, run the helper
 /// through the previous version, because the failed Client may be what broke and `back` proves that
 /// the previous version records.
-pub fn client_failure_helper(client: &Path, pointer: Option<&[u8]>) -> Option<(PathBuf, String)> {
+pub fn client_failure_helper(client: &Path, pointer: Option<&[u8]>) -> Option<ClientFailureHelper> {
     let name = client.file_name()?;
     let folder = client.parent()?;
     let version = folder.file_name()?.to_str()?;
     let pointer = Pointer::parse(pointer?)?;
-    let previous = pointer.previous.as_ref()?;
     let counting = pointer.counting_move()?;
     if !counting.back || pointer.active.product != version {
         return None;
     }
-    Some((
-        folder.parent()?.join(&previous.product).join(name),
-        version.to_owned(),
-    ))
+    let previous = pointer.previous?.product;
+    Some(ClientFailureHelper {
+        program: folder.parent()?.join(&previous).join(name),
+        previous,
+        version: version.to_owned(),
+    })
 }
 
 impl Pointer {

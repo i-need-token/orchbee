@@ -683,13 +683,14 @@ fn the_automatic_helper_skips_the_path_step_and_refreshes_only_a_launcher_that_e
     // The helper's grammar is frozen: its one word alone, answered in JSON. Anything more is not
     // the helper.
     let words = |words: &[&str]| words.iter().map(OsString::from).collect::<Vec<_>>();
-    let selected = parse_selected_request(words(&[AUTOMATIC_UPDATE_HELPER]).into_iter()).unwrap();
+    let selected =
+        parse_selected_request(words(&[AUTOMATIC_UPDATE_HELPER.current]).into_iter()).unwrap();
     assert_eq!(
         (selected.request, selected.format),
         (Request::AutomaticUpdate, Some(OutputFormat::Json))
     );
     for extra in [&["--format", "json"][..], &["--no-path"], &["update"]] {
-        let mut arguments = words(&[AUTOMATIC_UPDATE_HELPER]);
+        let mut arguments = words(&[AUTOMATIC_UPDATE_HELPER.current]);
         arguments.extend(words(extra));
         assert!(
             !parse_selected_request(arguments.into_iter())

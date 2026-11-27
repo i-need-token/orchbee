@@ -303,22 +303,21 @@ fn forward_compatible_extensions_in_feed_and_window_file_lists_are_admitted() {
 
 #[test]
 fn cross_build_helper_flags_keep_their_frozen_spelling() {
-    const FROZEN_MESSAGE: &str = "cross-build helper CLI flags are permanently frozen contracts invoked across older and newer Orchbee binaries and installers; introduce a new name instead of renaming";
-    assert_eq!(COMPLETION_HELPER, "--complete-install", "{FROZEN_MESSAGE}");
-    assert_eq!(
-        AUTOMATIC_UPDATE_HELPER, "--automatic-update",
-        "{FROZEN_MESSAGE}"
-    );
-    assert_eq!(
-        CLIENT_FAILURE_HELPER, "--record-client-failure",
-        "{FROZEN_MESSAGE}"
-    );
-    assert_eq!(
-        WINDOW_INSTALLER_HELPER, "--installer-window",
-        "{FROZEN_MESSAGE}"
-    );
+    const FROZEN_MESSAGE: &str = "cross-build helper CLI flags are permanently frozen contracts invoked across older and newer Orchbee binaries and installers; keep accepting every released spelling and introduce a new name instead of renaming";
+    for (helper, current) in [
+        (COMPLETION_HELPER, "--complete-install"),
+        (AUTOMATIC_UPDATE_HELPER, "--automatic-update"),
+        (CLIENT_FAILURE_HELPER, "--record-client-failure"),
+        (WINDOW_INSTALLER_HELPER, "--installer-window"),
+    ] {
+        assert_eq!(
+            (helper.current, helper.earlier),
+            (current, format!("{current}-v1").as_str()),
+            "{FROZEN_MESSAGE}"
+        );
+    }
 
-    let cases: [(&[&str], Request, Option<OutputFormat>); 9] = [
+    let cases: [(&[&str], Request, Option<OutputFormat>); 13] = [
         (
             &["--complete-install"],
             Request::CompleteInstall {
@@ -368,14 +367,29 @@ fn cross_build_helper_flags_keep_their_frozen_spelling() {
             Request::CreateWindowFolder,
             Some(OutputFormat::Json),
         ),
+        (&["--machine-link"], Request::MachineLink, None),
+        (&["--machine-hub"], Request::MachineHub, None),
+        (&["--machine-hub-state"], Request::MachineHubState, None),
+        (&["--machine-hub-hold"], Request::MachineHubHold, None),
     ];
+    // Releases up to 0.1.0-beta.24 send each of these entries only with a `-v1` suffix, so the
+    // earlier spelling selects the same request.
     for (argv, expected_request, expected_format) in cases {
-        let selected = parse_selected_request(argv.iter().map(OsString::from))
-            .unwrap_or_else(|_| panic!("{FROZEN_MESSAGE}: {argv:?}"));
-        assert_eq!(
-            (selected.request, selected.format),
-            (expected_request, expected_format),
-            "{FROZEN_MESSAGE}: {argv:?}"
-        );
+        let Some((entry, rest)) = argv.split_first() else {
+            continue;
+        };
+        for entry in [(*entry).to_owned(), format!("{entry}-v1")] {
+            let argv: Vec<OsString> = std::iter::once(entry.as_str())
+                .chain(rest.iter().copied())
+                .map(OsString::from)
+                .collect();
+            let selected = parse_selected_request(argv.clone().into_iter())
+                .unwrap_or_else(|_| panic!("{FROZEN_MESSAGE}: {argv:?}"));
+            assert_eq!(
+                (selected.request, selected.format),
+                (expected_request.clone(), expected_format),
+                "{FROZEN_MESSAGE}: {argv:?}"
+            );
+        }
     }
 }

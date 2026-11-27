@@ -1,7 +1,8 @@
 //! Shared SSH command policy, the remote launch line, and the OpenSSH release remembered answers
-//! need, without catalog or UI ownership. Nothing here compares a product version, protocol,
-//! or cohort across machines: the remote Session judges this Client through the handshake a hub
-//! Session stream carries.
+//! need, without catalog or UI ownership. The launch line reads the remote's active version only to
+//! spell the link helper as that release reads it; nothing here compares a product version,
+//! protocol, or cohort across machines: the remote Session judges this Client through the
+//! handshake a hub Session stream carries.
 
 // module-layer: workflow
 
@@ -24,6 +25,10 @@ const POWERSHELL_OPTIONS: &str = "-NoLogo -NoProfile -NonInteractive";
 pub const STAND_IN: &str = "ORCHBEE_MACHINE_HUB_SSH_STAND_IN";
 /// How long `ssh -V` may take.
 const VERSION_DEADLINE: Duration = Duration::from_secs(5);
+/// The remote link helper as releases from 0.1.0-beta.25 on read it.
+const LINK_HELPER: &str = "--machine-link";
+/// The link helper's earlier spelling, the only one releases 0.1.0-beta.1 to 0.1.0-beta.24 read.
+const EARLIER_LINK_HELPER: &str = "--machine-link-v1";
 
 /// An OpenSSH release, as `ssh -V` names it.
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -114,31 +119,32 @@ pub fn literal(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 /// The remote command the machine hub's carrier runs: the remote link helper of the active version
-/// a remote store's pointer names, with exit 125 when there is none. An unreadable pointer names
-/// none, and nothing is inferred from `PATH`.
+/// a remote store's pointer names, spelled as that version reads it, with exit 125 when there is
+/// none. An unreadable pointer names none, and nothing is inferred from `PATH`.
 pub fn link_program() -> String {
-    launch("--machine-link")
+    launch(LINK_HELPER, EARLIER_LINK_HELPER)
 }
 /// The remote command that runs the program the remote store's pointer names with `argument`, a
-/// plain option, whichever shell the remote OpenSSH runs it with. Win32-OpenSSH's default
-/// `cmd.exe` runs only the first line, where `%OS:Windows_NT=%`, Windows' own `OS` variable with
-/// its whole value replaced by nothing, leaves `powershell.exe`. Every other shell finds no program
-/// of the literal name, which holds no character a shell globs, not even zsh's `^` or `~` under
-/// `extendedglob`, and runs the second line: PowerShell, as a Windows `DefaultShell`, fails `exec`
-/// and starts the same PowerShell program, while a POSIX shell, fish or csh replaces itself with
-/// `/bin/sh` running [`posix`]. The line holds no double quote, which Win32-OpenSSH passes
+/// plain option, or with `earlier`, its earlier spelling, when the pointer names a release from
+/// 0.1.0-beta.1 to 0.1.0-beta.24, whichever shell the remote OpenSSH runs it with. Win32-OpenSSH's
+/// default `cmd.exe` runs only the first line, where `%OS:Windows_NT=%`, Windows' own `OS` variable
+/// with its whole value replaced by nothing, leaves `powershell.exe`. Every other shell finds no
+/// program of the literal name, which holds no character a shell globs, not even zsh's `^` or `~`
+/// under `extendedglob`, and runs the second line: PowerShell, as a Windows `DefaultShell`, fails
+/// `exec` and starts the same PowerShell program, while a POSIX shell, fish or csh replaces itself
+/// with `/bin/sh` running [`posix`]. The line holds no double quote, which Win32-OpenSSH passes
 /// unescaped on PowerShell's command line.
-fn launch(argument: &str) -> String {
-    let encoded = powershell(argument);
+fn launch(argument: &str, earlier: &str) -> String {
+    let encoded = powershell(argument, earlier);
     format!(
         "power%OS:Windows_NT=%shell.exe {POWERSHELL_OPTIONS} -EncodedCommand {encoded}\n\
         exec /bin/sh -c '{}' ; powershell.exe {POWERSHELL_OPTIONS} -EncodedCommand {encoded} ; exit $LASTEXITCODE",
-        posix(argument)
+        posix(argument, earlier)
     )
 }
 /// The encoded PowerShell program that resolves the program on Windows and runs it with
-/// `argument`.
-fn powershell(argument: &str) -> String {
+/// `argument`, or with `earlier` when the pointer names a release up to 0.1.0-beta.24.
+fn powershell(argument: &str, earlier: &str) -> String {
     let resolve = {
         let (folder, stem) = store_names();
         format!(
@@ -154,13 +160,15 @@ fn powershell(argument: &str) -> String {
             literal(&format!("{stem}.exe"))
         )
     };
-    let argument = literal(argument);
+    let (argument, earlier) = (literal(argument), literal(earlier));
+    // The loop ends at the root whose pointer named the program, so `$version` is that program's.
     let script = format!(
         "$ErrorActionPreference='Stop';$ProgressPreference='SilentlyContinue';\
         [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false);\
         $OutputEncoding=[Console]::OutputEncoding;\
         try{{{resolve};if(-not $program){{exit {PROGRAM_NOT_FOUND}}};\
-        & $program {argument};exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}"
+        $argument=if($version -cmatch '^0\\.1\\.0-beta\\.([1-9]|1[0-9]|2[0-4])$'){{{earlier}}}else{{{argument}}};\
+        & $program $argument;exit $LASTEXITCODE}}catch{{exit {PROGRAM_NOT_FOUND}}}"
     );
     base64::engine::general_purpose::STANDARD.encode(
         script
@@ -170,12 +178,12 @@ fn powershell(argument: &str) -> String {
     )
 }
 /// The `sh` program that resolves the program on macOS and Linux, and on a Windows whose OpenSSH
-/// shell is MSYS or Cygwin, as [`powershell`] does, and runs it with `argument`; it exits
-/// [`PLATFORM_UNSUPPORTED`] on any other system or processor. It holds no quote, so it can sit
-/// inside the single quotes of every shell: an empty `IFS` and `set -f` keep each expansion one
-/// unglobbed word, and `tr` turns the pointer into `_`-separated words, which only the store's own
-/// member order matches.
-fn posix(argument: &str) -> String {
+/// shell is MSYS or Cygwin, as [`powershell`] does, and runs it with `argument`, or with `earlier`
+/// for a release up to 0.1.0-beta.24; it exits [`PLATFORM_UNSUPPORTED`] on any other system or
+/// processor. It holds no quote, so it can sit inside the single quotes of every shell: an empty
+/// `IFS` and `set -f` keep each expansion one unglobbed word, and `tr` turns the pointer into
+/// `_`-separated words, which only the store's own member order matches.
+fn posix(argument: &str, earlier: &str) -> String {
     let (folder, stem) = store_names();
     format!(
         "IFS=;set -f;case $(uname -s) in \
@@ -186,7 +194,9 @@ fn posix(argument: &str) -> String {
         p=$(tr -cs [:alnum:].- _ 2>/dev/null <$r/active.json) || exit {PROGRAM_NOT_FOUND};\
         case $p in _version_1_active_product_[0-9]*) ;; *) exit {PROGRAM_NOT_FOUND};; esac;\
         v=${{p#_version_1_active_product_}};v=${{v%%_*}};[ ${{#v}} -le 64 ] || exit {PROGRAM_NOT_FOUND};\
-        c=$r/versions/$v/$n;[ -f $c ] && [ -x $c ] || exit {PROGRAM_NOT_FOUND};exec $c {argument}"
+        c=$r/versions/$v/$n;[ -f $c ] && [ -x $c ] || exit {PROGRAM_NOT_FOUND};\
+        case $v in 0.1.0-beta.[1-9]|0.1.0-beta.1[0-9]|0.1.0-beta.2[0-4]) exec $c {earlier};; esac;\
+        exec $c {argument}"
     )
 }
 /// The remote store folder under `%LOCALAPPDATA%\Programs` and the Client stem the launch line

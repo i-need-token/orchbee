@@ -130,10 +130,18 @@ never changes; a change adds a new name.
 | `--select-terminal=<TerminalPresentationId>` | The window, when it relaunches                              | The window it relaunches, which opens at that terminal; the launcher passes it on unchanged |
 | `--select-workspace=<WorkspaceId>`           | The window, when it relaunches without a displayed terminal | The window it relaunches, which opens that Workspace; the launcher passes it on unchanged   |
 
-Only the exact `--relaunch-after` in first place is the launcher's, and the argument after it
-names a process only as a decimal number from 1 without a sign or a leading zero; the launcher drops
-both either way. Anywhere else, or written as `--relaunch-after=<id>`, it is an ordinary argument
-that the window receives.
+Only the exact `--relaunch-after`, or `--relaunch-after-v1`, in first place is the launcher's, and
+the argument after it names a process only as a decimal number from 1 without a sign or a leading
+zero; the launcher drops both either way. Anywhere else, or written as `--relaunch-after=<id>`, it
+is an ordinary argument that the window receives.
+
+Releases up to 0.1.0-beta.24 give and read each switch above, and the protocol variable, only in an
+earlier spelling with a `-v1` suffix: `--relaunch-after-v1`, `--replace-application-v1=`,
+`--fallback-from-v1=`, `--select-terminal-v1=`, `--select-workspace-v1=` and `ORCHBEE_RELAUNCH_V1`.
+A later launcher reads its own two switches in either spelling, sets the variable in both, and
+passes the place switches on as they came. It starts a previous version up to 0.1.0-beta.24 with
+`--fallback-from-v1=`; on macOS, where it falls back to the application the window ran from, it
+uses that spelling when the window asked in the earlier one.
 
 ## Icon
 

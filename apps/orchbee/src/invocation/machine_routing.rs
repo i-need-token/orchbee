@@ -5,6 +5,7 @@ use super::{
     RuntimeStatusScope, SelectedRequest, ServerStopCommand, TerminalSendInput, UsageContext,
     UsageReason, format_envelope, plugins, scan, selection_envelope, usage_with,
 };
+use orchbee_release_records::CrossBuildName;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct Route {
@@ -27,6 +28,12 @@ pub(crate) struct RemoteStop {
 /// How a refused option of the remote stop names its command.
 const REMOTE_STOP: UsageContext = UsageContext::Literal("orchbee --machine <selector> server stop");
 
+/// The remote helper, which a machine hub of any release runs over `ssh`.
+const MACHINE_LINK: CrossBuildName = CrossBuildName {
+    current: "--machine-link",
+    earlier: "--machine-link-v1",
+};
+
 pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure> {
     // This helper grammar is permanent; a change adds a new helper name instead.
     if let [entry, machine] = tokens.as_slice()
@@ -41,7 +48,9 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
     }
     // Saved machines are portable: each path admits `Capability::SavedMachines` itself, so only the
     // Desktop's helpers keep the Desktop's platforms.
-    if tokens == ["--machine-link"] {
+    if let [only] = tokens.as_slice()
+        && MACHINE_LINK.is(only.as_str())
+    {
         return Ok(SelectedRequest {
             availability: Availability::Portable,
             format: None,
@@ -49,27 +58,33 @@ pub(super) fn parse(tokens: Vec<String>) -> Result<SelectedRequest, ParseFailure
             session: None,
         });
     }
-    // Internal pairings between this program and its own start path, not frozen helpers: a release
-    // may rename them.
-    for (token, request, availability) in [
-        ("--machine-hub", Request::MachineHub, Availability::Portable),
+    // Internal pairings between this program and its own start path, not helpers another release
+    // runs; each still answers the earlier spelling that releases up to 0.1.0-beta.24 used.
+    for (spellings, request, availability) in [
         (
-            "--machine-hub-state",
+            &["--machine-hub", "--machine-hub-v1"][..],
+            Request::MachineHub,
+            Availability::Portable,
+        ),
+        (
+            &["--machine-hub-state", "--machine-hub-state-v1"],
             Request::MachineHubState,
             Availability::Portable,
         ),
         (
-            "--machine-hub-hold",
+            &["--machine-hub-hold", "--machine-hub-hold-v1"],
             Request::MachineHubHold,
             Availability::Portable,
         ),
         (
-            "--desktop-machines",
+            &["--desktop-machines"],
             Request::DesktopMachines,
             Availability::Portable,
         ),
     ] {
-        if tokens == [token] {
+        if let [only] = tokens.as_slice()
+            && spellings.contains(&only.as_str())
+        {
             return Ok(SelectedRequest {
                 availability,
                 format: None,

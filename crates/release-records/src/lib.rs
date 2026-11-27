@@ -1,14 +1,17 @@
 //! Orchbee's closed release records: strict JSON reading, the version and digest tokens the records
-//! admit, and the release store's active-version pointer with its fallback record. Nothing here
-//! reads a file, takes a lock or starts a process; callers own every location and effect.
+//! admit, the release store's active-version pointer with its fallback record, and which spelling
+//! of a cross-build name each release reads. Nothing here reads a file, takes a lock or starts a
+//! process; callers own every location and effect.
+mod cross_build;
 mod fallback;
 mod pointer;
 mod strict_json;
 mod tokens;
 
+pub use cross_build::CrossBuildName;
 pub use fallback::{
-    ClientWindow, FALLBACK_FAILURES, FALLBACK_WINDOW_MILLISECONDS, Fallback, Move, SessionWindow,
-    client_failure_helper, valid_activation_id,
+    ClientFailureHelper, ClientWindow, FALLBACK_FAILURES, FALLBACK_WINDOW_MILLISECONDS, Fallback,
+    Move, SessionWindow, client_failure_helper, valid_activation_id,
 };
 pub use pointer::{Entry, Pointer};
 pub use strict_json::{check_extensions, closed_object, parse_object};

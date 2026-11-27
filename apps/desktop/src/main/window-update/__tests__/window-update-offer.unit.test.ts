@@ -121,6 +121,10 @@ describe('resolvePosixReleaseStoreRoot', () => {
 describe('readFallbackFromVersion', () => {
 	it('reads the version a fallback start came back from, and nothing else', () => {
 		expect(readFallbackFromVersion(['orchbee-desktop.exe', '--fallback-from=0.3.0'])).toBe('0.3.0');
+		// A launcher up to 0.1.0-beta.24 sends the earlier spelling.
+		expect(readFallbackFromVersion(['orchbee-desktop.exe', '--fallback-from-v1=0.3.0'])).toBe(
+			'0.3.0',
+		);
 		expect(readFallbackFromVersion(['orchbee-desktop.exe'])).toBeNull();
 		expect(readFallbackFromVersion(['--fallback-from=not-a-version'])).toBeNull();
 		expect(readFallbackFromVersion(['--fallback-from=0.3.0+build'])).toBeNull();

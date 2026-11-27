@@ -1755,18 +1755,24 @@ only where `automatic_updates_live()` holds, and in a release build only once th
 does not hold, `update` and the automatic helper leave the store's `desktop`
 folder alone, and a Client does not know `WINDOW_INSTALLER_HELPER`, `--installer-window`, the
 word with which Setup or install.sh runs the Client bundled in a window directory to install that
-window version; its spelling never changes. Setup has no copy of the switch: it asks its bundled
+window version; its spellings never change. Setup has no copy of the switch: it asks its bundled
 Client that word first and installs the flat window layout of earlier releases when the Client does
 not know it.
 
 `AUTOMATIC_UPDATE_HELPER` is `--automatic-update`, the one argument with which a Session Server
 runs the store's active Client for an automatic update and by which that Client recognizes the
 [automatic helper](../../apps/orchbee/docs/windows-cli-configuration.md#windows-release-installation).
-A Client answers it only while `automatic_updates_live()` holds, and its spelling never changes.
+A Client answers it only while `automatic_updates_live()` holds, and its spellings never change.
 `CLIENT_FAILURE_HELPER` is `--record-client-failure`, the word with which either launcher runs
 the previous version's Client, followed by the failed version, to record a Client failure for the
 [fallback after a failed move](#fallback-after-a-failed-move); the same switch and the same rule
 apply.
+
+Each of these names, and `RELAUNCH_PROTOCOL_VARIABLE`, the relaunch protocol's `ORCHBEE_RELAUNCH`,
+is a [`CrossBuildName`](../release-records/README.md#contract): a Client accepts its current
+spelling and its earlier one, with a `-v1` suffix (`_V1` for the variable), the only one releases
+up to 0.1.0-beta.24 know, and whatever hands one to another release's program spells it as that
+release reads it.
 
 `Cohort::artifact_sha256` retains each executable digest from successful admission. Installation provenance compares its declared digests against these observations, so a cohort change between reads cannot be presented as the previously admitted release.
 

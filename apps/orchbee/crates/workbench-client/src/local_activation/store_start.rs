@@ -435,7 +435,8 @@ fn spawn_install_own(own_client: &Path, no_path: bool) {
     }
     command
         .args(["--format", "json"])
-        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.current)
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.earlier)
         .current_dir("/");
     match null_streams().and_then(|streams| {
         DetachedChild::spawn_with_streams(command, SpawnEnvironment::Inherited, streams)
@@ -508,13 +509,13 @@ fn null_streams() -> io::Result<[OwnedFd; 3]> {
 }
 
 /// Runs `command`, which inherits this process's environment, so it selects the same Session and
-/// store, except the relaunch protocol's variable, which no process a Client starts receives, and
-/// waits for it until `deadline`; `pins` hold its program in place until it exists. It gets null
-/// standard input and error, a bounded standard output, and a working folder no version owns, since
-/// a Session it starts outlives this Client: the system folder on Windows, where it also gets no
-/// console window, and `/` on macOS and Linux, where it leads a process group of its own, so a
-/// terminal's interrupt meant for this Client never reaches it, and starts as a `DetachedChild`,
-/// which inherits no descriptor but those three streams.
+/// store, except the relaunch protocol's variable in either spelling, which no process a Client
+/// starts receives, and waits for it until `deadline`; `pins` hold its program in place until it
+/// exists. It gets null standard input and error, a bounded standard output, and a working folder
+/// no version owns, since a Session it starts outlives this Client: the system folder on Windows,
+/// where it also gets no console window, and `/` on macOS and Linux, where it leads a process group
+/// of its own, so a terminal's interrupt meant for this Client never reaches it, and starts as a
+/// `DetachedChild`, which inherits no descriptor but those three streams.
 fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
     #[cfg(windows)]
     let Ok(directory) = winsafe::GetSystemDirectory() else {
@@ -531,7 +532,8 @@ fn wait_for(mut command: Command, pins: Vec<File>, deadline: Instant) -> Run {
         return Run::Failed;
     };
     command
-        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE)
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.current)
+        .env_remove(orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.earlier)
         .current_dir(directory);
     // The parent's copy of the output pipe's writer leaves with the start; the image is mapped once
     // the process exists, so the pins have done their part.

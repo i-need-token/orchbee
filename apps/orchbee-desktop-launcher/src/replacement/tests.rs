@@ -14,10 +14,15 @@ fn strings(arguments: &[&str]) -> Vec<OsString> {
 }
 
 fn asked(application: &str, rest: &[&str]) -> Vec<OsString> {
+    asked_in("", application, rest)
+}
+
+/// The arguments a window asks with, each switch spelled with `suffix`: `-v1` up to 0.1.0-beta.24.
+fn asked_in(suffix: &str, application: &str, rest: &[&str]) -> Vec<OsString> {
     let mut arguments = strings(&[
-        "--relaunch-after",
+        &format!("--relaunch-after{suffix}"),
         &PARENT.to_string(),
-        &format!("--replace-application={application}"),
+        &format!("--replace-application{suffix}={application}"),
     ]);
     arguments.extend(strings(rest));
     arguments
@@ -46,6 +51,25 @@ fn a_relaunch_names_the_application_the_program_and_the_place_switches() {
     assert_eq!(
         served.fallback_arguments(None),
         strings(&["--select-workspace=w"])
+    );
+    // A window up to 0.1.0-beta.24 asks in the earlier spelling and reads only that one back.
+    let earlier = relaunch(
+        LAUNCHER.as_ref(),
+        asked_in(
+            "-v1",
+            "/Applications/Orchbee.app",
+            &["--select-workspace-v1=w"],
+        ),
+        PARENT,
+    )
+    .expect("served");
+    assert_eq!(
+        earlier.application,
+        PathBuf::from("/Applications/Orchbee.app")
+    );
+    assert_eq!(
+        earlier.fallback_arguments(Some("0.3.0")),
+        strings(&["--fallback-from-v1=0.3.0", "--select-workspace-v1=w"])
     );
 }
 

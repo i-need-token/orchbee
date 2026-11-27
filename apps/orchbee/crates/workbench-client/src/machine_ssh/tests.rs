@@ -28,7 +28,7 @@ fn a_development_or_test_build_runs_only_its_own_environment_on_the_far_computer
     for release in ["Orchbee", "orchbee.exe"] {
         assert!(!script.contains(&literal(release)), "{script}");
     }
-    let posix = posix("--machine-link");
+    let posix = posix(LINK_HELPER, EARLIER_LINK_HELPER);
     assert!(
         posix.contains(&format!("/.local/share/{stem}}}")),
         "{posix}"
@@ -68,11 +68,13 @@ fn the_launch_line_runs_the_store_client_on_macos_and_linux() {
     let home = std::env::temp_dir().join(format!("ob-launch-line-{}", std::process::id()));
     let stem = orchbee_local_runtime::environment_stem();
     let store = home.join(".local/share").join(stem);
-    let version = store.join("versions/1.2.3");
-    std::fs::create_dir_all(&version).unwrap();
-    let client = version.join(stem);
-    std::fs::write(&client, "#!/bin/sh\nprintf '%s' \"$*\"\nexit 7\n").unwrap();
-    std::fs::set_permissions(&client, std::fs::Permissions::from_mode(0o755)).unwrap();
+    for version in ["1.2.3", "0.1.0-beta.24", "0.1.0-beta.25"] {
+        let version = store.join("versions").join(version);
+        std::fs::create_dir_all(&version).unwrap();
+        let client = version.join(stem);
+        std::fs::write(&client, "#!/bin/sh\nprintf '%s' \"$*\"\nexit 7\n").unwrap();
+        std::fs::set_permissions(&client, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
     // A `uname` that names a system no release runs on.
     let other = home.join("other-system");
     std::fs::create_dir_all(&other).unwrap();
@@ -113,8 +115,15 @@ fn the_launch_line_runs_the_store_client_on_macos_and_linux() {
         };
         let _ = std::fs::remove_file(store.join("active.json"));
         assert_eq!(run(None), (Some(PROGRAM_NOT_FOUND), String::new(), shell));
-        std::fs::write(store.join("active.json"), pointer("1.2.3")).unwrap();
-        assert_eq!(run(None), (Some(7), "--machine-link".to_owned(), shell));
+        // Releases up to 0.1.0-beta.24 read only the helper's earlier spelling.
+        for (product, helper) in [
+            ("0.1.0-beta.24", "--machine-link-v1"),
+            ("0.1.0-beta.25", "--machine-link"),
+            ("1.2.3", "--machine-link"),
+        ] {
+            std::fs::write(store.join("active.json"), pointer(product)).unwrap();
+            assert_eq!(run(None), (Some(7), helper.to_owned(), shell));
+        }
         let unsupported = (Some(PLATFORM_UNSUPPORTED), String::new(), shell);
         assert_eq!(run(Some(&other)), unsupported);
         std::fs::write(store.join("active.json"), pointer("1.2.4")).unwrap();

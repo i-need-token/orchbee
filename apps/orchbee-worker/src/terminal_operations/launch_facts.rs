@@ -200,11 +200,14 @@ fn launch_environment(
         value: agent_start,
     });
     // A Windows Server started by an announced TUI inherits the launcher's relaunch variable, which
-    // no terminal receives.
-    entries.push(LaunchEnvironmentEntry {
-        name: orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE.into(),
-        value: None,
-    });
+    // no terminal receives in either spelling.
+    let relaunch = orchbee_local_runtime::RELAUNCH_PROTOCOL_VARIABLE;
+    entries.extend(
+        [relaunch.current, relaunch.earlier].map(|name| LaunchEnvironmentEntry {
+            name: name.into(),
+            value: None,
+        }),
+    );
     entries
 }
 

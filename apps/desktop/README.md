@@ -127,13 +127,16 @@ the arguments `--relaunch-after <its process id>` followed by the place the aski
 Terminals Running does. An entry that cannot start leaves the window running and is recorded. The
 [window launcher](../orchbee-desktop-launcher/README.md) waits for the window to end and starts the
 active version, whose Main strict-parses the place and gives it to its first document only as
-`relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH` from its environment,
-so nothing it starts inherits it. When the variable named its parent and its first `server start`
+`relaunchPlace`; nothing is stored. At start Main removes `ORCHBEE_RELAUNCH` and
+`ORCHBEE_RELAUNCH_V1`, its spelling up to 0.1.0-beta.24, from its environment, so nothing it starts
+inherits either. When either named its parent and its first `server start`
 answer, within 90 seconds of its start, refuses with `session-too-old`, Main exits with status 1
 instead of showing the refusal, and the launcher starts the version it replaced. The Jump List task of a window that runs from a version folder names the entry, so it outlives that
 version, and 15 seconds after startup Main runs `--tend-window-store` through its bundled Client
 so retired window versions and flat-layout leftovers leave disk once any replaced process has
-exited. The maintained design is the
+exited. Main gives every switch in its current spelling, and reads `--fallback-from=`,
+`--select-terminal=` and `--select-workspace=` in their earlier spelling with a `-v1` suffix too,
+the only one launchers and windows up to 0.1.0-beta.24 write. The maintained design is the
 [automatic-update proposal](../../proposals/platform/automatic-updates.md#window).
 
 On macOS the application bundle is the entry. A packaged window that runs from a bundle,
@@ -625,6 +628,8 @@ order:
    keeps the data;
 2. runs `<store root>\bin\<client>.exe --installer-uninstall`, with `--delete-data` after a
    Yes, or, when no launcher is left, a flat window's bundled Client or else a window version's,
+   asks a Client up to 0.1.0-beta.24 that refuses that word as an unknown option again with
+   `--installer-uninstall-v1`, the only spelling it knows,
    and waits for it from `unins000.exe` in the store root; the Client does not count that waiting
    uninstaller as Orchbee running. It ends no terminal: while one is open, or while any other
    program runs from the installation, it changes nothing, data included, and the uninstaller

@@ -8,9 +8,13 @@ mod state;
 
 use crate::{cli::Output, localization::Locale, tui_capabilities::Capability};
 
-/// The helper's whole command line after the program name.
+/// The helper's whole command line after the program name, in either spelling: a hub of a release
+/// up to 0.1.0-beta.24 sends only the earlier one.
 #[cfg(windows)]
-const HELPER: &str = "--machine-link";
+const HELPER: orchbee_release_records::CrossBuildName = orchbee_release_records::CrossBuildName {
+    current: "--machine-link",
+    earlier: "--machine-link-v1",
+};
 
 /// Admits the helper's token before anything reads Orchbee state; any other command line answers
 /// `None` at once. A token at Medium integrity or below without enabled Administrators continues as
@@ -24,21 +28,23 @@ pub(crate) fn admit_rights() -> Option<std::process::ExitCode> {
     use std::{ffi::OsStr, process::ExitCode};
 
     let mut arguments = std::env::args_os().skip(1);
-    if arguments.next().is_none_or(|first| first != HELPER) || arguments.next().is_some() {
+    if arguments.next().is_none_or(|first| !HELPER.is(&first)) || arguments.next().is_some() {
         return None;
     }
     let failure = match orchbee_local_runtime::token_rights() {
         Ok(rights) if rights.is_standard() => return None,
-        Ok(_) => match orchbee_local_runtime::relaunch_with_standard_rights(OsStr::new(HELPER)) {
-            Ok(status) => {
-                if let Ok(status) = u8::try_from(status) {
-                    return Some(ExitCode::from(status));
+        Ok(_) => {
+            match orchbee_local_runtime::relaunch_with_standard_rights(OsStr::new(HELPER.current)) {
+                Ok(status) => {
+                    if let Ok(status) = u8::try_from(status) {
+                        return Some(ExitCode::from(status));
+                    }
+                    crate::diagnostic_events::link_child_failed(status);
+                    return Some(ExitCode::from(carrier::REFUSED));
                 }
-                crate::diagnostic_events::link_child_failed(status);
-                return Some(ExitCode::from(carrier::REFUSED));
+                Err(failure) => failure,
             }
-            Err(failure) => failure,
-        },
+        }
         Err(_) => RelaunchFailure::Derive,
     };
     crate::diagnostic_events::link_rights_refused(failure);

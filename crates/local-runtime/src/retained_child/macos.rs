@@ -16,7 +16,8 @@ pub(super) struct Process {
 
 impl Process {
     /// Starts `executable`, an absolute path, in `/` with null standard streams and this process's
-    /// environment without the relaunch protocol's variable, `path` replacing `PATH` when given.
+    /// environment without either spelling of the relaunch protocol's variable, `path` replacing
+    /// `PATH` when given.
     pub(super) fn spawn(
         executable: &Path,
         arguments: &[&OsStr],
@@ -49,9 +50,9 @@ impl Process {
                 "a retained child's executable must be an absolute path",
             ));
         }
-        let relaunch = OsStr::new(crate::RELAUNCH_PROTOCOL_VARIABLE);
+        let relaunch = crate::RELAUNCH_PROTOCOL_VARIABLE;
         let mut environment: Vec<(OsString, OsString)> = std::env::vars_os()
-            .filter(|(name, _)| name != relaunch && (path.is_none() || name != "PATH"))
+            .filter(|(name, _)| !relaunch.is(name) && (path.is_none() || name != "PATH"))
             .collect();
         if let Some(path) = path {
             environment.push(("PATH".into(), path.to_owned()));

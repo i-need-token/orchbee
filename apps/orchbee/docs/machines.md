@@ -214,8 +214,9 @@ fish and csh read inside single quotes. A system or processor no release runs on
 The launch line resolves the remote program through the remote store's `active.json`, never
 through `PATH`: in the store root (`ORCHBEE_INSTALL_DIR`, or a folder under
 `%LOCALAPPDATA%\Programs` on Windows and under `$HOME/.local/share` on macOS and Linux) it reads the
-active version and runs `versions/<version>/<name>`, and exits 125, read as `remote-not-installed`,
-when it resolves no program or cannot start it. Each build looks only for its own environment's
+active version and runs `versions/<version>/<name>` with the [link helper](#link-helper)'s word,
+`--machine-link-v1` for a release up to 0.1.0-beta.24 and `--machine-link` for any other version,
+and exits 125, read as `remote-not-installed`, when it resolves no program or cannot start it. Each build looks only for its own environment's
 installation, so builds never meet on the remote either: a release build reads the `Orchbee` store
 and looks for `orchbee.exe` on Windows, and the `orchbee` store and `orchbee` elsewhere, and a
 development or test build reads only its own `<stem>` store and looks only for `<stem>.exe` or
@@ -225,8 +226,8 @@ and nothing is written into their data folder; a remote without its own installa
 Orchbee is not there. A macOS or Linux store is filled by `install.sh`, or by the desktop application
 the first time it starts a Session. See
 [Windows release installation](windows-cli-configuration.md#windows-release-installation).
-No protocol version, product version, or cohort is compared across machines beyond what the link's
-offer and the remote Session's handshake admit.
+Apart from that word, no protocol version, product version, or cohort is compared across machines
+beyond what the link's offer and the remote Session's handshake admit.
 
 An enabled profile is not evidence of a live connection. No remote Session is stopped by rename,
 enable, disable, or a remove without `--stop-session`.
@@ -405,7 +406,8 @@ The desktop window's Change machine keeps these rules: its [machines process](#d
 speaks to it on its standard input and output. One pair of pipes carries several Sessions' byte
 streams, routed commands, and Session starts at once. Windows, macOS and Linux serve it; elsewhere
 it answers unsupported before reading a byte. It is the only remote entry Orchbee starts over
-`ssh`. The contract owns every byte; this section owns how the helper meets it.
+`ssh`, and it also answers `--machine-link-v1`, the only spelling a release up to 0.1.0-beta.24
+answers or asks for. The contract owns every byte; this section owns how the helper meets it.
 
 Before it reads any Orchbee state, a Windows helper reads its own token; a macOS or Linux helper
 has none to check. Win32-OpenSSH gives an
@@ -490,7 +492,7 @@ hub's state, its process id, and each Machine's state, with the host key's algor
 fingerprint for `untrusted` and `key-changed`, and holds nothing;
 `orchbee --machine-hub-hold` attaches with `presence` and `watch` and prints one line per
 attachment and event until its standard input ends. None appears in help, completion, or the Agent
-guide.
+guide, and each also answers its spelling up to 0.1.0-beta.24, with a `-v1` suffix.
 
 ### Names that freeze
 
@@ -650,7 +652,7 @@ itself.
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Program        | The system `ssh` (`<system folder>\OpenSSH\ssh.exe` on Windows, `/usr/bin/ssh` on macOS and Linux, never found through `PATH`) with the command line `machine_ssh::carrier_command` builds: `-T`, `StrictHostKeyChecking=ask`, `UpdateHostKeys=no`, no forwarding, no multiplexing, then `-- <target> <launch line>`. Batch mode is off                                                                                                                                                                                                                                                                                                                                                                                             |
 | Askpass        | Every carrier, the stand-in included, gets `SSH_ASKPASS` set to this program's own path, `SSH_ASKPASS_REQUIRE=force`, a placeholder `DISPLAY`, and `ORCHBEE_MACHINE_ASKPASS` with the hub's askpass endpoint and the carrier's own 16-byte ticket, so `ssh` never reads a console and an [askpass helper](#askpass-helper) is the only way a question reaches anyone                                                                                                                                                                                                                                                                                                                                                                |
-| Launch line    | The two-line command that resolves the remote store's active version on Windows, macOS and Linux, as [adding a machine](#adding-a-machine) describes, and runs it with `--machine-link`; it exits 125 when it finds none and 124 on a system or processor no release runs on                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Launch line    | The two-line command that resolves the remote store's active version on Windows, macOS and Linux, as [adding a machine](#adding-a-machine) describes, and runs it with the link helper's word for that version; it exits 125 when it finds none and 124 on a system or processor no release runs on                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | Stand-in       | In a development or test build only, `ORCHBEE_MACHINE_HUB_SSH_STAND_IN` in the hub's view names an absolute program that runs with the one argument `--machine-link` in place of `ssh` and the launch line, with everything else unchanged, and with `-V` alone in place of `ssh -V`; any other value fails every attempt with `ssh-unavailable` and never falls back to `ssh`. A release never reads it. On Windows a local far end runs inside the carrier's Job, which lets no process leave, so a Session it starts ends with the carrier, unlike one via `ssh`; on macOS that Session leaves the carrier's process group and outlives it, as one via `ssh` does, and on Linux it stays in that group and ends with the carrier |
 | Process        | No console window (`CREATE_NO_WINDOW`) on Windows, the system folder as working directory (`/` on macOS and Linux), an empty signal mask, which on macOS the launch gives the child itself (the owner thread clears its own mask before every start), standard input and output the link, standard error a pipe the hub reads, the [child environment](#environment)                                                                                                                                                                                                                                                                                                                                                                |
 | Descriptors    | On macOS the child inherits no descriptor but its three standard streams, even while other hub threads create descriptors, because the child starts through the native launch. Linux closes every other descriptor in the launch; Windows is unchanged                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -798,7 +800,7 @@ event counts the `command` requests waiting, the claimant's own excluded. The Ma
 command line and whatever its arguments are, so text from the far side never selects a local
 command; the prompt is every argument joined by single spaces, since `ssh` passes one and how
 OpenSSH quotes it is not proven. The one exception is a development or test build started
-with exactly `--machine-link`, the far end a [stand-in](#the-carrier-child) starts, which runs as
+with exactly `--machine-link` or `--machine-link-v1`, the far end a [stand-in](#the-carrier-child) starts, which runs as
 the link helper; a release never makes it. Such a far end inherits the variable, which a far end
 over `ssh` never has, so the routed commands it runs start without it. The variable is private: the hub sets it only in its
 carrier children, as `<askpass endpoint> <ticket>`, with the ticket as 32 lowercase hexadecimal

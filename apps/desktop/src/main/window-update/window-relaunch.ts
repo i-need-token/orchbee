@@ -16,18 +16,34 @@ import { locateApplicationBundle } from './window-update-offer';
 
 // Cross-build contract: every window launcher from the window self-update release on reads the
 // first two and passes the place switches on unchanged; the macOS launcher also reads the third.
+// Releases up to 0.1.0-beta.24 spell each with a `-v1` suffix. A window sends the current spelling,
+// since the launcher it starts and the version it switches to are never older than itself, and
+// reads the place in either spelling.
 const RELAUNCH_AFTER_SWITCH = '--relaunch-after';
 const REPLACE_APPLICATION_SWITCH = '--replace-application=';
 const SELECT_TERMINAL_SWITCH = '--select-terminal=';
 const SELECT_WORKSPACE_SWITCH = '--select-workspace=';
-/** The launcher protocol variable, which carries the announcing launcher's process id. */
-const RELAUNCH_ENVIRONMENT_KEY = 'ORCHBEE_RELAUNCH';
+const EARLIER_SELECT_TERMINAL_SWITCH = '--select-terminal-v1=';
+const EARLIER_SELECT_WORKSPACE_SWITCH = '--select-workspace-v1=';
+/**
+ * The launcher protocol variable, which carries the announcing launcher's process id, and its
+ * earlier spelling, which launchers up to 0.1.0-beta.24 set instead.
+ */
+const RELAUNCH_ENVIRONMENT_KEYS = ['ORCHBEE_RELAUNCH', 'ORCHBEE_RELAUNCH_V1'] as const;
 /** How long after its start an announced window still gives way to the version it replaced. */
 const ANNOUNCED_REFUSAL_WINDOW_MILLISECONDS = 90_000;
 const PROCESS_ID = /^[1-9]\d{0,9}$/u;
 
-function switchValue(argumentsList: readonly string[], prefix: string): string | undefined {
-	return argumentsList.find((argument) => argument.startsWith(prefix))?.slice(prefix.length);
+/** The value of the first argument that starts with either spelling of a switch. */
+function switchValue(
+	argumentsList: readonly string[],
+	spellings: readonly [string, string],
+): string | undefined {
+	for (const argument of argumentsList) {
+		const prefix = spellings.find((spelling) => argument.startsWith(spelling));
+		if (prefix !== undefined) return argument.slice(prefix.length);
+	}
+	return undefined;
 }
 
 /**
@@ -37,12 +53,18 @@ function switchValue(argumentsList: readonly string[], prefix: string): string |
 export function readRelaunchPlace(argumentsList: readonly string[]): DesktopRelaunchPlace | null {
 	const terminal = DesktopRelaunchPlaceSchema.safeParse({
 		kind: 'terminal',
-		presentationId: switchValue(argumentsList, SELECT_TERMINAL_SWITCH),
+		presentationId: switchValue(argumentsList, [
+			SELECT_TERMINAL_SWITCH,
+			EARLIER_SELECT_TERMINAL_SWITCH,
+		]),
 	});
 	if (terminal.success) return terminal.data;
 	const workspace = DesktopRelaunchPlaceSchema.safeParse({
 		kind: 'workspace',
-		workspaceId: switchValue(argumentsList, SELECT_WORKSPACE_SWITCH),
+		workspaceId: switchValue(argumentsList, [
+			SELECT_WORKSPACE_SWITCH,
+			EARLIER_SELECT_WORKSPACE_SWITCH,
+		]),
 	});
 	return workspace.success ? workspace.data : null;
 }
@@ -65,17 +87,23 @@ function windowRelaunchArguments(
 }
 
 /**
- * Removes the launcher protocol variable from `environment`, so nothing this window starts inherits
- * it, and says whether it announced this window: its value is the parent's process id, so a stale
- * inherited variable announces nothing.
+ * Removes the launcher protocol variable in both spellings from `environment`, so nothing this
+ * window starts inherits it, and says whether either announced this window: its value is the
+ * parent's process id, so a stale inherited variable announces nothing.
  */
 export function takeRelaunchAnnouncement(
 	environment: NodeJS.ProcessEnv,
 	parentProcessId: number,
 ): boolean {
-	const value = environment[RELAUNCH_ENVIRONMENT_KEY];
-	delete environment[RELAUNCH_ENVIRONMENT_KEY];
-	return value !== undefined && PROCESS_ID.test(value) && Number(value) === parentProcessId;
+	let announced = false;
+	for (const key of RELAUNCH_ENVIRONMENT_KEYS) {
+		const value = environment[key];
+		delete environment[key];
+		if (value !== undefined && PROCESS_ID.test(value) && Number(value) === parentProcessId) {
+			announced = true;
+		}
+	}
+	return announced;
 }
 
 /**

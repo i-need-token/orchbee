@@ -91,10 +91,16 @@ fn start(start: &Start, switches: &[&OsStr]) -> Option<Child> {
         .current_dir(&start.folder);
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut command, 0);
+    let variable = decision::PROTOCOL_VARIABLE;
     if start.announced {
-        command.env(decision::PROTOCOL_VARIABLE, std::process::id().to_string());
+        let process = std::process::id().to_string();
+        command
+            .env(variable.current, &process)
+            .env(variable.earlier, &process);
     } else {
-        command.env_remove(decision::PROTOCOL_VARIABLE);
+        command
+            .env_remove(variable.current)
+            .env_remove(variable.earlier);
     }
     command.spawn().ok()
 }

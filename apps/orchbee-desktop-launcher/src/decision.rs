@@ -4,26 +4,37 @@
 //! through the facts their callers pass in. Windows and Linux share every decision; the macOS
 //! launcher shares the arguments, the fallback arguments and the step after a start, and decides its
 //! replacement in `replacement`.
+use orchbee_release_records::CrossBuildName;
 #[cfg(any(windows, target_os = "linux"))]
 use orchbee_release_records::Pointer;
 #[cfg(any(windows, target_os = "linux"))]
 use std::path::Path;
-use std::{
-    ffi::{OsStr, OsString},
-    path::PathBuf,
-};
+use std::{ffi::OsString, path::PathBuf};
 
 #[cfg(all(test, any(windows, target_os = "linux")))]
 mod tests;
 
 /// The launcher protocol variable shared with the command launcher: the launcher's own process id
-/// in decimal. A window treats its parent as announcing the protocol only when the value names it.
-pub(crate) const PROTOCOL_VARIABLE: &str = "ORCHBEE_RELAUNCH";
+/// in decimal, set in both spellings so a window of any release reads it. A window treats its
+/// parent as announcing the protocol only when the value names it.
+pub(crate) const PROTOCOL_VARIABLE: CrossBuildName = CrossBuildName {
+    current: "ORCHBEE_RELAUNCH",
+    earlier: "ORCHBEE_RELAUNCH_V1",
+};
 
-/// As the first argument, followed by a process id: wait for that process before starting.
-const RELAUNCH_AFTER: &str = "--relaunch-after";
-/// Prefixed to a version: the window was started because that version failed.
-const FALLBACK_FROM: &str = "--fallback-from=";
+/// As the first argument, followed by a process id: wait for that process before starting. A window
+/// up to 0.1.0-beta.24 sends the earlier spelling, and reads only that spelling of the switches it
+/// is handed back.
+pub(crate) const RELAUNCH_AFTER: CrossBuildName = CrossBuildName {
+    current: "--relaunch-after",
+    earlier: "--relaunch-after-v1",
+};
+/// Prefixed to a version: the window was started because that version failed. Each window reads
+/// only its own release's spelling.
+pub(crate) const FALLBACK_FROM: CrossBuildName = CrossBuildName {
+    current: "--fallback-from=",
+    earlier: "--fallback-from-v1=",
+};
 /// The window pointer, in the window store's `desktop` folder.
 pub(crate) const POINTER: &str = "active.json";
 /// The folder of window versions, beside the window pointer.
@@ -109,7 +120,14 @@ pub(crate) fn plan(
         .previous
         .map(|previous| previous.product)
         .filter(|previous| *previous != active)
-        .map(|previous| version_start(&previous, fallback_arguments(&active, &arguments), false))
+        .map(|previous| {
+            let switch = FALLBACK_FROM.for_release(&previous);
+            version_start(
+                &previous,
+                fallback_arguments(switch, &active, &arguments),
+                false,
+            )
+        })
         .filter(|fallback| exists(&fallback.window));
     let first = version_start(&active, arguments, fallback.is_some());
     if fallback.is_none() && !exists(&first.window) {
@@ -122,12 +140,16 @@ pub(crate) fn plan(
     })
 }
 
-/// The process `--relaunch-after` names when it leads `arguments`, and the arguments the window
-/// receives. Only the exact switch in first place is the launcher's; it is always dropped with the
-/// argument after it, which names a process only as a decimal number from 1 without a sign or a
-/// leading zero. Any other argument, the switch elsewhere included, passes on unchanged.
+/// The process `--relaunch-after`, in either spelling, names when it leads `arguments`, and the
+/// arguments the window receives. Only the exact switch in first place is the launcher's; it is
+/// always dropped with the argument after it, which names a process only as a decimal number from
+/// 1 without a sign or a leading zero. Any other argument, the switch elsewhere included, passes on
+/// unchanged.
 pub(crate) fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<OsString>) {
-    if arguments.first().map(OsString::as_os_str) != Some(OsStr::new(RELAUNCH_AFTER)) {
+    if !arguments
+        .first()
+        .is_some_and(|first| RELAUNCH_AFTER.is(first))
+    {
         return (None, arguments);
     }
     let taken = arguments.len().min(2);
@@ -138,11 +160,16 @@ pub(crate) fn own_arguments(mut arguments: Vec<OsString>) -> (Option<u32>, Vec<O
     (process, arguments)
 }
 
-/// The arguments of a start after `active` failed: `--fallback-from=<active>` first, so a reader
-/// that takes the first such argument reads this one, then `arguments`.
-pub(crate) fn fallback_arguments(active: &str, arguments: &[OsString]) -> Vec<OsString> {
+/// The arguments of a start after `active` failed: `--fallback-from=<active>`, with `switch` the
+/// spelling that window reads, first, so a reader that takes the first such argument reads this
+/// one, then `arguments`.
+pub(crate) fn fallback_arguments(
+    switch: &str,
+    active: &str,
+    arguments: &[OsString],
+) -> Vec<OsString> {
     let mut fallback = Vec::with_capacity(arguments.len() + 1);
-    fallback.push(OsString::from(format!("{FALLBACK_FROM}{active}")));
+    fallback.push(OsString::from(format!("{switch}{active}")));
     fallback.extend(arguments.iter().cloned());
     fallback
 }

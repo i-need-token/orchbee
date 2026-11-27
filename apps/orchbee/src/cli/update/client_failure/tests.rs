@@ -10,7 +10,8 @@ use std::ffi::OsString;
 fn the_helper_records_one_client_failure_and_answers_nothing() {
     let words = |words: &[&str]| words.iter().map(OsString::from).collect::<Vec<_>>();
     let selected =
-        parse_selected_request(words(&[CLIENT_FAILURE_HELPER, "0.2.0"]).into_iter()).unwrap();
+        parse_selected_request(words(&[CLIENT_FAILURE_HELPER.current, "0.2.0"]).into_iter())
+            .unwrap();
     assert_eq!(
         (selected.request, selected.format),
         (
@@ -21,9 +22,9 @@ fn the_helper_records_one_client_failure_and_answers_nothing() {
         )
     );
     for other in [
-        &[CLIENT_FAILURE_HELPER][..],
-        &[CLIENT_FAILURE_HELPER, "0.2.0", "0.3.0"],
-        &[CLIENT_FAILURE_HELPER, "0.2.0", "--format", "json"],
+        &[CLIENT_FAILURE_HELPER.current][..],
+        &[CLIENT_FAILURE_HELPER.current, "0.2.0", "0.3.0"],
+        &[CLIENT_FAILURE_HELPER.current, "0.2.0", "--format", "json"],
     ] {
         assert!(
             !parse_selected_request(words(other).into_iter()).is_ok_and(|selected| matches!(

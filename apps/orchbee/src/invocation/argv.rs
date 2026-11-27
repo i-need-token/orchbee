@@ -1,11 +1,37 @@
 //! Argv admission: the UTF-8 and total byte envelope checked before any option interpretation,
-//! then machine routing.
+//! the hidden helpers other programs run, each in both spellings a release may send, then machine
+//! routing.
 
 use super::{
     FailureEnvelope, MAXIMUM_ARGUMENT_BYTES, OutputFormat, ParseFailure, SelectedRequest,
     UsageReason, machine_routing, usage_with,
 };
+use orchbee_local_runtime::{
+    AUTOMATIC_UPDATE_HELPER, CLIENT_FAILURE_HELPER, WINDOW_INSTALLER_HELPER,
+};
+use orchbee_release_records::CrossBuildName;
 use std::ffi::OsString;
+
+/// The completion helper, which the Client that published a copy runs in that copy.
+const COMPLETE_INSTALL: CrossBuildName = CrossBuildName {
+    current: "--complete-install",
+    earlier: "--complete-install-v1",
+};
+/// The uninstaller helper, which a platform uninstaller of any release may run.
+const INSTALLER_UNINSTALL: CrossBuildName = CrossBuildName {
+    current: "--installer-uninstall",
+    earlier: "--installer-uninstall-v1",
+};
+/// The window-store cleanup helper, which Desktop Main runs through its own bundled Client.
+const TEND_WINDOW_STORE: CrossBuildName = CrossBuildName {
+    current: "--tend-window-store",
+    earlier: "--tend-window-store-v1",
+};
+/// The window-folder helper, which Desktop Main runs through its own bundled Client.
+const CREATE_WINDOW_FOLDER: CrossBuildName = CrossBuildName {
+    current: "--create-window-folder",
+    earlier: "--create-window-folder-v1",
+};
 
 /// Parse the full argv tail into a typed request. The argv envelope (UTF-8 and
 /// total byte budget) is validated before any option interpretation.
@@ -91,7 +117,7 @@ pub(crate) fn parse_selected_request(
 /// bundled Client before its window opens. This helper grammar is permanent; a change adds a new
 /// helper name.
 fn create_window_folder(tokens: &[String]) -> Option<super::Request> {
-    matches!(tokens, [only] if only == "--create-window-folder")
+    matches!(tokens, [only] if CREATE_WINDOW_FOLDER.is(only.as_str()))
         .then_some(super::Request::CreateWindowFolder)
 }
 
@@ -99,16 +125,16 @@ fn create_window_folder(tokens: &[String]) -> Option<super::Request> {
 /// window versions does not know it, so there it reaches the grammar as an unknown option. This
 /// helper grammar is permanent; a change adds a new helper name.
 fn installer_window(tokens: &[String]) -> Option<super::Request> {
-    let helper = orchbee_local_runtime::WINDOW_INSTALLER_HELPER;
-    (orchbee_local_runtime::window_updates_live() && matches!(tokens, [only] if only == helper))
-        .then_some(super::Request::InstallerWindow)
+    (orchbee_local_runtime::window_updates_live()
+        && matches!(tokens, [only] if WINDOW_INSTALLER_HELPER.is(only.as_str())))
+    .then_some(super::Request::InstallerWindow)
 }
 
 /// The window-store cleanup helper `--tend-window-store`, alone, run by Desktop Main through its
 /// own bundled Client after startup.
 fn tend_window_store(tokens: &[String]) -> Option<super::Request> {
     (orchbee_local_runtime::window_updates_live()
-        && matches!(tokens, [only] if only == "--tend-window-store"))
+        && matches!(tokens, [only] if TEND_WINDOW_STORE.is(only.as_str())))
     .then_some(super::Request::TendWindowStore)
 }
 
@@ -116,18 +142,20 @@ fn tend_window_store(tokens: &[String]) -> Option<super::Request> {
 /// updates does not know it, so there it reaches the grammar as an unknown option. This helper
 /// grammar is permanent; a change adds a new helper name.
 fn automatic_update(tokens: &[String]) -> Option<super::Request> {
-    let helper = orchbee_local_runtime::AUTOMATIC_UPDATE_HELPER;
-    (orchbee_local_runtime::automatic_updates_live() && matches!(tokens, [only] if only == helper))
-        .then_some(super::Request::AutomaticUpdate)
+    (orchbee_local_runtime::automatic_updates_live()
+        && matches!(tokens, [only] if AUTOMATIC_UPDATE_HELPER.is(only.as_str())))
+    .then_some(super::Request::AutomaticUpdate)
 }
 
 /// The Client-failure helper `--record-client-failure <version>`, with exactly one version. A
 /// build that does not run automatic updates does not know it, so there it reaches the grammar as
 /// an unknown option. This helper grammar is permanent; a change adds a new helper name.
 fn record_client_failure(tokens: &[String]) -> Option<super::Request> {
-    let helper = orchbee_local_runtime::CLIENT_FAILURE_HELPER;
     match tokens {
-        [first, version] if orchbee_local_runtime::automatic_updates_live() && first == helper => {
+        [first, version]
+            if orchbee_local_runtime::automatic_updates_live()
+                && CLIENT_FAILURE_HELPER.is(first.as_str()) =>
+        {
             Some(super::Request::RecordClientFailure {
                 version: version.clone(),
             })
@@ -140,7 +168,7 @@ fn record_client_failure(tokens: &[String]) -> Option<super::Request> {
 /// most once and in any order. This helper grammar is permanent; a change adds a new helper name.
 fn complete_install(tokens: &[String]) -> Option<super::Request> {
     let (first, flags) = tokens.split_first()?;
-    if first != "--complete-install" {
+    if !COMPLETE_INSTALL.is(first.as_str()) {
         return None;
     }
     let (mut no_path, mut allow_downgrade) = (false, false);
@@ -164,8 +192,10 @@ fn complete_install(tokens: &[String]) -> Option<super::Request> {
 /// permanent; a change adds a new helper name.
 fn installer_uninstall(tokens: &[String]) -> Option<super::Request> {
     match tokens {
-        [first] if first == "--installer-uninstall" => Some(false),
-        [first, flag] if first == "--installer-uninstall" && flag == "--delete-data" => Some(true),
+        [first] if INSTALLER_UNINSTALL.is(first.as_str()) => Some(false),
+        [first, flag] if INSTALLER_UNINSTALL.is(first.as_str()) && flag == "--delete-data" => {
+            Some(true)
+        }
         _ => None,
     }
     .map(|delete_data| super::Request::InstallerUninstall { delete_data })

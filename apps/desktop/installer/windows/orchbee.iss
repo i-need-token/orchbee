@@ -492,7 +492,9 @@ end;
 // nothing, data included, and says why, and the removal stops here. The store's active version
 // runs it, as it knows every integration a later version added; then a flat window's bundled
 // Client, then any window version's; with no Client left, an earlier removal already finished,
-// and nothing is asked.
+// and nothing is asked. A Client up to 0.1.0-beta.24 knows the helper only as
+// `--installer-uninstall-v1`: it refuses the current name as an unknown option, exit 2, before it
+// changes anything, and the removal runs it again with the earlier name.
 function RemoveInstallation: Boolean;
 var
   Root, Client, Params, StdOut, Detail: String;
@@ -510,10 +512,12 @@ begin
     Log('No Orchbee Client is left; nothing of Orchbee''s remains to remove.');
     Exit;
   end;
-  Params := '--installer-uninstall';
+  Params := '';
   if DeleteDataChosen then
-    Params := Params + ' --delete-data';
-  Detail := RunClient(Client, Params, Code, StdOut);
+    Params := ' --delete-data';
+  Detail := RunClient(Client, '--installer-uninstall' + Params, Code, StdOut);
+  if Code = 2 then
+    Detail := RunClient(Client, '--installer-uninstall-v1' + Params, Code, StdOut);
   if Code = 0 then
     Exit;
   SuppressibleMsgBox(FmtMessage(CustomMessage('RemovalBlocked'), ['{#AppName}', Detail]), mbError,

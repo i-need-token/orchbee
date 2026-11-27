@@ -38,7 +38,8 @@ launcher follows the protocol of
 [What a click does](../../proposals/platform/automatic-updates.md#tui); where it is off, it behaves
 as above and sets no variable. The npm launcher follows the same rule on Windows, macOS and Linux.
 
-- Every Client it starts receives `ORCHBEE_RELAUNCH`, the launcher's own process id in decimal.
+- Every Client it starts receives the launcher's own process id in decimal as `ORCHBEE_RELAUNCH`
+  and as `ORCHBEE_RELAUNCH_V1`, the only spelling releases up to 0.1.0-beta.24 read.
   A Client uses the statuses below only when that process is its parent, so a value it inherited
   from another launcher does nothing.
 - Status `75`: the Client restored the console and asks for the active version. The launcher reads
@@ -67,7 +68,8 @@ as above and sets no variable. The npm launcher follows the same rule on Windows
 - After any start whose Client failed, before it goes on, the launcher reads the pointer again. When
   the pointer still makes the failed version active through a counting move whose `back` is true
   and names a `previous`, it runs the previous version's Client as
-  `versions\<previous>\<name>.exe --record-client-failure <version>` outside the Client's Job
+  `versions\<previous>\<name>.exe --record-client-failure <version>`, spelled
+  `--record-client-failure-v1` for a previous version up to 0.1.0-beta.24, outside the Client's Job
   with null standard streams, which
   [records the failure](../../proposals/platform/automatic-updates.md#what-counts-and-who-records-it)
   for the fallback after a failed move. It waits for that helper at most five seconds and leaves it

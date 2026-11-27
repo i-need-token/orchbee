@@ -128,6 +128,20 @@ fn the_active_version_starts_with_the_launchers_own_name_folder_and_arguments() 
                 )),
             },
         ),
+        // A previous version up to 0.1.0-beta.24 reads only the earlier spelling of the switch.
+        (
+            pointer("0.1.0-beta.26", Some("0.1.0-beta.24")),
+            &["0.1.0-beta.26", "0.1.0-beta.24"][..],
+            Plan {
+                wait_for: None,
+                first: start("0.1.0-beta.26", &["--flag", "a b"], true),
+                fallback: Some(start(
+                    "0.1.0-beta.24",
+                    &["--fallback-from-v1=0.1.0-beta.26", "--flag", "a b"],
+                    false,
+                )),
+            },
+        ),
         // A previous version without its program, or naming the active one, is no fallback.
         (
             pointer("0.3.0", Some("0.2.0")),
@@ -190,11 +204,17 @@ fn only_a_leading_relaunch_switch_is_the_launchers_and_it_waits_only_for_its_par
     let parent = PARENT.to_string();
     let other = (PARENT + 1).to_string();
     let invalid = invalid();
-    let cases: [(Vec<OsString>, Option<u32>, Vec<OsString>); 12] = [
+    let cases: [(Vec<OsString>, Option<u32>, Vec<OsString>); 13] = [
         (
             strings(&["--relaunch-after", &parent, "--select-workspace=w"]),
             Some(PARENT),
             strings(&["--select-workspace=w"]),
+        ),
+        // A window up to 0.1.0-beta.24 asks in the earlier spelling.
+        (
+            strings(&["--relaunch-after-v1", &parent, "--select-workspace-v1=w"]),
+            Some(PARENT),
+            strings(&["--select-workspace-v1=w"]),
         ),
         (
             strings(&["--relaunch-after", &parent]),
