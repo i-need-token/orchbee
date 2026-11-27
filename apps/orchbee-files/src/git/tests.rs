@@ -6,4 +6,7 @@
 mod consents;
 mod discovery;
 mod fixture;
+mod mutations;
+mod reads;
+mod remote;
 mod status;
