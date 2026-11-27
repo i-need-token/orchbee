@@ -38,6 +38,13 @@ impl Stated {
         Ok(self.state(workspace, scope))
     }
 
+    /// Whether this link heard of `workspace` and it is still open.
+    pub(super) fn holds(&self, workspace: WorkspaceId) -> bool {
+        self.workspaces
+            .get(&workspace)
+            .is_some_and(|scope| *scope != WorkspaceScope::Closed)
+    }
+
     /// The Workspaces this link heard of that are still open; a closed one never reopens.
     pub(super) fn workspaces(&self) -> Vec<WorkspaceId> {
         self.workspaces

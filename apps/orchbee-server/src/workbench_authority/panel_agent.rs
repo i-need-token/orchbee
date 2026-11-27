@@ -215,6 +215,12 @@ impl WorkbenchAuthority {
         if before == after {
             return;
         }
+        // A completion that begins to await input is one finished turn, recorded once for each
+        // Workspace that shows the terminal.
+        let awaiting = orchbee_workbench_protocol::AgentCompletion::AwaitingInput;
+        let completed = after.completion == awaiting
+            && (before.completion != awaiting || before.agent != after.agent);
+        let mut completed_in = Vec::new();
         let membership = ReportMembership::read(self.snapshot());
         let journal = self.event_journal();
         for (id, panel_id) in &membership.owners {
@@ -236,6 +242,13 @@ impl WorkbenchAuthority {
                 continue;
             };
             let workspace = journal.workspace_for_context(&pane.terminal_context_id);
+            if completed
+                && let Some(workspace) = &workspace
+                && !completed_in.contains(workspace)
+            {
+                journal.agent_completed(workspace.clone());
+                completed_in.push(workspace.clone());
+            }
             let data = orchbee_workbench_protocol::SemanticEventData::Agent {
                 pane,
                 report: after.clone(),

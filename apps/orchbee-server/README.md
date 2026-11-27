@@ -1507,7 +1507,10 @@ Before a call that names a Workspace goes out, the link states that Workspace's 
 Navigation has it: the root is where the Workspace stands while its primary Directory is on the
 serving Worker, and there is none otherwise. A Workspace the Session does not have and the link
 never heard of is `denied`; one the Session no longer has is closed for good. Each Workbench commit
-restates every open Workspace the link heard of.
+restates every open Workspace the link heard of. When an Agent finishes a turn, its completion
+starting to await input, the link tells the process `agent-settled` once for each open Workspace it
+heard of that shows the Agent's terminal, so the process refreshes that Workspace's Git state at
+once; a turn that finishes while no process serves is not passed on.
 
 A connection whose handshake answer lists `files` admits OBFB records on its carrier and relays its
 File Bar streams; on any other connection such a record ends the connection. The Server reads a

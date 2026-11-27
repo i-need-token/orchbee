@@ -843,3 +843,39 @@ fn presentation_reports_read_exact_primary_child_and_unbound_in_requested_order(
         Some("Team Agent")
     );
 }
+
+#[test]
+fn a_finished_turn_records_one_completion_for_the_workspace_that_shows_the_terminal() {
+    use orchbee_agent_observation_protocol::AgentReportProvider as Provider;
+    use orchbee_workbench_protocol::{PanelAgentState as State, WorkbenchWorkspaceId};
+    let mut a = owner();
+    let fact = physical(1, 1);
+    let facts = [fact.clone()];
+    let journal = a.event_journal();
+    let mut at = Instant::now();
+    let mut observe = |a: &mut WorkbenchAuthority, state: State| {
+        at += std::time::Duration::from_millis(10);
+        let observation = TerminalAgentProcessObservation {
+            observed_at: at,
+            agent: Some(Provider::Codex),
+            fallback: Some(TerminalAgentScreenObservation {
+                state,
+                visible_blocker: false,
+            }),
+            exited: false,
+        };
+        a.observe_terminal_agent(&fact, &facts, observation, at)
+            .unwrap();
+    };
+    let workspace = WorkbenchWorkspaceId::parse(&format!("{:032x}", 1)).unwrap();
+    observe(&mut a, State::Working);
+    assert_eq!(journal.agent_completions(0), (0, Vec::new()));
+    observe(&mut a, State::Idle);
+    assert_eq!(journal.agent_completions(0), (1, vec![workspace.clone()]));
+    // Later samples of the finished turn record nothing; the next turn's finish records one.
+    observe(&mut a, State::Idle);
+    assert_eq!(journal.agent_completions(1), (1, Vec::new()));
+    observe(&mut a, State::Working);
+    observe(&mut a, State::Idle);
+    assert_eq!(journal.agent_completions(1), (2, vec![workspace]));
+}

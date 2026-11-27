@@ -16,6 +16,8 @@ pub use changes::{SessionChangeSignal, SessionChangeSource};
 pub use source::{semantic_pane, semantic_panes_for_binding};
 const RETAINED_EVENTS: usize = 512;
 const RETAINED_BYTES: usize = 8 * 1024 * 1024;
+/// How many Agent completions the journal keeps for the readers that act on them.
+const RETAINED_COMPLETIONS: usize = 256;
 
 #[derive(Clone, Debug)]
 pub struct SessionEventJournal(Arc<Mutex<State>>, Arc<SessionChangeSource>);
@@ -28,6 +30,10 @@ struct State {
     exhausted: bool,
     events: VecDeque<(SemanticEvent, usize)>,
     workspaces: BTreeMap<WorkbenchTerminalContextId, WorkbenchWorkspaceId>,
+    /// The Workspaces of the latest Agent completions, oldest first, each with its position.
+    completions: VecDeque<(u64, WorkbenchWorkspaceId)>,
+    /// The position of the latest Agent completion.
+    completed: u64,
 }
 pub struct SessionEventPage {
     pub cursor: SemanticEventCursor,
@@ -58,6 +64,8 @@ impl SessionEventJournal {
                 exhausted: false,
                 events: VecDeque::new(),
                 workspaces: workspace_index(snapshot),
+                completions: VecDeque::new(),
+                completed: 0,
             })),
             Arc::new(SessionChangeSource::default()),
         )
@@ -80,6 +88,32 @@ impl SessionEventJournal {
         id: &WorkbenchTerminalContextId,
     ) -> Option<WorkbenchWorkspaceId> {
         self.0.lock().ok()?.workspaces.get(id).cloned()
+    }
+    /// Records that an Agent in `workspace` finished a turn: its completion began to await input.
+    /// The publication of the Agent's changed state that follows wakes every watcher.
+    pub fn agent_completed(&self, workspace: WorkbenchWorkspaceId) {
+        if let Ok(mut state) = self.0.lock() {
+            state.completed = state.completed.saturating_add(1);
+            let position = state.completed;
+            state.completions.push_back((position, workspace));
+            if state.completions.len() > RETAINED_COMPLETIONS {
+                state.completions.pop_front();
+            }
+        }
+    }
+    /// The Workspaces of the Agent completions after position `after`, oldest first, and the
+    /// position of the latest; completions past the retained bound are gone.
+    pub fn agent_completions(&self, after: u64) -> (u64, Vec<WorkbenchWorkspaceId>) {
+        let Ok(state) = self.0.lock() else {
+            return (after, Vec::new());
+        };
+        let workspaces = state
+            .completions
+            .iter()
+            .filter(|(position, _)| *position > after)
+            .map(|(_, workspace)| workspace.clone())
+            .collect();
+        (state.completed, workspaces)
     }
     pub fn publish(
         &self,

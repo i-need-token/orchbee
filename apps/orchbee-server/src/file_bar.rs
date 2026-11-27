@@ -1,9 +1,10 @@
 //! The Server's side of the File Bar: it has the Worker start `orchbee-files` on a Client's first
 //! File Bar call, admits the process's one link, relays every connection's File Bar streams over
-//! it, states each Workspace's scope from the Session's Navigation, and drains the process after
-//! ten idle minutes or when the Session stops. A build for the release environment never starts
-//! the process.
+//! it, states each Workspace's scope from the Session's Navigation, passes on each Agent
+//! completion, and drains the process after ten idle minutes or when the Session stops. A build
+//! for the release environment never starts the process.
 
+mod completion;
 mod launch;
 mod lifecycle;
 mod link;
@@ -117,6 +118,8 @@ pub(crate) struct FileBar {
     supervisor: Mutex<Option<JoinHandle<()>>>,
     /// The record a call the link loses before it answers ends with.
     restarting: Arc<[u8]>,
+    /// The Session's journal, whose Agent completions the process hears of.
+    journal: Option<SessionEventJournal>,
 }
 
 impl FileBar {
@@ -148,6 +151,7 @@ impl FileBar {
             links: AtomicU64::new(0),
             supervisor: Mutex::new(None),
             restarting: restarting.into(),
+            journal: journal.cloned(),
         });
         if let Some(journal) = journal {
             journal.watch(&bar.signal);
@@ -367,6 +371,7 @@ impl FileBar {
 
     fn supervise(self: Arc<Self>) {
         let mut commits = self.signal.commit_revision();
+        let mut completions = 0;
         loop {
             let observed = self.signal.wake_revision();
             let now = Instant::now();
@@ -403,6 +408,9 @@ impl FileBar {
                 if let Some(link) = &link {
                     self.restate(link);
                 }
+            }
+            if let Some(journal) = &self.journal {
+                completions = completion::settle(journal, link.as_deref(), completions);
             }
             self.signal.wait(observed, wait);
         }
