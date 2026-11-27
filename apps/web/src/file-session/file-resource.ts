@@ -11,3 +11,13 @@ export interface FilePathRules {
 	readonly os: FileOs;
 	readonly separator: '/' | '\\';
 }
+
+/**
+ * A file on the Workspace's machine: its path as the backend spells it and the key it compares by,
+ * `filePathKey` of that path under the machine's rules. Two resources are one file exactly when
+ * their keys are equal.
+ */
+export interface FileResource {
+	readonly key: string;
+	readonly path: string;
+}

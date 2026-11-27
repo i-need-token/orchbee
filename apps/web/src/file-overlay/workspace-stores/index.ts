@@ -1,0 +1,1 @@
+export { FileOverlayRegistry } from './FileOverlayRegistry';

@@ -1,4 +1,5 @@
 export { FileSessionRegistry } from './FileSessionRegistry';
+export type { FileResource } from './file-resource';
 export type {
 	FileCapability,
 	FileRootEvent,

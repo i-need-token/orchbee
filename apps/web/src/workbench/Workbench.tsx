@@ -53,6 +53,7 @@ import { useWorkbench } from './hooks/useWorkbench';
 import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresentation';
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchFileBar } from './hooks/useWorkbenchFileBar';
+import { useWorkbenchFileOverlay } from './hooks/useWorkbenchFileOverlay';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchAuthority } from './types/workbench-authority';
@@ -222,16 +223,24 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
+	const activeWorkspaceId =
+		view.projectWorkspaceState.activeLocation.kind === 'workspace'
+			? view.projectWorkspaceState.activeLocation.workspaceId
+			: null;
 	const fileBar = useWorkbenchFileBar({
 		actionRuntime,
 		actionScope: view.actionScope,
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
 		sessionPort: fileSessionPort,
-		workspaceId:
-			view.projectWorkspaceState.activeLocation.kind === 'workspace'
-				? view.projectWorkspaceState.activeLocation.workspaceId
-				: null,
+		workspaceId: activeWorkspaceId,
+	});
+	useWorkbenchFileOverlay({
+		offered: fileBarOffered,
+		sidebarDocked: view.sidebarPresentation === 'docked',
+		terminalContext,
+		workspaceId: activeWorkspaceId,
+		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
 	const agentPresentation = useWorkbenchAgentPresentation({
