@@ -11,12 +11,14 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    Chunk, ConnectionId, ErrorCode, FilePath, FilesError, FsList, FsListResult, FsRead,
-    FsReadChunk, FsStatResult, LaneId, List, ReadResult, StatItem, TransferId,
+    Chunk, ConnectionId, EncodingName, ErrorCode, FilePath, FilesError, FsList, FsListResult,
+    FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, ReadResult, StatItem,
+    TransferId,
 };
 
 use super::{
     blocking::Blocking,
+    guessing::guess_file,
     listing::{CursorId, Listings},
     metadata::stat,
     os_error::FsError,
@@ -151,6 +153,25 @@ impl Engine {
             length,
             cancelled,
             move |chunk| done(chunk.map_err(FsError::to_wire)),
+        );
+    }
+
+    /// `fs.guess-encoding` of `path`, the native path of the request's path.
+    pub(crate) fn guess_encoding(
+        &self,
+        path: PathBuf,
+        done: impl FnOnce(Result<GuessEncodingResult, FilesError>) + Send + 'static,
+    ) {
+        self.blocking.run(
+            move || guess_file(&path),
+            move |outcome| {
+                let guessed = outcome.map_err(FsError::from).and_then(|guessed| guessed);
+                done(guessed.map_err(FsError::to_wire).and_then(|name| {
+                    let encoding = name.map(EncodingName::new).transpose();
+                    let encoding = encoding.map_err(|_| FilesError::new(ErrorCode::Failed))?;
+                    Ok(GuessEncodingResult { encoding })
+                }));
+            },
         );
     }
 

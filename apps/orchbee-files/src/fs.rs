@@ -6,6 +6,7 @@ mod blocking;
 mod detection;
 mod encoding;
 mod engine;
+mod guessing;
 mod listing;
 mod metadata;
 mod os_error;
