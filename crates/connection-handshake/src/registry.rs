@@ -68,6 +68,13 @@ pub const STREAM_OUTCOME_UNKNOWN: &str = "stream-outcome-unknown";
 /// reads `unavailable` for that refusal, as its own release did.
 pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-exited";
 
+/// The `client-server` capability before a Client may open File Bar streams, whose OBFB records
+/// carry the operations `schemas/files` states, and a Server may answer them. It requires
+/// `stream-outcome-unknown`, with which a Server closes a File Bar mutation whose outcome it cannot
+/// report. No build offers it before its Server relays those streams to `orchbee-files`, and a
+/// Server built for the release environment never lists it.
+pub const FILES: &str = "files";
+
 /// The `client-server` capability before a Server may refuse a terminal create with
 /// `terminal-limit-reached`, when the Session already retains its bound of terminals. A Client
 /// without it reads `server-busy` for that refusal, as its own release did.
@@ -249,6 +256,7 @@ impl ConnectionKind {
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
                 CONFIGURED_COMMAND_SOURCE_EXITED,
+                FILES,
                 PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
                 RECONNECT,

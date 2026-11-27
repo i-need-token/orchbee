@@ -17,7 +17,7 @@ class FakeCarrier implements ServerCarrier {
 	#closed: (() => void) | null = null;
 	#receive: ((chunk: Uint8Array) => void) | null = null;
 
-	constructor(capabilities: MultiplexCapabilities = { streamOutcomeUnknown: false }) {
+	constructor(capabilities: MultiplexCapabilities = { files: false, streamOutcomeUnknown: false }) {
 		this.capabilities = capabilities;
 	}
 
@@ -108,7 +108,7 @@ describe('ServerConnection', () => {
 	});
 
 	it('fails one request as unknown, not refused, only on a carrier that admits that close', async () => {
-		const carrier = new FakeCarrier({ streamOutcomeUnknown: true });
+		const carrier = new FakeCarrier({ files: false, streamOutcomeUnknown: true });
 		const connection = new ServerConnection(carrier);
 		const unknown = connection.exchange(REQUEST);
 		carrier.deliver({ kind: 'stream-close', reason: 'outcome-unknown', streamId: 1n });

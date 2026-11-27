@@ -9,6 +9,7 @@
 				{ "name": "agent-input-area", "addedIn": "0.1.0" },
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "configured-command-source-exited", "addedIn": "0.1.0-beta.15" },
+				{ "name": "files", "addedIn": "0.1.0-beta.27" },
 				{ "name": "project-identity", "addedIn": "0.1.0-beta.23" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
 				{ "name": "reconnect", "addedIn": "0.1.0-beta.23" },
@@ -23,12 +24,14 @@
 				"crates/agent-observation-protocol/src",
 				"crates/client-server-protocol/src",
 				"crates/connection-handshake/src",
+				"crates/files-protocol/src",
 				"crates/local-client-protocol/src",
 				"crates/terminal-protocol/src",
 				"crates/workbench-protocol/src",
 				"schemas/agent-observation",
 				"schemas/client-server",
 				"schemas/connection",
+				"schemas/files",
 				"schemas/terminal/v1",
 				"schemas/workbench"
 			]

@@ -59,7 +59,11 @@ handshake capability adds is admitted only by a decoder built with `MultiplexDec
 (or the TypeScript decoder's capabilities) for a carrier that negotiated it; a Server sends it
 only when its answer lists the capability. Its cases live in a corpus of their own that both
 implementations check with and without the capability:
-`workbench-multiplex-outcome-unknown-conformance-v1.json` for `stream-outcome-unknown`.
+`workbench-multiplex-outcome-unknown-conformance-v1.json` for `stream-outcome-unknown`, and
+`workbench-multiplex-files-conformance-v1.json` for `files`. Under `files`, an inner record that
+starts with the OBFB magic must be one the [File Bar contract](../../schemas/files/README.md)
+admits where it travels; without it, such a record is invalid. Every other inner record stays
+opaque.
 
 The Client implementation reserves one of those 64 streams and 256 KiB within the total budget
 for its bounded idle progress read; this changes no wire version or record kind. Decoder input

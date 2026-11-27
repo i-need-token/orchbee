@@ -1,7 +1,7 @@
 //! The sole TUI connection owner. Lanes submit complete records and never own a Server socket.
 use super::LocalClientOrigin;
 use orchbee_connection_handshake::{
-    CapabilitySet, Generation, ProductVersion, STREAM_OUTCOME_UNKNOWN,
+    CapabilitySet, FILES, Generation, ProductVersion, STREAM_OUTCOME_UNKNOWN,
 };
 use orchbee_local_client_protocol::ClientConnection;
 use orchbee_local_ipc::{AsLocalIo, LocalIo, LocalStream, PollFd, PollFlags, PollTimeout, poll};
@@ -934,6 +934,7 @@ impl Incoming {
         Self {
             decoder: MultiplexDecoder::admitting(MultiplexCapabilities {
                 stream_outcome_unknown: capabilities.contains(STREAM_OUTCOME_UNKNOWN),
+                files: capabilities.contains(FILES),
             }),
             partial_at: None,
         }

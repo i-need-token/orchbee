@@ -9,6 +9,7 @@ publish = false
 [dependencies]
 orchbee-agent-integration = { path = "../agent-integration" }
 orchbee-agent-observation-protocol = { path = "../agent-observation-protocol" }
+orchbee-files-protocol = { path = "../files-protocol" }
 serde.workspace = true
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 

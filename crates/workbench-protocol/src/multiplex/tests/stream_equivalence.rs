@@ -13,6 +13,7 @@ const BOUNDARY_BYTES: [u8; 6] = [0x00, 0x01, 0x7f, 0x80, 0xfe, 0xff];
 /// Both decoders admit every capability, so the corpus reaches every value a carrier may accept.
 const ADMITTED: MultiplexCapabilities = MultiplexCapabilities {
     stream_outcome_unknown: true,
+    files: true,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -173,7 +174,47 @@ fn corpus() -> Vec<MultiplexMessage> {
             viewer_id: crate::MultiplexViewerId::new(1).unwrap(),
         },
     ]);
+    // An OBFB record of each binary kind and each place, so a mutation reaches the checks `files`
+    // adds: its header, its placement, its length and the binary prefixes.
+    let transfer = 1u64.to_be_bytes();
+    messages.extend([
+        MultiplexMessage::StreamOpen {
+            stream_id,
+            lane_id,
+            mode: StreamMode::Request,
+            // A Put that ends and commits its transfer with one byte at offset 2.
+            request: files_record(4, &[&transfer, &2u64.to_be_bytes(), &[3], b"x"]),
+        },
+        MultiplexMessage::StreamOpen {
+            stream_id,
+            lane_id,
+            mode: StreamMode::Events,
+            request: files_record(1, &[b"{}"]),
+        },
+        MultiplexMessage::StreamFrame {
+            stream_id,
+            sequence: NonZeroU64::MIN,
+            kind: StreamFrameKind::Result,
+            // The final Chunk of a text read with LF line endings, its digest and one byte.
+            record: files_record(5, &[&transfer, &[0; 8], &[5, 2], &[7; 32], b"y"]),
+        },
+        MultiplexMessage::StreamFrame {
+            stream_id,
+            sequence: NonZeroU64::MIN,
+            kind: StreamFrameKind::Update,
+            record: files_record(3, &[b"{}"]),
+        },
+    ]);
     messages
+}
+
+fn files_record(kind: u8, body: &[&[u8]]) -> Vec<u8> {
+    let body = body.concat();
+    let mut record = b"OBFB\0\x01\0".to_vec();
+    record.push(kind);
+    record.extend_from_slice(&u32::try_from(body.len()).unwrap().to_be_bytes());
+    record.extend_from_slice(&body);
+    record
 }
 
 fn run(case: Case, origin: &str) {

@@ -67,6 +67,13 @@ const corpus = corpusSchema.parse(await readCorpus('workbench-multiplex-conforma
 const outcomeUnknownCorpus = corpusSchema
 	.extend({ capability: z.literal('stream-outcome-unknown') })
 	.parse(await readCorpus('workbench-multiplex-outcome-unknown-conformance-v1.json'));
+/** What a carrier whose answer lists `files` admits besides the base corpus: OBFB records. */
+const filesCorpus = corpusSchema
+	.extend({ capability: z.literal('files') })
+	.parse(await readCorpus('workbench-multiplex-files-conformance-v1.json'));
+const OUTCOME_UNKNOWN = { files: false, streamOutcomeUnknown: true } as const;
+/** `files` requires `stream-outcome-unknown`, so a carrier that admits it admits both. */
+const FILES = { files: true, streamOutcomeUnknown: true } as const;
 
 describe('OBWP stream codec', () => {
 	it.each(corpus.valid)('agrees with the corpus on $name', ({ hex: frame, message }) => {
@@ -101,7 +108,7 @@ describe('OBWP stream codec', () => {
 		'agrees on $name only under its capability',
 		({ hex: frame, message }) => {
 			const expected: MultiplexMessage = message;
-			expect(new MultiplexDecoder({ streamOutcomeUnknown: true }).push(frame)).toEqual([expected]);
+			expect(new MultiplexDecoder(OUTCOME_UNKNOWN).push(frame)).toEqual([expected]);
 			expect(encodeMultiplexMessage(expected)).toEqual(frame);
 			expect(() => new MultiplexDecoder().push(frame)).toThrow(
 				expect.objectContaining({ name: 'MultiplexProtocolError' }),
@@ -110,7 +117,25 @@ describe('OBWP stream codec', () => {
 	);
 
 	it.each(outcomeUnknownCorpus.invalid)('refuses $name under its capability', ({ hex: frame }) => {
-		expect(() => new MultiplexDecoder({ streamOutcomeUnknown: true }).push(frame)).toThrow(
+		expect(() => new MultiplexDecoder(OUTCOME_UNKNOWN).push(frame)).toThrow(
+			expect.objectContaining({ name: 'MultiplexProtocolError' }),
+		);
+	});
+
+	it.each(filesCorpus.valid)(
+		'agrees on $name only under its capability',
+		({ hex: frame, message }) => {
+			const expected: MultiplexMessage = message;
+			expect(new MultiplexDecoder(FILES).push(frame)).toEqual([expected]);
+			expect(encodeMultiplexMessage(expected)).toEqual(frame);
+			expect(() => new MultiplexDecoder(OUTCOME_UNKNOWN).push(frame)).toThrow(
+				expect.objectContaining({ name: 'MultiplexProtocolError' }),
+			);
+		},
+	);
+
+	it.each(filesCorpus.invalid)('refuses $name under its capability', ({ hex: frame }) => {
+		expect(() => new MultiplexDecoder(FILES).push(frame)).toThrow(
 			expect.objectContaining({ name: 'MultiplexProtocolError' }),
 		);
 	});

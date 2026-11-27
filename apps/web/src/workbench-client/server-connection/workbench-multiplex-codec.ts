@@ -1,8 +1,10 @@
 /**
  * OBWP version 1 connection-local streams. `crates/workbench-protocol/src/multiplex.rs` is the
  * peer codec and the shared corpus in `schemas/workbench` keeps the two aligned. Inner records
- * keep their own semantic codecs; this layer only frames them.
+ * keep their own semantic codecs; this layer only frames them and checks the OBFB records a carrier
+ * that negotiated `files` admits.
  */
+import { type FilesRecordPlace, checkFilesRecord, isFilesRecord } from './files-record-codec';
 
 const MAGIC = [0x4f, 0x42, 0x57, 0x50] as const;
 const FRAME_VERSION = 1;
@@ -42,9 +44,28 @@ export type MultiplexDisconnectReason = (typeof DISCONNECT_REASONS)[number];
  * admits a value one of these adds only when the answer listed its capability.
  */
 export interface MultiplexCapabilities {
+	/**
+	 * `files`: a request or events stream's opening record and a stream frame may be an OBFB record
+	 * the File Bar record codec admits where it travels. Without it, an inner record that starts
+	 * with the OBFB magic is invalid.
+	 */
+	readonly files: boolean;
 	/** `stream-outcome-unknown`: a request stream may close as `outcome-unknown`. */
 	readonly streamOutcomeUnknown: boolean;
 }
+
+/** Where an OBFB record travels in each stream mode; none travels in the others. */
+const OPEN_PLACES: Readonly<Record<MultiplexStreamMode, FilesRecordPlace | null>> = {
+	events: 'events-open',
+	invalidations: null,
+	request: 'request-open',
+	state: null,
+};
+const FRAME_PLACES: Readonly<Record<MultiplexFrameKind, FilesRecordPlace>> = {
+	result: 'result-frame',
+	snapshot: 'notice-frame',
+	update: 'notice-frame',
+};
 
 export type MultiplexMessage =
 	| {
@@ -209,6 +230,24 @@ function validBodyLength(kind: number, length: number): boolean {
 	}
 }
 
+/**
+ * Refuses an OBFB record the carrier did not negotiate `files` for, one where no OBFB record travels
+ * (`place` is `null`), and one its codec refuses there. Any other inner record stays opaque.
+ */
+function admitFilesRecord(
+	record: Uint8Array,
+	place: FilesRecordPlace | null,
+	capabilities: MultiplexCapabilities,
+): Uint8Array {
+	if (
+		isFilesRecord(record) &&
+		(!capabilities.files || place === null || !checkFilesRecord(record, place))
+	) {
+		throw new MultiplexProtocolError('Invalid File Bar record.');
+	}
+	return record;
+}
+
 function decodeBody(
 	kind: number,
 	body: Uint8Array,
@@ -216,22 +255,26 @@ function decodeBody(
 ): MultiplexMessage {
 	const view = new DataView(body.buffer, body.byteOffset, body.byteLength);
 	switch (kind) {
-		case 64:
+		case 64: {
+			const mode = member(STREAM_MODES, body[16], 'stream mode');
 			return {
 				kind: 'stream-open',
 				laneId: positive(view, 8),
-				mode: member(STREAM_MODES, body[16], 'stream mode'),
-				request: body.subarray(17),
+				mode,
+				request: admitFilesRecord(body.subarray(17), OPEN_PLACES[mode], capabilities),
 				streamId: positive(view, 0),
 			};
-		case 65:
+		}
+		case 65: {
+			const frameKind = member(FRAME_KINDS, body[16], 'frame kind');
 			return {
-				frameKind: member(FRAME_KINDS, body[16], 'frame kind'),
+				frameKind,
 				kind: 'stream-frame',
-				record: body.subarray(17),
+				record: admitFilesRecord(body.subarray(17), FRAME_PLACES[frameKind], capabilities),
 				sequence: positive(view, 8),
 				streamId: positive(view, 0),
 			};
+		}
 		case 66: {
 			const code = body[8];
 			if (code !== undefined && code >= BASE_CLOSE_REASONS && !capabilities.streamOutcomeUnknown) {
@@ -280,7 +323,7 @@ export class MultiplexDecoder {
 	#kind = 0;
 
 	/** Without `capabilities`, the decoder admits the base contract alone. */
-	constructor(capabilities: MultiplexCapabilities = { streamOutcomeUnknown: false }) {
+	constructor(capabilities: MultiplexCapabilities = { files: false, streamOutcomeUnknown: false }) {
 		this.#capabilities = capabilities;
 	}
 

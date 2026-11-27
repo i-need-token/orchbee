@@ -1,8 +1,11 @@
-//! OBWP v1 connection-local streams. Inner records retain their own semantic codecs.
+//! OBWP v1 connection-local streams. Inner records retain their own semantic codecs; this layer
+//! only checks the OBFB records a carrier that negotiated `files` admits.
 use std::{
     io::{self, Read, Write},
     num::{NonZeroU64, NonZeroU128},
 };
+
+use orchbee_files_protocol::{RecordPlace, check_files_record, is_files_record};
 
 use crate::WORKBENCH_MAGIC;
 
@@ -97,6 +100,10 @@ pub struct MultiplexCapabilities {
     /// `stream-outcome-unknown`: a request stream may close with
     /// [`StreamCloseReason::OutcomeUnknown`].
     pub stream_outcome_unknown: bool,
+    /// `files`: a Request or Events StreamOpen and a StreamFrame may carry an OBFB record, which
+    /// must be one `orchbee-files-protocol` admits at that place. Without it, an inner record
+    /// that starts with the OBFB magic is invalid.
+    pub files: bool,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MultiplexDisconnectReason {
@@ -332,29 +339,37 @@ fn decode(
             lane_id: MultiplexLaneId(nonzero(payload)?),
         },
         69 => MultiplexMessage::Resnapshot { stream_id },
-        64 => MultiplexMessage::StreamOpen {
-            stream_id,
-            lane_id: MultiplexLaneId(nonzero(&payload[8..16])?),
-            mode: match payload[16] {
-                0 => StreamMode::Request,
-                1 => StreamMode::State,
-                2 => StreamMode::Events,
-                3 => StreamMode::Invalidations,
+        64 => {
+            let (mode, place) = match payload[16] {
+                0 => (StreamMode::Request, Some(RecordPlace::RequestOpen)),
+                1 => (StreamMode::State, None),
+                2 => (StreamMode::Events, Some(RecordPlace::EventsOpen)),
+                3 => (StreamMode::Invalidations, None),
                 _ => return Err(invalid()),
-            },
-            request: payload[17..].to_vec(),
-        },
-        65 => MultiplexMessage::StreamFrame {
-            stream_id,
-            sequence: nonzero(&payload[8..16])?,
-            kind: match payload[16] {
-                0 => StreamFrameKind::Result,
-                1 => StreamFrameKind::Snapshot,
-                2 => StreamFrameKind::Update,
+            };
+            admit_files_record(&payload[17..], place, capabilities)?;
+            MultiplexMessage::StreamOpen {
+                stream_id,
+                lane_id: MultiplexLaneId(nonzero(&payload[8..16])?),
+                mode,
+                request: payload[17..].to_vec(),
+            }
+        }
+        65 => {
+            let (kind, place) = match payload[16] {
+                0 => (StreamFrameKind::Result, RecordPlace::ResultFrame),
+                1 => (StreamFrameKind::Snapshot, RecordPlace::NoticeFrame),
+                2 => (StreamFrameKind::Update, RecordPlace::NoticeFrame),
                 _ => return Err(invalid()),
-            },
-            record: payload[17..].to_vec(),
-        },
+            };
+            admit_files_record(&payload[17..], Some(place), capabilities)?;
+            MultiplexMessage::StreamFrame {
+                stream_id,
+                sequence: nonzero(&payload[8..16])?,
+                kind,
+                record: payload[17..].to_vec(),
+            }
+        }
         66 => MultiplexMessage::StreamClose {
             stream_id,
             reason: match payload[8] {
@@ -374,6 +389,25 @@ fn decode(
         },
         _ => return Err(invalid()),
     })
+}
+
+/// Refuses an OBFB record the carrier did not negotiate `files` for, one where no OBFB record
+/// travels (`place` is `None`), and one its codec refuses at `place`. Any other inner record stays
+/// opaque to this layer.
+fn admit_files_record(
+    record: &[u8],
+    place: Option<RecordPlace>,
+    capabilities: MultiplexCapabilities,
+) -> io::Result<()> {
+    if !is_files_record(record) {
+        return Ok(());
+    }
+    match place {
+        Some(place) if capabilities.files => {
+            check_files_record(record, place).map_err(|_| invalid())
+        }
+        _ => Err(invalid()),
+    }
 }
 
 /// Partial network reads never block the connection actor's command/cancellation queue. The

@@ -1,7 +1,7 @@
 # File Bar Protocol
 
-Rust wire contracts for the File Bar. `orchbee-server` and `orchbee-files` are its consumers. It
-owns the Rust binding of the [File Bar contract](../../schemas/files/README.md), OBFB records and
+Rust wire contracts for the File Bar. `orchbee-server`, `orchbee-files` and the OBWP multiplex of
+`orchbee-workbench-protocol` are its consumers. It owns the Rust binding of the [File Bar contract](../../schemas/files/README.md), OBFB records and
 the JSON of every `files` operation, and OBFL, the private link between a Server and the
 `orchbee-files` process that Server admitted. It never opens a connection, chooses an endpoint,
 compares peer credentials, runs a file operation, or decides scope; a decoded value grants no
@@ -14,7 +14,8 @@ UTF-8 byte bounds the schema cannot state, and the canonical shape, so an array 
 belongs or `null` where a member may only be absent is refused even though `serde` alone would
 read it. Request parsing tells an operation this build does not serve apart from a malformed
 request, because the two close a stream differently. A record that only passes through can be
-checked without copying it. Whether a path lies inside a Workspace's scope is decided by
+checked without copying it, as the multiplex checks each OBFB record of a carrier that negotiated
+`files`. Whether a path lies inside a Workspace's scope is decided by
 `orchbee-files` when the operation starts.
 
 ## The private link

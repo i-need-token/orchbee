@@ -9,9 +9,11 @@ import type { ServerCarrier } from '../../workbench-client';
 export class MessagePortServerCarrier implements ServerCarrier {
 	/**
 	 * The bundled `orchbee server connect` is this build and offers `stream-outcome-unknown`, and a
-	 * Server sends that close only when its answer lists it, so the page may admit it unseen.
+	 * Server sends that close only when its answer lists it. A Server sends an OBFB record only on a
+	 * stream the page opened with one, which only a Server whose answer lists `files` accepts. So
+	 * the page may admit both unseen.
 	 */
-	readonly capabilities = { streamOutcomeUnknown: true } as const;
+	readonly capabilities = { files: true, streamOutcomeUnknown: true } as const;
 	readonly #port: MessagePort;
 
 	constructor(port: MessagePort) {

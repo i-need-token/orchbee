@@ -1681,6 +1681,7 @@ version = "0.1.0"
 dependencies = [
  "orchbee-agent-integration",
  "orchbee-agent-observation-protocol",
+ "orchbee-files-protocol",
  "serde",
  "serde_json",
 ]

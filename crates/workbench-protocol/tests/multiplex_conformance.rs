@@ -16,6 +16,10 @@ const CORPUS: &str =
 const OUTCOME_UNKNOWN_CORPUS: &str = include_str!(
     "../../../schemas/workbench/v1/workbench-multiplex-outcome-unknown-conformance-v1.json"
 );
+/// What a carrier whose answer lists `files` admits besides the base corpus: OBFB records where
+/// they travel.
+const FILES_CORPUS: &str =
+    include_str!("../../../schemas/workbench/v1/workbench-multiplex-files-conformance-v1.json");
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -217,19 +221,19 @@ fn stream_frames_match_the_shared_corpus() {
     }
 }
 
-/// The capability's values decode only where its answer admits them, and the base decoder keeps
+/// A capability's values decode only where its answer admits them, and a decoder without it keeps
 /// refusing them as the frozen corpus says.
-#[test]
-fn outcome_unknown_closes_decode_only_under_their_capability() {
-    let corpus: CapabilityCorpus = serde_json::from_str(OUTCOME_UNKNOWN_CORPUS).unwrap();
+fn decode_only_under_the_capability(
+    corpus: &str,
+    capability: &str,
+    admitted: MultiplexCapabilities,
+    without: MultiplexCapabilities,
+) {
+    let corpus: CapabilityCorpus = serde_json::from_str(corpus).unwrap();
     assert_eq!(corpus.contract_version, 1);
-    assert_eq!(corpus.capability, "stream-outcome-unknown");
+    assert_eq!(corpus.capability, capability);
     assert!(!corpus.valid.is_empty() && !corpus.invalid.is_empty());
-    let admitted = || {
-        MultiplexDecoder::admitting(MultiplexCapabilities {
-            stream_outcome_unknown: true,
-        })
-    };
+    let admitted = || MultiplexDecoder::admitting(admitted);
     for case in &corpus.valid {
         let frame = bytes(&case.hex);
         let message = expected(&case.message);
@@ -246,7 +250,7 @@ fn outcome_unknown_closes_decode_only_under_their_capability() {
             case.name
         );
         assert!(
-            decode(&frame).is_err(),
+            decode_with(MultiplexDecoder::admitting(without), &frame).is_err(),
             "{} without the capability",
             case.name
         );
@@ -258,4 +262,36 @@ fn outcome_unknown_closes_decode_only_under_their_capability() {
             case.name
         );
     }
+}
+
+#[test]
+fn outcome_unknown_closes_decode_only_under_their_capability() {
+    decode_only_under_the_capability(
+        OUTCOME_UNKNOWN_CORPUS,
+        "stream-outcome-unknown",
+        MultiplexCapabilities {
+            stream_outcome_unknown: true,
+            ..MultiplexCapabilities::default()
+        },
+        MultiplexCapabilities::default(),
+    );
+}
+
+/// `files` requires `stream-outcome-unknown`, so its records are refused without `files` even
+/// where the carrier admits that close.
+#[test]
+fn files_records_decode_only_under_their_capability() {
+    let outcome_unknown = MultiplexCapabilities {
+        stream_outcome_unknown: true,
+        ..MultiplexCapabilities::default()
+    };
+    decode_only_under_the_capability(
+        FILES_CORPUS,
+        "files",
+        MultiplexCapabilities {
+            files: true,
+            ..outcome_unknown
+        },
+        outcome_unknown,
+    );
 }

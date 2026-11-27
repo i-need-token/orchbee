@@ -6,19 +6,23 @@ This directory is the language-neutral authority for the records a Client and a 
 for the File Bar under the `files` capability: OBFB, the record OBWP stream frames carry, and the
 JSON of every `files` operation.
 
-| File                                                             | Content                                                         |
-| ---------------------------------------------------------------- | --------------------------------------------------------------- |
-| This README                                                      | Records, JSON rules, compatibility and the corpus format        |
-| [`v1/files.schema.json`](v1/files.schema.json)                   | JSON Schema 2020-12 of every request, result, error and notice  |
-| [`v1/files-conformance-v1.json`](v1/files-conformance-v1.json)   | Operations, bounds, and valid and invalid records and documents |
-| [Backend proposal](../../proposals/platform/file-bar-backend.md) | The accepted design and its reserved decisions                  |
+| File                                                                                                             | Content                                                                |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| This README                                                                                                      | Records, JSON rules, compatibility and the corpus format               |
+| [`v1/files.schema.json`](v1/files.schema.json)                                                                   | JSON Schema 2020-12 of every request, result, error and notice         |
+| [`v1/files-conformance-v1.json`](v1/files-conformance-v1.json)                                                   | Operations, bounds, and valid and invalid records and documents        |
+| [`workbench-multiplex-files-conformance-v1.json`](../workbench/v1/workbench-multiplex-files-conformance-v1.json) | OBWP stream messages that carry OBFB records, valid only under `files` |
+| [Backend proposal](../../proposals/platform/file-bar-backend.md)                                                 | The accepted design and its reserved decisions                         |
 
-`crates/files-protocol` is the Rust binding, which `orchbee-server` and `orchbee-files` use.
-Bindings are independent implementations of this contract and consume the corpus unchanged.
+`crates/files-protocol` is the Rust binding, which `orchbee-server`, `orchbee-files` and the Rust
+OBWP multiplex use. The web Client checks records with `files-record-codec.ts` beside its OBWP
+stream codec in `apps/web/src/workbench-client/server-connection/`. Bindings are independent
+implementations of this contract and consume the corpus unchanged.
 
 The contract is frozen when its batch is released; until then, a change edits the schema, the
-corpus and every binding together. After the release, additions arrive under new capability names
-and released records never change.
+corpora and every binding together. That release adds both corpora to the connection registry's
+[frozen fixtures](../connection/README.md#frozen-fixtures). After it, additions arrive under new
+capability names and released records never change.
 
 ## Records
 

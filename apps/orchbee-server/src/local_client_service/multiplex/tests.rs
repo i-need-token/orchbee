@@ -364,6 +364,7 @@ fn read_admitted(peer: &mut LocalStream) -> MultiplexMessage {
     peer.read_exact(&mut payload).unwrap();
     let mut decoder = MultiplexDecoder::admitting(MultiplexCapabilities {
         stream_outcome_unknown: true,
+        ..MultiplexCapabilities::default()
     });
     decoder.push(&header).unwrap();
     decoder.push(&payload).unwrap();
