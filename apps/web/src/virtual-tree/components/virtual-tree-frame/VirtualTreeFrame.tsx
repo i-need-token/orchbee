@@ -10,7 +10,7 @@ interface VirtualTreeFrameProps<K, T> {
 	readonly viewport: TreeViewport<K, T>;
 	readonly treeId: string;
 	readonly label: string;
-	/** The content layer; it draws itself, so a change of the active row redraws only this frame. */
+	/** The content and sticky layers; they draw themselves, so a new active row redraws this alone. */
 	readonly children: React.ReactNode;
 }
 

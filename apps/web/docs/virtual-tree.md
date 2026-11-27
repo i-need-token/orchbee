@@ -59,6 +59,13 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - The wheel scrolls as VS Code's lists do, without smoothing: 50 px a notch, Alt five times as far,
   never sideways, and a list keeps every wheel event. The scrollbar is the Panels' scrollbar as the
   Sidebar shows it.
+- Expanded rows whose descendants scroll beneath them stick at the top, as VS Code's sticky scroll
+  does: outermost first, at most `maxStickyRows`, 7 unless set and 0 for none, and never more than
+  40% of the tree's height. A row slides up beneath its parent as its last descendant scrolls past,
+  and `renderRow` draws sticky rows too, never focused or selected. Clicking a sticky row scrolls its
+  row to just below its ancestors' sticky rows, then focuses, anchors and selects it; clicking its
+  twistie also collapses it, with Alt every row below it too. `reveal` keeps a row clear of the rows
+  that would stick above it.
 
 ## Performance constraints
 
@@ -129,3 +136,11 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - **Traits follow keys.** Focus, anchor and selection survive collapse and drop only when their key
   leaves the tree. The selection is a set snapshot, so selecting all of 100,000 rows is one O(n)
   pass, where VS Code's mapping of every element back to a list index is O(n²).
+- **Sticky rows are hidden from assistive technology.** They repeat rows the tree already lists, and
+  VS Code's copies reuse the rows' ids, which leaves two elements with one id.
+- **A reveal clears at most 40% of the tree.** VS Code pads a reveal by every ancestor up to the row
+  limit, so in a short tree the padding can push the row out of sight; here the padding counts the
+  same ancestors only while they fit the sticky rows' share.
+- **A sticky click also sets the anchor**, so a Shift-click after it extends from the row clicked;
+  VS Code moves focus and selection and leaves the anchor where it was.
+- **Sticky rows show the default cursor**, as every row does; VS Code's pointer stays with links.

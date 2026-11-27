@@ -1,6 +1,7 @@
-/* A row sits at its own offset in the content, which moves as the tree scrolls, so a scroll leaves
-   the row where it is. Each level indents by VS Code's default 8 px; the twistie column is there for
-   every row, so labels at one level line up whether or not their rows expand. */
+/* A row sits at its own offset in its layer: in the content, which moves as the tree scrolls, so a
+   scroll leaves the row where it is, or among the sticky rows. Each level indents by VS Code's
+   default 8 px; the twistie column is there for every row, so labels at one level line up whether
+   or not their rows expand. */
 .row {
 	position: absolute;
 	inset-inline: 0;

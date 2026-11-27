@@ -29,8 +29,23 @@ interface ContentGeometry {
 	readonly offset: number;
 }
 
+/** A row that sticks at the top of the view while its descendants scroll beneath it. */
+interface StickyRow<K, T> {
+	readonly row: VirtualTreeRow<K, T>;
+	readonly revision: number;
+	/** Its top edge in the view, in CSS pixels; negative while its last descendant pushes it out. */
+	readonly top: number;
+	readonly height: number;
+}
+
 /** VS Code's tree row height, in CSS pixels. */
 const DEFAULT_ROW_HEIGHT = 22;
+
+/** VS Code's `workbench.tree.stickyScrollMaxItemCount` default. */
+const DEFAULT_MAX_STICKY_ROWS = 7;
+
+/** The share of the view's height that sticky rows may cover, as in VS Code. */
+const STICKY_HEIGHT_RATIO = 0.4;
 
 const EMPTY_GEOMETRY: ContentGeometry = { height: 0, offset: 0 };
 
@@ -42,6 +57,11 @@ const EMPTY_GEOMETRY: ContentGeometry = { height: 0, offset: 0 };
  * count rows from the first visible one. The slot count covers every row the viewport can show at
  * once, so visible rows land in different slots, and a row that scrolls in takes the slot of the row
  * that scrolled out: a scroll by one row changes one slot.
+ *
+ * Rows whose descendants scroll beneath the top of the view stick there, as VS Code's sticky scroll
+ * keeps them: each expanded ancestor of the row under the sticky rows, outermost first, until the
+ * last descendant of one scrolls out and pushes it up, never more rows than the limit or more than
+ * 40% of the view's height. A reveal keeps its row below the sticky rows its ancestors would show.
  *
  * Views read it through `subscribe` and the snapshot getters, which return the same object until what
  * it describes changes. It hears the model only while something listens, and catches up when the
@@ -61,6 +81,9 @@ export class TreeViewport<K, T> {
 	private focusedSlot: RowSlot<K, T> | null = null;
 	private focusIndexValue = -1;
 	private geometry: ContentGeometry = EMPTY_GEOMETRY;
+	private maxStickyRowsValue = DEFAULT_MAX_STICKY_ROWS;
+	private readonly stickyRows: StickyRow<K, T>[] = [];
+	private stickyHeightValue = 0;
 	/** A reveal that arrived before the view had a height, for its first one. */
 	private pendingReveal: { readonly key: K; readonly relativeTop: number | null } | null = null;
 
@@ -108,6 +131,21 @@ export class TreeViewport<K, T> {
 		return this.focusedSlot;
 	}
 
+	/** How many rows stick at the top of the view. */
+	get stickyCount(): number {
+		return this.stickyRows.length;
+	}
+
+	/** How far down the view the sticky rows reach, in CSS pixels; 0 while none sticks. */
+	get stickyHeight(): number {
+		return this.stickyHeightValue;
+	}
+
+	/** The sticky row at a depth among them, outermost first, or null when fewer stick. */
+	stickyRow(index: number): StickyRow<K, T> | null {
+		return this.stickyRows[index] ?? null;
+	}
+
 	readonly subscribe = (listener: () => void): (() => void) => {
 		this.listeners.add(listener);
 		if (this.disconnect === null) {
@@ -146,6 +184,26 @@ export class TreeViewport<K, T> {
 		this.update();
 	}
 
+	/** Limits how many rows stick at the top, VS Code's 7 by default; 0 turns sticky scroll off. */
+	setMaxStickyRows(count: number = DEFAULT_MAX_STICKY_ROWS): void {
+		if (!Number.isInteger(count) || count < 0) {
+			throw new RangeError(`Invalid sticky row limit ${count}`);
+		}
+		if (count === this.maxStickyRowsValue) return;
+		this.maxStickyRowsValue = count;
+		this.update();
+	}
+
+	/**
+	 * Scrolls a row to just below the sticky rows of its ancestors, where clicking its sticky row
+	 * takes it in VS Code.
+	 */
+	scrollBelowStickyRows(key: K): void {
+		const index = this.model.indexOf(key);
+		if (index < 0) return;
+		this.scrollTo(this.rowTop(index) - this.stickyPadding(this.model.rowAt(index)));
+	}
+
 	/** The nearest offset the rows allow, in whole pixels. */
 	clampScrollTop(offset: number): number {
 		const max = Math.max(0, this.geometry.height - this.height);
@@ -175,7 +233,10 @@ export class TreeViewport<K, T> {
 		this.update();
 	};
 
-	/** VS Code's list reveal: the row at `relativeTop` of the view, or scrolled just into sight. */
+	/**
+	 * VS Code's tree reveal: the row at `relativeTop` of the view, or scrolled just into sight, below
+	 * the sticky rows its ancestors would show.
+	 */
 	private reveal(key: K, relativeTop: number | null): void {
 		this.pendingReveal = null;
 		if (this.height === 0) {
@@ -186,18 +247,47 @@ export class TreeViewport<K, T> {
 		if (index < 0) return;
 		const top = this.rowTop(index);
 		const height = this.heightAt(index);
+		const padding = this.stickyPadding(this.model.rowAt(index));
 		if (relativeTop !== null) {
 			const placement = Math.min(Math.max(relativeTop, 0), 1);
-			this.scrollTo((height - this.height) * placement + top);
+			this.scrollTo((height - this.height + padding) * placement + top - padding);
 			return;
 		}
 		const scrollTop = this.geometry.offset;
 		const bottom = top + height;
 		const viewBottom = scrollTop + this.height;
 		// A row taller than the view that already overflows it in both directions stays.
-		if (top < scrollTop && bottom >= viewBottom) return;
-		if (top < scrollTop || (bottom >= viewBottom && height >= this.height)) this.scrollTo(top);
-		else if (bottom >= viewBottom) this.scrollTo(bottom - this.height);
+		if (top < scrollTop + padding && bottom >= viewBottom) return;
+		if (top < scrollTop + padding || (bottom >= viewBottom && height >= this.height)) {
+			this.scrollTo(top - padding);
+		} else if (bottom >= viewBottom) {
+			this.scrollTo(bottom - this.height);
+		}
+	}
+
+	/**
+	 * How far down the view the sticky rows of a row's ancestors reach once it sits right below them:
+	 * the outermost ones, within the sticky limits. VS Code pads by the nearest ancestors up to the row
+	 * limit alone, which can push a revealed row out of a short view.
+	 */
+	private stickyPadding(row: VirtualTreeRow<K, T>): number {
+		const limit = this.maxStickyRowsValue;
+		if (limit === 0 || row.parent === null) return 0;
+		const ancestors: VirtualTreeRow<K, T>[] = [];
+		for (let parent: VirtualTreeRow<K, T> | null = row.parent; parent !== null;) {
+			ancestors.push(parent);
+			parent = parent.parent;
+		}
+		const maxHeight = this.height * STICKY_HEIGHT_RATIO;
+		let padding = 0;
+		for (let depth = 0; depth < limit && depth < ancestors.length; depth += 1) {
+			const ancestor = ancestors[ancestors.length - 1 - depth];
+			if (ancestor === undefined) break;
+			const height = this.heightAt(this.model.indexOf(ancestor.key));
+			if (padding + height > maxHeight) break;
+			padding += height;
+		}
+		return padding;
 	}
 
 	/** Recomputes the snapshots and tells listeners when one changed or `force` asks. */
@@ -251,6 +341,7 @@ export class TreeViewport<K, T> {
 			this.focusedSlot = focused;
 			changed = true;
 		}
+		if (this.updateStickyRows(offset, count)) changed = true;
 
 		if (changed) {
 			for (const listener of this.listeners) listener();
@@ -291,6 +382,66 @@ export class TreeViewport<K, T> {
 	}
 
 	/**
+	 * Finds the sticky rows as VS Code's sticky scroll does, keeping the entries that did not change,
+	 * and reports whether any did. Starting from the row at the top of the view, each step takes the
+	 * ancestor of the row under the sticky rows that sits directly below the previous sticky row, while
+	 * that ancestor's own row has scrolled under them and it has visible descendants. A sticky row
+	 * stacks below the ones above it unless its last descendant has scrolled that high, which pushes it
+	 * up; the rows end at the first one past the row limit or 40% of the view's height.
+	 */
+	private updateStickyRows(offset: number, count: number): boolean {
+		const sticky = this.stickyRows;
+		const limit = this.maxStickyRowsValue;
+		const model = this.model;
+		const maxHeight = this.height * STICKY_HEIGHT_RATIO;
+		let changed = false;
+		let depth = 0;
+		let stacked = 0;
+		let reach = 0;
+		let previous: VirtualTreeRow<K, T> | null = null;
+		let under = offset > 0 && this.height > 0 ? this.rowIndexAt(offset, count) : -1;
+		while (depth < limit && under >= 0) {
+			const below = model.rowAt(under);
+			const row: VirtualTreeRow<K, T> | null = ancestorBelow(below, previous);
+			if (row === null || row.visibleDescendantCount === 0) break;
+			const index = row === below ? under : model.indexOf(row.key);
+			// Its own row has not yet scrolled under the sticky rows above it.
+			if (index < 0 || offset + stacked <= this.rowTop(index)) break;
+			const height = this.heightAt(index);
+			const last = index + row.visibleDescendantCount;
+			const lastBottom = this.rowTop(last) + this.heightAt(last) - offset;
+			const top =
+				stacked + height > lastBottom && stacked <= lastBottom ? lastBottom - height : stacked;
+			if (top + height > maxHeight) break;
+			const entry = sticky[depth];
+			if (
+				entry === undefined ||
+				entry.row !== row ||
+				entry.revision !== row.revision ||
+				entry.top !== top ||
+				entry.height !== height
+			) {
+				sticky[depth] = { height, revision: row.revision, row, top };
+				changed = true;
+			}
+			depth += 1;
+			stacked += height;
+			reach = top + height;
+			previous = row;
+			under = this.rowIndexAt(offset + reach, count);
+		}
+		if (sticky.length !== depth) {
+			sticky.length = depth;
+			changed = true;
+		}
+		if (reach !== this.stickyHeightValue) {
+			this.stickyHeightValue = reach;
+			changed = true;
+		}
+		return changed;
+	}
+
+	/**
 	 * Every row the view can show at once: a fixed height needs one slot per row height the view
 	 * spans, plus one for a row cut at each edge; varying heights keep the most rows seen since the
 	 * view last changed height.
@@ -304,6 +455,11 @@ export class TreeViewport<K, T> {
 	private indexAt(offset: number, count: number): number {
 		if (this.heights !== null) return this.heights.indexAt(offset);
 		return Math.min(count - 1, Math.max(0, Math.floor(offset / this.fixedHeight())));
+	}
+
+	/** The row holding a content offset, or -1 past the last row. */
+	private rowIndexAt(offset: number, count: number): number {
+		return count > 0 && offset < this.geometry.height ? this.indexAt(offset, count) : -1;
 	}
 
 	private rowTop(index: number): number {
@@ -346,6 +502,22 @@ export class TreeViewport<K, T> {
 			heights.splice(splice.start, splice.deleteCount, inserted);
 		}
 	}
+}
+
+/**
+ * The ancestor of a row, or the row itself, whose parent is `previous`; the top-level one when
+ * `previous` is null, and null when the row is not below `previous`.
+ */
+function ancestorBelow<K, T>(
+	row: VirtualTreeRow<K, T>,
+	previous: VirtualTreeRow<K, T> | null,
+): VirtualTreeRow<K, T> | null {
+	let current = row;
+	for (let parent = current.parent; parent !== null; parent = current.parent) {
+		if (parent === previous) return current;
+		current = parent;
+	}
+	return previous === null ? current : null;
 }
 
 function checkRowHeight<K, T>(rowHeight: VirtualTreeRowHeight<K, T>): VirtualTreeRowHeight<K, T> {

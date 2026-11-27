@@ -1,10 +1,9 @@
-import { ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
+import type { TreeViewport } from '../../layout/TreeViewport';
 import type { VirtualTreeRowRenderer } from '../../types/virtual-tree-row-renderer';
 import { rowElementId } from '../../utils/rowElementId';
-import type { TreeViewport } from '../../layout/TreeViewport';
-import styles from './VirtualTreeSlot.module.css';
+import { VirtualTreeRowView } from '../virtual-tree-row-view/VirtualTreeRowView';
 
 interface VirtualTreeSlotProps<K, T> {
 	readonly viewport: TreeViewport<K, T>;
@@ -16,8 +15,7 @@ interface VirtualTreeSlotProps<K, T> {
 
 /**
  * One row element, kept for whichever row its slot shows, so a scroll draws only the slots whose row
- * changed. The tree draws the indentation and the twistie, which turns into a spinner while the row
- * shows that its children are loading; the view draws the content.
+ * changed.
  */
 export function VirtualTreeSlot<K, T>({
 	renderRow,
@@ -29,36 +27,20 @@ export function VirtualTreeSlot<K, T>({
 		slot === 'focused' ? viewport.focusedRow : viewport.slot(slot),
 	);
 	if (shown === null) return null;
-	const { focused, row, selected } = shown;
-	const open = row.collapsible && !row.collapsed;
-	const { loading } = row;
 	return (
-		<div
-			aria-expanded={row.collapsible ? open : undefined}
-			aria-level={row.depth}
-			aria-posinset={shown.positionInSet}
-			aria-selected={selected}
-			aria-setsize={shown.setSize}
-			className={styles['row']}
-			data-focused={focused ? '' : undefined}
-			id={rowElementId(treeId, shown.index)}
-			role='treeitem'
-			style={{
-				'--ob-comp-virtual-tree-row-depth': row.depth,
-				'--ob-comp-virtual-tree-row-height': `${shown.height}px`,
-				'--ob-comp-virtual-tree-row-start': `${shown.top}px`,
+		<VirtualTreeRowView
+			focused={shown.focused}
+			height={shown.height}
+			place={{
+				id: rowElementId(treeId, shown.index),
+				kind: 'item',
+				positionInSet: shown.positionInSet,
+				setSize: shown.setSize,
 			}}
-		>
-			<span
-				className={styles['twistie']}
-				data-loading={loading ? '' : undefined}
-				data-open={open && !loading ? '' : undefined}
-			>
-				{row.collapsible ? (
-					<ProductIcon name={loading ? 'loading' : 'chevron-right'} size='disclosure' />
-				) : null}
-			</span>
-			<div className={styles['content']}>{renderRow(row, { focused, selected })}</div>
-		</div>
+			renderRow={renderRow}
+			row={shown.row}
+			selected={shown.selected}
+			top={shown.top}
+		/>
 	);
 }

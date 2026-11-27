@@ -92,6 +92,7 @@ export const designTokenNames = [
 	'--ob-comp-virtual-tree-row-depth',
 	'--ob-comp-virtual-tree-row-height',
 	'--ob-comp-virtual-tree-row-start',
+	'--ob-comp-virtual-tree-sticky-height',
 	'--ob-comp-virtual-tree-thumb-opacity',
 	'--ob-comp-virtual-tree-thumb-size',
 	'--ob-comp-virtual-tree-thumb-start',

@@ -1,0 +1,26 @@
+/* Over the rows and under the scrollbar, on the File Bar's surface, which it shares with the
+   Sidebar, so the rows scrolling beneath stay out of sight. A hairline marks its lower edge, where
+   VS Code draws its sticky scroll shadow. */
+.sticky {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+	z-index: var(--ob-ref-layer-raised);
+	height: var(--ob-comp-virtual-tree-sticky-height);
+	contain: strict;
+	background-color: var(--ob-sys-color-surface-raised);
+	background-image: linear-gradient(
+		var(--ob-sys-color-surface-subtle),
+		var(--ob-sys-color-surface-subtle)
+	);
+}
+
+.sticky::after {
+	position: absolute;
+	inset-block-end: 0;
+	inset-inline: 0;
+	height: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-subtle);
+	content: '';
+	pointer-events: none;
+}
