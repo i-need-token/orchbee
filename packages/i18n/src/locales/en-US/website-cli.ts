@@ -6,6 +6,23 @@ export const enUSWebsiteCliMessages = {
 		'Every operation available to a person is equally available to an agent through the <code>orchbee</code> command line.',
 	'website.cli.stage.caption':
 		'<b>Demo</b>A terminal outside Orchbee, asking the running Session about its agents.',
+	'website.cli.collaboration.kicker': 'collaboration',
+	'website.cli.collaboration.title': 'Agent-to-agent collaboration',
+	'website.cli.collaboration.lead':
+		"Stop managing agents one terminal at a time. Agents can prompt and spawn other agents, read each other's output, send commands across terminals, delegate tasks, and coordinate work—while you stay in control from one place.",
+	'website.cli.collaboration.window':
+		'Claude Code starting and prompting Codex with orchbee commands',
+	'website.cli.collaboration.caption':
+		'<b>Each step is one <code>orchbee</code> command.</b>On the left, Claude Code runs them through its shell tool. Codex starts in the Panel on the right.',
+	'website.cli.collaboration.captionStacked':
+		'<b>Each step is one <code>orchbee</code> command.</b>In the upper Panel, Claude Code runs them through its shell tool. Codex starts in the Panel below it.',
+	'website.cli.collaboration.step1': 'Starts Codex in a new Panel.',
+	'website.cli.collaboration.step2':
+		'Prints the handle of each agent, such as <code>@panel:0x36</code>.',
+	'website.cli.collaboration.step3': 'Submits the prompt to that agent.',
+	'website.cli.collaboration.step4':
+		'Blocks until the agent is idle again, for two minutes at most.',
+	'website.cli.collaboration.step5': 'Reads the last 40 lines of its terminal.',
 	'website.cli.grammar.kicker': 'grammar',
 	'website.cli.grammar.title': 'One shape for every command',
 	'website.cli.grammar.lead':

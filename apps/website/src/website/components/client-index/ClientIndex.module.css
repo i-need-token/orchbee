@@ -1,48 +1,53 @@
+/* One equal column per card, so the home page's three and a client page's two each fill the row. */
 .index {
-	border-top: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
-}
-/* A row turns to paper under the pointer and its text shifts in. */
-.row {
 	display: grid;
-	grid-template-columns: minmax(0, 5fr) minmax(0, 5fr) var(--ob-ref-length-website-132);
-	gap: var(--ob-ref-length-website-32);
-	align-items: center;
-	padding: var(--ob-ref-length-website-28) var(--ob-ref-length-website-22)
-		var(--ob-ref-length-website-26) 0;
-	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	grid-auto-columns: minmax(0, 1fr);
+	grid-auto-flow: column;
+	gap: var(--ob-ref-length-website-16);
+}
+/* A card turns to paper under the pointer. */
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-length-website-14);
+	min-height: var(--ob-ref-length-website-200);
+	padding: var(--ob-ref-length-website-28);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-14);
 	transition:
 		background var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
-		color var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
-		padding var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease);
+		border-color var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
+		color var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease);
 }
-.row:hover {
+.card:hover {
+	border-color: var(--ob-sys-color-website-paper);
 	background: var(--ob-sys-color-website-paper);
 	color: var(--ob-sys-color-website-ink);
-	padding-left: var(--ob-ref-length-website-22);
 }
 .name {
 	font: var(--ob-sys-typography-website-index-title);
 	letter-spacing: var(--ob-sys-typography-website-index-title-tracking);
 }
 .summary {
-	max-width: var(--ob-ref-length-website-measure-30);
 	color: var(--ob-sys-color-website-fg2);
 	font: var(--ob-sys-typography-website-index-body);
 	text-wrap: pretty;
 	transition: color var(--ob-sys-motion-duration-website-250)
 		var(--ob-sys-motion-easing-website-ease);
 }
-.row:hover .summary {
+.card:hover .summary {
 	color: var(--ob-sys-color-website-ink-soft);
 }
-.row:hover .summary code {
+.card:hover .summary code {
 	color: var(--ob-sys-color-website-ink);
 }
 .go {
 	display: flex;
 	align-items: center;
-	justify-content: flex-end;
+	justify-content: space-between;
 	gap: var(--ob-ref-length-website-12);
+	margin-top: auto;
+	padding-top: var(--ob-ref-length-website-8);
 	font: var(--ob-sys-typography-website-chrome);
 	white-space: nowrap;
 }
@@ -58,17 +63,15 @@
 		fill var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease),
 		stroke var(--ob-sys-motion-duration-website-250) var(--ob-sys-motion-easing-website-ease);
 }
-.row:hover .hexagon {
+.card:hover .hexagon {
 	fill: var(--ob-sys-color-website-honey);
 	stroke: var(--ob-sys-color-website-honey);
 }
-@media (max-width: 64rem) {
-	.row {
-		grid-template-columns: minmax(0, 1fr) auto;
-		gap: var(--ob-ref-length-website-10) var(--ob-ref-length-website-20);
+@media (max-width: 48rem) {
+	.index {
+		grid-auto-flow: row;
 	}
-	.summary {
-		grid-column: 1 / -1;
-		grid-row: 2;
+	.card {
+		min-height: 0;
 	}
 }

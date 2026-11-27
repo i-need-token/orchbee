@@ -1,11 +1,21 @@
 .column {
 	composes: wrap from '../../../page-shell/PageShell.module.css';
 }
+/* The words own the first screen: below the 64 px header the head fills all but the last 200 px of
+   the viewport, up to 640 px, so the stage starts near its bottom edge and only its top shows. */
 .head {
 	display: grid;
 	grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 	gap: var(--ob-ref-length-website-72);
 	align-items: end;
+	align-content: center;
+	min-height: min(
+		calc(
+			var(--ob-ref-length-website-viewport-height) - var(--ob-ref-length-website-64) -
+				var(--ob-ref-length-website-200)
+		),
+		var(--ob-ref-length-website-640)
+	);
 	padding: var(--ob-ref-length-website-60) 0 var(--ob-ref-length-website-36);
 }
 .beta {
@@ -13,10 +23,13 @@
 	color: var(--ob-sys-color-website-fg3);
 	font: var(--ob-sys-typography-website-label);
 }
+/* Chinese breaks only at its punctuation and spaces, never inside a phrase. */
 .title {
 	font: var(--ob-sys-typography-website-title);
 	letter-spacing: var(--ob-sys-typography-website-title-tracking);
 	text-wrap: balance;
+	word-break: keep-all;
+	overflow-wrap: break-word;
 }
 .lead {
 	max-width: var(--ob-ref-length-website-measure-31);
@@ -34,10 +47,28 @@
 	align-items: center;
 	gap: var(--ob-ref-length-website-10);
 }
+.facts {
+	margin-top: var(--ob-ref-length-website-16);
+	color: var(--ob-sys-color-website-fg3);
+	font: var(--ob-sys-typography-website-label);
+}
+.repo {
+	color: var(--ob-sys-color-website-fg2);
+	border-bottom: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	transition:
+		color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease),
+		border-color var(--ob-sys-motion-duration-website-150) var(--ob-sys-motion-easing-website-ease);
+}
+.repo:hover {
+	color: var(--ob-sys-color-website-fg);
+	border-color: var(--ob-sys-color-website-fg);
+}
 @media (max-width: 64rem) {
 	.head {
 		grid-template-columns: minmax(0, 1fr);
 		gap: var(--ob-ref-length-website-28);
-		padding-top: var(--ob-ref-length-website-44);
+		/* Stacked, the words already fill a phone's first screen; the stage follows them. */
+		min-height: 0;
+		padding: var(--ob-ref-length-website-44) 0 var(--ob-ref-length-website-60);
 	}
 }

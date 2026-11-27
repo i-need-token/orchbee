@@ -1,6 +1,3 @@
-.section {
-	composes: section from '../../../page-shell/PageShell.module.css';
-}
 /* The figure is as wide as its window's slot, so the caption names the Panels where the window
    shows them: side by side, or one above the other once the window stands upright. */
 .figure {
@@ -104,30 +101,6 @@
 .step[data-done] .mark {
 	border-color: var(--ob-sys-color-website-line-mark);
 }
-.note {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr);
-	gap: var(--ob-ref-length-website-16);
-	max-width: var(--ob-ref-length-website-900);
-	margin-top: var(--ob-ref-length-website-64);
-	padding: var(--ob-ref-length-website-24) var(--ob-ref-length-website-28);
-	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
-	border-radius: var(--ob-ref-length-website-14);
-	background: var(--ob-sys-color-website-surface);
-}
-.noteMark {
-	display: flex;
-	padding-top: var(--ob-ref-length-website-9);
-}
-.noteText {
-	color: var(--ob-sys-color-website-fg2);
-	font: var(--ob-sys-typography-website-note);
-	text-wrap: pretty;
-}
-.noteText b {
-	color: var(--ob-sys-color-website-fg);
-	font: var(--ob-sys-typography-website-note-strong);
-}
 @media (max-width: 64rem) {
 	.rail {
 		grid-template-columns: minmax(0, 1fr);
@@ -141,14 +114,5 @@
 	.mark {
 		grid-row: 1 / 3;
 		margin: 0;
-	}
-}
-@media (max-width: 40rem) {
-	.note {
-		grid-template-columns: minmax(0, 1fr);
-		padding: var(--ob-ref-length-website-20);
-	}
-	.noteMark {
-		display: none;
 	}
 }

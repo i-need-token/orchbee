@@ -1,4 +1,4 @@
-import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
+import { useOrchbeeIntl, websiteTerminalMessages as messages } from '@orchbee/i18n';
 import { useId, type ReactElement } from 'react';
 
 import { terminalThemeData } from '../../../../../terminal-text/terminalThemeData';
@@ -10,7 +10,7 @@ import {
 } from '../../terminal-themes';
 import styles from './ThemeList.module.css';
 
-const HEADINGS = { dark: messages.terminalDark, light: messages.terminalLight } as const;
+const HEADINGS = { dark: messages.themesDark, light: messages.themesLight } as const;
 
 function hex(color: number): string {
 	return `#${color.toString(16).padStart(6, '0')}`;
@@ -52,9 +52,7 @@ export function ThemeList(): ReactElement {
 	const id = useId();
 	return (
 		<div data-theme-list=''>
-			<p className={styles['count']}>
-				{t(messages.terminalThemes, { count: TERMINAL_THEME_COUNT })}
-			</p>
+			<p className={styles['count']}>{t(messages.themesCount, { count: TERMINAL_THEME_COUNT })}</p>
 			{TERMINAL_THEMES_BY_POLARITY.map(({ polarity, themes }) => (
 				<div key={polarity}>
 					<h3 className={styles['heading']} id={`${id}-${polarity}`}>

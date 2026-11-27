@@ -105,6 +105,27 @@ export const websiteTerminalMessages = defineMessages({
 		'website.terminal.highlight.size.body',
 		'Explanation of the highlight "Any window size"; <code> marks a key, a command or a file name.',
 	),
+	themesKicker: message(
+		'website.terminal.themes.kicker',
+		'Lowercase label above the section that shows the terminal themes.',
+	),
+	themesTitle: message(
+		'website.terminal.themes.title',
+		'Heading of the section that shows the terminal themes.',
+	),
+	themesLead: message('website.terminal.themes.lead', 'Paragraph under the themes heading.'),
+	themesCount: message(
+		'website.terminal.themes.count',
+		'Line above the list of terminal themes; count is how many themes the product ships.',
+	),
+	themesDark: message(
+		'website.terminal.themes.dark',
+		'Heading of the list of dark terminal themes.',
+	),
+	themesLight: message(
+		'website.terminal.themes.light',
+		'Heading of the list of light terminal themes.',
+	),
 	keysTitle: message('website.terminal.keys.title', 'Heading of the key reference.'),
 	keysLead: message(
 		'website.terminal.keys.lead',

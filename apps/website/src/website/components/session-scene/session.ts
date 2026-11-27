@@ -20,8 +20,8 @@ import type { DesktopSidebarWorkspace } from '../desktop-sidebar/DesktopSidebar'
 // what the real commands print; the text formats are the ones in apps/orchbee/src/cli_text.
 // Terminal contents are English in every page language.
 
-export const PROMPT = 'PS C:\\demo\\shop-api> ';
-export const OUTSIDE = 'PS C:\\demo> ';
+const PROMPT = 'PS C:\\demo\\shop-api> ';
+const OUTSIDE = 'PS C:\\demo> ';
 export const CLAUDE_HANDLE = '@panel:0x2a';
 export const CODEX_HANDLE = '@panel:0x36';
 export const OPENCODE_HANDLE = '@panel:0x41';
@@ -52,7 +52,7 @@ export const CODEX_ROWS = [
 	textRow('  One test still posts quantity 0 on purpose.'),
 	textRow('  Suggest updating the fixture in orders.test.ts.'),
 ] as const;
-export const GIT_LOG = [
+const GIT_LOG = [
 	row`${yellow('2905180')} (${cyan('HEAD ->')} ${green('main')}) Add order routes`,
 	row`${yellow('a6baeab')} Initial service skeleton`,
 ] as const;

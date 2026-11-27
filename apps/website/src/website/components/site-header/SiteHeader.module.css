@@ -37,12 +37,11 @@
 	gap: var(--ob-ref-length-website-30);
 	height: var(--ob-ref-length-website-64);
 	color: var(--ob-sys-color-website-fg2);
-	font: var(--ob-sys-typography-website-chrome);
+	font: var(--ob-sys-typography-website-navigation);
 }
 .links {
 	display: flex;
 	gap: var(--ob-ref-length-website-4);
-	text-transform: lowercase;
 }
 .link {
 	padding: var(--ob-ref-length-website-9) var(--ob-ref-length-website-10);
@@ -64,11 +63,9 @@
 	align-items: center;
 	gap: var(--ob-ref-length-website-20);
 	margin-left: auto;
-	text-transform: lowercase;
 }
-/* The links that only fit a wide bar; the language link keeps its own capitals. */
+/* The links that only fit a wide bar. */
 .wide {
-	text-transform: none;
 	transition: color var(--ob-sys-motion-duration-website-150)
 		var(--ob-sys-motion-easing-website-ease);
 }

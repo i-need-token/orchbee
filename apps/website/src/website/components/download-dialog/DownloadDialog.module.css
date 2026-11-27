@@ -83,6 +83,15 @@
 .notes:hover {
 	color: var(--ob-sys-color-website-fg);
 }
+/* Shown only on a phone or a tablet, where none of the installers below runs. */
+.handheld {
+	margin-top: var(--ob-ref-length-website-12);
+	padding: var(--ob-ref-length-website-10) var(--ob-ref-length-website-12);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-highlight-body);
+}
 /* The platforms, each a heading over its installers; the visitor's platform comes first and its first
    installer is the solid button. */
 .downloads {

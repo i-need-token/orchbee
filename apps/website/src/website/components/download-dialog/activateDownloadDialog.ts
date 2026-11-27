@@ -1,5 +1,5 @@
 import type { ActivationContext } from '../../activation';
-import { visitorFirst, visitorPlatform } from '../../release';
+import { visitorFirst, visitorHandheld, visitorPlatform } from '../../release';
 
 // The fragment that addresses the dialog. A page opened with it shows the dialog, and the open dialog
 // writes it into the address, so the page can be shared that way.
@@ -13,7 +13,8 @@ const FOCUSABLE =
 // the page is addressed with #download. While it is open, Tab stays inside it; Escape, its close button or
 // a click on the backdrop close it; focus returns to the trigger that opened it; and the page does not
 // scroll. The platform group of the visitor's operating system is listed first, and its first installer is
-// the primary one.
+// the primary one. A visitor on a phone or a tablet, which cannot run Orchbee, is told to download it on a
+// computer instead, and no installer is the primary one.
 export function activateDownloadDialog({ document }: ActivationContext): void {
 	const view = document.defaultView;
 	const dialog = document.querySelector<HTMLElement>('[data-download-dialog]');
@@ -41,7 +42,9 @@ export function activateDownloadDialog({ document }: ActivationContext): void {
 				link.removeAttribute('data-primary');
 			}
 		}
-		ordered[0]?.querySelector('a')?.setAttribute('data-primary', '');
+		const handheldNote = panel.querySelector<HTMLElement>('[data-download-handheld]');
+		if (visitorHandheld(view.navigator) && handheldNote !== null) handheldNote.hidden = false;
+		else ordered[0]?.querySelector('a')?.setAttribute('data-primary', '');
 	}
 
 	const show = (trigger: HTMLElement | null): void => {

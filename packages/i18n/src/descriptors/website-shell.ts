@@ -28,16 +28,13 @@ export const websiteShellMessages = defineMessages({
 	),
 	navTerminal: message(
 		'website.shell.nav.terminal',
-		'Navigation link to the terminal interface page; shown in lowercase.',
+		'Navigation link to the terminal interface page.',
 	),
 	navDesktop: message(
 		'website.shell.nav.desktop',
-		'Navigation link to the desktop application page; shown in lowercase.',
+		'Navigation link to the desktop application page.',
 	),
-	navCli: message(
-		'website.shell.nav.cli',
-		'Navigation link to the command line page; shown in lowercase.',
-	),
+	navCli: message('website.shell.nav.cli', 'Navigation link to the command line page.'),
 	navDownload: message(
 		'website.shell.nav.download',
 		'Button that opens the download dialog once a release is published, in the navigation bar and the home hero.',
@@ -145,6 +142,10 @@ export const websiteShellMessages = defineMessages({
 		'Button in the download dialog that downloads the Debian package for ARM64 processors.',
 	),
 	downloadTitle: message('website.shell.download.title', 'Heading of the download dialog.'),
+	downloadHandheld: message(
+		'website.shell.download.handheld',
+		'Note under the download dialog heading, shown only to a visitor on a phone or tablet.',
+	),
 	downloadClose: message(
 		'website.shell.download.close',
 		'Accessible name of the button that closes the download dialog.',

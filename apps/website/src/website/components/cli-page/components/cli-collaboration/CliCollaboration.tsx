@@ -1,12 +1,11 @@
-import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
+import { useOrchbeeIntl, websiteCliMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
 import { sceneFinalState } from '../../../../scene/scene';
 import { richText } from '../../../../rich-text';
+import { DetailSection } from '../../../detail-section/DetailSection';
 import { FigureCaption } from '../../../figure-caption/FigureCaption';
-import { SectionHead } from '../../../section-head/SectionHead';
 import { WindowFit } from '../../../window-fit/WindowFit';
-import { HexDot } from '../hex-dot/HexDot';
 import {
 	COLLABORATION_COMMANDS,
 	collaborationFrame,
@@ -14,7 +13,7 @@ import {
 	stepProgress,
 } from './collaboration-scene';
 import { CollaborationWindow } from './components/collaboration-window/CollaborationWindow';
-import styles from './Collaboration.module.css';
+import styles from './CliCollaboration.module.css';
 
 // Each step's command and what it does.
 const STEPS = [
@@ -26,21 +25,20 @@ const STEPS = [
 ] as const;
 
 /**
- * One agent directing another: the drawn window, its caption, the rail of the five commands, and
- * the note on the person's role. Without script the window and the rail show all five steps
- * finished and the steps are not buttons yet; with script a step replays from its start when
- * chosen.
+ * One agent directing another through the command line: the drawn window, its caption, and the
+ * rail of the five commands. Without script the window and the rail show all five steps finished
+ * and the steps are not buttons yet; with script the steps play in turn, and a step replays from
+ * its start when chosen (`activateCliCollaboration`).
  */
-export function Collaboration(): ReactElement {
+export function CliCollaboration(): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const state = sceneFinalState(createCollaborationScene());
 	return (
-		<section className={styles['section']} id='collaboration'>
-			<SectionHead
-				kicker={t(messages.collaborationKicker)}
-				title={t(messages.collaborationTitle)}
-				lead={t(messages.collaborationLead)}
-			/>
+		<DetailSection
+			kicker={t(messages.collaborationKicker)}
+			title={t(messages.collaborationTitle)}
+			lead={t(messages.collaborationLead)}
+		>
 			<div className={styles['figure']} data-reveal='' data-scene='collaboration'>
 				<WindowFit>
 					<CollaborationWindow frame={collaborationFrame(state)} />
@@ -69,12 +67,6 @@ export function Collaboration(): ReactElement {
 					))}
 				</ol>
 			</div>
-			<div className={styles['note']} data-reveal=''>
-				<span className={styles['noteMark']}>
-					<HexDot />
-				</span>
-				<p className={styles['noteText']}>{t(messages.collaborationNote, richText)}</p>
-			</div>
-		</section>
+		</DetailSection>
 	);
 }

@@ -68,6 +68,9 @@ export function DownloadDialog({ release }: { release: Release }): ReactElement 
 					>
 						{t(messages.downloadReleaseNotes, { version: release.version })} ↗
 					</a>
+					<p className={styles['handheld']} data-download-handheld='' hidden>
+						{t(messages.downloadHandheld)}
+					</p>
 				</div>
 				<div className={styles['downloads']} data-download-list=''>
 					{platforms.map(({ platform, variants }, groupIndex) => {

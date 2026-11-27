@@ -11,6 +11,7 @@ import { richText } from '../../rich-text';
 import { GetOrchbee } from '../get-orchbee/GetOrchbee';
 import { OtherClients } from '../other-clients/OtherClients';
 import { PageHead } from '../page-head/PageHead';
+import { CliCollaboration } from './components/cli-collaboration/CliCollaboration';
 import { CliFamilies } from './components/cli-families/CliFamilies';
 import { CliGrammar } from './components/cli-grammar/CliGrammar';
 import { CliHighlights } from './components/cli-highlights/CliHighlights';
@@ -36,6 +37,7 @@ export function CliPage({
 			>
 				<CliStage />
 			</PageHead>
+			<CliCollaboration />
 			<CliGrammar />
 			<CliOutputs />
 			<CliHighlights />

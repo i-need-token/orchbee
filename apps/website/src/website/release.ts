@@ -149,9 +149,10 @@ interface Platform {
 //    description for translators, and in both locales (en-US and zh-CN). The typecheck names a key that a locale
 //    lacks or the catalog does not know; then run `pnpm --filter @orchbee/i18n build`.
 // 5. The sentences that name platforms. They are copy, not generated: the install lead and start note
-//    (installLead* and installStartNote* in website-home), the data sheet's platform row (Statement.tsx), and the
-//    desktop sections that describe macOS and Linux (DesktopBackground, DesktopHighlights, DesktopKeys). They read
-//    offeredPlatforms, offersMacos or offersLinux, so each names a platform only while it is published.
+//    (installLead* and installStartNote* in website-home), the home hero's line of facts and the platforms answer
+//    among the home questions (facts* and faqPlatformsAnswer* in website-home), and the desktop sections that
+//    describe macOS and Linux (DesktopBackground, DesktopHighlights, DesktopKeys). They read offeredPlatforms,
+//    offersMacos or offersLinux, so each names a platform only while it is published.
 // 6. The checks: `pnpm --filter @orchbee/website typecheck` and `pnpm --filter @orchbee/website test`. Then the
 //    call to action and the install section at 400 and 1440 pixels in both locales, with a visitor of each platform.
 // Nothing else needs a change: the call-to-action buttons, the download dialog's groups, the install tabs and rows,
@@ -300,6 +301,25 @@ export function publishedPlatforms(offered: Release): readonly PublishedPlatform
 /** The platform whose pattern matches a browser's platform string, or undefined when none does. */
 export function visitorPlatform(platformString: string): PlatformId | undefined {
 	return PLATFORMS.find((platform) => platform.visitor.test(platformString))?.id;
+}
+
+/**
+ * Whether the visitor is on a phone or a tablet, where Orchbee does not run: an iPhone, iPad, iPod or
+ * Android device by its user agent, or an iPad that reports a Mac platform but has a touch screen.
+ */
+export function visitorHandheld({
+	userAgent,
+	platform,
+	maxTouchPoints,
+}: {
+	readonly userAgent: string;
+	readonly platform: string;
+	readonly maxTouchPoints: number;
+}): boolean {
+	return (
+		/iPhone|iPad|iPod|Android/iu.test(userAgent) ||
+		(platform.startsWith('Mac') && maxTouchPoints > 1)
+	);
 }
 
 /**

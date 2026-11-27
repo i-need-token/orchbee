@@ -33,7 +33,7 @@ const CLIENTS: readonly {
 	{ page: 'cli', name: messages.clientCli, summary: messages.clientCliSummary, label: '/cli' },
 ];
 
-// The large rows that lead to the client pages, leaving out the page the visitor is on.
+// The cards that lead to the client pages, side by side, leaving out the page the visitor is on.
 export function ClientIndex({
 	locale,
 	current,
@@ -45,7 +45,7 @@ export function ClientIndex({
 	return (
 		<div className={styles['index']} data-reveal=''>
 			{CLIENTS.filter(({ page }) => page !== current).map(({ page, name, summary, label }) => (
-				<a className={styles['row']} href={pagePath(page, locale)} key={page}>
+				<a className={styles['card']} href={pagePath(page, locale)} key={page}>
 					<h3 className={styles['name']}>{t(name)}</h3>
 					<p className={styles['summary']}>{t(summary, richText)}</p>
 					<span className={styles['go']}>

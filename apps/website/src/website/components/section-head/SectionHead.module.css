@@ -17,6 +17,10 @@
 	font: var(--ob-sys-typography-website-paragraph);
 	text-wrap: pretty;
 }
+.lead b {
+	color: var(--ob-sys-color-website-fg);
+	font: var(--ob-sys-typography-website-paragraph);
+}
 .head:not(.split) .lead {
 	margin-top: var(--ob-ref-length-website-16);
 }

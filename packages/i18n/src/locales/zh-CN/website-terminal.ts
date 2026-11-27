@@ -41,6 +41,13 @@ export const zhCNWebsiteTerminalMessages = {
 	'website.terminal.highlight.size.title': '任意窗口大小',
 	'website.terminal.highlight.size.body':
 		'100 列 × 24 行起为完整布局；不足 60 列时切换为适合窄窗口的紧凑布局。任何尺寸下 <code>Ctrl+b</code> <code>b</code> 都可以收起侧边栏。',
+	'website.terminal.themes.kicker': '主题',
+	'website.terminal.themes.title': '浅色、深色各用一个主题',
+	'website.terminal.themes.lead':
+		'侧边栏、标签页和每个面板里的程序，都使用你所选主题的配色：浅色外观选一个，深色外观再选一个。',
+	'website.terminal.themes.count': '{count} 个内置主题',
+	'website.terminal.themes.dark': '深色',
+	'website.terminal.themes.light': '浅色',
 	'website.terminal.keys.title': '按键',
 	'website.terminal.keys.lead':
 		'以下每个键都跟在前缀键 <code>Ctrl+b</code> 之后。测试期间按键仍可能调整。',

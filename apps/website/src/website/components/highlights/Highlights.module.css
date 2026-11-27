@@ -7,6 +7,9 @@
 	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line);
 	border-radius: var(--ob-ref-length-website-14);
 }
+.four {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
 .item {
 	display: flex;
 	flex-direction: column;
@@ -39,6 +42,14 @@
 }
 @media (max-width: 64rem) {
 	.grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.four {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+@media (max-width: 40rem) {
+	.four {
 		grid-template-columns: minmax(0, 1fr);
 	}
 }

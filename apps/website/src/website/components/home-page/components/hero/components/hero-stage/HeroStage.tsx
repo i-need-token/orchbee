@@ -41,8 +41,8 @@ const VIEWS = [
 
 /**
  * The drawn Session under the home headline: a switch between the clients that show it, the live
- * Session status, a Close button that leaves the Session running in the background and a card that
- * says so, and the caption with the legend of Agent states. Without script the stage shows the
+ * Session status, a Close button with the note that invites the visitor to press it, the card that
+ * shows the Session still running once they do, and the caption with the legend of Agent states. Without script the stage shows the
  * first client's window and no controls.
  */
 export function HeroStage(): ReactElement {
@@ -64,6 +64,7 @@ export function HeroStage(): ReactElement {
 						<StateGlyph state={frame.states.summary} bind='summary' />
 						<span data-scene-text='summary'>{frame.texts.summary}</span>
 					</span>
+					<span className={styles['hint']}>{t(messages.stageCloseHint)}</span>
 					<button className={styles['close']} type='button' data-stage-close=''>
 						{t(messages.stageClose)}
 					</button>

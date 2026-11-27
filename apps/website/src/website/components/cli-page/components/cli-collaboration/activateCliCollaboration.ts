@@ -20,7 +20,7 @@ const VISIBLE_SHARE = 0.2;
 // makes the rail's steps buttons: choosing one replays the figure from that step, or, when nothing
 // plays, shows the figure once that step has run. Off screen the figure stops, and it starts the
 // step it was on again when it comes back.
-export function activateCollaboration({ document, reducedMotion }: ActivationContext): void {
+export function activateCliCollaboration({ document, reducedMotion }: ActivationContext): void {
 	const root = document.querySelector<HTMLElement>('[data-scene="collaboration"]');
 	if (root === null) return;
 	const steps = [...root.querySelectorAll<HTMLElement>('[data-step]')];

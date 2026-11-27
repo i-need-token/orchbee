@@ -1,4 +1,4 @@
-import { useOrchbeeIntl, websiteHomeMessages as messages } from '@orchbee/i18n';
+import { useOrchbeeIntl, websiteCliMessages as messages } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
 import { TuiPanel } from '../../../../../tui-panel/TuiPanel';

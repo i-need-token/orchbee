@@ -1,0 +1,12 @@
+.themes {
+	display: grid;
+	grid-template-columns: minmax(0, var(--ob-ref-length-website-300)) minmax(0, 1fr);
+	gap: var(--ob-ref-length-website-40);
+	align-items: start;
+}
+@media (max-width: 64rem) {
+	.themes {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ob-ref-length-website-32);
+	}
+}

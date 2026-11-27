@@ -1192,7 +1192,6 @@
 	--ob-ref-color-website-ink-soft: #4a473f;
 	--ob-ref-color-website-line: rgba(248, 247, 244, 0.1);
 	--ob-ref-color-website-line-chosen: rgba(248, 247, 244, 0.5);
-	--ob-ref-color-website-line-focus: rgba(248, 247, 244, 0.4);
 	--ob-ref-color-website-line-hover: rgba(248, 247, 244, 0.35);
 	--ob-ref-color-website-line-mark: rgba(248, 247, 244, 0.55);
 	--ob-ref-color-website-line-strong: rgba(248, 247, 244, 0.18);
@@ -1274,7 +1273,6 @@
 	--ob-sys-color-website-ink-soft: var(--ob-ref-color-website-ink-soft);
 	--ob-sys-color-website-line: var(--ob-ref-color-website-line);
 	--ob-sys-color-website-line-chosen: var(--ob-ref-color-website-line-chosen);
-	--ob-sys-color-website-line-focus: var(--ob-ref-color-website-line-focus);
 	--ob-sys-color-website-line-hover: var(--ob-ref-color-website-line-hover);
 	--ob-sys-color-website-line-mark: var(--ob-ref-color-website-line-mark);
 	--ob-sys-color-website-line-strong: var(--ob-ref-color-website-line-strong);
@@ -1346,6 +1344,7 @@
 	--ob-comp-website-terminal-selection-foreground: var(
 		--ob-ref-color-website-terminal-selection-foreground
 	);
+	--ob-sys-typography-website-agent-name: 500 15px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-agents-states: 400 12.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-away-body: 400 14.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-away-row: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
@@ -1374,7 +1373,6 @@
 	--ob-sys-typography-website-display: 500 clamp(40px, 5.7vw, 86px) / 0.98
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-display-tracking: -0.05em;
-	--ob-sys-typography-website-figure-note: 400 12px / 1.4 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-fine-print: 400 11.5px / 1.5 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-footer: 400 12px / 1.6 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-footer-body: 400 14px / 1.6 var(--ob-ref-font-family-website-sans);
@@ -1390,9 +1388,9 @@
 	--ob-sys-typography-website-highlight-title: 500 19px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-highlight-title-tracking: -0.02em;
 	--ob-sys-typography-website-index-body: 400 15px / 1.55 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-index-title: 500 clamp(28px, 3.7vw, 54px) / 1
+	--ob-sys-typography-website-index-title: 500 clamp(24px, 2.3vw, 32px) / 1.15
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-index-title-tracking: -0.045em;
+	--ob-sys-typography-website-index-title-tracking: -0.03em;
 	--ob-sys-typography-website-install-body: 400 14px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-note: 400 13px / 1.55 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-install-title: 500 16px / 1.5 var(--ob-ref-font-family-website-sans);
@@ -1406,19 +1404,16 @@
 	--ob-sys-typography-website-mark-note: 400 14.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-mark-note-title: 500 14.5px / 1.5
 		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-note: 400 16px / 1.65 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-note-strong: 500 16px / 1.65 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-ligatures: 400 clamp(15px, 1.7vw, 22px) / 1.7
 		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-ligatures-compact: 400 13px / 1.7
 		var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-navigation: 500 14px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-paragraph: 400 15.5px / 1.65 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-rail-body: 400 13.5px / 1.5 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-rail-code: 400 12px / 1 var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-rail-command: 400 12px / 1.6
 		var(--ob-ref-font-family-website-terminal);
-	--ob-sys-typography-website-remote-title: 500 24px / 1.5 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-remote-title-tracking: -0.025em;
 	--ob-sys-typography-website-ring-cell: 500 1.6cqw / 1.46
 		var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-ring-cell-state: 500 1.45cqw / 1
@@ -1439,12 +1434,6 @@
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-sheet: 400 15px / 1 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-sheet-path: 400 12px / 1 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-sheet-term: 400 11.5px / 1.75 var(--ob-ref-font-family-website-mono);
-	--ob-sys-typography-website-sheet-value: 400 14px / 1.45 var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-statement: 400 clamp(22px, 2.5vw, 34px) / 1.27
-		var(--ob-ref-font-family-website-sans);
-	--ob-sys-typography-website-statement-tracking: -0.028em;
-	--ob-sys-typography-website-tag: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-terminal: 400 13px / 20px var(--ob-ref-font-family-website-terminal);
 	--ob-sys-typography-website-terminal-compact: 400 11px / 17px
 		var(--ob-ref-font-family-website-terminal);
@@ -1469,7 +1458,7 @@
 	--ob-sys-typography-website-title: 500 clamp(29px, 3.3vw, 47px) / 1.08
 		var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-title-tracking: -0.04em;
-	--ob-sys-typography-website-typed-command: 400 13px / 1 var(--ob-ref-font-family-website-terminal);
+	--ob-sys-typography-website-stage-hint: 400 13.5px / 1.3 var(--ob-ref-font-family-website-sans);
 	--ob-sys-typography-website-tray-label: 400 11.5px / 1 var(--ob-ref-font-family-website-mono);
 	--ob-sys-typography-website-tray-menu: 400 12.5px / 1 var(--ob-ref-font-family-website-console);
 	--ob-sys-typography-website-tray-notice: 400 12.5px / 1.45
@@ -1549,7 +1538,6 @@
 	--ob-sys-motion-easing-website-settle: var(--ob-ref-motion-easing-website-settle);
 	--ob-sys-motion-easing-website-split: var(--ob-ref-motion-easing-website-split);
 	--ob-sys-motion-easing-website-steps: var(--ob-ref-motion-easing-website-steps);
-	--ob-ref-opacity-website-25: 0.25;
 	--ob-ref-opacity-website-40: 0.4;
 	--ob-ref-opacity-website-45: 0.45;
 	--ob-ref-opacity-website-55: 0.55;
@@ -1584,7 +1572,6 @@
 	--ob-ref-length-website-6: 6px;
 	--ob-ref-length-website-7: 7px;
 	--ob-ref-length-website-8: 8px;
-	--ob-ref-length-website-8-7: 8.7px;
 	--ob-ref-length-website-9: 9px;
 	--ob-ref-length-website-10: 10px;
 	--ob-ref-length-website-11: 11px;
@@ -1620,10 +1607,8 @@
 	--ob-ref-length-website-72: 72px;
 	--ob-ref-length-website-80: 80px;
 	--ob-ref-length-website-88: 88px;
-	--ob-ref-length-website-92: 92px;
 	--ob-ref-length-website-100: 100px;
 	--ob-ref-length-website-104: 104px;
-	--ob-ref-length-website-110: 110px;
 	--ob-ref-length-website-120: 120px;
 	--ob-ref-length-website-130: 130px;
 	--ob-ref-length-website-132: 132px;
@@ -1649,9 +1634,19 @@
 	--ob-ref-length-website-640: 640px;
 	--ob-ref-length-website-660: 660px;
 	--ob-ref-length-website-820: 820px;
-	--ob-ref-length-website-900: 900px;
 	--ob-ref-length-website-1180: 1180px;
 	--ob-ref-length-website-1320: 1320px;
+}
+
+/* Chinese headings keep their natural spacing: the negative tracking that tightens the Latin
+ * display type would crowd Han characters together. */
+:root:lang(zh) {
+	--ob-sys-typography-website-away-title-tracking: 0;
+	--ob-sys-typography-website-display-tracking: 0;
+	--ob-sys-typography-website-heading-tracking: 0;
+	--ob-sys-typography-website-highlight-title-tracking: 0;
+	--ob-sys-typography-website-index-title-tracking: 0;
+	--ob-sys-typography-website-title-tracking: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

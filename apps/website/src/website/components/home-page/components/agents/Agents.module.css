@@ -7,15 +7,50 @@
 	gap: var(--ob-ref-length-website-72);
 	align-items: center;
 }
-.states {
-	color: var(--ob-sys-color-website-fg2);
-	font: var(--ob-sys-typography-website-agents-states);
+.featured {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ob-ref-length-website-10);
 }
-.recognized {
-	margin-top: var(--ob-ref-length-website-34);
-	color: var(--ob-sys-color-website-fg3);
+.feature {
+	display: inline-flex;
+	align-items: center;
+	height: var(--ob-ref-length-website-36);
+	padding: 0 var(--ob-ref-length-website-14);
+	border: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	border-radius: var(--ob-ref-length-website-8);
+	background: var(--ob-sys-color-website-surface);
+	font: var(--ob-sys-typography-website-agent-name);
+	white-space: nowrap;
+}
+.all {
+	margin-top: var(--ob-ref-length-website-20);
+}
+/* The toggle shows its own triangle, turned down while the list is open. */
+.toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ob-ref-length-website-8);
+	color: var(--ob-sys-color-website-fg2);
 	font: var(--ob-sys-typography-website-label);
-	text-transform: lowercase;
+	list-style: none;
+	cursor: pointer;
+	transition: color var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.toggle::-webkit-details-marker {
+	display: none;
+}
+.toggle::before {
+	content: '▸';
+	transition: transform var(--ob-sys-motion-duration-website-150)
+		var(--ob-sys-motion-easing-website-ease);
+}
+.all[open] .toggle::before {
+	transform: rotate(90deg);
+}
+.toggle:hover {
+	color: var(--ob-sys-color-website-fg);
 }
 .names {
 	display: flex;
@@ -33,6 +68,11 @@
 	color: var(--ob-sys-color-website-fg2);
 	font: var(--ob-sys-typography-website-label);
 	white-space: nowrap;
+}
+.states {
+	margin-top: var(--ob-ref-length-website-34);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-agents-states);
 }
 @media (max-width: 64rem) {
 	.agents {

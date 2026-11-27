@@ -3,14 +3,11 @@ import type { ReactElement } from 'react';
 
 import type { Release } from '../../release';
 import { Agents } from './components/agents/Agents';
+import { Benefits } from './components/benefits/Benefits';
 import { Clients } from './components/clients/Clients';
-import { Collaboration } from './components/collaboration/Collaboration';
+import { Faq } from './components/faq/Faq';
 import { Hero } from './components/hero/Hero';
 import { Install } from './components/install/Install';
-import { Multiplexing } from './components/multiplexing/Multiplexing';
-import { RemoteMachines } from './components/remote-machines/RemoteMachines';
-import { Statement } from './components/statement/Statement';
-import { TerminalCore } from './components/terminal-core/TerminalCore';
 
 // The home page, section by section. Each section is a private component under `components/`.
 export function HomePage({
@@ -23,13 +20,10 @@ export function HomePage({
 	return (
 		<>
 			<Hero locale={locale} release={release} />
-			<Statement release={release} />
-			<Multiplexing />
-			<Collaboration />
+			<Benefits />
 			<Agents />
-			<TerminalCore />
-			<RemoteMachines />
 			<Clients locale={locale} />
+			<Faq release={release} />
 			<Install release={release} />
 		</>
 	);

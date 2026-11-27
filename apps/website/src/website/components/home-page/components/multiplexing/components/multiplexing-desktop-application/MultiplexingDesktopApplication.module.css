@@ -1,5 +1,0 @@
-.column {
-	display: grid;
-	min-height: 0;
-	background: var(--ob-sys-color-surface-canvas);
-}

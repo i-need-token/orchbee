@@ -247,16 +247,3 @@
 		display: none;
 	}
 }
-[data-size='mini'] .tree {
-	margin-top: var(--ob-ref-space-3);
-}
-[data-size='mini'] .provider {
-	display: none;
-}
-/* The sidebar alone has no edge to the main area, and more room under its tree. */
-[data-size='side'] .sidebar {
-	border-right: none;
-}
-[data-size='side'] .tree {
-	padding-bottom: var(--ob-ref-length-website-22);
-}

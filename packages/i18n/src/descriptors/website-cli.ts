@@ -19,6 +19,41 @@ export const websiteCliMessages = defineMessages({
 		'website.cli.stage.caption',
 		'Caption under the drawn console that asks the Session about its agents; <b> marks the word that labels it a demo.',
 	),
+	collaborationKicker: message(
+		'website.cli.collaboration.kicker',
+		'Lowercase label above the section where one agent directs another.',
+	),
+	collaborationTitle: message(
+		'website.cli.collaboration.title',
+		'Heading of the section where one agent directs another.',
+	),
+	collaborationLead: message(
+		'website.cli.collaboration.lead',
+		'Paragraph under the collaboration heading.',
+	),
+	collaborationWindow: message(
+		'website.cli.collaboration.window',
+		'Accessible name of the drawn terminal interface where one agent directs another.',
+	),
+	collaborationCaption: message(
+		'website.cli.collaboration.caption',
+		'Caption under the collaboration figure; <b> marks its label, <code> a command name.',
+	),
+	collaborationCaptionStacked: message(
+		'website.cli.collaboration.captionStacked',
+		'Caption under the collaboration figure while its Panels stand one above the other; <b> marks its label, <code> a command name.',
+	),
+	collaborationStep1: message(
+		'website.cli.collaboration.step1',
+		'What the first command of the collaboration figure does.',
+	),
+	collaborationStep2: message(
+		'website.cli.collaboration.step2',
+		'What the second command does; <code> marks an agent handle.',
+	),
+	collaborationStep3: message('website.cli.collaboration.step3', 'What the third command does.'),
+	collaborationStep4: message('website.cli.collaboration.step4', 'What the fourth command does.'),
+	collaborationStep5: message('website.cli.collaboration.step5', 'What the fifth command does.'),
 	grammarKicker: message(
 		'website.cli.grammar.kicker',
 		'Lowercase label above the section that takes one command line apart.',

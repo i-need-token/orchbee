@@ -39,6 +39,14 @@ export const enUSWebsiteTerminalMessages = {
 	'website.terminal.highlight.size.title': 'Any window size',
 	'website.terminal.highlight.size.body':
 		'Full layout from 100 columns by 24 rows. Below 60 columns it switches to a compact layout made for narrow windows. <code>Ctrl+b</code> <code>b</code> hides the sidebar at any size.',
+	'website.terminal.themes.kicker': 'themes',
+	'website.terminal.themes.title': 'One theme for light, one for dark',
+	'website.terminal.themes.lead':
+		'The sidebar, the Tabs, and the programs in every Panel take the colors of the theme you choose: one for a light appearance, another for a dark one.',
+	'website.terminal.themes.count':
+		'{count, plural, one {# built-in theme} other {# built-in themes}}',
+	'website.terminal.themes.dark': 'Dark',
+	'website.terminal.themes.light': 'Light',
 	'website.terminal.keys.title': 'Keys',
 	'website.terminal.keys.lead':
 		'Each key follows the prefix <code>Ctrl+b</code>. The bindings may still change during the beta.',

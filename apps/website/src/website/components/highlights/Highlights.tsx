@@ -1,5 +1,6 @@
 import type { ReactElement, ReactNode } from 'react';
 
+import { joinClassNames } from '../../joinClassNames';
 import { KeyCaps } from '../key-caps/KeyCaps';
 import styles from './Highlights.module.css';
 
@@ -13,12 +14,20 @@ export interface Highlight {
 }
 
 /**
- * A client page's features in a ruled grid of three columns (one on narrow screens), each with
- * its title, explanation and keys. The page gives the content; the list rises into view as one.
+ * Features in a ruled grid, each with its title, explanation and keys: three columns for a client
+ * page's features, or four for a short row of them, which takes two columns on a medium screen.
+ * Either takes one column on a narrow screen. The page gives the content; the list rises into view
+ * as one.
  */
-export function Highlights({ items }: { items: readonly Highlight[] }): ReactElement {
+export function Highlights({
+	items,
+	columns = 3,
+}: {
+	items: readonly Highlight[];
+	columns?: 3 | 4;
+}): ReactElement {
 	return (
-		<div className={styles['grid']} data-reveal=''>
+		<div className={joinClassNames(styles['grid'], columns === 4 && styles['four'])} data-reveal=''>
 			{items.map((item) => (
 				<article key={item.id} className={styles['item']}>
 					<h3 className={styles['title']}>{item.title}</h3>

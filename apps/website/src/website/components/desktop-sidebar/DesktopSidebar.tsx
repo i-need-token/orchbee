@@ -18,7 +18,7 @@ export interface DesktopSidebarWorkspace extends TuiSidebarWorkspace {
  * Workspaces and their Agents, and the Settings gear alone in the footer, as a release build shows
  * it while no update is offered and the pointer is elsewhere: an open Project shows no chevron, and
  * each Workspace leads with its folder, open while its Agents show. The New workspace label is
- * product chrome and follows the page language. It works alone or as a DesktopWindow's `sidebar`.
+ * product chrome and follows the page language. It is a DesktopWindow's `sidebar`.
  */
 export function DesktopSidebar({
 	project,

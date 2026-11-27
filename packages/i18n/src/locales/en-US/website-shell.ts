@@ -43,6 +43,8 @@ export const enUSWebsiteShellMessages = {
 	'website.shell.download.appImageArm': 'ARM64 AppImage',
 	'website.shell.download.debArm': 'ARM64 .deb',
 	'website.shell.download.title': 'Download Orchbee',
+	'website.shell.download.handheld':
+		'Orchbee runs on a computer. Open this page on your computer to download it.',
 	'website.shell.download.close': 'Close',
 	'website.shell.download.other': 'Other ways to install',
 	'website.shell.download.npm': 'npm (CLI only)',

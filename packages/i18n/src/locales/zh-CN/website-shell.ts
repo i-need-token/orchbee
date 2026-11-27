@@ -42,6 +42,7 @@ export const zhCNWebsiteShellMessages = {
 	'website.shell.download.appImageArm': 'ARM64 AppImage',
 	'website.shell.download.debArm': 'ARM64 .deb',
 	'website.shell.download.title': '下载 Orchbee',
+	'website.shell.download.handheld': 'Orchbee 需要在电脑上运行，请在电脑上打开本页下载。',
 	'website.shell.download.close': '关闭',
 	'website.shell.download.other': '其他安装方式',
 	'website.shell.download.npm': 'npm（仅 CLI）',

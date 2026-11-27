@@ -3,98 +3,71 @@ import type { WebsiteHomeMessageId } from '../en-US';
 export const zhCNWebsiteHomeMessages = {
 	'website.home.metaTitle': 'Orchbee — 运行和编排 AI Agent 的现代多路复用终端',
 	'website.home.metaDescription':
-		'会话在后台持续运行，可同时从终端界面、桌面应用和命令行访问，为人与 Agent 提供共同的工作环境。',
+		'并排运行 Claude Code、Codex、Gemini CLI 等 30 多种 Agent。哪个需要你一眼就能看到，关掉窗口它们也照常运行。免费开源。',
 	'website.home.title': '一个运行和编排 AI\u00A0Agent 的现代多路复用终端。',
-	'website.home.lead': '会话常驻后台，从终端、桌面与命令行随时接入，在一处并行掌控所有 Agent。',
+	'website.home.lead':
+		'并排运行 Claude Code、Codex、Gemini CLI 等 30 多种 Agent。哪个需要你一眼就能看到；关掉窗口，它们照常运行；Agent 之间还能互相派活。',
 	'website.home.beta': '测试版',
+	'website.home.facts': '免费<repo>开源</repo> · Windows · 不做遥测',
+	'website.home.factsMacos': '免费<repo>开源</repo> · Windows 与 macOS · 不做遥测',
+	'website.home.factsLinux': '免费<repo>开源</repo> · Windows 与 Linux · 不做遥测',
+	'website.home.factsAll': '免费<repo>开源</repo> · Windows、macOS 与 Linux · 不做遥测',
 	'website.home.stage.view': '查看这个会话的客户端',
-	'website.home.stage.closeHint': '关闭窗口不会结束会话。',
+	'website.home.stage.closeHint': '关掉窗口，Agent 照常运行。',
 	'website.home.stage.close': '关闭窗口',
 	'website.home.stage.awayTitle': '会话正在后台运行。',
 	'website.home.stage.awayBody': '没有客户端接入时，其中的 Shell 与 Agent 照常运行。',
 	'website.home.stage.closedFor': '窗口已关闭',
 	'website.home.stage.reattach': '重新接入',
-	'website.home.stage.caption':
-		'<b>演示</b>一个会话，里面有一个 Shell 和两个 Agent；画面按真实界面绘制，按脚本播放。',
-	'website.home.statement':
-		'Orchbee 是为 AI Agent 时代打造的现代终端。<quiet>它首先是一个完整的终端，基于 Ghostty 的核心构建，其余能力都围绕终端展开。</quiet>',
-	'website.home.sheet.clients': '客户端',
-	'website.home.sheet.clientsValue': '终端界面、桌面应用、命令行',
-	'website.home.sheet.agents': 'Agent',
-	'website.home.sheet.agentsValue': '可识别 30 余种 CLI Agent',
-	'website.home.sheet.terminal': '终端',
-	'website.home.sheet.terminalValue': '基于 Ghostty 的核心构建',
-	'website.home.sheet.platform': '平台',
-	'website.home.sheet.platformValue': '目前支持 Windows（x86_64），macOS 和 Linux 版本正在开发中。',
-	'website.home.sheet.platformValueMacos':
-		'目前支持 Windows（x86_64）和 macOS 13 或更高版本，Linux 版本正在开发中。',
-	'website.home.sheet.platformValueLinux':
-		'目前支持 Windows（x86_64）和 Linux（x86_64 与 ARM64），macOS 版本正在开发中。',
-	'website.home.sheet.platformValueAll':
-		'支持 Windows（x86_64）、macOS 13 或更高版本，以及 Linux（x86_64 与 ARM64）。',
-	'website.home.sheet.privacy': '隐私',
-	'website.home.sheet.privacyValue':
-		'Orchbee 终端现在和以后都不做遥测。我们不上传使用数据做统计，不追踪用户行为，也不自动上传崩溃报告。匿名遥测和可选遥测也一样禁止。',
-	'website.home.sheet.license': '许可证',
-	'website.home.sheet.source': '源码',
-	'website.home.multiplexing.kicker': '多路复用',
-	'website.home.multiplexing.title': '会话多路复用',
-	'website.home.multiplexing.lead':
-		'会话在窗口关闭后继续在后台运行，其中的 Shell 与 Agent 不会中断。终端界面、桌面应用与命令行可以同时接入同一个会话，在一处输入，其他各处同步可见。即使承载终端的进程崩溃，也会有新进程接管它们，通常只需一两秒。',
-	'website.home.multiplexing.input': '在此输入',
-	'website.home.multiplexing.session': '同一个会话',
-	'website.home.multiplexing.reader': '每次按下回车，从外部读取同一个终端',
-	'website.home.collaboration.kicker': '协作',
-	'website.home.collaboration.title': 'Agent 间协作',
-	'website.home.collaboration.lead':
-		'不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。',
-	'website.home.collaboration.window': 'Claude Code 用 orchbee 命令启动 Codex 并向它提交 prompt',
-	'website.home.collaboration.caption':
-		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>左侧的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在右侧的面板中启动。',
-	'website.home.collaboration.captionStacked':
-		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>上方的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在下方的面板中启动。',
-	'website.home.collaboration.step1': '在新面板中启动 Codex。',
-	'website.home.collaboration.step2': '列出每个 Agent 的句柄，例如 <code>@panel:0x36</code>。',
-	'website.home.collaboration.step3': '把 prompt 提交给这个 Agent。',
-	'website.home.collaboration.step4': '等到这个 Agent 回到空闲状态，最多等两分钟。',
-	'website.home.collaboration.step5': '读取它的终端最近 40 行输出。',
-	'website.home.collaboration.note':
-		'Orchbee 不替代你现有的 CLI Agent，而是提供让它们协同工作的终端环境。它让你的角色从 <b>human-in-the-loop</b> 转向 <b>human-on-the-loop</b>：不再亲自推动每一步，而是监督整个系统，并在必要时介入。',
+	'website.home.stage.caption': '<b>演示</b>一个会话里运行着一个 Shell 和两个 Agent，按脚本播放。',
+	'website.home.benefits.kicker': '优势',
+	'website.home.benefits.title': '为同时运行多个 Agent 而生',
+	'website.home.benefits.lead':
+		'Orchbee 不替代你的 Agent，而是给它们一个可以并排运行、互相协作的终端。你的角色从 <b>human-in-the-loop</b> 变成 <b>human-on-the-loop</b>：只需监督全局，在必要时介入。',
+	'website.home.benefits.statusTitle': '所有 Agent，一眼看清',
+	'website.home.benefits.statusBody':
+		'侧边栏列出所有项目里的每个 Agent 及其状态：工作中、等你处理、已完成或空闲。不用逐个打开终端，就知道该看哪一个。',
+	'website.home.benefits.persistTitle': '关掉窗口，工作照常',
+	'website.home.benefits.persistBody':
+		'窗口关闭后，会话连同其中的 Shell 和 Agent 继续在后台运行。之后可以从终端界面、桌面应用或命令行重新接入，三者也能同时接入。',
+	'website.home.benefits.delegateTitle': 'Agent 之间互相派活',
+	'website.home.benefits.delegateBody':
+		'借助 <code>orchbee</code> 命令，一个 Agent 可以启动另一个 Agent、给它发 prompt、等它完成并读取输出。比如让 Claude Code 把任务交给 Codex，你在一旁看着就行。',
+	'website.home.benefits.terminalTitle': '真正的终端内核',
+	'website.home.benefits.terminalBody':
+		'基于 Ghostty 核心构建，支持 24 位真彩色、连字、Kitty 图形协议、可点击链接和输入法组合输入，内置 {count} 个主题。桌面应用使用 WebGPU 渲染。',
 	'website.home.agents.kicker': 'agent',
-	'website.home.agents.title': 'Agent 状态与组织',
+	'website.home.agents.title': '支持你正在用的 Agent',
 	'website.home.agents.lead':
-		'Orchbee 可识别 30 余种 CLI Agent，直观呈现每个 Agent 的状态，并在侧边栏按项目组织工作。',
-	'website.home.agents.recognized': '目前可识别',
-	'website.home.agents.sidebar':
-		'侧边栏列出所有项目中的每个 Agent，并按项目、工作区和 Git 工作树组织工作。',
-	'website.home.agents.projectTitle': '项目',
-	'website.home.agents.project': '把相关的工作区归在一起。',
-	'website.home.agents.workspaceTitle': '工作区',
-	'website.home.agents.workspace': '一个文件夹及其 Git 分支。Git 工作树作为单独的工作区列出。',
-	'website.home.agents.agentTitle': 'Agent',
-	'website.home.agents.agent': '列在所属的工作区之下，显示状态和当前任务。',
-	'website.home.agents.unreadTitle': '未读',
-	'website.home.agents.unread': '蓝点表示有你还没看过的动态。',
-	'website.home.terminal.kicker': '终端',
-	'website.home.terminal.title': '高性能终端',
-	'website.home.terminal.lead':
-		'终端模拟运行在一个基于 Ghostty 核心构建的轻量原生进程中。终端界面与桌面应用从该进程接收处理好的画面，只负责绘制。桌面应用使用 WebGPU 渲染，并提供 Canvas 2D 后备。',
-	'website.home.terminal.themes': '{count} 个内置主题',
-	'website.home.terminal.dark': '深色',
-	'website.home.terminal.light': '浅色',
-	'website.home.terminal.fact1': '24 位真彩色',
-	'website.home.terminal.fact2': '连字',
-	'website.home.terminal.fact3': 'Kitty 图形协议',
-	'website.home.terminal.fact4': '超链接',
-	'website.home.terminal.fact5': '输入法组合输入',
-	'website.home.terminal.fact6': '浅色与深色主题分别设置',
-	'website.home.remote.tag': '开发中',
-	'website.home.remote.title': '远程机器',
-	'website.home.remote.lead':
-		'当本机资源不足时，可通过 SSH 添加其他机器，为 Agent 扩展算力和运行环境。远程机器是本机能力的延伸，Agent 无需改变原有使用方式。',
+		'Orchbee 可识别 30 多种 CLI Agent，直接从屏幕上读取每个 Agent 的状态，无需在 Agent 里安装或配置任何东西。',
+	'website.home.agents.all': '查看全部 {count} 种可识别的 Agent',
 	'website.home.clients.kicker': '客户端',
-	'website.home.clients.title': '各客户端详解',
-	'website.home.clients.lead': '终端界面、桌面应用与命令行呈现并控制同一个会话，各有一页单独介绍。',
+	'website.home.clients.title': '一个会话，三种接入方式',
+	'website.home.clients.lead': '终端界面、桌面应用和命令行呈现并控制同一个会话，按场景选用即可。',
+	'website.home.faq.kicker': '问答',
+	'website.home.faq.title': '常见问题',
+	'website.home.faq.freeQuestion': 'Orchbee 免费吗？',
+	'website.home.faq.freeAnswer': '免费。Orchbee 以 MIT 许可证开源，源码在 <repo>GitHub</repo> 上。',
+	'website.home.faq.replaceQuestion': '它会取代 Claude Code 或 Codex 吗？',
+	'website.home.faq.replaceAnswer':
+		'不会。你继续使用现有的 Agent、账号和设置。Orchbee 是它们运行的终端：显示它们的状态，让它们持续运行，并让它们协同工作。',
+	'website.home.faq.tmuxQuestion': '它和 tmux 有什么不同？',
+	'website.home.faq.tmuxAnswer':
+		'和 tmux 一样，Orchbee 让会话在后台持续运行，并能把会话分成多个面板。此外，它能识别哪些程序是 Agent、各自处于什么状态，让 Agent 通过命令行互相驱动，而且除了终端界面还提供桌面应用。',
+	'website.home.faq.platformsQuestion': '支持哪些系统？',
+	'website.home.faq.platformsAnswer': '目前支持 Windows（x86_64），macOS 和 Linux 版本正在开发中。',
+	'website.home.faq.platformsAnswerMacos':
+		'目前支持 Windows（x86_64）和 macOS 13 或更高版本，Linux 版本正在开发中。',
+	'website.home.faq.platformsAnswerLinux':
+		'目前支持 Windows（x86_64）和 Linux（x86_64 与 ARM64），macOS 版本正在开发中。',
+	'website.home.faq.platformsAnswerAll':
+		'支持 Windows（x86_64）、macOS 13 或更高版本，以及 Linux（x86_64 与 ARM64）。',
+	'website.home.faq.dataQuestion': 'Orchbee 会收集我的数据吗？',
+	'website.home.faq.dataAnswer':
+		'不会。Orchbee 现在和以后都不做遥测：不上传使用数据，不追踪你的操作，也不自动上传崩溃报告；匿名遥测和可选遥测同样不做。',
+	'website.home.faq.nextQuestion': '接下来会做什么？',
+	'website.home.faq.nextAnswer':
+		'远程机器。本机资源不够时，可以通过 SSH 添加其他电脑，Agent 就能用上它们的算力，用法不变。',
 	'website.home.install.kicker': '测试版',
 	'website.home.install.title': '安装',
 	'website.home.install.lead':

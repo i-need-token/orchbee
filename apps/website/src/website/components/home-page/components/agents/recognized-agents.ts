@@ -47,3 +47,15 @@ export const RECOGNIZED_AGENTS: readonly MessageDescriptor[] = [
 	agentObservationMessages.providerOpenClaw,
 	agentObservationMessages.providerPrimeAgent,
 ];
+
+/** The agents the home page names first, the ones most visitors already use; the rest fold away. */
+export const FEATURED_AGENTS: readonly MessageDescriptor[] = [
+	agentObservationMessages.providerClaudeCode,
+	agentObservationMessages.providerCodex,
+	agentObservationMessages.providerGeminiCli,
+	agentObservationMessages.providerGitHubCopilotCli,
+	agentObservationMessages.providerCursor,
+	agentObservationMessages.providerOpenCode,
+	agentObservationMessages.providerAmp,
+	agentObservationMessages.providerGrok,
+];

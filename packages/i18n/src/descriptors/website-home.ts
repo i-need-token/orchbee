@@ -17,6 +17,22 @@ export const websiteHomeMessages = defineMessages({
 	title: message('website.home.title', 'Headline of the home page.'),
 	lead: message('website.home.lead', 'Paragraph beside the headline.'),
 	beta: message('website.home.beta', 'Label above the headline: the beta status of the product.'),
+	facts: message(
+		'website.home.facts',
+		'Line under the Download button while only Windows is published; <repo> marks the words that link to the source repository.',
+	),
+	factsMacos: message(
+		'website.home.factsMacos',
+		'Line under the Download button once a release offers macOS; <repo> marks the words that link to the source repository.',
+	),
+	factsLinux: message(
+		'website.home.factsLinux',
+		'Line under the Download button once a release offers Linux but not macOS; <repo> marks the words that link to the source repository.',
+	),
+	factsAll: message(
+		'website.home.factsAll',
+		'Line under the Download button once a release offers macOS and Linux; <repo> marks the words that link to the source repository.',
+	),
 	stageView: message(
 		'website.home.stage.view',
 		'Label before the buttons that switch the drawn Session between the clients.',
@@ -46,218 +62,122 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.stage.caption',
 		'Caption under the drawn Session; <b> marks the word that labels it a demo.',
 	),
-	statement: message(
-		'website.home.statement',
-		'Large paragraph under the home stage; <quiet> marks the second sentence, set in a quieter color.',
+	benefitsKicker: message(
+		'website.home.benefits.kicker',
+		'Lowercase label above the heading of the section that sums up why to use Orchbee.',
 	),
-	sheetClients: message(
-		'website.home.sheet.clients',
-		'Lowercase label of the data sheet row that lists the clients.',
+	benefitsTitle: message(
+		'website.home.benefits.title',
+		'Heading of the section that sums up why to use Orchbee.',
 	),
-	sheetClientsValue: message(
-		'website.home.sheet.clientsValue',
-		'Value of the clients row of the data sheet.',
+	benefitsLead: message(
+		'website.home.benefits.lead',
+		'Paragraph beside the benefits heading; <b> marks the two named roles.',
 	),
-	sheetAgents: message(
-		'website.home.sheet.agents',
-		'Lowercase label of the data sheet row about agents.',
+	benefitsStatusTitle: message(
+		'website.home.benefits.statusTitle',
+		'Title of the benefit card about seeing the state of every agent.',
 	),
-	sheetAgentsValue: message(
-		'website.home.sheet.agentsValue',
-		'Value of the agents row of the data sheet.',
+	benefitsStatusBody: message(
+		'website.home.benefits.statusBody',
+		'Text of the benefit card about seeing the state of every agent.',
 	),
-	sheetTerminal: message(
-		'website.home.sheet.terminal',
-		'Lowercase label of the data sheet row about the terminal.',
+	benefitsPersistTitle: message(
+		'website.home.benefits.persistTitle',
+		'Title of the benefit card about Sessions that keep running after the window closes.',
 	),
-	sheetTerminalValue: message(
-		'website.home.sheet.terminalValue',
-		'Value of the terminal row of the data sheet.',
+	benefitsPersistBody: message(
+		'website.home.benefits.persistBody',
+		'Text of the benefit card about Sessions that keep running after the window closes.',
 	),
-	sheetPlatform: message(
-		'website.home.sheet.platform',
-		'Lowercase label of the data sheet row about platforms.',
+	benefitsDelegateTitle: message(
+		'website.home.benefits.delegateTitle',
+		'Title of the benefit card about agents that start and drive other agents.',
 	),
-	sheetPlatformValue: message(
-		'website.home.sheet.platformValue',
-		'Value of the platform row of the data sheet.',
+	benefitsDelegateBody: message(
+		'website.home.benefits.delegateBody',
+		'Text of the benefit card about agents that start and drive other agents; <code> marks the command name.',
 	),
-	sheetPlatformValueMacos: message(
-		'website.home.sheet.platformValueMacos',
-		'Value of the platform row of the data sheet once a release offers macOS downloads.',
+	benefitsTerminalTitle: message(
+		'website.home.benefits.terminalTitle',
+		'Title of the benefit card about the terminal emulation.',
 	),
-	sheetPlatformValueLinux: message(
-		'website.home.sheet.platformValueLinux',
-		'Value of the platform row of the data sheet once a release offers Linux downloads but no macOS ones.',
-	),
-	sheetPlatformValueAll: message(
-		'website.home.sheet.platformValueAll',
-		'Value of the platform row of the data sheet once a release offers macOS and Linux downloads.',
-	),
-	sheetPrivacy: message(
-		'website.home.sheet.privacy',
-		'Label of the data sheet row about terminal privacy.',
-	),
-	sheetPrivacyValue: message(
-		'website.home.sheet.privacyValue',
-		'The Orchbee terminal’s commitment against telemetry in the home page data sheet.',
-	),
-	sheetLicense: message(
-		'website.home.sheet.license',
-		'Lowercase label of the data sheet row that names the license.',
-	),
-	sheetSource: message(
-		'website.home.sheet.source',
-		'Lowercase label of the data sheet row that links the source repository.',
-	),
-	multiplexingKicker: message(
-		'website.home.multiplexing.kicker',
-		'Lowercase label above the multiplexing heading.',
-	),
-	multiplexingTitle: message(
-		'website.home.multiplexing.title',
-		'Heading of the multiplexing section.',
-	),
-	multiplexingLead: message(
-		'website.home.multiplexing.lead',
-		'Paragraph beside the multiplexing heading.',
-	),
-	multiplexingInput: message(
-		'website.home.multiplexing.input',
-		'Label of the field where the visitor types a command into the drawn shell.',
-	),
-	multiplexingSession: message(
-		'website.home.multiplexing.session',
-		'Label on the line that joins the two drawn clients: both show the same Session.',
-	),
-	multiplexingReader: message(
-		'website.home.multiplexing.reader',
-		'Note after the client name above the drawn console that reads the same shell.',
-	),
-	collaborationKicker: message(
-		'website.home.collaboration.kicker',
-		'Lowercase label above the collaboration heading.',
-	),
-	collaborationTitle: message(
-		'website.home.collaboration.title',
-		'Heading of the collaboration section.',
-	),
-	collaborationLead: message(
-		'website.home.collaboration.lead',
-		'Paragraph beside the collaboration heading.',
-	),
-	collaborationWindow: message(
-		'website.home.collaboration.window',
-		'Accessible name of the drawn terminal interface where one agent directs another.',
-	),
-	collaborationCaption: message(
-		'website.home.collaboration.caption',
-		'Caption under the collaboration figure; <b> marks its label, <code> a command name.',
-	),
-	collaborationCaptionStacked: message(
-		'website.home.collaboration.captionStacked',
-		'Caption under the collaboration figure while its Panels stand one above the other; <b> marks its label, <code> a command name.',
-	),
-	collaborationStep1: message(
-		'website.home.collaboration.step1',
-		'What the first command of the collaboration figure does.',
-	),
-	collaborationStep2: message(
-		'website.home.collaboration.step2',
-		'What the second command does; <code> marks an agent handle.',
-	),
-	collaborationStep3: message('website.home.collaboration.step3', 'What the third command does.'),
-	collaborationStep4: message('website.home.collaboration.step4', 'What the fourth command does.'),
-	collaborationStep5: message('website.home.collaboration.step5', 'What the fifth command does.'),
-	collaborationNote: message(
-		'website.home.collaboration.note',
-		'Note under the collaboration figure; <b> marks the two named roles.',
+	benefitsTerminalBody: message(
+		'website.home.benefits.terminalBody',
+		'Text of the benefit card about the terminal emulation.',
 	),
 	agentsKicker: message('website.home.agents.kicker', 'Lowercase label above the agents heading.'),
 	agentsTitle: message('website.home.agents.title', 'Heading of the agents section.'),
 	agentsLead: message('website.home.agents.lead', 'Paragraph beside the agents heading.'),
-	agentsRecognized: message(
-		'website.home.agents.recognized',
-		'Label above the list of agent CLIs Orchbee recognizes; shown in lowercase.',
+	agentsAll: message(
+		'website.home.agents.all',
+		'Toggle that shows every agent CLI Orchbee recognizes; count is how many there are.',
 	),
-	agentsSidebar: message(
-		'website.home.agents.sidebar',
-		'Paragraph beside the drawn sidebars, above their numbered notes.',
-	),
-	agentsProjectTitle: message(
-		'website.home.agents.projectTitle',
-		'Title of the note on the Project row of the drawn sidebar.',
-	),
-	agentsProject: message('website.home.agents.project', 'What a Project row is.'),
-	agentsWorkspaceTitle: message(
-		'website.home.agents.workspaceTitle',
-		'Title of the note on a Workspace row of the drawn sidebar.',
-	),
-	agentsWorkspace: message('website.home.agents.workspace', 'What a Workspace row is.'),
-	agentsAgentTitle: message(
-		'website.home.agents.agentTitle',
-		'Title of the note on an Agent row of the drawn sidebar.',
-	),
-	agentsAgent: message('website.home.agents.agent', 'What an Agent row shows.'),
-	agentsUnreadTitle: message(
-		'website.home.agents.unreadTitle',
-		'Title of the note on the unread dot of the drawn sidebar.',
-	),
-	agentsUnread: message('website.home.agents.unread', 'What the unread dot means.'),
-	terminalKicker: message(
-		'website.home.terminal.kicker',
-		'Lowercase label above the terminal section heading.',
-	),
-	terminalTitle: message('website.home.terminal.title', 'Heading of the terminal section.'),
-	terminalLead: message(
-		'website.home.terminal.lead',
-		'Paragraph beside the terminal section heading.',
-	),
-	terminalThemes: message(
-		'website.home.terminal.themes',
-		'Line above the list of terminal themes; count is how many themes the product ships.',
-	),
-	terminalDark: message(
-		'website.home.terminal.dark',
-		'Heading of the list of dark terminal themes.',
-	),
-	terminalLight: message(
-		'website.home.terminal.light',
-		'Heading of the list of light terminal themes.',
-	),
-	terminalFact1: message(
-		'website.home.terminal.fact1',
-		'Terminal fact: programs can use 24-bit color.',
-	),
-	terminalFact2: message('website.home.terminal.fact2', 'Terminal fact: font ligatures are drawn.'),
-	terminalFact3: message(
-		'website.home.terminal.fact3',
-		'Terminal fact: images of the Kitty graphics protocol are drawn.',
-	),
-	terminalFact4: message(
-		'website.home.terminal.fact4',
-		'Terminal fact: links in terminal output open.',
-	),
-	terminalFact5: message(
-		'website.home.terminal.fact5',
-		'Terminal fact: input methods compose text in place.',
-	),
-	terminalFact6: message(
-		'website.home.terminal.fact6',
-		'Terminal fact: a theme is chosen for the light and for the dark appearance separately.',
-	),
-	remoteTag: message(
-		'website.home.remote.tag',
-		'Tag on the remote machines band: the feature is not released yet.',
-	),
-	remoteTitle: message('website.home.remote.title', 'Heading of the remote machines band.'),
-	remoteLead: message('website.home.remote.lead', 'Paragraph of the remote machines band.'),
 	clientsKicker: message(
 		'website.home.clients.kicker',
 		'Lowercase label above the client index heading.',
 	),
 	clientsTitle: message('website.home.clients.title', 'Heading of the client index.'),
 	clientsLead: message('website.home.clients.lead', 'Paragraph beside the client index heading.'),
+	faqKicker: message('website.home.faq.kicker', 'Lowercase label above the questions heading.'),
+	faqTitle: message('website.home.faq.title', 'Heading of the frequently asked questions.'),
+	faqFreeQuestion: message(
+		'website.home.faq.freeQuestion',
+		'Question: whether Orchbee costs money.',
+	),
+	faqFreeAnswer: message(
+		'website.home.faq.freeAnswer',
+		'Answer to whether Orchbee costs money; <repo> marks the words that link to the source repository.',
+	),
+	faqReplaceQuestion: message(
+		'website.home.faq.replaceQuestion',
+		'Question: whether Orchbee replaces the agent CLIs people already use.',
+	),
+	faqReplaceAnswer: message(
+		'website.home.faq.replaceAnswer',
+		'Answer to whether Orchbee replaces the agent CLIs people already use.',
+	),
+	faqTmuxQuestion: message(
+		'website.home.faq.tmuxQuestion',
+		'Question: how Orchbee differs from the terminal multiplexer tmux.',
+	),
+	faqTmuxAnswer: message(
+		'website.home.faq.tmuxAnswer',
+		'Answer to how Orchbee differs from the terminal multiplexer tmux.',
+	),
+	faqPlatformsQuestion: message(
+		'website.home.faq.platformsQuestion',
+		'Question: which operating systems Orchbee runs on.',
+	),
+	faqPlatformsAnswer: message(
+		'website.home.faq.platformsAnswer',
+		'Answer to which operating systems Orchbee runs on, while only Windows is published.',
+	),
+	faqPlatformsAnswerMacos: message(
+		'website.home.faq.platformsAnswerMacos',
+		'Answer to which operating systems Orchbee runs on, once a release offers macOS.',
+	),
+	faqPlatformsAnswerLinux: message(
+		'website.home.faq.platformsAnswerLinux',
+		'Answer to which operating systems Orchbee runs on, once a release offers Linux but not macOS.',
+	),
+	faqPlatformsAnswerAll: message(
+		'website.home.faq.platformsAnswerAll',
+		'Answer to which operating systems Orchbee runs on, once a release offers macOS and Linux.',
+	),
+	faqDataQuestion: message(
+		'website.home.faq.dataQuestion',
+		'Question: whether Orchbee collects data about its users.',
+	),
+	faqDataAnswer: message(
+		'website.home.faq.dataAnswer',
+		'Answer to whether Orchbee collects data: it has no telemetry of any kind.',
+	),
+	faqNextQuestion: message('website.home.faq.nextQuestion', 'Question: what is being built next.'),
+	faqNextAnswer: message(
+		'website.home.faq.nextAnswer',
+		'Answer to what is being built next: remote machines, still in development.',
+	),
 	installKicker: message(
 		'website.home.install.kicker',
 		'Lowercase label above the install heading.',

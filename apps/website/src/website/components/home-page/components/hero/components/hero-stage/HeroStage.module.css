@@ -49,6 +49,13 @@
 	color: var(--ob-sys-color-website-fg2);
 	font: var(--ob-sys-typography-website-label);
 }
+/* The note invites the visitor to press the button after it, set apart from the live status. */
+.hint {
+	padding-left: var(--ob-ref-length-website-14);
+	border-left: var(--ob-ref-length-website-1) solid var(--ob-sys-color-website-line-strong);
+	color: var(--ob-sys-color-website-fg2);
+	font: var(--ob-sys-typography-website-stage-hint);
+}
 .close {
 	height: var(--ob-ref-length-website-30);
 	padding: 0 var(--ob-ref-length-website-12);
@@ -198,6 +205,11 @@
 	}
 }
 @media (max-width: 40rem) {
+	.hint {
+		flex-basis: 100%;
+		padding-left: 0;
+		border-left: none;
+	}
 	.switch {
 		max-width: 100%;
 		overflow-x: auto;

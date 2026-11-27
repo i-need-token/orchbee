@@ -14,6 +14,7 @@ import { TerminalHighlights } from './components/terminal-highlights/TerminalHig
 import { TerminalKeys } from './components/terminal-keys/TerminalKeys';
 import { TerminalPanels } from './components/terminal-panels/TerminalPanels';
 import { TerminalStage } from './components/terminal-stage/TerminalStage';
+import { TerminalThemes } from './components/terminal-themes/TerminalThemes';
 
 // The terminal interface page, section by section.
 export function TerminalPage({
@@ -36,6 +37,7 @@ export function TerminalPage({
 			</PageHead>
 			<TerminalPanels />
 			<TerminalHighlights />
+			<TerminalThemes />
 			<TerminalKeys />
 			<OtherClients locale={locale} current='terminal' release={release} />
 		</>

@@ -4,11 +4,9 @@ import styles from './DesktopWindow.module.css';
 
 /**
  * The sizes a drawn desktop application comes in: `full` narrows to the mini and phone layouts;
- * `mini` starts at the mini layout and narrows to the phone layout; `play`, the window of a
- * PanelPlay, narrows to its phone layout; `side` is the sidebar alone, at its real size outside a
- * WindowFit.
+ * `play`, the window of a PanelPlay, narrows to its phone layout.
  */
-export type DesktopWindowSize = 'full' | 'mini' | 'play' | 'side';
+export type DesktopWindowSize = 'full' | 'play';
 
 /**
  * The Orchbee desktop application in its window: the optional sidebar beside the main area

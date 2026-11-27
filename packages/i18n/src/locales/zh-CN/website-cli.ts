@@ -6,6 +6,20 @@ export const zhCNWebsiteCliMessages = {
 	'website.cli.lead': '人可以执行的每一项操作，Agent 都可以通过 <code>orchbee</code> 命令行完成。',
 	'website.cli.stage.caption':
 		'<b>演示</b>Orchbee 之外的一个终端，向正在运行的会话查询其中的 Agent。',
+	'website.cli.collaboration.kicker': '协作',
+	'website.cli.collaboration.title': 'Agent 间协作',
+	'website.cli.collaboration.lead':
+		'不再逐个盯着彼此孤立的终端。Agent 可以 prompt 和拉起其他 Agent、读取彼此的输出、跨终端发送命令、分派任务并协同推进；你只需在一个地方掌握全局。',
+	'website.cli.collaboration.window': 'Claude Code 用 orchbee 命令启动 Codex 并向它提交 prompt',
+	'website.cli.collaboration.caption':
+		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>左侧的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在右侧的面板中启动。',
+	'website.cli.collaboration.captionStacked':
+		'<b>每一步都是一条 <code>orchbee</code> 命令。</b>上方的 Claude Code 通过自己的 Shell 工具执行这些命令，Codex 在下方的面板中启动。',
+	'website.cli.collaboration.step1': '在新面板中启动 Codex。',
+	'website.cli.collaboration.step2': '列出每个 Agent 的句柄，例如 <code>@panel:0x36</code>。',
+	'website.cli.collaboration.step3': '把 prompt 提交给这个 Agent。',
+	'website.cli.collaboration.step4': '等到这个 Agent 回到空闲状态，最多等两分钟。',
+	'website.cli.collaboration.step5': '读取它的终端最近 40 行输出。',
 	'website.cli.grammar.kicker': '语法',
 	'website.cli.grammar.title': '所有命令一个样',
 	'website.cli.grammar.lead':
