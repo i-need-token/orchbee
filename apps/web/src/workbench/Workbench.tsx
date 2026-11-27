@@ -607,7 +607,7 @@ export function Workbench({
 						aria-hidden='true'
 						className={styles['sidebarScrim']}
 						data-slot='workbench-sidebar-scrim'
-						onPointerDown={view.dismissSidebarOverlay}
+						onPointerDown={view.onSidebarScrimPointerDown}
 					/>
 					<div
 						className={styles['sidebarOverlay']}

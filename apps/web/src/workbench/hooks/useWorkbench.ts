@@ -241,8 +241,8 @@ interface WorkbenchView {
 	readonly onTabListKeyDown: (event: React.KeyboardEvent<HTMLElement>) => void;
 	/** The current Workspace's name, which heads the Tab list. */
 	readonly activeWorkspaceName: string | null;
-	/** Closes the sidebar opened over the content and gives the keyboard back to the terminal. */
-	readonly dismissSidebarOverlay: () => void;
+	/** A press on the scrim closes the sidebar over the content and gives the terminal the keys. */
+	readonly onSidebarScrimPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
 	/** Esc inside the overlay closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
 	readonly onSidebarOverlayKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 	/** The sidebar's width in pixels, which the overlay takes too. */
@@ -1227,7 +1227,10 @@ export function useWorkbench({
 			focusRouting.requestTerminalFocus();
 		},
 		activeWorkspaceName: findActiveWorkspaceName(projectWorkspaceState),
-		dismissSidebarOverlay: () => {
+		onSidebarScrimPointerDown: (event) => {
+			// The scrim is gone before the press's mousedown, which would land on the Workbench root and
+			// blur the terminal again, so the press is cancelled.
+			event.preventDefault();
 			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();
 		},
