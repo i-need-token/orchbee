@@ -1182,6 +1182,7 @@ For one trusted, existing, exactly normalized absolute per-user runtime base, th
 | Later Host slot            | `<runtime-base>/<session>/host-<n>` and `<socket-folder>/<slot-id>-host.sock` |
 | Keeper endpoint            | `<socket-folder>/<keeper-id>-host.sock`                                       |
 | Agent observation endpoint | `<socket-folder>/<id>-agent.sock`                                             |
+| `orchbee-files` start      | `<socket-folder>/<id>-files-<nonce>.sock`, one per start                      |
 
 `<id>` is the first 32 hex digits of SHA-256 over `orchbee-posix-runtime-v1`, a NUL byte, the
 runtime base as activation names it, `/`, and the lowercase Session name. Every socket name thus
@@ -1251,8 +1252,9 @@ file is created. The machine hub reads Sessions this way.
 
 Socket metadata and same-user peer proof are enforced by the managed consumers. Client, Server, and
 Worker share this crate, and Server owns the lifetime guard. `remove_endpoints` takes that held guard
-and unlinks only a socket owned by the effective user at the Session's five derived names, inspected
-with `fstatat` without following links; another entry kind stays, and the Host endpoint stays while
+and unlinks only a socket owned by the effective user at the Session's five derived names, a
+restart successor's Worker endpoint, or an `orchbee-files` start's endpoint, inspected with
+`fstatat` without following links; another entry kind stays, and the Host endpoint stays while
 another descriptor holds the Host's lock. The primitive does not itself select application startup
 policy, retry, or grant recovery authority.
 

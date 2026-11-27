@@ -179,6 +179,13 @@ impl ModeCheckedLocalSessionRendezvous {
     pub fn observation_endpoint_path(runtime: &Path) -> PathBuf {
         endpoint(runtime, "observation")
     }
+    /// The one-shot pipe a Server creates for one `orchbee-files` start, named by `nonce`, so a
+    /// restart's successor never meets the pipe of a start its predecessor still runs. A pipe
+    /// leaves no name behind once its last handle closes.
+    pub fn files_endpoint_path(runtime: &Path, nonce: [u8; 4]) -> PathBuf {
+        let nonce: String = nonce.iter().map(|byte| format!("{byte:02x}")).collect();
+        endpoint(runtime, &format!("files-{nonce}"))
+    }
     /// An explicit handoff ticket selects a separate private same-user pipe,
     /// scoped by the already admitted runtime. This never names a filesystem leaf.
     pub fn handoff_endpoint_path(runtime: &Path, ticket: [u8; 16]) -> PathBuf {

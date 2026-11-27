@@ -219,6 +219,13 @@ impl ModeCheckedLocalSessionRendezvous {
         socket_path(runtime_directory, SocketRole::Agent)
     }
 
+    /// The one-shot endpoint a Server binds for one `orchbee-files` start, named by `nonce`, so a
+    /// restart's successor never meets the endpoint of a start its predecessor still runs. Pure
+    /// path math.
+    pub fn files_endpoint_path(runtime_directory: &Path, nonce: [u8; 4]) -> PathBuf {
+        Self::socket_root_path().join(files_leaf(&runtime_endpoint_id(runtime_directory), nonce))
+    }
+
     /// The `[client, worker]` socket paths a runtime directory derives. Pure
     /// path math — it answers even when the runtime directory cannot be
     /// validated or is absent.
@@ -575,8 +582,9 @@ impl ModeCheckedLocalSessionRendezvous {
     }
 
     /// Removes the sockets a Session that ended without its stop left behind: the Client, pending,
-    /// Worker and Agent observation sockets, the Worker endpoints of restarts' successors,
-    /// and each Host slot's while no Terminal Host holds that slot's lock.
+    /// Worker and Agent observation sockets, the Worker endpoints of restarts' successors, the
+    /// endpoints of `orchbee-files` starts, and each Host slot's while no Terminal Host holds that
+    /// slot's lock.
     /// Only the Session lifetime owner removes them, before it binds and once more as it stops, so
     /// a socket a live Server or Host still serves is never touched. An entry goes only when it is
     /// a socket of this user; anything else stays and makes the bind fail.
@@ -613,7 +621,29 @@ impl ModeCheckedLocalSessionRendezvous {
             self.remove_socket(sockets, role)?;
         }
         self.remove_successor_worker_sockets(sockets, kept)?;
+        self.remove_files_sockets(sockets)?;
         self.remove_free_host_socket(sockets)
+    }
+
+    /// Removes the endpoints `orchbee-files` starts bound, which a Server killed during a start
+    /// leaves: each socket of this user named `<id>-files-<nonce>.sock`.
+    fn remove_files_sockets(&self, sockets: &OwnedFd) -> std::io::Result<()> {
+        let prefix = format!("{}-files-", self.paths.endpoint_id);
+        for entry in std::fs::read_dir(Self::socket_root_path())? {
+            let leaf = entry?.file_name();
+            let Some(leaf) = leaf.to_str() else {
+                continue;
+            };
+            let nonce = leaf
+                .strip_prefix(prefix.as_str())
+                .and_then(|rest| rest.strip_suffix(".sock"));
+            if nonce.is_some_and(|nonce| {
+                nonce.len() == 8 && nonce.bytes().all(|byte| byte.is_ascii_hexdigit())
+            }) {
+                self.remove_leaf(sockets, leaf)?;
+            }
+        }
+        Ok(())
     }
 
     /// Removes the Worker endpoints earlier restarts' successors bound, which a Server a restart
@@ -1071,6 +1101,12 @@ fn successor_worker_leaf(id: &str, ticket: [u8; 16]) -> String {
         .map(|byte| format!("{byte:02x}"))
         .collect();
     format!("{id}-worker-{ticket}.sock")
+}
+
+/// The leaf of the endpoint one `orchbee-files` start binds.
+fn files_leaf(id: &str, nonce: [u8; 4]) -> String {
+    let nonce: String = nonce.iter().map(|byte| format!("{byte:02x}")).collect();
+    format!("{id}-files-{nonce}.sock")
 }
 
 fn socket_path(runtime_directory: &Path, role: SocketRole) -> PathBuf {
