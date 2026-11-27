@@ -1,0 +1,33 @@
+.root {
+	box-sizing: border-box;
+	display: grid;
+	place-items: center;
+	height: 100%;
+	overflow: auto;
+	padding: var(--ob-ref-space-4);
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+.content {
+	display: grid;
+	justify-items: center;
+	max-width: var(--ob-ref-layout-prose-width);
+	min-width: 0;
+	gap: var(--ob-ref-space-3);
+	text-align: center;
+}
+
+.message {
+	margin: 0;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-md);
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: var(--ob-ref-space-2);
+}

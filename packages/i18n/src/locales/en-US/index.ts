@@ -4,6 +4,8 @@ export { enUSAgentObservationMessages } from './agent-observation';
 export type { AgentObservationMessageId } from './agent-observation';
 export { enUSAgentStartMessages } from './agent-start';
 export type { AgentStartMessageId } from './agent-start';
+export { enUSCodeEditorMessages } from './code-editor';
+export type { CodeEditorMessageId } from './code-editor';
 
 export { enUSDesktopDiagnosticsMessages } from './desktop-diagnostics';
 export type { DesktopDiagnosticsMessageId } from './desktop-diagnostics';

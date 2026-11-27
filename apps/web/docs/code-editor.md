@@ -33,9 +33,23 @@ out keep Monaco's defaults for the polarity.
 
 ## File languages
 
-Monaco declares JSON only in its language service, which the editor leaves out, so
+A file opens in the language its name selects, by VS Code's association rule and never from its
+content. Monaco declares JSON only in its language service, which the editor leaves out, so
 `registerJsonLanguages` declares JSON, JSON with Comments and JSON Lines with a tokenizer of its
 own.
+
+## Documents and views
+
+`loadCodeEditor` resolves to the documents and views together with Monaco, so they load with the
+editor rather than in the main bundle.
+
+A document holds one file's content, and every tab that shows the file shares it through
+`CodeEditorModelRegistry`; the last tab to let go disposes of it.
+
+A view keeps one editor for as long as it is mounted and moves it between documents, so switching
+tabs creates no editor. Each file's scroll and selection outlive its tab, up to VS Code's 100 files.
+A tab's owner may dispose of a document before the view unmounts, so a view saves the view state
+when its model is about to be disposed of.
 
 ## Codicons
 
@@ -68,14 +82,16 @@ a change that grows them reports the new sizes.
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
 | 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
 | Largest grammar chunk                            | 18,564 B    | 4,463 B     |
-| Theme and JSON languages, loaded with the editor | 9,155 B     | 2,956 B     |
-| Main bundle growth                               | 7,536 B     | 3,057 B     |
+| Theme, JSON languages, documents and views       | 14,051 B    | 4,796 B     |
+| Views' stylesheet                                | 655 B       | 367 B       |
+| Main bundle growth                               | 12,443 B    | 4,242 B     |
 | Main stylesheet growth                           | 5,154 B     | 795 B       |
-| Production web build growth                      | 4,647,938 B | 1,258,837 B |
+| Production web build growth                      | 4,658,395 B | 1,262,229 B |
 
-The main bundle grows because the added modules lengthen every module ID by a digit and the
-loader's chunk map lists the new chunks; the File Bar's limit for it is 10 KB gzip. The main
-stylesheet grows by the syntax roles of both appearances and every named theme.
+The main bundle grows because the added modules lengthen every module ID by a digit, the loader's
+chunk map lists the new chunks, and `@orchbee/i18n` carries the editor's messages with every other
+domain's; the File Bar's limit for it is 10 KB gzip. The main stylesheet grows by the syntax roles
+of both appearances and every named theme.
 
 ## Upgrading Monaco
 

@@ -8,6 +8,7 @@ import type { OrchbeeMessageId } from '../en-US';
 import { zhCNAgentObservationMessages } from './agent-observation';
 import { zhCNAgentStartMessages } from './agent-start';
 import { zhCNApplicationRoutingMessages } from './application-routing';
+import { zhCNCodeEditorMessages } from './code-editor';
 
 import { zhCNDesktopDiagnosticsMessages } from './desktop-diagnostics';
 import { zhCNDesktopMenuMessages } from './desktop-menu';
@@ -33,6 +34,7 @@ export const zhCNMessages = {
 	...zhCNAgentObservationMessages,
 	...zhCNAgentStartMessages,
 	...zhCNApplicationRoutingMessages,
+	...zhCNCodeEditorMessages,
 
 	...zhCNDesktopDiagnosticsMessages,
 	...zhCNDesktopMenuMessages,

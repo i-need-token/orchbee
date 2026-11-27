@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { enUSMessages } from '../../locales';
 import { agentObservationMessages } from '../agent-observation';
 import { applicationRoutingMessages } from '../application-routing';
+import { codeEditorMessages } from '../code-editor';
 
 import { desktopDiagnosticsMessages } from '../desktop-diagnostics';
 import { desktopMenuMessages } from '../desktop-menu';
@@ -25,6 +26,7 @@ const descriptorCollections: readonly (readonly [
 ])[] = [
 	['agent observation', agentObservationMessages],
 	['application routing', applicationRoutingMessages],
+	['code editor', codeEditorMessages],
 
 	['Desktop diagnostics', desktopDiagnosticsMessages],
 	['Desktop menu', desktopMenuMessages],

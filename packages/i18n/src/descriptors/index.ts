@@ -1,6 +1,7 @@
 export { applicationRoutingMessages } from './application-routing';
 export { agentObservationMessages } from './agent-observation';
 export { agentStartMessages } from './agent-start';
+export { codeEditorMessages } from './code-editor';
 
 export { desktopDiagnosticsMessages } from './desktop-diagnostics';
 export { desktopMenuMessages } from './desktop-menu';
