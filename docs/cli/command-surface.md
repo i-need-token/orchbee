@@ -26,6 +26,17 @@ be unlisted on some commands and listed on others. An unlisted surface stays acc
 unlisted command still answers its own `--help`, but help directories, usage advice, and
 completion never name it there.
 
+A cross-build name is an option, command path, or environment variable that one build passes to
+another, such as a helper an updater runs in the version it installs or a variable a launcher sets
+for the program it starts. Once a release has shipped one, every later build accepts that spelling
+for good, unlisted where the name is, and gives an older build the spelling that build reads:
+chosen by that build's version as a record names it or the build itself reports it, or by asking
+again in the earlier spelling after the usage failure a build returns before any effect, never by
+guessing. A cross-build name's grammar never changes; a new meaning takes a new name. Renaming or
+removing a released cross-build name is a reserved
+[compatibility decision](../DEVELOPMENT.md#decision-authority), raised with the decision owner
+before the change.
+
 A release build may withhold the command surface of a feature that is not yet polished, when the
 owning application guide names it. The grammar authority marks the withheld paths and values; a
 release then leaves them out of help, completion, and its Agent guide, and refuses an invocation
