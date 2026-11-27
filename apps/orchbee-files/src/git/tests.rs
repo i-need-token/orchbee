@@ -6,7 +6,7 @@
 mod consents;
 mod discovery;
 mod engine;
-mod fixture;
+pub(super) mod fixture;
 mod mutations;
 mod reads;
 mod relay;

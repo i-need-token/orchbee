@@ -1,5 +1,6 @@
 //! A temporary repository with its own identity, no signing and no hooks, so the Git configuration
-//! of whoever runs the tests cannot change what a test observes. It is removed when dropped.
+//! of whoever runs the tests cannot change what a test observes. It is removed when dropped. Every
+//! Git command a test starts, the engine's own included, runs [`isolate`]d from that configuration.
 
 use super::super::{
     command::{self, Access},
@@ -10,12 +11,28 @@ use super::super::{
 use std::{
     fs,
     path::{Path, PathBuf},
+    process::Command,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, AtomicU64, Ordering},
     },
     time::Duration,
 };
+
+/// Keeps a Git command from reading the configuration of whoever runs the tests: no system or
+/// global configuration or attributes, none passed through the environment, and a home that does
+/// not exist, where Git would find the global ignore and attributes files.
+pub(in crate::git) fn isolate(command: &mut Command) {
+    let home = std::env::temp_dir().join("orchbee-files-tests-no-home");
+    command
+        .env_remove("GIT_CONFIG_PARAMETERS")
+        .env_remove("GIT_CONFIG_COUNT")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_ATTR_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", home.join(".gitconfig"))
+        .env("HOME", &home)
+        .env("XDG_CONFIG_HOME", &home);
+}
 
 pub(super) struct Fixture {
     folder: PathBuf,

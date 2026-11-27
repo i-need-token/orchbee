@@ -30,9 +30,20 @@ fn input_larger_than_a_pipe_buffer_reaches_the_command_whole() {
         })
         .collect::<Vec<_>>();
     fs::write(&file, &input).unwrap();
+    // The Git configuration of whoever runs the test, which could filter the file, is never read:
+    // no system or global configuration or attributes, and a home that does not exist.
+    let home = std::env::temp_dir().join("orchbee-git-process-tests-no-home");
     let hash = |arguments: &[&std::ffi::OsStr], input: Vec<u8>| {
         let mut command = Command::new(GIT_PROGRAM);
-        command.args(arguments);
+        command
+            .args(arguments)
+            .env_remove("GIT_CONFIG_PARAMETERS")
+            .env_remove("GIT_CONFIG_COUNT")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_ATTR_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", home.join(".gitconfig"))
+            .env("HOME", &home)
+            .env("XDG_CONFIG_HOME", &home);
         let output = Run::new(command)
             .input(input)
             .wait(BOUNDS, || Ok::<(), ()>(()))

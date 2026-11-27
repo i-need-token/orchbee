@@ -77,6 +77,9 @@ pub(super) fn git(directory: &Path, access: Access, relay: Option<&RelayVariable
             .env(RELAY_VARIABLE, &relay.endpoint)
             .env(RELAY_TOKEN_VARIABLE, &relay.token);
     }
+    // A unit test never reads the Git configuration of whoever runs it.
+    #[cfg(test)]
+    super::tests::fixture::isolate(&mut command);
     command
 }
 
