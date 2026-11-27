@@ -2,7 +2,9 @@
 //! by the registry conformance test, and this build's development fingerprints, which `build.rs`
 //! computes from the registry's input directories.
 
-use crate::{CapabilityName, CapabilitySet, ContractName, Fingerprint, GenerationRange};
+use crate::{
+    CapabilityName, CapabilitySet, ContractName, EnvironmentName, Fingerprint, GenerationRange,
+};
 
 include!(concat!(env!("OUT_DIR"), "/fingerprints.rs"));
 
@@ -71,8 +73,8 @@ pub const CONFIGURED_COMMAND_SOURCE_EXITED: &str = "configured-command-source-ex
 /// The `client-server` capability before a Client may open File Bar streams, whose OBFB records
 /// carry the operations `schemas/files` states, and a Server may answer them. It requires
 /// `stream-outcome-unknown`, with which a Server closes a File Bar mutation whose outcome it cannot
-/// report. No build offers it before its Server relays those streams to `orchbee-files`, and a
-/// Server built for the release environment never lists it.
+/// report, so an answer without that name never lists it. The File Bar is unfinished, so a build
+/// for the release environment neither offers nor lists it.
 pub const FILES: &str = "files";
 
 /// The `client-server` capability before a Server may refuse a terminal create with
@@ -216,6 +218,7 @@ impl ConnectionKind {
                 AGENT_INPUT_AREA,
                 COMPATIBILITY_WINDOW,
                 CONFIGURED_COMMAND_SOURCE_EXITED,
+                FILES,
                 PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
                 RECONNECT,
@@ -243,6 +246,18 @@ impl ConnectionKind {
             Self::Keeper => &[PROGRAMS, PTY, RECOVERY, REEXEC],
         };
         capability_set(names)
+    }
+
+    /// The capability names this build offers and accepts in `environment`: [`Self::capabilities`]
+    /// less [`FILES`] in the release environment.
+    #[must_use]
+    pub fn capabilities_in(self, environment: &EnvironmentName) -> CapabilitySet {
+        let capabilities = self.capabilities();
+        if environment.is_release() {
+            capabilities.without(FILES)
+        } else {
+            capabilities
+        }
     }
 
     /// Every capability name the registry declares for this connection, including names this

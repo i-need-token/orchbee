@@ -4,9 +4,9 @@
 
 use crate::{
     AcceptorMessage, Answer, Build, BuildEnvironment, CapabilitySet, ConnectionKind, DrainResult,
-    EnvironmentName, ExitResult, Extensions, GenerationRange, HandoverResult, InitiatorMessage,
-    Offer, ProcessState, ProductVersion, QueryResult, Rejection, RejectionReason, RequestKind,
-    Unsupported,
+    EnvironmentName, ExitResult, Extensions, FILES, GenerationRange, HandoverResult,
+    InitiatorMessage, Offer, ProcessState, ProductVersion, QueryResult, Rejection, RejectionReason,
+    RequestKind, STREAM_OUTCOME_UNKNOWN, Unsupported,
 };
 
 /// What an acceptor knows about itself when it judges a frame.
@@ -51,8 +51,8 @@ pub enum Decision {
 }
 
 impl AcceptorProfile {
-    /// This build's profile for `connection`: the registry's generations and capability names,
-    /// and the environment identity `environment` implies.
+    /// This build's profile for `connection`: the registry's generations, the capability names
+    /// this build accepts in `environment`, and the environment identity `environment` implies.
     #[must_use]
     pub fn local(
         connection: ConnectionKind,
@@ -63,7 +63,7 @@ impl AcceptorProfile {
         Self {
             connection,
             generations: connection.supported_generations(),
-            capabilities: connection.capabilities(),
+            capabilities: connection.capabilities_in(&environment),
             product_version,
             build,
             environment: BuildEnvironment::for_build(
@@ -149,9 +149,13 @@ impl AcceptorProfile {
         if load.state != ProcessState::Ready {
             return Decision::Reject(self.reject(RejectionReason::Stopping));
         }
+        let mut capabilities = offer.capabilities.intersection(&self.capabilities);
+        if !capabilities.contains(STREAM_OUTCOME_UNKNOWN) {
+            capabilities = capabilities.without(FILES);
+        }
         Decision::Accept(Answer {
             generation,
-            capabilities: offer.capabilities.intersection(&self.capabilities),
+            capabilities,
             product_version: self.product_version.clone(),
             build: self.build.clone(),
             extensions: Extensions::new(),
@@ -174,8 +178,8 @@ impl AcceptorProfile {
 }
 
 impl Offer {
-    /// This build's offer for `connection`: the registry's generations and capability names, and
-    /// the environment identity `environment` implies.
+    /// This build's offer for `connection`: the registry's generations, the capability names this
+    /// build offers in `environment`, and the environment identity `environment` implies.
     #[must_use]
     pub fn local(
         connection: ConnectionKind,
@@ -186,7 +190,7 @@ impl Offer {
         Self {
             connection: connection.contract_name(),
             generations: connection.supported_generations(),
-            capabilities: connection.capabilities(),
+            capabilities: connection.capabilities_in(&environment),
             product_version,
             build,
             environment: BuildEnvironment::for_build(

@@ -181,6 +181,18 @@ impl CapabilitySet {
         Self(self.0.intersection(&other.0).cloned().collect())
     }
 
+    /// This set without `name`.
+    #[must_use]
+    pub fn without(&self, name: &str) -> Self {
+        Self(
+            self.0
+                .iter()
+                .filter(|candidate| candidate.as_str() != name)
+                .cloned()
+                .collect(),
+        )
+    }
+
     /// Whether every name in this set is in `other`.
     #[must_use]
     pub fn is_subset(&self, other: &Self) -> bool {
