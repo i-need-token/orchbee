@@ -147,14 +147,34 @@ fn outermost<'a>(rows: &[AgentProcessRow], candidates: &[Candidate<'a>]) -> Opti
 /// they leave no outermost candidate the attached ones decide: an Agent in a terminal of a program
 /// started here stays in this sample after its launcher exits.
 pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentSampleVerdict {
+    evaluate_agent_sample_for_run(rows, at_limit, None)
+}
+
+/// [`evaluate_agent_sample`] for a Terminal whose run an earlier sample settled on the process
+/// `run`. While that process is in the sample, a row whose chain never reaches a process of the
+/// run's own chain, such as a program whose parent ended, cannot be placed beside the run: it
+/// neither competes with the run's anchor nor leaves the sample unresolved. A row placed outside
+/// the run's subtree still does both.
+pub fn evaluate_agent_sample_for_run(
+    rows: &[AgentProcessRow],
+    at_limit: bool,
+    run: Option<u32>,
+) -> AgentSampleVerdict {
     let unresolved = |anchor, reason| AgentSampleVerdict::Unresolved { anchor, reason };
     if rows.iter().enumerate().any(|(i, p)| {
         p.pid == 0 || p.creation_time == 0 || rows[..i].iter().any(|q| q.pid == p.pid)
     }) {
         return unresolved(None, AgentIdentityUnknownReason::AmbiguousCandidates);
     }
+    let run_chain = run.and_then(|pid| chain(rows, pid));
+    let placed = |row: &&AgentProcessRow| {
+        run_chain.as_ref().is_none_or(|run_chain| {
+            chain(rows, row.pid).is_some_and(|own| own.iter().any(|pid| run_chain.contains(pid)))
+        })
+    };
     let candidates: Vec<_> = rows
         .iter()
+        .filter(placed)
         .filter_map(|row| row.candidate().map(|c| (row, c)))
         .collect();
     let outermost = outermost(rows, &candidates).or_else(|| {
@@ -197,6 +217,7 @@ pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentS
     };
     if let Some(reason) = rows
         .iter()
+        .filter(placed)
         .filter(outside)
         .filter(|row| !launcher(row))
         .find_map(|row| row.blocker())
@@ -216,6 +237,27 @@ pub fn evaluate_agent_sample(rows: &[AgentProcessRow], at_limit: bool) -> AgentS
         }
         None => AgentSampleVerdict::None,
     }
+}
+
+/// The process `pid` and each parent above it that the sample holds, through nondecreasing creation
+/// times; `None` without that row or when the chain is invalid, as [`descends_from`] decides.
+fn chain(rows: &[AgentProcessRow], pid: u32) -> Option<Vec<u32>> {
+    let mut current = rows.iter().find(|p| p.pid == pid)?;
+    let mut chain = vec![pid];
+    for _ in 0..rows.len() {
+        let Some(parent) = current
+            .parent_pid
+            .and_then(|pid| rows.iter().find(|p| p.pid == pid))
+        else {
+            return Some(chain);
+        };
+        if parent.creation_time > current.creation_time || chain.contains(&parent.pid) {
+            return None;
+        }
+        chain.push(parent.pid);
+        current = parent;
+    }
+    None
 }
 
 /// Whether `child` is `ancestor` or descends from it through rows with nondecreasing creation

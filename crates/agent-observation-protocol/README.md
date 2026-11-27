@@ -202,7 +202,11 @@ cycles, reused-parent creation order, and ambiguous siblings; opaque and unresol
 anchor's subtree, and a sample at the row limit, leave it unresolved; rows inside the subtree never
 hold an outer Agent, and neither does an ancestor whose only doubt is an unverified name for the
 anchor's own provider, such as a version manager's `pi.exe` shim or the `cmd /c pi.cmd` it starts,
-since it launched that Agent. The Server identity state settles verdicts into runs and results; native
+since it launched that Agent. `evaluate_agent_sample_for_run` applies the same rules to a Terminal
+whose run an earlier sample settled: while the run's anchor is in the sample, a row whose chain never
+reaches a process of the anchor's own chain, such as a program whose parent ended, cannot be placed
+beside the run, so it neither competes with the anchor nor leaves the sample unresolved; a row
+placed beside or above the run still does both. The Server identity state settles verdicts into runs and results; native
 Clients classify each sampled process for diagnostics with the existing OS parser, but read that
 result and its run anchor rather than selecting from their own samples. Only the Server adapter admits proven Host samples under its identity and timing fences. Table-driven fixtures cover every Windows support matrix row and counterexample in
 the [process identity proposal](../../proposals/agent/agent-process-identity.md); the Host sampler

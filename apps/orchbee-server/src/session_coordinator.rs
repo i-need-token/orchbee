@@ -65,6 +65,8 @@ mod semantic_events;
 mod worker_adoption;
 #[cfg(all(test, windows))]
 pub(crate) use process_observation::SETTLE as PROCESS_IDENTITY_SETTLE;
+#[cfg(all(test, windows))]
+pub(crate) use process_observation::STALE as PROCESS_IDENTITY_STALE;
 pub(crate) use process_observation::decoded_argv;
 pub(crate) use process_observation::{
     ProcessObservationTarget, Selected as HostAgentRun, host_time_as_creation,

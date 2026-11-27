@@ -10,6 +10,8 @@
 //!   identifier never continues or transfers a run.
 //! - Failed samples never end a run; after [`STALE`] without success the result is
 //!   `unknown` with `sample-failed`.
+//! - Ambiguity is timed from the first sample of an unbroken ambiguous stretch, so a published run
+//!   whose screen no sample can attribute stops standing for its last state after [`STALE`].
 //! - A run is published to Panel reports at most once and stays published until it ends.
 //! - A run is `confirmed` only while the shell-echoed command it started in is still open, and
 //!   only when its anchor descends from the shell through processes all created after the Host
@@ -67,6 +69,8 @@ pub(crate) struct IdentityState {
     run: Option<Run>,
     pending: Option<Pending>,
     last_success: Option<Instant>,
+    /// The first sample of the current unbroken stretch of `ambiguous-candidates` results.
+    ambiguous_since: Option<Instant>,
     minted: u32,
 }
 
@@ -77,6 +81,7 @@ impl Default for IdentityState {
             run: None,
             pending: None,
             last_success: None,
+            ambiguous_since: None,
             minted: 0,
         }
     }
@@ -88,9 +93,15 @@ impl IdentityState {
         self.result
     }
 
-    #[cfg(test)]
+    /// The settled run, published or not.
     pub(crate) const fn run(&self) -> Option<Run> {
         self.run
+    }
+
+    /// How long the result has been `ambiguous-candidates` without a break, at `at`.
+    pub(crate) fn ambiguous_for(&self, at: Instant) -> Option<Duration> {
+        self.ambiguous_since
+            .map(|since| at.saturating_duration_since(since))
     }
 
     /// The run Panel reports and screen fallback attribute to this Terminal.
@@ -105,6 +116,19 @@ impl IdentityState {
 
     /// Applies one successful sample and returns the run it ended, if any.
     pub(crate) fn observe(
+        &mut self,
+        at: Instant,
+        rows: &[AgentProcessRow],
+        verdict: AgentSampleVerdict,
+        open: Option<Open>,
+    ) -> Option<Run> {
+        let ended = self.apply(at, rows, verdict, open);
+        self.ambiguous_since = (self.result == Identity::Unknown(Reason::AmbiguousCandidates))
+            .then(|| self.ambiguous_since.unwrap_or(at));
+        ended
+    }
+
+    fn apply(
         &mut self,
         at: Instant,
         rows: &[AgentProcessRow],
@@ -202,6 +226,7 @@ impl IdentityState {
             return false;
         }
         self.result = stale;
+        self.ambiguous_since = None;
         true
     }
 

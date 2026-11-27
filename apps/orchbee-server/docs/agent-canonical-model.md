@@ -302,7 +302,13 @@ anchor can be named. The state turns verdicts into one result: `agent` with grad
   sibling proven detached from the Terminal's console cannot draw its screen, so it does not
   compete with an attached candidate: an Agent in a terminal of a program started here, such as a
   development Orchbee, stays in this sample after its launcher exits and would otherwise leave the
-  screen unread and the state frozen.
+  screen unread and the state frozen. Once a run exists, each sample is placed against its anchor:
+  a row whose chain never reaches a process of the anchor's own chain, such as an Agent process
+  that a status-line command left behind when its parent ended, cannot be placed beside the run and
+  neither competes nor blocks. Screen capture places its samples against the same run. A run whose
+  samples stay `ambiguous-candidates` cannot have its screen read; after 2 seconds of unbroken
+  ambiguity its state reads `unknown` rather than the last state read, until a sample names the run
+  again.
 - Staleness: failed samples never end a run; they keep the last result for at most two seconds and
   then yield `unknown` with `sample-failed`. The screen goes unread meanwhile, so the published run's
   [screen fallback](agent-report-model.md#periodic-windows-sampling-owner) turns Unknown at that point.

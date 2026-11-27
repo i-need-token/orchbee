@@ -181,7 +181,7 @@ impl Timeline {
             }],
             launch_kind: None,
         };
-        let agent: HostAgentRun = identify_host_agent(&process).unwrap();
+        let agent: HostAgentRun = identify_host_agent(&process, None).unwrap();
         let identity = HostTerminalIdentity::new(
             HostCreationId::from_bytes([7; 16]).unwrap(),
             HostEpoch::from_bytes(epoch).unwrap(),

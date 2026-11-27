@@ -26,7 +26,7 @@ fn identified(members: Vec<TerminalProcess>) -> Option<(u32, AgentReportProvider
         root_pid: 10,
         processes: std::iter::once(shell).chain(members).collect(),
     };
-    identify(&sample).map(|selected| (selected.pid(), selected.provider))
+    identify(&sample, None).map(|selected| (selected.pid(), selected.provider))
 }
 
 #[test]
@@ -157,7 +157,11 @@ fn bin_links_of_shared_aliases_resolve_through_the_working_folder() {
     let resolver = OperandResolver::spawn(file_real_path).unwrap();
     let resolve_script_operands = |sample: &TerminalProcessInfo| resolve_with(&resolver, sample);
     let unresolved = sample(&["node", "bin/copilot"], Some(root));
-    assert_eq!(identify(&unresolved), None, "the name alone proves nothing");
+    assert_eq!(
+        identify(&unresolved, None),
+        None,
+        "the name alone proves nothing"
+    );
     let resolved = resolve_script_operands(&unresolved).unwrap();
     let entry = package.join("index.js");
     assert_eq!(
@@ -165,7 +169,7 @@ fn bin_links_of_shared_aliases_resolve_through_the_working_folder() {
         Some(vec!["node".to_owned(), entry.to_str().unwrap().to_owned()])
     );
     assert_eq!(
-        identify(&resolved).map(|selected| (selected.pid(), selected.provider)),
+        identify(&resolved, None).map(|selected| (selected.pid(), selected.provider)),
         Some((20, AgentReportProvider::Copilot))
     );
     let absolute = format!("{root}/bin/copilot");

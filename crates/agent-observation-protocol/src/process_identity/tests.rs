@@ -209,6 +209,51 @@ fn an_unproven_launcher_above_the_agent_it_names_never_hides_that_agent() {
         AgentSampleVerdict::Unresolved { .. }
     ));
 }
+/// A settled run keeps its anchor beside rows the sample cannot place: Antigravity CLI's
+/// status-line command left a Command Code process whose `cmd.exe` parent is gone. A candidate the
+/// sample places beside the run, under the same shell, still competes with it.
+#[test]
+fn a_settled_run_keeps_its_anchor_beside_rows_it_cannot_place() {
+    let orphan = row(
+        5,
+        Some(4),
+        unresolved(Some(P::CommandCode), U::UnclassifiedArguments),
+    );
+    let rows = vec![
+        row(1, None, NOT),
+        row(2, Some(1), interactive(P::Antigravity, S::NativeImage)),
+        orphan,
+        row(6, Some(5), NOT),
+    ];
+    let ambiguous = AgentSampleVerdict::Unresolved {
+        anchor: None,
+        reason: AgentIdentityUnknownReason::AmbiguousCandidates,
+    };
+    let agy = anchor(2, P::Antigravity, AgentAnchorEvidence::Interactive);
+    // Before a run settles, the orphan's chain proves nothing either way.
+    assert_eq!(evaluate_agent_sample(&rows, false), ambiguous);
+    assert_eq!(evaluate_agent_sample_for_run(&rows, false, Some(2)), agy);
+    // An opaque row it cannot place leaves the sample resolved as well.
+    let mut opaque = rows.clone();
+    opaque[2] = AgentProcessRow {
+        opaque: true,
+        recognition: NOT,
+        ..orphan
+    };
+    assert_eq!(evaluate_agent_sample_for_run(&opaque, false, Some(2)), agy);
+    // Under the shell, beside the run, the same process competes again.
+    let mut beside = rows.clone();
+    beside[2].parent_pid = Some(1);
+    assert_eq!(
+        evaluate_agent_sample_for_run(&beside, false, Some(2)),
+        ambiguous
+    );
+    // Without the run's anchor in the sample, nothing is placed against it.
+    assert_eq!(
+        evaluate_agent_sample_for_run(&rows, false, Some(3)),
+        ambiguous
+    );
+}
 fn interactive(provider: P, shape: S) -> AgentProcessRecognition {
     AgentProcessRecognition::Interactive { provider, shape }
 }

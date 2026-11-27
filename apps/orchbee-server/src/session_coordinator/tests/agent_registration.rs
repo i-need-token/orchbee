@@ -733,6 +733,65 @@ mod process_samples {
             later
         ));
     }
+    /// A program whose parent ended cannot be placed beside the settled run, so the run's screen
+    /// stays read. A candidate beside the run leaves its screen unread; once that outlasts the
+    /// hold, the run reads unknown rather than its last state until a sample names it again.
+    #[test]
+    fn unplaced_rows_keep_the_screen_read_and_lasting_ambiguity_never_freezes_the_state() {
+        use crate::agent_screen::Detection;
+        use crate::session_coordinator::PROCESS_IDENTITY_STALE as STALE;
+        let (mut session, target, mut sample) = fixture();
+        let now = Instant::now();
+        let ms = Duration::from_millis;
+        let shown = |state| Detection {
+            state,
+            skip: false,
+            visible_working: state == PanelAgentState::Working,
+            visible_idle: state == PanelAgentState::Idle,
+            visible_blocker: false,
+        };
+        assert!(session.observe_host_process(target, &sample, now - SETTLE, now - SETTLE));
+        let mut observe = |sample: &TerminalProcessInfo, after: Duration, state| {
+            let at = now + after;
+            assert!(session.observe_host_screen(target, sample, Some(shown(state)), at, at));
+            read(&mut session).1.state
+        };
+        assert_eq!(
+            observe(&sample, ms(0), PanelAgentState::Working),
+            PanelAgentState::Working
+        );
+        // An Agent process a status-line command left behind after its parent ended.
+        let mut orphan = sample.processes[1].clone();
+        orphan.pid = 40;
+        orphan.parent_pid = Some(35);
+        orphan.creation_time = 400;
+        orphan.image = Some("C:/tools/codex.exe".into());
+        orphan.command_line = Some("codex.exe".into());
+        sample.processes.push(orphan);
+        assert_eq!(
+            observe(&sample, ms(100), PanelAgentState::Idle),
+            PanelAgentState::Idle
+        );
+        // Under the shell, beside the run, the same process leaves the screen unread.
+        sample.processes[2].parent_pid = Some(10);
+        let held = ms(200) + STALE;
+        for after in [ms(200), held - ms(1)] {
+            assert_eq!(
+                observe(&sample, after, PanelAgentState::Working),
+                PanelAgentState::Idle
+            );
+        }
+        assert_eq!(
+            observe(&sample, held, PanelAgentState::Working),
+            PanelAgentState::Unknown
+        );
+        // A sample that names the run again is read again.
+        sample.processes.pop();
+        assert_eq!(
+            observe(&sample, held + ms(100), PanelAgentState::Idle),
+            PanelAgentState::Idle
+        );
+    }
     #[test]
     fn screen_grace_idle_hold_missing_samples_and_generation_reset() {
         use crate::agent_screen::Detection;

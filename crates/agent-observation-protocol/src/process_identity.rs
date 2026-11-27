@@ -23,7 +23,7 @@ pub use result::{
 };
 pub use sample::{
     AgentAnchor, AgentAnchorEvidence, AgentProcessRow, AgentSampleVerdict, descends_from,
-    evaluate_agent_sample,
+    evaluate_agent_sample, evaluate_agent_sample_for_run,
 };
 pub use shell::{
     InteractiveShells, ShellRoot, classify_shell_root, idle_shell_only, is_console_host,

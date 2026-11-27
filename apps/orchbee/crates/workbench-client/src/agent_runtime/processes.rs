@@ -5,7 +5,7 @@
 
 use orchbee_agent_observation_protocol::{
     AgentIdentityUnknownReason, AgentProcessAnchor, AgentProcessIdentity, AgentProcessRow,
-    AgentReportProvider, AgentSampleVerdict, classify_agent_process, evaluate_agent_sample,
+    AgentReportProvider, AgentSampleVerdict, classify_agent_process, evaluate_agent_sample_for_run,
 };
 #[cfg(test)]
 mod tests;
@@ -145,7 +145,7 @@ pub fn input_provider(
         _ => return Err(InputRefusal::Unidentified),
     }
     let at_limit = sample.processes.len() >= MAXIMUM_PROCESS_SAMPLE_ROWS;
-    match evaluate_agent_sample(&rows, at_limit) {
+    match evaluate_agent_sample_for_run(&rows, at_limit, Some(anchor.pid)) {
         AgentSampleVerdict::Anchor(found) if found.pid == anchor.pid => match found.result() {
             AgentProcessIdentity::Agent { .. } => Ok(anchor.provider.native_provider_id()),
             _ => Err(InputRefusal::Unidentified),

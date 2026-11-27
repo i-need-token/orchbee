@@ -478,7 +478,8 @@ ends it, and keeps it under `unknown` results, so input requires current evidenc
 2. The Server's result must be `agent` for the anchor's provider. `unknown` with
    `ambiguous-candidates` refuses as `agent-runtime-ambiguous`; any other `unknown` refuses as
    `agent-identity-unknown`.
-3. The shared sample verdict over that sample must name the same anchor as an interactive Agent.
+3. The shared sample verdict over that sample, placed against the Server's anchor as the Server
+   places its own samples, must name the same anchor as an interactive Agent.
    Another outermost candidate or several candidates refuse as `agent-runtime-ambiguous`; any
    other unresolved verdict refuses as `agent-identity-unknown`.
 4. The expected canonical provider must match the admitted one.

@@ -4,7 +4,7 @@ use crate::agent_screen::{Detection, Stability};
 use crate::terminal_coordinator::BindingViewerTarget;
 use orchbee_agent_observation_protocol::{
     AgentProcessRow, AgentReportProvider, AgentSampleVerdict, ShellRoot, classify_agent_process,
-    evaluate_agent_sample,
+    evaluate_agent_sample_for_run,
 };
 use orchbee_server::{TerminalAgentBinding, TerminalAgentProcessObservation};
 use orchbee_terminal_protocol::{
@@ -23,6 +23,8 @@ mod script_operands;
 mod tests;
 #[cfg(all(test, windows))]
 pub(crate) use identity::SETTLE;
+#[cfg(all(test, windows))]
+pub(crate) use identity::STALE;
 pub(crate) use run_processes::RunAnchor;
 pub(crate) use run_processes::RunProcesses;
 pub(crate) use script_operands::resolve_script_operands;
@@ -146,16 +148,33 @@ pub(crate) fn host_time_as_creation(unix_nanoseconds: std::num::NonZeroU64) -> O
     (unix_nanoseconds.get() / 100).checked_add(UNIX_EPOCH_FILETIME)
 }
 
-fn evaluate(sample: &TerminalProcessInfo) -> (Vec<AgentProcessRow>, AgentSampleVerdict) {
+/// One sample's rows and verdict, placed against `run`, the Terminal's settled run, while its exact
+/// anchor is still in the sample.
+fn evaluate(
+    sample: &TerminalProcessInfo,
+    run: Option<Selected>,
+) -> (Vec<AgentProcessRow>, AgentSampleVerdict) {
     let rows = rows(sample);
-    let verdict =
-        evaluate_agent_sample(&rows, sample.processes.len() >= MAXIMUM_PROCESS_SAMPLE_ROWS);
+    let run = run
+        .filter(|run| {
+            rows.iter()
+                .any(|row| row.pid == run.pid && row.creation_time == run.created)
+        })
+        .map(|run| run.pid);
+    let verdict = evaluate_agent_sample_for_run(
+        &rows,
+        sample.processes.len() >= MAXIMUM_PROCESS_SAMPLE_ROWS,
+        run,
+    );
     (rows, verdict)
 }
-/// The anchor one sample names on its own; it only brackets screen capture, while the
-/// identity state alone decides which run Panel reports attribute.
-pub(crate) fn identify(sample: &TerminalProcessInfo) -> Option<Selected> {
-    match evaluate(sample).1 {
+/// The anchor one sample names, placed against `run`, the Terminal's settled run; it only brackets
+/// screen capture, while the identity state alone decides which run Panel reports attribute.
+pub(crate) fn identify(sample: &TerminalProcessInfo, run: Option<Selected>) -> Option<Selected> {
+    selection(evaluate(sample, run).1)
+}
+fn selection(verdict: AgentSampleVerdict) -> Option<Selected> {
+    match verdict {
         AgentSampleVerdict::Anchor(anchor)
         | AgentSampleVerdict::Unresolved {
             anchor: Some(anchor),
@@ -264,10 +283,10 @@ impl SessionCoordinator {
             return false;
         };
         let input_revision = workbench.terminal_agent_input_revision(&physical);
-        let (rows, verdict) = evaluate(sample);
         let mut identity = prior
             .filter(|p| p.target == physical)
             .map_or_else(identity::IdentityState::default, |p| p.identity.clone());
+        let (rows, verdict) = evaluate(sample, identity.run().map(Selected::from));
         let old = prior.and_then(Sample::published);
         let departed = identity
             .observe(started, &rows, verdict, open)
@@ -275,7 +294,7 @@ impl SessionCoordinator {
             .map(Selected::from);
         let retained = identity.published().map(Selected::from);
         // The sample's own anchor must still be the published run's for screen evidence.
-        let selected = identify(sample).filter(|selected| Some(*selected) == retained);
+        let selected = selection(verdict).filter(|selected| Some(*selected) == retained);
         let event = if let Some(old) = departed {
             Some((old.provider, true))
         } else if let Some(retained) = retained {
@@ -333,6 +352,30 @@ impl SessionCoordinator {
                     visible_blocker: p.visible_blocker,
                 });
         }
+        // Samples that keep naming no single chain cannot be read against the published run's
+        // screen; once that outlasts the hold, the run reads unknown rather than its last state.
+        let undecided = retained.filter(|_| {
+            departed.is_none()
+                && selected.is_none()
+                && identity
+                    .ambiguous_for(started)
+                    .is_some_and(|held| held >= identity::STALE)
+        });
+        if undecided.is_some() {
+            let Ok(tick) = u64::try_from(since_seen.as_millis()) else {
+                return false;
+            };
+            let Ok(prepared) = screen.prepare(Detection::fallback(false), tick, false) else {
+                return false;
+            };
+            screen = prepared.next;
+            fallback = prepared
+                .publish
+                .map(|p| orchbee_server::TerminalAgentScreenObservation {
+                    state: p.state,
+                    visible_blocker: p.visible_blocker,
+                });
+        }
         if same.is_none() && departed.is_none() && retained.is_some() && fallback.is_none() {
             fallback = Some(orchbee_server::TerminalAgentScreenObservation {
                 state: screen.published().state,
@@ -340,7 +383,8 @@ impl SessionCoordinator {
             });
         }
         let recognised = recognised || screen.published().recognised();
-        let event = event.or_else(|| fallback.and(selected.map(|p| (p.provider, false))));
+        let event =
+            event.or_else(|| fallback.and(selected.or(undecided).map(|p| (p.provider, false))));
         if let Some((provider, exited)) = event
             && workbench
                 .observe_terminal_agent(
@@ -575,6 +619,19 @@ impl SessionCoordinator {
     /// Screen evidence counts only between two samples that name the run, so the screen goes unread
     /// while samples fail. Once they have failed for the identity's stale window, the published
     /// run's state is reported unknown instead of its last observation, until a sample succeeds.
+    /// The settled run of the Terminal `target` names, which screen capture places its samples
+    /// against as this identity state does.
+    pub(crate) fn settled_host_agent_run(&self, target: BindingViewerTarget) -> Option<Selected> {
+        self.process_samples
+            .values()
+            .find(|sample| {
+                sample.target.worker_generation == target.worker.generation
+                    && sample.target.identity == target.identity
+            })
+            .and_then(|sample| sample.identity.run())
+            .map(Selected::from)
+    }
+
     pub(crate) fn observe_host_process_failure(
         &mut self,
         target: BindingViewerTarget,

@@ -160,6 +160,15 @@ impl LocalTerminalService {
         );
     }
 
+    /// The settled Agent run of `target`'s Terminal, which screen capture places its samples
+    /// against.
+    pub(super) fn settled_agent_run(
+        &self,
+        target: crate::terminal_coordinator::BindingViewerTarget,
+    ) -> Option<crate::session_coordinator::HostAgentRun> {
+        self.coordinator.lock().ok()?.settled_host_agent_run(target)
+    }
+
     pub(super) fn observe_host_process_failure(
         &self,
         handle: &crate::worker_obcn_carrier::WorkerRequestHandle,

@@ -531,10 +531,11 @@ pub(super) fn explain(
     detector: &ScreenDetector,
     provider: orchbee_agent_observation_protocol::AgentReportProvider,
 ) -> Option<super::CapturedAgentExplanation> {
+    let run = viewer.service.settled_agent_run(viewer.target);
     let before = process(viewer, template, stop)?;
     let screen = capture(viewer, template, stop)?;
     let after = process(viewer, template, stop)?;
-    let selected = identify_host_agent(&before);
+    let selected = identify_host_agent(&before, run);
     let root = |p: &TerminalProcessInfo| {
         p.processes
             .iter()
@@ -544,7 +545,7 @@ pub(super) fn explain(
     };
     if root(&before).is_none()
         || root(&before) != root(&after)
-        || selected != identify_host_agent(&after)
+        || selected != identify_host_agent(&after, run)
     {
         return None;
     }
@@ -648,7 +649,8 @@ pub(super) fn observe(
         }
         return;
     };
-    let selected = identify_host_agent(&before);
+    let run = viewer.service.settled_agent_run(viewer.target);
+    let selected = identify_host_agent(&before, run);
     // The run both samples name and the screen captured between them, for a confirmation decision.
     let mut bracketed = None;
     let (sample, detection) = if let Some(selected) = selected {
@@ -688,7 +690,7 @@ pub(super) fn observe(
         };
         match process(viewer, template, stop) {
             Some(after) => {
-                let same = identify_host_agent(&after) == Some(selected);
+                let same = identify_host_agent(&after, run) == Some(selected);
                 bracketed = same.then_some((selected, captured));
                 (after, detection.filter(|_| same))
             }
