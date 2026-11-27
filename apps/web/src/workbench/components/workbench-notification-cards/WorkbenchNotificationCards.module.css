@@ -1,0 +1,60 @@
+.cards {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: var(--ob-ref-space-2);
+	inline-size: min(calc(var(--ob-ref-space-8) * 12), 100%);
+	pointer-events: auto;
+}
+
+.card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ob-ref-space-2);
+	padding: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-lg);
+	background: var(--ob-sys-color-surface-overlay);
+	color: var(--ob-sys-color-text-primary);
+	box-shadow: var(--ob-sys-shadow-overlay);
+}
+
+.card[data-severity='error'] {
+	border-color: var(--ob-sys-color-status-danger-border);
+}
+
+.message {
+	margin: var(--ob-ref-space-0);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+}
+
+.actions {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ob-ref-space-2);
+}
+
+.button,
+.close {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding-block: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-3);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-md);
+	background: transparent;
+	color: inherit;
+	font: var(--ob-sys-typography-label-sm);
+	cursor: pointer;
+}
+
+.close {
+	order: -1;
+	margin-inline-end: auto;
+	padding-inline: var(--ob-ref-space-1);
+	border-color: transparent;
+}

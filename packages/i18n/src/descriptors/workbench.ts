@@ -1124,6 +1124,11 @@ export const workbenchMessages = defineMessages({
 		defaultMessage: enUSWorkbenchMessages['workbench.search.providers.retry'],
 		description: 'Button label for retrying one failed unified-search provider.',
 	},
+	notificationClose: {
+		id: 'workbench.notifications.close',
+		defaultMessage: enUSWorkbenchMessages['workbench.notifications.close'],
+		description: 'Accessible name of the button that dismisses one notification card.',
+	},
 	quickInputBusy: {
 		id: 'workbench.quickInput.busy',
 		defaultMessage: enUSWorkbenchMessages['workbench.quickInput.busy'],

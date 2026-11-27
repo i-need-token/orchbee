@@ -49,6 +49,12 @@ cancels unless the request asks to survive it, as a credential prompt does, and 
 only the current value's answer. Use it for a brief choice or entry that a feature needs before it
 continues, not for a multi-value draft or a decision that needs its own explanation.
 
+A notification card reports an outcome that needs no immediate answer, or offers up to three
+follow-up actions for it, without taking focus or making anything inert. Cards stack in the status
+notice region; a card that is not an error and has no actions closes on its own, and every other
+card stays until answered or closed. Use one for a background result the person may act on later,
+never for a question that must be answered before work continues.
+
 Any surface that makes the rest of the application inert is modal, regardless of whether its
 component is named Dialog, Sheet, Drawer, or Popover. Responsive presentation may change geometry,
 but it preserves modality, commit, cancellation, and focus behavior.

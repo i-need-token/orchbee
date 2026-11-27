@@ -15,6 +15,25 @@
 	max-inline-size: calc(100% - var(--ob-ref-space-4));
 }
 
+/* Where the File Bar is offered, notification cards stack above the status notice line. */
+.noticeColumn {
+	position: absolute;
+	inset-block-end: var(--ob-ref-space-2);
+	inset-inline-end: var(--ob-ref-space-2);
+	z-index: var(--ob-ref-layer-toast);
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: var(--ob-ref-space-2);
+	max-inline-size: calc(100% - var(--ob-ref-space-4));
+	pointer-events: none;
+}
+
+.noticeColumn > .statusNotice {
+	position: static;
+	max-inline-size: 100%;
+}
+
 .statusNoticeText {
 	display: block;
 	padding-block: var(--ob-ref-space-1);

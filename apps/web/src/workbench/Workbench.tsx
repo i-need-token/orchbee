@@ -36,6 +36,8 @@ import { WorkbenchProjectCreation } from './components/workbench-project-creatio
 import { WorkbenchPanelWorkspace } from './components/workbench-panel-workspace/WorkbenchPanelWorkspace';
 import { WorkbenchSearchSurface } from './components/workbench-search-surface/WorkbenchSearchSurface';
 import { WorkbenchQuickInputSurface } from './components/workbench-search-surface/components/workbench-quick-input-surface/WorkbenchQuickInputSurface';
+import { WorkbenchNotificationCards } from './components/workbench-notification-cards/WorkbenchNotificationCards';
+import { useWorkbenchNotificationQueue } from './components/workbench-notification-cards/hooks/useWorkbenchNotificationQueue';
 import { useWorkbenchQuickInputSessions } from './components/workbench-search-surface/hooks/useWorkbenchQuickInputSessions';
 import { WorkbenchTabBar } from './components/workbench-tab-bar/WorkbenchTabBar';
 import { WorkbenchMobileBar } from './components/workbench-mobile-bar/WorkbenchMobileBar';
@@ -184,6 +186,7 @@ export function Workbench({
 	const effectiveShortcutBindings =
 		shortcutBindings ?? defaultWorkbenchShortcutBindings(shortcutPlatform);
 	const quickInputSessions = useWorkbenchQuickInputSessions();
+	const notificationQueue = useWorkbenchNotificationQueue();
 	const effectiveScopedShortcutBindings = fileBarOffered
 		? (scopedShortcutBindings ?? defaultWorkbenchScopedShortcutBindings(shortcutPlatform))
 		: undefined;
@@ -499,6 +502,55 @@ export function Workbench({
 	}
 
 	const sequenceNotice = view.shortcutSequenceNotice;
+	const statusNotice = (
+		<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
+			{sequenceNotice === null ? null : (
+				<span className={styles['statusNoticeText']}>
+					{sequenceNotice.kind === 'waiting'
+						? intl.formatMessage(keyboardShortcutMessages.sequenceWaiting, {
+								leader: sequenceNotice.leader,
+							})
+						: intl.formatMessage(keyboardShortcutMessages.sequenceMissed, {
+								key: sequenceNotice.step,
+								leader: sequenceNotice.leader,
+							})}
+				</span>
+			)}
+			{preferencesUnreadable ? (
+				<button
+					className={styles['statusNoticeText']}
+					data-persistent
+					onClick={view.settings}
+					type='button'
+				>
+					{intl.formatMessage(terminalSettingsMessages.sharedUnreadable)}
+				</button>
+			) : null}
+			{view.authorityNotice === null ? null : (
+				<span
+					className={styles['statusNoticeText']}
+					data-persistent={view.authorityNotice.persistent || undefined}
+				>
+					{view.authorityNotice.message}
+				</span>
+			)}
+			{/* An offer never covers what just happened: it shows once the line is free. */}
+			{confirmationOffer === null ||
+			preferencesUnreadable ||
+			sequenceNotice !== null ||
+			view.authorityNotice !== null ? null : (
+				<WorkbenchAgentConfirmationOffer
+					agentLabel={confirmationOffer.agentLabel}
+					onAnswer={(answer) =>
+						view.chooseAgentConfirmation(
+							{ answer, presentationId: confirmationOffer.presentationId },
+							'button',
+						)
+					}
+				/>
+			)}
+		</div>
+	);
 	const workbench = (
 		<div
 			className={styles['root']}
@@ -507,53 +559,14 @@ export function Workbench({
 			onFocusCapture={view.onRootFocusCapture}
 			ref={view.shortcutScopeReference}
 		>
-			<div className={styles['statusNotice']} data-slot='workbench-status-notice' role='status'>
-				{sequenceNotice === null ? null : (
-					<span className={styles['statusNoticeText']}>
-						{sequenceNotice.kind === 'waiting'
-							? intl.formatMessage(keyboardShortcutMessages.sequenceWaiting, {
-									leader: sequenceNotice.leader,
-								})
-							: intl.formatMessage(keyboardShortcutMessages.sequenceMissed, {
-									key: sequenceNotice.step,
-									leader: sequenceNotice.leader,
-								})}
-					</span>
-				)}
-				{preferencesUnreadable ? (
-					<button
-						className={styles['statusNoticeText']}
-						data-persistent
-						onClick={view.settings}
-						type='button'
-					>
-						{intl.formatMessage(terminalSettingsMessages.sharedUnreadable)}
-					</button>
-				) : null}
-				{view.authorityNotice === null ? null : (
-					<span
-						className={styles['statusNoticeText']}
-						data-persistent={view.authorityNotice.persistent || undefined}
-					>
-						{view.authorityNotice.message}
-					</span>
-				)}
-				{/* An offer never covers what just happened: it shows once the line is free. */}
-				{confirmationOffer === null ||
-				preferencesUnreadable ||
-				sequenceNotice !== null ||
-				view.authorityNotice !== null ? null : (
-					<WorkbenchAgentConfirmationOffer
-						agentLabel={confirmationOffer.agentLabel}
-						onAnswer={(answer) =>
-							view.chooseAgentConfirmation(
-								{ answer, presentationId: confirmationOffer.presentationId },
-								'button',
-							)
-						}
-					/>
-				)}
-			</div>
+			{fileBarOffered ? (
+				<div className={styles['noticeColumn']}>
+					<WorkbenchNotificationCards queue={notificationQueue} />
+					{statusNotice}
+				</div>
+			) : (
+				statusNotice
+			)}
 			{view.sidebarPresentation === 'overlay' ? (
 				<>
 					{/* Nothing dims: the scrim only takes the click that closes the overlay. */}

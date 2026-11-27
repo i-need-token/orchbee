@@ -219,6 +219,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.search.providers.loading': 'Searching {provider}…',
 	'workbench.search.providers.failed': "Couldn't search {provider}.",
 	'workbench.search.providers.retry': 'Retry',
+	'workbench.notifications.close': 'Close notification',
 	'workbench.quickInput.busy': 'Working…',
 	'workbench.quickInput.label': 'Quick input',
 	'workbench.quickInput.noMatches': 'No matching items',

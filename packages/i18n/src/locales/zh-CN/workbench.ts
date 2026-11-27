@@ -201,6 +201,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.search.providers.loading': '正在搜索{provider}…',
 	'workbench.search.providers.failed': '没能搜索{provider}。',
 	'workbench.search.providers.retry': '重试',
+	'workbench.notifications.close': '关闭通知',
 	'workbench.quickInput.busy': '正在处理…',
 	'workbench.quickInput.label': '快速输入',
 	'workbench.quickInput.noMatches': '没有匹配的项目',
