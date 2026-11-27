@@ -1,0 +1,53 @@
+/* The frame stands 24 px inside the tier's cover on every side. */
+.root {
+	position: absolute;
+	top: calc(var(--ob-comp-file-overlay-cover-block-start) + var(--ob-ref-space-6));
+	left: calc(var(--ob-comp-file-overlay-cover-inline-start) + var(--ob-ref-space-6));
+	display: flex;
+	width: calc(var(--ob-comp-file-overlay-cover-inline-size) - 2 * var(--ob-ref-space-6));
+	height: calc(var(--ob-comp-file-overlay-cover-block-size) - 2 * var(--ob-ref-space-6));
+	flex-direction: column;
+	overflow: hidden;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-2xl);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	pointer-events: auto;
+}
+
+/* The tab row, as tall as the Tab bar; Expand and Restore end it. */
+.row {
+	display: flex;
+	flex: none;
+	align-items: center;
+	height: var(--ob-comp-workbench-horizontal-chrome-height);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+.tabs {
+	min-width: 0;
+	flex: 1;
+	align-self: stretch;
+}
+
+.titleActions {
+	display: flex;
+	flex: none;
+	align-items: center;
+	padding-inline: var(--ob-ref-space-2);
+}
+
+.action {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.action:hover,
+.action:focus-visible {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.content {
+	position: relative;
+	min-height: 0;
+	flex: 1;
+}

@@ -13,6 +13,7 @@ import { desktopTrayMessages } from '../desktop-tray';
 
 import { desktopWindowMessages } from '../desktop-window';
 import { fileBarMessages } from '../file-bar';
+import { fileOverlayMessages } from '../file-overlay';
 import { keyboardShortcutMessages } from '../keyboard-shortcuts';
 import { projectedTerminalMessages } from '../projected-terminal';
 
@@ -35,6 +36,7 @@ const descriptorCollections: readonly (readonly [
 
 	['Desktop window', desktopWindowMessages],
 	['File Bar', fileBarMessages],
+	['file overlay', fileOverlayMessages],
 	['keyboard shortcuts', keyboardShortcutMessages],
 	['projected terminal', projectedTerminalMessages],
 

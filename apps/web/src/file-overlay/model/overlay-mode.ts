@@ -2,7 +2,7 @@
  * How much of the window the open overlay covers below the 36px row: the terminal area, the Sidebar
  * and the terminal area, or the whole width.
  */
-type FileOverlayTier = 'default' | 'full' | 'left-expand';
+export type FileOverlayTier = 'default' | 'full' | 'left-expand';
 
 /** The tiers below full, which Restore returns to and the frame's left edge chooses between. */
 type FileOverlayNarrowTier = Exclude<FileOverlayTier, 'full'>;

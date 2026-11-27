@@ -1,4 +1,9 @@
-import { fileBarMessages, keyboardShortcutMessages, type IntlShape } from '@orchbee/i18n';
+import {
+	fileBarMessages,
+	fileOverlayMessages,
+	keyboardShortcutMessages,
+	type IntlShape,
+} from '@orchbee/i18n';
 
 import type { KeyboardShortcutDeclaration } from './keyboard-shortcut-catalog';
 import type { KeyboardShortcutScopedDeclaration } from './keyboard-shortcut-scoped-catalog';
@@ -11,6 +16,8 @@ export function formatKeyboardShortcutActionName(
 	switch (declaration.name) {
 		case 'toggle-file-bar':
 			return intl.formatMessage(fileBarMessages.toggle);
+		case 'toggle-file-overlay-full':
+			return intl.formatMessage(fileOverlayMessages.toggleFull);
 		case 'actions-search':
 			return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
 		case 'clear-terminal':

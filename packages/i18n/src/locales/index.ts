@@ -9,6 +9,7 @@ export {
 	enUSDesktopTrayMessages,
 	enUSDesktopWindowMessages,
 	enUSFileBarMessages,
+	enUSFileOverlayMessages,
 	enUSKeyboardShortcutMessages,
 	enUSProjectedTerminalMessages,
 	enUSMessages,

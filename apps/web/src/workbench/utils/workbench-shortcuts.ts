@@ -536,6 +536,16 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'file-bar',
 		shortcutId: 'workbench.file-bar.toggle.in-file-bar',
 	},
+	// VS Code's Toggle Maximize Editor Group keys, inside the file overlay.
+	fileOverlayToggleFull: {
+		actionId: WORKBENCH_ACTION_IDS.toggleFileOverlayFull,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('KeyM', ['mod'])],
+			standard: [chord('KeyK', ['mod']), chord('KeyM', ['mod'])],
+		},
+		scope: 'file-overlay',
+		shortcutId: 'file-overlay.tier.toggle-full',
+	},
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 
 export type WorkbenchScopedShortcutId =

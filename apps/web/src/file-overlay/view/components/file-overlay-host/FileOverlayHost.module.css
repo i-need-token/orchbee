@@ -1,0 +1,18 @@
+/* The overlay lies over the Workbench without taking part in its layout. Only the scrim and the
+   frame take the pointer, so the 36px row and the columns the tier leaves uncovered stay operable. */
+.layer {
+	position: absolute;
+	z-index: var(--ob-ref-layer-overlay);
+	inset: 0;
+	pointer-events: none;
+}
+
+.scrim {
+	position: absolute;
+	top: var(--ob-comp-file-overlay-cover-block-start);
+	left: var(--ob-comp-file-overlay-cover-inline-start);
+	width: var(--ob-comp-file-overlay-cover-inline-size);
+	height: var(--ob-comp-file-overlay-cover-block-size);
+	background: var(--ob-sys-color-surface-scrim);
+	pointer-events: auto;
+}

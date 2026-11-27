@@ -9,7 +9,7 @@ import {
 } from '../model';
 
 /** One Workspace's overlay: its state to select from and the one way to change it. */
-interface FileOverlayStore {
+export interface FileOverlayStore {
 	/** Applies an event and returns the effects for the caller to run; outcomes return as events. */
 	readonly dispatch: (event: FileOverlayEvent) => readonly FileOverlayEffect[];
 	readonly state: Pick<StoreApi<FileOverlayState>, 'getInitialState' | 'getState' | 'subscribe'>;

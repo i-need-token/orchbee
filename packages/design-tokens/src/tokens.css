@@ -909,6 +909,11 @@
 	--ob-comp-code-editor-multi-diff-item-height: 0px;
 	--ob-comp-code-editor-multi-diff-item-start: 0px;
 	--ob-comp-settings-color-theme-swatch-inline-size: 3.5rem;
+	/* The part of the window the open file overlay's tier covers, measured in the Workbench root. */
+	--ob-comp-file-overlay-cover-inline-start: 0px;
+	--ob-comp-file-overlay-cover-block-start: 0px;
+	--ob-comp-file-overlay-cover-inline-size: 0px;
+	--ob-comp-file-overlay-cover-block-size: 0px;
 
 	--ob-comp-tab-strip-length-negative-14: -14px;
 	--ob-comp-tab-strip-length-negative-12: -12px;

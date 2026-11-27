@@ -20,6 +20,8 @@ export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';
 export { enUSFileBarMessages } from './file-bar';
 export type { FileBarMessageId } from './file-bar';
+export { enUSFileOverlayMessages } from './file-overlay';
+export type { FileOverlayMessageId } from './file-overlay';
 export { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 export type { KeyboardShortcutMessageId } from './keyboard-shortcuts';
 export { enUSProjectedTerminalMessages } from './projected-terminal';

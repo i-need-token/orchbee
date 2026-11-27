@@ -24,7 +24,7 @@ import {
 	type KeyboardShortcutId,
 } from './keyboard-shortcut-catalog';
 
-type KeyboardShortcutScopedName = 'toggle-file-bar';
+type KeyboardShortcutScopedName = 'toggle-file-bar' | 'toggle-file-overlay-full';
 
 /**
  * A File Bar family shortcut as Settings lists it on one platform. It exists only where the File
@@ -51,6 +51,7 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 > = Object.freeze({
 	'workbench.file-bar.toggle': 'toggle-file-bar',
 	'workbench.file-bar.toggle.in-file-bar': 'toggle-file-bar',
+	'file-overlay.tier.toggle-full': 'toggle-file-overlay-full',
 });
 
 /** How many scoped shortcuts exist on any platform, which bounds a stored record. */

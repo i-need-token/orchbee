@@ -240,14 +240,22 @@ export function Workbench({
 		storage: layoutStorage,
 		workspaceId: activeWorkspaceId,
 	});
-	useWorkbenchFileOverlay({
+	const fileOverlay = useWorkbenchFileOverlay({
+		actionRuntime,
+		actionScope: view.actionScope,
+		focusTerminal: view.returnToTerminal,
+		notifications: notificationQueue,
 		offered: fileBarOffered,
+		reportActionOutcome: view.reportActionOutcome,
+		rootReference: view.shortcutScopeReference,
+		shortcutLabelForAction,
 		sidebarDocked: view.sidebarPresentation === 'docked',
 		terminalContext,
 		workspaceId: activeWorkspaceId,
 		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
+	const FileOverlayHost = fileOverlay.host?.content ?? null;
 	// The Sidebar and the File Bar share the panel group, so both follow its layout.
 	const onLayoutChanged = useMemoizedFn(
 		(layout: Readonly<Record<string, number>>, meta: { readonly isUserInteraction: boolean }) => {
@@ -299,6 +307,7 @@ export function Workbench({
 			className={styles['leftPanel']}
 			data-slot='workbench-left-panel'
 			data-workbench-focus-region='sidebar'
+			ref={fileOverlay.sidebarReference}
 		>
 			<WorkbenchSidebar
 				subscribeNavigation={projectWorkspaceRuntime.subscribeNavigation}
@@ -694,6 +703,7 @@ export function Workbench({
 								className={styles['tabContent']}
 								data-slot='workbench-tab-content'
 								data-workbench-focus-region='terminal'
+								ref={fileOverlay.terminalAreaReference}
 							>
 								{terminalContext !== null && view.hasVisibleTerminalTabs ? (
 									<WorkbenchPanelWorkspace
@@ -791,6 +801,18 @@ export function Workbench({
 						shortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleFileBar)}
 					/>
 				</div>
+			)}
+			{/* The shown Workspace's file overlay lies over the layout, after the File Bar in the focus
+			    order, and never takes part in the layout, so the terminal area keeps its size. */}
+			{fileOverlay.host === null || FileOverlayHost === null ? null : (
+				<FileOverlayHost
+					commands={fileOverlay.host.commands}
+					dispatch={fileOverlay.host.dispatch}
+					regions={fileOverlay.host.regions}
+					shortcutLabels={fileOverlay.host.shortcutLabels}
+					sidebarDocked={view.sidebarPresentation === 'docked'}
+					store={fileOverlay.host.store}
+				/>
 			)}
 			{view.searchState.kind === 'closed' ? null : (
 				<WorkbenchSearchSurface

@@ -95,6 +95,7 @@ export const WORKBENCH_ACTION_IDS = {
 	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleFileBar: 'workbench.file-bar.toggle',
+	toggleFileOverlayFull: 'file-overlay.tier.toggle-full',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
@@ -353,6 +354,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileBar]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.toggleFileOverlayFull]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;

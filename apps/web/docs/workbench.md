@@ -188,6 +188,14 @@ yet. A session's Source Control shares its connection: its summary and prompt st
 while something follows them, and each Git change runs on a lane of its own, so a change its caller
 gives up stops its Git process.
 
+Each Workspace has one file overlay, which a `FileOverlayRegistry` keeps while the Workspace
+exists; only the active Workspace's shows. Its components load through `loadFileOverlay()` as
+their own chunk the first time an overlay is not closed, and a failed load says so on an error
+card whose Try Again loads it again. The open overlay lies over the Workbench root after the File
+Bar, outside the panel group, so the terminal area and its PTY never resize. Its scrim dims the
+part of the window its tier covers below the 36px row, and its frame, a region landmark rather
+than a dialog, stands 24px inside that.
+
 Where the File Bar is offered, the Workbench also holds a `WorkbenchNotificationQueue` and shows
 its cards above the floating status notice, at the toast layer and so above the overlay. A card has
 a severity, a message, up to three buttons and a close button. The newest three show, and an older
@@ -195,8 +203,8 @@ card waits until a newer one closes. A card that is not an error and has no butt
 seconds after it last began to show, and its clock stops while it waits; errors and cards with
 buttons stay until answered. Errors and warnings announce assertively, information politely, and
 Escape on a card dismisses it. Each card settles once, with its button or a dismissal, and
-unmounting the Workbench dismisses every card. The first File Bar feature that notifies exposes the
-queue to its owner; nothing notifies yet, and a release window renders no card.
+unmounting the Workbench dismisses every card. A File Bar feature that notifies gets the queue
+from the Workbench; so far only a failed overlay load does, and a release window renders no card.
 
 ### Search modeling record
 
