@@ -39,10 +39,10 @@ pub(crate) struct Services {
     calls: Arc<Calls>,
     scopes: Arc<Scopes>,
     helpers: Helpers,
-    /// The file engine's listings and read transfers.
+    /// The file engine's listings, read transfers and watches.
     files: Engine,
     /// The `fs.subscribe` streams.
-    roots: Subscriptions,
+    roots: Arc<Subscriptions>,
     /// Source control: discovery, status, Git operations and the prompt relay.
     git: git::Service,
 }
@@ -52,13 +52,15 @@ impl Services {
     pub(crate) fn new(calls: Arc<Calls>, root: Option<DataRoot>) -> Arc<Self> {
         let helpers = Helpers::new();
         let scopes = Arc::new(Scopes::new());
-        let git = git::Service::start(root, Arc::clone(&scopes));
+        let roots = Arc::new(Subscriptions::new());
+        let files = Engine::new(helpers.clone(), Arc::clone(&scopes), Arc::clone(&roots));
+        let git = git::Service::start(root, Arc::clone(&scopes), files.repository_watches());
         Arc::new(Self {
             calls,
+            files,
             scopes,
-            files: Engine::new(helpers.clone()),
             helpers,
-            roots: Subscriptions::new(),
+            roots,
             git,
         })
     }
@@ -82,6 +84,7 @@ impl Services {
     pub(crate) fn cancel(&self, id: CallId) {
         self.calls.cancel(id);
         self.roots.leave(Leaving::Call(id));
+        self.files.interest_changed(None);
     }
 
     /// The Client closed `lane`, with every call on it.
@@ -89,6 +92,7 @@ impl Services {
         self.calls.cancel_lane(connection, lane);
         self.roots.leave(Leaving::Lane(connection, lane));
         self.files.lane_closed(connection, lane);
+        self.files.interest_changed(None);
     }
 
     /// The Client connection ended, with everything it held.
@@ -113,6 +117,9 @@ impl Services {
         // The engine learns of the statement after the scopes, so the members it states for the
         // Workspace find it stated.
         self.git.scope(&statement);
+        if changed {
+            self.files.interest_changed(Some(workspace));
+        }
         if changed && self.roots.any_in(workspace) {
             let services = Arc::clone(self);
             let refresh = move || {
@@ -184,7 +191,9 @@ impl Services {
                         &services.roots,
                         workspace,
                         call,
+                        || services.files.watch_state(workspace),
                     );
+                    services.files.subscribed(workspace);
                 });
             }
             FilesRequest::FsGrant(request) => match view.grantable(&request.path, request.source) {
@@ -197,13 +206,16 @@ impl Services {
                         {
                             services.git.opened(request.workspace_id, &request.path);
                         }
+                        services.files.interest_changed(Some(request.workspace_id));
                     });
                 }
                 Err(refused) => call.reply(&FilesReply::Error(refused)),
             },
             FilesRequest::FsUngrant(request) => {
-                grants::ungrant(&self.scopes, &view, call, &request)
+                grants::ungrant(&self.scopes, &view, call, &request);
+                self.files.interest_changed(Some(request.workspace_id));
             }
+            FilesRequest::FsRelease(request) => self.files.release(call, &request),
             FilesRequest::FsList(request) => match view.read(&request.path) {
                 Ok(path) => self.files.list(call, path, &request),
                 Err(refused) => call.reply(&FilesReply::Error(refused)),
@@ -267,7 +279,6 @@ impl Services {
                         }
                     });
             }
-            FilesRequest::FsRelease(_) => call.close(CallClose::Unsupported),
         }
     }
 

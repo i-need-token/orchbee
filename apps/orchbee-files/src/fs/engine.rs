@@ -1,8 +1,8 @@
 //! The file engine's operations as the dispatch routes them. Each takes its call with the native
 //! paths scope admitted for it, runs its filesystem work on the process's helpers without making
 //! the caller wait, and answers the call once; a call its Client cancelled meanwhile closes as
-//! cancelled instead. The dispatch tells the engine when a lane or a connection ends and when the
-//! process drains.
+//! cancelled instead. The dispatch tells the engine when a lane or a connection ends, when a
+//! Workspace's subscribers, opened files or scope change, and when the process drains.
 
 use std::{
     ffi::OsStr,
@@ -11,8 +11,8 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
-    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation, Put,
-    ReadMode, StatItem, TransferId, TransferRequest,
+    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
+    PathsRequest, Put, ReadMode, StatItem, TransferId, TransferRequest, WatchState, WorkspaceId,
 };
 
 use super::{
@@ -22,35 +22,61 @@ use super::{
     reading::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
     timer::Timer,
     uploads::Uploads,
+    watch::{Timing, Watching},
     wire,
 };
-use crate::{blocking::Helpers, calls::Call, entry, error, git::ports, scope::path::NativePath};
+use crate::{
+    blocking::Helpers,
+    calls::Call,
+    entry, error,
+    git::ports,
+    scope::{Scopes, path::NativePath},
+    subscriptions::Subscriptions,
+};
 
-/// The listings, read transfers and uploads of every connection.
+/// The listings, read transfers, uploads and watches of every connection.
 pub(crate) struct Engine {
     helpers: Helpers,
     listings: Arc<Listings>,
     transfers: Transfers,
     uploads: Uploads,
+    watching: Arc<Watching>,
 }
 
 impl Engine {
-    /// An engine whose filesystem work runs on `helpers`.
-    pub(crate) fn new(helpers: Helpers) -> Self {
+    /// An engine whose filesystem work runs on `helpers` and whose watches deliver to the
+    /// `fs.subscribe` streams of `subscriptions` under `scopes`.
+    pub(crate) fn new(
+        helpers: Helpers,
+        scopes: Arc<Scopes>,
+        subscriptions: Arc<Subscriptions>,
+    ) -> Self {
         let timer = Arc::new(Timer::new());
         Self {
             listings: Arc::new(Listings::new(Arc::clone(&timer))),
             transfers: Transfers::new(helpers.clone()),
             uploads: Uploads::new(timer),
+            watching: Arc::new(Watching::new(
+                helpers.clone(),
+                scopes,
+                subscriptions,
+                Timing::VS_CODE,
+            )),
             helpers,
         }
     }
 
-    /// `fs.list` of `path`, which scope admitted for `request`.
+    /// `fs.list` of `path`, which scope admitted for `request`. The folder loads before it is
+    /// read, so a change after the read reaches the Client; a failed listing unloads what it
+    /// loaded, and a single-child chain loads with its listing.
     pub(crate) fn list(&self, call: Call, path: NativePath, request: &FsList) {
         let listings = Arc::clone(&self.listings);
         let connection = call.connection();
         let cancelled = call.cancellation();
+        let workspace = request.workspace_id;
+        let loaded = self.watching.load(connection, workspace, &path);
+        let watching = Arc::clone(&self.watching);
+        let folder = path.clone();
         let cursor = request
             .cursor
             .map(|cursor| CursorId::from_bytes(*cursor.as_bytes()));
@@ -66,9 +92,55 @@ impl Engine {
             move |outcome| {
                 let page = outcome.and_then(|page| page);
                 let result = page.and_then(wire::list_result);
+                match &result {
+                    Ok(listed) => {
+                        let chain = listed.descendants.iter().flat_map(|chain| chain.as_slice());
+                        for descendant in chain {
+                            if let Ok(below) = NativePath::parse(descendant.path.as_str()) {
+                                watching.load(connection, workspace, &below);
+                            }
+                        }
+                    }
+                    Err(_) if loaded => watching.unload(connection, workspace, &[folder]),
+                    Err(_) => {}
+                }
                 answer(call, result.map(FilesReply::FsList));
             },
         );
+    }
+
+    /// `fs.release`: unloads each folder, so its changes no longer reach the Client.
+    pub(crate) fn release(&self, call: Call, request: &PathsRequest) {
+        let paths: Vec<NativePath> = request
+            .paths
+            .as_slice()
+            .iter()
+            .filter_map(|path| NativePath::parse(path.as_str()).ok())
+            .collect();
+        self.watching
+            .unload(call.connection(), request.workspace_id, &paths);
+        call.reply(&FilesReply::Empty);
+    }
+
+    /// A subscription joined `workspace`.
+    pub(crate) fn subscribed(&self, workspace: WorkspaceId) {
+        self.watching.subscribed(workspace);
+    }
+
+    /// The subscribers, opened files or scope of `workspace`, or of any Workspace, may have
+    /// changed.
+    pub(crate) fn interest_changed(&self, workspace: Option<WorkspaceId>) {
+        self.watching.changed(workspace);
+    }
+
+    /// `workspace`'s watch state for a new subscription's Snapshot.
+    pub(crate) fn watch_state(&self, workspace: WorkspaceId) -> WatchState {
+        self.watching.state(workspace)
+    }
+
+    /// The watches of the repositories the Git engine displays.
+    pub(crate) fn repository_watches(&self) -> Box<dyn ports::Watches> {
+        Box::new(self.watching.repositories())
     }
 
     /// `fs.stat` of each requested path, with its native path or the reason scope refused it.
@@ -224,12 +296,15 @@ impl Engine {
         self.listings.connection_lost(connection);
         self.transfers.connection_lost(connection);
         self.uploads.connection_lost(connection);
+        self.watching.connection_lost(connection);
     }
 
-    /// Drops every transfer, answering the chunk requests that wait on them, and every upload.
+    /// Drops every transfer, answering the chunk requests that wait on them, every upload and
+    /// every watch.
     pub(crate) fn drain(&self) {
         self.transfers.drain();
         self.uploads.drain();
+        self.watching.drain();
     }
 }
 

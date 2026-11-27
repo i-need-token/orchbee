@@ -41,6 +41,22 @@ impl NativePath {
         self.segments().last().unwrap_or_default()
     }
 
+    /// The folder that holds this path; `None` for a filesystem root.
+    pub(crate) fn parent(&self) -> Option<Self> {
+        let name = self.name();
+        if name.is_empty() {
+            return None;
+        }
+        let parent = &self.0[..self.0.len() - name.len()];
+        // Below the root's own separator, the separator before the name goes with it.
+        let parent = if parent.len() > ROOT_BYTES {
+            &parent[..parent.len() - 1]
+        } else {
+            parent
+        };
+        Some(Self(parent.to_owned()))
+    }
+
     /// Whether this path is `member` or lies below it, segment by segment.
     pub(crate) fn is_within(&self, member: &Self) -> bool {
         let mut segments = self.segments();
@@ -48,6 +64,12 @@ impl NativePath {
             && member
                 .segments()
                 .all(|expected| segments.next().is_some_and(|actual| same(actual, expected)))
+    }
+
+    /// The segments of this path below `member`, when it is within it.
+    pub(crate) fn below<'a>(&'a self, member: &Self) -> Option<impl Iterator<Item = &'a str>> {
+        self.is_within(member)
+            .then(|| self.segments().skip(member.segments().count()))
     }
 
     /// A key that two paths share exactly when each is within the other: the same location by the

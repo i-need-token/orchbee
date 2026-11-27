@@ -138,6 +138,19 @@ impl Scopes {
         }
     }
 
+    /// The files each connection holds open in `workspace`.
+    pub(crate) fn opened_in(&self, workspace: WorkspaceId) -> Vec<(ConnectionId, NativePath)> {
+        let state = self.lock();
+        state
+            .opened
+            .iter()
+            .filter(|((_, opened_in), _)| *opened_in == workspace)
+            .flat_map(|((connection, _), files)| {
+                files.values().map(|(path, _)| (*connection, path.clone()))
+            })
+            .collect()
+    }
+
     /// Releases every file `connection` opened, in every Workspace.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.lock()

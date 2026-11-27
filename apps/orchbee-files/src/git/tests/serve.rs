@@ -4,8 +4,14 @@
 //! is in scope from the consent's answer until the close's. A show's content reaches the chunk
 //! requests sent behind it.
 
-use super::{super::serve::Service, fixture::Fixture};
-use crate::{blocking::Helpers, calls::Calls, fs::Engine, outbound::Outbound, scope::Scopes};
+use super::{
+    super::{ports::NoWatches, serve::Service},
+    fixture::Fixture,
+};
+use crate::{
+    blocking::Helpers, calls::Calls, fs::Engine, outbound::Outbound, scope::Scopes,
+    subscriptions::Subscriptions,
+};
 use orchbee_files_protocol::{
     CallClose, CallId, Chunk, ChunkLength, ConnectionId, Counter, Empty, FilePath, FilesNotice,
     FilesRecord, FilesReply, FsReadChunk, GitPaths, GitShow, LaneId, LinkFrame, LinkMessage,
@@ -53,7 +59,11 @@ impl Harness {
             }
         });
         Self {
-            service: Some(Service::start(None, Arc::clone(&scopes))),
+            service: Some(Service::start(
+                None,
+                Arc::clone(&scopes),
+                Box::new(NoWatches),
+            )),
             scopes,
             calls,
             outbound,
@@ -280,7 +290,11 @@ fn a_show_serves_its_content_to_the_chunks_sent_behind_it() {
         summary.repositories.as_slice().first().cloned()
     });
 
-    let files = Engine::new(Helpers::new());
+    let files = Engine::new(
+        Helpers::new(),
+        Arc::new(Scopes::new()),
+        Arc::new(Subscriptions::new()),
+    );
     let transfer = TransferId::new(1).unwrap();
     let request = GitShow {
         workspace_id: workspace,

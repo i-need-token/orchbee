@@ -9,6 +9,7 @@ publish = false
 chardetng = { version = "1.0.0", default-features = false }
 encoding_rs = { version = "0.8.44", default-features = false, features = ["alloc"] }
 getrandom.workspace = true
+notify = { version = "9.0.0", default-features = false, features = ["macos_fsevent"] }
 orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
 orchbee-files-protocol = { path = "../../crates/files-protocol" }
 orchbee-git-process = { path = "../../crates/git-process" }

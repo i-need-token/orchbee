@@ -43,7 +43,11 @@ impl Link {
             }
         });
         Self {
-            engine: Engine::new(Helpers::new()),
+            engine: Engine::new(
+                Helpers::new(),
+                Arc::new(Scopes::new()),
+                Arc::new(Subscriptions::new()),
+            ),
             calls: Calls::new(Arc::clone(&outbound)),
             outbound,
             frames,

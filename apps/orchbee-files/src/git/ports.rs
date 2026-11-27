@@ -1,10 +1,9 @@
 //! What the Git engine needs from the rest of the process. The file engine owns this process's file
-//! watches and the machine's trash and implements [`Watches`] and [`Trash`] for it. Until it does,
-//! [`NoWatches`] and [`NoTrash`] stand in: status then refreshes only when a Client subscribes,
-//! after a write, on Agent completion and on an explicit refresh, and a clean to the trash answers
-//! `trash-unavailable`, after which the Client may ask for permanent removal. The scopes every
-//! operation's view reads take the members the engine establishes through [`Members`], and
-//! `git.show` answers through the read transfer [`ShowRead`] the file engine opened for it.
+//! watches and the machine's trash and implements [`Watches`] for it; until it implements
+//! [`Trash`], [`NoTrash`] stands in, and a clean to the trash answers `trash-unavailable`, after
+//! which the Client may ask for permanent removal. The scopes every operation's view reads take
+//! the members the engine establishes through [`Members`], and `git.show` answers through the read
+//! transfer [`ShowRead`] the file engine opened for it.
 
 use orchbee_files_protocol::{FilesError, WorkspaceId};
 use std::{
@@ -18,10 +17,6 @@ use std::{
 pub(crate) enum Change {
     /// The repository's toplevel itself or its Git directory itself was created, deleted or
     /// renamed. Such a change refreshes even a repository past the status limit.
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "the file engine's watch adapter reports it")
-    )]
     Repository,
     /// Anything else under the working tree or in the first level of the Git directory, and a
     /// rescan after events were dropped.
@@ -41,7 +36,6 @@ impl Report {
     /// Reports a change. The engine waits out a 1,000 ms debounce of its own, so one report per
     /// delivery window is enough: [`Change::Repository`] when any event of the window was one,
     /// else [`Change::Content`].
-    #[expect(dead_code, reason = "the file engine's watch adapter calls it")]
     pub(crate) fn changed(&self, change: Change) {
         (self.0)(change);
     }
@@ -71,9 +65,11 @@ pub(crate) trait Watches: Send {
     fn unwatch(&mut self, workspace: WorkspaceId, repository: &str);
 }
 
-/// The watches of a build without a watch adapter: none.
+/// No watches, for tests of the engine alone.
+#[cfg(test)]
 pub(crate) struct NoWatches;
 
+#[cfg(test)]
 impl Watches for NoWatches {
     fn watch(&mut self, _: WorkspaceId, _: &str, _: &Path, _: Report) {}
     fn unwatch(&mut self, _: WorkspaceId, _: &str) {}

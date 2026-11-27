@@ -87,9 +87,38 @@ impl Subscriptions {
         }
     }
 
+    /// Queues `notice` as an Update of each subscription in `workspace` that `connection` made.
+    pub(crate) fn deliver_to(
+        &self,
+        workspace: WorkspaceId,
+        connection: ConnectionId,
+        notice: &FilesNotice,
+    ) {
+        let open = self.lock();
+        for subscription in open
+            .iter()
+            .filter(|open| open.workspace == workspace && open.events.connection() == connection)
+        {
+            subscription.events.update(notice);
+        }
+    }
+
     /// Whether any subscription is open in `workspace`.
     pub(crate) fn any_in(&self, workspace: WorkspaceId) -> bool {
         self.lock().iter().any(|open| open.workspace == workspace)
+    }
+
+    /// The connections with a subscription open in `workspace`.
+    pub(crate) fn connections_in(&self, workspace: WorkspaceId) -> Vec<ConnectionId> {
+        let mut connections: Vec<ConnectionId> = self
+            .lock()
+            .iter()
+            .filter(|open| open.workspace == workspace)
+            .map(|open| open.events.connection())
+            .collect();
+        connections.sort_unstable();
+        connections.dedup();
+        connections
     }
 
     /// Ends the `leaving` subscriptions, whose calls are already cancelled.

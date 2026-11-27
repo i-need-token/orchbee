@@ -8,7 +8,7 @@ use super::{
     engine::{self, Git, Mutation, Sink},
     errors::GitError,
     mutations::{Commit, Message},
-    ports::{Members, NoTrash, NoWatches, ShowRead},
+    ports::{Members, NoTrash, ShowRead, Watches},
     records,
     relay::Answer,
     remote::{self, Fetch, Push},
@@ -36,15 +36,19 @@ pub(crate) struct Service {
 }
 
 impl Service {
-    /// Starts the engine; `root` keeps the consents to repositories beyond a root, and `scopes`
-    /// takes the members the engine establishes.
-    pub(crate) fn start(root: Option<DataRoot>, scopes: Arc<Scopes>) -> Self {
+    /// Starts the engine; `root` keeps the consents to repositories beyond a root, `scopes` takes
+    /// the members the engine establishes, and `watches` are the file engine's.
+    pub(crate) fn start(
+        root: Option<DataRoot>,
+        scopes: Arc<Scopes>,
+        watches: Box<dyn Watches>,
+    ) -> Self {
         Self {
-            // The file engine's adapters replace these stand-ins once it implements the ports.
+            // The file engine's trash adapter replaces this stand-in once it implements the port.
             git: Git::start(
                 root,
                 Arc::new(NoTrash),
-                Box::new(NoWatches),
+                watches,
                 Box::new(ScopeMembers(scopes)),
             )
             .ok(),

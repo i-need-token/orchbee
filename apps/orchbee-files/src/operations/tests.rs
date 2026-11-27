@@ -7,15 +7,15 @@ use std::{
         mpsc,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice, FilesRecord,
-    FilesReply, FilesRequest, FrameKind, FsGrant, FsSnapshot, FsUpdate, GitPath, GrantClass,
-    GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, NoticeKind,
-    Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root, ScopeUpdate, TransferId,
-    WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, decode_files_record,
+    CallClose, CallId, ChangeKind, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice,
+    FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsList, FsSnapshot, FsUpdate,
+    GitPath, GrantClass, GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List,
+    NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root, ScopeUpdate,
+    TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, decode_files_record,
     decode_link_message, encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
@@ -95,11 +95,14 @@ impl Link {
     }
 
     fn next(&self) -> LinkMessage {
-        let frame = self
-            .frames
-            .recv_timeout(Duration::from_secs(20))
-            .expect("the process sends a frame");
-        decode_link_message(&frame, LinkSide::Files).unwrap()
+        self.within(Duration::from_secs(20))
+            .expect("the process sends a frame")
+    }
+
+    /// The next frame, when one comes within `wait`.
+    fn within(&self, wait: Duration) -> Option<LinkMessage> {
+        let frame = self.frames.recv_timeout(wait).ok()?;
+        Some(decode_link_message(&frame, LinkSide::Files).unwrap())
     }
 
     fn closed(&self, id: u64) -> CallClose {
@@ -133,26 +136,31 @@ impl Link {
 
     /// The next notice of subscription call `id`.
     fn notice(&self, id: u64, kind: NoticeKind) -> FilesNotice {
-        let LinkMessage::Frame(LinkFrame {
-            call: streamed,
-            kind: frame_kind,
-            record,
-        }) = self.next()
-        else {
-            panic!("expected a notice of call {id}");
-        };
-        assert_eq!(streamed, call(id));
-        let expected = match kind {
-            NoticeKind::Snapshot => FrameKind::Snapshot,
-            NoticeKind::Update => FrameKind::Update,
-        };
-        assert_eq!(frame_kind, expected);
-        let Ok(FilesRecord::Notice(json)) = decode_files_record(&record, RecordPlace::NoticeFrame)
-        else {
-            panic!("expected a Notice record");
-        };
-        parse_notice(Operation::FsSubscribe, kind, &json).unwrap()
+        notice_of(self.next(), id, kind)
     }
+}
+
+/// The notice `message` carries for subscription call `id`.
+fn notice_of(message: LinkMessage, id: u64, kind: NoticeKind) -> FilesNotice {
+    let LinkMessage::Frame(LinkFrame {
+        call: streamed,
+        kind: frame_kind,
+        record,
+    }) = message
+    else {
+        panic!("expected a notice of call {id}");
+    };
+    assert_eq!(streamed, call(id));
+    let expected = match kind {
+        NoticeKind::Snapshot => FrameKind::Snapshot,
+        NoticeKind::Update => FrameKind::Update,
+    };
+    assert_eq!(frame_kind, expected);
+    let Ok(FilesRecord::Notice(json)) = decode_files_record(&record, RecordPlace::NoticeFrame)
+    else {
+        panic!("expected a Notice record");
+    };
+    parse_notice(Operation::FsSubscribe, kind, &json).unwrap()
 }
 
 impl Drop for Link {
@@ -306,7 +314,7 @@ fn grants_and_root_facts_follow_the_scope() {
             os: path::OPERATING_SYSTEM,
             separator: path::SEPARATOR,
             case_sensitive: path::CASE_SENSITIVE,
-            watch: WatchState::Stopped,
+            watch: WatchState::Full,
         })
     );
 
@@ -372,4 +380,63 @@ fn grants_and_root_facts_follow_the_scope() {
     assert_eq!(link.reply(7, Operation::FsUngrant), FilesReply::Empty);
     link.services.cancel(call(1));
     assert_eq!(link.closed(1), CallClose::Cancelled);
+}
+
+#[test]
+fn a_listed_folder_reports_the_files_created_in_it() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    link.request(
+        1,
+        &FilesRequest::FsSubscribe(WorkspaceRequest {
+            workspace_id: workspace(),
+        }),
+    );
+    let FilesNotice::FsSnapshot(FsSnapshot {
+        root: Root::Present(root),
+        ..
+    }) = link.notice(1, NoticeKind::Snapshot)
+    else {
+        panic!("expected the present root");
+    };
+    let list = FsList {
+        workspace_id: workspace(),
+        path: root.clone(),
+        cursor: None,
+        single_child: false,
+    };
+    link.request(2, &FilesRequest::FsList(list));
+    assert!(matches!(
+        link.reply(2, Operation::FsList),
+        FilesReply::FsList(_)
+    ));
+    // The native watch starts on the process's own threads after the listing answers, so files
+    // are created until the subscription reports one added.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let mut created = Vec::new();
+    loop {
+        assert!(Instant::now() < deadline, "no creation was reported");
+        let name = format!("created-{}.txt", created.len());
+        fs::write(fixture.0.join("root").join(&name), b"created").unwrap();
+        created.push(format!(
+            "{}{}{name}",
+            root.as_str(),
+            std::path::MAIN_SEPARATOR
+        ));
+        let Some(message) = link.within(Duration::from_millis(500)) else {
+            continue;
+        };
+        let FilesNotice::FsUpdate(FsUpdate::Changes { changes }) =
+            notice_of(message, 1, NoticeKind::Update)
+        else {
+            continue;
+        };
+        if changes.as_slice().iter().any(|change| {
+            change.kind == ChangeKind::Added
+                && created.iter().any(|path| path == change.path.as_str())
+        }) {
+            break;
+        }
+    }
 }
