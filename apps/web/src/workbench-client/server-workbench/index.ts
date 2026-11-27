@@ -7,6 +7,8 @@ export type {
 	ServerClientViewSample,
 } from './ServerClientView';
 export { ServerConfiguredCommands } from './ServerConfiguredCommands';
+export { ServerFileSessionPort } from './file-session';
+export type { ServerFileSessionOptions } from './file-session';
 export type {
 	ServerConfiguredCommandReply,
 	ServerConfiguredCommandSource,

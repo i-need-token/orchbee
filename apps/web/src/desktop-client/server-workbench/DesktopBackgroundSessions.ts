@@ -15,9 +15,8 @@ import {
 } from '../../workbench';
 import { ServerTerminalAgentSource } from '../../workbench-client';
 import type { DesktopRemoteSession, DesktopRemoteSessions } from './DesktopRemoteSessions';
+import { LOCAL_MACHINE } from './local-machine';
 
-/** This computer, as the other machines' list names it. */
-const LOCAL = 'local';
 /** How long Quit All waits for the hub to take each machine's stop before it stops this computer's. */
 const STOP_TAKEN_MILLISECONDS = 3000;
 
@@ -194,7 +193,7 @@ export class DesktopBackgroundSessions {
 		const notification = projectWorkbenchAgentNotification({
 			candidate,
 			intl: intl(),
-			navigateAgent: (input) => open(LOCAL, input.workspaceId),
+			navigateAgent: (input) => open(LOCAL_MACHINE, input.workspaceId),
 			runtime: local.runtime,
 		});
 		if (notification !== null) observer.observeAgentNotification(notification);

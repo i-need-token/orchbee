@@ -1,7 +1,8 @@
 /**
  * OBFB, the records File Bar streams carry under the `files` capability. `schemas/files` owns the
  * contract and the corpus that keeps this codec aligned with `crates/files-protocol`. This layer
- * checks a record's frame where it travels; the JSON inside belongs to the File Bar adapters.
+ * checks a record's frame where it travels, frames the Client's requests and takes apart what a
+ * Server sends; `files-contract.ts` reads the JSON inside.
  */
 
 const MAGIC = [0x4f, 0x42, 0x46, 0x42] as const;
@@ -25,6 +26,8 @@ const COMMIT = 2;
 const CHANGED = 2;
 const DIGEST = 4;
 const PUT_FLAGS: ReadonlySet<number> = new Set([0, LAST, LAST | COMMIT]);
+/** A final chunk's line ending, by its code less one. */
+const LINE_ENDINGS = ['none', 'lf', 'crlf'] as const;
 
 /** Where a record travels, which decides the kinds it may be. */
 export type FilesRecordPlace = 'events-open' | 'notice-frame' | 'request-open' | 'result-frame';
@@ -35,6 +38,30 @@ const PLACED_KINDS: Readonly<Record<FilesRecordPlace, ReadonlySet<number>>> = {
 	'request-open': new Set([REQUEST, PUT]),
 	'result-frame': new Set([RESULT, CHUNK]),
 };
+
+/** The facts a read's final chunk reports. */
+export interface FilesChunkEnd {
+	/** The file's modification time or size moved while it was read. */
+	readonly changed: boolean;
+	/** For a text read, the SHA-256 of the file bytes it consumed, which a save sends back. */
+	readonly digest: Uint8Array | null;
+	/** The text's line ending by VS Code's buffer rule; `none` for a byte read. */
+	readonly lineEnding: (typeof LINE_ENDINGS)[number];
+}
+
+/** One piece of a read's output, at its offset there. */
+export interface FilesChunk {
+	readonly data: Uint8Array;
+	/** Present on the read's final chunk only. */
+	readonly end: FilesChunkEnd | null;
+	readonly offset: bigint;
+	readonly transfer: bigint;
+}
+
+/** A record a Server sends: a JSON body, or a piece of a read. */
+export type FilesServerRecord =
+	| { readonly body: Uint8Array; readonly kind: 'notice' | 'result' }
+	| { readonly chunk: FilesChunk; readonly kind: 'chunk' };
 
 /** Whether `record` claims to be OBFB, which only a carrier that negotiated `files` admits. */
 export function isFilesRecord(record: Uint8Array): boolean {
@@ -74,6 +101,53 @@ export function checkFilesRecord(record: Uint8Array, place: FilesRecordPlace): b
 		default:
 			return checkChunk(view, length);
 	}
+}
+
+/** Frames a request's JSON body as an OBFB Request; null when the body is empty or beyond 16 KiB. */
+export function encodeFilesRequestRecord(body: Uint8Array): Uint8Array | null {
+	if (body.byteLength < 1 || body.byteLength > MAXIMUM_REQUEST_BYTES) return null;
+	const record = new Uint8Array(HEADER_BYTES + body.byteLength);
+	const view = new DataView(record.buffer);
+	record.set(MAGIC);
+	view.setUint16(4, RECORD_VERSION);
+	view.setUint16(6, REQUEST);
+	view.setUint32(8, body.byteLength);
+	record.set(body, HEADER_BYTES);
+	return record;
+}
+
+/** Takes apart a record a Server sent at `place`; null unless `checkFilesRecord` admits it there. */
+export function decodeFilesRecord(
+	record: Uint8Array,
+	place: 'notice-frame' | 'result-frame',
+): FilesServerRecord | null {
+	if (!checkFilesRecord(record, place)) return null;
+	const view = new DataView(record.buffer, record.byteOffset, record.byteLength);
+	const kind = view.getUint16(6);
+	if (kind === NOTICE) return { body: record.subarray(HEADER_BYTES), kind: 'notice' };
+	if (kind === RESULT) return { body: record.subarray(HEADER_BYTES), kind: 'result' };
+	const flags = view.getUint8(HEADER_BYTES + 16);
+	let data = HEADER_BYTES + CHUNK_PREFIX_BYTES;
+	let end: FilesChunkEnd | null = null;
+	if ((flags & LAST) !== 0) {
+		const lineEnding = LINE_ENDINGS[view.getUint8(HEADER_BYTES + 17) - 1];
+		if (lineEnding === undefined) return null;
+		let digest: Uint8Array | null = null;
+		if ((flags & DIGEST) !== 0) {
+			digest = record.slice(data, data + DIGEST_BYTES);
+			data += DIGEST_BYTES;
+		}
+		end = { changed: (flags & CHANGED) !== 0, digest, lineEnding };
+	}
+	return {
+		chunk: {
+			data: record.subarray(data),
+			end,
+			offset: view.getBigUint64(HEADER_BYTES + 8),
+			transfer: view.getBigUint64(HEADER_BYTES),
+		},
+		kind: 'chunk',
+	};
 }
 
 function checkChunk(view: DataView, length: number): boolean {

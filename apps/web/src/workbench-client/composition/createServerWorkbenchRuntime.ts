@@ -19,6 +19,7 @@ import {
 import type { TerminalPresentationId, WorkbenchSnapshot } from '@orchbee/workbench-client-protocol';
 
 import type { ApplicationLocaleSource } from '../../application-locale';
+import type { FileSessionPort } from '../../file-session';
 import { runApplicationCleanup } from '../../runApplicationCleanup';
 import type { TerminalCompletionReminderObserver } from '../../terminal-feedback-settings';
 import {
@@ -65,12 +66,14 @@ import {
 	ServerAgentConfirmations,
 	ServerAgentNameSource,
 	ServerAgentCatalog,
+	ServerFileSessionPort,
 	ServerLeaving,
 	ServerTerminalAgentSource,
 	ServerTerminalEndObserver,
 	ServerTerminalProjectionClient,
 	ServerTerminalRuntime,
 	ServerTerminalTitleSource,
+	type ServerFileSessionOptions,
 	type ServerLaunchProfileSource,
 	type ServerTerminalTitle,
 	type ServerTerminalTitleCursor,
@@ -98,6 +101,8 @@ export interface ServerWorkbenchRuntime {
 	/** The Agents the Server observes in this session's terminals. */
 	readonly agentObservationSource: WorkbenchAgentSource;
 	readonly authority: WorkbenchAuthority;
+	/** The Session's file sessions, present where the window offers the File Bar and it serves them. */
+	readonly fileSessionPort: FileSessionPort | undefined;
 	readonly projectWorkspaceRuntime: WorkbenchProjectWorkspaceRuntime;
 	readonly terminalSurfaceCapability: ProjectedTerminalSurfaceCapability;
 	/** Each Workspace's branch or folder and divergence, read from the Server while shown. */
@@ -112,6 +117,11 @@ export interface CreateServerWorkbenchRuntimeOptions {
 	readonly ctrlCCopiesSelection?: boolean | undefined;
 	/** Where New Workspace starts while the person works in no Workspace. */
 	readonly defaultDirectory: string;
+	/**
+	 * Opens file sessions over the connection for the File Bar; absent where the window does not
+	 * offer it or the Session's handshake lacks `files`.
+	 */
+	readonly fileSessions?: Omit<ServerFileSessionOptions, 'connection'> | undefined;
 	readonly documentElement: Pick<HTMLElement, 'dir' | 'lang'> &
 		Partial<Pick<HTMLElement, 'ownerDocument'>>;
 	readonly focusRecoveryStorage?: WorkbenchFocusRecoveryStorage | undefined;
@@ -180,6 +190,7 @@ export function createServerWorkbenchRuntime({
 	connection,
 	defaultDirectory,
 	documentElement,
+	fileSessions,
 	focusRecoveryStorage,
 	homeDirectory,
 	launchProfiles,
@@ -206,6 +217,10 @@ export function createServerWorkbenchRuntime({
 	let intl = createOrchbeeIntl(locale);
 	const initialPublication = projectServerSnapshot(session.snapshot, intl);
 	const actionRuntime = new ActionRuntime();
+	const fileSessionPort =
+		fileSessions === undefined
+			? undefined
+			: new ServerFileSessionPort({ ...fileSessions, connection });
 	// A relaunch's place takes the place of focus recovery.
 	const createInitialClientView = (): WorkbenchClientView | undefined => {
 		if (relaunchPlace !== undefined && relaunchPlace !== null) {
@@ -530,6 +545,7 @@ export function createServerWorkbenchRuntime({
 		agentNameSource,
 		agentObservationSource,
 		authority,
+		fileSessionPort,
 		dispose: () => {
 			if (disposed) return;
 			disposed = true;
@@ -539,6 +555,7 @@ export function createServerWorkbenchRuntime({
 			runApplicationCleanup(
 				[
 					() => stopPublication(),
+					() => fileSessionPort?.dispose(),
 					() => agentCatalog.dispose(),
 					() => configuredCommands.dispose(),
 					() => clientView?.dispose(),

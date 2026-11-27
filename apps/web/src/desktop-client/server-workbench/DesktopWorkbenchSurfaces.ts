@@ -17,9 +17,7 @@ import {
 	type ServerWorkbenchSession,
 } from '../../workbench-client';
 import type { DesktopRemoteSession, DesktopRemoteSessions } from './DesktopRemoteSessions';
-
-/** This computer, as the other machines' list names it; saved machines are named by catalog ID. */
-const LOCAL = 'local';
+import { LOCAL_MACHINE } from './local-machine';
 
 /** A Session on screen: its runtime, the routing drawn from it, and which machine it is. */
 export interface DesktopWorkbenchSurface {
@@ -31,7 +29,11 @@ export interface DesktopWorkbenchSurface {
 }
 
 interface DesktopWorkbenchSurfacesOptions {
-	readonly createRemoteRuntime: (remote: DesktopRemoteSession) => ServerWorkbenchRuntime;
+	/** A saved machine's runtime, which `machine` names by its catalog ID. */
+	readonly createRemoteRuntime: (
+		machine: string,
+		remote: DesktopRemoteSession,
+	) => ServerWorkbenchRuntime;
 	readonly createRouting: (
 		runtime: ServerWorkbenchRuntime,
 		local: boolean,
@@ -155,7 +157,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 			act: 'move',
 			from: this.#surface?.machine ?? null,
 			label: workspaceName,
-			to: machine === LOCAL ? null : machine,
+			to: machine === LOCAL_MACHINE ? null : machine,
 			workspace: workspaceId,
 		});
 	};
@@ -181,7 +183,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 	/** Shows `workspaceId`, or the Session's first location, of `machine` once its surface can. */
 	#land(machine: string, workspaceId: string | null): boolean {
 		const { local, remoteSessions } = this.#options;
-		if (machine === LOCAL) {
+		if (machine === LOCAL_MACHINE) {
 			this.#mount(null, local.runtime, local.session, workspaceHistory(workspaceId));
 			return true;
 		}
@@ -189,7 +191,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		if (remote === undefined) return false;
 		this.#mount(
 			machine,
-			this.#options.createRemoteRuntime(remote),
+			this.#options.createRemoteRuntime(machine, remote),
 			remote.session,
 			workspaceHistory(workspaceId),
 		);
@@ -236,7 +238,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		const landed = this.#landed;
 		this.#landed = moved?.number ?? null;
 		if (landed === undefined || moved === null || moved.number === landed) return;
-		this.open(moved.machine ?? LOCAL, moved.workspace);
+		this.open(moved.machine ?? LOCAL_MACHINE, moved.workspace);
 	}
 
 	#machine(machine: string): TerminalSettingsMachinesView['machines'][number] | undefined {
@@ -282,7 +284,7 @@ export class DesktopWorkbenchSurfaces implements WorkbenchOtherMachines {
 		if (shown !== null) {
 			list.push({
 				leading: true,
-				machine: LOCAL,
+				machine: LOCAL_MACHINE,
 				mark: null,
 				...serverNavigationRows(local.session.snapshot),
 				word: null,
@@ -372,10 +374,10 @@ function changeOf(
 	view: TerminalSettingsMachinesView,
 	shown: string | null,
 ): NonNullable<WorkbenchOtherMachinesSnapshot['change']> {
-	const here = shown ?? LOCAL;
+	const here = shown ?? LOCAL_MACHINE;
 	const rows: WorkbenchMachineChangeRow[] = [];
 	for (const { band, machine } of view.change.rows) {
-		const id = machine ?? LOCAL;
+		const id = machine ?? LOCAL_MACHINE;
 		const saved =
 			machine === null ? undefined : view.machines.find((row) => row.machine === machine);
 		if (machine !== null && saved === undefined) continue;

@@ -11,7 +11,8 @@ type ServerSessionAction =
 	| 'check-for-updates'
 	| 'follow-agent-confirmations'
 	| 'follow-terminal-runtime'
-	| 'follow-update-phases';
+	| 'follow-update-phases'
+	| 'open-file-sessions';
 
 /** Every capability this build's `client-server` offer lists, with the window actions that need it. */
 const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] = [
@@ -23,6 +24,9 @@ const NEEDED_BY: readonly (readonly [string, readonly ServerSessionAction[]])[] 
 	['agent-input-area', []],
 	// Main's Update reads it itself, before a switch.
 	['compatibility-window', []],
+	// The File Bar opens file sessions only where it is listed, which no build offers until its
+	// Server relays File Bar streams to `orchbee-files`.
+	['files', ['open-file-sessions']],
 	// Only the TUI's start in the focused Panel needs it, which the window lacks.
 	['prompt-gated-input', []],
 	// The terminal surface follows the Session's terminal-runtime read only where it is listed.

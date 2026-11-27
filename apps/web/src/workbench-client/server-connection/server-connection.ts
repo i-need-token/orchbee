@@ -84,7 +84,7 @@ class ServerOutcomeUnknownError extends Error {
 }
 
 /** The deadline passed without a result; the request may still have taken effect. */
-class ServerExchangeTimeoutError extends Error {
+export class ServerExchangeTimeoutError extends Error {
 	constructor() {
 		super('Server exchange timed out.');
 		this.name = 'ServerExchangeTimeoutError';

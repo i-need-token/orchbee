@@ -15,9 +15,11 @@ JSON of every `files` operation.
 | [Backend proposal](../../proposals/platform/file-bar-backend.md)                                                 | The accepted design and its reserved decisions                         |
 
 `crates/files-protocol` is the Rust binding, which `orchbee-server`, `orchbee-files` and the Rust
-OBWP multiplex use. The web Client checks records with `files-record-codec.ts` beside its OBWP
-stream codec in `apps/web/src/workbench-client/server-connection/`. Bindings are independent
-implementations of this contract and consume the corpus unchanged.
+OBWP multiplex use. The web Client's binding sits beside its OBWP stream codec in
+`apps/web/src/workbench-client/server-connection/`: `files-record-codec.ts` checks and frames
+records, `files-json.ts` applies the JSON rules, and `files-contract.ts` reads and writes the JSON
+of the operations its file sessions send. Bindings are independent implementations of this
+contract and consume the corpus unchanged.
 
 The contract is frozen when its batch is released; until then, a change edits the schema, the
 corpora and every binding together. That release adds both corpora to the connection registry's

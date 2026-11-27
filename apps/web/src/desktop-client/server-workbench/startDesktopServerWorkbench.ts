@@ -76,6 +76,7 @@ import { DesktopBackgroundSessions } from './DesktopBackgroundSessions';
 import { DesktopRemoteSessions } from './DesktopRemoteSessions';
 import { DesktopWorkbenchSurfaces } from './DesktopWorkbenchSurfaces';
 import { MessagePortServerCarrier } from './MessagePortServerCarrier';
+import { LOCAL_MACHINE } from './local-machine';
 import { offersFileBar } from './offersFileBar';
 import { requestMachineSession } from './requestMachineSession';
 
@@ -435,6 +436,14 @@ async function run(
 		connection,
 		defaultDirectory: bootstrap.defaultDirectory,
 		documentElement,
+		fileSessions:
+			fileBarOffered && serverSessionServes(bootstrap.negotiatedCapabilities, 'open-file-sessions')
+				? {
+						capabilities: bootstrap.negotiatedCapabilities ?? [],
+						machine: LOCAL_MACHINE,
+						remote: false,
+					}
+				: undefined,
 		focusRecoveryStorage: storage.focusRecovery,
 		// Main names the person's home folder, and the Server it started runs beside it.
 		homeDirectory: bootstrap.defaultDirectory,
@@ -514,7 +523,7 @@ async function run(
 	surfaces = new DesktopWorkbenchSurfaces({
 		// Another machine's surface carries only its Workspaces, Tabs and Panels: this computer's
 		// folder picker, launch profiles, Quit All and window title stay with this computer's.
-		createRemoteRuntime: (remote) =>
+		createRemoteRuntime: (machine, remote) =>
 			createServerWorkbenchRuntime({
 				agentCompletionAcknowledgement: serverSessionServes(
 					remote.capabilities,
@@ -526,6 +535,10 @@ async function run(
 				ctrlCCopiesSelection,
 				defaultDirectory: remoteDefaultDirectory(remote.session.snapshot),
 				documentElement,
+				fileSessions:
+					fileBarOffered && serverSessionServes(remote.capabilities, 'open-file-sessions')
+						? { capabilities: remote.capabilities, machine, remote: true }
+						: undefined,
 				// A publication this document cannot apply ends that connection, and the window returns home.
 				onPublicationFailure: () => remote.session.dispose(),
 				preferredLocales,
@@ -554,6 +567,7 @@ async function run(
 					agentNameSource: shown.agentNameSource,
 					agentObservationSource: shown.agentObservationSource,
 					authority: shown.authority,
+					fileSessionPort: shown.fileSessionPort,
 					otherMachines,
 					projectFolderAcquisition: local ? projectFolderAcquisition : undefined,
 					projectWorkspaceRuntime: shown.projectWorkspaceRuntime,
