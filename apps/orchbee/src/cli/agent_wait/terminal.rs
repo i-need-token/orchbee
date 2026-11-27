@@ -19,6 +19,8 @@ mod state;
 pub(in crate::cli) use state::admit;
 
 const READ_BUDGET: Duration = Duration::from_secs(5);
+/// The pause before a sample that an unrelated change outran is read again.
+const OUTRUN_PAUSE: Duration = Duration::from_millis(50);
 
 pub(in crate::cli) struct Options<'a> {
     pub selected: Option<&'a orchbee_workbench_protocol::WorkbenchClientId>,
@@ -84,20 +86,28 @@ pub(in crate::cli) fn observe(
     let mut handle = None;
     let first = match initial {
         Some(read) => read,
-        None => {
-            let (snapshot, read) = read_pinned(
+        None => loop {
+            match read_pinned(
                 client,
                 options.target,
                 options.binding,
                 None,
                 effect,
                 signals,
-            )
-            .map_err(|failure| read_failure(failure, &options, false, effect, observations))?;
-            observations += 1;
-            handle = presentation_handle(&snapshot, &read);
-            read
-        }
+            ) {
+                Ok((snapshot, read)) => {
+                    observations += 1;
+                    handle = presentation_handle(&snapshot, &read);
+                    break read;
+                }
+                Err(failure) if outrun(&failure) && Instant::now() < effect => {
+                    back_off(signals, options.total.backoff(Instant::now(), OUTRUN_PAUSE))?;
+                }
+                Err(failure) => {
+                    return Err(read_failure(failure, &options, false, effect, observations));
+                }
+            }
+        },
     };
     if options.total.expired(Instant::now()) {
         return Err(timeout(&options, "wait-deadline", observations));
@@ -130,7 +140,7 @@ pub(in crate::cli) fn observe(
         if gated {
             deadline = deadline.min(effect);
         }
-        let attention = options
+        let sample = options
             .selected
             .map(|selected| {
                 let snapshot =
@@ -145,16 +155,29 @@ pub(in crate::cli) fn observe(
                 )
             })
             .transpose()
-            .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
-        let (snapshot, read) = read_pinned(
-            client,
-            options.target,
-            options.binding,
-            Some(state.sequence),
-            deadline,
-            signals,
-        )
-        .map_err(|failure| read_failure(failure, &options, gated, effect, observations))?;
+            .and_then(|attention| {
+                read_pinned(
+                    client,
+                    options.target,
+                    options.binding,
+                    Some(state.sequence),
+                    deadline,
+                    signals,
+                )
+                .map(|(snapshot, read)| (attention, snapshot, read))
+            });
+        let (attention, snapshot, read) = match sample {
+            Ok(sample) => sample,
+            // A change elsewhere in the workbench outran this sample's reads before it observed
+            // anything; the next sample reads a fresh view under the same deadlines.
+            Err(failure) if outrun(&failure) => {
+                back_off(signals, options.total.backoff(Instant::now(), OUTRUN_PAUSE))?;
+                continue;
+            }
+            Err(failure) => {
+                return Err(read_failure(failure, &options, gated, effect, observations));
+            }
+        };
         observations = observations.saturating_add(1);
         let client_view = attention.map(|a| a.corroborate(&read));
         let now = Instant::now();
@@ -178,6 +201,20 @@ pub(in crate::cli) fn observe(
             return Err(error(FailureKind::InternalFailure, "interrupted"));
         }
         backoff = (backoff * 2).min(Duration::from_millis(500));
+    }
+}
+
+/// Whether a sample's reads were outrun by a change that left nothing observed, such as a Tab
+/// opened in another Workspace while the Agent projection was read.
+fn outrun(failure: &Failure) -> bool {
+    crate::cli::stale_retry::stale(failure)
+}
+
+fn back_off(signals: &mut impl SignalWatch, pause: Duration) -> Result<(), Failure> {
+    if super::wait_backoff(signals.poll_fd(), pause) {
+        Err(error(FailureKind::InternalFailure, "interrupted"))
+    } else {
+        Ok(())
     }
 }
 

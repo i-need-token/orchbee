@@ -209,7 +209,7 @@ fn agent_wait_span(
         Ok(deadline) => deadline,
         Err(failure) => return WaitAttempt::Done(Err(failure)),
     };
-    let snapshot = if selected.is_some() {
+    let mut snapshot = if selected.is_some() {
         match query::read_agent_snapshot(&mut client, resolve_deadline, signals.poll_fd()) {
             Ok(snapshot) => Some(snapshot),
             Err(failure) => return WaitAttempt::Done(Err(failure)),
@@ -218,13 +218,38 @@ fn agent_wait_span(
         None
     };
     let session_id = if extended {
-        match query::agent_target::resolve_named(
-            &mut client,
-            target,
-            snapshot.as_ref(),
-            resolve_deadline,
-            signals.poll_fd(),
-        ) {
+        let resolved = loop {
+            match query::agent_target::resolve_named(
+                &mut client,
+                target,
+                snapshot.as_ref(),
+                resolve_deadline,
+                signals.poll_fd(),
+            ) {
+                // A change elsewhere in the workbench outran the resolution's reads, which
+                // resolved nothing; the target is resolved again from a fresh view.
+                Err(failure)
+                    if crate::cli::stale_retry::stale(&failure)
+                        && Instant::now() < resolve_deadline =>
+                {
+                    if wait_backoff(signals.poll_fd(), WAIT_POLL_INITIAL) {
+                        return WaitAttempt::Wake;
+                    }
+                    if selected.is_some() {
+                        snapshot = match query::read_agent_snapshot(
+                            &mut client,
+                            resolve_deadline,
+                            signals.poll_fd(),
+                        ) {
+                            Ok(snapshot) => Some(snapshot),
+                            Err(failure) => return WaitAttempt::Done(Err(failure)),
+                        };
+                    }
+                }
+                resolved => break resolved,
+            }
+        };
+        match resolved {
             Ok(resolved) => match resolved.target {
                 orchbee_agent_observation_protocol::AgentNameTarget::Session { session_id } => {
                     session_id

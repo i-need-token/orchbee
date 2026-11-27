@@ -41,7 +41,7 @@ impl Ended {
 }
 
 /// The marker counts only on a definite refusal; an unknown outcome is never a refusal.
-fn stale(failure: &Failure) -> bool {
+pub(super) fn stale(failure: &Failure) -> bool {
     failure.kind == FailureKind::Rejected && failure.stale_view
 }
 
