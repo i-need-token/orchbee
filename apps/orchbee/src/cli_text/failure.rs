@@ -16,6 +16,26 @@ impl super::CliText {
                 .startup_failure(&crate::local_startup::StartupFailure::ElevatedSession)
                 .into_owned();
         }
+        // A caller terminal that is gone names where the command found it, since the caller never
+        // typed that ID.
+        if failure.is_stale_caller() {
+            let terminal = failure
+                .details
+                .as_ref()
+                .and_then(|details| details.get("target"))
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default();
+            return match self.locale {
+                Locale::EnUs => format!(
+                    "The caller terminal {terminal}, named by ORCHBEE_TERMINAL_ID, no longer exists. A process started in an Orchbee terminal keeps that terminal's ORCHBEE_* variables after it closes; name the Panel explicitly, or start a long-running process without ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID.
+"
+                ),
+                Locale::ZhCn => format!(
+                    "ORCHBEE_TERMINAL_ID 指明的调用方终端 {terminal} 已不存在。从 Orchbee 终端启动的进程在该终端关闭后仍保留它的 ORCHBEE_* 变量；请显式指定面板，或在启动常驻进程时去掉 ORCHBEE_TERMINAL_ID 和 ORCHBEE_WORKER_ID。
+"
+                ),
+            };
+        }
         // So does a local start that names what blocks it or what the system refused.
         if let Some(startup) = failure.startup() {
             return self.locale.startup_failure(startup).into_owned();

@@ -154,6 +154,9 @@ pub(crate) enum FailureDisplay {
     /// standard Client at its endpoint; the machine document keeps the kind
     /// and stage the refusal already had.
     ElevatedSession,
+    /// The caller's own terminal, named by an `ORCHBEE_TERMINAL_ID` the process inherited, no
+    /// longer exists; the machine document keeps the not-found terminal target.
+    StaleCaller,
     /// A local start that reads as the TUI words it, such as a recovery a
     /// still-running process blocks or a Server the system refused to create;
     /// the machine document keeps its own details.
@@ -345,6 +348,16 @@ impl Failure {
             self.display = Some(Box::new(FailureDisplay::ElevatedSession));
         }
         self
+    }
+
+    /// Mark a not-found caller terminal, for the localized diagnostic only.
+    pub(crate) fn stale_caller(mut self) -> Self {
+        self.display = Some(Box::new(FailureDisplay::StaleCaller));
+        self
+    }
+
+    pub(crate) fn is_stale_caller(&self) -> bool {
+        matches!(self.display.as_deref(), Some(FailureDisplay::StaleCaller))
     }
 
     pub(crate) fn elevated_session(&self) -> bool {

@@ -60,5 +60,10 @@ The level says who may rely on a variable:
 the second is the route a terminal inherits from its Session, takes precedence, and applies only to
 the build `ORCHBEE_ENVIRONMENT` names.
 
+A process started in an Orchbee terminal keeps that terminal's variables after the terminal closes,
+so a long-running process started there should drop `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`
+or name its targets explicitly. A command that takes its Panel from them fails `not-found` for the
+closed terminal and says where it found it.
+
 Build scripts also pass `ORCHBEE_ARTIFACT_STEM`, `ORCHBEE_ENVIRONMENT_STEM`, `ORCHBEE_CHECKOUT_NAME`
 and `ORCHBEE_SOURCE_COMMIT` to the compiler; a built program never reads them.

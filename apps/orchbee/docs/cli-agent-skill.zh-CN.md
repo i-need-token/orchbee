@@ -61,7 +61,7 @@ Workspace 拥有目录，可属于 Project；Project 分组是可选的。Worksp
 
 先用 `api snapshot`，再使用相关的 `project`、`workspace`、`tab`、`panel`、`terminal`、`launch-profile`、`client` 或 `agent` list/get 命令。复用返回的 ID。优先使用打印的 `@panel:0x1` 等稳定句柄：它只省略 ID 的前导零，其他资源增删不会改变其含义。PowerShell 中给句柄加引号。ID 和紧凑句柄受所选 Session 及底层身份寿命约束；Server 重启后重新发现运行时终端 ID。
 
-在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用位置参数 Panel ID。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退。只有一个就绪客户端时，`workspace`、`tab` 与 `panel` 的 list/get 按它给出 `focused`；否则传入 `--client <id>`，不然 `focused` 为 null。
+在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用位置参数 Panel ID。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退；从终端启动的后台进程会保留该终端的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID`，启动时请去掉它们，或显式传入目标。只有一个就绪客户端时，`workspace`、`tab` 与 `panel` 的 list/get 按它给出 `focused`；否则传入 `--client <id>`，不然 `focused` 为 null。
 
 ## 创建和安排终端
 

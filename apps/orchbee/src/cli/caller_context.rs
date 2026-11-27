@@ -97,7 +97,8 @@ impl Caller {
                 Ok(Target::Id(row.panel_id.clone()))
             }
             _ => Err(Failure::new(FailureKind::NotFound)
-                .details(target_details(Resource::Terminal, self.terminal.as_str()))),
+                .details(target_details(Resource::Terminal, self.terminal.as_str()))
+                .stale_caller()),
         }
     }
 }
