@@ -10,7 +10,8 @@
 		"typecheck": "tsc --noEmit && tsc --noEmit -p system-tests",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:system": "playwright test --config playwright.config.ts"
+		"test:system": "playwright test --config playwright.config.ts",
+		"benchmark:virtual-tree": "vitest bench --run src/virtual-tree"
 	},
 	"dependencies": {
 		"@orchbee/actions": "workspace:^",
