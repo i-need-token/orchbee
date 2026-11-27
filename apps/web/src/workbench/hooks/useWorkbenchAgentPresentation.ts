@@ -348,6 +348,13 @@ export function useWorkbenchAgentPresentation({
 					) ?? '';
 				return { agentLabel, titleLabel };
 			};
+			// What a control that opens the Agent's terminal is named, its row or its folded glyph.
+			const navigationLabel = ({ destination, observation }: (typeof workspace.rows)[number]) =>
+				intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
+					location: formatWorkbenchAgentLocation(intl, destination),
+					provider: formatWorkbenchAgentName(intl, observation.agent),
+					status: formatWorkbenchAgentStatus(intl, observation.state).status,
+				});
 			return {
 				agentLabel: formatWorkbenchAgentGroupName(intl, workspace.agents),
 				collapseLabel: intl.formatMessage(workbenchMessages.workspaceAgentCollapse, {
@@ -361,12 +368,13 @@ export function useWorkbenchAgentPresentation({
 				}),
 				expanded: !foldedWorkspaceIds.has(workspace.workspaceId),
 				foldedStatus: {
-					glyphs: workspace.rowsByUrgency.map(({ destination, observation }) => {
-						const { agentLabel, titleLabel } = rowNames({ destination, observation });
-						const status = formatWorkbenchAgentStatus(intl, observation.state);
+					glyphs: workspace.rowsByUrgency.map((row) => {
+						const { agentLabel, titleLabel } = rowNames(row);
+						const status = formatWorkbenchAgentStatus(intl, row.observation.state);
 						return {
+							accessibleLabel: navigationLabel(row),
 							identity: titleLabel === '' ? agentLabel : `${titleLabel} · ${agentLabel}`,
-							presentationId: destination.presentationId,
+							presentationId: row.destination.presentationId,
 							shape: status.shape,
 							status: status.status,
 							tone: status.tone,
@@ -376,12 +384,11 @@ export function useWorkbenchAgentPresentation({
 						[...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state).status),
 						{ style: 'narrow', type: 'conjunction' },
 					),
-					legend: [...new Set(states)].map((state) => formatWorkbenchAgentStatus(intl, state)),
 				},
 				projectId: workspace.projectId,
-				rows: workspace.rows.map(({ destination, observation }) => {
-					const { agentLabel, titleLabel } = rowNames({ destination, observation });
-					const locationLabel = formatWorkbenchAgentLocation(intl, destination);
+				rows: workspace.rows.map((row) => {
+					const { destination, observation } = row;
+					const { agentLabel, titleLabel } = rowNames(row);
 					const status = formatWorkbenchAgentStatus(intl, observation.state);
 					const confirmation = confirmationRows.get(destination.presentationId);
 					return {
@@ -404,11 +411,7 @@ export function useWorkbenchAgentPresentation({
 										),
 										status: status.status,
 									}),
-						accessibleLabel: intl.formatMessage(workbenchMessages.workspaceAgentNavigationLabel, {
-							location: locationLabel,
-							provider: agentLabel,
-							status: status.status,
-						}),
+						accessibleLabel: navigationLabel(row),
 						agentLabel,
 						current: destination.presentationId === currentPresentationId,
 						finished: observation.state === 'done',

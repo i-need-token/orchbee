@@ -101,8 +101,8 @@ pub(super) fn describe(
     (text.is_some() || !legend.is_empty()).then_some(TooltipContent::Describe { text, legend })
 }
 
-/// Hidden Agents, each its state glyph and word and then its identity, one per line in the order
-/// given; none when there are none.
+/// Agents, each its state glyph and word and then its identity, one per line in the order given;
+/// none when there are none.
 pub(super) fn roster(
     agents: impl IntoIterator<Item = (MetadataState, String)>,
     working_frame: usize,

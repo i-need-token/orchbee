@@ -144,6 +144,13 @@
 	white-space: nowrap;
 }
 
+/* A folded Workspace's status runs onto a further 12 px line, 2 px under the last, for each run of
+   glyphs the width does not hold, so the row grows by 14 px a line. */
+.line2[data-agent-status] {
+	height: auto;
+	min-height: var(--ob-ref-space-3);
+}
+
 /* The folder, open while the Agent rows show, leads the name by the Agent rows' 6 px column gap.
    Under the pointer or focus a Workspace with Agents puts its fold chevron in the folder's place;
    touch, which has no pointer presence, always shows the chevron. */

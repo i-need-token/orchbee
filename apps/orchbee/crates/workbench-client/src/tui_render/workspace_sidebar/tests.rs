@@ -203,6 +203,10 @@ fn hit_belongs_to_sidebar_target(hit: Option<&HitTarget>, target: &SidebarTarget
                 selected: actual, ..
             },
         ) => target.selection().as_ref() == Some(actual),
+        // A folded Workspace's status glyph opens its Agent but stays part of the Workspace's row.
+        Some(hit @ HitTarget::SidebarStatus { .. }) => {
+            hit.sidebar_target().as_ref() == Some(target)
+        }
         _ => false,
     }
 }

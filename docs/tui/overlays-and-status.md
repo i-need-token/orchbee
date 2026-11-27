@@ -426,9 +426,9 @@ pointer through help, menus, or the binding table.
   pointer rests on that glyph; so does a short name that stands for a longer one, such as a folder
   named in place of its directory, which gives the longer one in full. The rest of the target
   gives only its cut name.
-- A roster lists the Agents a folded Workspace's `+N` hides, one per line, in the order the line
-  lists them: each state glyph, then the state word the legend gives, then the Agent's identity in
-  `text-secondary`, as its expanded row shows it. The identity is cut first, so a line keeps its
+- A roster names Agents, one per line: each state glyph, then the state word the legend gives,
+  then the Agent's identity in `text-secondary`, as its expanded row shows it. A glyph on a folded
+  Workspace's status line names its own Agent alone. The identity is cut first, so a line keeps its
   state word whole until the room cannot hold it. It shows at most eight lines; when the Agents
   outgrow them, the eighth reads `+k` in `text-secondary`, counting those it leaves out. Each line
   is cut to the box's text width with the ellipsis. The two-line limit applies to legends and names,

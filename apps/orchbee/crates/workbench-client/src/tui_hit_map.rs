@@ -303,6 +303,12 @@ pub enum HitTarget {
         selected: crate::machine_picker::Selection,
         window: crate::machine_picker::SidebarWindow,
     },
+    /// One Agent's state glyph on its folded Workspace's status line: it opens that Agent, and
+    /// otherwise belongs to the Workspace's row.
+    SidebarStatus {
+        agent: crate::machine_picker::SidebarTarget,
+        window: crate::machine_picker::SidebarWindow,
+    },
     SearchButton,
 }
 
@@ -377,6 +383,13 @@ impl HitTarget {
                 }
                 _ => None,
             },
+            Self::SidebarStatus {
+                agent: SidebarTarget::Agent { machine, target },
+                ..
+            } => Some(SidebarTarget::Context {
+                machine: machine.clone(),
+                target: target.context.clone(),
+            }),
             _ => None,
         }
     }

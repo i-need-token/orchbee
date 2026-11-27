@@ -94,9 +94,10 @@ fn sidebar_activation_re_resolves_visible_physical_identity_after_reorder() {
     picker.open = false;
     assert!(picker.toggle_sidebar_context_agents(&context));
     assert!(
-        !picker.activate_sidebar_agent(&selected),
-        "a collapsed row is not a current painted-tree candidate"
+        picker.activate_sidebar_agent(&selected),
+        "a folded Workspace's status line still opens each of its Agents"
     );
+    assert_eq!(picker.request.take(), Some(selected.clone()));
     assert!(picker.toggle_sidebar_context_agents(&context));
     picker.observe_agents(vec![(
         Choice::Local,

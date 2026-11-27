@@ -507,119 +507,12 @@ fn folded_workspace_with_agents(states: &[PanelAgentState]) -> (ClientView, Side
 }
 
 #[test]
-fn folded_status_line_lists_states_by_urgency_and_fits_the_most_before_the_remainder() {
+fn a_folded_workspace_shows_every_agent_by_urgency_and_each_glyph_opens_only_its_agent() {
+    use crate::machine_picker::SidebarActivation;
+    use crate::startup_directory::ClientStartupTarget;
+    use crate::tui_hit_map::HitRegionResolution;
     use MetadataState as State;
     use PanelAgentState::*;
-    for theme in [Theme::terminal_native(), Theme::orchbee_dark()] {
-        let cases = [
-            (
-                vec![Idle, Working, Done, Error, Blocked],
-                vec![
-                    State::Blocked,
-                    State::Error,
-                    State::Done,
-                    State::Working,
-                    State::Idle,
-                ],
-            ),
-            (
-                [
-                    vec![Idle; 4],
-                    vec![Unknown; 2],
-                    vec![Working; 4],
-                    vec![Done; 3],
-                    vec![Error; 3],
-                    vec![Blocked; 4],
-                ]
-                .concat(),
-                [
-                    vec![State::Blocked; 4],
-                    vec![State::Error; 3],
-                    vec![State::Done; 3],
-                    vec![State::Working; 4],
-                    vec![State::Idle; 4],
-                    vec![State::Unknown; 2],
-                ]
-                .concat(),
-            ),
-        ];
-        for (states, expected) in cases {
-            let (view, workspace) = folded_workspace_with_agents(&states);
-            let total = expected.len();
-            for width in 24..=40 {
-                let (buffer, _, hits) =
-                    paint_navigation_buffers(&view, Locale::EnUs, &theme, width, 20);
-                let rows = sidebar_target_rows(&hits, width, 20, &workspace);
-                assert_eq!(rows.len(), 2, "folding adds one status line under the name");
-                let tracks = layout::Tracks::resolve(
-                    Rect::new(0, rows[0], width, 2),
-                    0,
-                    auxiliary_actions(&view.machines.sidebar_source(), &workspace),
-                    layout::RowKind::for_target(&workspace),
-                )
-                .unwrap();
-                let (x, y) = (tracks.primary.x, rows[1]);
-                let cells = usize::from(tracks.primary.width);
-                let symbol = |offset: usize| {
-                    buffer[(x + u16::try_from(offset).unwrap(), y)]
-                        .symbol()
-                        .to_owned()
-                };
-                // The glyphs show the most urgent states in order, one blank cell apart.
-                let mut shown = 0;
-                // The blank after a glyph is read only while the line goes on past it.
-                while shown < total
-                    && 2 * shown < cells
-                    && symbol(2 * shown) == theme.agent_glyph(expected[shown])
-                {
-                    if 2 * shown + 1 < cells {
-                        assert_eq!(symbol(2 * shown + 1), " ", "{width}");
-                    }
-                    shown += 1;
-                }
-                let hidden = total - shown;
-                let rest: String = (2 * shown..cells).map(&symbol).collect();
-                let remainder = format!("+{hidden}");
-                if hidden == 0 {
-                    // Every state shows once the glyphs fit: one cell each, one blank cell between.
-                    assert!(2 * total - 1 <= cells, "{width}: {total} states fit");
-                    assert!(rest.trim_end().is_empty(), "{width}: {rest:?}");
-                } else if 2 * shown + remainder.len() <= cells {
-                    // The remainder follows the glyphs after one blank cell and counts the rest.
-                    assert_eq!(rest.trim_end(), remainder, "{width}");
-                    assert_eq!(
-                        buffer[(x + u16::try_from(2 * shown).unwrap(), y)].fg,
-                        theme
-                            .style(Role::TextSecondary)
-                            .fg
-                            .unwrap_or(ratatui::style::Color::Reset)
-                    );
-                    // One more glyph would not fit beside its remainder, or would complete the run.
-                    let next = shown + 1;
-                    let beside = if next == total {
-                        2 * total - 1
-                    } else {
-                        2 * next + format!("+{}", total - next).len()
-                    };
-                    assert!(
-                        beside > cells,
-                        "{width}: {shown} glyphs are not the most that fit"
-                    );
-                } else {
-                    // Not even the remainder fits, so the line shows nothing.
-                    assert_eq!(shown, 0, "{width}");
-                    assert!(rest.trim_end().is_empty(), "{width}: {rest:?}");
-                }
-            }
-        }
-    }
-}
-
-#[test]
-fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_hides() {
-    use MetadataState as State;
-    use PanelAgentState::*;
-    let theme = Theme::rgb_test_dark();
     let states = [
         vec![Idle; 4],
         vec![Unknown; 2],
@@ -629,30 +522,7 @@ fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_h
         vec![Blocked; 4],
     ]
     .concat();
-    let (view, _) = folded_workspace_with_agents(&states);
-    let mut terminal = Terminal::new(TestBackend::new(120, 40)).unwrap();
-    let mut hits = HitMapBuilder::new();
-    terminal
-        .draw(|frame| {
-            render_terminal_shell(frame, &view, Locale::EnUs, None, &theme, &mut hits);
-        })
-        .unwrap();
-    // Only the remainder offers a roster, so every cell that offers one is the remainder's.
-    let rosters: Vec<_> = (0..120u16)
-        .flat_map(|x| (0..40u16).map(move |y| (x, y)))
-        .filter_map(|(x, y)| match hits.tooltip_content_at(x, y) {
-            Some(TooltipContent::Roster { items }) => Some(items.clone()),
-            _ => None,
-        })
-        .collect();
-    let (first, others) = rosters
-        .split_first()
-        .expect("the remainder offers the Agents it hides");
-    assert!(others.iter().all(|items| items == first));
-    // The roster lists the hidden Agents, most urgent first: the tail of the urgency order.
-    let hidden = first.len();
-    assert!(0 < hidden && hidden < states.len(), "{hidden}");
-    let sorted = [
+    let expected = [
         vec![State::Blocked; 4],
         vec![State::Error; 3],
         vec![State::Done; 3],
@@ -661,16 +531,114 @@ fn a_folded_workspace_status_line_hovers_the_least_urgent_agents_its_remainder_h
         vec![State::Unknown; 2],
     ]
     .concat();
-    let tail = &sorted[states.len() - hidden..];
-    let glyphs: Vec<&str> = first.iter().map(|item| item.state.glyph.as_str()).collect();
-    let expected: Vec<&str> = tail.iter().map(|state| theme.agent_glyph(*state)).collect();
-    assert_eq!(glyphs, expected);
-    // Each row names its state as the legend does, then gives the Agent's identity.
-    for (item, state) in first.iter().zip(tail) {
-        let legend = crate::tui_render::tooltip::legend([*state], false, 0, Locale::EnUs, &theme);
-        assert_eq!(item.state.label, legend[0].label);
+    let theme = Theme::orchbee_dark();
+    let (view, workspace) = folded_workspace_with_agents(&states);
+    let state_of = |agent: &crate::machine_agents::checkpoint::Target| {
+        view.machines
+            .current_agent_rows()
+            .iter()
+            .find(|row| &row.target == agent)
+            .map(crate::machine_agents::checkpoint::Row::display_state)
+            .expect("an opened Agent is one of the Workspace's")
+    };
+    let height = 30;
+    for width in [12, 24, 40, 60] {
+        let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
+        let mut hits = HitMapBuilder::new();
+        let rows = view.machines.sidebar_navigation_rows();
+        let source = view.machines.sidebar_source();
+        terminal
+            .draw(|frame| {
+                render(
+                    frame,
+                    Rect::new(0, 0, width, height),
+                    RenderContext {
+                        native: None,
+                        held: None,
+                        creation: None,
+                        view: &view,
+                        locale: Locale::EnUs,
+                        theme: &theme,
+                        layer: HitLayer::Chrome,
+                        sidebar_width: width,
+                        trailing_padding: 0,
+                        owns_keyboard: false,
+                        source: &source,
+                    },
+                    &rows,
+                    None,
+                    Some(&mut hits),
+                );
+            })
+            .unwrap();
+        let buffer = terminal.backend().buffer().clone();
+        let cells: Vec<_> = (0..height)
+            .flat_map(|y| (0..width).map(move |x| (x, y)))
+            .collect();
+        let tooltips: Vec<_> = cells
+            .iter()
+            .map(|(x, y)| hits.tooltip_content_at(*x, *y).cloned())
+            .collect();
+        let hits = hits.finish();
+        let workspace_rows = sidebar_target_rows(&hits, width, height, &workspace);
+        // Every glyph that opens an Agent, in reading order.
+        let mut opened = Vec::new();
+        for ((x, y), tooltip) in cells.iter().zip(&tooltips) {
+            let HitRegionResolution::Region(region) = hits.hit_region(*x, *y) else {
+                continue;
+            };
+            let Some(InteractionTarget::Sidebar(drawn)) =
+                region.interaction.as_ref().map(|painted| painted.target())
+            else {
+                continue;
+            };
+            if drawn.part() != SidebarPart::Status {
+                continue;
+            }
+            assert!(
+                workspace_rows[1..].contains(y),
+                "{width}: a glyph stands on its Workspace's lines under the name"
+            );
+            let Some(SidebarActivation::Activate(selection)) =
+                view.machines.sidebar_activation(drawn)
+            else {
+                panic!("{width}: a status glyph opens its Agent");
+            };
+            let Some(ClientStartupTarget::Agent(agent)) = selection.context else {
+                panic!("{width}: a status glyph names an Agent");
+            };
+            let state = state_of(&agent);
+            let symbol = buffer[(*x, *y)].symbol().to_owned();
+            assert_eq!(symbol, theme.agent_glyph(state), "{width}");
+            // Its tooltip names that one Agent: its state as the legend words it, then identity.
+            let Some(TooltipContent::Roster { items }) = tooltip else {
+                panic!("{width}: a status glyph names its Agent: {tooltip:?}");
+            };
+            let [item] = items.as_slice() else {
+                panic!("{width}: a status glyph names only its own Agent: {items:?}");
+            };
+            let legend =
+                crate::tui_render::tooltip::legend([state], false, 0, Locale::EnUs, &theme);
+            assert_eq!(item.state.label, legend[0].label, "{width}");
+            assert_eq!(item.state.glyph, symbol, "{width}");
+            assert!(!item.identity.is_empty(), "{width}");
+            opened.push((state, agent));
+        }
+        // Every Agent shows, however narrow the line, most urgent first and wrapping in order.
+        let shown: Vec<_> = opened.iter().map(|(state, _)| *state).collect();
+        assert_eq!(shown, expected, "{width}");
+        for (index, (_, agent)) in opened.iter().enumerate() {
+            assert!(
+                opened[..index].iter().all(|(_, other)| other != agent),
+                "{width}: each glyph opens its own Agent"
+            );
+        }
+        // The rows run on directly below the name, one line per wrapped run of glyphs.
+        assert!(
+            workspace_rows.windows(2).all(|pair| pair[1] == pair[0] + 1),
+            "{width}: {workspace_rows:?}"
+        );
     }
-    assert!(first.iter().all(|item| !item.identity.is_empty()));
 }
 
 #[test]

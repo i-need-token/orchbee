@@ -217,11 +217,13 @@ and descriptive metadata uses secondary text.
 Each Workspace with Agents folds them away on its own, independent of its siblings, and starts
 expanded. While folded, its second line becomes a status line in place of the configured second
 line: the states of its Agents from the complete physical Agent checkpoint, most urgent first
-(Blocked, Error, Done, Working, Idle, Unknown), one cell apart: all of them when they fit the
-line, otherwise as many as fit beside a secondary-text `+N` for the rest. Hovering `+N` lists the
-Agents it hides, one per line, each with its state glyph, its state word, and then the identity its expanded row shows, which a short row cuts first. A
-one-line configured layout gains that second line
-while folded; configured lines after the second remain. Eligible Project
+(Blocked, Error, Done, Working, Idle, Unknown), one cell apart. Every Agent shows: glyphs the line
+cannot hold wrap onto further lines beneath it in the same order, ahead of any configured lines
+after the second. A click on a glyph opens that Agent as its expanded row does, and hovering it
+names that Agent alone, with its state glyph, its state word, and then the identity its expanded
+row shows, which a short row cuts first. A press on a glyph never starts a reorder drag; a
+secondary click opens the Workspace's menu, and the wheel scrolls the sidebar. A one-line
+configured layout gains that second line while folded; configured lines after the second remain. Eligible Project
 create controls are revealed with the row's other controls, right-aligned, with no overflow-menu slot after them. At 52 columns
 and above they use a localized Create action; narrower sidebars use the fixed three-cell `[+]` icon
 action. Project and Workspace rows never paint or publish an ellipsis button, including during
@@ -1025,4 +1027,4 @@ Pending and canonical Workspace rows reserve the same nonempty configured token 
 
 ## Sidebar symbol discovery
 
-A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status line each distinct state it shows, most urgent first, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.
+A pointer resting on the sidebar opens a [pointer tooltip](../../../docs/tui/overlays-and-status.md#pointer-tooltips) where glyphs alone carry meaning. A row whose painted line cuts its Workspace name, branch, Agent row or group heading gives the first such name in full, and a default Agent row its whole name and provider; a later line that cuts a name of its own gives that name from its own cells instead. Text that fits offers nothing. A folder's name gives its full directory, cut in the middle if it is still too long, only while the pointer rests on the cells that name it. Glyphs name themselves only under the pointer: an Agent's state glyph names its state, a folded Workspace's status glyph its own Agent, and an unread dot unread activity. The rest of the row names no glyph. A Workspace's disclosure names Hide Agents or Show Agents. Its `[x]` names Close Workspace…; only the current Workspace's adds the key that closes it, from the binding table. A Project's disclosure offers none, group headings and other rows offer only a cut name. Branch text appears as observed, even when it equals the Workspace name or repeats another Workspace's branch for the same folder; divergence and stale observations remain visible.

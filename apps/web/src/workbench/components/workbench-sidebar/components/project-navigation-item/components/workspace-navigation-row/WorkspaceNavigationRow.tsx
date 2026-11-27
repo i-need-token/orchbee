@@ -286,7 +286,14 @@ export function WorkspaceNavigationRow({
 							{machineMark === null ? null : <WorkspaceMachineMark mark={machineMark} />}
 						</span>
 						<span className={styles['line2']} data-agent-status={folded ? '' : undefined}>
-							{folded ? <WorkspaceAgentStatusLine overview={agentOverview} /> : null}
+							{folded ? (
+								<WorkspaceAgentStatusLine
+									navigateAgent={(presentationId) =>
+										navigateAgent({ presentationId, workspaceId: workspace.id })
+									}
+									overview={agentOverview}
+								/>
+							) : null}
 							{!folded && line !== null ? (
 								<Tooltip disabled={(location?.directory ?? null) === null}>
 									<TooltipTrigger render={<span className={styles['lineText']} />}>

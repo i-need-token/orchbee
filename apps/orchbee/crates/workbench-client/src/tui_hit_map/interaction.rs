@@ -193,6 +193,10 @@ impl InteractionTarget {
                     SidebarPart::Menu => HitTarget::SidebarMenu(target.target().clone()),
                     SidebarPart::Create => HitTarget::CreateMenu(Some(target.target().clone())),
                     SidebarPart::Close => HitTarget::SidebarClose(target.target().clone()),
+                    SidebarPart::Status => HitTarget::SidebarStatus {
+                        agent: target.target().clone(),
+                        window: target.window(),
+                    },
                 }
             }
             Self::SidebarFixed(target) => {

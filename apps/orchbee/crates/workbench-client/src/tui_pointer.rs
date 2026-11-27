@@ -2159,7 +2159,10 @@ impl PointerState {
                 let target = (*track, *range, *window);
                 self.begin_sidebar_scrollbar(view, event, target)
             }
-            HitResolution::Region(HitTarget::MachineWorkspaceRow { window, .. }) => {
+            HitResolution::Region(
+                HitTarget::MachineWorkspaceRow { window, .. }
+                | HitTarget::SidebarStatus { window, .. },
+            ) => {
                 if event.action != MouseAction::Press
                     || event.mods != crate::client_view::Modifiers::NONE
                 {

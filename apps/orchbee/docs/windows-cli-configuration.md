@@ -752,7 +752,7 @@ nothing on a Workspace row. Tokens take a style and first-match rules; icons and
 text rules. Missing/hidden values collapse. Git counts right-align at the end of the line that
 configures them, flush with the row's trailing edge on the identity line; other text shares the
 remaining cells. A folded Workspace replaces its second configured line with its Agents' status
-line.
+line, which wraps onto further lines until every Agent shows.
 
 State text and the folded status line use the complete physical Agent checkpoint, independent of
 seen and of list/source filters. Git reads the committed Workspace directory

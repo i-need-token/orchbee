@@ -42,21 +42,21 @@ interface WorkbenchWorkspaceAgentRowView {
 	readonly unreadLabel?: string | undefined;
 }
 
-/** A folded Workspace's second line: its Agents' states, most urgent first. */
+/** A folded Workspace's status lines: its Agents' states, most urgent first. */
 interface WorkbenchWorkspaceAgentFoldedStatusView {
 	/**
-	 * Every Agent's state, keyed by its terminal Presentation. The line shows as many leading glyphs
-	 * as it has room for and counts the rest as `+N`.
+	 * Every Agent's state, keyed by its terminal Presentation. Every glyph shows, wrapping onto
+	 * further lines, and each opens its Agent's terminal.
 	 */
 	readonly glyphs: readonly (Pick<WorkbenchAgentStatusView, 'shape' | 'status' | 'tone'> & {
+		/** What the glyph that opens the Agent's terminal is named, as its expanded row is. */
+		readonly accessibleLabel: string;
 		/** The Agent's identity as its expanded row shows it: its title and provider. */
 		readonly identity: string;
 		readonly presentationId: TerminalPresentationId;
 	})[];
 	/** Each distinct state in words, most urgent first. */
 	readonly label: string;
-	/** Each distinct state once, most urgent first, as the line's tooltip lists them. */
-	readonly legend: readonly WorkbenchAgentStatusView[];
 }
 
 export interface WorkbenchWorkspaceAgentOverviewView {

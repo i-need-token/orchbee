@@ -194,18 +194,21 @@ impl Picker {
             },
             _ => return false,
         };
-        if !self
-            .sidebar_navigation_rows()
-            .iter()
-            .any(|row| row.target() == target)
-        {
-            return false;
-        }
-        if !self.agent_rows.iter().any(|row| {
-            row.enabled && row.choice == selected.machine && row.agent.as_ref().is_some_and(|agent| {
-                matches!(&selected.context, Some(ClientStartupTarget::Agent(target)) if target.as_ref() == &agent.target)
-            })
-        }) || !self.begin_selection(SelectionOrigin::Sidebar) {
+        let admitted = {
+            let rows = self.sidebar_navigation_rows();
+            let listed = rows.iter().any(|row| row.target() == target)
+                && self.agent_rows.iter().any(|row| {
+                    row.enabled && row.choice == selected.machine && row.agent.as_ref().is_some_and(|agent| {
+                        matches!(&selected.context, Some(ClientStartupTarget::Agent(target)) if target.as_ref() == &agent.target)
+                    })
+                });
+            // A folded Workspace's status line opens each Agent it shows.
+            listed
+                || rows
+                    .iter()
+                    .any(|row| self.sidebar_status_agents(row).contains(&target))
+        };
+        if !admitted || !self.begin_selection(SelectionOrigin::Sidebar) {
             return false;
         }
         // The Session checks busy before exact-current. A click on A during A -> B

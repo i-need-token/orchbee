@@ -135,8 +135,9 @@ struct LineShape {
     markers: usize,
     /// Cells the identity line keeps free at rest, so a revealed close never re-truncates it.
     reserve: usize,
-    /// A folded Workspace replaces its second line with its Agents' status line.
-    folded: bool,
+    /// The status lines a folded Workspace's Agent glyphs take in place of its second line, which
+    /// push its later lines down; zero while its Agent rows show.
+    status: u16,
     /// A Workspace that is neither current, nor above its current Agent, nor navigated names itself
     /// in secondary text, as the GUI's does, until the pointer raises it.
     quiet: bool,
@@ -593,10 +594,22 @@ fn lines(
         )));
         trailing.push(Line::default());
         slots.push(0);
-    } else if shape.folded {
-        // The renderer paints the Agent status line over this reserved second line.
+    } else if shape.status > 0 {
+        // The renderer paints the Agent glyphs over these reserved lines: the second line, then one
+        // more for each line they wrap onto, ahead of the later configured lines.
+        let extra = usize::from(shape.status - 1);
         names.retain(|(line, _)| *line != 1);
-        folder = folder.filter(|part| part.line != 1);
+        for (line, _) in &mut names {
+            if *line > 1 {
+                *line += extra;
+            }
+        }
+        folder = folder.filter(|part| part.line != 1).map(|mut part| {
+            if part.line > 1 {
+                part.line += extra;
+            }
+            part
+        });
         if lines.len() > 1 {
             lines[1] = Line::default();
             trailing[1] = Line::default();
@@ -605,6 +618,11 @@ fn lines(
             lines.push(Line::default());
             trailing.push(Line::default());
             slots.push(0);
+        }
+        for _ in 0..extra {
+            lines.insert(2, Line::default());
+            trailing.insert(2, Line::default());
+            slots.insert(2, 0);
         }
     }
     lines[0] = fit(
@@ -628,8 +646,9 @@ fn lines(
     }
 }
 
-/// A folded Workspace always has a second line for its Agents' status line.
-fn context_height(view: &ClientView, row: &Row, locale: Locale, folded: bool) -> u16 {
+/// A folded Workspace has its Agents' status lines under its name, in place of its second line, and
+/// any configured line after that follows them.
+fn context_height(view: &ClientView, row: &Row, locale: Locale, status: u16) -> u16 {
     let context = Context::new(view, row, locale);
     if context.unconnected.is_some() {
         return 2;
@@ -640,10 +659,13 @@ fn context_height(view: &ClientView, row: &Row, locale: Locale, folded: bool) ->
             height += 1;
         }
     }
-    height.max(if folded { 2 } else { 1 })
+    match status {
+        0 => height.max(1),
+        lines => height.max(2) + lines - 1,
+    }
 }
 
-/// A Workspace whose Agents are folded away lists their states on its second line.
+/// A Workspace whose Agents are folded away lists their states under its name.
 fn folded(view: &ClientView, row: &SidebarRow<'_>) -> bool {
     matches!(
         row,
@@ -654,101 +676,41 @@ fn folded(view: &ClientView, row: &SidebarRow<'_>) -> bool {
     ) && !view.machines.sidebar_context_agents_expanded(&row.target())
 }
 
-/// How a folded Workspace's Agent states fill its status line: the most urgent ones, then a
-/// secondary `+N` for the rest.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct StatusFit {
-    /// Glyphs painted from the line's start, most urgent first.
-    shown: usize,
-    /// Agents left out behind the `+N` remainder; zero when every state shows.
-    hidden: usize,
+/// How many Agent glyphs one status line holds in `width` cells: one cell each, with one blank
+/// cell between neighbors.
+fn status_per_line(width: u16) -> usize {
+    usize::from(width).div_ceil(2)
 }
 
-/// Fits `total` Agent states into `width` cells. Each glyph is one cell, with one blank cell
-/// between neighbors. All of them show when they fit. Otherwise the line shows the largest count
-/// that leaves room for the `+N` remainder of the rest, one blank cell after the glyphs. `None`
-/// when not even the remainder fits.
-fn fit_status_states(total: usize, width: usize) -> Option<StatusFit> {
-    // `total` glyphs take `2 * total - 1` cells, and zero glyphs take none.
-    if 2 * total <= width + 1 {
-        return Some(StatusFit {
-            shown: total,
-            hidden: 0,
-        });
+/// The status lines a folded Workspace takes for `agents` glyphs in `width` cells. Every Agent
+/// shows, so the glyphs wrap onto further lines; the first line stays even before any Agent is
+/// known.
+fn status_lines(agents: usize, width: u16) -> u16 {
+    match status_per_line(width) {
+        0 => 1,
+        per_line => u16::try_from(agents.div_ceil(per_line))
+            .unwrap_or(u16::MAX)
+            .max(1),
     }
-    (0..total).rev().find_map(|shown| {
-        let hidden = total - shown;
-        // Each shown glyph takes its cell and the blank after it, and the remainder follows.
-        (2 * shown + display_width(&format!("+{hidden}")) <= width)
-            .then_some(StatusFit { shown, hidden })
-    })
 }
 
-/// The cells a folded Workspace's status line painted.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct StatusLine {
-    /// How many Agent states its glyphs show.
-    shown: usize,
-    /// The cells the glyphs cover, from the first to the last one, when any show.
-    glyphs: Option<Rect>,
-    /// The cells of the `+N` remainder, when some Agents are left out.
-    remainder: Option<Rect>,
-}
-
-/// Paints a folded Workspace's Agent states, most urgent first, as [`fit_status_states`] fits
-/// them to the line, then the secondary `+N` remainder beside them. Returns nothing when not even
-/// the remainder fits.
-fn paint_status_line(
-    frame: &mut Frame<'_>,
-    line: Rect,
-    states: &[orchbee_workbench_protocol::MetadataState],
-    interaction: Option<Role>,
-    working_frame: usize,
-    theme: &Theme,
-) -> Option<StatusLine> {
-    let fit = fit_status_states(states.len(), usize::from(line.width))?;
-    for (index, state) in states.iter().take(fit.shown).enumerate() {
-        let glyph = sidebar_text::state_glyph(*state, theme, working_frame);
-        let x = line
-            .x
-            .saturating_add(u16::try_from(2 * index).unwrap_or(u16::MAX));
-        frame.render_widget(
-            Paragraph::new(glyph).style(theme.content_on_surface(
-                Role::SurfaceChrome,
-                interaction,
-                Some(Theme::agent_role(*state)),
-                theme.agent_style(*state, working_frame),
-            )),
-            Rect::new(x, line.y, 1, 1),
-        );
+/// Where a folded Workspace's `agents` glyphs stand in `area`, its status lines: in order, one
+/// cell each with one blank cell between neighbors, wrapping onto the next line. Glyphs below the
+/// area's last line are cut off with the row.
+fn status_cells(area: Rect, agents: usize) -> Vec<Rect> {
+    let per_line = status_per_line(area.width);
+    if per_line == 0 {
+        return Vec::new();
     }
-    let glyphs = (fit.shown > 0).then(|| {
-        let width = u16::try_from(2 * fit.shown - 1).unwrap_or(u16::MAX);
-        Rect::new(line.x, line.y, width, 1)
-    });
-    let remainder = (fit.hidden > 0).then(|| {
-        let text = format!("+{}", fit.hidden);
-        let width = u16::try_from(display_width(&text)).unwrap_or(u16::MAX);
-        let x = line
-            .x
-            .saturating_add(u16::try_from(2 * fit.shown).unwrap_or(u16::MAX));
-        let cells = Rect::new(x, line.y, width, 1);
-        frame.render_widget(
-            Paragraph::new(text).style(theme.content_on_surface(
-                Role::SurfaceChrome,
-                interaction,
-                Some(Role::TextSecondary),
-                theme.style(Role::TextSecondary),
-            )),
-            cells,
-        );
-        cells
-    });
-    Some(StatusLine {
-        shown: fit.shown,
-        glyphs,
-        remainder,
-    })
+    (0..agents)
+        .map_while(|index| {
+            let line = u16::try_from(index / per_line)
+                .ok()
+                .filter(|line| *line < area.height)?;
+            let column = u16::try_from(2 * (index % per_line)).ok()?;
+            Some(Rect::new(area.x + column, area.y + line, 1, 1))
+        })
+        .collect()
 }
 
 fn configured_height(view: &ClientView) -> u16 {
@@ -784,13 +746,12 @@ fn auxiliary_actions(source: &SidebarSource, target: &SidebarTarget) -> layout::
     layout::AuxiliaryActions::new(source.has_part(target, SidebarPart::Create))
 }
 
-/// Names repeat as they are: no row grows a line, or an ID, to tell same-named peers apart.
-fn entry_height(view: &ClientView, row: &SidebarRow<'_>, locale: Locale) -> u16 {
+/// Names repeat as they are: no row grows a line, or an ID, to tell same-named peers apart. A folded
+/// Workspace grows by its `status` lines past the first.
+fn entry_height(view: &ClientView, row: &SidebarRow<'_>, locale: Locale, status: u16) -> u16 {
     match row {
         SidebarRow::Project { .. } | SidebarRow::Recents { .. } => 1,
-        SidebarRow::Context { row: context, .. } => {
-            context_height(view, context, locale, folded(view, row))
-        }
+        SidebarRow::Context { row: context, .. } => context_height(view, context, locale, status),
         SidebarRow::Agent { row, .. } => agent_tokens::height(view, row),
     }
 }
@@ -1371,9 +1332,30 @@ pub(super) fn render(
     // Touch spacing gives every entry its own trailing blank line, which replaces the configured
     // gaps; only groups keep one more line between them.
     let touch = u16::from(halos.is_some());
+    // A folded Workspace's glyphs wrap at its continuation width, which every line but its first
+    // uses whole.
+    let status: Vec<_> = rows
+        .iter()
+        .map(|row| match row {
+            SidebarRow::Context { row: context, .. } if folded(view, row) => {
+                let target = row.target();
+                let width = layout::Tracks::resolve_for_width(
+                    Rect::new(area.x, area.y, area.width, 1),
+                    0,
+                    sidebar_width,
+                    auxiliary_actions(source, &target),
+                    layout::RowKind::for_target(&target),
+                )
+                .map_or(0, |tracks| tracks.text_width(false));
+                status_lines(view.machines.workspace_agent_rows(context).len(), width)
+            }
+            _ => 0,
+        })
+        .collect();
     let mut heights: Vec<_> = rows
         .iter()
-        .map(|row| entry_height(view, row, locale) + touch)
+        .zip(&status)
+        .map(|(row, status)| entry_height(view, row, locale, *status) + touch)
         .collect();
     let space_gap = if touch > 0 {
         0
@@ -1607,10 +1589,6 @@ pub(super) fn render(
             }
             _ => Vec::new(),
         };
-        let status_states = status_agents
-            .iter()
-            .map(|agent| agent.display_state())
-            .collect::<Vec<_>>();
 
         let closeable = source.has_part(&target, SidebarPart::Close);
         let has_disclosure = source.has_part(&target, SidebarPart::Disclosure);
@@ -1633,7 +1611,7 @@ pub(super) fn render(
                     disclosure: continuation_width - text_width,
                     markers,
                     reserve: if closeable { CLOSE_RESERVE } else { 0 },
-                    folded: folded(view, row),
+                    status: status[row_index],
                     quiet: !current && !current_agent_below && !focused,
                 },
             ),
@@ -1732,6 +1710,37 @@ pub(super) fn render(
         });
         let disclosure_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
         let auxiliary_spec = interaction_spec(PrimaryContract::Specialized, true);
+        // Each Agent glyph on a folded Workspace's status lines opens its own Agent.
+        let status_spec = interaction_spec(PrimaryContract::ActivateOnRelease, true);
+        let status_glyphs: Vec<_> = status_cells(
+            Rect::new(
+                tracks.primary.x,
+                tracks.content_y + 1,
+                tracks.primary.width,
+                status[row_index].min(content_height.saturating_sub(1)),
+            ),
+            status_agents.len(),
+        )
+        .into_iter()
+        .zip(&status_agents)
+        .map(|(cell, agent)| {
+            let drawn = source
+                .drawn(
+                    SidebarTarget::Agent {
+                        machine: target.machine().clone(),
+                        target: Box::new(agent.target.clone()),
+                    },
+                    SidebarPart::Status,
+                    window,
+                )
+                .map(InteractionTarget::Sidebar);
+            (cell, *agent, drawn)
+        })
+        .collect();
+        let status_children = status_glyphs
+            .iter()
+            .filter(|(_, _, drawn)| drawn.is_some())
+            .count();
 
         // Close sits flush with the row's trailing edge, over the first line's trailing metadata
         // or unread marker, which it hides while revealed.
@@ -1754,31 +1763,37 @@ pub(super) fn render(
         // text above its Workspaces' leading disclosures.
         let heading = matches!(row, SidebarRow::Project { .. } | SidebarRow::Recents { .. });
         let disclosure_rests = !heading || expanded == Some(false);
-        // Disclosure, Create and close are revealed children recorded in this order before the
-        // row. A frame publishes a child only when it also paints it, so every pointer is
-        // projected against the exposure its reveal frame published: the pointer-revealed set,
-        // then the set shown without a pointer (keyboard focus, or a disclosure that rests shown).
-        // Projecting without them would orphan hover or press after a reveal.
-        let revealed_children: Vec<_> = [
-            disclosure_target
-                .as_ref()
-                .map(|target| (tracks.disclosure, target, disclosure_spec)),
-            create_target
-                .as_ref()
-                .zip(create_action.as_ref())
-                .map(|(target, action)| (action.rect, target, auxiliary_spec)),
-            close_target
-                .as_ref()
-                .map(|(rect, target)| (*rect, target, close_spec)),
-        ]
-        .into_iter()
-        .flatten()
-        .collect();
+        // The status glyphs, then disclosure, Create and close are children recorded in this order
+        // before the row. A frame publishes a child only when it also paints it, so every pointer
+        // is projected against the exposure its reveal frame published: the pointer-revealed set,
+        // then the set shown without a pointer (the status glyphs, which always show, keyboard
+        // focus, or a disclosure that rests shown). Projecting without them would orphan hover or
+        // press after a reveal.
+        let revealed_children: Vec<_> = status_glyphs
+            .iter()
+            .filter_map(|(cell, _, drawn)| drawn.as_ref().map(|drawn| (*cell, drawn, status_spec)))
+            .chain(
+                [
+                    disclosure_target
+                        .as_ref()
+                        .map(|target| (tracks.disclosure, target, disclosure_spec)),
+                    create_target
+                        .as_ref()
+                        .zip(create_action.as_ref())
+                        .map(|(target, action)| (action.rect, target, auxiliary_spec)),
+                    close_target
+                        .as_ref()
+                        .map(|(rect, target)| (*rect, target, close_spec)),
+                ]
+                .into_iter()
+                .flatten(),
+            )
+            .collect();
         // The resting set is always a prefix of the revealed order; close is pointer-only.
         let resting = if focused {
             revealed_children.len() - usize::from(close_target.is_some())
         } else {
-            usize::from(disclosure_target.is_some() && disclosure_rests)
+            status_children + usize::from(disclosure_target.is_some() && disclosure_rests)
         };
         let project =
             |hits: &mut HitMapBuilder,
@@ -1814,6 +1829,12 @@ pub(super) fn render(
             child_pointer(&mut hits, create_target.as_ref()).unwrap_or(PointerPresentation::Rest);
         let close_pointer = child_pointer(&mut hits, close_target.as_ref().map(|(_, close)| close))
             .unwrap_or(PointerPresentation::Rest);
+        let status_pointers: Vec<_> = status_glyphs
+            .iter()
+            .map(|(_, _, drawn)| {
+                child_pointer(&mut hits, drawn.as_ref()).unwrap_or(PointerPresentation::Rest)
+            })
+            .collect();
         let row_target = source
             .drawn(target.clone(), SidebarPart::Primary, window)
             .map(InteractionTarget::Sidebar);
@@ -1829,7 +1850,10 @@ pub(super) fn render(
             || row_pointer == PointerPresentation::Rest
                 && (disclosure_pointer != PointerPresentation::Rest
                     || create_pointer != PointerPresentation::Rest
-                    || close_pointer != PointerPresentation::Rest)
+                    || close_pointer != PointerPresentation::Rest
+                    || status_pointers
+                        .iter()
+                        .any(|pointer| *pointer != PointerPresentation::Rest))
         {
             PointerPresentation::Hovered
         } else {
@@ -1924,23 +1948,6 @@ pub(super) fn render(
                 content_height,
             ),
         );
-        let status_line = (content_height > 1)
-            .then(|| {
-                paint_status_line(
-                    frame,
-                    Rect::new(
-                        tracks.primary.x,
-                        tracks.content_y + 1,
-                        tracks.primary.width,
-                        1,
-                    ),
-                    &status_states,
-                    interaction,
-                    view.machines.working_frame(),
-                    theme,
-                )
-            })
-            .flatten();
         let unread_marker = unread && close.is_none();
         // First-line metadata sits flush with the row's trailing edge, where close appears,
         // unless the unread marker and its blank cell occupy the last two cells.
@@ -2208,14 +2215,45 @@ pub(super) fn render(
             );
             hits.record_interaction(layer, rect, rect, target, close_spec);
         }
+        // Every Agent's glyph shows on a folded Workspace's status lines, most urgent first. Each
+        // takes the press fill on its own cell, and under the pointer names only its own Agent.
+        let working_frame = view.machines.working_frame();
+        for ((cell, agent, drawn), pointer) in status_glyphs.iter().zip(&status_pointers) {
+            let state = agent.display_state();
+            let surface = if *pointer == PointerPresentation::Pressed {
+                Some(Role::SurfacePressed)
+            } else {
+                interaction
+            };
+            frame.render_widget(
+                Paragraph::new(sidebar_text::state_glyph(state, theme, working_frame)).style(
+                    theme.content_on_surface(
+                        Role::SurfaceChrome,
+                        surface,
+                        Some(Theme::agent_role(state)),
+                        theme.agent_style(state, working_frame),
+                    ),
+                ),
+                *cell,
+            );
+            if let (Some(drawn), Some(hits)) = (drawn, hits.as_deref_mut()) {
+                if let Some(content) = tooltip::roster(
+                    [(state, agent_tokens::identity_label(agent, theme))],
+                    working_frame,
+                    locale,
+                    theme,
+                ) {
+                    hits.record_interaction_tooltip(layer, *cell, drawn, content);
+                }
+                hits.record_interaction(layer, *cell, *cell, drawn.clone(), status_spec);
+            }
+        }
         if painted.is_some()
             && let (Some(hits), Some(target)) = (hits.as_deref_mut(), row_target)
         {
             // Each glyph names itself only under the pointer: an Agent's state glyph its state, a
-            // folded Workspace's status line glyphs each distinct state among its Agents, the
-            // remainder the Agents it hides, and the unread dot unread activity. The rest of the
-            // row gives only the name it cuts, in full.
-            let working_frame = view.machines.working_frame();
+            // folded Workspace's status glyphs their own Agents, above, and the unread dot unread
+            // activity. The rest of the row gives only the name it cuts, in full.
             // While Orchbee answers this Agent's confirmations, the one it left says why.
             let waiting = match row {
                 SidebarRow::Agent { row, .. } => row.sidebar_agent().and_then(|agent| {
@@ -2238,21 +2276,6 @@ pub(super) fn render(
                         },
                     )
                 }),
-                status_line.and_then(|line| line.glyphs).map(|rect| {
-                    (
-                        rect,
-                        tooltip::describe(
-                            None,
-                            tooltip::legend(
-                                status_states.iter().copied(),
-                                false,
-                                working_frame,
-                                locale,
-                                theme,
-                            ),
-                        ),
-                    )
-                }),
                 unread_marker.then(|| {
                     (
                         tracks.first_line(tracks.unread),
@@ -2267,22 +2290,6 @@ pub(super) fn render(
                 if let Some(content) = content {
                     hits.record_part_tooltip(layer, rect, hit_band, &target, content);
                 }
-            }
-            if let Some(line) = status_line
-                && let Some(rect) = line.remainder
-                && let Some(content) = tooltip::roster(
-                    status_agents.iter().skip(line.shown).map(|agent| {
-                        (
-                            agent.display_state(),
-                            agent_tokens::identity_label(agent, theme),
-                        )
-                    }),
-                    working_frame,
-                    locale,
-                    theme,
-                )
-            {
-                hits.record_part_tooltip(layer, rect, hit_band, &target, content);
             }
             if let Some((rect, directory)) = folder
                 && let Some(content) = tooltip::describe(Some(directory), Vec::new())

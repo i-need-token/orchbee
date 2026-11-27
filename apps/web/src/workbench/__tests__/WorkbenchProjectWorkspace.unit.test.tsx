@@ -585,18 +585,19 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 		const agentName = `Codex, Ready, ${targetTabTitle} · Panel 1 · Main terminal`;
 		screen.getByRole('button', { name: agentName });
 
-		// Folded, the row's second line lists the states, and the fold outlasts a folded Project and a
-		// hidden sidebar.
+		// Folded, the row's second line shows each Agent's state in place of its row, and the fold
+		// outlasts a folded Project and a hidden sidebar.
+		const agentRow = '[data-slot="workbench-sidebar-workspace-agent"]';
 		fireEvent.click(screen.getByRole('button', { name: 'Hide 1 Agent in Primary' }));
-		expect(screen.queryByRole('button', { name: agentName })).toBeNull();
+		expect(document.querySelector(agentRow)).toBeNull();
 		const states = workspaceRow?.querySelector('[data-slot="workbench-workspace-agent-status"]');
 		expect(states?.querySelectorAll('[data-agent-state-glyph]')).toHaveLength(1);
 		fireEvent.click(screen.getByRole('button', { name: 'Collapse project: orchbee' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Expand project: orchbee' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Hide Sidebar' }));
 		fireEvent.click(screen.getByRole('button', { name: 'Show Sidebar' }));
-		expect(screen.queryByRole('button', { name: agentName })).toBeNull();
-		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		expect(document.querySelector(agentRow)).toBeNull();
+		// The Agent's state glyph opens its exact terminal, as its row does.
 		fireEvent.click(screen.getByRole('button', { name: agentName }));
 
 		await waitFor(() => {
@@ -609,6 +610,8 @@ describe('Workbench Project and Workspace management', { timeout: 15_000 }, () =
 				document.querySelector(`[data-test-terminal-input="${presentationId}"]`),
 			);
 		});
+		fireEvent.click(screen.getByRole('button', { name: 'Show 1 Agent in Primary' }));
+		expect(screen.getByRole('button', { name: agentName }).matches(agentRow)).toBe(true);
 		// The Agent exited, so the Server reports none in the terminal.
 		act(() => {
 			agents = { complete: true, presentations: new Map() };

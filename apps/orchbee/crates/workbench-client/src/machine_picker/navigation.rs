@@ -78,6 +78,8 @@ pub(crate) enum SidebarPart {
     Create,
     /// Pointer-revealed close request for one exact Workspace.
     Close,
+    /// One Agent's state glyph on its folded Workspace's status line, which opens that Agent.
+    Status,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -88,6 +90,8 @@ struct SidebarCatalogRow {
     menu: bool,
     create: bool,
     close: bool,
+    /// The Agents a folded Workspace's status line shows, in an order no state change moves.
+    status: Vec<SidebarTarget>,
 }
 
 /// Value-semantic action projection for one successfully painted Sidebar frame.
@@ -104,15 +108,14 @@ struct SidebarCatalog {
 
 impl SidebarCatalog {
     fn has_part(&self, target: &SidebarTarget, part: SidebarPart) -> bool {
-        self.rows.iter().any(|row| {
-            row.target == *target
-                && match part {
-                    SidebarPart::Primary => true,
-                    SidebarPart::Disclosure => row.disclosure,
-                    SidebarPart::Menu => row.menu,
-                    SidebarPart::Create => row.create,
-                    SidebarPart::Close => row.close,
-                }
+        self.rows.iter().any(|row| match part {
+            // A status glyph belongs to its Workspace's row and names one of its Agents.
+            SidebarPart::Status => row.status.contains(target),
+            SidebarPart::Primary => row.target == *target,
+            SidebarPart::Disclosure => row.target == *target && row.disclosure,
+            SidebarPart::Menu => row.target == *target && row.menu,
+            SidebarPart::Create => row.target == *target && row.create,
+            SidebarPart::Close => row.target == *target && row.close,
         })
     }
 
@@ -865,6 +868,7 @@ impl Picker {
                                 ..
                             }
                         ),
+                    status: self.sidebar_status_agents(&row),
                     menu,
                     target,
                 }
@@ -918,7 +922,8 @@ impl Picker {
             (SidebarTarget::Context { .. }, SidebarPart::Disclosure) => {
                 Some(SidebarActivation::ToggleContext(drawn.target.clone()))
             }
-            (SidebarTarget::Context { .. } | SidebarTarget::Agent { .. }, SidebarPart::Primary) => {
+            (SidebarTarget::Context { .. } | SidebarTarget::Agent { .. }, SidebarPart::Primary)
+            | (SidebarTarget::Agent { .. }, SidebarPart::Status) => {
                 drawn.target.selection().map(SidebarActivation::Activate)
             }
             (
@@ -937,8 +942,39 @@ impl Picker {
                 SidebarTarget::Project { .. } | SidebarTarget::Recents { .. },
                 SidebarPart::Primary,
             )
-            | (SidebarTarget::Agent { .. }, SidebarPart::Disclosure) => None,
+            | (SidebarTarget::Agent { .. }, SidebarPart::Disclosure)
+            | (
+                SidebarTarget::Project { .. }
+                | SidebarTarget::Recents { .. }
+                | SidebarTarget::Context { .. },
+                SidebarPart::Status,
+            ) => None,
         }
+    }
+
+    /// The Agents a folded Workspace's status line shows, each as the target its glyph opens, in
+    /// the checkpoint's order; none while its Agent rows show or its machine is not connected.
+    pub(super) fn sidebar_status_agents(&self, row: &SidebarRow<'_>) -> Vec<SidebarTarget> {
+        let SidebarRow::Context {
+            row,
+            has_agents: true,
+        } = row
+        else {
+            return Vec::new();
+        };
+        let folded = row
+            .sidebar_target()
+            .is_some_and(|target| !self.sidebar_context_agents_expanded(&target));
+        if !folded || self.unconnected_state(&row.choice).is_some() {
+            return Vec::new();
+        }
+        self.workspace_agents(row)
+            .into_iter()
+            .map(|agent| SidebarTarget::Agent {
+                machine: row.choice.clone(),
+                target: Box::new(agent.target.clone()),
+            })
+            .collect()
     }
 
     /// Rebuilds the semantic source once and authorizes no stale fixed-action effect.
