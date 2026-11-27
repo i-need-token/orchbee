@@ -1057,6 +1057,20 @@ fn recognition_matrix_rows_and_counterexamples() {
             Some(vec!["omp", "--session-id", "{id}"]),
             unresolved(Some(P::Omp), U::UnclassifiedArguments),
         ),
+        // Options from OMP's own help start its interactive interface.
+        (
+            "documented options",
+            "omp.exe",
+            Some(vec![
+                "omp",
+                "--auto-approve",
+                "--model",
+                "apifox/glm-5.3",
+                "--thinking",
+                "low",
+            ]),
+            interactive(P::Omp, S::NativeImage),
+        ),
         // Bare launches of the providers that gained a grammar are unchanged.
         (
             "bare",
