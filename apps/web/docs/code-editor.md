@@ -39,10 +39,19 @@ own.
 
 ## Codicons
 
-Monaco ships its own Codicon font under the same `codicon` family as the product's
-`@vscode/codicons` 0.0.45, and Monaco's is newer. Once the editor has loaded, both faces are
-declared, and a glyph that both define can render from either, so a product icon may change
-shape. Aligning the product's package with Monaco's font would leave one face for both.
+Monaco ships a newer Codicon font than the product's `@vscode/codicons` 0.0.45 under the same
+`codicon` family, and its stylesheet sizes every codicon on the page. The web build therefore
+rewrites that stylesheet: Monaco's font becomes `monaco-codicon`, and its codicon rule applies only
+under `.monaco-editor`, `.monaco-diff-editor` and `.monaco-component`, the roots Monaco themes.
+Once the editor loads, product icons keep the product's font and sizes, while Monaco's icons keep
+the newer font, which draws 117 code points the product's lacks. The build fails when Monaco's
+stylesheet no longer matches the rewrite.
+
+Monaco's icon rules, written at runtime, still give every element named for a codicon Monaco's
+code point for that name, product icons included, so a product icon keeps its glyph only while both
+packages agree on its code point. In 0.58.0 every product icon does; among the names both define,
+only `git-fetch` and `vm-pending` differ. Menus that Monaco draws in a shadow root still name
+`codicon` and take their marks from the product's font, which has them.
 
 ## Size
 
@@ -51,9 +60,9 @@ a change that grows them reports the new sizes.
 
 | Output                                           | Raw         | Gzip        |
 | ------------------------------------------------ | ----------- | ----------- |
-| Editor core and features                         | 3,440,436 B | 874,392 B   |
+| Editor core and features                         | 3,440,439 B | 874,395 B   |
 | Codicon registry                                 | 152,177 B   | 37,993 B    |
-| Editor stylesheet                                | 156,817 B   | 22,737 B    |
+| Editor stylesheet                                | 156,892 B   | 22,758 B    |
 | Monaco's Codicon font                            | 154,520 B   | 76,112 B    |
 | Editor worker, loaded when a model needs it      | 200,137 B   | 64,566 B    |
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
@@ -62,7 +71,7 @@ a change that grows them reports the new sizes.
 | Theme and JSON languages, loaded with the editor | 9,155 B     | 2,956 B     |
 | Main bundle growth                               | 7,536 B     | 3,057 B     |
 | Main stylesheet growth                           | 5,154 B     | 795 B       |
-| Production web build growth                      | 4,647,860 B | 1,258,816 B |
+| Production web build growth                      | 4,647,938 B | 1,258,837 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit and the
 loader's chunk map lists the new chunks; the File Bar's limit for it is 10 KB gzip. The main
@@ -75,5 +84,7 @@ stylesheet grows by the syntax roles of both appearances and every named theme.
    and keep language services, the package root and `editor.main` out.
 3. Move each zh-CN override in `@orchbee/i18n`, with its English in the override test, to the
    index that now carries that English.
-4. Run a production build, load the editor in a Desktop window and confirm that the console
+4. Confirm that each product icon's name keeps its code point in the package's
+   `esm/vs/base/common/codiconsLibrary.js`.
+5. Run a production build, load the editor in a Desktop window and confirm that the console
    reports no content security violation, then update the sizes above.
