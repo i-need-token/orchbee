@@ -1,32 +1,38 @@
 // @vitest-environment jsdom
 
+import { WorkbenchAgentStartProviderSchema } from '@orchbee/workbench-client-protocol';
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
+import panelAgentSchema from '../../../../../schemas/workbench/v1/workbench-panel-agent.schema.json';
 import { AgentProviderIcon } from '../AgentProviderIcon';
+import { hasAgentProductMark } from '../workbench-agent-providers';
 
-/** The labels the Server reports for these providers, not their canonical provider IDs. */
-const curatedAgents = [
-	'claude',
-	'cline',
-	'codex',
-	'gemini',
-	'copilot',
-	'grok',
-	'omp',
-	'opencode',
-	'pi',
-	'qwen',
-] as const;
+/** Every label the Server reports for a provider it recognizes, as the Panel Agent schema lists them. */
+const reportedLabels = z
+	.object({
+		$defs: z.object({
+			screenExplanation: z.object({
+				properties: z.object({ agent: z.object({ enum: z.array(z.string()).min(1) }) }),
+			}),
+		}),
+	})
+	.parse(panelAgentSchema).$defs.screenExplanation.properties.agent.enum;
 
 describe('AgentProviderIcon', () => {
-	it.each(curatedAgents)('renders the curated %s product mark', (agent) => {
-		const { container } = render(
-			<AgentProviderIcon agents={[agent]} gradientPrefix={`test-${agent}`} />,
-		);
+	it.each([...reportedLabels, ...WorkbenchAgentStartProviderSchema.options])(
+		'draws the %s product mark',
+		(agent) => {
+			const { container } = render(
+				<AgentProviderIcon agents={[agent]} gradientPrefix={`test-${agent}`} />,
+			);
 
-		expect(container.querySelector(`[data-agent-provider-icon="${agent}"]`)).toBeTruthy();
-	});
+			expect(hasAgentProductMark(agent)).toBe(true);
+			expect(container.querySelector(`[data-agent-provider-icon="${agent}"]`)).toBeTruthy();
+			expect(container.querySelector('[data-icon="agent"]')).toBeNull();
+		},
+	);
 
 	it('uses the provider-neutral Agent icon for a custom Agent', () => {
 		const unknown = render(

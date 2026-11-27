@@ -6,11 +6,10 @@
  */
 export const AGENT_MARK_VIEW_BOXES: ReadonlyMap<string, string> = new Map(
 	Object.entries({
+		agy: '-1.63 -1.56 27.26 27.26',
 		amp: '-2.82 -2.77 29.54 29.54',
-		antigravity: '-1.63 -1.56 27.26 27.26',
 		atomcode: '-1.69 -1.94 27.63 27.63',
 		claude: '1.33 1.83 21.33 21.33',
-		'claude-code': '1.33 1.83 21.33 21.33',
 		cline: '-2.72 -2.77 29.54 29.54',
 		codebuddy: '-1.2 -0.93 27.51 27.51',
 		codex: '0.92 0.92 22.15 22.15',
@@ -21,7 +20,6 @@ export const AGENT_MARK_VIEW_BOXES: ReadonlyMap<string, string> = new Map(
 		devin: '-2.58 -2.58 29.17 29.17',
 		droid: '-2.77 -2.77 29.54 29.54',
 		gemini: '-2.77 -2.77 29.54 29.54',
-		'github-copilot': '0.31 0.31 23.38 23.38',
 		grok: '-2.18 -2.16 28.37 28.37',
 		hermes: '-2.27 -2.77 29.54 29.54',
 		jcode: '0.18 0.18 23.63 23.63',
@@ -42,7 +40,6 @@ export const AGENT_MARK_VIEW_BOXES: ReadonlyMap<string, string> = new Map(
 		'prime-agent': '-2.77 -2.77 29.54 29.54',
 		qodercli: '-3.07 -2.77 29.54 29.54',
 		qwen: '-1.54 -1.54 27.08 27.08',
-		'qwen-code': '-1.54 -1.54 27.08 27.08',
 		reasonix: '-2.77 -2.77 29.54 29.54',
 		snow: '-2.75 -2.72 29.05 29.05',
 	}),
