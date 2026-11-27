@@ -270,7 +270,7 @@ fn native_cohort_rejects_tampering_and_manifest_version() {
         fs::write(fixture.0.join(artifact.file_name()), name.as_bytes()).unwrap();
         artifacts.insert(
             name.to_owned(),
-            format!("{:x}", Sha256::digest(name.as_bytes())).into(),
+            crate::digest_hex::lower_hex(&Sha256::digest(name.as_bytes())).into(),
         );
     }
     artifacts.insert(

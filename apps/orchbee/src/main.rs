@@ -9,6 +9,7 @@ mod cli_outcome;
 mod cli_text;
 mod diagnostic_events;
 mod help;
+mod hex;
 mod invocation;
 mod local_startup;
 mod machine_move;

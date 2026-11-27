@@ -235,7 +235,7 @@ impl Cohort {
                 }
                 hash.update(&buffer[..count]);
             }
-            if format!("{:x}", hash.finalize()) != expected {
+            if crate::digest_hex::lower_hex(&hash.finalize()) != expected {
                 return Err(invalid().into());
             }
             identity.update(name.as_bytes());
@@ -246,7 +246,7 @@ impl Cohort {
         remaining(deadline)?;
         Ok(Self {
             directory: directory.to_path_buf(),
-            identity: format!("{:x}", identity.finalize()),
+            identity: crate::digest_hex::lower_hex(&identity.finalize()),
             artifact_hashes: ARTIFACTS.map(|artifact| manifest.artifacts.hash(artifact).to_owned()),
             observation_adapters: ObservationAdaptersSidecar {
                 directory: directory.join(OBSERVATION_ADAPTERS),

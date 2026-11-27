@@ -150,7 +150,7 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
             if total_bytes > MAX_CAPSULE_TOTAL_BYTES {
                 return None;
             }
-            let digest = format!("{:x}", Sha256::digest(&bytes));
+            let digest = crate::digest_hex::lower_hex(&Sha256::digest(&bytes));
             let size = bytes.len();
             // serde_json's map is BTree-ordered here — `kind,path,sha256,size`
             // is already alphabetical, so this serializes identically to the
@@ -174,7 +174,9 @@ pub(crate) fn payload_digest(root: &Path) -> Option<String> {
             .collect::<Vec<_>>()
             .join(",")
     );
-    Some(format!("{:x}", Sha256::digest(joined.as_bytes())))
+    Some(crate::digest_hex::lower_hex(&Sha256::digest(
+        joined.as_bytes(),
+    )))
 }
 
 /// The manifest's declared payload digest (already validated shape). Shared

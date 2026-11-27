@@ -342,7 +342,7 @@ pub(crate) fn endpoint_id(runtime_base: &[u8], session: &str) -> String {
     hash.update(runtime_base);
     hash.update(b"/");
     hash.update(session.to_ascii_lowercase().as_bytes());
-    format!("{:x}", hash.finalize())[..32].to_owned()
+    crate::digest_hex::lower_hex(&hash.finalize())[..32].to_owned()
 }
 
 /// The Session scope name of the first Host's runtime folder, which holds its fatal record and log,
@@ -379,7 +379,7 @@ pub(crate) fn slot_endpoint_id(runtime_id: &str, slot: HostSlot) -> String {
             hash.update(b"orchbee-posix-host-slot-v1\0");
             hash.update([index]);
             hash.update(runtime_id.as_bytes());
-            format!("{:x}", hash.finalize())[..32].to_owned()
+            crate::digest_hex::lower_hex(&hash.finalize())[..32].to_owned()
         }
     }
 }
@@ -396,7 +396,7 @@ pub(crate) fn keeper_endpoint_id(runtime_id: &str, slot: KeeperSlot) -> String {
         KeeperSlot::Second => b"orchbee-posix-keeper-second-v1\0".as_slice(),
     });
     hash.update(runtime_id.as_bytes());
-    format!("{:x}", hash.finalize())[..32].to_owned()
+    crate::digest_hex::lower_hex(&hash.finalize())[..32].to_owned()
 }
 
 /// What one Session socket is for.

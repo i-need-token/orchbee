@@ -67,7 +67,7 @@ pub(in crate::cli) fn observe(
     if file.take(16 * 1024 + 1).read_to_end(&mut cohort).is_err()
         || cohort.len() > 16 * 1024
         || cohort.len() as u64 != artifact.size
-        || format!("{:x}", Sha256::digest(&cohort)) != artifact.sha256
+        || crate::hex::encode(&Sha256::digest(&cohort)) != artifact.sha256
     {
         return Err(());
     }

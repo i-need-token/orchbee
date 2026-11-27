@@ -196,7 +196,7 @@ impl WindowFiles {
         }
         Some(Self {
             encoded: bytes.to_vec(),
-            identity: format!("{:x}", Sha256::digest(bytes)),
+            identity: crate::hex::encode(&Sha256::digest(bytes)),
             version,
             files,
             links,

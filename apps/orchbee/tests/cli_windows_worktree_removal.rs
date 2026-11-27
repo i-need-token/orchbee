@@ -234,14 +234,11 @@ impl Fixture {
             // Native cohort admission requires private regular files with one link, and each
             // carries its environment name rather than Cargo's release name.
             fs::write(self.0.join("cohort").join(artifact.file_name()), &bytes).unwrap();
-            artifacts.insert(
-                name.to_owned(),
-                json!(format!("{:x}", Sha256::digest(&bytes))),
-            );
+            artifacts.insert(name.to_owned(), json!(lower_hex(&Sha256::digest(&bytes))));
         }
         artifacts.insert(
             "agent-observation-adapters".to_owned(),
-            json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
+            json!(lower_hex(&Sha256::digest(b"unused adapters"))),
         );
         fs::write(
             self.0.join("cohort/cohort.json"),
@@ -479,4 +476,8 @@ fn hold(directory: &Path) -> fs::File {
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
         .open(directory)
         .unwrap()
+}
+
+fn lower_hex(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

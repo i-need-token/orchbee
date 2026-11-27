@@ -369,10 +369,9 @@ pub(crate) fn entry_digest(path: &Path) -> Option<String> {
         return None;
     }
     if metadata.is_file() {
-        return Some(format!(
-            "{:x}",
-            sha2::Sha256::digest(read_bounded(path, FILE_LIMIT).ok()?)
-        ));
+        return Some(crate::digest_hex::lower_hex(&sha2::Sha256::digest(
+            read_bounded(path, FILE_LIMIT).ok()?,
+        )));
     }
     let _root = directory(path).ok()?;
     let mut files = super::inspect::fingerprint_directory(path)?;
@@ -384,7 +383,7 @@ pub(crate) fn entry_digest(path: &Path) -> Option<String> {
         hasher.update(digest.as_bytes());
         hasher.update(b"\0");
     }
-    Some(format!("{:x}", hasher.finalize()))
+    Some(crate::digest_hex::lower_hex(&hasher.finalize()))
 }
 
 pub(crate) fn remove_owned(target: &Path, is_directory: bool) -> FsStep {

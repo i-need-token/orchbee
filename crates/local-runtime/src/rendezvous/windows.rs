@@ -407,7 +407,7 @@ fn hashed_id(domain: &[u8], runtime: &Path) -> String {
             .to_le_bytes(),
         );
     }
-    format!("{:x}", hash.finalize())[..32].to_owned()
+    crate::digest_hex::lower_hex(&hash.finalize())[..32].to_owned()
 }
 fn endpoint(runtime: &Path, role: &str) -> PathBuf {
     format!(r"\\.\pipe\orchbee-{}-{role}", endpoint_id(runtime)).into()

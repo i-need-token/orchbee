@@ -1921,7 +1921,10 @@ fn worktree_entry_json(entry: &WorktreeEntry) -> Value {
             object.insert("worktreePath".to_owned(), json!(path));
         }
         WorktreeEntryText::Bytes(bytes) => {
-            object.insert("worktreePathBytesHex".to_owned(), json!(hex_encode(bytes)));
+            object.insert(
+                "worktreePathBytesHex".to_owned(),
+                json!(crate::hex::encode(bytes)),
+            );
         }
     }
     object.insert("head".to_owned(), json!(entry.head));
@@ -1930,7 +1933,10 @@ fn worktree_entry_json(entry: &WorktreeEntry) -> Value {
             object.insert("branch".to_owned(), json!(branch));
         }
         Some(WorktreeEntryText::Bytes(bytes)) => {
-            object.insert("branchBytesHex".to_owned(), json!(hex_encode(bytes)));
+            object.insert(
+                "branchBytesHex".to_owned(),
+                json!(crate::hex::encode(bytes)),
+            );
         }
         None => {
             object.insert("branch".to_owned(), Value::Null);
@@ -1941,15 +1947,6 @@ fn worktree_entry_json(entry: &WorktreeEntry) -> Value {
     object.insert("locked".to_owned(), json!(entry.locked));
     object.insert("prunable".to_owned(), json!(entry.prunable));
     Value::Object(object)
-}
-
-pub(crate) fn hex_encode(bytes: &[u8]) -> String {
-    let mut encoded = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        encoded.push(char::from_digit(u32::from(byte >> 4), 16).expect("nibble"));
-        encoded.push(char::from_digit(u32::from(byte & 0x0f), 16).expect("nibble"));
-    }
-    encoded
 }
 
 fn workspace_row_json(row: &WorkspaceRow) -> Value {

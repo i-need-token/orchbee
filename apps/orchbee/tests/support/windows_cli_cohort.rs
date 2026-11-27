@@ -114,12 +114,16 @@ fn manifest() -> &'static [u8] {
             } else {
                 Sha256::digest(UNUSED_ARTIFACT)
             };
-            artifacts.insert(name.to_owned(), json!(format!("{digest:x}")));
+            artifacts.insert(name.to_owned(), json!(lower_hex(&digest)));
         }
         artifacts.insert(
             "agent-observation-adapters".to_owned(),
-            json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
+            json!(lower_hex(&Sha256::digest(b"unused adapters"))),
         );
         serde_json::to_vec(&json!({"schemaVersion":1,"artifacts":artifacts})).unwrap()
     })
+}
+
+fn lower_hex(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

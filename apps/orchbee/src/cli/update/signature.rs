@@ -40,7 +40,7 @@ impl TrustedKey {
 
     /// The first 16 hexadecimal digits of SHA-256 over the 32-byte public key.
     fn key_id(&self) -> String {
-        format!("{:x}", Sha256::digest(self.0))[..16].to_owned()
+        crate::hex::encode(&Sha256::digest(self.0))[..16].to_owned()
     }
 }
 

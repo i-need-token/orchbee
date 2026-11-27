@@ -17,7 +17,7 @@ use unicode_segmentation::UnicodeSegmentation;
 use super::output::{Bounded, TooLarge};
 use super::results::{
     AgentWaitDoc, ContextRef, LaunchProfileCatalogSelection, PanelDoc, Projection, StatusDoc,
-    TerminalRow, hex_encode, local_report::CheckReport,
+    TerminalRow, local_report::CheckReport,
 };
 use crate::cli_text::escape::{
     display_width, escape, quoted, table_label, table_label_width, unquoted,
@@ -345,14 +345,14 @@ fn terminal_cell_width(value: &str) -> usize {
 fn worktree_path(value: &WorktreeEntryText) -> String {
     match value {
         WorktreeEntryText::Utf8(text) => crate::native_path::display(text),
-        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", hex_encode(bytes)),
+        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", crate::hex::encode(bytes)),
     }
 }
 
 fn worktree_text(value: &WorktreeEntryText) -> String {
     match value {
         WorktreeEntryText::Utf8(text) => quoted(text),
-        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", hex_encode(bytes)),
+        WorktreeEntryText::Bytes(bytes) => format!("hex:{}", crate::hex::encode(bytes)),
     }
 }
 

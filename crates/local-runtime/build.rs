@@ -70,5 +70,8 @@ fn checkout_digest(canonical: &str) -> String {
         .chain_update(b"orchbee-development-data-root-v1\0")
         .chain_update(canonical.as_bytes())
         .finalize();
-    format!("{digest:x}")[..16].to_owned()
+    digest[..8]
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }

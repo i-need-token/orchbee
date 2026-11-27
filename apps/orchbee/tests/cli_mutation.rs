@@ -72,13 +72,13 @@ fn cohort() -> &'static Path {
                 fs::set_permissions(&target, fs::Permissions::from_mode(0o700))
                     .expect("chmod cohort artifact");
                 let digest = Sha256::digest(fs::read(&target).expect("read artifact"));
-                artifacts.insert((*name).to_owned(), format!("{digest:x}").into());
+                artifacts.insert((*name).to_owned(), lower_hex(&digest).into());
             }
             // A controlled dummy digest stands in for the adapters payload —
             // this fixture stages no sidecar; admission stays lazy.
             artifacts.insert(
                 "agent-observation-adapters".to_owned(),
-                format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+                lower_hex(&Sha256::digest(b"staged stand-in adapters\n")).into(),
             );
             let manifest = directory.join("cohort.json");
             fs::write(
@@ -3373,4 +3373,8 @@ fn workspace_close_route_reaches_the_typed_receipt() -> TestResult {
 
     peer.join().expect("peer finished");
     Ok(())
+}
+
+fn lower_hex(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

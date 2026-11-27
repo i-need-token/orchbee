@@ -40,7 +40,7 @@ fn the_shared_fixture_verifies_and_neither_domain_admits_the_other() {
         (feed.channel, feed.version.as_str(), feed.build_id.as_str()),
         (UpdateChannel::Stable, "0.1.0", "fixture.1")
     );
-    assert_eq!(feed.manifest, format!("{:x}", Sha256::digest(MANIFEST)));
+    assert_eq!(feed.manifest, crate::hex::encode(&Sha256::digest(MANIFEST)));
     assert_eq!(
         (feed.archive.url.as_str(), feed.archive.size),
         (

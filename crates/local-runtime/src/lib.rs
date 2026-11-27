@@ -33,6 +33,7 @@ mod host_name;
 #[cfg(unix)]
 pub use host_name::local_host_name;
 mod civil_date;
+mod digest_hex;
 mod local_clock;
 pub use local_clock::{LocalClock, local_clock, unix_milliseconds_at_local};
 mod file_lock;

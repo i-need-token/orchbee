@@ -13,7 +13,7 @@
 use std::io;
 
 use base64::{Engine as _, engine::general_purpose::URL_SAFE_NO_PAD};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use orchbee_agent_observation_protocol::{
     AGENT_CURSOR_PAYLOAD_BYTES, AGENT_CURSOR_TAG_BYTES, AgentChangesCursor, AgentCursorPayload,
     AgentListCursor, MAXIMUM_SAFE_INTEGER,
@@ -151,8 +151,8 @@ impl AgentCursorAuthority {
     }
 
     fn mac_for(&self, domain: &[u8]) -> CursorMac {
-        let mut mac =
-            <CursorMac as Mac>::new_from_slice(&self.key).expect("HMAC accepts keys of any length");
+        let mut mac = <CursorMac as KeyInit>::new_from_slice(&self.key)
+            .expect("HMAC accepts keys of any length");
         mac.update(domain);
         mac
     }

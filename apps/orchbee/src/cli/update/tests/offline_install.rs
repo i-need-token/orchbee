@@ -167,7 +167,7 @@ fn offline_install_verifies_before_probe_reuses_without_overwrite_and_cleans_fai
     fs::write(&server, b"another cohort peer").unwrap();
     let mut different: Value = serde_json::from_slice(&cohort_before).unwrap();
     different["artifacts"]["orchbee-server"] =
-        json!(format!("{:x}", Sha256::digest(b"another cohort peer")));
+        json!(crate::hex::encode(&Sha256::digest(b"another cohort peer")));
     fs::write(published.join("cohort.json"), different.to_string()).unwrap();
     let stale = Cohort::load(&published, deadline).unwrap();
     fs::write(published.join("cohort.json"), cohort_before).unwrap();

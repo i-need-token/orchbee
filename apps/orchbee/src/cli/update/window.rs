@@ -440,7 +440,7 @@ fn check(
                 .map_err(|error| context.storage(path, &error))?;
         }
     }
-    if left != 0 || format!("{:x}", hash.finalize()) != listed.sha256 {
+    if left != 0 || crate::hex::encode(&hash.finalize()) != listed.sha256 {
         return Err(Error::Checksum);
     }
     if let Some((path, file)) = output {

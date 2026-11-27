@@ -1428,7 +1428,10 @@ pub(crate) fn fingerprint_directory(root: &Path) -> Option<Vec<(String, String)>
             if total_bytes > MAX_ENTRY_TOTAL_BYTES {
                 return None;
             }
-            files.push((relative, format!("{:x}", sha2::Sha256::digest(&bytes))));
+            files.push((
+                relative,
+                crate::digest_hex::lower_hex(&sha2::Sha256::digest(&bytes)),
+            ));
         }
     }
     files.sort_by(|left, right| left.0.cmp(&right.0));

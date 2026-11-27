@@ -70,7 +70,7 @@ fn signed_bytes(manifest: &[u8]) -> Vec<u8> {
 /// One signature document entry by `key` over exactly `signed`.
 fn entry(key: &SigningKey, signed: &[u8]) -> Value {
     json!({
-        "keyId": format!("{:x}", Sha256::digest(key.verifying_key().to_bytes()))[..16],
+        "keyId": crate::hex::encode(&Sha256::digest(key.verifying_key().to_bytes()))[..16],
         "algorithm": "ed25519",
         "signature": STANDARD.encode(key.sign(signed).to_bytes()),
     })

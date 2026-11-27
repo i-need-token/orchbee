@@ -33,14 +33,18 @@ impl Fixture {
             .unwrap();
             artifacts.insert(
                 manifest_key(artifact).to_owned(),
-                serde_json::Value::String(format!("{:x}", Sha256::digest(b"native fixture\n"))),
+                serde_json::Value::String(crate::digest_hex::lower_hex(&Sha256::digest(
+                    b"native fixture\n",
+                ))),
             );
         }
         // The declared adapters digest is a controlled dummy: the fixture
         // stages no sidecar directory, proving admission stays lazy.
         artifacts.insert(
             OBSERVATION_ADAPTERS.into(),
-            serde_json::Value::String(format!("{:x}", Sha256::digest(b"fixture adapters\n"))),
+            serde_json::Value::String(crate::digest_hex::lower_hex(&Sha256::digest(
+                b"fixture adapters\n",
+            ))),
         );
         fs::write(
             path.join("cohort.json"),
@@ -106,7 +110,7 @@ fn observation_adapters_sidecar_is_declared_and_lazily_admitted() {
     );
     assert_eq!(
         sidecar.declared_payload_sha256(),
-        format!("{:x}", Sha256::digest(b"fixture adapters\n"))
+        crate::digest_hex::lower_hex(&Sha256::digest(b"fixture adapters\n"))
     );
     // The fixture stages no sidecar at all; startup verification still
     // succeeds — the payload is admitted lazily by its first consumer.
@@ -124,7 +128,7 @@ fn observation_adapters_sidecar_is_declared_and_lazily_admitted() {
         cohort
             .observation_adapters_sidecar()
             .declared_payload_sha256(),
-        format!("{:x}", Sha256::digest(b"fixture adapters\n"))
+        crate::digest_hex::lower_hex(&Sha256::digest(b"fixture adapters\n"))
     );
 }
 

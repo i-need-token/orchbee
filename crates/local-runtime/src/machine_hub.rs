@@ -35,7 +35,7 @@ fn endpoint(canonical: &Path) -> PathBuf {
     }
     format!(
         r"\\.\pipe\orchbee-{}-hub",
-        &format!("{:x}", hash.finalize())[..32]
+        &crate::digest_hex::lower_hex(&hash.finalize())[..32]
     )
     .into()
 }
@@ -50,6 +50,6 @@ fn endpoint(canonical: &Path) -> PathBuf {
     hash.update(canonical.as_os_str().as_bytes());
     crate::ModeCheckedLocalSessionRendezvous::socket_root_path().join(format!(
         "{}-hub.sock",
-        &format!("{:x}", hash.finalize())[..32]
+        &crate::digest_hex::lower_hex(&hash.finalize())[..32]
     ))
 }

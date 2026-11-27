@@ -56,7 +56,10 @@ fn a_complete_manifest_is_admitted_with_its_identity_and_every_listed_file() {
     let bytes = serde_json::to_vec(&sample()).unwrap();
     let release = parse_bytes(&bytes).unwrap();
     assert_eq!(release.channel, UpdateChannel::Stable);
-    assert_eq!(release.identity, format!("{:x}", Sha256::digest(&bytes)));
+    assert_eq!(
+        release.identity,
+        crate::hex::encode(&Sha256::digest(&bytes))
+    );
     assert_eq!(release.encoded, bytes);
     assert_eq!(
         (release.version.as_str(), release.build_id.as_str()),

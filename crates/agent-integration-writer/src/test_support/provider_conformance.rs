@@ -608,7 +608,13 @@ fn home_scan(home: &Path) -> BTreeMap<String, String> {
                 pending.push(path);
             } else {
                 let bytes = fs::read(&path).unwrap_or_default();
-                scan.insert(relative, format!("file:{:x}", sha2::Sha256::digest(&bytes)));
+                scan.insert(
+                    relative,
+                    format!(
+                        "file:{}",
+                        crate::digest_hex::lower_hex(&sha2::Sha256::digest(&bytes))
+                    ),
+                );
             }
         }
     }

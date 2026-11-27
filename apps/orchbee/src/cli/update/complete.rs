@@ -129,7 +129,7 @@ fn installed(store: &ReleaseStore, entry: &Entry) -> Option<Release> {
         .take(MANIFEST_LIMIT as u64 + 1)
         .read_to_end(&mut bytes)
         .ok()?;
-    if format!("{:x}", Sha256::digest(&bytes)) != entry.manifest {
+    if crate::hex::encode(&Sha256::digest(&bytes)) != entry.manifest {
         return None;
     }
     Release::parse(TrustedManifest::installed(&bytes), &own_platform())

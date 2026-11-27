@@ -250,7 +250,7 @@ pub(super) fn stored_version(
 }
 
 fn sha256(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    crate::hex::encode(&Sha256::digest(bytes))
 }
 
 /// The `release.json` the version directory `version` holds, when it can be read. The pointer
@@ -402,7 +402,7 @@ fn verify_file(root: &Path, artifact: &Artifact, context: &mut Context) -> Resul
         }
         hash.update(&bytes[..count]);
     }
-    if format!("{:x}", hash.finalize()) != artifact.sha256 {
+    if crate::hex::encode(&hash.finalize()) != artifact.sha256 {
         return Err(Error::Checksum);
     }
     Ok(())

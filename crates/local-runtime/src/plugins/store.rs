@@ -377,7 +377,7 @@ fn registered_fingerprint(revision: u64, plugins: &[PluginRegistryEntry]) -> Res
     hash.update(revision.to_le_bytes());
     hash.update((encoded.len() as u64).to_le_bytes());
     hash.update(encoded);
-    Ok(format!("{:x}", hash.finalize()))
+    Ok(crate::digest_hex::lower_hex(&hash.finalize()))
 }
 fn registered(catalog: &Catalog, id: &str) -> bool {
     catalog.plugins.iter().any(|entry| entry.manifest.id == id)

@@ -169,14 +169,13 @@ fn every_compiled_key_is_a_strong_distinct_ed25519_key_and_tables_share_none() {
         for key in table {
             let public = VerifyingKey::from_bytes(&key.0).expect("an Ed25519 curve point");
             assert!(!public.is_weak());
-            assert!(identifiers.insert(format!("{:x}", Sha256::digest(key.0))[..16].to_owned()));
+            assert!(
+                identifiers.insert(crate::hex::encode(&Sha256::digest(key.0))[..16].to_owned())
+            );
         }
     }
-    let test_identifier = format!(
-        "{:x}",
-        Sha256::digest(test_key().verifying_key().to_bytes())
-    )[..16]
-        .to_owned();
+    let test_identifier =
+        crate::hex::encode(&Sha256::digest(test_key().verifying_key().to_bytes()))[..16].to_owned();
     assert_eq!(test_identifier, "b41b7cd3822bd0c2");
     assert!(
         TEST_TABLE

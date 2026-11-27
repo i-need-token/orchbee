@@ -9,6 +9,8 @@ mod capsule;
 #[cfg(any(unix, windows))]
 #[cfg_attr(windows, path = "configuration_windows.rs")]
 mod configuration;
+#[cfg(any(unix, windows))]
+mod digest_hex;
 /// Checks a distribution sidecar against its cohort's payload identity.
 #[cfg(any(unix, windows))]
 pub fn verify_distribution_capsule(root: &std::path::Path, expected: &str) -> bool {

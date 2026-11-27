@@ -34,7 +34,7 @@ pub(super) fn copy_into(source: &Path, target: &Path) {
 }
 
 pub(super) fn digest(path: &Path) -> String {
-    format!("{:x}", Sha256::digest(fs::read(path).unwrap()))
+    crate::hex::encode(&Sha256::digest(fs::read(path).unwrap()))
 }
 
 fn inventory(directory: &Path, base: &Path, files: &mut Vec<Value>) {
@@ -130,7 +130,7 @@ pub(super) fn publish_manifest(source: &Path, manifest: &[u8], signature: Option
 }
 
 pub(super) fn sha(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    crate::hex::encode(&Sha256::digest(bytes))
 }
 
 pub(super) fn entry_for(version: &str, manifest: &[u8]) -> Entry {
@@ -245,7 +245,7 @@ pub(super) fn in_process_completion(
     let bytes = fs::read(version.join("release.json")).map_err(|_| Error::NotReleaseDirectory)?;
     let entry = Entry {
         product: version.file_name().unwrap().to_string_lossy().into_owned(),
-        manifest: format!("{:x}", Sha256::digest(&bytes)),
+        manifest: crate::hex::encode(&Sha256::digest(&bytes)),
     };
     complete::activate(
         root,

@@ -194,13 +194,13 @@ fn cohort_report_maps_verifier_outcomes() {
         fs::write(&path, format!("stand-in for {name}\n")).unwrap();
         fs::set_permissions(&path, fs::Permissions::from_mode(0o700)).unwrap();
         let digest = Sha256::digest(fs::read(&path).unwrap());
-        artifacts.insert(name.into(), format!("{digest:x}").into());
+        artifacts.insert(name.into(), crate::hex::encode(&digest).into());
     }
     // A controlled dummy digest stands in for the adapters payload — the
     // fixture stages no sidecar; cohort admission stays lazy.
     artifacts.insert(
         "agent-observation-adapters".into(),
-        format!("{:x}", Sha256::digest(b"staged stand-in adapters\n")).into(),
+        crate::hex::encode(&Sha256::digest(b"staged stand-in adapters\n")).into(),
     );
     let manifest = cohort.join("cohort.json");
     fs::write(

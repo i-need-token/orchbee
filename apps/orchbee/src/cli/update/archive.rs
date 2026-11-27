@@ -130,7 +130,7 @@ impl Download {
             }
             hash.update(&buffer[..count]);
         }
-        if format!("{:x}", hash.finalize()) != archive.sha256 {
+        if crate::hex::encode(&hash.finalize()) != archive.sha256 {
             return Err(Error::Checksum);
         }
         Ok(Verified { _held: file })

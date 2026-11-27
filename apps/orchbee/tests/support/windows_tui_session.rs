@@ -134,10 +134,7 @@ impl Fixture {
             // Native cohort admission requires private regular files with one link, and each
             // carries its environment name rather than Cargo's release name.
             fs::write(self.root.join("cohort").join(artifact.file_name()), &bytes).unwrap();
-            artifacts.insert(
-                name.to_owned(),
-                json!(format!("{:x}", Sha256::digest(&bytes))),
-            );
+            artifacts.insert(name.to_owned(), json!(lower_hex(&Sha256::digest(&bytes))));
         }
         // The product ships a pinned ConPTY beside its Host; a build without one uses the system
         // ConHost, which drops the private markers the shell's reader sends. Point this at a
@@ -151,7 +148,7 @@ impl Fixture {
         }
         artifacts.insert(
             "agent-observation-adapters".to_owned(),
-            json!(format!("{:x}", Sha256::digest(b"unused adapters"))),
+            json!(lower_hex(&Sha256::digest(b"unused adapters"))),
         );
         fs::write(
             self.root.join("cohort/cohort.json"),
@@ -912,4 +909,8 @@ impl fmt::Display for Run {
             self.words, self.code, self.elapsed, self.document, self.stderr
         )
     }
+}
+
+fn lower_hex(digest: &[u8]) -> String {
+    digest.iter().map(|byte| format!("{byte:02x}")).collect()
 }

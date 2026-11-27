@@ -96,6 +96,6 @@ fn position(
         include_ended,
         client: client.cloned(),
         offset,
-        fingerprint: format!("{:x}", hash.finalize()),
+        fingerprint: crate::hex::encode(&hash.finalize()),
     })
 }

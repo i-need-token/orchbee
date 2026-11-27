@@ -105,7 +105,7 @@ impl Release {
         Some(Self {
             encoded: bytes.to_vec(),
             channel,
-            identity: format!("{:x}", Sha256::digest(bytes)),
+            identity: crate::hex::encode(&Sha256::digest(bytes)),
             version,
             build_id,
             files,

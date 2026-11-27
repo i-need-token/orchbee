@@ -352,14 +352,13 @@ pub(crate) fn entry_digest(path: &Path) -> Option<String> {
         // A link's bytes are its target — a moved-aside symlink backup
         // verifies against exactly the string it still points at.
         let linked = fs::read_link(path).ok()?;
-        return Some(format!(
-            "{:x}",
-            sha2::Sha256::digest(linked.as_os_str().as_encoded_bytes())
-        ));
+        return Some(crate::digest_hex::lower_hex(&sha2::Sha256::digest(
+            linked.as_os_str().as_encoded_bytes(),
+        )));
     }
     if metadata.is_file() {
         let bytes = fs::read(path).ok()?;
-        return Some(format!("{:x}", sha2::Sha256::digest(&bytes)));
+        return Some(crate::digest_hex::lower_hex(&sha2::Sha256::digest(&bytes)));
     }
     if metadata.is_dir() {
         let mut files = super::inspect::fingerprint_directory(path)?;
@@ -372,7 +371,7 @@ pub(crate) fn entry_digest(path: &Path) -> Option<String> {
             hasher.update(digest.as_bytes());
             hasher.update(b"\0");
         }
-        return Some(format!("{:x}", hasher.finalize()));
+        return Some(crate::digest_hex::lower_hex(&hasher.finalize()));
     }
     None
 }

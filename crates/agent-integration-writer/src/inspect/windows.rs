@@ -171,7 +171,7 @@ fn grok_activation(root: &Table, plugin: &Value) -> Option<State> {
         let path = canonical.to_str()?;
         // Upstream dunce removes Windows verbatim prefixes before hashing.
         let path = path.strip_prefix(r"\\?\").unwrap_or(path);
-        let digest = format!("{:x}", sha2::Sha256::digest(path.as_bytes()));
+        let digest = crate::digest_hex::lower_hex(&sha2::Sha256::digest(path.as_bytes()));
         Some(format!("user/{}/{GROK_PLUGIN_NAME}", &digest[..8]))
     } else {
         None

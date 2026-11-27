@@ -13,7 +13,7 @@ orchbee-agent-integration = { path = "../../crates/agent-integration" }
 orchbee-agent-observation-protocol = { path = "../../crates/agent-observation-protocol" }
 orchbee-local-runtime = { path = "../../crates/local-runtime" }
 base64.workspace = true
-hmac = { version = "0.12.1", default-features = false }
+hmac = { version = "0.13.0", default-features = false }
 # Production observation envelopes reuse the workspace JSON parser.
 serde_json.workspace = true
 serde.workspace = true
