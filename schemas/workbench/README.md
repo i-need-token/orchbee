@@ -839,6 +839,17 @@ Server's handshake answer lists the `client-server` capability `agent-confirmati
 Shared conformance cases in `workbench-panel-agent-confirmation-conformance-v1.json`
 cover the actions, the outcomes, each choice, a pressed text and the rejected shapes.
 
+`completion-acknowledge` takes one Presentation ID and the binding the Client expects, and
+marks the finished turn of the Agent in that terminal as seen, as typed input accepted there
+does: a completion awaiting input becomes acknowledged until the Agent's state changes, and
+provider status and its unread sequence stay unchanged. The `completion-acknowledged` outcome
+carries the Presentation ID, its binding and `changed`, false when no completion awaited
+input. A Presentation without a terminal fails `unbound`, and another terminal than the
+expected one `binding-changed`. A Client sends it only after the Server's handshake answer
+lists the `client-server` capability `agent-completion-acknowledge`. Shared conformance cases
+in `workbench-panel-agent-completion-conformance-v1.json` cover the action, both outcomes and
+the rejected shapes.
+
 ## Workspace Git status reads
 
 [`workbench-workspace-git.schema.json`](v1/workbench-workspace-git.schema.json)

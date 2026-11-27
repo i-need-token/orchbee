@@ -367,7 +367,9 @@ without advancing that sequence. `WorkbenchAgentAttention` owns only per-Client 
 it no longer clears Done on a local terminal-edit callback or infers completion from transitions.
 
 One display projection maps awaiting-input Idle to Done and acknowledged explicit Done to Idle.
-Sidebar, Tab strip and Panel header use that projection. Provider failure, approval and
-active-work states retain their semantics. Raw observations still feed notifications and the
-focused-Panel-only unread rules. Missing completion stays unknown/none;
+Sidebar, Tab strip and Panel header use that projection. A double-click on a sidebar Agent row
+that shows Done sends `completion-acknowledge` for its Presentation's binding, where the Session
+lists `agent-completion-acknowledge`; the row turns Idle when the Server's next state reports it.
+Provider failure, approval and active-work states retain their semantics. Raw observations still
+feed notifications and the focused-Panel-only unread rules. Missing completion stays unknown/none;
 reading or changing focus never consumes it. Only the Server's accepted-input boundary does.
