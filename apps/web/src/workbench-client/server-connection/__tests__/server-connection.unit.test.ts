@@ -13,12 +13,13 @@ import {
 class FakeCarrier implements ServerCarrier {
 	readonly capabilities: MultiplexCapabilities;
 	readonly sent: MultiplexMessage[] = [];
-	readonly #decoder = new MultiplexDecoder();
+	readonly #decoder: MultiplexDecoder;
 	#closed: (() => void) | null = null;
 	#receive: ((chunk: Uint8Array) => void) | null = null;
 
 	constructor(capabilities: MultiplexCapabilities = { files: false, streamOutcomeUnknown: false }) {
 		this.capabilities = capabilities;
+		this.#decoder = new MultiplexDecoder(capabilities);
 	}
 
 	close(): void {
@@ -57,6 +58,19 @@ const REQUEST = new Uint8Array(32).fill(7);
 
 function result(streamId: bigint, record: Uint8Array = new Uint8Array([1])): MultiplexMessage {
 	return { frameKind: 'result', kind: 'stream-frame', record, sequence: 1n, streamId };
+}
+
+const REQUEST_KIND = 1;
+const RESULT_KIND = 2;
+const FILES_SUBSCRIBE = '{"op":"fs.subscribe","workspaceId":"0123456789abcdef0123456789abcdef"}';
+
+/** An OBFB record of `kind` around a short JSON body. */
+function filesRecord(kind: number, json: string): Uint8Array {
+	const body = new TextEncoder().encode(json);
+	const record = new Uint8Array(12 + body.byteLength);
+	record.set([0x4f, 0x42, 0x46, 0x42, 0, 1, 0, kind, 0, 0, 0, body.byteLength]);
+	record.set(body, 12);
+	return record;
 }
 
 describe('ServerConnection', () => {
@@ -259,6 +273,34 @@ describe('ServerConnection', () => {
 
 		expect(frames).toEqual(['snapshot', 'update']);
 		expect(connection.ended).toEqual({ kind: 'carrier-closed' });
+	});
+
+	it('hands a File Bar subscription its failure result while a result ends any other', () => {
+		const carrier = new FakeCarrier({ files: true, streamOutcomeUnknown: false });
+		const connection = new ServerConnection(carrier);
+		const frames: string[] = [];
+		const closes: string[] = [];
+		connection.subscribe('events', filesRecord(REQUEST_KIND, FILES_SUBSCRIBE), {
+			onClosed: (reason) => closes.push(reason),
+			onFrame: (kind) => frames.push(kind),
+			onGap: () => undefined,
+		});
+		connection.subscribe('state', REQUEST, {
+			onClosed: () => undefined,
+			onFrame: () => undefined,
+			onGap: () => undefined,
+		});
+
+		carrier.deliver(result(1n, filesRecord(RESULT_KIND, '{"error":{"code":"denied"}}')));
+		carrier.deliver({ kind: 'stream-close', reason: 'complete', streamId: 1n });
+
+		expect(frames).toEqual(['result']);
+		expect(closes).toEqual(['complete']);
+		expect(connection.ended).toBeNull();
+
+		carrier.deliver(result(2n));
+
+		expect(connection.ended?.kind).toBe('protocol-violation');
 	});
 
 	it('ends only the subscription whose handler throws and keeps serving everything else', async () => {

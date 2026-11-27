@@ -20,6 +20,7 @@ import {
 	type ContainedClientFaultSite,
 	reportContainedClientFault,
 } from '../contained-client-fault';
+import { isFilesRecord } from './files-record-codec';
 import {
 	MAXIMUM_MULTIPLEX_LANES,
 	MAXIMUM_MULTIPLEX_STREAMS,
@@ -227,7 +228,10 @@ export class ServerConnection {
 		});
 	}
 
-	/** Opens a state, event, or invalidation stream; its snapshot arrives as the first frame. */
+	/**
+	 * Opens a state, event, or invalidation stream; its snapshot arrives as the first frame. A File
+	 * Bar stream that fails receives a `result` frame instead, then its close.
+	 */
 	subscribe(
 		mode: Exclude<MultiplexStreamMode, 'request'>,
 		request: Uint8Array,
@@ -451,7 +455,8 @@ export class ServerConnection {
 					this.#admitWaiting();
 					return;
 				}
-				if (message.frameKind === 'result') {
+				// A File Bar subscription answers with a Result only to fail, before the Server closes it.
+				if (message.frameKind === 'result' && !isFilesRecord(stream.request)) {
 					this.#violate('A subscription stream received a request result.');
 					return;
 				}
