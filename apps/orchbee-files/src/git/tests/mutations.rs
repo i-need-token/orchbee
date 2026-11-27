@@ -5,7 +5,6 @@
 
 use super::{
     super::{
-        discovery::Found,
         mutations::{
             Commit, Context, Message, clean, commit, discard, stage, stage_content, unstage,
         },
@@ -23,15 +22,6 @@ use std::{
     time::Duration,
 };
 
-fn found(fixture: &Fixture, relative: &str) -> Found {
-    let toplevel = fixture.path(relative);
-    Found {
-        git_dir: Path::new(&toplevel).join(".git"),
-        toplevel,
-        safe_directory: None,
-    }
-}
-
 fn context<'a>(fixture: &'a Fixture, limits: &'a Limits) -> Context<'a> {
     Context {
         limits,
@@ -48,7 +38,7 @@ fn staged(fixture: &Fixture) -> String {
 fn staging_takes_paths_literally_and_unstaging_works_before_and_after_the_first_commit() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
     for name in ["a", "b", "[ab]"] {
@@ -82,7 +72,7 @@ fn staging_takes_paths_literally_and_unstaging_works_before_and_after_the_first_
 fn content_staging_keeps_the_recorded_mode_and_leaves_the_working_tree() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
     fixture.write("repo/tool", "old");
@@ -129,7 +119,7 @@ fn content_staging_keeps_the_recorded_mode_and_leaves_the_working_tree() {
 fn commit_stages_what_all_asks_amends_and_continues_a_waiting_rebase() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
     let text = |message: &str, all| Commit {
@@ -177,7 +167,7 @@ fn commit_stages_what_all_asks_amends_and_continues_a_waiting_rebase() {
 fn a_locked_index_is_retried_until_the_lock_goes() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
     fixture.write("repo/file", "content");
@@ -207,7 +197,7 @@ impl Trash for Recorded {
 fn clean_trashes_inside_the_repository_or_removes_permanently() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
     fixture.write("repo/kept", "");

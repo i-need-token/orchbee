@@ -17,6 +17,7 @@ mod endpoint;
 
 use endpoint::Endpoint;
 use orchbee_files_protocol::PromptKind;
+use orchbee_git_process::canonical_path;
 use orchbee_local_ipc::{LocalListener, LocalStream};
 use orchbee_local_peer_credentials::require_same_effective_user;
 use std::{
@@ -126,7 +127,7 @@ pub(super) struct Ask {
     pub(super) kind: PromptKind,
     /// The asking program's text, at most 4 KiB.
     pub(super) text: String,
-    /// The message file of an editor prompt.
+    /// The message file of an editor prompt, at its real location in native spelling.
     pub(super) path: Option<String>,
     pub(super) answer: mpsc::Sender<Answer>,
 }
@@ -199,7 +200,9 @@ fn accept(listener: &LocalListener, stop: &AtomicBool, asks: &Arc<dyn Fn(Ask) + 
 }
 
 /// Serves one helper: proves its user, reads its request, hands the prompt to the engine and
-/// writes the answer, or a cancellation once the engine drops the prompt.
+/// writes the answer, or a cancellation once the engine drops the prompt. An editor's message
+/// file goes to the engine at its real location, so a link or a `..` segment cannot lead the
+/// engine's check astray; one that does not resolve is cancelled here.
 fn serve(stream: &LocalStream, asks: &(dyn Fn(Ask) + Send + Sync)) -> io::Result<()> {
     require_same_effective_user(stream)?;
     stream.set_read_timeout(Some(IO_TIMEOUT))?;
@@ -208,7 +211,10 @@ fn serve(stream: &LocalStream, asks: &(dyn Fn(Ask) + Send + Sync)) -> io::Result
     let (asked, token, text) = read_request(&mut reader)?;
     let (answer, answered) = mpsc::channel();
     let (text, path) = match asked {
-        Asked::Editor => (String::new(), Some(text)),
+        Asked::Editor => match canonical_path(Path::new(&text)) {
+            Ok(real) => (String::new(), Some(real.as_native().to_owned())),
+            Err(_) => return write_answer(stream, &Answer::Cancelled),
+        },
         Asked::Askpass | Asked::Confirm => (truncated(text, PROMPT_TEXT_LIMIT), None),
     };
     asks(Ask {
@@ -218,7 +224,11 @@ fn serve(stream: &LocalStream, asks: &(dyn Fn(Ask) + Send + Sync)) -> io::Result
         path,
         answer,
     });
-    let answer = answered.recv().unwrap_or(Answer::Cancelled);
+    write_answer(stream, &answered.recv().unwrap_or(Answer::Cancelled))
+}
+
+/// Writes `answer` to the helper, which reads it as the end of its request.
+fn write_answer(stream: &LocalStream, answer: &Answer) -> io::Result<()> {
     let mut writer = stream;
     writer.write_all(&answer.encode())?;
     writer.flush()

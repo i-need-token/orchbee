@@ -106,8 +106,8 @@ impl Trash for NoTrash {
 }
 
 /// Where the engine states the scope members it establishes in a Workspace: the working trees of
-/// its displayed consented repositories and the files its open editor prompts name. A path inside
-/// one is read as a path inside the root is.
+/// its displayed consented repositories and the files its open editor prompts name, each inside
+/// its repository's Git directories. A path inside one is read as a path inside the root is.
 ///
 /// The engine calls it on its own thread before the Client learns of the consent or the prompt,
 /// so it may not block for long.

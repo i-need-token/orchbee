@@ -31,13 +31,17 @@ const CONCURRENCY: usize = 5;
 /// Folders VS Code's scan skips by default.
 const IGNORED_FOLDERS: [&str; 1] = ["node_modules"];
 
-/// A repository Git reported for a folder.
+/// A repository Git reported for a folder. Its Git directories are at their real locations
+/// whenever those resolve.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Found {
     /// The canonical toplevel in native spelling, which names the repository on the wire.
     pub(super) toplevel: String,
     /// The working tree's own Git directory, where an operation in progress leaves its files.
     pub(super) git_dir: PathBuf,
+    /// The Git directory a linked worktree shares with the main working tree; for any other
+    /// working tree, its own.
+    pub(super) common_dir: PathBuf,
     /// The `safe.directory` value each command passes, in Git's spelling, for the repository
     /// that holds the root; `None` keeps Git's ownership check.
     pub(super) safe_directory: Option<String>,
@@ -65,6 +69,17 @@ impl Found {
             .filter(|relative| !relative.is_empty())
             .map(native_paths::git_relative)
             .ok_or(GitError::new(ErrorCode::OutsideScope))
+    }
+
+    /// Whether `path`, a real native path, lies inside the Git directory or the common one, where
+    /// Git leaves every file it hands its editor.
+    pub(super) fn in_git_directories(&self, path: &str) -> bool {
+        [&self.git_dir, &self.common_dir]
+            .into_iter()
+            .filter_map(|directory| directory.to_str())
+            .any(|directory| {
+                native_paths::relative(directory, path).is_some_and(|below| !below.is_empty())
+            })
     }
 }
 
@@ -170,7 +185,12 @@ pub(super) fn probe(
     if let Some(trusted) = trusted {
         command.arg("-c").arg(format!("safe.directory={trusted}"));
     }
-    command.args(["rev-parse", "--show-toplevel", "--git-dir"]);
+    command.args([
+        "rev-parse",
+        "--show-toplevel",
+        "--git-dir",
+        "--git-common-dir",
+    ]);
     let ran = match runner::run(command, Vec::new(), limits, output) {
         Ok(ran) => ran,
         Err(error) => return Probe::Failed(error),
@@ -187,7 +207,9 @@ pub(super) fn probe(
     }
     let text = String::from_utf8_lossy(&ran.stdout);
     let mut lines = text.lines();
-    let (Some(toplevel), Some(git_dir)) = (lines.next(), lines.next()) else {
+    let (Some(toplevel), Some(git_dir), Some(common_dir)) =
+        (lines.next(), lines.next(), lines.next())
+    else {
         return Probe::Outside;
     };
     let Ok(toplevel) = canonical_path(Path::new(toplevel)) else {
@@ -198,9 +220,16 @@ pub(super) fn probe(
         .map(str::to_owned);
     Probe::Repository(Found {
         toplevel: toplevel.as_native().to_owned(),
-        git_dir: directory.join(git_dir),
+        git_dir: real(directory.join(git_dir)),
+        common_dir: real(directory.join(common_dir)),
         safe_directory,
     })
+}
+
+/// `path` at its real location in native spelling, or as Git printed it when that does not
+/// resolve.
+fn real(path: PathBuf) -> PathBuf {
+    canonical_path(&path).map_or(path, |real| PathBuf::from(real.as_native()))
 }
 
 /// The `safe.directory` value of the nearest folder at or above `root` that holds `.git`, in

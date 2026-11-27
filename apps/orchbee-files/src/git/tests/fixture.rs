@@ -4,6 +4,7 @@
 
 use super::super::{
     command::{self, Access},
+    discovery::Found,
     errors::Classifier,
     output::GitOutput,
     runner::{self, Limits, Ran},
@@ -73,6 +74,19 @@ impl Fixture {
         self.git(relative, &["init", "-q", "-b", "main"]);
         self.configure(relative);
         path
+    }
+
+    /// The repository at `relative` as discovery reports a working tree that is not linked: its
+    /// `.git` is both of its Git directories.
+    pub(super) fn found(&self, relative: &str) -> Found {
+        let toplevel = self.path(relative);
+        let git_dir = Path::new(&toplevel).join(".git");
+        Found {
+            common_dir: git_dir.clone(),
+            git_dir,
+            toplevel,
+            safe_directory: None,
+        }
     }
 
     /// Gives the repository at `relative` the fixture's identity, no signing and no hooks.

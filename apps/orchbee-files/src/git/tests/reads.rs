@@ -6,23 +6,13 @@
 use super::{
     super::{
         command,
-        discovery::Found,
         reads::{RefUpstream, Remote, check_ignore, refs, user_config},
         show::{self, Reference, Shows},
     },
     fixture::Fixture,
 };
 use orchbee_files_protocol::{ErrorCode, RefKind};
-use std::{collections::HashSet, fs, path::Path, sync::Mutex};
-
-fn found(fixture: &Fixture, relative: &str) -> Found {
-    let toplevel = fixture.path(relative);
-    Found {
-        git_dir: Path::new(&toplevel).join(".git"),
-        toplevel,
-        safe_directory: None,
-    }
-}
+use std::{collections::HashSet, fs, sync::Mutex};
 
 fn version(fixture: &Fixture) -> (u32, u32, u32) {
     command::version(fixture.git("", &["--version"]).as_bytes()).unwrap()
@@ -32,7 +22,7 @@ fn version(fixture: &Fixture) -> (u32, u32, u32) {
 fn check_ignore_answers_only_what_a_positive_pattern_ignores() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     fixture.write("repo/.gitignore", "*.log\n!keep.log\nbuild/\n");
     fixture.write("repo/build/out.txt", "");
     let paths = ["x.log", "keep.log", "build/out.txt", "src.rs"]
@@ -55,7 +45,7 @@ fn check_ignore_answers_only_what_a_positive_pattern_ignores() {
 fn refs_carry_upstreams_until_gone_peeled_tags_and_first_remote_urls() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     fs::create_dir(fixture.path("remote.git")).unwrap();
     fixture.git("remote.git", &["init", "-q", "--bare"]);
     fixture.write("repo/file", "one");
@@ -126,7 +116,7 @@ fn refs_carry_upstreams_until_gone_peeled_tags_and_first_remote_urls() {
 fn reference_pages_cover_every_reference_once_within_their_bounds() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     fixture.write("repo/file", "one");
     fixture.git("repo", &["add", "file"]);
     fixture.git("repo", &["commit", "-q", "-m", "seed"]);
@@ -176,7 +166,7 @@ fn reference_pages_cover_every_reference_once_within_their_bounds() {
 fn a_show_reads_each_version_through_textconv_and_follows_its_reference() {
     let fixture = Fixture::new();
     fixture.repository("repo");
-    let repository = found(&fixture, "repo");
+    let repository = fixture.found("repo");
     fixture.git("repo", &["config", "diff.upper.textconv", "tr a-z A-Z <"]);
     fixture.write("repo/.gitattributes", "*.txt diff=upper\n");
     fixture.write("repo/file.txt", "committed\n");

@@ -28,9 +28,11 @@ fn path(name: &str) -> String {
 }
 
 fn found(name: &str) -> Found {
+    let git_dir = PathBuf::from(path(name)).join(".git");
     Found {
         toplevel: path(name),
-        git_dir: PathBuf::from(path(name)).join(".git"),
+        common_dir: git_dir.clone(),
+        git_dir,
         safe_directory: None,
     }
 }

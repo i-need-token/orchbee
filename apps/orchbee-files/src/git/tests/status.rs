@@ -3,25 +3,18 @@
 
 use super::{
     super::{
-        discovery::Found,
         porcelain::EntryKind,
         status::{Counts, status},
     },
     fixture::Fixture,
 };
 use orchbee_files_protocol::RepositoryOperation;
-use std::path::Path;
 
 #[test]
 fn status_reads_each_kind_of_change_and_counts_it_in_its_group() {
     let fixture = Fixture::new();
-    let repository = fixture.repository("repo");
-    let toplevel = Path::new(&repository);
-    let found = Found {
-        toplevel: repository.clone(),
-        git_dir: toplevel.join(".git"),
-        safe_directory: None,
-    };
+    fixture.repository("repo");
+    let found = fixture.found("repo");
     let read = |limit| status(&found, limit, &fixture.limits(), &fixture.output);
 
     let unborn = read(100).unwrap();
@@ -50,7 +43,7 @@ fn status_reads_each_kind_of_change_and_counts_it_in_its_group() {
     fixture.write("repo/both", "changed");
     fixture.git("repo", &["add", "both"]);
     fixture.write("repo/both", "changed again");
-    std::fs::remove_file(toplevel.join("deleted")).unwrap();
+    std::fs::remove_file(fixture.path("repo/deleted")).unwrap();
     fixture.git("repo", &["rm", "-q", "removed"]);
     fixture.git("repo", &["mv", "moved", "moved too"]);
     fixture.write("repo/added é", "new");

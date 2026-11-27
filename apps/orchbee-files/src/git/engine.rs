@@ -699,7 +699,8 @@ struct RelaySubscriber {
 /// One operation whose helpers may prompt, by its token.
 struct Operation {
     workspace: WorkspaceId,
-    repository: String,
+    /// Its repository, whose Git directories hold every file its editor prompts may name.
+    found: Found,
     connection: ConnectionId,
     background: bool,
     /// Its open prompts, during which the idle watchdog waits.
@@ -1467,7 +1468,7 @@ impl Actor {
                             token,
                             Operation {
                                 workspace,
-                                repository: found.toplevel.clone(),
+                                found: found.clone(),
                                 connection: job.connection,
                                 background,
                                 prompts: Arc::clone(&prompts),
@@ -1795,17 +1796,19 @@ impl Actor {
     }
 
     /// A helper's prompt: answered at once for a background operation or when no Client can take
-    /// it, else routed.
+    /// it, else routed. An editor prompt whose file lies outside its repository's Git directories
+    /// fails its helper: the file is in scope while the prompt is open, and Git leaves every file
+    /// it hands its editor there, so a command that holds the token cannot bring in another.
     fn ask(&mut self, now: Instant, ask: Ask) {
         let Some(operation) = self.tokens.get(&ask.token) else {
             let _ = ask.answer.send(Answer::Cancelled);
             return;
         };
-        if ask
-            .path
-            .as_ref()
-            .is_some_and(|path| path.len() > PATH_LIMIT)
-        {
+        let admitted = match ask.path.as_deref() {
+            Some(path) => path.len() <= PATH_LIMIT && operation.found.in_git_directories(path),
+            None => ask.kind != PromptKind::Editor,
+        };
+        if !admitted {
             let _ = ask.answer.send(Answer::Cancelled);
             return;
         }
@@ -1828,7 +1831,7 @@ impl Actor {
             id,
             kind: ask.kind,
             text: ask.text,
-            repository: operation.repository.clone(),
+            repository: operation.found.toplevel.clone(),
             path: ask.path,
         };
         let expires = now
@@ -1965,10 +1968,8 @@ impl Actor {
     }
 
     /// States each Workspace's members that changed since they were last stated: the working trees
-    /// of its displayed consented repositories and the files its open editor prompts name. An
-    /// editor's file is taken as Git names it, without checking that it lies in the Git directory:
-    /// only the commands of the prompting operation hold the token that opens a prompt, and each of
-    /// them already runs as the user.
+    /// of its displayed consented repositories and the files its open editor prompts name, each
+    /// inside its repository's Git directories.
     fn state_members(&mut self) {
         let mut current: HashMap<WorkspaceId, Vec<String>> = HashMap::new();
         for (workspace, space) in &self.spaces {

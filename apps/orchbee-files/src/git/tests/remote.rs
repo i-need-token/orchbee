@@ -5,7 +5,6 @@
 use super::{
     super::{
         command,
-        discovery::Found,
         errors::GitErrorCode,
         mutations::Context,
         remote::{Fetch, FetchRemotes, Push, fetch, pull, push, sync},
@@ -14,16 +13,7 @@ use super::{
     fixture::Fixture,
 };
 use orchbee_files_protocol::{ErrorCode, PushForce};
-use std::{fs, path::Path};
-
-fn found(fixture: &Fixture, relative: &str) -> Found {
-    let toplevel = fixture.path(relative);
-    Found {
-        git_dir: Path::new(&toplevel).join(".git"),
-        toplevel,
-        safe_directory: None,
-    }
-}
+use std::fs;
 
 fn context<'a>(fixture: &'a Fixture, limits: &'a Limits) -> Context<'a> {
     Context {
@@ -56,7 +46,7 @@ fn publishing_pushing_pulling_and_syncing_follow_the_upstream() {
     fixture.git("remote.git", &["init", "-q", "--bare", "-b", "main"]);
     let remote = fixture.path("remote.git");
     fixture.repository("one");
-    let one = found(&fixture, "one");
+    let one = fixture.found("one");
     fixture.git("one", &["remote", "add", "origin", &remote]);
     commit(&fixture, "one", "first");
 
@@ -90,7 +80,7 @@ fn publishing_pushing_pulling_and_syncing_follow_the_upstream() {
 
     fixture.git("", &["clone", "-q", &remote, "two"]);
     fixture.configure("two");
-    let two = found(&fixture, "two");
+    let two = fixture.found("two");
     commit(&fixture, "two", "second");
     push(&two, &plain, version, &context).unwrap();
     let fetched = Fetch {
