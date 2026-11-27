@@ -267,6 +267,9 @@ fn start(
     owners.terminals.start_title_reads()?;
     owners.terminals.start_agent_catalog()?;
     owners.terminals.start_agent_start_delivery()?;
+    owners
+        .terminals
+        .start_file_bar(owners.session.runtime_directory().to_owned())?;
     let mut restored = restored;
     let resumes = restored.take_agent_resume();
     // Restored launches read their kept output through the same store.
@@ -758,6 +761,8 @@ fn stop_background_jobs(owners: &mut Owners, deadline: Instant) -> io::Result<()
     if let Some(updates) = owners.automatic_updates.take() {
         updates.stop();
     }
+    // The File Bar starts its process through the Worker; a drained process ends with its link.
+    owners.terminals.stop_file_bar_before(deadline);
     #[cfg(windows)]
     owners.terminals.stop_plugin_hooks_before(deadline)?;
     {

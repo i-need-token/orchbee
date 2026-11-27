@@ -160,7 +160,7 @@ pub(crate) fn run(
         .map(|endpoint| {
             local_client_service::start(
                 endpoint,
-                local_client_service::ServerIdentity::local(None, None),
+                local_client_service::ServerIdentity::local(None, None).without_file_bar(),
                 Arc::clone(&terminals),
             )
         })

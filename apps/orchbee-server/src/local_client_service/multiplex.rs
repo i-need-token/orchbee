@@ -1,15 +1,19 @@
 //! Three-thread admitted carrier: bounded input, one dispatch/output owner, one owner of reads
 //! that wait on a Worker job, and event wakeups. A stream the connection cannot take now, or a
 //! request or read that fails, closes only its own stream; only the carrier's own input, output,
-//! and limits end the connection.
+//! and limits end the connection. File Bar streams, on a connection that negotiated `files`, go
+//! to the File Bar's relay, and their records go out only when no other record waits, but at
+//! least one every 100 milliseconds.
 use super::application_connection::{ApplicationConnectionError, ApplicationRequest, Effect};
+use crate::file_bar::{Outbound, Relay};
+use orchbee_files_protocol::is_files_record;
 use orchbee_local_ipc::LocalStream;
 use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
     MAXIMUM_MULTIPLEX_BYTES, MAXIMUM_MULTIPLEX_LANES, MAXIMUM_MULTIPLEX_STREAMS,
-    MAXIMUM_STREAM_RECORD_BYTES, MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage,
-    MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode,
-    read_multiplex_message, write_multiplex_message,
+    MAXIMUM_STREAM_RECORD_BYTES, MultiplexCapabilities, MultiplexDisconnectReason, MultiplexLaneId,
+    MultiplexMessage, MultiplexStreamId, MultiplexViewerId, StreamCloseReason, StreamFrameKind,
+    StreamMode, read_multiplex_message_admitting, write_multiplex_message,
 };
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
@@ -343,7 +347,15 @@ pub(super) fn run(
     mut close_lane: impl FnMut(MultiplexLaneId),
     mut cancel: impl FnMut(&ApplicationRequest),
     mut maintenance: impl FnMut() -> io::Result<Option<Instant>>,
+    mut files: Option<Relay>,
 ) -> io::Result<()> {
+    let capabilities = MultiplexCapabilities {
+        files: files.is_some(),
+        ..MultiplexCapabilities::default()
+    };
+    if let Some(relay) = &files {
+        relay.bind(&signal);
+    }
     let inbox = Arc::new(Mutex::new(Inbox::default()));
     let budget = Arc::new(AtomicUsize::new(0));
     let streams = Arc::new(AtomicUsize::new(0));
@@ -358,7 +370,14 @@ pub(super) fn run(
         let reader_task = thread::Builder::new()
             .name("orchbee-client-read".into())
             .spawn_scoped(scope, move || {
-                let outcome = read_loop(&reader, &read_inbox, &read_signal, &read_budget, &streams);
+                let outcome = read_loop(
+                    &reader,
+                    &read_inbox,
+                    &read_signal,
+                    &read_budget,
+                    &streams,
+                    capabilities,
+                );
                 let mut state = read_inbox
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -385,6 +404,7 @@ pub(super) fn run(
             &mut close_lane,
             &budget,
             &mut maintenance,
+            &mut files,
         );
         if let Err(error) = &result {
             let reason = match error.kind() {
@@ -427,11 +447,12 @@ fn read_loop(
     signal: &SessionChangeSignal,
     budget: &Arc<AtomicUsize>,
     streams: &Arc<AtomicUsize>,
+    capabilities: MultiplexCapabilities,
 ) -> io::Result<()> {
     let mut records = super::record_stream::ClientRecordStream::new(stream)?;
     loop {
         records.begin_read();
-        let message = read_multiplex_message(&mut records)?;
+        let message = read_multiplex_message_admitting(&mut records, capabilities)?;
         if !matches!(
             message,
             MultiplexMessage::StreamOpen { .. }
@@ -478,8 +499,12 @@ fn dispatch(
     close_lane: &mut impl FnMut(MultiplexLaneId),
     budget: &Arc<AtomicUsize>,
     maintenance: &mut impl FnMut() -> io::Result<Option<Instant>>,
+    files: &mut Option<Relay>,
 ) -> io::Result<()> {
     let mut subscriptions = BTreeMap::new();
+    // Each open File Bar stream keeps its open's claim, so it counts toward the connection's
+    // streams and budget until it closes.
+    let mut file_streams: BTreeMap<MultiplexStreamId, Claim> = BTreeMap::new();
     let mut high_water = 0;
     let mut lanes = BTreeSet::from([MultiplexLaneId::ROOT]);
     let mut lane_high_water = 1;
@@ -564,6 +589,23 @@ fn dispatch(
                             continue;
                         }
                     };
+                    if is_files_record(&request) {
+                        let opened = files
+                            .as_mut()
+                            .map_or(Err(StreamCloseReason::Unsupported), |relay| {
+                                relay.open(stream_id, lane_id, mode, request)
+                            });
+                        match opened {
+                            Ok(()) => {
+                                file_streams.insert(stream_id, claim);
+                            }
+                            Err(reason) => write_multiplex_message(
+                                writer,
+                                &MultiplexMessage::StreamClose { stream_id, reason },
+                            )?,
+                        }
+                        continue;
+                    }
                     if subscriptions.len() >= MAXIMUM_MULTIPLEX_STREAMS {
                         write_multiplex_message(
                             writer,
@@ -681,6 +723,10 @@ fn dispatch(
                     }
                 }
                 MultiplexMessage::StreamClose { stream_id, .. } => {
+                    if files.as_mut().is_some_and(|relay| relay.cancel(stream_id)) {
+                        file_streams.remove(&stream_id);
+                        continue;
+                    }
                     open_job_reads.remove(&stream_id);
                     remove_subscription(&mut subscriptions, stream_id, cancel);
                 }
@@ -735,6 +781,11 @@ fn dispatch(
                         return Err(io::ErrorKind::InvalidData.into());
                     }
                     if lanes.remove(&lane_id) {
+                        if let Some(relay) = files.as_mut() {
+                            for stream_id in relay.close_lane(lane_id) {
+                                file_streams.remove(&stream_id);
+                            }
+                        }
                         open_job_reads.retain(|_, lane| *lane != lane_id);
                         subscriptions.retain(|_, subscription| {
                             if subscription.lane == lane_id {
@@ -848,17 +899,59 @@ fn dispatch(
                 },
             );
         }
+        let more = subscriptions.values().any(|subscription| subscription.more);
+        if let Some(relay) = files.as_mut() {
+            let others_wait = more
+                || !job_reads.state().finished.is_empty()
+                || !inbox
+                    .lock()
+                    .map_err(|_| io::ErrorKind::BrokenPipe)?
+                    .messages
+                    .is_empty();
+            for outbound in relay.take(Instant::now(), others_wait) {
+                write_multiplex_message(writer, &file_message(outbound, &mut file_streams))?;
+            }
+        }
         // OS/Host probes retain their existing cadence.
         let sampling = subscriptions
             .values()
             .any(|subscription| subscription.request.requires_sampling())
             .then_some(Duration::from_millis(100));
-        if !subscriptions.values().any(|subscription| subscription.more) {
+        if !more {
+            let now = Instant::now();
             let timeout = sampling
                 .into_iter()
-                .chain(expiry.map(|at| at.saturating_duration_since(Instant::now())))
+                .chain(expiry.map(|at| at.saturating_duration_since(now)))
+                .chain(files.as_ref().and_then(|relay| relay.due(now)))
                 .min();
             signal.wait(wake_revision, timeout);
+        }
+    }
+}
+
+/// The multiplex message of one File Bar frame or close; a close releases its stream's claim.
+fn file_message(
+    outbound: Outbound,
+    file_streams: &mut BTreeMap<MultiplexStreamId, Claim>,
+) -> MultiplexMessage {
+    match outbound {
+        Outbound::Frame {
+            stream,
+            sequence,
+            kind,
+            record,
+        } => MultiplexMessage::StreamFrame {
+            stream_id: stream,
+            sequence,
+            kind,
+            record,
+        },
+        Outbound::Close { stream, reason } => {
+            file_streams.remove(&stream);
+            MultiplexMessage::StreamClose {
+                stream_id: stream,
+                reason,
+            }
         }
     }
 }

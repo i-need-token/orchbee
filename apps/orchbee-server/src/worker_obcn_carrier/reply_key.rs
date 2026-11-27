@@ -44,6 +44,7 @@ pub(super) enum ReplyKey {
     WorktreeJob(OperationId),
     AgentIntegrationJob(OperationId),
     AgentProbeJob(OperationId),
+    FilesProcess(OperationId),
     AdoptHost(AdoptHostPageKey),
     MoveTurn(OperationId),
 }
@@ -93,6 +94,9 @@ impl ReplyKey {
             }
             WorkerOperationRequest::AgentProbeJob(request) => {
                 Self::AgentProbeJob(request.operation_id)
+            }
+            WorkerOperationRequest::FilesProcess(request) => {
+                Self::FilesProcess(request.operation_id)
             }
             WorkerOperationRequest::AdoptHost(request) => Self::AdoptHost(request.key()),
             WorkerOperationRequest::MoveTurn(request) => Self::MoveTurn(request.request_id),
@@ -172,6 +176,9 @@ impl ReplyKey {
             (Self::AgentProbeJob(id), Message::AgentProbeJobResult(result)) => {
                 result.operation_id == id
             }
+            (Self::FilesProcess(id), Message::FilesProcessResult(result)) => {
+                result.operation_id == id
+            }
             (Self::AdoptHost(key), Message::AdoptHostResult(result)) => result.key() == key,
             (Self::MoveTurn(id), Message::TerminalMoveTurnResult(result)) => {
                 result.request.request_id == id
@@ -209,6 +216,7 @@ impl ReplyKey {
             Self::WorktreeJob(id) => (Kind::WorktreeJob, id),
             Self::AgentIntegrationJob(id) => (Kind::AgentIntegrationJob, id),
             Self::AgentProbeJob(id) => (Kind::AgentProbeJob, id),
+            Self::FilesProcess(id) => (Kind::FilesProcess, id),
             Self::AdoptHost(key) => (Kind::AdoptHost, key.adoption_id),
             Self::MoveTurn(id) => (Kind::MoveTurn, id),
         };

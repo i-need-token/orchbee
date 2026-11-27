@@ -1,7 +1,7 @@
 use super::*;
 use orchbee_workbench_protocol::{
     MultiplexStreamId, ProtocolVersion, SnapshotReadIntent, WorkbenchRequest, WorkbenchRequestId,
-    write_workbench_request,
+    read_multiplex_message, write_workbench_request,
 };
 use std::sync::mpsc;
 
@@ -56,6 +56,7 @@ fn a_drain_refuses_one_intent_stream_while_the_connection_keeps_serving() {
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     assert_eq!(
@@ -110,6 +111,7 @@ fn a_failed_stream_closes_alone_while_the_connection_keeps_serving() {
                     cancels.fetch_add(1, Ordering::AcqRel);
                 },
                 || Ok(None),
+                None,
             )
         })
     });
@@ -201,6 +203,7 @@ fn a_record_whose_reservation_exceeds_the_budget_closes_alone() {
                 |_| {},
                 |_| {},
                 || Ok(None),
+                None,
             )
         })
     });
@@ -263,6 +266,7 @@ fn a_stream_the_input_cannot_take_is_refused_alone() {
                 |_| {},
                 |_| {},
                 || Ok(None),
+                None,
             )
         })
     });
@@ -405,6 +409,7 @@ fn an_intent_with_an_unknown_outcome_closes_alone_only_when_the_client_reads_tha
                     |_| {},
                     |_| {},
                     || Ok(None),
+                    None,
                 )
             })
         });
@@ -490,6 +495,7 @@ fn a_waiting_job_read_never_delays_another_request_on_the_connection() {
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     write_multiplex_message(&mut peer, &open(2, 1, StreamMode::Request)).unwrap();
@@ -609,6 +615,7 @@ fn idle_metadata_expiry_rearms_after_a_same_value_report_without_client_polling(
             |_| {},
             |_| {},
             || connection.maintain_subscription_deadline(),
+            None,
         )
     });
     assert!(matches!(
@@ -685,6 +692,7 @@ fn maintenance_failure_closes_instead_of_retrying_a_past_deadline() {
                     Err(io::ErrorKind::ConnectionAborted.into())
                 }
             },
+            None,
         )
     });
     assert!(matches!(
@@ -737,6 +745,7 @@ fn late_scope_completion_is_reclaimed_without_releasing_a_sibling_owner() {
             },
             |_| {},
             || Ok(None),
+            None,
         )
     });
     write_multiplex_message(&mut peer, &open(1, 2, StreamMode::Request)).unwrap();
@@ -820,6 +829,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     captured.recv_timeout(Duration::from_secs(2)).unwrap();
@@ -844,6 +854,7 @@ fn a_slow_writer_cannot_hide_a_commit_during_another_clients_snapshot_capture() 
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     assert!(
@@ -880,6 +891,7 @@ fn terminal_output_wakes_value_streams_without_an_invalidation_hint() {
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     fn frame(peer: &mut LocalStream, expected: u64, kind: StreamFrameKind) -> Vec<u8> {
@@ -948,6 +960,7 @@ fn title_changes_wake_only_the_published_title_read() {
                 }
                 Ok(None)
             },
+            None,
         )
     });
     let publish = |change: fn(&SessionChangeSignal)| {
@@ -1021,6 +1034,7 @@ fn sustained_event_overrun_disconnects_only_its_carrier_with_a_typed_reason() {
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     assert!(matches!(
@@ -1109,6 +1123,7 @@ fn an_active_event_cursor_rejects_competing_streams_and_one_shot_reads() {
             |_| {},
             |_| {},
             || Ok(None),
+            None,
         )
     });
     assert!(matches!(

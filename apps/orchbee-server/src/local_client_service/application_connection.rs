@@ -304,6 +304,7 @@ impl ApplicationRequest {
 pub(super) fn run_network<Permit>(
     stream: &orchbee_local_ipc::LocalStream,
     intent_unknown: super::multiplex::IntentUnknown,
+    files: Option<crate::file_bar::Relay>,
     mut execute: impl FnMut(MultiplexLaneId, ClientMessage) -> ServerMessage,
     mut execute_workbench: impl FnMut(MultiplexLaneId, WorkbenchRequest) -> WorkbenchExecution,
     execute_job_read: impl Fn(WorkbenchRequest) -> WorkbenchExecution + Sync,
@@ -339,8 +340,13 @@ pub(super) fn run_network<Permit>(
             &admit,
         );
     }
-    let first = orchbee_workbench_protocol::read_multiplex_message(&mut prefixed)
-        .map_err(ApplicationConnectionError::Multiplex)?;
+    let capabilities = orchbee_workbench_protocol::MultiplexCapabilities {
+        files: files.is_some(),
+        ..orchbee_workbench_protocol::MultiplexCapabilities::default()
+    };
+    let first =
+        orchbee_workbench_protocol::read_multiplex_message_admitting(&mut prefixed, capabilities)
+            .map_err(ApplicationConnectionError::Multiplex)?;
     let signal = std::sync::Arc::new(orchbee_server::SessionChangeSignal::default());
     watch(&signal);
     super::multiplex::run(
@@ -395,6 +401,7 @@ pub(super) fn run_network<Permit>(
             }
         },
         maintenance,
+        files,
     )
     .map_err(ApplicationConnectionError::Multiplex)
 }

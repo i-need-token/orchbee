@@ -88,6 +88,19 @@ impl WorkbenchService {
         }
     }
 
+    /// The Session grants a File Bar call from this service's Clients carries: none without
+    /// terminal creation, and mutations only with terminal lifecycle too.
+    pub(crate) fn file_bar_grant(&self) -> Option<orchbee_files_protocol::GrantClass> {
+        match (
+            self.policy.create_terminal,
+            self.policy.manage_terminal_lifecycle,
+        ) {
+            (true, true) => Some(orchbee_files_protocol::GrantClass::Lifecycle),
+            (true, false) => Some(orchbee_files_protocol::GrantClass::TerminalCreate),
+            (false, _) => None,
+        }
+    }
+
     pub(crate) fn client_connection(
         &self,
         generation: std::num::NonZeroU64,

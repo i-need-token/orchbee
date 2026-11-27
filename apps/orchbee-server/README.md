@@ -44,6 +44,8 @@ error's text.
 | `state-poisoned`          | The Session coordinator lock is first observed poisoned                                                                                                                                                                                                                                       | `lock` (`coordinator`)                                                                                                                                                                                                                                                                                                                                              |
 | `agent-change-refused`    | The Agent state refused a change as `invalid-event`, keeping its previous state                                                                                                                                                                                                               | `transition` (the refused change's kind), `suppressed`                                                                                                                                                                                                                                                                                                              |
 | `agent-state-recovered`   | A fault inside the Agent state was contained and the state rebuilt from its last committed facts                                                                                                                                                                                              | `revision` (the rebuilt revision), `carrier` (whether a Worker carrier was kept), `suppressed`                                                                                                                                                                                                                                                                      |
+| `file-bar-start-failed`   | A start of the File Bar's `orchbee-files` process failed before its link served                                                                                                                                                                                                               | `stage` (`random`, `bind`, `endpoint`, `missing`, `unverified`, `spawn`, `worker-start`, `build`, `accept`, `ready-timeout`, `build-mismatch`, `link`)                                                                                                                                                                                                              |
+| `file-bar-unavailable`    | The fifth crash of the File Bar's process within ten minutes left it down until the Worker is replaced                                                                                                                                                                                        | `reason` (`crashed-repeatedly`)                                                                                                                                                                                                                                                                                                                                     |
 
 The [automatic update schedule](#automatic-update-schedule) writes two more records. A build that
 does not schedule automatic updates writes neither.
@@ -60,7 +62,8 @@ counts the records left out since the last one. The Agent state writes `agent-ch
 `suppressed` counts the refusals or rebuilds left out; the
 [fault recovery rule](docs/agent-canonical-model.md#fault-recovery) says what is kept. `worker-lost` is `error`, and `worker-replaced` is
 `info` when adopted and `error` otherwise; neither is rate-limited, since the cap bounds them.
-`host-adopted` follows the same levels and comes at most once per start.
+`host-adopted` follows the same levels and comes at most once per start. `file-bar-start-failed`
+is `warning` and `file-bar-unavailable` is `error`; the File Bar's restart delays bound both.
 `worker-connection-ended` is
 `info` when the Server ended the connection or the Worker left after answering a shutdown, and
 `error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
@@ -1471,6 +1474,60 @@ and admit the next command. A source-loss trace holds a completed capture throug
 subscription read failure and verifies that a sibling can start; it uses a controlled job, not
 an OS Host integration witness. View lifecycle traces distinguish sibling and publisher cleanup.
 The protocol codec tests reject untrusted lengths, versions, identifiers and tags.
+
+## File Bar
+
+The File Bar's file and Git effects run in one `orchbee-files` process per Session, which the
+Server has the serving Worker start on the first File Bar call
+([Worker](../orchbee-worker/README.md#orchbee-files-process)). `file_bar::FileBar`, owned by
+`LocalTerminalService`, starts with a managed Session before its Client listener opens and stops
+with its background jobs. The File Bar is unfinished: a build for the release environment neither
+offers nor lists the `files` capability and never starts the process, and an unmanaged Server
+lists no `files` either.
+
+Each start binds a one-shot endpoint in the runtime directory, a pipe on Windows and a `0600`
+socket on macOS and Linux, and draws a fresh 256-bit token that reaches the process only through
+the Worker. The endpoint admits the one same-user connection whose hello presents that token. A
+hello with any other token gets no answer; one with the token from another build is refused, and
+every call is then answered `unavailable{build-mismatch}` until the Worker is replaced. A start
+without an admitted link within 10 seconds has the Worker end the process it started and counts as
+a crash. The endpoint closes when the start ends.
+
+Calls that arrive while the process starts, or while a restart waits, wait for it. A process that
+served no call and held no work for ten minutes is drained, and the next call starts a fresh one.
+A link that ends while it serves counts as a crash, and the Worker ends what is left of its
+process. The next call starts the process again after 0, 1, 5 or 30 seconds; a start that fails
+answers the calls that waited `unavailable{restarting}`, and the fifth crash within ten minutes
+answers every call `unavailable{crashed-repeatedly}` until the Worker is replaced. A replaced
+Worker's process ends with it, and its successor starts a fresh one with no crash counted. A
+Session stop answers waiting and new calls `stopping`, drains the process and gives it five seconds
+to end its link.
+
+Before a call that names a Workspace goes out, the link states that Workspace's scope as
+Navigation has it: the root is where the Workspace stands while its primary Directory is on the
+serving Worker, and there is none otherwise. A Workspace the Session does not have and the link
+never heard of is `denied`; one the Session no longer has is closed for good. Each Workbench commit
+restates every open Workspace the link heard of.
+
+A connection whose handshake answer lists `files` admits OBFB records on its carrier and relays its
+File Bar streams; on any other connection such a record ends the connection. The Server reads a
+stream's request only for its operation, Workspace and grant class, never parses a Put, and passes
+the record on unchanged. Reads need the connection's terminal-create grant, and mutations, Puts and
+prompt answers its lifecycle grant as well; a call without them is answered `denied`. A connection
+holds at most 24 File Bar streams, 16 of them carrying Puts or read chunks, and closes one more
+with `capacity`. Each open File Bar stream keeps its reservation in the connection's budget and
+counts toward its 64 streams. Records the Client has not taken yet are held up to 8 MiB per
+connection; a call past that closes with `capacity`, or `outcome-unknown` for a mutation, and the
+process cancels it. The dispatcher writes a File Bar record only when no terminal or Workbench
+record waits, but at least one every 100 milliseconds, so those records go first and File Bar
+records still move.
+
+A malformed frame from the process, a frame for a call never sent, or a write the process does not
+take within 30 seconds ends the link. Its open streams then close as the process would have closed
+them: a relayed answer completes, a mutation's outcome is unknown, an unanswered call answers
+`unavailable{restarting}`, and a subscription stops. A Client's lane close ends that lane's
+transfers in the process, and the end of its connection ends everything the connection held there,
+opened-file grants included.
 
 ## Verification
 

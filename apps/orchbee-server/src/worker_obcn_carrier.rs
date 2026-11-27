@@ -74,6 +74,8 @@ pub(crate) enum WorkerOperationRequest {
     PluginJob(orchbee_capability_node_protocol::PluginJobRequest),
     AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobRequest),
     AgentProbeJob(orchbee_capability_node_protocol::AgentProbeJobRequest),
+    /// The start or end of the generation's one `orchbee-files` process.
+    FilesProcess(orchbee_capability_node_protocol::FilesProcessRequest),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationRequest),
     // The Server drain pump admits drains through admit_agent_drain.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainRequest),
@@ -125,6 +127,7 @@ impl WorkerOperationRequest {
             Self::PluginJob(request) => (request.worker_id, request.worker_generation),
             Self::AgentIntegrationJob(request) => (request.worker_id, request.worker_generation),
             Self::AgentProbeJob(request) => (request.worker_id, request.worker_generation),
+            Self::FilesProcess(request) => (request.worker_id, request.worker_generation),
             Self::WorktreeMutation(request) => (request.worker_id, request.worker_generation),
             Self::AgentDrain(request) => (request.worker_id, request.worker_generation),
             Self::Titles(request) => (request.worker_id, request.worker_generation),
@@ -164,6 +167,7 @@ impl WorkerOperationRequest {
             | Self::Send(_)
             | Self::PluginJob(_)
             | Self::AgentIntegrationJob(_)
+            | Self::FilesProcess(_)
             | Self::WorktreeJob(_)
             | Self::WorktreeMutation(_) => RequestLane::High,
         }
@@ -196,6 +200,9 @@ impl WorkerOperationRequest {
             }
             Self::AgentProbeJob(request) => {
                 CapabilityNodeMessage::AgentProbeJobRequest(request.clone())
+            }
+            Self::FilesProcess(request) => {
+                CapabilityNodeMessage::FilesProcessRequest(request.clone())
             }
             Self::WorktreeMutation(request) => {
                 CapabilityNodeMessage::WorktreeMutationRequest(request.clone())
@@ -231,6 +238,7 @@ pub(crate) enum WorkerOperationResult {
     PluginJob(orchbee_capability_node_protocol::PluginJobResult),
     AgentIntegrationJob(orchbee_capability_node_protocol::AgentIntegrationJobResult),
     AgentProbeJob(orchbee_capability_node_protocol::AgentProbeJobResult),
+    FilesProcess(orchbee_capability_node_protocol::FilesProcessResult),
     WorktreeMutation(orchbee_capability_node_protocol::WorktreeMutationResult),
     // Constructed by the Server drain pump's reply path.
     AgentDrain(orchbee_capability_node_protocol::AgentDrainReply),
@@ -514,6 +522,19 @@ impl WorkerRequestHandle {
         )
     }
 
+    /// The start or end of the generation's `orchbee-files` process, on the high lane. The File
+    /// Bar's owner waits only until its own deadline; the wire owner still validates and consumes
+    /// a later result. Admission never waits.
+    pub(crate) fn admit_files_process(
+        &self,
+        request: orchbee_capability_node_protocol::FilesProcessRequest,
+    ) -> Result<PendingExchange, WorkerRequestError> {
+        self.admit(
+            WorkerOperationRequest::FilesProcess(request),
+            Admission::Try,
+        )
+    }
+
     /// Admit one request through the existing worker/generation fence and lane
     /// rules, returning the exchange that receives its result. Completion
     /// ownership is fixed by the admitted request kind and the admission.
@@ -689,8 +710,10 @@ fn record_unawaited_cleanup(kind: &'static str, started: Instant) {
 
 impl CompletionDelivery {
     /// Completion ownership is derived from the admitted request kind, never
-    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery, Agent probe and
-    /// title change requests get discardable completion; effects still require a live receiver.
+    /// chosen by the caller: typed AgentDrain, read-only WorktreeJob, HostQuery, Agent probe,
+    /// title change and `orchbee-files` requests get discardable completion, since the process a
+    /// start whose waiter left created is ended by the link it never makes; effects still require
+    /// a live receiver.
     /// Connection cleanup admission chooses discardable completion instead, because its caller
     /// stops waiting after one window.
     fn for_request(
@@ -702,6 +725,7 @@ impl CompletionDelivery {
             | WorkerOperationRequest::WorktreeJob(_)
             | WorkerOperationRequest::HostQuery(_)
             | WorkerOperationRequest::AgentProbeJob(_)
+            | WorkerOperationRequest::FilesProcess(_)
             | WorkerOperationRequest::TitleChanges(_) => Self::Discardable(completion),
             _ => Self::Required(completion),
         }
@@ -2190,7 +2214,20 @@ fn validate_response(
         | (_, CapabilityNodeMessage::FilesProcessRequest(_)) => {
             Err(WorkerResponseFailure::WrongDirection)
         }
-        (_, CapabilityNodeMessage::FilesProcessResult(_)) => {
+        (
+            WorkerOperationRequest::FilesProcess(expected),
+            CapabilityNodeMessage::FilesProcessResult(actual),
+        ) => {
+            if actual.operation_id != expected.operation_id {
+                return Err(WorkerResponseFailure::MismatchedCorrelation);
+            }
+            if !expected.action.admits(&actual.outcome) {
+                return Err(WorkerResponseFailure::WrongResultKind);
+            }
+            Ok(WorkerOperationResult::FilesProcess(actual))
+        }
+        (_, CapabilityNodeMessage::FilesProcessResult(_))
+        | (WorkerOperationRequest::FilesProcess(_), _) => {
             Err(WorkerResponseFailure::WrongResultKind)
         }
         (

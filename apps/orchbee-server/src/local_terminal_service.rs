@@ -51,6 +51,7 @@ mod connected_hosts;
 mod controller_connection;
 mod controller_focus;
 mod current_directory;
+mod file_bar;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
@@ -115,6 +116,7 @@ pub(crate) struct LocalTerminalService {
     worktree_discovery: worktree_list::DiscoveryGate,
     terminal_output: std::sync::OnceLock<Arc<crate::terminal_output::TerminalOutput>>,
     terminal_runtime: Arc<crate::terminal_runtime::TerminalRuntime>,
+    file_bar: std::sync::OnceLock<Arc<crate::file_bar::FileBar>>,
     workers: Arc<Mutex<WorkerRegistry>>,
     coordinator: RecordedLock<SessionCoordinator>,
     controllers: Mutex<
@@ -182,6 +184,7 @@ impl LocalTerminalService {
             worktree_discovery: worktree_list::DiscoveryGate::default(),
             terminal_output: std::sync::OnceLock::new(),
             terminal_runtime: Arc::default(),
+            file_bar: std::sync::OnceLock::new(),
             workers,
             coordinator: RecordedLock::new(
                 SessionCoordinator::new(workbench).with_agent_catalog(catalog),
@@ -425,6 +428,7 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
             | WorkerOperationResult::PluginJob(_)
             | WorkerOperationResult::AgentIntegrationJob(_)
             | WorkerOperationResult::AgentProbeJob(_)
+            | WorkerOperationResult::FilesProcess(_)
             | WorkerOperationResult::WorktreeMutation(_),
         ) => Completion::Unknown,
         // The drain variant can never come back from the Launch/Start

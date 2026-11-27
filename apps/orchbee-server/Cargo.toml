@@ -26,6 +26,7 @@ orchbee-terminal-protocol = { path = "../../crates/terminal-protocol" }
 orchbee-capability-node-protocol = { path = "../../crates/capability-node-protocol" }
 orchbee-client-server-protocol = { path = "../../crates/client-server-protocol" }
 orchbee-connection-handshake = { path = "../../crates/connection-handshake" }
+orchbee-files-protocol = { path = "../../crates/files-protocol" }
 orchbee-local-client-protocol = { path = "../../crates/local-client-protocol" }
 orchbee-local-peer-credentials = { path = "../../crates/local-peer-credentials" }
 orchbee-local-worker-protocol = { path = "../../crates/local-worker-protocol" }

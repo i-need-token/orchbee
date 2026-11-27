@@ -23,6 +23,8 @@ mod client_view_registry;
 #[cfg(any(unix, windows))]
 mod fault_records;
 #[cfg(any(unix, windows))]
+mod file_bar;
+#[cfg(any(unix, windows))]
 mod frame_directory;
 #[cfg(any(unix, windows))]
 mod idle_move;

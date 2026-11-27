@@ -1640,6 +1640,7 @@ dependencies = [
  "orchbee-capability-node-protocol",
  "orchbee-client-server-protocol",
  "orchbee-connection-handshake",
+ "orchbee-files-protocol",
  "orchbee-local-client-protocol",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",

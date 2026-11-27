@@ -123,6 +123,7 @@ impl WorkerOperationRequest {
             Self::PluginJob(_) => "plugin-job",
             Self::AgentIntegrationJob(_) => "agent-integration-job",
             Self::AgentProbeJob(_) => "agent-probe-job",
+            Self::FilesProcess(_) => "files-process",
             Self::WorktreeMutation(_) => "worktree-mutation",
             Self::AgentDrain(_) => "agent-drain",
             Self::Titles(_) => "titles",

@@ -21,7 +21,7 @@ use std::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE,
     CONFIGURED_COMMAND_SOURCE_EXITED, CohortIdentity, ConnectionKind, Decision, DrainResult,
-    ExitResult, Extensions, ProductVersion, RECONNECT, ReadError, RequestKind, RequestName,
+    ExitResult, Extensions, FILES, ProductVersion, RECONNECT, ReadError, RequestKind, RequestName,
     STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported, encode_acceptor_frame,
     read_initiator_message,
 };
@@ -114,6 +114,12 @@ impl ServerIdentity {
     /// The shared record of the Worker this identity lists.
     pub(crate) fn serving_worker(&self) -> ServingWorker {
         self.worker.clone()
+    }
+
+    /// This identity for a Server that runs no File Bar, which therefore does not list `files`.
+    pub(crate) fn without_file_bar(mut self) -> Self {
+        self.profile.capabilities = self.profile.capabilities.without(FILES);
+        self
     }
 }
 
@@ -384,7 +390,7 @@ fn handle_candidate_control(
         control_slot_free: true,
         state: control.offer_state(),
     };
-    let (intent_unknown, names_source_exited, names_terminal_limit) = match profile
+    let (intent_unknown, names_source_exited, names_terminal_limit, names_files) = match profile
         .decide(&message, load)
     {
         Decision::Accept(answer) => {
@@ -397,10 +403,11 @@ fn handle_candidate_control(
                 .capabilities
                 .contains(CONFIGURED_COMMAND_SOURCE_EXITED);
             let terminal_limit = answer.capabilities.contains(TERMINAL_LIMIT_REACHED);
+            let files = answer.capabilities.contains(FILES);
             if !send_handshake(&mut stream, &AcceptorMessage::Answer(answer)) {
                 return;
             }
-            (unknown, source_exited, terminal_limit)
+            (unknown, source_exited, terminal_limit, files)
         }
         Decision::Reject(rejection) => {
             let _delivered = send_handshake(&mut stream, &AcceptorMessage::Rejection(rejection));
@@ -571,9 +578,16 @@ fn handle_candidate_control(
             .with_viewer_ready(Arc::clone(&viewer_ready))
     };
     let connections = std::cell::RefCell::new(std::collections::BTreeMap::new());
+    // A connection whose answer lists `files` relays its File Bar streams to the Session's.
+    let files = terminals
+        .file_bar()
+        .filter(|_| names_files)
+        .zip(orchbee_files_protocol::ConnectionId::new(generation.get()))
+        .map(|(bar, connection)| bar.relay(connection, workbench.file_bar_grant()));
     let connection_result = application_connection::run_network(
         &stream,
         intent_unknown,
+        files,
         |lane, request| {
             connections
                 .borrow_mut()
