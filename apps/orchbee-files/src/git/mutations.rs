@@ -135,7 +135,7 @@ pub(super) fn stage_content(
     content: Vec<u8>,
     context: &Context<'_>,
 ) -> Result<(), GitError> {
-    let relative = relative(found, path)?;
+    let relative = found.relative(path)?;
     let mut hash = found.command(Access::Write, context.relay);
     hash.args(["hash-object", "--stdin", "-w", "--path", &relative]);
     let hashed =
@@ -244,7 +244,7 @@ pub(super) fn clean(
 /// Moves one untracked path to the trash once its folder's real location is inside the
 /// repository, so a link on the way cannot move something outside it.
 fn trash_one(found: &Found, path: &str, trash: &dyn Trash) -> Result<(), GitError> {
-    relative(found, path)?;
+    found.relative(path)?;
     let path = Path::new(path);
     let parent = path
         .parent()
@@ -443,7 +443,7 @@ fn batched(
 ) -> Result<(), GitError> {
     let relatives = paths
         .iter()
-        .map(|path| relative(found, path))
+        .map(|path| found.relative(path))
         .collect::<Result<Vec<_>, _>>()?;
     for batch in batches(&relatives) {
         retried(context, || {
@@ -487,14 +487,6 @@ fn batches(paths: &[String]) -> Vec<&[String]> {
     }
     batches.extend(paths.get(start..).filter(|rest| !rest.is_empty()));
     batches
-}
-
-/// `path`, a native path inside the repository, as Git spells it below the toplevel.
-fn relative(found: &Found, path: &str) -> Result<String, GitError> {
-    native_paths::relative(&found.toplevel, path)
-        .filter(|relative| !relative.is_empty())
-        .map(native_paths::git_relative)
-        .ok_or(GitError::new(ErrorCode::OutsideScope))
 }
 
 /// Whether HEAD names a commit.

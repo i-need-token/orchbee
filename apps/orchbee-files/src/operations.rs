@@ -250,11 +250,16 @@ impl Services {
             FilesRequest::RelayAnswer(request) => self.git.answer(call, &request),
             FilesRequest::ClientFocus(request) => self.git.focus(call, &request),
             FilesRequest::RequestOutcome(request) => self.git.outcome(call, &request),
-            // git.show answers through read transfers, which read only files, and content
-            // staging takes Puts, which no operation of this build reads.
-            FilesRequest::FsRelease(_)
-            | FilesRequest::GitShow(_)
-            | FilesRequest::GitStageContent(_) => call.close(CallClose::Unsupported),
+            FilesRequest::GitShow(request) => self.git.show(call, &request, |call| {
+                let (mode, limit) = (request.mode, request.limit.get());
+                let encoding = request.encoding.as_ref();
+                self.files
+                    .show_read(call, request.transfer, mode, encoding, limit)
+            }),
+            // Content staging takes Puts, which no operation of this build reads.
+            FilesRequest::FsRelease(_) | FilesRequest::GitStageContent(_) => {
+                call.close(CallClose::Unsupported);
+            }
         }
     }
 

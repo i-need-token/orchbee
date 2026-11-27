@@ -20,6 +20,7 @@ mod relay;
 mod remote;
 mod runner;
 mod serve;
+mod show;
 mod status;
 mod workspace;
 

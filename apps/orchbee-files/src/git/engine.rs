@@ -19,11 +19,12 @@ use super::{
     mutations::{self, Cleaned, Commit, Context},
     native_paths,
     output::{GitOutput, Page},
-    ports::{Change, Members, Report, Trash, Watches},
+    ports::{Change, Members, Report, ShowRead, Trash, Watches},
     reads::{self, RefsPage, UserConfig},
     relay::{self, Answer, Ask, Relay, Token},
     remote::{self, Fetch, Push},
     runner::{self, Limits},
+    show::{self, Reference, Shows},
     status::{self, Snapshot},
     workspace::{Effect, StatusPage, Summary, Workspace},
 };
@@ -230,6 +231,8 @@ type ReadRun = Box<dyn FnOnce(Result<Reading, GitError>) + Send>;
 pub(super) struct Git {
     sender: Sender<Message>,
     actor: Option<JoinHandle<()>>,
+    /// The content `git.show` keeps, which the engine's thread sweeps.
+    shows: Arc<Mutex<Shows>>,
 }
 
 impl Git {
@@ -243,12 +246,17 @@ impl Git {
     ) -> io::Result<Self> {
         let (sender, receiver) = mpsc::channel();
         let own = sender.clone();
+        let shows = Arc::new(Mutex::new(Shows::new()));
+        let swept = Arc::clone(&shows);
         let actor = thread::Builder::new()
             .name("orchbee-files-git".into())
-            .spawn(move || Actor::new(own, root, trash, watches, members).run(&receiver))?;
+            .spawn(move || {
+                Actor::new(own, root, trash, watches, members, swept).run(&receiver);
+            })?;
         Ok(Self {
             sender,
             actor: Some(actor),
+            shows,
         })
     }
 
@@ -392,6 +400,34 @@ impl Git {
                 let limits = Limits::new("config", mutations::CONFIG_DEADLINE, cancel);
                 reads::user_config(&reading.found, &limits, &reading.output)
             }));
+        });
+    }
+
+    /// `git.show`: `path`'s content in `reference`, from what the engine keeps or from Git, served
+    /// through `read`.
+    pub(super) fn show(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        reference: Reference,
+        path: String,
+        read: Box<dyn ShowRead>,
+    ) {
+        if !native_paths::well_formed(&path) {
+            show::fail(read, GitError::new(ErrorCode::InvalidRequest));
+            return;
+        }
+        let shows = Arc::clone(&self.shows);
+        self.read(workspace, repository, move |reading| match reading {
+            Ok(reading) => show::serve(
+                &reading.found,
+                &reference,
+                &path,
+                &shows,
+                read,
+                &reading.output,
+            ),
+            Err(error) => show::fail(read, error),
         });
     }
 
@@ -783,6 +819,8 @@ struct Actor {
     members: Box<dyn Members>,
     /// The members last stated per Workspace; a Workspace without any is absent.
     stated_members: HashMap<WorkspaceId, Vec<String>>,
+    shows: Arc<Mutex<Shows>>,
+    next_sweep: Instant,
     spaces: HashMap<WorkspaceId, Space>,
     tokens: HashMap<Token, Operation>,
     prompts: Vec<Open>,
@@ -797,6 +835,7 @@ impl Actor {
         trash: Arc<dyn Trash>,
         watches: Box<dyn Watches>,
         members: Box<dyn Members>,
+        shows: Arc<Mutex<Shows>>,
     ) -> Self {
         let (program, version) = program();
         Self {
@@ -811,6 +850,8 @@ impl Actor {
             watches,
             members,
             stated_members: HashMap::new(),
+            shows,
+            next_sweep: Instant::now() + show::SWEEP_EVERY,
             spaces: HashMap::new(),
             tokens: HashMap::new(),
             prompts: Vec::new(),
@@ -824,18 +865,12 @@ impl Actor {
             let now = Instant::now();
             let mut wake = self.next_wake();
             if self.polling() {
-                wake = Some(wake.map_or(now + POLL, |wake| wake.min(now + POLL)));
+                wake = wake.min(now + POLL);
             }
-            let message = match wake {
-                Some(wake) => match receiver.recv_timeout(wake.saturating_duration_since(now)) {
-                    Ok(message) => Some(message),
-                    Err(RecvTimeoutError::Timeout) => None,
-                    Err(RecvTimeoutError::Disconnected) => break,
-                },
-                None => match receiver.recv() {
-                    Ok(message) => Some(message),
-                    Err(_) => break,
-                },
+            let message = match receiver.recv_timeout(wake.saturating_duration_since(now)) {
+                Ok(message) => Some(message),
+                Err(RecvTimeoutError::Timeout) => None,
+                Err(RecvTimeoutError::Disconnected) => break,
             };
             let now = Instant::now();
             match message {
@@ -845,6 +880,10 @@ impl Actor {
             }
             self.poll(now);
             self.state_members();
+            if now >= self.next_sweep {
+                show::lock(&self.shows).sweep(now);
+                self.next_sweep = now + show::SWEEP_EVERY;
+            }
         }
         self.shut_down();
     }
@@ -1751,12 +1790,14 @@ impl Actor {
         }
     }
 
-    fn next_wake(&self) -> Option<Instant> {
+    /// When the engine next wakes on its own: for a Workspace's scheduled work, a prompt's expiry
+    /// or the sweep of the content `git.show` keeps.
+    fn next_wake(&self) -> Instant {
         self.spaces
             .values()
             .filter_map(|space| space.workspace.next_wake())
             .chain(self.prompts.iter().map(|open| open.expires))
-            .min()
+            .fold(self.next_sweep, Instant::min)
     }
 
     /// Whether something waits on a Client's cancel or a subscription's end, which the engine

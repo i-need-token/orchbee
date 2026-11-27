@@ -19,7 +19,7 @@ use orchbee_files_protocol::{
     GitRef, GitRefsResult, GitRemote, GitStatusPageResult, GitUserConfigResult, Head, InvalidValue,
     List, MAXIMUM_REPLY_BYTES, MAXIMUM_SAFE_INTEGER, MutationState, PageCursor, RefUpstream,
     RelaySnapshot, RelayUpdate, RequestOutcomeResult, SafeInteger, ScmRepository, StatusCode,
-    StatusCounts, StatusEntry, Text, Token, Upstream,
+    StatusCounts, StatusEntry, Text, Upstream,
 };
 use serde::Serialize;
 use std::{collections::HashSet, io};
@@ -305,7 +305,7 @@ fn mutation(ended: Ended) -> orchbee_files_protocol::MutationReply {
         Ok(done) => done,
         Err(error) => {
             return MutationReply::Error(ErrorReply {
-                error: self::error(error),
+                error: error.into_wire(),
             });
         }
     };
@@ -324,7 +324,7 @@ fn mutation(ended: Ended) -> orchbee_files_protocol::MutationReply {
                         {
                             error.detail = None;
                         }
-                        self::error(error)
+                        error.into_wire()
                     });
                     Some(CleanItem {
                         path: FilePath::new(item.path).ok()?,
@@ -349,21 +349,6 @@ fn mutation(ended: Ended) -> orchbee_files_protocol::MutationReply {
     }
 }
 
-/// A failed request's error record.
-pub(super) fn error(error: GitError) -> FilesError {
-    let reason = error.reason.and_then(|reason| Token::new(reason).ok());
-    let mut files = match (error.code, reason) {
-        (ErrorCode::Unavailable, Some(reason)) => FilesError::unavailable(reason),
-        (ErrorCode::Unavailable, None) => FilesError::new(ErrorCode::Failed),
-        (code, _) => FilesError::new(code),
-    };
-    files.git_error_code = error
-        .git_error_code
-        .and_then(|code| Token::new(code.as_str()).ok());
-    files.detail = error.detail.and_then(|detail| Text::new(detail).ok());
-    files
-}
-
 /// The record of `result`: its error, or what `record` makes of its value, which fails only for
 /// a value the protocol cannot carry.
 fn answered<T>(
@@ -374,7 +359,7 @@ fn answered<T>(
         Ok(value) => {
             record(value).unwrap_or_else(|_| FilesReply::Error(FilesError::new(ErrorCode::Failed)))
         }
-        Err(error) => FilesReply::Error(self::error(error)),
+        Err(error) => FilesReply::Error(error.into_wire()),
     }
 }
 

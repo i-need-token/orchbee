@@ -1,15 +1,17 @@
 //! The engine as the dispatch reaches it: a subscription's first summary opens its stream and a
 //! later one shows the discovered repository, a write answers with its Result record and its
 //! outcome repeats it, and a cancelled subscription closes. A consented repository's working tree
-//! is in scope from the consent's answer until the close's.
+//! is in scope from the consent's answer until the close's. A show's content reaches the chunk
+//! requests sent behind it.
 
 use super::{super::serve::Service, fixture::Fixture};
-use crate::{calls::Calls, outbound::Outbound, scope::Scopes};
+use crate::{blocking::Helpers, calls::Calls, fs::Engine, outbound::Outbound, scope::Scopes};
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, Empty, FilePath, FilesNotice, FilesRecord, FilesReply,
-    GitPaths, LaneId, LinkFrame, LinkMessage, LinkSide, List, MutationReply, MutationState,
-    NoticeKind, Operation, RecordPlace, RepositoryKind, RepositoryRequest, RequestId,
-    RequestOutcome, ScmSummary, ScopeUpdate, WorkspaceId, WorkspaceScope, decode_files_record,
+    CallClose, CallId, Chunk, ChunkLength, ConnectionId, Counter, Empty, FilePath, FilesNotice,
+    FilesRecord, FilesReply, FsReadChunk, GitPaths, GitShow, LaneId, LinkFrame, LinkMessage,
+    LinkSide, List, MutationReply, MutationState, NoticeKind, Operation, ReadMode, RecordPlace,
+    RepositoryKind, RepositoryRequest, RequestId, RequestOutcome, SafeInteger, ScmSummary,
+    ScopeUpdate, ShowRef, TransferId, WorkspaceId, WorkspaceScope, decode_files_record,
     decode_link_message, parse_notice, parse_reply,
 };
 use std::{
@@ -137,6 +139,19 @@ impl Harness {
         parse_reply(operation, &json).unwrap()
     }
 
+    /// The Chunk record of call `id`, which completes it.
+    fn chunk(&self, id: u64) -> Chunk {
+        let LinkMessage::Frame(LinkFrame { record, .. }) = self.next(id) else {
+            panic!("expected the chunk of call {id}");
+        };
+        let Ok(FilesRecord::Chunk(chunk)) = decode_files_record(&record, RecordPlace::ResultFrame)
+        else {
+            panic!("expected a Chunk record");
+        };
+        assert_eq!(self.closed(id), CallClose::Complete);
+        chunk
+    }
+
     /// How call `id` closed, after any notices still before its close.
     fn closed(&self, id: u64) -> CallClose {
         loop {
@@ -247,4 +262,52 @@ fn a_consented_repository_is_in_scope_until_it_closes() {
         FilesReply::Empty
     );
     assert!(!readable());
+}
+
+#[test]
+fn a_show_serves_its_content_to_the_chunks_sent_behind_it() {
+    let fixture = Fixture::new();
+    fixture.repository("repo");
+    fixture.write("repo/file", "committed");
+    fixture.git("repo", &["add", "file"]);
+    fixture.git("repo", &["commit", "-q", "-m", "first"]);
+
+    let harness = Harness::new();
+    let workspace = WorkspaceId::from_bytes([6; 16]).unwrap();
+    harness.state(workspace, WorkspaceScope::Root(fixture.path("repo")));
+    harness.service().subscribe(harness.open(1), workspace);
+    let shown = harness.summary(1, |summary| {
+        summary.repositories.as_slice().first().cloned()
+    });
+
+    let files = Engine::new(Helpers::new());
+    let transfer = TransferId::new(1).unwrap();
+    let request = GitShow {
+        workspace_id: workspace,
+        transfer,
+        repository: shown.repository,
+        reference: ShowRef::Head,
+        path: FilePath::new(fixture.path("repo/file")).unwrap(),
+        mode: ReadMode::Text,
+        encoding: None,
+        limit: SafeInteger::new(1024).unwrap(),
+    };
+    harness.service().show(harness.open(2), &request, |call| {
+        files.show_read(call, transfer, request.mode, None, 1024)
+    });
+    let pull = FsReadChunk {
+        workspace_id: workspace,
+        transfer,
+        offset: Counter::new(0),
+        length: ChunkLength::new(16_384).unwrap(),
+    };
+    files.read_chunk(harness.open(3), &pull);
+
+    let FilesReply::Read(facts) = harness.reply(2, Operation::GitShow) else {
+        panic!("expected the content's facts");
+    };
+    assert_eq!(facts.size.get(), 9);
+    let chunk = harness.chunk(3);
+    assert_eq!(chunk.bytes, b"committed");
+    assert!(chunk.end.is_some());
 }

@@ -8,10 +8,11 @@ use super::{
     engine::{self, Git, Mutation, Sink},
     errors::GitError,
     mutations::{Commit, Message},
-    ports::{Members, NoTrash, NoWatches},
+    ports::{Members, NoTrash, NoWatches, ShowRead},
     records,
     relay::Answer,
     remote::{self, Fetch, Push},
+    show::Reference,
 };
 use crate::{
     calls::{Call, Events},
@@ -20,9 +21,9 @@ use crate::{
 use orchbee_files_protocol::{
     CallClose, ClientFocus, CommitMessage, ConnectionId, Counter, ErrorCode, FetchRemotes,
     FilePath, FilesError, FilesNotice, FilesReply, GitCheckIgnore, GitClean, GitCommit, GitFetch,
-    GitOutput, GitPath, GitPaths, GitPull, GitPush, GitRefs, GitStatusPage, MAXIMUM_REPLY_BYTES,
-    PromptAnswer, RelayAnswer, RepositoryRequest, RequestId, RequestOutcome, ScopeUpdate,
-    WorkspaceId, encode_notice, encode_reply,
+    GitOutput, GitPath, GitPaths, GitPull, GitPush, GitRefs, GitShow, GitStatusPage,
+    MAXIMUM_REPLY_BYTES, PromptAnswer, RelayAnswer, RepositoryRequest, RequestId, RequestOutcome,
+    ScopeUpdate, ShowRef, WorkspaceId, encode_notice, encode_reply,
 };
 use orchbee_local_runtime::DataRoot;
 use std::sync::Arc;
@@ -161,6 +162,33 @@ impl Service {
             request.cursor.map(records::page_index),
             cancel,
             replying(call, records::refs),
+        );
+    }
+
+    /// `git.show`, answered through the read transfer `open` opens for the call.
+    pub(crate) fn show<R: ShowRead + 'static>(
+        &self,
+        call: Call,
+        request: &GitShow,
+        open: impl FnOnce(Call) -> Option<R>,
+    ) {
+        let Some((git, call)) = self.engine(call) else {
+            return;
+        };
+        let Some(read) = open(call) else {
+            return;
+        };
+        let reference = match &request.reference {
+            ShowRef::Head => Reference::Head,
+            ShowRef::Index => Reference::Index,
+            ShowRef::Commit(commit) => Reference::Commit(commit.as_str().to_owned()),
+        };
+        git.show(
+            request.workspace_id,
+            request.repository.as_str().to_owned(),
+            reference,
+            request.path.as_str().to_owned(),
+            Box::new(read),
         );
     }
 

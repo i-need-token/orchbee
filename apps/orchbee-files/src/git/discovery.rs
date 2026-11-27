@@ -12,6 +12,7 @@ use super::{
     output::GitOutput,
     runner::{self, Limits},
 };
+use orchbee_files_protocol::ErrorCode;
 use orchbee_git_process::canonical_path;
 use std::{
     path::{Path, PathBuf},
@@ -52,6 +53,18 @@ impl Found {
                 .arg(format!("safe.directory={safe_directory}"));
         }
         command
+    }
+
+    /// `path`, a native path inside the repository, as Git spells it below the toplevel.
+    ///
+    /// # Errors
+    ///
+    /// `outside-scope` for the toplevel itself or a path outside it.
+    pub(super) fn relative(&self, path: &str) -> Result<String, GitError> {
+        native_paths::relative(&self.toplevel, path)
+            .filter(|relative| !relative.is_empty())
+            .map(native_paths::git_relative)
+            .ok_or(GitError::new(ErrorCode::OutsideScope))
     }
 }
 

@@ -3,10 +3,14 @@
 //! [`NoWatches`] and [`NoTrash`] stand in: status then refreshes only when a Client subscribes,
 //! after a write, on Agent completion and on an explicit refresh, and a clean to the trash answers
 //! `trash-unavailable`, after which the Client may ask for permanent removal. The scopes every
-//! operation's view reads take the members the engine establishes through [`Members`].
+//! operation's view reads take the members the engine establishes through [`Members`], and
+//! `git.show` answers through the read transfer [`ShowRead`] the file engine opened for it.
 
-use orchbee_files_protocol::WorkspaceId;
-use std::{path::Path, sync::Arc};
+use orchbee_files_protocol::{FilesError, WorkspaceId};
+use std::{
+    path::Path,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 /// Where a reported change happened, which decides whether a repository past the status limit
 /// refreshes.
@@ -114,4 +118,21 @@ impl Trash for NoTrash {
 pub(crate) trait Members: Send {
     /// Replaces `workspace`'s members, each an absolute native path; none once they all ended.
     fn state(&mut self, workspace: WorkspaceId, members: &[String]);
+}
+
+/// A version's content as `git.show` produced it, which the engine may keep for later shows.
+pub(crate) type Content = Arc<dyn AsRef<[u8]> + Send + Sync>;
+
+/// The read transfer `git.show` answers through. The file engine opens it on the call's lane
+/// before the request reaches the Git engine, so the chunk requests a Client sends behind the
+/// request wait for the content, which is then served and decoded as a file's would be.
+pub(crate) trait ShowRead: Send {
+    /// The largest content the Client accepts, in bytes.
+    fn limit(&self) -> u64;
+    /// The call's cancellation, which stops the commands that produce the content.
+    fn cancellation(&self) -> Arc<AtomicBool>;
+    /// Serves `content` and answers the call with what reading it found.
+    fn supply(self: Box<Self>, content: Content);
+    /// Answers the call with `error` and ends the transfer.
+    fn fail(self: Box<Self>, error: FilesError);
 }

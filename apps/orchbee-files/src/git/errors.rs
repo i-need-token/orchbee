@@ -2,7 +2,7 @@
 //! VS Code's Git extension would give it at ef5ca45, classified from what Git wrote. A specific
 //! classification of the command that failed wins over the general one, as there.
 
-use orchbee_files_protocol::ErrorCode;
+use orchbee_files_protocol::{ErrorCode, FilesError, Text, Token};
 
 /// An error answer. `detail` is Git's own standard error, at most 4 KiB of its end, shown verbatim
 /// and never logged.
@@ -52,6 +52,21 @@ impl GitError {
             reason: None,
             detail: detail(stderr),
         }
+    }
+
+    /// The error a request answers with on the wire.
+    pub(super) fn into_wire(self) -> FilesError {
+        let reason = self.reason.and_then(|reason| Token::new(reason).ok());
+        let mut files = match (self.code, reason) {
+            (ErrorCode::Unavailable, Some(reason)) => FilesError::unavailable(reason),
+            (ErrorCode::Unavailable, None) => FilesError::new(ErrorCode::Failed),
+            (code, _) => FilesError::new(code),
+        };
+        files.git_error_code = self
+            .git_error_code
+            .and_then(|code| Token::new(code.as_str()).ok());
+        files.detail = self.detail.and_then(|detail| Text::new(detail).ok());
+        files
     }
 
     pub(super) const fn git(git_error_code: GitErrorCode) -> Self {

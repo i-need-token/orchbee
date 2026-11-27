@@ -1,11 +1,12 @@
-//! Read transfers: `fs.read` opens one under the transfer the Client chose, `fs.read-chunk` pulls
-//! its chunks, and `transfer.close`, the end of its lane or the end of its connection drops it and
-//! closes its file. Chunk requests may arrive while the read still opens; they wait in arrival
-//! order, as do a text read's requests while another of its chunks is decoded, so text is served
-//! in offset order and bytes in any order. Every file call runs on one of the process's helpers; a
-//! text read whose helper was abandoned fails its later chunks, since its decoder stayed with it.
-//! A connection holds at most 64 transfers, since a Client may keep a transfer open after the
-//! streams that carried it closed.
+//! Read transfers: `fs.read` opens one under the transfer the Client chose, as `git.show` does for
+//! content the Git engine produces, `fs.read-chunk` pulls its chunks, and `transfer.close`, the end
+//! of its lane or the end of its connection drops it and closes its file. Chunk requests may arrive
+//! while the read still opens or its content is still produced; they wait in arrival order, as do
+//! a text read's requests while another of its chunks is decoded, so text is served in offset
+//! order and bytes in any order. Every file call runs on one of the process's helpers; a text read
+//! whose helper was abandoned fails its later chunks, since its decoder stayed with it. A
+//! connection holds at most 64 transfers, since a Client may keep a transfer open after the streams
+//! that carried it closed.
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -22,7 +23,7 @@ use orchbee_files_protocol::{
 
 mod reader;
 
-use reader::{ByteReader, Piece, Reader, TextReader};
+use reader::{ByteReader, Content, Piece, Reader, TextReader};
 pub(crate) use reader::{ReadFacts, ReadRequest};
 
 use super::background;
@@ -113,50 +114,51 @@ impl Transfers {
         request: ReadRequest,
         done: impl FnOnce(Result<ReadFacts, Unopened>) + Send + 'static,
     ) {
+        match self.begin(connection, lane, transfer) {
+            Ok(opening) => opening.read_file(path, request, done),
+            Err(refusal) => done(Err(refusal)),
+        }
+    }
+
+    /// Opens transfer `transfer` of `connection` on `lane` before what it reads is known: chunk
+    /// requests wait on it until the returned [`Opening`] reads its content or fails.
+    ///
+    /// # Errors
+    ///
+    /// [`Unopened::Capacity`] when the connection holds as many transfers as it may, or
+    /// `invalid-request` when the transfer's name is taken.
+    pub(crate) fn begin(
+        &self,
+        connection: ConnectionId,
+        lane: LaneId,
+        transfer: TransferId,
+    ) -> Result<Opening, Unopened> {
         let key = (connection, transfer);
-        let instance = {
-            let mut state = lock(&self.shared);
-            let refusal = if state.open.contains_key(&key) {
-                Some(Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest)))
-            } else if state
-                .open
-                .keys()
-                .filter(|open| open.0 == connection)
-                .count()
-                >= MAXIMUM_TRANSFERS
-            {
-                Some(Unopened::Capacity)
-            } else {
-                None
-            };
-            if let Some(refusal) = refusal {
-                drop(state);
-                done(Err(refusal));
-                return;
-            }
-            state.next += 1;
-            let instance = state.next;
-            state.open.insert(
-                key,
-                Transfer {
-                    lane,
-                    instance,
-                    stage: Stage::Opening(VecDeque::new()),
-                },
-            );
-            instance
-        };
-        let shared = Arc::clone(&self.shared);
-        let helpers = self.helpers.clone();
-        background::run(
-            &self.helpers,
-            Operation::FsRead,
-            move || reader::open(&path, &request),
-            move |outcome| {
-                let outcome = outcome.and_then(|opened| opened);
-                opened(&shared, &helpers, key, instance, outcome, done);
+        let mut state = lock(&self.shared);
+        if state.open.contains_key(&key) {
+            return Err(Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest)));
+        }
+        let held = state.open.keys().filter(|open| open.0 == connection);
+        if held.count() >= MAXIMUM_TRANSFERS {
+            return Err(Unopened::Capacity);
+        }
+        state.next += 1;
+        let instance = state.next;
+        state.open.insert(
+            key,
+            Transfer {
+                lane,
+                instance,
+                stage: Stage::Opening(VecDeque::new()),
             },
         );
+        Ok(Opening {
+            shared: Arc::clone(&self.shared),
+            helpers: self.helpers.clone(),
+            key,
+            instance,
+            settled: false,
+        })
     }
 
     /// Serves `length` bytes of transfer `transfer` at `offset` to `answer`. `cancelled` is the
@@ -262,6 +264,93 @@ impl Transfers {
                 &self.helpers,
                 Operation::TransferClose,
                 move || drop(removed),
+                |_| {},
+            );
+        }
+    }
+}
+
+/// A transfer whose content is not read yet: chunk requests queue on it until it reads its
+/// content or fails. Dropped before either, it ends as cancelled.
+pub(crate) struct Opening {
+    shared: Arc<Mutex<State>>,
+    helpers: Helpers,
+    key: Key,
+    instance: u64,
+    settled: bool,
+}
+
+impl Opening {
+    /// Reads `path`, which scope admitted, on a helper.
+    fn read_file(
+        mut self,
+        path: PathBuf,
+        request: ReadRequest,
+        done: impl FnOnce(Result<ReadFacts, Unopened>) + Send + 'static,
+    ) {
+        self.settled = true;
+        let shared = Arc::clone(&self.shared);
+        let helpers = self.helpers.clone();
+        let (key, instance) = (self.key, self.instance);
+        background::run(
+            &self.helpers,
+            Operation::FsRead,
+            move || reader::open(&path, &request),
+            move |outcome| {
+                let outcome = outcome.and_then(|opened| opened);
+                opened(&shared, &helpers, key, instance, outcome, done);
+            },
+        );
+    }
+
+    /// Reads `content`, held in memory, which touches no file and so needs no helper; `done`
+    /// receives what the read found, or why it did not open.
+    pub(crate) fn read_content(
+        mut self,
+        content: Content,
+        request: &ReadRequest,
+        done: impl FnOnce(Result<ReadFacts, Unopened>),
+    ) {
+        self.settled = true;
+        let outcome = reader::open_content(content, request);
+        opened(
+            &self.shared,
+            &self.helpers,
+            self.key,
+            self.instance,
+            outcome,
+            done,
+        );
+    }
+
+    /// Ends the transfer with `error`, which its waiting chunk requests and `done` receive.
+    pub(crate) fn fail(
+        mut self,
+        error: FilesError,
+        done: impl FnOnce(Result<ReadFacts, Unopened>),
+    ) {
+        self.settled = true;
+        opened(
+            &self.shared,
+            &self.helpers,
+            self.key,
+            self.instance,
+            Err(error),
+            done,
+        );
+    }
+}
+
+impl Drop for Opening {
+    fn drop(&mut self) {
+        if !self.settled {
+            let cancelled = Err(FilesError::new(ErrorCode::Cancelled));
+            opened(
+                &self.shared,
+                &self.helpers,
+                self.key,
+                self.instance,
+                cancelled,
                 |_| {},
             );
         }

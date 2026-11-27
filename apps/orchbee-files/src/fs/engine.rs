@@ -4,23 +4,26 @@
 //! cancelled instead. The dispatch tells the engine when a lane or a connection ends and when the
 //! process drains.
 
-use std::{ffi::OsStr, sync::Arc};
+use std::{
+    ffi::OsStr,
+    sync::{Arc, atomic::AtomicBool},
+};
 
 use orchbee_files_protocol::{
     CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
     FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
-    StatItem, TransferRequest,
+    ReadMode, StatItem, TransferId, TransferRequest,
 };
 
 use super::{
     background,
     guessing::guess_file,
     listing::{CursorId, Listings},
-    reading::{ReadRequest, Transfers, Unopened},
+    reading::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
     timer::Timer,
     wire,
 };
-use crate::{blocking::Helpers, calls::Call, entry, error, scope::path::NativePath};
+use crate::{blocking::Helpers, calls::Call, entry, error, git::ports, scope::path::NativePath};
 
 /// The listings and read transfers of every connection.
 pub(crate) struct Engine {
@@ -109,12 +112,41 @@ impl Engine {
             request.transfer,
             path,
             read,
-            move |opened| match opened {
-                Ok(facts) => answer(call, facts.to_wire().map(FilesReply::Read)),
-                Err(Unopened::Capacity) => call.close(CallClose::Capacity),
-                Err(Unopened::Failed(failure)) => answer(call, Err(failure)),
-            },
+            answered(call),
         );
+    }
+
+    /// The read transfer `git.show` answers through: transfer `transfer` opens on the call's lane
+    /// at once, so the chunk requests a Client sends behind the request wait for the content the
+    /// Git engine produces. `None` when it cannot open, after the call was answered.
+    pub(crate) fn show_read(
+        &self,
+        call: Call,
+        transfer: TransferId,
+        mode: ReadMode,
+        encoding: Option<&EncodingName>,
+        limit: u64,
+    ) -> Option<ShowTransfer> {
+        let request = ReadRequest {
+            mode,
+            encoding: encoding.map(|encoding| encoding.as_str().to_owned()),
+            force_text: false,
+            limit,
+        };
+        match self
+            .transfers
+            .begin(call.connection(), call.lane(), transfer)
+        {
+            Ok(opening) => Some(ShowTransfer {
+                opening,
+                call,
+                request,
+            }),
+            Err(refusal) => {
+                answered(call)(Err(refusal));
+                None
+            }
+        }
     }
 
     /// `fs.read-chunk`.
@@ -174,6 +206,46 @@ impl Engine {
     /// Drops every transfer, answering the chunk requests that wait on them.
     pub(crate) fn drain(&self) {
         self.transfers.drain();
+    }
+}
+
+/// [`ports::ShowRead`] over the read transfer the engine opened for a `git.show` call.
+pub(crate) struct ShowTransfer {
+    opening: Opening,
+    call: Call,
+    request: ReadRequest,
+}
+
+impl ports::ShowRead for ShowTransfer {
+    fn limit(&self) -> u64 {
+        self.request.limit
+    }
+
+    fn cancellation(&self) -> Arc<AtomicBool> {
+        self.call.cancellation()
+    }
+
+    fn supply(self: Box<Self>, content: ports::Content) {
+        let Self {
+            opening,
+            call,
+            request,
+        } = *self;
+        opening.read_content(content, &request, answered(call));
+    }
+
+    fn fail(self: Box<Self>, error: FilesError) {
+        let Self { opening, call, .. } = *self;
+        opening.fail(error, answered(call));
+    }
+}
+
+/// What answers a read's call once the read opened, or did not.
+fn answered(call: Call) -> impl FnOnce(Result<ReadFacts, Unopened>) + Send + 'static {
+    move |opened| match opened {
+        Ok(facts) => answer(call, facts.to_wire().map(FilesReply::Read)),
+        Err(Unopened::Capacity) => call.close(CallClose::Capacity),
+        Err(Unopened::Failed(failure)) => answer(call, Err(failure)),
     }
 }
 

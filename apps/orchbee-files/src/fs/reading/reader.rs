@@ -1,13 +1,15 @@
-//! One read's open file and how it serves chunks. A text read decodes forward from its first byte
-//! and serves its UTF-8 output in order, each chunk exactly the length asked except the last, so a
-//! Client can ask for the next offsets before the answers arrive. A byte read serves file bytes at
-//! any offset. The final chunk reports whether the file's modification time or size moved while it
-//! was read and, for text, its line ending and the SHA-256 of the file bytes it consumed.
+//! One read's source, an open file or content held in memory, and how it serves chunks. A text
+//! read decodes forward from its first byte and serves its UTF-8 output in order, each chunk
+//! exactly the length asked except the last, so a Client can ask for the next offsets before the
+//! answers arrive. A byte read serves source bytes at any offset. The final chunk reports whether
+//! the file's modification time or size moved while it was read, which content in memory never
+//! does, and, for text, its line ending and the SHA-256 of the source bytes it consumed.
 
 use std::{
     fs::{self, File},
     io::{self, Read},
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use orchbee_files_protocol::{ChunkEnd, ErrorCode, FilesError, LineEnding, ReadMode, Signed};
@@ -21,8 +23,11 @@ use crate::{
     },
 };
 
-/// How many file bytes a text read takes from the file at a time.
+/// How many source bytes a text read takes at a time.
 const BLOCK_BYTES: usize = 64 * 1024;
+
+/// Content another part of the process holds, such as a file's version in Git, read as a file.
+pub(crate) type Content = Arc<dyn AsRef<[u8]> + Send + Sync>;
 
 /// What a read is asked to do.
 #[derive(Clone, Debug)]
@@ -84,23 +89,77 @@ impl Facts {
     }
 }
 
-/// The file a read holds open, and what tells whether it moved.
+/// What a read takes its bytes from, and the largest content its Client accepts.
 struct Source {
-    file: File,
-    path: PathBuf,
-    opened: Facts,
+    body: Body,
     limit: u64,
+}
+
+enum Body {
+    /// An open file, with what it was when opened, which tells whether it moved.
+    File {
+        file: File,
+        path: PathBuf,
+        opened: Facts,
+    },
+    /// Content in memory, which never moves, and how much of it a text read took.
+    Memory { content: Content, taken: usize },
 }
 
 impl Source {
     /// The file's size or modification time moved since it was opened, through the open handle
     /// or under its path, which another program may have replaced.
     fn moved(&self) -> bool {
+        let Body::File { file, path, opened } = &self.body else {
+            return false;
+        };
         let now =
             |metadata: io::Result<fs::Metadata>| metadata.ok().map(|metadata| Facts::of(&metadata));
-        now(self.file.metadata()) != Some(self.opened)
-            || now(fs::metadata(&self.path)) != Some(self.opened)
+        now(file.metadata()) != Some(*opened) || now(fs::metadata(path)) != Some(*opened)
     }
+
+    /// Reads the next bytes into `buffer`, as [`Read::read`] does.
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        match &mut self.body {
+            Body::File { file, .. } => file.read(buffer),
+            Body::Memory { content, taken } => {
+                let read = copy_from(bytes(content), *taken, buffer);
+                *taken += read;
+                Ok(read)
+            }
+        }
+    }
+
+    /// Reads into `buffer` at `offset` without moving a shared position.
+    fn read_at(&self, buffer: &mut [u8], offset: u64) -> io::Result<usize> {
+        match &self.body {
+            Body::File { file, .. } => read_at(file, buffer, offset),
+            Body::Memory { content, .. } => {
+                let start = usize::try_from(offset).unwrap_or(usize::MAX);
+                Ok(copy_from(bytes(content), start, buffer))
+            }
+        }
+    }
+
+    /// The source's length now, when it can be read.
+    fn length(&self) -> Option<u64> {
+        match &self.body {
+            Body::File { file, .. } => file.metadata().ok().map(|metadata| metadata.len()),
+            Body::Memory { content, .. } => Some(bytes(content).len() as u64),
+        }
+    }
+}
+
+fn bytes(content: &Content) -> &[u8] {
+    (**content).as_ref()
+}
+
+/// Copies into `buffer` as much of `bytes` from `start` on as fits, and returns how much.
+fn copy_from(bytes: &[u8], start: usize, buffer: &mut [u8]) -> usize {
+    let rest = bytes.get(start..).unwrap_or_default();
+    let copied = rest.len().min(buffer.len());
+    buffer[..copied].copy_from_slice(&rest[..copied]);
+    copied
 }
 
 /// Opens `path` for `request` and detects what its content is.
@@ -118,8 +177,39 @@ pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Rea
     if !found.is_file() {
         return Err(FilesError::new(ErrorCode::Failed));
     }
-    let mut file = File::open(path).map_err(failed)?;
+    let file = File::open(path).map_err(failed)?;
     let opened = Facts::of(&file.metadata().map_err(failed)?);
+    let body = Body::File {
+        file,
+        path: path.to_path_buf(),
+        opened,
+    };
+    start(body, opened, request)
+}
+
+/// Reads `content`, held in memory, for `request` as a file that never moves and whose
+/// modification time reads as 0.
+///
+/// # Errors
+///
+/// `too-large` when the content exceeds the limit.
+pub(crate) fn open_content(
+    content: Content,
+    request: &ReadRequest,
+) -> Result<(ReadFacts, Reader), FilesError> {
+    let facts = Facts {
+        size: bytes(&content).len() as u64,
+        mtime_ms: Signed::default(),
+    };
+    start(Body::Memory { content, taken: 0 }, facts, request)
+}
+
+/// Detects what `body`, as it was when opened, holds and starts the read `request` asks for.
+fn start(
+    body: Body,
+    opened: Facts,
+    request: &ReadRequest,
+) -> Result<(ReadFacts, Reader), FilesError> {
     if opened.size > request.limit {
         return Err(FilesError::new(ErrorCode::TooLarge));
     }
@@ -130,16 +220,14 @@ pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Rea
         bom: false,
         binary: false,
     };
-    let source = |file| Source {
-        file,
-        path: path.to_path_buf(),
-        opened,
+    let mut source = Source {
+        body,
         limit: request.limit,
     };
     if request.mode == ReadMode::Bytes {
-        return Ok((facts, Reader::Bytes(ByteReader(source(file)))));
+        return Ok((facts, Reader::Bytes(ByteReader(source))));
     }
-    let head = read_head(&mut file).map_err(failed)?;
+    let head = read_head(&mut source).map_err(|failure| error::from_io(&failure))?;
     let detection = detect(&head);
     if detection.binary && !request.force_text {
         facts.binary = true;
@@ -154,16 +242,16 @@ pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Rea
     facts.encoding = Some(encoding);
     facts.bom = detection.bom > 0;
     facts.binary = detection.binary;
-    let reader = TextReader::new(source(file), head, detection.bom, encoding);
+    let reader = TextReader::new(source, head, detection.bom, encoding);
     Ok((facts, Reader::Text(Box::new(reader))))
 }
 
-/// The file's first [`DETECTION_BYTES`] bytes, or all of a shorter file.
-fn read_head(file: &mut File) -> io::Result<Vec<u8>> {
+/// The source's first [`DETECTION_BYTES`] bytes, or all of a shorter source.
+fn read_head(source: &mut Source) -> io::Result<Vec<u8>> {
     let mut head = vec![0; DETECTION_BYTES];
     let mut filled = 0;
     while filled < head.len() {
-        match file.read(&mut head[filled..]) {
+        match source.read(&mut head[filled..]) {
             Ok(0) => break,
             Ok(read) => filled += read,
             Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
@@ -256,7 +344,7 @@ impl TextReader {
         if self.head.is_empty() {
             let mut block = vec![0; BLOCK_BYTES];
             let read = loop {
-                match self.source.file.read(&mut block) {
+                match self.source.read(&mut block) {
                     Ok(read) => break read,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
                     Err(failure) => return Err(error::from_io(&failure)),
@@ -344,7 +432,7 @@ impl ByteReader {
         let mut bytes = vec![0; length];
         let mut filled = 0;
         while filled < length {
-            match read_at(&self.0.file, &mut bytes[filled..], offset + filled as u64) {
+            match self.0.read_at(&mut bytes[filled..], offset + filled as u64) {
                 Ok(0) => break,
                 Ok(read) => filled += read,
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
@@ -356,12 +444,7 @@ impl ByteReader {
         if reached > self.0.limit {
             return Err(FilesError::new(ErrorCode::TooLarge));
         }
-        let at_end = filled < length
-            || self
-                .0
-                .file
-                .metadata()
-                .map_or(true, |metadata| metadata.len() <= reached);
+        let at_end = filled < length || self.0.length().is_none_or(|length| length <= reached);
         Ok(Piece {
             offset,
             bytes,

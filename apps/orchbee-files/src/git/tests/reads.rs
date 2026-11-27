@@ -1,17 +1,19 @@
 //! The reads answer as VS Code's Git extension reads: only a positive pattern ignores a path,
 //! references carry their upstream until it is gone and tags their peeled commit, remotes take
-//! their first URLs, and reference pages stay within their bounds.
+//! their first URLs, and reference pages stay within their bounds. A show reads each version
+//! through the repository's textconv filter, and a reference that moved reads its new content.
 
 use super::{
     super::{
         command,
         discovery::Found,
         reads::{RefUpstream, Remote, check_ignore, refs, user_config},
+        show::{self, Reference, Shows},
     },
     fixture::Fixture,
 };
-use orchbee_files_protocol::RefKind;
-use std::{collections::HashSet, fs, path::Path};
+use orchbee_files_protocol::{ErrorCode, RefKind};
+use std::{collections::HashSet, fs, path::Path, sync::Mutex};
 
 fn found(fixture: &Fixture, relative: &str) -> Found {
     let toplevel = fixture.path(relative);
@@ -168,4 +170,61 @@ fn reference_pages_cover_every_reference_once_within_their_bounds() {
     }
     assert_eq!(seen.len(), 2501);
     assert!(pages > 1);
+}
+
+#[test]
+fn a_show_reads_each_version_through_textconv_and_follows_its_reference() {
+    let fixture = Fixture::new();
+    fixture.repository("repo");
+    let repository = found(&fixture, "repo");
+    fixture.git("repo", &["config", "diff.upper.textconv", "tr a-z A-Z <"]);
+    fixture.write("repo/.gitattributes", "*.txt diff=upper\n");
+    fixture.write("repo/file.txt", "committed\n");
+    fixture.git("repo", &["add", "."]);
+    fixture.git("repo", &["commit", "-q", "-m", "first"]);
+    let first = fixture
+        .git("repo", &["rev-parse", "HEAD"])
+        .trim()
+        .to_owned();
+    fixture.write("repo/file.txt", "staged\n");
+    fixture.git("repo", &["add", "file.txt"]);
+
+    let shows = Mutex::new(Shows::new());
+    let show = |reference: Reference, name: &str, limit: u64| {
+        let path = fixture.path(&format!("repo/{name}"));
+        let limits = fixture.limits();
+        show::content(
+            &repository,
+            &reference,
+            &path,
+            &shows,
+            limit,
+            &limits,
+            &fixture.output,
+        )
+        .map(|content| (*content).as_ref().to_vec())
+        .map_err(|error| error.code)
+    };
+    assert_eq!(
+        show(Reference::Head, "file.txt", 64).unwrap(),
+        b"COMMITTED\n"
+    );
+    assert_eq!(
+        show(Reference::Index, "file.txt", 6),
+        Err(ErrorCode::TooLarge)
+    );
+    assert_eq!(show(Reference::Index, "file.txt", 64).unwrap(), b"STAGED\n");
+    let at_first = Reference::Commit(first);
+    assert_eq!(
+        show(at_first.clone(), "file.txt", 64).unwrap(),
+        b"COMMITTED\n"
+    );
+    assert_eq!(
+        show(Reference::Head, "missing.txt", 64),
+        Err(ErrorCode::NotFound)
+    );
+
+    fixture.git("repo", &["commit", "-q", "-m", "second"]);
+    assert_eq!(show(Reference::Head, "file.txt", 64).unwrap(), b"STAGED\n");
+    assert_eq!(show(at_first, "file.txt", 64).unwrap(), b"COMMITTED\n");
 }
