@@ -101,6 +101,10 @@ impl Locale {
             (Self::ZhCn, VersionedRecord::Machines) => "已保存的机器列表".into(),
             (Self::EnUs, VersionedRecord::MachineSpaces) => "The machine Workspace list".into(),
             (Self::ZhCn, VersionedRecord::MachineSpaces) => "机器工作区列表".into(),
+            (Self::EnUs, VersionedRecord::GitParentRepositories) => {
+                "The parent repository list".into()
+            }
+            (Self::ZhCn, VersionedRecord::GitParentRepositories) => "上级文件夹仓库列表".into(),
             (Self::EnUs, VersionedRecord::PluginRegistry) => "The plugin registry".into(),
             (Self::ZhCn, VersionedRecord::PluginRegistry) => "插件注册表".into(),
             (Self::EnUs, VersionedRecord::SessionLifecycle) => session.map_or_else(
@@ -136,6 +140,12 @@ impl Locale {
                 "A machine's Workspaces show only while it is connected."
             }
             (Self::ZhCn, VersionedRecord::MachineSpaces) => "机器的工作区只在连上时显示。",
+            (Self::EnUs, VersionedRecord::GitParentRepositories) => {
+                "Source Control asks again before it shows a repository from a parent folder, and your answers aren't saved."
+            }
+            (Self::ZhCn, VersionedRecord::GitParentRepositories) => {
+                "源代码管理显示上级文件夹中的仓库前会再次询问，你的选择不会被保存。"
+            }
             (Self::EnUs, VersionedRecord::PluginRegistry) => {
                 "Plugins don't load, and installing or removing plugins is unavailable."
             }

@@ -62,6 +62,11 @@ pub fn inspect_records(root: &DataRoot, session: Option<&str>) -> Vec<RecordNoti
             "machine-spaces.json",
         ),
         (
+            VersionedRecord::GitParentRepositories,
+            root.state(),
+            "git-parent-repositories.json",
+        ),
+        (
             VersionedRecord::PluginRegistry,
             root.plugins(),
             "registry.json",

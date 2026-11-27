@@ -1363,7 +1363,14 @@
 								"additionalProperties": false,
 								"properties": {
 									"record": {
-										"enum": ["machines", "plugin-registry", "session", "tui-position"]
+										"enum": [
+											"machines",
+											"machine-spaces",
+											"git-parent-repositories",
+											"plugin-registry",
+											"session",
+											"tui-position"
+										]
 									},
 									"problem": {
 										"enum": ["newer-format", "not-updated"]

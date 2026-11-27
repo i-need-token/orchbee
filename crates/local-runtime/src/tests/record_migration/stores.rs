@@ -173,12 +173,17 @@ fn every_store_persists_a_migration_only_in_its_writer() {
     let covered = [
         VersionedRecord::Machines,
         VersionedRecord::MachineSpaces,
+        VersionedRecord::GitParentRepositories,
         VersionedRecord::PluginRegistry,
         VersionedRecord::SessionLifecycle,
         VersionedRecord::TuiPosition,
     ];
     assert_eq!(covered, VersionedRecord::ALL);
-    for record in [VersionedRecord::Machines, VersionedRecord::MachineSpaces] {
+    for record in [
+        VersionedRecord::Machines,
+        VersionedRecord::MachineSpaces,
+        VersionedRecord::GitParentRepositories,
+    ] {
         scenario(record, |root| {
             File::open(VersionedFile::device(root.clone(), record))
         });

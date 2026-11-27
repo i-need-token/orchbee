@@ -34,6 +34,8 @@ pub enum VersionedRecord {
     Machines,
     /// `internal/state/machine-spaces.json`.
     MachineSpaces,
+    /// `internal/state/git-parent-repositories.json`.
+    GitParentRepositories,
     /// `internal/plugins/registry.json`.
     PluginRegistry,
     /// `sessions/<session>/session.json`.
@@ -44,9 +46,10 @@ pub enum VersionedRecord {
 
 impl VersionedRecord {
     /// Every native record, in the order `config check` lists them.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Machines,
         Self::MachineSpaces,
+        Self::GitParentRepositories,
         Self::PluginRegistry,
         Self::SessionLifecycle,
         Self::TuiPosition,
@@ -57,6 +60,7 @@ impl VersionedRecord {
         match self {
             Self::Machines => "machines",
             Self::MachineSpaces => "machine-spaces",
+            Self::GitParentRepositories => "git-parent-repositories",
             Self::PluginRegistry => "plugin-registry",
             Self::SessionLifecycle => "session",
             Self::TuiPosition => "tui-position",
@@ -79,6 +83,7 @@ impl VersionedRecord {
         match self {
             Self::Machines => "machines",
             Self::MachineSpaces => "machine-spaces",
+            Self::GitParentRepositories => "git-parent-repositories",
             Self::PluginRegistry => "registry",
             Self::SessionLifecycle => "session",
             Self::TuiPosition => "tui-position",
@@ -90,6 +95,7 @@ impl VersionedRecord {
         match self {
             Self::Machines => "machines.json",
             Self::MachineSpaces => "machine-spaces.json",
+            Self::GitParentRepositories => "git-parent-repositories.json",
             Self::PluginRegistry => "registry.json",
             Self::SessionLifecycle => "session.json",
             Self::TuiPosition => "tui-position.json",

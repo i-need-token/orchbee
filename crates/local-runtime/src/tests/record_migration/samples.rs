@@ -31,6 +31,7 @@ const fn samples_owner(record: VersionedRecord) -> &'static str {
         VersionedRecord::Machines
         | VersionedRecord::MachineSpaces
         | VersionedRecord::TuiPosition => "workbench-client",
+        VersionedRecord::GitParentRepositories => "orchbee-files",
     }
 }
 
