@@ -46,23 +46,27 @@ shape. Aligning the product's package with Monaco's font would leave one face fo
 
 ## Size
 
-Measured from the production build of `monaco-editor` 0.58.0 at admission; a change that grows
-them reports the new sizes.
+Measured from production builds with `monaco-editor` 0.58.0, against the build without the editor;
+a change that grows them reports the new sizes.
 
-| Output                                           | Raw         | Gzip      |
-| ------------------------------------------------ | ----------- | --------- |
-| Editor core and features                         | 3,440,436 B | 874,392 B |
-| Codicon registry                                 | 152,177 B   | 37,993 B  |
-| Editor stylesheet                                | 156,817 B   | 22,737 B  |
-| Monaco's Codicon font                            | 154,520 B   | 76,112 B  |
-| Editor worker, loaded when a model needs it      | 200,137 B   | 64,566 B  |
-| zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B  |
-| 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B |
-| Largest grammar chunk                            | 18,564 B    | 5,342 B   |
-| Main bundle growth                               | 6,877 B     | 2,743 B   |
+| Output                                           | Raw         | Gzip        |
+| ------------------------------------------------ | ----------- | ----------- |
+| Editor core and features                         | 3,440,436 B | 874,392 B   |
+| Codicon registry                                 | 152,177 B   | 37,993 B    |
+| Editor stylesheet                                | 156,817 B   | 22,737 B    |
+| Monaco's Codicon font                            | 154,520 B   | 76,112 B    |
+| Editor worker, loaded when a model needs it      | 200,137 B   | 64,566 B    |
+| zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
+| 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
+| Largest grammar chunk                            | 18,564 B    | 4,463 B     |
+| Theme and JSON languages, loaded with the editor | 9,155 B     | 2,956 B     |
+| Main bundle growth                               | 7,536 B     | 3,057 B     |
+| Main stylesheet growth                           | 5,154 B     | 795 B       |
+| Production web build growth                      | 4,647,860 B | 1,258,816 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit and the
-loader's chunk map lists the new chunks; the File Bar's limit for it is 10 KB gzip.
+loader's chunk map lists the new chunks; the File Bar's limit for it is 10 KB gzip. The main
+stylesheet grows by the syntax roles of both appearances and every named theme.
 
 ## Upgrading Monaco
 
