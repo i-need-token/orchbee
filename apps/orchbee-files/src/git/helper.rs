@@ -23,7 +23,7 @@ const SSH_PROMPT_VARIABLE: &str = "SSH_ASKPASS_PROMPT";
 
 /// Acts as the helper when the environment and `arguments` (without the program) ask for it,
 /// answering the exit code; `None` for the service's own invocation.
-pub(super) fn helper(arguments: &[OsString]) -> Option<ExitCode> {
+pub(crate) fn helper(arguments: &[OsString]) -> Option<ExitCode> {
     let endpoint = std::env::var_os(RELAY_VARIABLE)?;
     let token = std::env::var_os(RELAY_TOKEN_VARIABLE)?;
     if arguments.first().map(OsString::as_os_str) == Some(OsStr::new(LOCAL_ENDPOINT_OPTION)) {

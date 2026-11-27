@@ -109,12 +109,29 @@ pub(super) enum Mutation {
     Stage(Vec<String>),
     Unstage(Vec<String>),
     Discard(Vec<String>),
-    StageContent { path: String, content: Vec<u8> },
-    Clean { paths: Vec<String>, mode: CleanMode },
+    #[expect(
+        dead_code,
+        reason = "git.stage-content is routed once the dispatch reads a transfer's Puts"
+    )]
+    StageContent {
+        path: String,
+        content: Vec<u8>,
+    },
+    Clean {
+        paths: Vec<String>,
+        mode: CleanMode,
+    },
     Commit(Commit),
-    Fetch { fetch: Fetch, background: bool },
-    Pull { rebase: bool },
-    Sync { rebase: bool },
+    Fetch {
+        fetch: Fetch,
+        background: bool,
+    },
+    Pull {
+        rebase: bool,
+    },
+    Sync {
+        rebase: bool,
+    },
     Push(Push),
 }
 
@@ -470,19 +487,6 @@ impl Git {
         });
     }
 
-    /// Stops the engine once the calls it served were cancelled: running commands are stopped,
-    /// subscriptions end and the relay endpoint goes.
-    pub(super) fn stop(mut self) {
-        self.halt();
-    }
-
-    fn halt(&mut self) {
-        if let Some(actor) = self.actor.take() {
-            let _ = self.sender.send(Message::Stop);
-            let _ = actor.join();
-        }
-    }
-
     fn path_work(
         &self,
         call: Call,
@@ -521,9 +525,14 @@ impl Git {
     }
 }
 
+/// Dropping the engine stops it: running commands are stopped, subscriptions end and the relay
+/// endpoint goes. Replies it still held drop with it, which closes their calls without one.
 impl Drop for Git {
     fn drop(&mut self) {
-        self.halt();
+        if let Some(actor) = self.actor.take() {
+            let _ = self.sender.send(Message::Stop);
+            let _ = actor.join();
+        }
     }
 }
 

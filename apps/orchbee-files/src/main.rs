@@ -10,23 +10,12 @@ mod entry;
 mod error;
 mod exit;
 mod fs;
-#[expect(
-    dead_code,
-    reason = "the dispatch routes the Git engine's operations in a later commit"
-)]
 mod git;
 mod grants;
 mod invocation;
 mod link;
 mod operations;
 mod outbound;
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "the Git engine serves request.outcome once it is routed"
-    )
-)]
 mod requests;
 mod roots;
 mod scope;
@@ -36,27 +25,37 @@ mod subscriptions;
 
 use std::{ffi::OsString, process::ExitCode, sync::mpsc};
 
+use orchbee_local_runtime::DataRoot;
+
 use crate::{
     exit::{Outcome, Stage},
     link::End,
 };
 
 fn main() -> ExitCode {
+    let arguments = std::env::args_os().skip(1).collect::<Vec<_>>();
+    // Git starts this executable as its askpass program and editor, which only asks the relay of
+    // the process that started Git and reads nothing else.
+    if let Some(code) = git::helper(&arguments) {
+        return code;
+    }
     // A root whose layout this build cannot read is refused before anything in it is read, the
     // log included, as the Worker that started this process refuses it.
-    if orchbee_local_runtime::DataRoot::resolve(|name| std::env::var_os(name))
-        .is_ok_and(|root| root.admit_layout().is_err())
+    let root = DataRoot::resolve(|name| std::env::var_os(name)).ok();
+    if root
+        .as_ref()
+        .is_some_and(|root| root.admit_layout().is_err())
     {
         return ExitCode::FAILURE;
     }
     orchbee_local_runtime::install_diagnostic_log(orchbee_local_runtime::LogRole::Files);
     exit::end_on_panic();
-    let outcome = run(std::env::args_os().skip(1));
+    let outcome = run(arguments.into_iter(), root);
     outcome.record();
     outcome.exit_code()
 }
 
-fn run(arguments: impl Iterator<Item = OsString>) -> Outcome {
+fn run(arguments: impl Iterator<Item = OsString>, root: Option<DataRoot>) -> Outcome {
     let Some(endpoint) = invocation::parse(arguments) else {
         return Outcome::failed(Stage::Invocation, None);
     };
@@ -87,7 +86,7 @@ fn run(arguments: impl Iterator<Item = OsString>) -> Outcome {
             return Outcome::failed(Stage::Signals, Some(error.kind()));
         }
     }
-    match link::serve(stream, ends, &ended) {
+    match link::serve(stream, ends, &ended, root) {
         End::Drained(reason) => Outcome::Drained(reason),
         End::Signal(signal) => Outcome::Signalled(signal),
         End::ServerGone => Outcome::failed(Stage::ServerGone, None),

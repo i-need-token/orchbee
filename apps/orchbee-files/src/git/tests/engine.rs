@@ -187,5 +187,5 @@ fn writes_queue_per_repository_answer_once_per_identity_and_share_fetches() {
             .first()
             .is_some_and(|shown| shown.revision >= 1 && shown.counts.index == 1)
     });
-    git.stop();
+    drop(git);
 }

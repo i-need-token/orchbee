@@ -36,7 +36,7 @@ struct Link {
 impl Link {
     fn new() -> Self {
         let outbound = Arc::new(Outbound::new());
-        let services = Services::new(Calls::new(Arc::clone(&outbound)));
+        let services = Services::new(Calls::new(Arc::clone(&outbound)), None);
         let (sent, frames) = mpsc::channel();
         let writer = Arc::clone(&outbound);
         thread::spawn(move || {
@@ -213,9 +213,13 @@ fn a_record_closes_by_its_validity_grant_class_and_workspace() {
         error(link.reply(6, Operation::GitMarkSafe)),
         ErrorCode::Denied
     );
+    // The lifecycle grant admits it.
     let record = encode_files_record(&FilesRecord::Request(encode_request(&mark_safe))).unwrap();
     link.send(7, GrantClass::Lifecycle, workspace(), record);
-    assert_eq!(link.closed(7), CallClose::Unsupported);
+    assert_ne!(
+        error(link.reply(7, Operation::GitMarkSafe)),
+        ErrorCode::Denied
+    );
 }
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);

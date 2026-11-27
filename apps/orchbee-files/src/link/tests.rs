@@ -10,7 +10,7 @@ fn start_serving() -> (LocalStream, thread::JoinHandle<End>) {
     let (files, server) = LocalStream::pair().unwrap();
     let serving = thread::spawn(move || {
         let (ends, ended) = mpsc::channel();
-        serve(files, ends, &ended)
+        serve(files, ends, &ended, None)
     });
     (server, serving)
 }

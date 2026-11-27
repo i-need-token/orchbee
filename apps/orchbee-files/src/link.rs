@@ -17,6 +17,7 @@ use std::{
 
 use orchbee_files_protocol::{DrainReason, LinkMessage, LinkSide, read_link_message};
 use orchbee_local_ipc::LocalStream;
+use orchbee_local_runtime::DataRoot;
 
 use crate::{calls::Calls, exit::Stage, operations::Services, outbound::Outbound};
 
@@ -45,11 +46,17 @@ pub(crate) enum End {
 }
 
 /// Serves the admitted `stream` until the first end any thread sends through `ends`, which a
-/// signal handler may share, and returns it after cancelling every call.
-pub(crate) fn serve(stream: LocalStream, ends: Sender<End>, ended: &Receiver<End>) -> End {
+/// signal handler may share, and returns it after cancelling every call. `root` keeps what the
+/// services persist; without one it lasts as long as the process.
+pub(crate) fn serve(
+    stream: LocalStream,
+    ends: Sender<End>,
+    ended: &Receiver<End>,
+    root: Option<DataRoot>,
+) -> End {
     let outbound = Arc::new(Outbound::new());
     let calls = Calls::new(Arc::clone(&outbound));
-    let services = Services::new(Arc::clone(&calls));
+    let services = Services::new(Arc::clone(&calls), root);
     if let Err(error) = start(&stream, &outbound, &services, ends) {
         return End::Failed(Stage::Threads, error.kind());
     }
@@ -117,8 +124,7 @@ fn read(mut reader: BufReader<LocalStream>, services: &Arc<Services>) -> End {
             LinkMessage::LaneClosed { connection, lane } => services.lane_closed(connection, lane),
             LinkMessage::ConnectionLost { connection } => services.connection_lost(connection),
             LinkMessage::Scope(update) => services.scope(update),
-            // No service of this build refreshes on an Agent's completion.
-            LinkMessage::AgentSettled { .. } => {}
+            LinkMessage::AgentSettled { workspace } => services.agent_settled(workspace),
             LinkMessage::Drain(reason) => return End::Drained(reason),
             // Admission is over, and the codec refuses this process's own kinds.
             LinkMessage::Admitted

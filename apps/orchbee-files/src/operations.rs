@@ -23,12 +23,13 @@ use orchbee_files_protocol::{
     GrantClass, LaneId, LinkRequest, RecordPlace, RequestError, ScopeUpdate, WorkspaceId,
     decode_files_record, parse_request,
 };
+use orchbee_local_runtime::DataRoot;
 
 use crate::{
     blocking::Helpers,
     calls::{Call, Calls, DuplicateCall},
     fs::Engine,
-    grants, roots,
+    git, grants, roots,
     scope::{Scopes, View},
     subscriptions::{Leaving, Subscriptions},
 };
@@ -42,10 +43,13 @@ pub(crate) struct Services {
     files: Engine,
     /// The `fs.subscribe` streams.
     roots: Subscriptions,
+    /// Source control: discovery, status, Git operations and the prompt relay.
+    git: git::Service,
 }
 
 impl Services {
-    pub(crate) fn new(calls: Arc<Calls>) -> Arc<Self> {
+    /// The services of one link; `root` keeps what they persist.
+    pub(crate) fn new(calls: Arc<Calls>, root: Option<DataRoot>) -> Arc<Self> {
         let helpers = Helpers::new();
         Arc::new(Self {
             calls,
@@ -53,6 +57,7 @@ impl Services {
             files: Engine::new(helpers.clone()),
             helpers,
             roots: Subscriptions::new(),
+            git: git::Service::start(root),
         })
     }
 
@@ -90,11 +95,18 @@ impl Services {
         self.roots.leave(Leaving::Connection(connection));
         self.scopes.connection_lost(connection);
         self.files.connection_lost(connection);
+        self.git.connection_lost(connection);
+    }
+
+    /// An Agent in `workspace` settled.
+    pub(crate) fn agent_settled(&self, workspace: WorkspaceId) {
+        self.git.agent_settled(workspace);
     }
 
     /// The Server stated a Workspace's scope, which applies to every call that starts after it.
     pub(crate) fn scope(self: &Arc<Self>, update: ScopeUpdate) {
         let workspace = update.workspace;
+        self.git.scope(&update);
         if self.scopes.update(update) && self.roots.any_in(workspace) {
             let services = Arc::clone(self);
             let refresh = move || {
@@ -150,12 +162,12 @@ impl Services {
             .scopes
             .view(request.workspace(), call.connection(), operation)
         {
-            Ok(view) => self.route(call, view, request),
+            Ok(view) => self.route(call, view, grant, request),
             Err(refused) => call.reply(&FilesReply::Error(refused)),
         }
     }
 
-    fn route(self: &Arc<Self>, call: Call, view: View, request: FilesRequest) {
+    fn route(self: &Arc<Self>, call: Call, view: View, grant: GrantClass, request: FilesRequest) {
         match request {
             FilesRequest::FsSubscribe(request) => {
                 let workspace = request.workspace_id;
@@ -170,9 +182,17 @@ impl Services {
                 });
             }
             FilesRequest::FsGrant(request) => match view.grantable(&request.path, request.source) {
-                Ok(path) => self.detach(call, move |services, call| {
-                    grants::grant(&services.scopes, &services.helpers, &view, call, path);
-                }),
+                Ok(path) => {
+                    // A file granted beyond the root brings its repository to source control.
+                    let beyond = view.read(&request.path).is_err();
+                    self.detach(call, move |services, call| {
+                        if grants::grant(&services.scopes, &services.helpers, &view, call, path)
+                            && beyond
+                        {
+                            services.git.opened(request.workspace_id, &request.path);
+                        }
+                    });
+                }
                 Err(refused) => call.reply(&FilesReply::Error(refused)),
             },
             FilesRequest::FsUngrant(request) => {
@@ -197,32 +217,38 @@ impl Services {
                 Err(refused) => call.reply(&FilesReply::Error(refused)),
             },
             FilesRequest::TransferClose(request) => self.files.close_transfer(call, &request),
+            FilesRequest::ScmSubscribe(request) => self.git.subscribe(call, request.workspace_id),
+            FilesRequest::GitStatusPage(request) => self.git.status_page(call, &request),
+            FilesRequest::GitCheckIgnore(request) => self.git.check_ignore(call, &request),
+            FilesRequest::GitRefs(request) => self.git.refs(call, &request),
+            FilesRequest::GitUserConfig(request) => self.git.user_config(call, &request),
+            FilesRequest::GitOutput(request) => self.git.output(call, &request),
+            FilesRequest::GitStage(request) => self.git.stage(call, &request),
+            FilesRequest::GitUnstage(request) => self.git.unstage(call, &request),
+            FilesRequest::GitDiscard(request) => self.git.discard(call, &request),
+            FilesRequest::GitClean(request) => self.git.clean(call, &request),
+            FilesRequest::GitCommit(request) => self.git.commit(call, &request),
+            FilesRequest::GitFetch(request) => self.git.fetch(call, &request),
+            FilesRequest::GitPull(request) => self.git.pull(call, &request),
+            FilesRequest::GitSync(request) => self.git.sync(call, &request),
+            FilesRequest::GitPush(request) => self.git.push(call, &request),
+            FilesRequest::GitInit(request) => self.git.init(call, &request),
+            FilesRequest::GitMarkSafe(request) => self.git.mark_safe(call, &request),
+            FilesRequest::RepositoryConsent(request) => self.git.consent(call, &request),
+            FilesRequest::RepositoryClose(request) => self.git.close(call, &request),
+            FilesRequest::RelaySubscribe(request) => {
+                let lifecycle = grant == GrantClass::Lifecycle;
+                self.git
+                    .subscribe_relay(call, request.workspace_id, lifecycle);
+            }
+            FilesRequest::RelayAnswer(request) => self.git.answer(call, &request),
+            FilesRequest::ClientFocus(request) => self.git.focus(call, &request),
+            FilesRequest::RequestOutcome(request) => self.git.outcome(call, &request),
+            // git.show answers through read transfers, which read only files, and content
+            // staging takes Puts, which no operation of this build reads.
             FilesRequest::FsRelease(_)
-            | FilesRequest::ScmSubscribe(_)
-            | FilesRequest::GitStatusPage(_)
             | FilesRequest::GitShow(_)
-            | FilesRequest::GitCheckIgnore(_)
-            | FilesRequest::GitRefs(_)
-            | FilesRequest::GitUserConfig(_)
-            | FilesRequest::GitOutput(_)
-            | FilesRequest::GitStage(_)
-            | FilesRequest::GitUnstage(_)
-            | FilesRequest::GitDiscard(_)
-            | FilesRequest::GitStageContent(_)
-            | FilesRequest::GitClean(_)
-            | FilesRequest::GitCommit(_)
-            | FilesRequest::GitFetch(_)
-            | FilesRequest::GitPull(_)
-            | FilesRequest::GitSync(_)
-            | FilesRequest::GitPush(_)
-            | FilesRequest::GitInit(_)
-            | FilesRequest::GitMarkSafe(_)
-            | FilesRequest::RepositoryConsent(_)
-            | FilesRequest::RepositoryClose(_)
-            | FilesRequest::RelaySubscribe(_)
-            | FilesRequest::RelayAnswer(_)
-            | FilesRequest::ClientFocus(_)
-            | FilesRequest::RequestOutcome(_) => call.close(CallClose::Unsupported),
+            | FilesRequest::GitStageContent(_) => call.close(CallClose::Unsupported),
         }
     }
 

@@ -15,9 +15,15 @@ use crate::{
     scope::{Scopes, View, path::NativePath},
 };
 
-/// Answers a grant of `path`, which `view` admitted. It reads the filesystem, so it runs on the
-/// call's own thread.
-pub(crate) fn grant(scopes: &Scopes, helpers: &Helpers, view: &View, call: Call, path: NativePath) {
+/// Answers a grant of `path`, which `view` admitted, and tells whether it granted the file. It
+/// reads the filesystem, so it runs on the call's own thread.
+pub(crate) fn grant(
+    scopes: &Scopes,
+    helpers: &Helpers,
+    view: &View,
+    call: Call,
+    path: NativePath,
+) -> bool {
     let read = {
         let path = path.clone();
         helpers.run(Operation::FsGrant, move || {
@@ -33,12 +39,14 @@ pub(crate) fn grant(scopes: &Scopes, helpers: &Helpers, view: &View, call: Call,
             Some(Err(error)) => FilesReply::Error(error),
             // The Client gave the grant up or its connection ended; dropping the call closes it
             // as cancelled.
-            None => return,
+            None => return false,
         },
         Ok(Err(failure)) => FilesReply::Error(error::from_io(&failure)),
         Err(refused) => FilesReply::Error(refused),
     };
+    let granted = matches!(reply, FilesReply::FsGrant(_));
     call.reply(&reply);
+    granted
 }
 
 /// Answers a release of `request`'s paths.

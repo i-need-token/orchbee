@@ -10,8 +10,8 @@ without reading their paths.
 
 ## Executable interface
 
-The Worker is the only launcher, so this interface is a contract between the two programs rather
-than a command.
+The Worker starts the service and the Git it runs starts the relay helper, so this interface is a
+contract between programs rather than a command.
 
 | Fact            | Contract                                                                                                                                             |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -19,6 +19,13 @@ than a command.
 | Standard input  | The start's token, 64 lowercase hexadecimal digits and a line feed. It never appears among the arguments, which other processes of the user can read |
 | Standard output | `ready` and a line feed once the Server admitted the hello                                                                                           |
 | Exit            | 0 after the Server's drain; `128 + signal` after `SIGTERM` or `SIGINT` on macOS and Linux; 1 for every other end, which the Server counts as a crash |
+
+The service names this executable as `GIT_ASKPASS`, `SSH_ASKPASS` and, with `--git-editor <file>`,
+`GIT_EDITOR`, together with `ORCHBEE_FILES_RELAY` and `ORCHBEE_FILES_RELAY_TOKEN`, only on the
+commands of an operation that may prompt. Started with both variables and without
+`--local-endpoint`, it is the relay helper: it asks that service's relay, prints the answer or waits
+until the message file is done, and exits 0, or 1 when the prompt was cancelled. It reads no data
+root and writes no log.
 
 Every end cancels the open calls first and gives their operations three seconds to end their
 children, so a Git or ripgrep process tree does not outlive the call that started it. A panic on
@@ -54,6 +61,9 @@ that keeps the module graph acyclic. A filesystem call that can hang runs throug
 
 The process writes to the [daily diagnostic log](../../crates/local-runtime/README.md#diagnostic-log)
 with role `files`: `started` once the Server admitted it; `filesystem-timeout` with the `operation`
-whose filesystem call passed its deadline; and one `exited` with `outcome` (`drained` with its
-`reason`, `idle` or `session`; `signalled` with its `signal`; or `failed` with the `stage` it stopped
-at and the I/O `error` kind that caused it, when one did).
+whose filesystem call passed its deadline; `git-timeout` with the `kind` of Git command that passed
+its deadline; `git-spawn-failed` with that `kind` and the I/O `error` kind when Git could not start;
+`git-relay-unavailable` once when the prompt relay could not start, after which Git operations run
+without prompts; and one `exited` with `outcome` (`drained` with its `reason`, `idle` or `session`;
+`signalled` with its `signal`; or `failed` with the `stage` it stopped at and the I/O `error` kind
+that caused it, when one did).

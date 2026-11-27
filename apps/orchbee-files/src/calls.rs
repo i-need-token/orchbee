@@ -284,6 +284,12 @@ impl Events {
         self.call.lane
     }
 
+    /// Whether the subscription's Client cancelled it, its lane or connection closed, or the
+    /// process is draining.
+    pub(crate) fn cancelled(&self) -> bool {
+        self.call.cancelled()
+    }
+
     /// Queues one Update record.
     ///
     /// # Panics

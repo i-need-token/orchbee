@@ -13,6 +13,10 @@ use std::{path::Path, sync::Arc};
 pub(crate) enum Change {
     /// The repository's toplevel itself or its Git directory itself was created, deleted or
     /// renamed. Such a change refreshes even a repository past the status limit.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the file engine's watch adapter reports it")
+    )]
     Repository,
     /// Anything else under the working tree or in the first level of the Git directory, and a
     /// rescan after events were dropped.
@@ -32,6 +36,7 @@ impl Report {
     /// Reports a change. The engine waits out a 1,000 ms debounce of its own, so one report per
     /// delivery window is enough: [`Change::Repository`] when any event of the window was one,
     /// else [`Change::Content`].
+    #[expect(dead_code, reason = "the file engine's watch adapter calls it")]
     pub(crate) fn changed(&self, change: Change) {
         (self.0)(change);
     }
@@ -75,6 +80,7 @@ pub(crate) enum TrashError {
     /// The machine has no trash for the path's volume, which `trash-unavailable` reports.
     Unavailable,
     /// The trash refused or failed the move, which `trash-failed` reports.
+    #[expect(dead_code, reason = "the file engine's trash adapter returns it")]
     Failed,
 }
 

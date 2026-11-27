@@ -19,8 +19,11 @@ mod refresh;
 mod relay;
 mod remote;
 mod runner;
+mod serve;
 mod status;
 mod workspace;
+
+pub(crate) use self::{helper::helper, serve::Service};
 
 #[cfg(test)]
 mod tests;

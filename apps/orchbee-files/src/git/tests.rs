@@ -11,4 +11,5 @@ mod mutations;
 mod reads;
 mod relay;
 mod remote;
+mod serve;
 mod status;
