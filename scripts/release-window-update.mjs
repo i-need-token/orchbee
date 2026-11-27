@@ -795,9 +795,9 @@ export async function windowUpdateCheck(options, work, progress, port) {
 		installWindow(built, context);
 		await context.page.present(selectors.footerUpdate, 'Update in the sidebar footer');
 		// The row, not its button: the row's name lies above the button, and a press anywhere on the
-		// row opens its Workspace.
+		// row opens its Workspace. Its Agent rows below it carry no reorder mark.
 		await context.page.click(
-			`[data-workspace-id=${JSON.stringify(workspace)}] > [data-navigation-reorder-row]`,
+			`[data-workspace-id=${JSON.stringify(workspace)}] [data-navigation-reorder-row]`,
 			"the terminal's Workspace in the sidebar",
 		);
 		const cohort = port.storedCohort(context.storeRoot, built.version, built.application);

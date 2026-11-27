@@ -63,6 +63,8 @@
 // Exit codes: 0 the step passed; 1 it failed; 2 malformed arguments.
 import { spawnSync } from 'node:child_process';
 import {
+	chmodSync,
+	copyFileSync,
 	existsSync,
 	lstatSync,
 	mkdirSync,
@@ -496,7 +498,11 @@ function packagesStep(identity, work) {
 	if (identity.appImages.length !== 1 || identity.debianPackages.length !== 1)
 		throw new StepFailure('The artifacts must hold one AppImage and one Debian package');
 	const program = `${identity.stem}-desktop`;
-	const [appImage] = identity.appImages;
+	// A downloaded AppImage, like a workflow artifact, has no executable bit until its person makes it
+	// executable, as the download page says.
+	const appImage = path.join(work, path.basename(identity.appImages[0]));
+	copyFileSync(identity.appImages[0], appImage);
+	chmodSync(appImage, 0o755);
 	const extracted = path.join(work, 'appimage');
 	mkdirSync(extracted);
 	expectStatus(
