@@ -887,6 +887,16 @@
 	--ob-comp-workbench-sidebar-thumb-size: 0px;
 	--ob-comp-workbench-sidebar-thumb-start: 0px;
 	--ob-comp-workbench-sidebar-thumb-opacity: 0;
+	/* The virtual tree's runtime geometry: its rows sit at their own offsets in a content layer that
+	   moves by the scroll offset, and its scrollbar's thumb follows the offset. */
+	--ob-comp-virtual-tree-content-height: 0px;
+	--ob-comp-virtual-tree-content-offset: 0px;
+	--ob-comp-virtual-tree-row-depth: 0;
+	--ob-comp-virtual-tree-row-height: 0px;
+	--ob-comp-virtual-tree-row-start: 0px;
+	--ob-comp-virtual-tree-thumb-opacity: 0;
+	--ob-comp-virtual-tree-thumb-size: 0px;
+	--ob-comp-virtual-tree-thumb-start: 0px;
 	--ob-comp-settings-color-theme-swatch-inline-size: 3.5rem;
 
 	--ob-comp-tab-strip-length-negative-14: -14px;

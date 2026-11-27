@@ -1,0 +1,10 @@
+/* As tall as every row together and moved on the compositor by the scroll offset, so a scroll moves
+   one layer, and nothing inside it lays out or paints outside its box. */
+.content {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+	height: var(--ob-comp-virtual-tree-content-height);
+	contain: strict;
+	transform: translate3d(0, var(--ob-comp-virtual-tree-content-offset), 0);
+}

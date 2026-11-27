@@ -1,0 +1,63 @@
+/* The tree fills its container, which gives it a definite size, and clips its rows. Focus shows on
+   the focused row, or around the whole tree while no row is focused. */
+.frame {
+	position: relative;
+	overflow: hidden;
+	block-size: 100%;
+	inline-size: 100%;
+	outline: none;
+}
+
+.frame:focus-visible:not([aria-activedescendant])::after {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+	content: '';
+	pointer-events: none;
+}
+
+/* A hairline shows once rows have scrolled out of sight above, where VS Code draws its shadow. */
+.frame::before {
+	position: absolute;
+	inset-block-start: 0;
+	inset-inline: 0;
+	z-index: var(--ob-ref-layer-raised);
+	height: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-subtle);
+	content: '';
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.frame[data-scrolled-start]::before {
+	visibility: visible;
+}
+
+/* The Panels' scrollbar, as the Sidebar shows it, only while the rows overflow: the thumb shows as
+   the tree scrolls and fades once it is still, 8 px wide and 2 px from the edge. */
+.scrollbar {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-end: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: none;
+	width: var(--ob-ref-space-3);
+	touch-action: none;
+}
+
+.frame[data-overflowing] .scrollbar {
+	display: block;
+}
+
+.thumb {
+	position: absolute;
+	inset-block-start: var(--ob-comp-virtual-tree-thumb-start);
+	inset-inline-end: var(--ob-ref-space-0-5);
+	width: var(--ob-ref-space-2);
+	height: var(--ob-comp-virtual-tree-thumb-size);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-scrollbar-overlay-thumb);
+	opacity: var(--ob-comp-virtual-tree-thumb-opacity);
+	pointer-events: none;
+}

@@ -56,8 +56,8 @@ export interface VirtualTreeSplice {
 }
 
 /**
- * A change the model has finished applying. `rows` with no splices means rows changed in place;
- * re-read the visible rows and compare their revisions.
+ * A change the model has finished applying, or, for `reveal`, a request to the view. `rows` with no
+ * splices means rows changed in place; re-read the visible rows and compare their revisions.
  */
 export type VirtualTreeEvent<K> =
 	| { readonly kind: 'rows'; readonly splices: readonly VirtualTreeSplice[] }
@@ -70,7 +70,23 @@ export type VirtualTreeEvent<K> =
 	  }
 	| { readonly kind: 'focus' }
 	| { readonly kind: 'selection' }
-	| { readonly kind: 'anchor' };
+	| { readonly kind: 'anchor' }
+	| { readonly kind: 'scroll' }
+	| {
+			readonly kind: 'reveal';
+			/** A row that shows now, for a view to scroll into sight. */
+			readonly key: K;
+			/** Where the row goes, from 0 at the top of the view to 1 at the bottom; null for nearest. */
+			readonly relativeTop: number | null;
+	  };
+
+export interface VirtualTreeRevealOptions {
+	/**
+	 * Places the row at this point of the view, from 0 at the top to 1 at the bottom. Without it the
+	 * view scrolls as little as it takes to show the whole row.
+	 */
+	readonly relativeTop?: number;
+}
 
 /** Everything needed to bring a tree back after it is recreated, keyed by item identity. */
 export interface VirtualTreeViewState<K> {
@@ -79,6 +95,8 @@ export interface VirtualTreeViewState<K> {
 	readonly focus: K | null;
 	readonly anchor: K | null;
 	readonly selection: readonly K[];
+	/** The view's scroll offset in CSS pixels. */
+	readonly scrollTop: number;
 }
 
 export interface VirtualTreeModelOptions<K, T> {

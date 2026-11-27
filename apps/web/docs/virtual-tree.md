@@ -3,9 +3,9 @@
 `src/virtual-tree/` is the list and tree engine of the File Bar's Explorer, Search results and
 Source Control views. It holds the loaded items, the flat array of visible rows, and focus,
 selection and anchor, and turns every change into the fewest row splices it can. It never knows
-about files, Git, or where its items come from: a view hands it a `VirtualTreeSource` and renders
-the rows it reads back. The public API and its contracts are the TSDoc of `virtual-tree-types.ts`
-and `VirtualTreeModel`.
+about files, Git, or where its items come from: a view hands it a `VirtualTreeSource` and draws
+each row's content in `VirtualTree`. The public API and its contracts are the TSDoc of
+`virtual-tree-types.ts`, `VirtualTreeModel` and `VirtualTree`.
 
 ## Connecting a data source
 
@@ -27,6 +27,29 @@ and `VirtualTreeModel`.
 - A view restores a tree with `restoreViewState`, which expands the saved rows as they load.
 - Source callbacks must not call back into the model.
 
+## Rendering a tree
+
+- `VirtualTree` fills its container, which must give it a definite height. A resize observer hands
+  it its size, so it reads no layout while it renders or scrolls, and the rows for a new size paint
+  in the frame that resized it.
+- `renderRow` draws a row's content; the tree draws the row around it, with VS Code's 8 px a level
+  of indentation and the twistie. It runs only when a slot shows another row or the row's revision,
+  position, focus or selection changes, so content that depends on other data subscribes to that
+  data itself.
+- Rows are VS Code's 22 px unless `rowHeight` says otherwise. A function reads each row's height
+  into a Fenwick index, which answers position and row lookups in O(log n); it is read for every
+  row whenever its identity changes or rows change in place, and for inserted rows otherwise, so
+  keep it stable and cheap. The index, `layout/HeightIndex.ts`, works on
+  its own, and the module index exports it once a second consumer, such as multi-diff, needs it.
+- The scroll offset is model state: `scrollTop`, `setScrollTop` and the view state carry it, so a
+  tree shown again opens where it was left, and the view pulls an offset that the rows no longer
+  reach back within them. `reveal(key, { relativeTop })` expands a row's parents and asks the view
+  to scroll it into sight as VS Code does; a request that arrives before the view has a height
+  waits for it.
+- The wheel scrolls as VS Code's lists do, without smoothing: 50 px a notch, Alt five times as far,
+  never sideways, and a list keeps every wheel event. The scrollbar is the Panels' scrollbar as the
+  Sidebar shows it.
+
 ## Performance constraints
 
 - `key` and `hasChildren` run for every child on every refresh of its parent; keep them
@@ -42,10 +65,20 @@ and `VirtualTreeModel`.
   `indexOf` is constant-time for rows above the last splice; the first lookup below it walks from
   the splice to the row once.
 - Listeners hear an operation's events once it has finished: at most one `rows` event, then its
-  collapse, focus, selection and anchor events. A renderer reads only the rows it shows;
-  `{ kind: 'rows', splices: [] }` means rows changed in place.
+  collapse, focus, selection, anchor and scroll events, and a reveal request last, once the rows it
+  names are in place. A renderer reads only the rows it shows; `{ kind: 'rows', splices: [] }`
+  means rows changed in place.
+- Only the rows in sight have elements, plus the focused row while it is scrolled away, so
+  `aria-activedescendant` always names an element. Slot `s` shows the row whose index leaves
+  remainder `s`, so a row that scrolls in takes the element of the row that scrolled out, and a
+  frame of scrolling renders only the rows it brings in. Keep `renderRow` cheap: a fast scroll calls
+  it for every row in sight.
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
-  scenarios; run it before and after a change to the model.
+  scenarios and the height index; run it before and after a change to the model or the index.
+  `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist and prints
+  the render benchmark: expanding the folder of 100,000 files to its painted frame, selecting all of
+  it, and scrolling it at fixed speeds, with each frame's script time, long tasks and the layouts
+  that script forced. It needs an installed Playwright Chromium.
 
 ## Decisions
 
@@ -71,6 +104,8 @@ and `VirtualTreeModel`.
   ends; a key that would make a row its own ancestor is skipped, and a key repeated in one list keeps
   its first row. VS Code leaves these cases undefined, and silent duplicates would corrupt focus and
   selection.
+- **The view's first frame has rows.** The root hears its slot count in the layout phase, where an
+  external-store subscription would hear the first size only after passive Effects, a frame late.
 - **Traits follow keys.** Focus, anchor and selection survive collapse and drop only when their key
   leaves the tree. The selection is a set snapshot, so selecting all of 100,000 rows is one O(n)
   pass, where VS Code's mapping of every element back to a list index is O(n²).

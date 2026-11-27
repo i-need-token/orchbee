@@ -1,8 +1,8 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { VirtualTreeModel } from '../..';
-import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../..';
+import { VirtualTreeModel } from '../VirtualTreeModel';
+import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../virtual-tree-types';
 
 interface Item {
 	readonly key: string;

@@ -4,6 +4,7 @@ import { collectRows, NO_CHILDREN, TreeNode } from './tree-node';
 import type {
 	VirtualTreeEvent,
 	VirtualTreeModelOptions,
+	VirtualTreeRevealOptions,
 	VirtualTreeRow,
 	VirtualTreeSource,
 	VirtualTreeSplice,
@@ -46,6 +47,7 @@ export class VirtualTreeModel<K, T> {
 	private focusKey: K | null = null;
 	private anchorKey: K | null = null;
 	private selectionKeys: ReadonlySet<K> = new Set();
+	private scrollOffset = 0;
 	private readonly listeners = new Set<VirtualTreeListener<K>>();
 	private readonly deliveries: Delivery<K>[] = [];
 	private delivering = false;
@@ -63,6 +65,8 @@ export class VirtualTreeModel<K, T> {
 	private focusChanged = false;
 	private anchorChanged = false;
 	private selectionChanged = false;
+	private scrollChanged = false;
+	private revealRequest: { readonly key: K; readonly relativeTop: number | null } | null = null;
 	private removedKeys: K[] = [];
 	/** Nodes whose key a refresh gave to a new node elsewhere; they leave once the refresh ends. */
 	private displaced: TreeNode<K, T>[] = [];
@@ -89,6 +93,14 @@ export class VirtualTreeModel<K, T> {
 	/** A snapshot in no particular order: each change replaces the set instead of editing it. */
 	get selection(): ReadonlySet<K> {
 		return this.selectionKeys;
+	}
+
+	/**
+	 * How far the view has scrolled, in CSS pixels. It lives here, with focus and selection, so a tree
+	 * shown again opens where it was left; the view keeps it within its rows.
+	 */
+	get scrollTop(): number {
+		return this.scrollOffset;
 	}
 
 	rowAt(index: number): VirtualTreeRow<K, T> {
@@ -158,8 +170,11 @@ export class VirtualTreeModel<K, T> {
 		});
 	}
 
-	/** Expands the collapsed rows above a loaded key, so its row shows. */
-	reveal(key: K): void {
+	/**
+	 * Expands the collapsed rows above a loaded key, so its row shows, and asks the view to scroll it
+	 * into sight.
+	 */
+	reveal(key: K, options?: VirtualTreeRevealOptions): void {
 		const node = this.nodes.get(key);
 		if (node === undefined) return;
 		this.operate(() => {
@@ -167,6 +182,7 @@ export class VirtualTreeModel<K, T> {
 			for (let owner = node.owner; owner !== null && owner.owner !== null; owner = owner.owner) {
 				this.setCollapsed(owner, false, true);
 			}
+			this.revealRequest = { key, relativeTop: options?.relativeTop ?? null };
 		});
 	}
 
@@ -183,6 +199,17 @@ export class VirtualTreeModel<K, T> {
 		this.operate(() => {
 			this.anchorKey = key;
 			this.anchorChanged = true;
+		});
+	}
+
+	/** Scrolls to a whole, non-negative pixel offset, rounding the one given. */
+	setScrollTop(offset: number): void {
+		if (!Number.isFinite(offset)) throw new RangeError(`Invalid scroll offset ${offset}`);
+		const next = Math.max(0, Math.round(offset));
+		if (next === this.scrollOffset) return;
+		this.operate(() => {
+			this.scrollOffset = next;
+			this.scrollChanged = true;
 		});
 	}
 
@@ -213,13 +240,15 @@ export class VirtualTreeModel<K, T> {
 			anchor: this.anchorKey,
 			expanded,
 			focus: this.focusKey,
+			scrollTop: this.scrollOffset,
 			selection: [...this.selectionKeys],
 		};
 	}
 
 	/**
 	 * Expands the rows a saved state names as they load, loading the input first when it has never
-	 * loaded, then restores focus, anchor and selection for the keys that exist once loading settles.
+	 * loaded, then restores focus, anchor and selection for the keys that exist once loading settles,
+	 * and the scroll offset.
 	 */
 	restoreViewState(state: VirtualTreeViewState<K>): Promise<void> {
 		const expanded = new Set(state.expanded);
@@ -783,6 +812,7 @@ export class VirtualTreeModel<K, T> {
 			this.setSelection(state.selection);
 			this.setFocus(state.focus);
 			this.setAnchor(state.anchor);
+			this.setScrollTop(state.scrollTop);
 		});
 	}
 
@@ -829,9 +859,15 @@ export class VirtualTreeModel<K, T> {
 		if (this.focusChanged) events.push({ kind: 'focus' });
 		if (this.selectionChanged) events.push({ kind: 'selection' });
 		if (this.anchorChanged) events.push({ kind: 'anchor' });
+		if (this.scrollChanged) events.push({ kind: 'scroll' });
+		// A reveal follows every change of its operation, so a view scrolls over the rows as they are.
+		const reveal = this.revealRequest;
+		if (reveal !== null) events.push({ kind: 'reveal', ...reveal });
 		this.focusChanged = false;
 		this.selectionChanged = false;
 		this.anchorChanged = false;
+		this.scrollChanged = false;
+		this.revealRequest = null;
 		if (events.length === 0 || this.listeners.size === 0) return;
 		this.deliveries.push({ events, listeners: [...this.listeners] });
 		// Events of an operation a listener starts wait behind the ones being delivered, so a listener
