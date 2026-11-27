@@ -1496,6 +1496,7 @@ dependencies = [
  "encoding_rs",
  "orchbee-connection-handshake",
  "orchbee-files-protocol",
+ "orchbee-git-process",
  "orchbee-local-ipc",
  "orchbee-local-peer-credentials",
  "orchbee-local-runtime",

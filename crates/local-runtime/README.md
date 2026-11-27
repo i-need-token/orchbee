@@ -509,7 +509,8 @@ store change; the module's tests drive every store through an injected step.
 A stored sample of every released format keeps opening through today's opener. Each sample is a
 test file named `<record>-v<version>` beside the tests of the store that opens it:
 `src/tests/record_migration/record-samples/` holds the Session record, the restore notice and the
-plugin registry, Workbench Client keeps the machine and TUI position records, the Server's
+plugin registry, Workbench Client keeps the machine and TUI position records, `orchbee-files` keeps
+the parent-folder repository consents, the Server's
 checkpoint load tests keep a checkpoint slot with the kept terminal output it names, since the
 Server parses both payloads, and the Server's binding record tests keep a binding record. A format change adds its sample beside the earlier ones and removes
 none, and no sample changes: the first automatic-update release sealed the formats it ships. The

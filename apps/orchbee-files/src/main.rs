@@ -12,7 +12,7 @@ mod exit;
 mod fs;
 #[expect(
     dead_code,
-    reason = "the file engine implements the ports and the Git engine uses them in later slices"
+    reason = "the dispatch routes the Git engine's operations in a later commit"
 )]
 mod git;
 mod grants;
