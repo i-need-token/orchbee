@@ -51,6 +51,8 @@ export const enUSWebsiteDesktopMessages = {
 		'On Windows, Orchbee keeps its icon in the notification area, with or without a window. While terminals are running, closing the window keeps Orchbee running there. The icon shows the most urgent agent state, and its menu says how many terminals are running.',
 	'website.desktop.background.macos':
 		'On a Mac, the same menu is behind the Orchbee icon in the menu bar, and Orchbee stays in the Dock when you close its window, whether or not terminals are running.',
+	'website.desktop.background.linux':
+		'On Linux, the icon sits in the panel and works the same way. GNOME shows it only with the AppIndicator extension, which Ubuntu includes.',
 	'website.desktop.background.quitAll': 'Stop Session asks before it stops anything.',
 	'website.desktop.tray.label':
 		'The Windows notification and the notification-area menu of Orchbee',
@@ -72,6 +74,8 @@ export const enUSWebsiteDesktopMessages = {
 		'On Windows. Every shortcut is also an action you can find with <code>Ctrl+Shift+P</code>.',
 	'website.desktop.keys.leadMacos':
 		'Every shortcut is also an action you can find with <code>Ctrl+Shift+P</code>, or <code>⇧⌘P</code> on a Mac.',
+	'website.desktop.keys.leadLinux':
+		'On Windows and Linux. Every shortcut is also an action you can find with <code>Ctrl+Shift+P</code>.',
 	'website.desktop.keys.terminals': 'Terminals and Tabs',
 	'website.desktop.keys.terminals.newTerminal': 'New terminal',
 	'website.desktop.keys.terminals.newWorkspace': 'New Workspace',

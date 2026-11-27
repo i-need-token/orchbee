@@ -138,11 +138,15 @@ export const websiteDesktopMessages = defineMessages({
 	),
 	backgroundBodyWindows: message(
 		'website.desktop.background.bodyWindows',
-		'The notification-area icon Orchbee always shows on Windows, and what closing the window does there while terminals run, once a release offers macOS.',
+		'The notification-area icon Orchbee always shows on Windows, and what closing the window does there while terminals run, once a release offers macOS or Linux.',
 	),
 	backgroundMacos: message(
 		'website.desktop.background.macos',
 		'The menu-bar icon that holds the same menu on macOS, and what closing the window does there, once a release offers macOS.',
+	),
+	backgroundLinux: message(
+		'website.desktop.background.linux',
+		'Where the same icon sits on Linux, and the AppIndicator extension GNOME needs to show it, once a release offers Linux.',
 	),
 	backgroundQuitAll: message(
 		'website.desktop.background.quitAll',
@@ -205,6 +209,10 @@ export const websiteDesktopMessages = defineMessages({
 	keysLeadMacos: message(
 		'website.desktop.keys.leadMacos',
 		'Line under the shortcut heading once a release offers macOS and the tables show both platforms; <code> marks a key.',
+	),
+	keysLeadLinux: message(
+		'website.desktop.keys.leadLinux',
+		'Line under the shortcut heading once a release offers Linux but not macOS, whose keys are the Windows ones; <code> marks a key.',
 	),
 	keysTerminals: message(
 		'website.desktop.keys.terminals',

@@ -28,6 +28,10 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.sheet.platformValue': '目前支持 Windows（x86_64），macOS 和 Linux 版本正在开发中。',
 	'website.home.sheet.platformValueMacos':
 		'目前支持 Windows（x86_64）和 macOS 13 或更高版本，Linux 版本正在开发中。',
+	'website.home.sheet.platformValueLinux':
+		'目前支持 Windows（x86_64）和 Linux（x86_64 与 ARM64），macOS 版本正在开发中。',
+	'website.home.sheet.platformValueAll':
+		'支持 Windows（x86_64）、macOS 13 或更高版本，以及 Linux（x86_64 与 ARM64）。',
 	'website.home.sheet.privacy': '隐私',
 	'website.home.sheet.privacyValue':
 		'Orchbee 终端现在和以后都不做遥测。我们不上传使用数据做统计，不追踪用户行为，也不自动上传崩溃报告。匿名遥测和可选遥测也一样禁止。',
@@ -103,10 +107,18 @@ export const zhCNWebsiteHomeMessages = {
 	'website.home.install.startNote': '打开终端界面。也可以从开始菜单打开 Orchbee。',
 	'website.home.install.leadMacos':
 		'Orchbee 处于测试阶段，目前支持 Windows（x86_64）和 macOS 13 或更高版本；Linux 版本正在开发中。',
+	'website.home.install.leadLinux':
+		'Orchbee 处于测试阶段，目前支持 Windows（x86_64）和 Linux（x86_64 与 ARM64）；macOS 版本正在开发中。',
+	'website.home.install.leadAll':
+		'Orchbee 处于测试阶段，支持 Windows（x86_64）、macOS 13 或更高版本，以及 Linux（x86_64 与 ARM64）。',
 	'website.home.install.platform': '平台',
 	'website.home.install.tabNpm': 'npm（仅 CLI）',
 	'website.home.install.startNoteMacos':
 		'打开终端界面。也可以从 Windows 的开始菜单或 Mac 的“应用程序”中打开 Orchbee。',
+	'website.home.install.startNoteLinux':
+		'打开终端界面。也可以从 Windows 的开始菜单或 Linux 的应用程序菜单中打开 Orchbee。',
+	'website.home.install.startNoteAll':
+		'打开终端界面。也可以从 Windows 的开始菜单、Mac 的“应用程序”或 Linux 的应用程序菜单中打开 Orchbee。',
 	'website.home.install.source': '获取源码并安装依赖',
 	'website.home.install.sourceRequirements':
 		'Windows（x86_64）。需要 Git、Node.js 22+、Corepack、Rust 1.97.0 和 Zig 0.16.0。',

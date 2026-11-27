@@ -49,7 +49,7 @@ const windows = {
 	feed,
 	signature,
 	archive: { size: 27000000, sha256: '9'.repeat(64) },
-	installerPublic: true,
+	privateInstallers: [],
 };
 const good = { version: '0.1.0', rows: [windows], table, release };
 
@@ -73,7 +73,7 @@ function macosRow(cpu) {
 		feed: bytes,
 		signature: Buffer.from(signatureDocument(bytes, [testKey], FEED_DOMAIN)),
 		archive: { size: 21000000, sha256: '6'.repeat(64) },
-		installerPublic: true,
+		privateInstallers: [],
 	};
 }
 
@@ -143,8 +143,8 @@ test('SHA256SUMS names the published rows, which must include Windows and be off
 		/lists no orchbee-0\.1\.0-windows-x86_64\.feed\.json/u,
 	);
 	assert.match(
-		publishedPlatforms(sums('windows-x86_64', 'linux-x86_64'), '0.1.0').problems.join('\n'),
-		/linux-x86_64, which the website offers no download for/u,
+		publishedPlatforms(sums('windows-x86_64', 'freebsd-x86_64'), '0.1.0').problems.join('\n'),
+		/freebsd-x86_64, which the website offers no download for/u,
 	);
 });
 
@@ -161,9 +161,17 @@ test('nothing is written when the signature or the archive check fails', () => {
 		[row({ archive: { size: 26999999, sha256: '9'.repeat(64) } }), /26999999 bytes/u],
 		[row({ archive: { size: 27000000, sha256: '8'.repeat(64) } }), /SHA-256/u],
 		[row({ archive: undefined }), /not fetched/u],
-		[row({ installerPublic: false }), /setup\.exe is not public/u],
 		[
-			{ rows: [windows, { ...macosRow('aarch64'), installerPublic: false }] },
+			row({ privateInstallers: ['Orchbee-0.1.0-windows-x86_64-setup.exe'] }),
+			/setup\.exe is not public/u,
+		],
+		[
+			{
+				rows: [
+					windows,
+					{ ...macosRow('aarch64'), privateInstallers: ['Orchbee-0.1.0-macos-aarch64.dmg'] },
+				],
+			},
 			/macos-aarch64\.dmg is not public/u,
 		],
 		[{ release: 'export const release = {};\n' }, /block to set/u],

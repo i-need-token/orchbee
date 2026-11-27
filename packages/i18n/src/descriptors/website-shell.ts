@@ -88,6 +88,22 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.downloadForMacIntel',
 		'Link that downloads the macOS disk image for Intel Macs.',
 	),
+	downloadForLinux: message(
+		'website.shell.downloadForLinux',
+		'Button that downloads the Linux AppImage for x86_64 processors.',
+	),
+	downloadForLinuxDeb: message(
+		'website.shell.downloadForLinuxDeb',
+		'Link that downloads the Debian package for Linux on x86_64 processors.',
+	),
+	downloadForLinuxArmAppImage: message(
+		'website.shell.downloadForLinuxArmAppImage',
+		'Link that downloads the Linux AppImage for ARM64 processors.',
+	),
+	downloadForLinuxArmDeb: message(
+		'website.shell.downloadForLinuxArmDeb',
+		'Link that downloads the Debian package for Linux on ARM64 processors.',
+	),
 	platformWindows: message(
 		'website.shell.platform.windows',
 		'Name of the Windows platform: the heading over its installers in the download dialog.',
@@ -95,6 +111,10 @@ export const websiteShellMessages = defineMessages({
 	platformMacos: message(
 		'website.shell.platform.macos',
 		'Name of the macOS platform: the heading over its disk images in the download dialog.',
+	),
+	platformLinux: message(
+		'website.shell.platform.linux',
+		'Name of the Linux platform: the heading over its AppImages and Debian packages in the download dialog.',
 	),
 	downloadAction: message(
 		'website.shell.download.action',
@@ -107,6 +127,22 @@ export const websiteShellMessages = defineMessages({
 	downloadIntel: message(
 		'website.shell.download.intel',
 		'Button in the download dialog that downloads the macOS disk image for Macs with an Intel processor.',
+	),
+	downloadAppImageX64: message(
+		'website.shell.download.appImageX64',
+		'Button in the download dialog that downloads the Linux AppImage for x86_64 processors.',
+	),
+	downloadDebX64: message(
+		'website.shell.download.debX64',
+		'Button in the download dialog that downloads the Debian package for x86_64 processors.',
+	),
+	downloadAppImageArm: message(
+		'website.shell.download.appImageArm',
+		'Button in the download dialog that downloads the Linux AppImage for ARM64 processors.',
+	),
+	downloadDebArm: message(
+		'website.shell.download.debArm',
+		'Button in the download dialog that downloads the Debian package for ARM64 processors.',
 	),
 	downloadTitle: message('website.shell.download.title', 'Heading of the download dialog.'),
 	downloadClose: message(
@@ -128,6 +164,22 @@ export const websiteShellMessages = defineMessages({
 	downloadScriptCli: message(
 		'website.shell.download.scriptCli',
 		'Label above the macOS install script command that installs only the terminal interface and CLI.',
+	),
+	downloadScriptDesktopLinux: message(
+		'website.shell.download.scriptDesktopLinux',
+		'Label above the Linux install script command that installs the desktop app, terminal interface, and CLI.',
+	),
+	downloadScriptCliLinux: message(
+		'website.shell.download.scriptCliLinux',
+		'Label above the Linux install script command that installs only the terminal interface and CLI.',
+	),
+	downloadScriptDesktopShared: message(
+		'website.shell.download.scriptDesktopShared',
+		'Label above the install script command that installs the desktop app, terminal interface, and CLI, when a release offers it for both macOS and Linux.',
+	),
+	downloadScriptCliShared: message(
+		'website.shell.download.scriptCliShared',
+		'Label above the install script command that installs only the terminal interface and CLI, when a release offers it for both macOS and Linux.',
 	),
 	downloadReleaseNotes: message(
 		'website.shell.download.releaseNotes',
@@ -169,13 +221,13 @@ export const websiteShellMessages = defineMessages({
 		'website.shell.install.macos.scriptDetail',
 		'What the two install script commands do.',
 	),
-	installMacosScriptDesktop: message(
-		'website.shell.install.macos.scriptDesktop',
-		'Label above the macOS install script command that installs the desktop app, terminal interface, and CLI.',
+	installScriptDesktop: message(
+		'website.shell.install.scriptDesktop',
+		'Label above the install script command that installs the desktop app, terminal interface, and CLI, under the macOS or the Linux tab.',
 	),
-	installMacosScriptCli: message(
-		'website.shell.install.macos.scriptCli',
-		'Label above the macOS install script command that installs only the terminal interface and CLI.',
+	installScriptCli: message(
+		'website.shell.install.scriptCli',
+		'Label above the install script command that installs only the terminal interface and CLI, under the macOS or the Linux tab.',
 	),
 	installDownloadAppleSilicon: message(
 		'website.shell.install.downloadAppleSilicon',
@@ -184,6 +236,38 @@ export const websiteShellMessages = defineMessages({
 	installDownloadIntel: message(
 		'website.shell.install.downloadIntel',
 		'Button that downloads the disk image for Macs with an Intel processor.',
+	),
+	installLinuxTitle: message(
+		'website.shell.install.linux.title',
+		'Row of the Linux AppImages and Debian packages: what they contain.',
+	),
+	installLinuxDetail: message(
+		'website.shell.install.linux.detail',
+		'How to install from the Linux AppImage or Debian package.',
+	),
+	installLinuxScriptTitle: message(
+		'website.shell.install.linux.scriptTitle',
+		'Row of the install script command for Linux.',
+	),
+	installLinuxScriptDetail: message(
+		'website.shell.install.linux.scriptDetail',
+		'What the two install script commands do on Linux.',
+	),
+	installDownloadAppImageX64: message(
+		'website.shell.install.downloadAppImageX64',
+		'Button that downloads the Linux AppImage for x86_64 processors.',
+	),
+	installDownloadDebX64: message(
+		'website.shell.install.downloadDebX64',
+		'Button that downloads the Debian package for x86_64 processors.',
+	),
+	installDownloadAppImageArm: message(
+		'website.shell.install.downloadAppImageArm',
+		'Button that downloads the Linux AppImage for ARM64 processors.',
+	),
+	installDownloadDebArm: message(
+		'website.shell.install.downloadDebArm',
+		'Button that downloads the Debian package for ARM64 processors.',
 	),
 	copyCommand: message(
 		'website.shell.copyCommand',

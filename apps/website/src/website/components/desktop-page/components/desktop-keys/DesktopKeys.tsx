@@ -5,7 +5,7 @@ import {
 } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { offersMacos, type Release } from '../../../../release';
+import { offeredPlatforms, type OfferedPlatforms, type Release } from '../../../../release';
 import { richText } from '../../../../rich-text';
 import { DetailSection } from '../../../detail-section/DetailSection';
 import { KeyGroups } from '../../../key-groups/KeyGroups';
@@ -118,18 +118,32 @@ const GROUPS = [
 	},
 ] as const;
 
+// The line under the heading and the tables' column heads, by the platforms besides Windows the
+// release offers: with macOS, a column of its keys beside the Windows ones, which Linux uses too.
 // Platform names are not translated.
-const PLATFORMS = ['Windows', 'macOS'] as const;
+const LEAD = {
+	windows: messages.keysLead,
+	macos: messages.keysLeadMacos,
+	linux: messages.keysLeadLinux,
+	all: messages.keysLeadMacos,
+} as const satisfies Record<OfferedPlatforms, unknown>;
+const PLATFORMS = {
+	windows: undefined,
+	macos: ['Windows', 'macOS'],
+	linux: undefined,
+	all: ['Windows · Linux', 'macOS'],
+} as const satisfies Record<OfferedPlatforms, readonly [string, string] | undefined>;
 
 /** The shortcut reference; while the release offers macOS, with the macOS keys beside Windows'. */
 export function DesktopKeys({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
-	const withMacos = offersMacos(release);
+	const offered = offeredPlatforms(release);
+	const platforms = PLATFORMS[offered];
 	return (
 		<DetailSection
 			kicker={t(websiteShellMessages.detailReference)}
 			title={t(messages.keysTitle)}
-			lead={t(withMacos ? messages.keysLeadMacos : messages.keysLead, richText)}
+			lead={t(LEAD[offered], richText)}
 		>
 			<KeyGroups
 				groups={GROUPS.map((group) => ({
@@ -139,10 +153,10 @@ export function DesktopKeys({ release }: { release: Release }): ReactElement {
 						id: row.id,
 						label: t(row.label),
 						keys: row.keys,
-						...(withMacos ? { macosKeys: row.macosKeys } : {}),
+						...(platforms === undefined ? {} : { macosKeys: row.macosKeys }),
 					})),
 				}))}
-				platforms={withMacos ? PLATFORMS : undefined}
+				platforms={platforms}
 			/>
 		</DetailSection>
 	);

@@ -3,7 +3,7 @@ name: Update check
 # Runs when the release workflow's publication job dispatches it with the tag it published (a
 # release published with that job's token raises no `release: published`), when a release is
 # published by hand, or by hand with a published tag, and proves on a fresh runner of each platform
-# whose release builds update themselves (Windows and both macOS rows; Linux withholds `update`)
+# whose release builds update themselves (Windows, both macOS rows and both Linux rows)
 # that the version people have now updates to the new release through its own `orchbee update`
 # over HTTPS, reading the release's feed asset of that platform, including the window store when
 # both releases carry `extensions.desktop`. Every request in `update-check` is an anonymous GET to
@@ -43,6 +43,10 @@ jobs:
             runner: macos-15
           - platform: macos-x86_64
             runner: macos-15-intel
+          - platform: linux-x86_64
+            runner: ubuntu-24.04
+          - platform: linux-aarch64
+            runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 30
     env:
@@ -69,6 +73,11 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: node scripts/release-smoke-macos.mjs update "$RELEASE_TAG" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/" --work "$RUNNER_TEMP/update-check"
+
+      - name: Update the version people have now to the release
+        if: runner.os == 'Linux'
+        shell: bash
+        run: node scripts/release-smoke-linux.mjs update "$RELEASE_TAG" --release "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG/" --work "$RUNNER_TEMP/update-check"
 
   website-release:
     name: Roll out website channel ${{ github.event.release.tag_name || inputs.tag }}

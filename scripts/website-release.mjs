@@ -12,19 +12,19 @@
 // release, whose assets answer 404 to anyone signed out, cannot pass, and a proxy variable works as
 // it does for curl. The feed documents it lists, `orchbee-<version>-<platform>.feed.json`, name
 // the platform rows the release published; `windows-x86_64` must be among them, and each must be a
-// platform the website offers a download for (`downloads` below). For every row it fetches the
+// platform the website offers downloads for (`downloads` below). For every row it fetches the
 // feed pair, verifies the feed signature with RELEASE_KEYS of
 // apps/orchbee/src/cli/update/signature.rs before reading the feed, requires schemaVersion 1 (the
 // /update/<channel>/ endpoints are frozen at v1), checks the feed against the
-// reader's rules, its written form and the requested version, confirms the row's download is
-// public, downloads the archive the feed names, bounded by its signed size, and checks its size and
-// SHA-256. Only then does it write, in one step:
+// reader's rules, its written form and the requested version, confirms each of the row's
+// downloads is public, downloads the archive the feed names, bounded by its signed size, and checks
+// its size and SHA-256. Only then does it write, in one step:
 //
 //   apps/website/public/update/<channel>/<platform>/feed.json.signed   the exact feed bytes of each
 //                                                                      row, served as feed.json
 //   apps/website/public/update/<channel>/<platform>/feed.json.sig      its signature document
 //   apps/website/src/website/release.ts                                version and each row's
-//                                                                      download
+//                                                                      downloads
 //
 // and removes the pair of every platform of the channel the release did not publish, so each
 // tracked feed names the version the download buttons offer. The first failed check stops the
@@ -78,13 +78,23 @@ const releaseModule = 'apps/website/src/website/release.ts';
 const installScriptPath = 'apps/website/public/install.sh';
 const updateRoot = 'apps/website/public/update';
 const defaultLiveOrigin = 'https://orchbee.com';
-// Each platform the website offers a download for, with that download's release asset name, in the
-// order release.ts lists them. A release that publishes another platform is refused until it is
-// added here and to `ReleaseDownloads` in release.ts.
+// Each platform the website offers downloads for, with each download's key in `ReleaseDownloads` of
+// release.ts and its release asset name, in the order release.ts lists them. A release that
+// publishes another platform is refused until it is added here and to `ReleaseDownloads`.
 const downloads = {
-	'windows-x86_64': (version) => `Orchbee-${version}-windows-x86_64-setup.exe`,
-	'macos-aarch64': (version) => `Orchbee-${version}-macos-aarch64.dmg`,
-	'macos-x86_64': (version) => `Orchbee-${version}-macos-x86_64.dmg`,
+	'windows-x86_64': {
+		'windows-x86_64': (version) => `Orchbee-${version}-windows-x86_64-setup.exe`,
+	},
+	'macos-aarch64': { 'macos-aarch64': (version) => `Orchbee-${version}-macos-aarch64.dmg` },
+	'macos-x86_64': { 'macos-x86_64': (version) => `Orchbee-${version}-macos-x86_64.dmg` },
+	'linux-x86_64': {
+		'linux-x86_64-appimage': (version) => `Orchbee-${version}-linux-x86_64.AppImage`,
+		'linux-x86_64-deb': (version) => `Orchbee-${version}-linux-x86_64.deb`,
+	},
+	'linux-aarch64': {
+		'linux-aarch64-appimage': (version) => `Orchbee-${version}-linux-aarch64.AppImage`,
+		'linux-aarch64-deb': (version) => `Orchbee-${version}-linux-aarch64.deb`,
+	},
 };
 // Every release publishes it; the calls to action offer its download.
 const requiredPlatform = 'windows-x86_64';
@@ -104,9 +114,14 @@ const releaseBlock = /^export const release: Release = \{[\s\S]*?\n\};\n/mu;
 
 class UsageError extends Error {}
 
-/** The download asset the website offers for a platform of a version, by the download names. */
-export function installerName(version, platform = requiredPlatform) {
-	return Object.hasOwn(downloads, platform) ? downloads[platform](version) : undefined;
+/**
+ * The downloads the website offers for a platform of a version, as `[key, asset name]` pairs by the
+ * download names; none for a platform it offers nothing for.
+ */
+export function installers(version, platform = requiredPlatform) {
+	return Object.hasOwn(downloads, platform)
+		? Object.entries(downloads[platform]).map(([key, name]) => [key, name(version)])
+		: [];
 }
 
 /**
@@ -125,7 +140,7 @@ export function publishedPlatforms(checksums, version) {
 	const unknown = listed.filter((platform) => !Object.hasOwn(downloads, platform));
 	if (unknown.length > 0)
 		problems.push(
-			`The release publishes ${unknown.join(', ')}, which the website offers no download for. Add each to \`downloads\` in scripts/website-release.mjs and to ReleaseDownloads in ${releaseModule} first.`,
+			`The release publishes ${unknown.join(', ')}, which the website offers no download for. Add each to \`downloads\` in scripts/website-release.mjs and its downloads to ReleaseDownloads in ${releaseModule} first.`,
 		);
 	if (!listed.includes(requiredPlatform))
 		problems.push(`${checksumsName} lists no ${feedName(stem, version, requiredPlatform)}.`);
@@ -150,9 +165,10 @@ export function releaseSource(source, version, platforms = [requiredPlatform]) {
 		`\tversion: '${version}',\n` +
 		'\tdownloads: {\n' +
 		platforms
+			.flatMap((platform) => installers(version, platform))
 			.map(
-				(platform) =>
-					`\t\t'${platform}': \`\${REPOSITORY_URL}/releases/download/v${version}/${installerName(version, platform)}\`,\n`,
+				([key, name]) =>
+					`\t\t'${key}': \`\${REPOSITORY_URL}/releases/download/v${version}/${name}\`,\n`,
 			)
 			.join('') +
 		'\t},\n' +
@@ -390,8 +406,9 @@ export function admitFeed({ version, platform, feed, signature, table, standIn }
 /**
  * Every file the command writes, as `{ path, bytes }` relative to the repository, and every tracked
  * file it removes, or the sentences that say why nothing may change. Pure: the caller fetched every
- * input. `rows` holds one `{ platform, feed, signature, archive, installerPublic }` per published
- * platform; `tracked` names each tracked pair folder as `<channel>/<platform>`.
+ * input. `rows` holds one `{ platform, feed, signature, archive, privateInstallers }` per published
+ * platform, `privateInstallers` naming each of its downloads that is not public; `tracked` names each
+ * tracked pair folder as `<channel>/<platform>`.
  */
 export function planWebsiteRelease({
 	version,
@@ -404,17 +421,15 @@ export function planWebsiteRelease({
 	const problems = [];
 	const admittedRows = [];
 	for (const row of rows) {
-		const { platform, feed, signature, archive, installerPublic } = row;
+		const { platform, feed, signature, archive, privateInstallers } = row;
 		const admitted = admitFeed({ version, platform, feed, signature, table, standIn });
 		if (admitted.problems.length > 0) {
 			problems.push(...admitted.problems);
 			continue;
 		}
 		const expected = admitted.feed.archive;
-		if (!installerPublic)
-			problems.push(
-				`${installerName(version, platform)} is not public; the download button would break.`,
-			);
+		for (const name of privateInstallers)
+			problems.push(`${name} is not public; the download button would break.`);
 		if (archive === undefined) {
 			problems.push(`The ${platform} archive was not fetched.`);
 		} else {
@@ -634,8 +649,7 @@ function fetchArchive(source, version, feed, scratch) {
 	return { archive: fileFacts(output) };
 }
 
-function installerIsPublic(source, version, platform) {
-	const name = installerName(version, platform);
+function installerIsPublic(source, name) {
 	if (source.kind === 'folder') return existsSync(path.join(source.base, name));
 	const { status } = curl(source, new URL(name, source.base).href, { probe: true });
 	return status === 200 || status === 206;
@@ -675,8 +689,10 @@ export function websiteRelease({ version, from, root = repository, log = () => {
 				standIn,
 			});
 			if (admitted.problems.length > 0) return refused(admitted.problems);
-			log(`The ${platform} feed verifies; checking its download and its archive.`);
-			const installerPublic = installerIsPublic(source, version, platform);
+			log(`The ${platform} feed verifies; checking its downloads and its archive.`);
+			const privateInstallers = installers(version, platform)
+				.map(([, installer]) => installer)
+				.filter((installer) => !installerIsPublic(source, installer));
 			const archive = fetchArchive(source, version, admitted.feed, scratch);
 			if (archive.problem !== undefined) return refused([archive.problem]);
 			rows.push({
@@ -684,7 +700,7 @@ export function websiteRelease({ version, from, root = repository, log = () => {
 				feed: feed.bytes,
 				signature: signature.bytes,
 				archive: archive.archive,
-				installerPublic,
+				privateInstallers,
 			});
 		}
 		const plan = planWebsiteRelease({

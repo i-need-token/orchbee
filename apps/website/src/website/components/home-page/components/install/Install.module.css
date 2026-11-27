@@ -113,4 +113,13 @@
 	.row {
 		grid-template-columns: minmax(0, 1fr);
 	}
+	/* At phone width the tabs fill the width, so a line that four (Windows, macOS, Linux and npm) wrap
+	   onto is as wide as the first. */
+	.tabs {
+		display: flex;
+	}
+	.tab {
+		flex: 1 1 auto;
+		justify-content: center;
+	}
 }

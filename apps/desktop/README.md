@@ -297,6 +297,10 @@ the restart, again.
   `resources/tray`. The Dock keeps the system's own menu. The application menu ends with Stop
   Session… and then `Command+Q` Quit Orchbee, and the Window menu holds Open Orchbee while no window
   shows.
+- On Linux, the panel icon, a StatusNotifierItem, from start until quit, with the Windows icon's
+  state hexagon and the same menu; the activation the panel sends shows and focuses the window.
+  GNOME shows it only with its AppIndicator extension. The icons are generated into
+  `resources/brand/png/linux/tray/`, which a Linux package carries as `resources/tray`.
 - Save Diagnostic Bundle… in the Help menu, and, since the title bar overlay hides the menu bar,
   on Windows also in the taskbar's Jump List of a packaged build and on Linux in the menu entry's
   own menu, as its one action, which the dock and application grid show. It asks

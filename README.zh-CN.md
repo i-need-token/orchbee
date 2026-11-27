@@ -84,8 +84,8 @@ Orchbee 终端现在和以后都不做遥测。我们不上传使用数据做统
 ## 安装
 
 > [!IMPORTANT]
-> Orchbee 处于测试阶段，目前支持 Windows（x86_64）和 macOS 13 或更高版本（Apple 芯片和
-> Intel）；Linux 版本正在开发中。
+> Orchbee 处于测试阶段，支持 Windows（x86_64）、macOS 13 或更高版本（Apple 芯片和 Intel），
+> 以及 Linux（x86_64 和 ARM64）。
 
 ### Windows：桌面应用、终端和 CLI
 
@@ -122,6 +122,32 @@ macOS 上的已知限制：
 - 终端中的图片只在支持 Kitty 图形协议的终端（如 Ghostty 和 kitty）中显示；iTerm2 和“终端”显示的是较粗的
   字符画面。
 
+### Linux：桌面应用、终端和 CLI
+
+在终端中安装：
+
+```sh
+curl -fsSL https://orchbee.com/install.sh | sh                  # 终端界面和 CLI
+curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # 同时安装桌面应用
+```
+
+- 全部装在你的主目录里，不需要 root 权限。桌面应用会加入应用程序菜单。
+- 命令链接在 `~/.local/bin/orchbee`，安装程序会把这个文件夹加入新终端的 `PATH`：bash 写在
+  `~/.bashrc`，zsh 写在 `~/.zshenv`，各两行。新开一个终端即可使用 `orchbee`；`orchbee uninstall`
+  会移除这两行。其他 shell 会打印要加入的那一行。
+
+也可以从[发布页](https://github.com/i-need-token/orchbee/releases)下载 AppImage 或 Debian 软件包：
+`Orchbee-<version>-linux-x86_64.AppImage` 或 `Orchbee-<version>-linux-x86_64.deb`，ARM64 下载
+`linux-aarch64` 的版本。给 AppImage 加上可执行权限后打开，或用
+`sudo apt install ./Orchbee-<version>-linux-x86_64.deb` 安装软件包。首次启动时会以同样方式安装命令。
+
+Linux 上的已知限制：
+
+- ARM64 只在 CI 中测试过。
+- GNOME 需要 AppIndicator 扩展才会显示 Orchbee 的面板图标，Ubuntu 已自带该扩展。
+- 远程机器的密码记在 Secret Service 钥匙圈里，例如 GNOME Keyring 或 KWallet；没有钥匙圈时（例如在服务器上），
+  Orchbee 每次都会询问。
+
 ### 仅终端和 CLI
 
 ```sh
@@ -136,7 +162,7 @@ npm install -g orchbee@next
 orchbee          # 打开终端界面
 ```
 
-也可以在 Windows 上从开始菜单、在 macOS 上从“应用程序”打开 **Orchbee**。
+也可以在 Windows 上从开始菜单、在 macOS 上从“应用程序”、在 Linux 上从应用程序菜单打开 **Orchbee**。
 
 ### 更新
 
@@ -151,7 +177,8 @@ Orchbee 即可使用新版本。有新版本就绪时，桌面应用也会显示
 ### 卸载
 
 Windows 上，在**设置 › 应用**中移除 Orchbee，或运行 `orchbee uninstall`。macOS 上，运行
-`orchbee uninstall`，再把“应用程序”中的 **Orchbee** 移到废纸篓。通过 npm 安装的，先运行
+`orchbee uninstall`，再把“应用程序”中的 **Orchbee** 移到废纸篓。Linux 上，运行 `orchbee uninstall`，
+再删除 AppImage，或对 Debian 软件包运行 `sudo apt remove orchbee`。通过 npm 安装的，先运行
 `orchbee uninstall`，再运行 `npm rm -g orchbee`。`~/.orchbee` 中的数据会保留；加上
 `--delete-data` 可一并删除。
 

@@ -7,7 +7,8 @@ import { Fragment, type ReactElement, type ReactNode } from 'react';
 
 import {
 	NPM_INSTALL_COMMAND,
-	offersMacos,
+	offeredPlatforms,
+	type OfferedPlatforms,
 	publishedPlatforms,
 	releaseNotesUrl,
 	SOURCE_COMMANDS,
@@ -46,6 +47,20 @@ function InstallRow({
 	);
 }
 
+// The install lead and the start note, by the platforms besides Windows the release offers.
+const LEAD = {
+	windows: messages.installLead,
+	macos: messages.installLeadMacos,
+	linux: messages.installLeadLinux,
+	all: messages.installLeadAll,
+} as const satisfies Record<OfferedPlatforms, unknown>;
+const START_NOTE = {
+	windows: messages.installStartNote,
+	macos: messages.installStartNoteMacos,
+	linux: messages.installStartNoteLinux,
+	all: messages.installStartNoteAll,
+} as const satisfies Record<OfferedPlatforms, unknown>;
+
 // How to install Orchbee. Once a release is published: the rows of each platform it published (its commands, when it
 // has any, above its installer buttons), the npm package and how to start, with the release named. With more than one
 // platform, a tab per platform and one for npm, opening on the visitor's platform; the note under the rows follows
@@ -54,7 +69,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const platforms = publishedPlatforms(release);
 	const several = platforms.length > 1;
-	const withMacos = offersMacos(release);
+	const offered = offeredPlatforms(release);
 	return (
 		<section className={styles['section']} id='install' data-install=''>
 			<div className={styles['install']} data-reveal=''>
@@ -63,7 +78,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 						layout='stack'
 						kicker={t(messages.installKicker)}
 						title={t(messages.installTitle)}
-						lead={t(withMacos ? messages.installLeadMacos : messages.installLead)}
+						lead={t(LEAD[offered])}
 					/>
 					{release.published ? (
 						<a
@@ -146,6 +161,8 @@ export function Install({ release }: { release: Release }): ReactElement {
 												several ? t(shellMessages[platform.install.title]) : t(messages.installApp)
 											}
 											detail={t(shellMessages[platform.install.detail], richText)}
+											// More than two installers, as Linux has, leave the text no room beside them.
+											stacked={installers.length > 2}
 											group={platform.id}
 										>
 											{/* A lone installer sits in the row itself, as the Windows download always has. */}
@@ -167,7 +184,7 @@ export function Install({ release }: { release: Release }): ReactElement {
 							</InstallRow>
 							<InstallRow
 								title={t(messages.installStart)}
-								detail={t(withMacos ? messages.installStartNoteMacos : messages.installStartNote)}
+								detail={t(START_NOTE[offered])}
 								group='all'
 							>
 								<CommandChip command='orchbee' tone='quiet' />

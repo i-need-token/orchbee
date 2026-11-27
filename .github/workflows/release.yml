@@ -84,8 +84,8 @@ env:
     {"platform": "windows-aarch64", "runner": "windows-11-arm", "build": false, "publish": false},
     {"platform": "macos-aarch64", "runner": "macos-15", "build": true, "publish": true},
     {"platform": "macos-x86_64", "runner": "macos-15-intel", "build-runner": "macos-15", "build": true, "publish": true},
-    {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": true, "publish": false},
-    {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": true, "publish": false}
+    {"platform": "linux-x86_64", "runner": "ubuntu-24.04", "build": true, "publish": true},
+    {"platform": "linux-aarch64", "runner": "ubuntu-24.04-arm", "build": true, "publish": true}
     ]
 
 jobs:

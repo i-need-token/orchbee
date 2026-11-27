@@ -30,6 +30,10 @@ export const enUSWebsiteHomeMessages = {
 		'Windows (x86_64) today. macOS and Linux builds are in progress.',
 	'website.home.sheet.platformValueMacos':
 		'Windows (x86_64) and macOS 13 or later today. Linux builds are in progress.',
+	'website.home.sheet.platformValueLinux':
+		'Windows (x86_64) and Linux (x86_64 and ARM64) today. macOS builds are in progress.',
+	'website.home.sheet.platformValueAll':
+		'Windows (x86_64), macOS 13 or later, and Linux (x86_64 and ARM64).',
 	'website.home.sheet.privacy': 'Privacy',
 	'website.home.sheet.privacyValue':
 		'The Orchbee terminal does not use telemetry and never will. We do not upload usage data for analytics, track user behavior, or send automatic crash reports. Anonymous and opt-in telemetry are also prohibited.',
@@ -115,10 +119,18 @@ export const enUSWebsiteHomeMessages = {
 		'Opens the terminal interface. Or open Orchbee from the Start menu.',
 	'website.home.install.leadMacos':
 		'Orchbee is in beta. It runs on Windows (x86_64) and macOS 13 or later today; Linux builds are in progress.',
+	'website.home.install.leadLinux':
+		'Orchbee is in beta. It runs on Windows (x86_64) and Linux (x86_64 and ARM64) today; macOS builds are in progress.',
+	'website.home.install.leadAll':
+		'Orchbee is in beta. It runs on Windows (x86_64), macOS 13 or later, and Linux (x86_64 and ARM64).',
 	'website.home.install.platform': 'Platform',
 	'website.home.install.tabNpm': 'npm (CLI only)',
 	'website.home.install.startNoteMacos':
 		'Opens the terminal interface. Or open Orchbee from the Start menu on Windows, or from Applications on a Mac.',
+	'website.home.install.startNoteLinux':
+		'Opens the terminal interface. Or open Orchbee from the Start menu on Windows, or from the applications menu on Linux.',
+	'website.home.install.startNoteAll':
+		'Opens the terminal interface. Or open Orchbee from the Start menu on Windows, from Applications on a Mac, or from the applications menu on Linux.',
 	'website.home.install.source': 'Get the source and install its dependencies',
 	'website.home.install.sourceRequirements':
 		'Windows (x86_64). Needs Git, Node.js 22+, Corepack, Rust 1.97.0 and Zig 0.16.0.',

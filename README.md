@@ -84,8 +84,8 @@ The Orchbee terminal does not use telemetry and never will. We do not upload usa
 ## Install
 
 > [!IMPORTANT]
-> Orchbee is in beta. It runs on Windows (x86_64) and on macOS 13 or later (Apple silicon and
-> Intel); Linux builds are in progress.
+> Orchbee is in beta. It runs on Windows (x86_64), on macOS 13 or later (Apple silicon and Intel)
+> and on Linux (x86_64 and ARM64).
 
 ### Windows: desktop app, terminal and CLI
 
@@ -125,6 +125,36 @@ Known limits on macOS:
 - Images show in terminals that speak the Kitty graphics protocol, such as Ghostty and kitty; iTerm2
   and Terminal.app show a coarser cell picture.
 
+### Linux: desktop app, terminal and CLI
+
+Install from a terminal:
+
+```sh
+curl -fsSL https://orchbee.com/install.sh | sh                  # terminal interface and CLI
+curl -fsSL https://orchbee.com/install.sh | sh -s -- --desktop  # the desktop app as well
+```
+
+- Everything goes into your home folder; no root needed. The desktop app is added to your
+  applications menu.
+- The command is linked at `~/.local/bin/orchbee`, and the installer puts that folder on `PATH` for
+  new terminals: two lines in `~/.bashrc` for bash, or in `~/.zshenv` for zsh. Open a new terminal
+  to use `orchbee`; `orchbee uninstall` removes those lines. For another shell it prints the line
+  to add.
+
+Or download the AppImage or the Debian package from the
+[releases page](https://github.com/i-need-token/orchbee/releases):
+`Orchbee-<version>-linux-x86_64.AppImage` or `Orchbee-<version>-linux-x86_64.deb`, and
+`linux-aarch64` for ARM64. Make the AppImage executable and open it, or install the package with
+`sudo apt install ./Orchbee-<version>-linux-x86_64.deb`. Its first start installs the command the
+same way.
+
+Known limits on Linux:
+
+- ARM64 is tested in CI only.
+- GNOME shows Orchbee's panel icon only with the AppIndicator extension, which Ubuntu includes.
+- Passwords of remote machines are remembered in a Secret Service keyring, such as GNOME Keyring or
+  KWallet; without one, as on a server, Orchbee asks each time.
+
 ### Terminal and CLI only
 
 ```sh
@@ -139,7 +169,8 @@ Requires Node.js 22 or later. This installs the terminal interface and the CLI, 
 orchbee          # open the terminal interface
 ```
 
-Or open **Orchbee** from the Start menu on Windows, or from Applications on macOS.
+Or open **Orchbee** from the Start menu on Windows, from Applications on macOS, or from the
+applications menu on Linux.
 
 ### Update
 
@@ -156,7 +187,9 @@ above.
 ### Uninstall
 
 On Windows, remove Orchbee from **Settings › Apps**, or run `orchbee uninstall`. On macOS, run
-`orchbee uninstall`, then move **Orchbee** from Applications to the Trash. For an npm install, run
+`orchbee uninstall`, then move **Orchbee** from Applications to the Trash. On Linux, run
+`orchbee uninstall`, then delete the AppImage or run `sudo apt remove orchbee` for the Debian
+package. For an npm install, run
 `orchbee uninstall` and then `npm rm -g orchbee`. Your data in `~/.orchbee` is kept; add
 `--delete-data` to remove it too.
 

@@ -53,6 +53,8 @@ export const zhCNWebsiteDesktopMessages = {
 		'在 Windows 上，不管窗口开着还是关着，Orchbee 的图标都在通知区域。只要还有终端在运行，关闭窗口后 Orchbee 会继续在那里运行。图标显示最紧急的 Agent 状态，菜单里写着有多少终端正在运行。',
 	'website.desktop.background.macos':
 		'在 Mac 上，同样的菜单在菜单栏的 Orchbee 图标里；关闭窗口后 Orchbee 会留在程序坞中，不管有没有终端在运行。',
+	'website.desktop.background.linux':
+		'在 Linux 上，图标位于面板中，用法相同。GNOME 需要 AppIndicator 扩展才会显示它，Ubuntu 已自带该扩展。',
 	'website.desktop.background.quitAll': '“停止会话”在停止任何内容之前会先询问。',
 	'website.desktop.tray.label': 'Orchbee 的 Windows 通知和通知区域菜单',
 	'website.desktop.tray.whenClosed': '关闭窗口时',
@@ -73,6 +75,8 @@ export const zhCNWebsiteDesktopMessages = {
 		'Windows 上的快捷键。每个快捷键对应的操作，都可以用 <code>Ctrl+Shift+P</code> 搜到。',
 	'website.desktop.keys.leadMacos':
 		'每个快捷键对应的操作，都可以用 <code>Ctrl+Shift+P</code> 搜到，在 Mac 上是 <code>⇧⌘P</code>。',
+	'website.desktop.keys.leadLinux':
+		'Windows 和 Linux 上的快捷键。每个快捷键对应的操作，都可以用 <code>Ctrl+Shift+P</code> 搜到。',
 	'website.desktop.keys.terminals': '终端与标签页',
 	'website.desktop.keys.terminals.newTerminal': '新建终端',
 	'website.desktop.keys.terminals.newWorkspace': '新建工作区',

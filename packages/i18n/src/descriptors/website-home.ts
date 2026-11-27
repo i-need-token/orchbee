@@ -86,6 +86,14 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.sheet.platformValueMacos',
 		'Value of the platform row of the data sheet once a release offers macOS downloads.',
 	),
+	sheetPlatformValueLinux: message(
+		'website.home.sheet.platformValueLinux',
+		'Value of the platform row of the data sheet once a release offers Linux downloads but no macOS ones.',
+	),
+	sheetPlatformValueAll: message(
+		'website.home.sheet.platformValueAll',
+		'Value of the platform row of the data sheet once a release offers macOS and Linux downloads.',
+	),
 	sheetPrivacy: message(
 		'website.home.sheet.privacy',
 		'Label of the data sheet row about terminal privacy.',
@@ -278,6 +286,14 @@ export const websiteHomeMessages = defineMessages({
 		'website.home.install.leadMacos',
 		'Paragraph under the install heading once a release offers macOS downloads.',
 	),
+	installLeadLinux: message(
+		'website.home.install.leadLinux',
+		'Paragraph under the install heading once a release offers Linux downloads but no macOS ones.',
+	),
+	installLeadAll: message(
+		'website.home.install.leadAll',
+		'Paragraph under the install heading once a release offers macOS and Linux downloads.',
+	),
 	installPlatform: message(
 		'website.home.install.platform',
 		'Accessible label for the platform switcher in the install section.',
@@ -289,6 +305,14 @@ export const websiteHomeMessages = defineMessages({
 	installStartNoteMacos: message(
 		'website.home.install.startNoteMacos',
 		'What the start command opens, once a release offers macOS downloads.',
+	),
+	installStartNoteLinux: message(
+		'website.home.install.startNoteLinux',
+		'What the start command opens, once a release offers Linux downloads but no macOS ones.',
+	),
+	installStartNoteAll: message(
+		'website.home.install.startNoteAll',
+		'What the start command opens, once a release offers macOS and Linux downloads.',
 	),
 	installSource: message(
 		'website.home.install.source',

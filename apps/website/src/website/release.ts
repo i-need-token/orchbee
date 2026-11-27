@@ -31,12 +31,17 @@ export const SOURCE_COMMANDS = [
 	'pnpm install',
 ] as const;
 
-// The download of each platform a release published: the Windows setup file, which every release
-// has, and each macOS disk image. A platform added to PLATFORMS adds its download key here too.
+// The downloads of each platform a release published: the Windows setup file, which every release
+// has, each macOS disk image, and each Linux AppImage and Debian package. A platform added to
+// PLATFORMS adds its download keys here too.
 interface ReleaseDownloads {
 	readonly 'windows-x86_64': string;
 	readonly 'macos-aarch64'?: string;
 	readonly 'macos-x86_64'?: string;
+	readonly 'linux-x86_64-appimage'?: string;
+	readonly 'linux-x86_64-deb'?: string;
+	readonly 'linux-aarch64-appimage'?: string;
+	readonly 'linux-aarch64-deb'?: string;
 }
 
 export type Release =
@@ -58,6 +63,22 @@ export function offersMacos(offered: Release): boolean {
 	return publishedPlatforms(offered).some(({ platform }) => platform.id === 'macos');
 }
 
+/** Whether the release offers Linux, that is, publishes a Linux installer. */
+export function offersLinux(offered: Release): boolean {
+	return publishedPlatforms(offered).some(({ platform }) => platform.id === 'linux');
+}
+
+/** The platforms besides Windows a release offers, by which a sentence that names platforms is chosen. */
+export type OfferedPlatforms = 'windows' | 'macos' | 'linux' | 'all';
+
+export function offeredPlatforms(offered: Release): OfferedPlatforms {
+	const macos = offersMacos(offered);
+	const linux = offersLinux(offered);
+	if (macos && linux) return 'all';
+	if (macos) return 'macos';
+	return linux ? 'linux' : 'windows';
+}
+
 export function releaseNotesUrl(version: string): string {
 	return `${REPOSITORY_URL}/releases/tag/v${version}`;
 }
@@ -76,10 +97,12 @@ interface PlatformVariant {
 	readonly link?: ShellMessageKey;
 }
 
-// One other way to install that a platform needs: its label in the download dialog, its label in the
-// install section, and its command.
+// One other way to install that a platform needs: its label in the download dialog, its label there
+// when another published platform offers the same command (the dialog lists it once), its label in
+// the install section, and its command.
 interface PlatformCommand {
 	readonly label: ShellMessageKey;
+	readonly sharedLabel?: ShellMessageKey;
 	readonly install: ShellMessageKey;
 	readonly command: string;
 }
@@ -126,9 +149,9 @@ interface Platform {
 //    description for translators, and in both locales (en-US and zh-CN). The typecheck names a key that a locale
 //    lacks or the catalog does not know; then run `pnpm --filter @orchbee/i18n build`.
 // 5. The sentences that name platforms. They are copy, not generated: the install lead and start note
-//    (installLeadMacos and installStartNoteMacos in website-home), the data sheet's platform row (Statement.tsx),
-//    and the desktop sections that describe macOS (DesktopBackground, DesktopHighlights, DesktopKeys). All of them
-//    read offersMacos, so each names macOS only while macOS is published.
+//    (installLead* and installStartNote* in website-home), the data sheet's platform row (Statement.tsx), and the
+//    desktop sections that describe macOS and Linux (DesktopBackground, DesktopHighlights, DesktopKeys). They read
+//    offeredPlatforms, offersMacos or offersLinux, so each names a platform only while it is published.
 // 6. The checks: `pnpm --filter @orchbee/website typecheck` and `pnpm --filter @orchbee/website test`. Then the
 //    call to action and the install section at 400 and 1440 pixels in both locales, with a visitor of each platform.
 // Nothing else needs a change: the call-to-action buttons, the download dialog's groups, the install tabs and rows,
@@ -177,12 +200,14 @@ const PLATFORMS = [
 		commands: [
 			{
 				label: 'downloadScriptDesktop',
-				install: 'installMacosScriptDesktop',
+				sharedLabel: 'downloadScriptDesktopShared',
+				install: 'installScriptDesktop',
 				command: INSTALL_SCRIPT_DESKTOP_COMMAND,
 			},
 			{
 				label: 'downloadScriptCli',
-				install: 'installMacosScriptCli',
+				sharedLabel: 'downloadScriptCliShared',
+				install: 'installScriptCli',
 				command: INSTALL_SCRIPT_COMMAND,
 			},
 		],
@@ -190,6 +215,59 @@ const PLATFORMS = [
 			title: 'installMacosTitle',
 			detail: 'installMacosDetail',
 			commands: { title: 'installMacosScriptTitle', detail: 'installMacosScriptDetail' },
+		},
+	},
+	{
+		id: 'linux',
+		name: 'platformLinux',
+		icon: 'linux',
+		// A desktop browser's platform string, or an X11 user agent. Android's platform string also starts
+		// with "Linux" but names an ARM processor, as an ARM desktop's does, so neither is matched.
+		visitor: /^Linux x86_64|X11/u,
+		variants: [
+			{
+				download: 'linux-x86_64-appimage',
+				label: 'downloadAppImageX64',
+				install: 'installDownloadAppImageX64',
+				cta: 'downloadForLinux',
+			},
+			{
+				download: 'linux-x86_64-deb',
+				label: 'downloadDebX64',
+				install: 'installDownloadDebX64',
+				cta: 'downloadForLinuxDeb',
+			},
+			{
+				download: 'linux-aarch64-appimage',
+				label: 'downloadAppImageArm',
+				install: 'installDownloadAppImageArm',
+				cta: 'downloadForLinuxArmAppImage',
+			},
+			{
+				download: 'linux-aarch64-deb',
+				label: 'downloadDebArm',
+				install: 'installDownloadDebArm',
+				cta: 'downloadForLinuxArmDeb',
+			},
+		],
+		commands: [
+			{
+				label: 'downloadScriptDesktopLinux',
+				sharedLabel: 'downloadScriptDesktopShared',
+				install: 'installScriptDesktop',
+				command: INSTALL_SCRIPT_DESKTOP_COMMAND,
+			},
+			{
+				label: 'downloadScriptCliLinux',
+				sharedLabel: 'downloadScriptCliShared',
+				install: 'installScriptCli',
+				command: INSTALL_SCRIPT_COMMAND,
+			},
+		],
+		install: {
+			title: 'installLinuxTitle',
+			detail: 'installLinuxDetail',
+			commands: { title: 'installLinuxScriptTitle', detail: 'installLinuxScriptDetail' },
 		},
 	},
 ] as const satisfies readonly Platform[];

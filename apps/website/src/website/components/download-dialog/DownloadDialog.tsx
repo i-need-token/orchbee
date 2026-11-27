@@ -14,22 +14,28 @@ import styles from './DownloadDialog.module.css';
 
 // The dialog that the navigation bar and the home hero open with their Download buttons: the installers of the
 // release grouped by platform, each group under the platform's icon and name, then the other ways to install:
-// the npm package and the install commands of each platform the release published. It is rendered only after a
+// the npm package and the install commands of each platform the release published, a command several of them
+// offer listed once under its shared label. It is rendered only after a
 // release is published, so nothing unshipped appears before one. activateDownloadDialog lists the visitor's
 // platform first and opens the dialog for #download.
 export function DownloadDialog({ release }: { release: Release }): ReactElement | null {
 	const { formatMessage: t } = useOrchbeeIntl();
 	if (!release.published) return null;
 	const platforms = publishedPlatforms(release);
+	const commands = platforms.flatMap(({ platform }) => platform.commands);
 	const methods = [
 		{ key: 'npm', label: messages.downloadNpm, command: NPM_INSTALL_COMMAND },
-		...platforms.flatMap(({ platform }) =>
-			platform.commands.map(({ label, command }) => ({
-				key: `${platform.id}-${label}`,
-				label: messages[label],
-				command,
-			})),
-		),
+		...commands.flatMap(({ label, sharedLabel, command }, index) => {
+			if (commands.findIndex((other) => other.command === command) !== index) return [];
+			const shared = commands.some((other, at) => at !== index && other.command === command);
+			return [
+				{
+					key: command,
+					label: messages[shared && sharedLabel !== undefined ? sharedLabel : label],
+					command,
+				},
+			];
+		}),
 	];
 	return (
 		<div className={styles['backdrop']} data-download-dialog='' hidden>

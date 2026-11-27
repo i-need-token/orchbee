@@ -133,8 +133,8 @@ repository>`. Print each public half with the command in
    is not a pre-release even for a beta: GitHub shows a Latest release on the repository page, and
    answers `/releases/latest`, only for a release that is not one.
 6. Confirm the Update check workflow: the publication job starts Actions › Update check for the tag,
-   which on a fresh runner of each platform whose release builds update themselves (Windows and
-   both macOS rows) installs the version people have now—including `<store root>/desktop/` when
+   which on a fresh runner of each platform whose release builds update themselves (Windows, both
+   macOS rows and both Linux rows) installs the version people have now—including `<store root>/desktop/` when
    both feeds carry `extensions.desktop`—and updates it to the release through `orchbee update`
    from the published assets ([update check workflow](../.github/workflows/update-check.yml)). To
    run it again by hand, Run workflow with the tag, or
@@ -227,8 +227,8 @@ signs, notarizes and packages the Intel row with Cargo's and Zig's `x86_64` targ
 row's smoke test and window Update run its files on an Intel Mac. A Windows
 directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
 directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
-adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row and
-both macOS rows build and publish, so a failure on any of them stops the tag. A macOS row adds the
+adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row,
+both macOS rows and both Linux rows build and publish, so a failure on any of them stops the tag. A macOS row adds the
 disk image `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz`, the window archive
 `orchbee-desktop-<version>-macos-<cpu>.zip`, the feed document, and the platform package
 `@orchbee/cli-darwin-<cpu>`. The macOS floor is macOS 13: the Terminal Host and the desktop
@@ -243,10 +243,9 @@ change like any other. `collect` adds the `.tar.gz`, the window archive
 `orchbee-desktop-<version>-linux-<cpu>.tar.gz`, the feed document and the platform package
 `@orchbee/cli-linux-<cpu>`. `release-smoke-linux.mjs` proves the archive, install.sh with
 `--desktop`, the two packages' contents and the npm route, and its `window-update` step presses
-Update in a real Test window on a virtual display. Both Linux rows build, so every rehearsal and
-candidate proves them, and publish nothing yet. A platform row is published only after a rehearsal in which
-its build, package, smoke and join jobs passed; then set `"publish": true` on its row of
-`RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
+Update in a real Test window on a virtual display. A new platform row is published only after a
+rehearsal in which its build, package, smoke and join jobs passed; then set `"publish": true` on its
+row of `RELEASE_PLATFORMS` in `.github/workflows/release.yml`.
 
 ## What clients rely on
 

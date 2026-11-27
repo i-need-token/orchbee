@@ -5,7 +5,7 @@ import {
 } from '@orchbee/i18n';
 import type { ReactElement } from 'react';
 
-import { offersMacos, type Release } from '../../../../release';
+import { offersLinux, offersMacos, type Release } from '../../../../release';
 import { Kicker } from '../../../kicker/Kicker';
 import { DetailDuo } from '../../../detail-duo/DetailDuo';
 import styles from './DesktopBackground.module.css';
@@ -37,13 +37,15 @@ function TrayIcon(): ReactElement {
 /**
  * Running in the background: the icon Orchbee always shows and what closing the window does, beside
  * the Windows notification it shows and the notification-area menu, both in the application's own
- * words. While the release offers macOS, the text names Windows and adds what macOS does: the
+ * words. While the release offers macOS or Linux, the text names Windows and adds what each does:
+ * on Linux the panel icon, which GNOME shows only with its AppIndicator extension; on macOS the
  * menu-bar icon holds the same menu, and Orchbee stays in the Dock
  * (apps/desktop/docs/window-lifecycle.md, Running in the menu bar).
  */
 export function DesktopBackground({ release }: { release: Release }): ReactElement {
 	const { formatMessage: t } = useOrchbeeIntl();
 	const withMacos = offersMacos(release);
+	const withLinux = offersLinux(release);
 	return (
 		<DetailDuo
 			text={
@@ -51,8 +53,9 @@ export function DesktopBackground({ release }: { release: Release }): ReactEleme
 					<Kicker>{t(messages.backgroundKicker)}</Kicker>
 					<h2 className={styles['title']}>{t(messages.backgroundTitle)}</h2>
 					<p className={styles['paragraph']}>
-						{t(withMacos ? messages.backgroundBodyWindows : messages.backgroundBody)}
+						{t(withMacos || withLinux ? messages.backgroundBodyWindows : messages.backgroundBody)}
 					</p>
+					{withLinux ? <p className={styles['paragraph']}>{t(messages.backgroundLinux)}</p> : null}
 					{withMacos ? <p className={styles['paragraph']}>{t(messages.backgroundMacos)}</p> : null}
 					<p className={styles['paragraph']}>{t(messages.backgroundQuitAll)}</p>
 				</>

@@ -109,10 +109,17 @@
 .groupName {
 	text-box: trim-both cap alphabetic;
 }
-/* A platform's installers sit side by side where two fit (Apple silicon and Intel) and stack on a phone. */
+/* A platform's installers sit side by side where two fit (Apple silicon and Intel) and stack on a phone;
+   at most two to a row, so four (Linux) make two even rows. */
 .variants {
 	display: grid;
-	grid-template-columns: repeat(auto-fit, minmax(var(--ob-ref-length-website-190), 1fr));
+	grid-template-columns: repeat(
+		auto-fit,
+		minmax(
+			max(var(--ob-ref-length-website-190), calc((100% - var(--ob-ref-length-website-8)) / 2)),
+			1fr
+		)
+	);
 	gap: var(--ob-ref-length-website-8);
 }
 .other {
