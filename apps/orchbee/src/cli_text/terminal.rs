@@ -17,13 +17,13 @@ pub(super) const HELP_TERMINAL_OBSERVE_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_TERMINAL_LIST_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
-        "List every terminal bound by a Presentation, optionally only those inside\none Workspace, Tab or Panel (exact ID, selector, or label where the resource\nhas one). Unbound terminals are not visible; a binding is structural\nevidence, not proof a process is alive. Text shows each terminal's\nWorkspace and Panel handles and its full working directory. Text and JSON\nalso carry the title, Agent and state of the first 64 when\nthey can be observed and verified in time; the listing never fails for them.",
+        "List every terminal bound by a Presentation, optionally only those inside\none Workspace, Tab or Panel (exact ID, selector, or label where the resource\nhas one). Unbound terminals are not visible; a binding is structural\nevidence, not proof a process is alive. Within a Tab, rows follow its\nlayout: left before right, top before bottom. Text shows each terminal's\nWorkspace handle, its Tab's handle and label, its POSITION, its Panel handle\nand its full working directory. POSITION names the Panel's side in each\nsplit, outermost first, such as right/top; - means the Panel fills its Tab.\nRun inside an Orchbee terminal, the command marks that terminal's row with *;\npartial or malformed caller metadata fails it. JSON rows carry these facts\nas caller, tabLabel and panelPosition. Text and JSON also carry the title,\nAgent and state of the first 64 when they can be observed and verified in\ntime; the listing never fails for them.",
     );
 
 pub(super) const HELP_TERMINAL_LIST_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee terminal list [--workspace <t> | --tab <t> | --panel <t>] [--format text|json]",
-        "列出所有被 Presentation 绑定的终端，或仅列出某个工作区、标签页或面板内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。文本显示每个终端所在的工作区与面板句柄及完整工作目录。文本与 JSON 还会在能及时观察并核实时包含前 64 个终端的标题、智能体与状态；列表不会因这些信息失败。",
+        "列出所有被 Presentation 绑定的终端，或仅列出某个工作区、标签页或面板内的终端（精确 ID、选择器，或资源支持时的 label）。未绑定终端不可见；绑定是结构证据，不是进程存活的证明。同一标签页内的行按布局排列：左在右前，上在下前。文本显示每个终端所在的工作区句柄、标签页句柄与名称、位置、面板句柄及完整工作目录。位置给出面板在每层分割中所在的一侧，由外向内，例如 右/上；- 表示面板占满整个标签页。在 Orchbee 终端内运行时，命令用 * 标出该终端所在的行；调用者元数据不完整或格式错误时命令失败。JSON 行以 caller、tabLabel 与 panelPosition 提供这些信息。文本与 JSON 还会在能及时观察并核实时包含前 64 个终端的标题、智能体与状态；列表不会因这些信息失败。",
     );
 
 pub(super) const HELP_TERMINAL_GET_EN: crate::cli_text::HelpDetails =
@@ -267,6 +267,21 @@ impl super::CliText {
             (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Unknown)) => "未知",
             (Locale::EnUs, TerminalListState::Agent(PanelAgentState::Opening)) => "starting",
             (Locale::ZhCn, TerminalListState::Agent(PanelAgentState::Opening)) => "启动中",
+        }
+    }
+
+    /// One side in the `terminal list` POSITION column.
+    pub(crate) const fn cli_panel_side(self, side: crate::cli_outcome::PanelSide) -> &'static str {
+        use crate::cli_outcome::PanelSide;
+        match (self.locale, side) {
+            (Locale::EnUs, PanelSide::Left) => "left",
+            (Locale::EnUs, PanelSide::Right) => "right",
+            (Locale::EnUs, PanelSide::Top) => "top",
+            (Locale::EnUs, PanelSide::Bottom) => "bottom",
+            (Locale::ZhCn, PanelSide::Left) => "左",
+            (Locale::ZhCn, PanelSide::Right) => "右",
+            (Locale::ZhCn, PanelSide::Top) => "上",
+            (Locale::ZhCn, PanelSide::Bottom) => "下",
         }
     }
 

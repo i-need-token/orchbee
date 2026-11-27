@@ -5,6 +5,7 @@
 //! verified against the snapshot whose rows are returned, and every other row is not sampled.
 use super::{
     Failure, FailureKind, Output,
+    caller_context::CallerTerminal,
     command_interrupt::{ArmedSignals, Finish},
     console_interrupt::SignalWatch,
     failure_output, query,
@@ -122,8 +123,24 @@ pub(crate) fn inspect(
 }
 
 /// The listing `command` answers, observed within `budget`, with the connection and the snapshot
-/// that answered it.
+/// that answered it, and the caller's own terminal marked.
 pub(crate) fn observed(
+    command: &QueryCommand,
+    budget: Duration,
+    signals: &mut ArmedSignals,
+) -> Result<Observed, Failure> {
+    // The caller is read before any runtime access, as every caller-mode command reads it.
+    let caller = CallerTerminal::read_optional(|name| std::env::var_os(name))?;
+    let (client, snapshot, rows, mut details) = listed(command, budget, signals)?;
+    if let Some(caller) = caller {
+        for (row, details) in rows.iter().zip(&mut details) {
+            details.caller = caller.binds(row);
+        }
+    }
+    Ok((client, snapshot, rows, details))
+}
+
+fn listed(
     command: &QueryCommand,
     budget: Duration,
     signals: &mut ArmedSignals,

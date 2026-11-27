@@ -63,6 +63,8 @@ Workspace 拥有目录，可属于 Project；Project 分组是可选的。Worksp
 
 在 Orchbee 终端内，调用者元数据可以选择其 Panel；在外部，`panel current` 可使用唯一当前 TUI 客户端。存在多个客户端时传入 `--client <id>`；无界面查找可使用位置参数 Panel ID。`agent start` 省略 `--panel` 时明确要求有效调用者元数据。部分或过期元数据不会授权回退；从终端启动的后台进程会保留该终端的 `ORCHBEE_TERMINAL_ID` 和 `ORCHBEE_WORKER_ID`，启动时请去掉它们，或显式传入目标。只有一个就绪客户端时，`workspace`、`tab` 与 `panel` 的 list/get 按它给出 `focused`；否则传入 `--client <id>`，不然 `focused` 为 null。
 
+`terminal list` 标出运行它的终端（`caller: true`；文本中为 `*`），并给出每行在 Tab 中的位置：`tabLabel` 是 Tab 名称，`panelPosition` 由外向内列出 Panel 在每层分割中的一侧，例如 `["right", "top"]`。调用者 Tab 右侧的终端，就是 `boundTo.tabId` 与调用者相同且 `panelPosition` 以 `right` 开头的行。
+
 ## 创建和安排终端
 
 ```text

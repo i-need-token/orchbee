@@ -20,22 +20,31 @@ enum PanelTargetKind {
     Caller(Caller),
 }
 
+/// The terminal a command runs in, which a listing marks and never selects by.
+pub(super) struct CallerTerminal(Caller);
+
+impl CallerTerminal {
+    /// No caller means an external CLI; partial or malformed caller metadata fails as it does
+    /// where it selects a Panel.
+    pub(super) fn read_optional(
+        environment: impl FnMut(&str) -> Option<OsString>,
+    ) -> Result<Option<Self>, Failure> {
+        Ok(Caller::read_optional(environment)?.map(Self))
+    }
+
+    /// Whether `row` binds the caller's exact terminal and Worker, so a caller from another
+    /// Session, or one whose terminal is gone, matches no row.
+    pub(super) fn binds(&self, row: &results::TerminalRow) -> bool {
+        row.terminal_id == self.0.terminal.as_str() && row.worker_id == self.0.worker.as_str()
+    }
+}
+
 impl PanelTarget {
     /// No caller means an external CLI. Partial or malformed caller metadata is never a fallback.
     pub(super) fn prepare_optional(
-        mut environment: impl FnMut(&str) -> Option<OsString>,
+        environment: impl FnMut(&str) -> Option<OsString>,
     ) -> Result<Option<Self>, Failure> {
-        let terminal = environment("ORCHBEE_TERMINAL_ID");
-        let worker = environment("ORCHBEE_WORKER_ID");
-        if terminal.is_none() && worker.is_none() {
-            return Ok(None);
-        }
-        Self::prepare(None, |name| match name {
-            "ORCHBEE_TERMINAL_ID" => terminal.clone(),
-            "ORCHBEE_WORKER_ID" => worker.clone(),
-            _ => None,
-        })
-        .map(Some)
+        Ok(Caller::read_optional(environment)?.map(|caller| Self(PanelTargetKind::Caller(caller))))
     }
 
     pub(super) fn prepare(
@@ -70,6 +79,23 @@ impl PanelTarget {
 }
 
 impl Caller {
+    /// Neither variable means no caller; any other combination must read as a whole caller.
+    fn read_optional(
+        mut environment: impl FnMut(&str) -> Option<OsString>,
+    ) -> Result<Option<Self>, Failure> {
+        let terminal = environment("ORCHBEE_TERMINAL_ID");
+        let worker = environment("ORCHBEE_WORKER_ID");
+        if terminal.is_none() && worker.is_none() {
+            return Ok(None);
+        }
+        Self::read(|name| match name {
+            "ORCHBEE_TERMINAL_ID" => terminal.clone(),
+            "ORCHBEE_WORKER_ID" => worker.clone(),
+            _ => None,
+        })
+        .map(Some)
+    }
+
     fn read(mut environment: impl FnMut(&str) -> Option<OsString>) -> Result<Self, Failure> {
         let terminal = environment("ORCHBEE_TERMINAL_ID").ok_or_else(invalid_context)?;
         let worker = environment("ORCHBEE_WORKER_ID").ok_or_else(invalid_context)?;

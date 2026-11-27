@@ -201,11 +201,18 @@ the program exits with code 0, as a shell's Panel does; another exit keeps its o
 
 `terminal read`, `wait-output`, `send`, and `run` take the Panel ID and act on that Panel's
 terminal. Other terminal commands name the terminal itself; `terminal list` rows carry
-`boundTo.tabId`, `boundTo.panelId`, and `boundTo.presentationId`:
+`boundTo.tabId`, `boundTo.panelId`, `boundTo.presentationId`, the Tab's `tabLabel`, the Panel's
+`panelPosition` (its side in each split, outermost first), and `caller`, true only on the row of
+the terminal the command runs in:
 
 ```sh
 TERM_ID=$(orchbee terminal list --format json | jq -er --arg tab "$TAB" \
   '.result.terminals[] | select(.boundTo.tabId == $tab) | .terminalId')
+# The first terminal on the right side of the caller's own Tab
+RIGHT_ID=$(orchbee terminal list --format json | jq -er '.result.terminals
+  | (.[] | select(.caller) | .boundTo.tabId) as $tab
+  | first(.[] | select(.boundTo.tabId == $tab and .panelPosition[0] == "right"))
+  | .terminalId')
 ```
 
 A deterministic send-then-wait pair — the `wait-output` text is the one

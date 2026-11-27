@@ -469,6 +469,36 @@ pub(crate) enum TerminalListState {
     Agent(orchbee_workbench_protocol::PanelAgentState),
 }
 
+/// The side a Panel takes in one split of its Tab, as a `terminal list` row places it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PanelSide {
+    Left,
+    Right,
+    Top,
+    Bottom,
+}
+
+impl PanelSide {
+    /// The two sides of a split, its first child's first: a horizontal split draws its first
+    /// child on the left, a vertical one on top.
+    pub(crate) const fn of(orientation: orchbee_workbench_protocol::PanelOrientation) -> [Self; 2] {
+        match orientation {
+            orchbee_workbench_protocol::PanelOrientation::Horizontal => [Self::Left, Self::Right],
+            orchbee_workbench_protocol::PanelOrientation::Vertical => [Self::Top, Self::Bottom],
+        }
+    }
+
+    /// The token of a JSON `panelPosition` entry.
+    pub(crate) const fn token(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+            Self::Top => "top",
+            Self::Bottom => "bottom",
+        }
+    }
+}
+
 /// One Client's attention view of an Agent terminal.
 #[derive(Debug)]
 pub(crate) struct AgentClientViewDoc {

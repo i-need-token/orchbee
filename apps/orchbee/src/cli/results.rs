@@ -19,7 +19,7 @@ use orchbee_workbench_protocol::{
 use serde_json::{Map, Value, json};
 
 use super::{Failure, FailureKind, target_details};
-use crate::cli_outcome::{AgentClientViewDoc, TerminalListState};
+use crate::cli_outcome::{AgentClientViewDoc, PanelSide, TerminalListState};
 mod shape;
 pub(super) use shape::complete;
 pub(in crate::cli) mod local_report;
@@ -253,11 +253,14 @@ pub(crate) struct TerminalRow {
 }
 
 /// Enrichment for one terminal-list row, kept outside `TerminalRow`, whose
-/// identity fields are the routing row other documents share. Placement is
-/// text only; the observed facts also reach the row's JSON `observation`.
+/// identity fields are the routing row other documents share. The observed
+/// facts also reach the row's JSON `observation`.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TerminalListDetails {
     pub(crate) placement: Option<TerminalPlacement>,
+    /// The row is the terminal the command runs in, by its caller metadata; the projection never
+    /// reads the environment, so the command marks it.
+    pub(crate) caller: bool,
     pub(crate) observation: TerminalListObservation,
     /// The Host frame's raw title, which the human table names with the shared terminal title rule.
     pub(crate) title: Option<String>,
@@ -280,13 +283,20 @@ pub(crate) enum TerminalListObservation {
     Observed,
 }
 
-/// Snapshot-derived location handles, each unique over every member of its
-/// kind so a filtered list still prints resolvable selectors.
+/// Where a listed row sits, from the snapshot. The handles, each unique over every member of its
+/// kind so a filtered list still prints resolvable selectors, are text only; the Tab's label and
+/// the Panel's position also reach JSON.
 #[derive(Clone, Debug)]
 pub(crate) struct TerminalPlacement {
     pub(crate) handle: String,
     /// Canonical Workspace handle when a placement is available.
     pub(crate) workspace: String,
+    pub(crate) tab: String,
+    /// The Tab's display label, as `tab list` reports it.
+    pub(crate) tab_label: String,
+    /// The Panel's side in each split that holds it, from the Tab's outermost split inward; empty
+    /// when the Panel fills its Tab.
+    pub(crate) position: Vec<PanelSide>,
     pub(crate) panel: String,
     /// The bound Presentation's committed or failed-launch program, which the text `TITLE` names
     /// while no title is known, as a Tab does. JSON never reports it as a title.
@@ -2019,10 +2029,23 @@ pub(crate) fn launch_fact_json(launch: &TerminalLaunchFact) -> Value {
     })
 }
 
-/// One `terminal list` row: the shared routing row plus what this platform
-/// observed of it.
+/// One `terminal list` row: the shared routing row, where it sits in its Tab, whether the command
+/// runs in it, and what this platform observed of it.
 fn terminal_list_row_json(row: &TerminalRow, details: Option<&TerminalListDetails>) -> Value {
     let mut value = terminal_row_json(row);
+    // The projection places every row it lists; only a test document carries a row without one.
+    let placement = details.and_then(|details| details.placement.as_ref());
+    value["caller"] = json!(details.is_some_and(|details| details.caller));
+    value["tabLabel"] = placement.map_or(Value::Null, |placement| json!(placement.tab_label));
+    value["panelPosition"] = placement.map_or(Value::Null, |placement| {
+        json!(
+            placement
+                .position
+                .iter()
+                .map(|side| side.token())
+                .collect::<Vec<_>>()
+        )
+    });
     let observation = details.map_or_else(TerminalListObservation::default, |d| d.observation);
     let observed = || {
         let details = details.cloned().unwrap_or_default();
@@ -2762,6 +2785,29 @@ fn collect_panel_nodes<'a>(
     }
 }
 
+/// Visit every Panel node with the side it takes in each split that holds it, from the outermost
+/// split inward.
+fn collect_panel_sides<'a>(
+    node: &'a PanelNode,
+    sides: &mut Vec<PanelSide>,
+    visit: &mut impl FnMut(&'a PanelNode, &[PanelSide]),
+) {
+    match node {
+        PanelNode::Panel { .. } => visit(node, sides),
+        PanelNode::Split {
+            children,
+            orientation,
+            ..
+        } => {
+            for (slot, side) in children.iter().zip(PanelSide::of(*orientation)) {
+                sides.push(side);
+                collect_panel_sides(&slot.node, sides, visit);
+                sides.pop();
+            }
+        }
+    }
+}
+
 fn collect_panels<'a>(
     node: &'a PanelNode,
     context: &'a TerminalContext,
@@ -2891,29 +2937,41 @@ fn terminal_list(
             .map(|workspace| workspace.workspace_id.as_str()),
     );
     let panel_handles = list_handles(Resource::Panel, panels.iter().map(|(id, ..)| id.as_str()));
+    let tab_handles = list_handles(
+        Resource::Tab,
+        snapshot
+            .terminal_contexts
+            .iter()
+            .flat_map(|context| context.tabs.iter().map(|tab| tab.tab_id.as_str())),
+    );
+    let mut tab_labels = HashMap::new();
+    let mut positions = HashMap::new();
     let mut programs = HashMap::new();
-    for tab in snapshot
-        .terminal_contexts
-        .iter()
-        .flat_map(|context| &context.tabs)
-    {
-        collect_panel_nodes(&tab.root, &mut Vec::new(), &mut |node| {
-            if let PanelNode::Panel {
-                primary_presentation,
-                child_presentations,
-                ..
-            } = node
-            {
-                for presentation in
-                    std::iter::once(primary_presentation).chain(child_presentations.iter())
+    for context in &snapshot.terminal_contexts {
+        for (position, tab) in context.tabs.iter().enumerate() {
+            tab_labels.insert(
+                tab.tab_id.as_str(),
+                tab.display_label(position).into_owned(),
+            );
+            collect_panel_sides(&tab.root, &mut Vec::new(), &mut |node, sides| {
+                if let PanelNode::Panel {
+                    panel_id,
+                    primary_presentation,
+                    child_presentations,
+                } = node
                 {
-                    programs.insert(
-                        presentation.presentation_id.as_str(),
-                        launch_program(presentation),
-                    );
+                    positions.insert(panel_id.as_str(), sides.to_vec());
+                    for presentation in
+                        std::iter::once(primary_presentation).chain(child_presentations.iter())
+                    {
+                        programs.insert(
+                            presentation.presentation_id.as_str(),
+                            launch_program(presentation),
+                        );
+                    }
                 }
-            }
-        });
+            });
+        }
     }
     let rows: Vec<_> = all.iter().filter(|row| keep(row)).cloned().collect();
     let details = rows
@@ -2927,6 +2985,9 @@ fn terminal_list(
                         .get(row.terminal_context_id.as_str())
                         .map(|(id, _label)| workspaces[id].clone())
                         .ok_or_else(|| Failure::new(FailureKind::ProtocolInvalid))?,
+                    tab: tab_handles[row.tab_id.as_str()].clone(),
+                    tab_label: tab_labels[row.tab_id.as_str()].clone(),
+                    position: positions[row.panel_id.as_str()].clone(),
                     panel: panel_handles[row.panel_id.as_str()].clone(),
                     program: programs
                         .get(row.presentation_id.as_str())

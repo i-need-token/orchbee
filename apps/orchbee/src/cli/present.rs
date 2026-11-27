@@ -143,12 +143,14 @@ fn workspace_list(
     })
 }
 
+/// Where a Tab's label stops in the lists that name it, so they name a Tab alike.
+const TAB_NAME_WIDTH: usize = 18;
+
 fn tab_list(
     out: &mut Bounded,
     rows: &[super::results::TabRow],
     text: &CliLabels,
 ) -> Result<(), TooLarge> {
-    const NAME_WIDTH: usize = 18;
     const PANELS_WIDTH: usize = 6;
     const WORKSPACE_WIDTH: usize = 13;
     let handle_width = rows
@@ -157,12 +159,12 @@ fn tab_list(
         .max()
         .unwrap_or(0)
         .max(display_width(text.tab_headers[0]));
-    let widths = [handle_width, NAME_WIDTH, PANELS_WIDTH, WORKSPACE_WIDTH];
+    let widths = [handle_width, TAB_NAME_WIDTH, PANELS_WIDTH, WORKSPACE_WIDTH];
     compact_table(out, &text.tab_headers, &widths, rows, |row| {
         let owner = table_label_width(&row.context.workspace_label, WORKSPACE_WIDTH);
         vec![
             row.handle.clone(),
-            table_label_width(&row.label, NAME_WIDTH),
+            table_label_width(&row.label, TAB_NAME_WIDTH),
             row.panel_count.to_string(),
             owner,
         ]
@@ -209,7 +211,8 @@ fn terminal_cell(terminal: Option<&String>, held: Option<&String>, text: &CliLab
 }
 
 /// The human terminal table: location handles, the state and the path are
-/// never cut; only the title and Agent labels stop at their declared widths.
+/// never cut; only the title, Agent and Tab labels stop at their declared widths.
+/// When the caller's own terminal is listed, `*` marks its row.
 fn terminal_table(
     out: &mut Bounded,
     text: &CliLabels,
@@ -225,6 +228,8 @@ fn terminal_table(
         .enumerate()
         .map(|(index, _row)| terminal_list_cells(&fallback[index], doc.details.get(index), locale))
         .collect();
+    let caller = |index: usize| doc.details.get(index).is_some_and(|details| details.caller);
+    let marked = (0..rows.len()).any(caller);
     let mut widths: Vec<usize> = headers.iter().map(|header| display_width(header)).collect();
     for cells in &rows {
         for (column, cell) in cells.iter().enumerate() {
@@ -236,7 +241,10 @@ fn terminal_table(
         }
     }
 
-    let render_row = |cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
+    let render_row = |marker: &str, cells: &[String], out: &mut Bounded| -> Result<(), TooLarge> {
+        if marked {
+            out.push(marker)?;
+        }
         for (index, (cell, width)) in cells.iter().zip(&widths).enumerate() {
             if index > 0 {
                 out.push("  ")?;
@@ -255,14 +263,15 @@ fn terminal_table(
     };
 
     render_row(
+        "  ",
         &headers
             .iter()
             .map(|header| (*header).to_owned())
             .collect::<Vec<_>>(),
         out,
     )?;
-    for cells in &rows {
-        render_row(cells, out)?;
+    for (index, cells) in rows.iter().enumerate() {
+        render_row(if caller(index) { "* " } else { "  " }, cells, out)?;
     }
     Ok(())
 }
@@ -274,11 +283,33 @@ fn terminal_list_cells(
 ) -> Vec<String> {
     let empty = super::results::TerminalListDetails::default();
     let details = details.unwrap_or(&empty);
+    let words = CliText::new(locale);
     let state = details
         .state
-        .map(|state| CliText::new(locale).cli_terminal_list_state(state))
+        .map(|state| words.cli_terminal_list_state(state))
         .unwrap_or("-");
     let placement = details.placement.as_ref();
+    let tab = placement.map_or_else(
+        || "-".to_owned(),
+        |placement| {
+            format!(
+                "{} {}",
+                placement.tab,
+                table_label_width(&placement.tab_label, TAB_NAME_WIDTH)
+            )
+        },
+    );
+    let position = placement
+        .map(|placement| {
+            placement
+                .position
+                .iter()
+                .map(|side| words.cli_panel_side(*side))
+                .collect::<Vec<_>>()
+                .join("/")
+        })
+        .filter(|position| !position.is_empty())
+        .unwrap_or_else(|| "-".to_owned());
     vec![
         placement.map_or_else(|| fallback_handle.to_owned(), |p| p.handle.clone()),
         details
@@ -294,6 +325,8 @@ fn terminal_list_cells(
         details.agent.clone().unwrap_or_else(|| "-".to_owned()),
         state.to_owned(),
         placement.map_or_else(|| "-".to_owned(), |p| p.workspace.clone()),
+        tab,
+        position,
         placement.map_or_else(|| "-".to_owned(), |p| p.panel.clone()),
         details.cwd.clone().unwrap_or_else(|| "-".to_owned()),
     ]

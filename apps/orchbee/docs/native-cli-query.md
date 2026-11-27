@@ -97,7 +97,7 @@ On Windows, canonical provider `codex` uses one ordered paste, Right, Enter sequ
   effect.
 - Environment: `ORCHBEE_RUNTIME_BASE` (optional; defaults to `/tmp`) selects the runtime base;
   `LC_ALL`/`LC_MESSAGES`/`LANG` select the diagnostic locale. `doctor` additionally reads the home folder and
-  `PATH`. `panel current` in caller mode additionally reads
+  `PATH`. `panel current` in caller mode and `terminal list` additionally read
   `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID` as described below. Nothing else is consulted.
 - Filesystem: the resolved runtime base, the Session scope directory (the Session name, `default`
   unless a managed terminal routes another), its Client and Worker sockets in the socket folder,
@@ -451,6 +451,9 @@ launch authorization into child environments, overriding inherited conflicts. Th
 identities are lookup hints, not credentials; both must be complete nonzero lowercase 32-hex
 IDs. Malformed, empty, non-Unicode, or partially missing values fail `invalid-usage` (exit 2),
 with localized guidance and no value echo. Explicit Panel or Client mode bypasses this metadata.
+`terminal list`, and the close previews that list terminals, read it only to mark the caller's
+own row, never to select one; without both variables no row is marked, and a stale caller marks
+none.
 
 Windows Worker identities are fresh per Server connection using the existing OS random source;
 one Worker shares that ID across its terminals. Terminal IDs can repeat across Sessions, so exact

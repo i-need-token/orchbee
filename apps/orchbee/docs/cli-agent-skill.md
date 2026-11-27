@@ -63,6 +63,8 @@ Use `api snapshot`, then the relevant `project`, `workspace`, `tab`, `panel`, `t
 
 Inside an Orchbee terminal, caller metadata can select its Panel. Outside, `panel current` can use the unique current TUI Client; pass `--client <id>` when several exist or a positional Panel ID for a headless lookup. `agent start` without `--panel` specifically requires valid caller metadata. Partial or stale caller metadata never authorizes a fallback; a background process you start from a terminal keeps its `ORCHBEE_TERMINAL_ID` and `ORCHBEE_WORKER_ID`, so start it without them or pass targets explicitly. `workspace`, `tab` and `panel` list/get report `focused` from the only ready Client when exactly one exists; otherwise pass `--client <id>` or `focused` stays null.
 
+`terminal list` marks the terminal it runs in (`caller: true`; `*` in text) and places every row in its Tab: `tabLabel` names the Tab, and `panelPosition` lists the Panel's side in each split, outermost first, such as `["right", "top"]`. A terminal on the right side of the caller's Tab is a row with the caller's `boundTo.tabId` whose `panelPosition` starts with `right`.
+
 ## Create and arrange terminals
 
 ```text

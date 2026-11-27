@@ -2024,6 +2024,115 @@ fn terminal_list_filters_by_workspace_tab_and_panel() {
     );
 }
 
+/// A row names its Tab and its Panel's side in each split, outermost first, as the TUI draws the
+/// layout: a horizontal split's first child on the left, a vertical split's on top. Both documents
+/// that carry these rows accept them.
+#[test]
+fn terminal_list_rows_place_their_panel_in_its_tab() {
+    let mut automatic = tab(0x17, "shell", panel(0x23, 0x33, &[], Some(0x43)));
+    automatic["automaticLabel"] = json!(true);
+    let stacked = json!({
+        "kind": "split",
+        "splitId": hex(0x14),
+        "orientation": "vertical",
+        "children": [
+            {"slotId": hex(0x15), "node": panel(0x21, 0x31, &[], Some(0x41))},
+            {"slotId": hex(0x16), "node": panel(0x22, 0x32, &[], Some(0x42))},
+        ],
+    });
+    let document = json!({
+        "kind": "workbench.snapshot",
+        "protocolVersion": 1,
+        "revision": "9",
+        "sessionId": hex(0xaa),
+        "navigation": {"projects": [], "directories": [], "workspaces": [{"workspaceId": hex(0x01),
+            "terminalContextId": hex(0x01), "projectId": null, "primaryDirectoryId": null,
+            "label": "Workspace"}]},
+        "terminalContexts": [{
+            "terminalContextId": hex(0x01),
+            "groups": [],
+            "tabs": [
+                tab(0x10, "ssh", json!({
+                    "kind": "split",
+                    "splitId": hex(0x11),
+                    "orientation": "horizontal",
+                    "children": [
+                        {"slotId": hex(0x12), "node": panel(0x20, 0x30, &[], Some(0x40))},
+                        {"slotId": hex(0x13), "node": stacked},
+                    ],
+                })),
+                automatic,
+            ],
+        }],
+    });
+    let snapshot = parse_snapshot(&serde_json::to_vec(&document).unwrap()).unwrap();
+    let command = QueryCommand::TerminalList { filter: None };
+    let Ok(Projection::TerminalList(mut listed)) = project(&command, &snapshot) else {
+        panic!("terminal list");
+    };
+    listed.details[1].caller = true;
+    let result = Projection::TerminalList(listed).result();
+    let rows = result["terminals"].as_array().unwrap();
+    let placed = rows
+        .iter()
+        .map(|row| {
+            (
+                row["terminalId"].as_str().unwrap().to_owned(),
+                row["tabLabel"].clone(),
+                row["panelPosition"].clone(),
+                row["caller"].clone(),
+            )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        placed,
+        [
+            (hex(0x40), json!("ssh"), json!(["left"]), json!(false)),
+            (
+                hex(0x41),
+                json!("ssh"),
+                json!(["right", "top"]),
+                json!(true)
+            ),
+            (
+                hex(0x42),
+                json!("ssh"),
+                json!(["right", "bottom"]),
+                json!(false)
+            ),
+            (hex(0x43), json!("2"), json!([]), json!(false)),
+        ]
+    );
+    let source = json!({"kind": "workbench-snapshot", "sessionId": hex(0xaa), "revision": "9"});
+    let preview = rows
+        .iter()
+        .map(|row| {
+            let mut row = row.clone();
+            row["activity"] = json!("unknown");
+            row
+        })
+        .collect::<Vec<_>>();
+    for (definition, document) in [
+        (
+            include_str!("../schemas/orchbee.terminal.list.json"),
+            json!({"schema": schema_id(&command), "version": 1, "source": source,
+                "result": result}),
+        ),
+        (
+            include_str!("../schemas/orchbee.workspace.close-preview.json"),
+            json!({"schema": "orchbee.workspace.close-preview", "version": 1, "source": source,
+                "result": {"workspace": {"workspaceId": hex(0x01), "label": "Workspace"},
+                    "evidence": "unavailable", "idle": false, "terminals": preview}}),
+        ),
+    ] {
+        let definition: Value = serde_json::from_str(definition).unwrap();
+        jsonschema::validator_for(&definition)
+            .unwrap()
+            .validate(&document)
+            .unwrap();
+    }
+}
+
 /// `workspace get` text names the Workspace first and shows the primary
 /// directory path rather than its identity.
 #[test]

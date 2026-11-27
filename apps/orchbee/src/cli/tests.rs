@@ -406,6 +406,9 @@ fn terminal_list_shows_location_handles_and_program_names() {
         placement: Some(super::results::TerminalPlacement {
             handle: "@terminal:0xf".into(),
             workspace: workspace.to_owned(),
+            tab: "@tab:0x4".into(),
+            tab_label: "1".into(),
+            position: Vec::new(),
             panel: "@panel:0x3".into(),
             program: None,
         }),
@@ -471,6 +474,9 @@ fn console_launch_path_names_one_program_in_terminal_and_panel_lists() {
                     placement: Some(super::results::TerminalPlacement {
                         handle: "@terminal:0xf".into(),
                         workspace: "@workspace:0x9".into(),
+                        tab: "@tab:0x4".into(),
+                        tab_label: "1".into(),
+                        position: Vec::new(),
                         panel: "@panel:0x3".into(),
                         program: program.map(Into::into),
                     }),

@@ -42,7 +42,16 @@
 		"id": { "type": "string", "pattern": "^[0-9a-f]{32}$" },
 		"terminal": {
 			"type": "object",
-			"required": ["terminalId", "workerId", "boundTo", "observation", "activity"],
+			"required": [
+				"terminalId",
+				"workerId",
+				"boundTo",
+				"caller",
+				"tabLabel",
+				"panelPosition",
+				"observation",
+				"activity"
+			],
 			"additionalProperties": false,
 			"properties": {
 				"terminalId": { "$ref": "#/$defs/id" },
@@ -57,6 +66,19 @@
 						"tabId": { "$ref": "#/$defs/id" },
 						"terminalContextId": { "$ref": "#/$defs/id" }
 					}
+				},
+				"caller": {
+					"description": "True only for the terminal the command runs in, the one its ORCHBEE_TERMINAL_ID and ORCHBEE_WORKER_ID name; false for every row of a command run outside an Orchbee terminal.",
+					"type": "boolean"
+				},
+				"tabLabel": {
+					"description": "The Tab's display label, as orchbee.tab.list reports it.",
+					"type": "string"
+				},
+				"panelPosition": {
+					"description": "The Panel's side in each split that holds it, from the Tab's outermost split inward: left or right in a side-by-side split, top or bottom in a stacked one. Empty when the Panel fills its Tab.",
+					"type": "array",
+					"items": { "enum": ["left", "right", "top", "bottom"] }
 				},
 				"observation": {
 					"oneOf": [
