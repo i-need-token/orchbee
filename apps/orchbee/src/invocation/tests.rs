@@ -5286,16 +5286,15 @@ fn agent_wait_usage_failures() {
             option: "--after-revision",
         }
     );
-    // The shared `--timeout` flag under the wait meaning: the same
-    // 1..=3600000 vocabulary `wait-output` uses.
-    for value in ["0", "3600001", "1.5", "abc"] {
+    // `--timeout` under an Agent wait admits 1..=86400000 milliseconds.
+    for value in ["0", "86400001", "1.5", "abc"] {
         assert_eq!(
             usage_reason(&["agent", "wait", "sess", "--timeout", value]),
             UsageReason::InvalidValue {
                 context: path("agent wait"),
                 option: "--timeout",
                 value: value.to_owned(),
-                expected: ExpectedValue::WaitTimeout,
+                expected: ExpectedValue::AgentWaitTimeout,
             },
             "--timeout {value}"
         );

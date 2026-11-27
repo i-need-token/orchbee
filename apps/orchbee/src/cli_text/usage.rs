@@ -264,6 +264,10 @@ impl super::CliText {
             }
             (Locale::ZhCn, ExpectedValue::AgentStartArgument) => "不含控制字符的参数",
             (Locale::EnUs, ExpectedValue::WaitTimeout) => "a decimal integer from 1 to 3600000",
+            (Locale::EnUs, ExpectedValue::AgentWaitTimeout) => {
+                "a decimal integer from 1 to 86400000"
+            }
+            (Locale::ZhCn, ExpectedValue::AgentWaitTimeout) => "1–86400000 的十进制整数",
             (Locale::EnUs, ExpectedValue::OutputCursor) => {
                 "now or an output cursor returned by this terminal"
             }

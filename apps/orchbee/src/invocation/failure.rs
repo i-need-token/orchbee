@@ -107,6 +107,8 @@ pub(crate) enum ExpectedValue {
     OutputSource,
     OutputLines,
     WaitTimeout,
+    /// The `--timeout` of a wait on an Agent or a terminal observation: 1 to 86400000 ms.
+    AgentWaitTimeout,
     AgentStartTimeout,
     AgentStartProvider,
     AgentStartArgument,

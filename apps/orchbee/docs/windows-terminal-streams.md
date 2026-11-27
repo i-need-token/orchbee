@@ -18,7 +18,7 @@ Interactive attach remains a dependent surface. Both commands select existing te
 | Ending          | Detach once, drop connection, emit one terminal record when output remains writable | Two-second cleanup reserve; never stop the underlying terminal           |
 | Finished        | Stop and join relay, release handles and interrupt owner                            | No retained task, thread, pipe or temporary file                         |
 
-No total timeout is the default. `--timeout <ms>` sets a positive total bound up to 3600000 ms.
+No total timeout is the default. `--timeout <ms>` sets a positive total bound up to 86400000 ms, one day.
 Individual exchanges and output flushes have a five-second ceiling. Cancellation exits 130;
 timeout exits 7, unavailable 4, transport/protocol loss 5, and local/output failure 1.
 Missing, ambiguous and refused targets retain the ordinary CLI refusal classes. A transport EOF
