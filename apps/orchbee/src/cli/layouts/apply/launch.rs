@@ -95,6 +95,7 @@ pub(super) fn prepare(
                     plugin_panel: None,
                     plugin_context: None,
                     agent_start: None,
+                    close_on_exit: false,
                     cwd,
                     environment: leaf.environment.clone(),
                 },

@@ -769,7 +769,8 @@ Creating/Starting stays busy. Unknown, unavailable with a retained identity, mis
 ## Normal Shell exit
 
 Server closes the Panel of an interactive Shell that exits with code 0, following Windows
-Terminal's graceful close. Every viewer of the exact physical terminal, including Server sampling
+Terminal's graceful close, and the Panel of any program whose creation set `closeOnExit` in its
+launch options (`--close-on-exit` with `--exec`). Every viewer of the exact physical terminal, including Server sampling
 viewers, passes the Host `TerminalExited` record through Server's exact identity check in the
 viewer Poll route; only an `ExitCode(0)` record reaches the Session. Under the Worker and Session
 gates, the Session admits an ordinary `panel.close` with a Server-generated request ID at the
@@ -778,12 +779,14 @@ current revision only when:
 - no Close fences or has disposed the target;
 - TerminalCoordinator retains the binding's Create as the same Started Host incarnation and Worker
   generation;
-- the launch ran an interactive Shell under the Host launch rule: PowerShell with only plain
+- the creation set `closeOnExit`, or the launch ran an interactive Shell under the Host launch
+  rule: PowerShell with only plain
   interactive flags, `cmd` with only `/D` or `/Q`, or a POSIX shell with only interactive or login
   flags. TerminalCoordinator judges this when it plans the launch, from the argv it dispatches:
   the Client launch selection, else the custom default program from the launch's preference
-  capture. It retains only the judgment, not the argv. A default launch of the System shell always
-  qualifies;
+  capture. It retains only the judgment, not the argv, and records it in the binding record's
+  `interactive_shell` member, so a Server that adopts the terminal keeps the same answer. A default
+  launch of the System shell always qualifies;
 - the binding is the primary Presentation of a Panel without child Presentations.
 
 A sole leaf therefore closes its whole Tab, and the last Tab leaves its Workspace empty, exactly

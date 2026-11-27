@@ -74,6 +74,7 @@ const WorkbenchLaunchOptionsSchema = z
 		pluginContext: PluginInvocationContextSchema.nullable().optional(),
 		environment: WorkbenchLaunchEnvironmentSchema.optional(),
 		agentStart: WorkbenchAgentStartProviderSchema.nullable().optional(),
+		closeOnExit: z.boolean().optional(),
 	})
 	.refine(
 		(value) => !value.pluginContext || Boolean(value.pluginPanel),
@@ -122,6 +123,7 @@ type CanonicalTerminalLaunchFields = Readonly<{
 		pluginContext?: z.output<typeof PluginInvocationContextSchema>;
 		environment?: NonNullable<z.output<typeof WorkbenchLaunchOptionsSchema>['environment']>;
 		agentStart?: z.output<typeof WorkbenchAgentStartProviderSchema>;
+		closeOnExit?: true;
 	}>;
 }>;
 
@@ -139,7 +141,8 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 			options.environment?.length ||
 			options.pluginPanel ||
 			options.pluginContext ||
-			options.agentStart)
+			options.agentStart ||
+			options.closeOnExit)
 			? {
 					options: {
 						...(options.cwd ? { cwd: options.cwd } : {}),
@@ -149,6 +152,7 @@ export function normalizeWorkbenchTerminalLaunch<T extends TerminalLaunchFields>
 							: {}),
 						...(options.environment?.length ? { environment: options.environment } : {}),
 						...(options.agentStart ? { agentStart: options.agentStart } : {}),
+						...(options.closeOnExit ? { closeOnExit: true as const } : {}),
 					},
 				}
 			: {}),

@@ -1045,6 +1045,8 @@ struct Options {
     paste: bool,
     mouse: Option<bool>,
     exec: Option<String>,
+    /// `--close-on-exit`: the `--exec` program's Panel closes after it exits with code 0.
+    close_on_exit: bool,
     cwd: Option<String>,
     environment: Vec<String>,
     args: Vec<String>,

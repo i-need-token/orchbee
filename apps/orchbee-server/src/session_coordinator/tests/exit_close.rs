@@ -236,6 +236,38 @@ fn only_interactive_shell_launches_close_after_a_normal_exit() {
     }
 }
 
+/// A program that would keep its Panel closes it after a normal exit once its creation asked to.
+#[test]
+fn a_program_created_to_close_on_exit_closes_after_a_normal_exit() {
+    let mut coordinator = session();
+    let revision = snapshot(&mut coordinator).revision.value();
+    let mut command = tab_command(&coordinator, 10, revision, "task");
+    let WorkbenchAction::TabCreate {
+        launch, options, ..
+    } = &mut command.action
+    else {
+        unreachable!("tab.create command")
+    };
+    *launch = Some(
+        LaunchSelection::new("/usr/bin/python".to_owned(), vec!["task.py".to_owned()]).unwrap(),
+    );
+    options.close_on_exit = true;
+    let pending = dispatch_tab_with(
+        &mut coordinator,
+        command,
+        11,
+        &LaunchCapture::absent(),
+        None,
+    );
+    let completion = immediate_completion(pending.command());
+    coordinator
+        .complete_terminal_tab_create(pending, completion, Some(worker(1)))
+        .unwrap();
+    let committed = snapshot(&mut coordinator);
+    let exited = leaves(&committed.terminal_contexts[0].tabs.last().unwrap().root)[0];
+    assert!(exit_normally(&mut coordinator, exited, 20));
+}
+
 #[test]
 fn a_default_launch_closes_by_the_default_program_its_capture_dispatched() {
     use orchbee_capability_node_protocol::{

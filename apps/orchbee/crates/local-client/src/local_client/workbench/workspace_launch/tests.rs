@@ -13,6 +13,7 @@ fn action() -> WorkbenchAction {
             plugin_panel: None,
             plugin_context: None,
             agent_start: None,
+            close_on_exit: false,
             cwd: Some(
                 orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\repo").unwrap(),
             ),

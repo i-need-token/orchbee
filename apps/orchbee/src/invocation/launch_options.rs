@@ -55,10 +55,15 @@ pub(super) fn launch_options_with_directory(
         })
         .collect::<Result<Vec<_>, _>>()?;
     let environment = LaunchEnvironment::new(entries).map_err(|_| invalid_environment())?;
+    // A default Shell's Panel already closes after a normal exit; only a program can ask to.
+    if options.close_on_exit && options.exec.is_none() {
+        return Err(missing_required(context, "'--exec'", envelope));
+    }
     Ok(LaunchOptions {
         plugin_panel: None,
         plugin_context: None,
         agent_start: None,
+        close_on_exit: options.close_on_exit,
         cwd,
         environment,
     })

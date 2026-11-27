@@ -1,4 +1,5 @@
-//! Admits the canonical Close owed to an interactive Shell that exited with code 0. It decides
+//! Admits the canonical Close owed to an interactive Shell, or a launch created to close on exit,
+//! that exited with code 0. It decides
 //! eligibility from retained creation facts and committed Presentation membership, then reuses
 //! the ordinary Panel Close admission. It does not observe Host lifecycle, dispose terminals, or
 //! publish removal; the existing Close continuation owns every effect after admission.
@@ -17,7 +18,8 @@ use crate::terminal_coordinator::{BindingViewerTarget, TerminalPhase, WorkerPlac
 impl SessionCoordinator {
     /// `target` names the exact physical terminal whose Host exit record with exit code 0 Server
     /// has just validated. Returns whether this call admitted a new Close. A target that is already
-    /// fenced, launched as a non-interactive program, not the only Presentation of its Panel, or no
+    /// fenced, launched as a non-interactive program without close-on-exit, not the only
+    /// Presentation of its Panel, or no
     /// longer the retained Started incarnation keeps its settled output.
     pub(crate) fn close_after_normal_exit(
         &mut self,
@@ -42,7 +44,7 @@ impl SessionCoordinator {
         );
         if !started
             || retained.worker_generation != target.worker.generation
-            || !retained.interactive_shell
+            || !retained.closes_on_exit
         {
             return false;
         }

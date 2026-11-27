@@ -57,6 +57,7 @@ fn panel_member_creation_dispatches_literal_launch_and_preserves_original_member
                     plugin_panel: None,
                     plugin_context: None,
                     agent_start: None,
+                    close_on_exit: false,
                     cwd: Some(WorkbenchDirectoryPath::parse("C:/work").unwrap()),
                     environment: LaunchEnvironment::new(vec![(
                         "VALUE".into(),

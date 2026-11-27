@@ -1302,6 +1302,7 @@ fn workspace_launch_command(authority: &WorkbenchAuthority) -> WorkbenchCommand 
             plugin_panel: None,
             plugin_context: None,
             agent_start: None,
+            close_on_exit: false,
             cwd: Some(WorkbenchDirectoryPath::parse(r"C:\project space").unwrap()),
             environment: Default::default(),
         }),

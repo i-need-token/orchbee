@@ -30,7 +30,7 @@ pub(crate) struct RecordedBinding {
     /// The geometry it started at; none while it awaits its start.
     pub(crate) geometry: Option<Geometry>,
     pub(crate) deferred: bool,
-    pub(crate) interactive_shell: bool,
+    pub(crate) closes_on_exit: bool,
     pub(crate) profile_provenance: Option<LaunchProfileProvenance>,
     pub(crate) launch_selection: Option<LaunchSelection>,
 }
@@ -69,7 +69,7 @@ impl TerminalCoordinator {
                     worker: state.worker,
                     geometry: state.geometry,
                     deferred: binding.deferred,
-                    interactive_shell: binding.interactive_shell,
+                    closes_on_exit: binding.closes_on_exit,
                     profile_provenance: binding.profile_provenance.clone(),
                     launch_selection: binding.launch_selection.clone(),
                 })
@@ -154,7 +154,7 @@ impl TerminalCoordinator {
                 },
                 profile_provenance: recorded.profile_provenance.clone(),
                 launch_selection: recorded.launch_selection.clone(),
-                interactive_shell: recorded.interactive_shell,
+                closes_on_exit: recorded.closes_on_exit,
             },
         );
         Some(authorization)

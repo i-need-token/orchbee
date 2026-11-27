@@ -201,6 +201,12 @@ impl PlannedCreate<'_> {
         self.pending.command()
     }
 
+    /// Closes the new terminal's Panel after an exit with code 0, as an interactive Shell's
+    /// Panel closes, whatever program the launch runs.
+    pub(crate) const fn close_on_exit(&mut self) {
+        self.binding.closes_on_exit = true;
+    }
+
     /// Attaches the Server-side profile provenance to the binding being
     /// committed. Called only when the launch command resolved a named
     /// profile at prepare; the Worker-facing request never carries it.
@@ -303,8 +309,10 @@ struct TerminalBinding {
     /// the binding commits.
     profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
     launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
-    /// Whether the dispatched argv runs an interactive Shell, judged when the launch was planned.
-    interactive_shell: bool,
+    /// Whether the Session closes this terminal's Panel after an exit with code 0: the dispatched
+    /// argv runs an interactive Shell, judged when the launch was planned, or the creation asked
+    /// to close on exit.
+    closes_on_exit: bool,
 }
 
 pub(crate) struct RetainedTerminalCreate<'coordinator> {
@@ -314,7 +322,7 @@ pub(crate) struct RetainedTerminalCreate<'coordinator> {
     pub(crate) worker_generation: WorkerGeneration,
     pub(crate) profile_provenance: Option<orchbee_client_server_protocol::LaunchProfileProvenance>,
     pub(crate) launch_selection: Option<orchbee_client_server_protocol::LaunchSelection>,
-    pub(crate) interactive_shell: bool,
+    pub(crate) closes_on_exit: bool,
 }
 
 /// Resolution of a binding identity pair against the retained creates. `Absent` is a
@@ -502,7 +510,7 @@ impl TerminalCoordinator {
             worker_generation: binding.authorization.worker_generation(),
             profile_provenance: binding.profile_provenance.clone(),
             launch_selection: binding.launch_selection.clone(),
-            interactive_shell: binding.interactive_shell,
+            closes_on_exit: binding.closes_on_exit,
         })
     }
 
@@ -832,7 +840,7 @@ impl TerminalCoordinator {
         let completion_seal = Arc::new(TerminalCompletionSeal);
         let launch_selection = request.launch().cloned();
         let launch_program = capture.launch_program(launch.as_ref());
-        let interactive_shell = capture.launches_interactive_shell(launch.as_ref());
+        let closes_on_exit = capture.launches_interactive_shell(launch.as_ref());
         let preferences = capture.preferences(launch.as_ref());
         let command = AuthorizedTerminalLaunch::new(authorization, cwd, mode, launch)
             .with_environment(environment);
@@ -896,7 +904,7 @@ impl TerminalCoordinator {
                 phase: TerminalPhase::Creating,
                 profile_provenance: None,
                 launch_selection,
-                interactive_shell,
+                closes_on_exit,
             },
             launch_program,
             next_identity: identity.checked_add(1),

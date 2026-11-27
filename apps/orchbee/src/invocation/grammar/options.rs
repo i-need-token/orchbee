@@ -2026,6 +2026,27 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--close-on-exit",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[
+            CommandPath::WorkspaceCreate,
+            CommandPath::TabCreate,
+            CommandPath::PanelCreateTerminal,
+            CommandPath::PanelSplit,
+        ],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.close_on_exit = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--cwd",
         values: super::values::CWD_VALUES,
         closed_values: false,

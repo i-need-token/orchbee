@@ -74,7 +74,7 @@ orchbee panel split <panel-id> --direction right
 
 检查每份创建回执：布局成员已提交不代表进程已启动。需要客户端的命令会拒绝缺失、有歧义或尚未就绪的客户端；使用 `client list` 并显式传入 `--client`。
 
-`tab create`、`panel split` 和 `panel create-terminal` 支持其声明的启动选择、cwd 和字面环境条目。保存的 Launch Profile 使用 `--profile`；显式程序使用 `--exec` 和可重复的 `--arg`。目录必须已存在。查看帮助中的 `--cwd home|current|workspace`、绝对路径覆盖、完整终端几何参数及 `--env NAME=VALUE` 边界。这些覆盖不修改保存的 profile。
+`tab create`、`panel split` 和 `panel create-terminal` 支持其声明的启动选择、cwd 和字面环境条目。保存的 Launch Profile 使用 `--profile`；显式程序使用 `--exec` 和可重复的 `--arg`；一次性任务可加 `--close-on-exit`，程序以退出码 0 结束后关闭其面板。目录必须已存在。查看帮助中的 `--cwd home|current|workspace`、绝对路径覆盖、完整终端几何参数及 `--env NAME=VALUE` 边界。这些覆盖不修改保存的 profile。
 
 `panel create-terminal --child` 创建子终端。使用 `workspace`/`tab` move、`panel move --into-tab <tab>`/`swap`、`layout`、`panel resize`、`panel maximize` 和 focus 命令安排布局。客户端 focus 控制 TUI 选择，不激活操作系统窗口。选择当前目标或布局路径前，先阅读命令帮助。
 

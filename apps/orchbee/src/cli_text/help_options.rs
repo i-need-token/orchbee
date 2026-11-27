@@ -406,6 +406,11 @@ impl super::CliText {
                     "Executable to launch instead of the default shell.",
                     "要启动的程序绝对路径；替代默认 Shell。",
                 ),
+                "--close-on-exit" => (
+                    "",
+                    "Close the Panel when the --exec program exits with code 0.",
+                    "--exec 程序以退出码 0 结束时关闭面板。",
+                ),
                 "--file" => (
                     "<path>",
                     "Read input from a local file.",

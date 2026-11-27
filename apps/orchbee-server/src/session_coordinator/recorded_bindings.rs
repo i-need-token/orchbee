@@ -106,7 +106,7 @@ impl SessionCoordinator {
                     presentation_id,
                     launch_program,
                     deferred: recorded.deferred,
-                    interactive_shell: recorded.interactive_shell,
+                    closes_on_exit: recorded.closes_on_exit,
                     profile: recorded.profile_provenance,
                     launch_selection: recorded.launch_selection,
                 })

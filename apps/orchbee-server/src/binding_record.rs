@@ -69,7 +69,8 @@ pub(crate) struct RecordedTerminal {
     pub(crate) presentation_id: TerminalPresentationId,
     pub(crate) launch_program: Option<PresentationLaunchProgram>,
     pub(crate) deferred: bool,
-    pub(crate) interactive_shell: bool,
+    /// Whether the Session closes its Panel after an exit with code 0.
+    pub(crate) closes_on_exit: bool,
     pub(crate) profile: Option<LaunchProfileProvenance>,
     pub(crate) launch_selection: Option<LaunchSelection>,
 }
@@ -90,7 +91,7 @@ impl RecordedTerminal {
             worker,
             geometry: self.geometry,
             deferred: self.deferred,
-            interactive_shell: self.interactive_shell,
+            closes_on_exit: self.closes_on_exit,
             profile_provenance: self.profile.clone(),
             launch_selection: self.launch_selection.clone(),
         }
@@ -255,7 +256,10 @@ struct StoredTerminal {
     geometry: Option<StoredGeometry>,
     fence: u64,
     deferred: bool,
-    interactive_shell: bool,
+    /// The record's name from when only an interactive Shell closed on exit, kept so that both
+    /// installed versions read the same member.
+    #[serde(rename = "interactive_shell")]
+    closes_on_exit: bool,
     #[serde(deserialize_with = "Option::deserialize")]
     profile: Option<StoredProfile>,
     #[serde(deserialize_with = "Option::deserialize")]
@@ -363,7 +367,7 @@ impl From<&RecordedTerminal> for StoredTerminal {
             }),
             fence: terminal.binding.fence.get(),
             deferred: terminal.deferred,
-            interactive_shell: terminal.interactive_shell,
+            closes_on_exit: terminal.closes_on_exit,
             profile: terminal.profile.as_ref().map(|profile| StoredProfile {
                 id: profile.profile_id().to_owned(),
                 catalog_revision: profile.catalog_revision(),
@@ -512,7 +516,7 @@ impl StoredTerminal {
             presentation_id: TerminalPresentationId::parse(&self.presentation_id).ok()?,
             launch_program,
             deferred: self.deferred,
-            interactive_shell: self.interactive_shell,
+            closes_on_exit: self.closes_on_exit,
             profile,
             launch_selection,
         })

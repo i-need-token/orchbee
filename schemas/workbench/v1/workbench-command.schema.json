@@ -3561,6 +3561,10 @@
 						}
 					],
 					"$comment": "Accepted by tab.create, panel.split and workspace.launch, never beside pluginPanel; the Server resolves the provider id to the new shell's first command."
+				},
+				"closeOnExit": {
+					"type": "boolean",
+					"$comment": "Close the new Panel after its program exits with code 0, as an interactive Shell's Panel closes; serialized only when true."
 				}
 			},
 			"required": [],

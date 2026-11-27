@@ -62,6 +62,10 @@ pub struct LaunchOptions {
     /// without it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent_start: Option<AgentStartSelector>,
+    /// Close the new Panel after its program exits with code 0, as an interactive Shell's Panel
+    /// closes; a default Shell launch closes so already.
+    #[serde(default, skip_serializing_if = "crate::model::is_false")]
+    pub close_on_exit: bool,
 }
 impl LaunchOptions {
     /// Whether no per-launch override is requested.
@@ -72,6 +76,7 @@ impl LaunchOptions {
             && self.plugin_panel.is_none()
             && self.plugin_context.is_none()
             && self.agent_start.is_none()
+            && !self.close_on_exit
     }
 }
 
@@ -83,6 +88,7 @@ impl std::fmt::Debug for LaunchOptions {
             .field("plugin_panel", &self.plugin_panel)
             .field("plugin_context_present", &self.plugin_context.is_some())
             .field("agent_start", &self.agent_start)
+            .field("close_on_exit", &self.close_on_exit)
             .finish()
     }
 }

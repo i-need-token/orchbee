@@ -465,6 +465,7 @@ fn workspace_launch_requires_navigation_directory_and_terminal_grants() {
                 plugin_panel: None,
                 plugin_context: None,
                 agent_start: None,
+                close_on_exit: false,
                 cwd: Some(
                     orchbee_workbench_protocol::WorkbenchDirectoryPath::parse(r"C:\workspace")
                         .unwrap(),

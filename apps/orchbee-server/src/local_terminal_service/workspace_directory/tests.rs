@@ -473,6 +473,7 @@ fn launch_command(service: &LocalTerminalService) -> WorkbenchCommand {
                 plugin_panel: None,
                 plugin_context: None,
                 agent_start: None,
+                close_on_exit: false,
                 cwd: Some(path),
                 environment: Default::default(),
             }),

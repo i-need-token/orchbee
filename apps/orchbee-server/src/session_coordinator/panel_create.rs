@@ -259,6 +259,9 @@ impl SessionCoordinator {
             }
         };
         terminal.set_profile_provenance(profile_provenance);
+        if options.close_on_exit {
+            terminal.close_on_exit();
+        }
         if let Some(selector) = &options.agent_start
             && super::agent_start::agent_start_command(selector, capture)
                 .and_then(|start| terminal.set_agent_start(start))
