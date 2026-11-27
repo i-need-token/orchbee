@@ -1610,6 +1610,22 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         },
     },
     OptionSpec {
+        spelling: "--wait-ready",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::AgentStart],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.wait_ready = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
         spelling: "--split",
         values: &["right", "down"],
         closed_values: true,

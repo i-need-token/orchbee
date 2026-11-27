@@ -1,8 +1,9 @@
 //! Agent startup in one place beside a reference Panel: a new Tab in its Workspace (the default),
 //! a new Panel split from it, or that Panel's own prompt. A new Panel runs the Agent as its
 //! shell's first command when the start is exactly the catalog command; otherwise one submission
-//! is typed at the Panel's confirmed prompt. The start returns after the early check; a canonical
-//! Session that an existing hook reports still confirms readiness.
+//! is typed at the Panel's confirmed prompt. The start returns after the early check, or with
+//! `--wait-ready` once the Agent is idle; a canonical Session that an existing hook reports still
+//! confirms readiness.
 //! Every failure retains the independently known effects, including a Panel this invocation
 //! created, which stays. A focus that misses that Panel is reported beside the start, not as a
 //! failure.
@@ -30,6 +31,7 @@ use std::ffi::OsString;
 use std::time::{Duration, Instant};
 
 mod place;
+mod ready;
 mod report;
 use report::{Report, Verdict};
 
@@ -60,6 +62,8 @@ struct Placed {
     panel: Option<WorkbenchPanelId>,
     created: bool,
     focus: Option<FocusMiss>,
+    /// `--wait-ready` saw the Agent take a prompt after a start that ended at its early check.
+    ready: bool,
 }
 
 /// The reference Panel, and for `--here` with an explicit Panel, the caller's own Panel, which
@@ -79,6 +83,7 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
         panel: None,
         created: false,
         focus: None,
+        ready: false,
     };
     if !crate::agent_start::command_valid(&request) {
         return project(
@@ -121,6 +126,15 @@ pub(crate) fn run(command: &AgentStartCommand, format: OutputFormat, locale: Loc
         ),
         Err(failure) => Report::preflight(request, started, failure),
     };
+    if command.wait_ready
+        && let Verdict::Sent { panel } = &report.verdict
+    {
+        let panel = panel.clone();
+        match ready::wait(&panel, deadline, &mut armed) {
+            Ok(()) => placed.ready = true,
+            Err(failure) => report.replace_failure(failure),
+        }
+    }
     let finalization = match armed.finish() {
         Ok(Finish::Clear) => None,
         Ok(Finish::Cancelled { finalization }) => {
@@ -415,6 +429,16 @@ fn project(
             text.cli_agent_observed(place, &handle(panel)),
         )),
         // A new shell that ran the Agent as its first command had nothing typed into it.
+        (Verdict::Sent { .. }, Some(panel)) if placed.ready => Some((
+            if report.submission.is_none() {
+                "launched"
+            } else {
+                "sent"
+            },
+            None,
+            panel,
+            text.cli_agent_observed(place, &handle(panel)),
+        )),
         (Verdict::Sent { .. }, Some(panel)) => Some((
             if report.submission.is_none() {
                 "launched"
@@ -432,10 +456,11 @@ fn project(
         _ => None,
     };
     if let Some((confirmation, session, panel, rendered)) = started {
-        // A start that ends when its line is typed or its shell is seen promises no ready Agent.
+        // A start that ends when its line is typed or its shell is seen promises no ready Agent
+        // unless `--wait-ready` then saw it take a prompt.
         let mut document = json!({"schema":"orchbee.agent.start", "version":1, "result":{
             "kind":"started", "confirmation":confirmation,
-            "interactiveReady":!matches!(confirmation, "sent" | "launched"),
+            "interactiveReady":placed.ready || !matches!(confirmation, "sent" | "launched"),
             "providerId":&report.provider,
             "elapsedMs":report.elapsed_ms, "submission":&report.submission,
             "place":place.as_str(), "panelId":panel.as_str(),

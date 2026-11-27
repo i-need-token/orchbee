@@ -30,6 +30,11 @@ impl super::CliText {
                 "Type the command at the reference Panel's own prompt; refused for the caller's own Panel.",
                 "在参照面板自身的提示符处输入命令；不能用于调用者自己的面板。",
             ),
+            (CommandPath::AgentStart, "--wait-ready") => (
+                "",
+                "After starting, wait within --timeout until the Agent is idle and ready for a prompt.",
+                "启动后在 --timeout 内等到智能体空闲、可以接收提示。",
+            ),
             (CommandPath::AgentStart, "--split") => (
                 "<right|down>",
                 "Start in a new Panel split to the right of or below the reference Panel.",

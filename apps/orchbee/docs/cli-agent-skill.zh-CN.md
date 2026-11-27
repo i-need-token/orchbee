@@ -9,9 +9,8 @@
 orchbee status --format json
 orchbee agent list --format json
 
-# 在目标工作目录启动智能体且不抢占客户端焦点
-orchbee agent start antigravity --cwd <dir> --no-focus -- <provider-args>
-orchbee agent wait --panel @panel:0x1 --until idle
+# 在目标工作目录启动智能体且不抢占客户端焦点，等它空闲后返回
+orchbee agent start antigravity --cwd <dir> --no-focus --wait-ready -- <provider-args>
 
 # 按面板或子终端发送提示词、按键、查看进程信息或可见屏幕输出
 orchbee agent prompt --panel @panel:0x1 "<task>"
@@ -93,7 +92,7 @@ orchbee panel split <panel-id> --direction right
 
 本版本不提供智能体集成：没有命令可以启用、停用、列出或解释集成。早期版本写入的条目保持不变，卸载时会删除它们。
 
-`agent start <provider>` 在你自己的面板旁的新标签页中启动提供方；`--split right|down` 改为打开拆分面板，`--cwd <dir>`、`--focus` 与 `--no-focus` 仅适用于此类新标签页或拆分面板启动，并与 `--here` 互斥。`--client <id>` 指定 `--focus` 切换的客户端，且需与 `--focus` 同用。`--here --panel <panel-id>` 在该已观察到空闲的 cmd、PowerShell、pwsh 或 macOS zsh、bash 终端已确认的提示符处输入一次（不能是你自己的面板：`own-panel`；交互启动时若提示符尚未标记会短暂等待稳定）。`--panel <panel-id>` 或 `--current` 指定参照面板。不带参数时，新标签页或拆分面板的 shell 以提供方作为首个命令运行，面板创建后即返回：`confirmation` 为 `launched`，`submission` 为 null。否则输入命令并在 3 秒检查后返回：`confirmation` 为 `sent`。两种情况下 `interactiveReady` 都为 false，`place` 和 `panelId` 指明启动位置；发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。未经规范会话报告时，就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，请用 `@panel:` 句柄经 `--panel` 或 `--terminal` 指定该智能体。后续步骤失败时，已创建的新标签页或拆分面板保留，失败结果的 `createdPanelId` 指向它。聚焦未切换时不会使启动失败；`result.focus`（失败时为 `details.focus`）给出阶段与原因。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并在 `agent list` 中查看该智能体的行。
+`agent start <provider>` 在你自己的面板旁的新标签页中启动提供方；`--split right|down` 改为打开拆分面板，`--cwd <dir>`、`--focus` 与 `--no-focus` 仅适用于此类新标签页或拆分面板启动，并与 `--here` 互斥。`--client <id>` 指定 `--focus` 切换的客户端，且需与 `--focus` 同用。`--here --panel <panel-id>` 在该已观察到空闲的 cmd、PowerShell、pwsh 或 macOS zsh、bash 终端已确认的提示符处输入一次（不能是你自己的面板：`own-panel`；交互启动时若提示符尚未标记会短暂等待稳定）。`--panel <panel-id>` 或 `--current` 指定参照面板。不带参数时，新标签页或拆分面板的 shell 以提供方作为首个命令运行，面板创建后即返回：`confirmation` 为 `launched`，`submission` 为 null。否则输入命令并在 3 秒检查后返回：`confirmation` 为 `sent`。两种情况下 `place` 和 `panelId` 都指明启动位置；`interactiveReady` 为 false，除非 `--wait-ready` 随后在同一时限内等到智能体空闲或完成首轮：此时为 true；智能体被阻塞时以 `agent-blocked` 失败，未能及时就绪时以 `start-deadline` 失败。不用 `--wait-ready` 时，发送提示前先用 `agent wait --panel <panel-id> --until idle` 等待。shell 回到提示符时以 `command-not-found` 或 `agent-exited` 失败。未经规范会话报告时，就绪由终端观察确认：`confirmation` 为 `observed`，没有 `sessionId`，请用 `@panel:` 句柄经 `--panel` 或 `--terminal` 指定该智能体。后续步骤失败时，已创建的新标签页或拆分面板保留，失败结果的 `createdPanelId` 指向它。聚焦未切换时不会使启动失败；`result.focus`（失败时为 `details.focus`）给出阶段与原因。默认时限 30000 毫秒，允许范围 3001–300000。字面提供方参数放在 `--` 后，或使用可重复的 `--arg=<value>`。超时或取消后提供方可能仍在运行；重试前检查输入回执，并在 `agent list` 中查看该智能体的行。
 
 `agent list/get` 检查当前 Agent 状态；`agent get --format json` 还会给出 `result.explanation` 或 `result.detection`，另一项为 null。`agent list` 会合并规范会话与物理终端 Agent，并为每行报告来源、语义状态和位置；`--client <id>` 添加独立的 Client 观察，不改变状态。每页 1–100 行，默认 50 行。JSON 使用 `orchbee.agent.list` v1 和 `orchbee.agent.get` v1。分页游标应原样传回；畸形游标在读取实时来源前作为用法错误拒绝，收到 `cursor-restart` 时须从第一页重新开始；可选 cwd 信息每页最多为 64 行，无法获取时为 null。
 

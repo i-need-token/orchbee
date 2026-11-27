@@ -269,6 +269,7 @@ pub(super) fn resolve_words(
                     client,
                     args,
                     timeout_ms,
+                    wait_ready: options.wait_ready,
                 },
                 format: options.format.unwrap_or(OutputFormat::Text),
             })

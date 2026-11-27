@@ -619,6 +619,8 @@ pub(crate) struct AgentStartCommand {
     pub(crate) client: Option<WorkbenchClientId>,
     pub(crate) args: Vec<String>,
     pub(crate) timeout_ms: u32,
+    /// `--wait-ready`: after the start, wait under the same deadline until the Agent is idle.
+    pub(crate) wait_ready: bool,
 }
 
 /// Where `agent start` runs the Agent, relative to its reference Panel.
@@ -1014,6 +1016,8 @@ struct Options {
     new_tab: bool,
     /// `agent start --here`: type at the reference Panel's own prompt.
     here: bool,
+    /// `agent start --wait-ready`: return once the Agent is idle.
+    wait_ready: bool,
     /// `agent start --split <direction>`.
     split: Option<String>,
     new_workspace: bool,

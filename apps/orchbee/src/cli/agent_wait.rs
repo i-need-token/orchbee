@@ -80,6 +80,34 @@ pub(crate) fn agent_wait(
     classify_wait_attempt(attempt)
 }
 
+/// `agent start --wait-ready`: one wait inside the start's own armed span. The span's owner
+/// arbitrates any wake after the start, so this half never calls `finish`; a wake surfaces as
+/// `internal-failure` for that owner to weigh.
+pub(in crate::cli) fn agent_wait_armed(
+    target: &crate::invocation::AgentTarget,
+    until: &[AgentWaitCondition],
+    timeout_ms: u32,
+    armed: &mut ArmedSignals,
+) -> Result<(serde_json::Value, Projection), AgentQueryError> {
+    crate::cli::execution::admit(crate::cli::execution::Capability::CanonicalAgentRead)
+        .map_err(AgentQueryError::Admission)?;
+    crate::cli::execution::admit_agent_target(target).map_err(AgentQueryError::Admission)?;
+    let start = Instant::now();
+    let total = WaitDeadline::new(start, Some(timeout_ms)).map_err(AgentQueryError::Admission)?;
+    classify_wait_attempt(agent_wait_span(
+        total,
+        start,
+        AGENT_TOTAL_BUDGET,
+        target,
+        until,
+        None,
+        Some(timeout_ms),
+        None,
+        armed,
+        agent_session_until,
+    ))
+}
+
 /// The armed span's finish half, separated exactly like
 /// `agent_armed_finish` so a recording watch can prove the held session
 /// is already dropped when the arbitration read runs: `agent_wait_span`

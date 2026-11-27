@@ -71,7 +71,11 @@ Agent integrations are not offered in this release, so starting never inspects o
 is one outcome line that names the place and the Panel by the handle `agent list` prints, such as
 `Started Codex in a new Tab (Panel @panel:0x36).`, while JSON keeps the canonical `panelId`; then
 the next step, with the same handle:
-`agent wait --panel <panel> --until idle` before prompting.
+`agent wait --panel <panel> --until idle` before prompting. `--wait-ready` takes that step inside
+the start, under the same deadline and signal span: it retries every 250 ms while the Panel shows
+no recognized Agent, succeeds once the Agent is idle or done with a first turn its arguments asked
+for, refuses a blocked Agent as `agent-blocked`, and reports `start-deadline` when the deadline
+passes first. Its text result is the ready line, with `agent prompt` as the next step.
 
 The [Start Agent picker](start-agent-picker.md) lists from the Session's
 [Agent catalog](../../orchbee-server/README.md#agent-catalog), which the Server keeps from its
@@ -388,7 +392,7 @@ reservation identity, elapsed time, the original terminal-send receipt, `place` 
 `confirmation` is `launched` when a new Panel's shell runs the Agent as its first command:
 `submission` is null, because nothing was typed. It is `sent` after a typed start without a name.
 After either, `name` and `reservationId` are null and `interactiveReady` is false, because nothing
-waited for readiness. It is `session` when the canonical Session confirmed readiness; `sessionId`
+waited for readiness, unless `--wait-ready` then saw the Agent idle or done. It is `session` when the canonical Session confirmed readiness; `sessionId`
 then names it and holds the name. It is `observed` when observation confirmed readiness;
 `sessionId` is absent and the name is not bound, so later commands address the Agent by `--panel`
 or `--terminal`. Failure is `orchbee.cli.failure.agent-start` v1 with independently retained

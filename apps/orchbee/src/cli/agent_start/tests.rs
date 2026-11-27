@@ -22,6 +22,7 @@ fn here() -> Placed {
         panel: Some(panel_a()),
         created: false,
         focus: None,
+        ready: false,
     }
 }
 
@@ -323,6 +324,7 @@ fn finish_boundary_replacement_retains_only_the_workflow_read_cause() {
 
 fn command(place: AgentStartPlace, args: &[&str]) -> AgentStartCommand {
     AgentStartCommand {
+        wait_ready: false,
         provider: "codex".into(),
         place,
         panel: None,
@@ -413,6 +415,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
         panel: Some(panel_a()),
         created: true,
         focus: None,
+        ready: false,
     };
     let unnamed = |submission: Option<Value>, verdict| Report {
         provider: AgentProviderId::parse("codex").unwrap(),
@@ -511,6 +514,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
             panel: None,
             created: false,
             focus: None,
+            ready: false,
         };
         let answer = project(refused, &placed, OutputFormat::Json, locale, None);
         assert_eq!(answer.status, FailureKind::Rejected.exit_code());
@@ -542,6 +546,7 @@ fn new_panel_outcomes_name_their_place_under_both_locales() {
             panel: None,
             created: false,
             focus: None,
+            ready: false,
         };
         let answer = project(own, &placed, OutputFormat::Json, locale, None);
         assert_eq!(answer.status, 2);

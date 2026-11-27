@@ -47,18 +47,11 @@
 					"if": {
 						"properties": {
 							"confirmation": {
-								"enum": ["sent", "launched"]
+								"enum": ["session", "observed"]
 							}
 						}
 					},
 					"then": {
-						"properties": {
-							"interactiveReady": {
-								"const": false
-							}
-						}
-					},
-					"else": {
 						"properties": {
 							"interactiveReady": {
 								"const": true
