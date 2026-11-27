@@ -4,11 +4,13 @@ const COHORT_DIRECTORY_PATTERN = /^cohort-[0-9a-f]{16}$/u;
 const DigestSchema = z.string().regex(/^[0-9a-f]{64}$/u);
 
 /**
- * The executables a running Session runs. A Client only joins it, admitted by protocol fingerprint,
- * and the Agent observation Capsule stays the one beside the Session's own Worker.
+ * The executables a running Session runs, its Worker's File Bar process among them. A Client only
+ * joins it, admitted by protocol fingerprint, and the Agent observation Capsule stays the one beside
+ * the Session's own Worker.
  */
 const SessionRolesSchema = z.looseObject({
 	artifacts: z.looseObject({
+		'orchbee-files': DigestSchema.optional(),
 		'orchbee-server': DigestSchema,
 		'orchbee-terminal-host': DigestSchema,
 		'orchbee-worker': DigestSchema,
@@ -40,14 +42,19 @@ export type DevelopmentSessionObservation =
 /**
  * Whether the development Session that the cohort with the `previous` `cohort.json` started can keep
  * running for the newly staged cohort with the `current` one. It can only when both manifests read
- * and name the same Server, Worker, and Terminal Host; anything else stops it, as a Server, Worker,
- * or Host change takes effect only after a Session stop.
+ * and name the same Server, Worker, Terminal Host, and File Bar process; anything else stops it, as a
+ * change to any of them takes effect only after a Session stop.
  */
 export function keepsDevelopmentSession(previous: unknown, current: unknown): boolean {
 	const before = SessionRolesSchema.safeParse(previous);
 	const after = SessionRolesSchema.safeParse(current);
 	if (!before.success || !after.success) return false;
-	const roles = ['orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'] as const;
+	const roles = [
+		'orchbee-files',
+		'orchbee-server',
+		'orchbee-worker',
+		'orchbee-terminal-host',
+	] as const;
 	return roles.every((role) => before.data.artifacts[role] === after.data.artifacts[role]);
 }
 

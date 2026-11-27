@@ -276,6 +276,9 @@ function main() {
 		process.platform === 'darwin' || process.platform === 'linux'
 			? 'orchbee-desktop-launcher'
 			: undefined;
+	// A development or test cohort also carries the File Bar's process, which the Worker starts
+	// against the digest `cohort.json` declares; a release cohort omits it until the File Bar ships.
+	const filesProcess = artifactStem === 'orchbee' ? undefined : 'orchbee-files';
 	const macosTarget = MACOS_TARGETS.get(selected['--platform'] ?? '');
 	const linuxTarget = LINUX_TARGETS.get(selected['--platform'] ?? '');
 	if (linuxTarget !== undefined && linuxTarget.arch !== process.arch)
@@ -303,6 +306,7 @@ function main() {
 				'-p',
 				'orchbee-worker',
 				...(windowLauncher === undefined ? [] : ['-p', windowLauncher]),
+				...(filesProcess === undefined ? [] : ['-p', filesProcess]),
 				...(cross === undefined ? [] : ['--target', cross.rust]),
 			],
 			false,
@@ -342,6 +346,18 @@ function main() {
 			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
+		let filesDigest;
+		if (filesProcess !== undefined) {
+			const stagedName = `${artifactStem}-files`;
+			const staged = path.join(destination, stagedName);
+			copyFileSync(
+				accessible(path.posix.join(target, built, filesProcess)),
+				staged,
+				constants.COPYFILE_EXCL,
+			);
+			runCommand('chmod', ['700', path.posix.join(output, stagedName)]);
+			filesDigest = createHash('sha256').update(readFileSync(staged)).digest('hex');
+		}
 		if (windowLauncher !== undefined) {
 			// No cohort role, so `cohort.json` does not list it; the release manifest inventories it.
 			const stagedName = `${artifactStem}-desktop-launcher`;
@@ -373,6 +389,8 @@ function main() {
 			throw new Error('Staged observation-adapters capsule failed canonical verification');
 		runCommand('chmod', ['700', path.posix.join(output, CAPSULE_DIRECTORY)]);
 		hashes[CAPSULE_DIRECTORY] = adaptersDigest;
+		// The optional member follows the five required ones.
+		if (filesDigest !== undefined) hashes[filesProcess] = filesDigest;
 		writeFileSync(
 			path.join(destination, 'cohort.json'),
 			JSON.stringify({ schemaVersion: 1, artifacts: hashes }) + '\n',

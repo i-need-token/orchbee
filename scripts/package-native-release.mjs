@@ -256,10 +256,11 @@ export function packageRelease(
 		size,
 	}));
 	const manifest = JSON.parse(readFileSync(path.join(cohort, 'cohort.json'), 'utf8'));
+	const filesDeclared = Object.hasOwn(manifest.artifacts ?? {}, 'orchbee-files');
 	if (
 		manifest.schemaVersion !== 1 ||
 		Object.keys(manifest).length !== 2 ||
-		Object.keys(manifest.artifacts ?? {}).length !== 5
+		Object.keys(manifest.artifacts ?? {}).length !== (filesDeclared ? 6 : 5)
 	)
 		throw new Error('Invalid native cohort manifest');
 	const windows = platform.startsWith('windows-');
@@ -278,6 +279,13 @@ export function packageRelease(
 		if (!file) throw new Error(`Missing ${stem}${suffix}${executable}`);
 		if (file.sha256 !== manifest.artifacts[peer]) throw new Error('Cohort binary digest mismatch');
 	}
+	// A test cohort carries the File Bar's process, which belongs to no component; a release cohort
+	// omits it until the File Bar ships.
+	const filesProcess = files.find((entry) => entry.path === `${stem}-files${executable}`);
+	if (stem === 'orchbee' && (filesDeclared || filesProcess !== undefined))
+		throw new Error('A release cohort carries no orchbee-files');
+	if (filesProcess?.sha256 !== manifest.artifacts['orchbee-files'])
+		throw new Error('Cohort orchbee-files digest mismatch');
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])
 		throw new Error('Cohort adapter capsule digest mismatch');

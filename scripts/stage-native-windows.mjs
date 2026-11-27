@@ -133,6 +133,7 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 				'orchbee-launcher',
 				'-p',
 				'orchbee-desktop-launcher',
+				...(artifactStem === 'orchbee' ? [] : ['-p', 'orchbee-files']),
 			],
 			{
 				cwd: root,
@@ -169,6 +170,18 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 			copyFileSync(source, staged, constants.COPYFILE_EXCL);
 			hashes[artifact] = createHash('sha256').update(readFileSync(staged)).digest('hex');
 		}
+		// A development or test cohort also carries the File Bar's process, which the Worker starts
+		// against the digest `cohort.json` declares; a release cohort omits it until the File Bar ships.
+		let filesDigest;
+		if (artifactStem !== 'orchbee') {
+			const staged = path.join(prepared, `${artifactStem}-files.exe`);
+			copyFileSync(
+				path.join(target, 'release', 'orchbee-files.exe'),
+				staged,
+				constants.COPYFILE_EXCL,
+			);
+			filesDigest = createHash('sha256').update(readFileSync(staged)).digest('hex');
+		}
 		// The Windows launchers: the command launcher a release installs as `bin\<stem>.exe`, and
 		// the window launcher it installs as the window entry `desktop\orchbee-desktop.exe`. Neither
 		// is a cohort role, so `cohort.json` does not list them; the release manifest inventories
@@ -202,6 +215,8 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 		if (digest === null)
 			throw new Error('Staged observation-adapters capsule failed canonical verification');
 		hashes['agent-observation-adapters'] = digest;
+		// The optional member follows the five required ones.
+		if (filesDigest !== undefined) hashes['orchbee-files'] = filesDigest;
 		execFileSync(
 			process.execPath,
 			[

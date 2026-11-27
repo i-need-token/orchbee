@@ -347,6 +347,12 @@ impl Cohort {
         &self.observation_adapters
     }
 
+    /// The file name of the cohort's optional `orchbee-files` in this build's environment.
+    #[must_use]
+    pub fn files_file_name() -> String {
+        filesystem::files_file_name()
+    }
+
     /// The cohort's `orchbee-files`, opened as the cohort's own executables are and hashed against
     /// the digest the manifest declares, so a start runs only the program this cohort shipped.
     /// Admission never checks it: a release cohort carries none, and a damaged one fails only the

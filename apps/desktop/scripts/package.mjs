@@ -424,6 +424,16 @@ async function verifyBundledCohort(directory, stagedFiles) {
 			throw new Error(`The bundled ${role} does not match cohort.json.`);
 		}
 	}
+	// A development or test cohort carries the File Bar's process; a release cohort never does.
+	const filesDigest = cohortManifest?.artifacts?.['orchbee-files'];
+	const filesProcess = bundled.find((entry) => entry.path === `${cohortEnvironmentStem}-files`);
+	if (
+		profileId === 'release'
+			? filesDigest !== undefined || filesProcess !== undefined
+			: filesProcess === undefined || filesProcess.sha256 !== filesDigest
+	) {
+		throw new Error('The bundled orchbee-files does not match cohort.json.');
+	}
 	if (!signsReleaseDirectory) return;
 	const releaseManifest = JSON.parse(await readFile(path.join(directory, 'release.json'), 'utf8'));
 	const listed = (Array.isArray(releaseManifest?.files) ? releaseManifest.files : [])

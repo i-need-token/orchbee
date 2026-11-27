@@ -29,7 +29,8 @@ pub(super) const COMPLETION_HELPER: CrossBuildName = CrossBuildName {
     earlier: "--complete-install-v1",
 };
 
-/// The cohort's programs, which a stage makes executable where the system asks that of a program.
+/// The cohort's programs, which a stage makes executable where the system asks that of a program,
+/// as it does the `orchbee-files` a test release carries.
 const PROGRAMS: [CohortArtifact; 4] = [
     CohortArtifact::Client,
     CohortArtifact::Server,
@@ -338,6 +339,7 @@ pub(super) fn publish(
             if PROGRAMS
                 .iter()
                 .any(|program| program.file_name() == artifact.path)
+                || artifact.path == Cohort::files_file_name()
             {
                 stage
                     .mark_executable(&file)

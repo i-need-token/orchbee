@@ -51,9 +51,9 @@ const SESSION_LIST_TIMEOUT_MILLISECONDS = 10_000;
 /**
  * Builds the checkout's native cohort and stages it once per distinct build under
  * `target/desktop-development`, returning the staged Client. A development Session that an earlier
- * cohort started keeps running when that cohort's Server, Worker, and Terminal Host are unchanged,
- * since the new Client joins it by protocol fingerprint; otherwise that cohort stops it first.
- * Cohorts no development Session marker names any more are removed.
+ * cohort started keeps running when that cohort's Server, Worker, Terminal Host, and File Bar
+ * process are unchanged, since the new Client joins it by protocol fingerprint; otherwise that
+ * cohort stops it first. Cohorts no development Session marker names any more are removed.
  */
 export async function prepareDesktopDevelopmentCohort(input: {
 	readonly environment: NodeJS.ProcessEnv;
@@ -83,6 +83,8 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			'orchbee-server',
 			'-p',
 			'orchbee-worker',
+			'-p',
+			'orchbee-files',
 		],
 		sourceRoot,
 		{ ...process.env, ORCHBEE_ARTIFACT_STEM: environmentStem },
@@ -102,6 +104,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 		path.join(sourceRoot, 'target', 'release', `orchbee${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-server${suffix}`),
 		path.join(sourceRoot, 'target', 'release', `orchbee-worker${suffix}`),
+		path.join(sourceRoot, 'target', 'release', `orchbee-files${suffix}`),
 		path.join(hostPrefix, 'bin', `orchbee-terminal-host${suffix}`),
 		path.join(hostRoot, 'windows-conpty.json'),
 		path.join(
@@ -164,7 +167,7 @@ export async function prepareDesktopDevelopmentCohort(input: {
 			removesUnnamedCohorts = observation.kind !== 'unknown';
 			if (observation.kind !== 'stopped') {
 				input.logger.info(
-					`Keeping Session ${session}: its Server, Worker and Terminal Host are unchanged.`,
+					`Keeping Session ${session}: its Server, Worker, Terminal Host and File Bar process are unchanged.`,
 				);
 			}
 		} else {
