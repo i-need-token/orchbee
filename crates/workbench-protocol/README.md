@@ -55,10 +55,10 @@ crate and the `apps/web` Client codec test checks TypeScript against the same fi
 
 That corpus is frozen, so it pins the base contract: the default `MultiplexDecoder` and
 `read_multiplex_message`, with which a Server reads its Client, admit exactly it. A value a
-handshake capability adds is admitted only by a decoder built with `MultiplexDecoder::admitting`
-(or the TypeScript decoder's capabilities) for a carrier that negotiated it; a Server sends it
-only when its answer lists the capability. Its cases live in a corpus of their own that both
-implementations check with and without the capability:
+handshake capability adds is admitted only by `MultiplexDecoder::admitting`,
+`read_multiplex_message_admitting` or the TypeScript decoder's capabilities, for a carrier that
+negotiated it; a Server sends it only when its answer lists the capability. Its cases live in a
+corpus of their own that both implementations check with and without the capability:
 `workbench-multiplex-outcome-unknown-conformance-v1.json` for `stream-outcome-unknown`, and
 `workbench-multiplex-files-conformance-v1.json` for `files`. Under `files`, an inner record that
 starts with the OBFB magic must be one the [File Bar contract](../../schemas/files/README.md)

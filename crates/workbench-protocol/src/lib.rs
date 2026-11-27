@@ -29,7 +29,7 @@ pub use multiplex::{
     MAXIMUM_STREAM_RECORD_BYTES, MULTIPLEX_OPEN_KIND, MultiplexCapabilities, MultiplexDecoder,
     MultiplexDisconnectReason, MultiplexLaneId, MultiplexMessage, MultiplexStreamId,
     MultiplexViewerId, StreamCloseReason, StreamFrameKind, StreamMode, encode_multiplex_message,
-    read_multiplex_message, write_multiplex_message,
+    read_multiplex_message, read_multiplex_message_admitting, write_multiplex_message,
 };
 mod command;
 pub use command::{

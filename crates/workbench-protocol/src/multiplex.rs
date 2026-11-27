@@ -288,6 +288,15 @@ pub fn read_multiplex_message(reader: &mut impl Read) -> io::Result<MultiplexMes
     read_admitted(reader, MultiplexCapabilities::default())
 }
 
+/// Reads one message that the base contract or what `capabilities` adds admits, as a Server reads
+/// a Client whose handshake answer listed them.
+pub fn read_multiplex_message_admitting(
+    reader: &mut impl Read,
+    capabilities: MultiplexCapabilities,
+) -> io::Result<MultiplexMessage> {
+    read_admitted(reader, capabilities)
+}
+
 fn read_admitted(
     reader: &mut impl Read,
     capabilities: MultiplexCapabilities,
