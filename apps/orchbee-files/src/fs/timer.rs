@@ -1,6 +1,6 @@
-//! One thread that runs short callbacks at their deadlines: the file engine's call deadlines,
-//! idle expiries and watch windows. A callback runs on the timer thread, so it hands work on and
-//! never blocks; it may schedule or cancel other callbacks.
+//! One thread that runs short callbacks at their deadlines, such as the file engine's idle
+//! expiries. It starts with the first callback scheduled. A callback runs on the timer thread, so
+//! it hands work on and never blocks; it may schedule other callbacks.
 
 use std::{
     cmp::Reverse,
@@ -13,14 +13,11 @@ use std::{
 
 type Callback = Box<dyn FnOnce() + Send>;
 
-/// A scheduled callback, which [`Timer::cancel`] withdraws before it runs.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) struct TimerId(u64);
-
 /// The timer thread and its schedule. Dropping it stops the thread without running what remains.
 pub(crate) struct Timer {
     shared: Arc<Shared>,
-    thread: Option<JoinHandle<()>>,
+    /// Absent until the first callback is scheduled.
+    thread: Mutex<Option<JoinHandle<()>>>,
 }
 
 /// The lock guards the schedule; it is never held while a callback runs. A panic ends the
@@ -39,46 +36,48 @@ struct State {
 }
 
 impl Timer {
-    /// Starts the timer thread.
-    ///
-    /// # Errors
-    ///
-    /// The thread could not start.
-    pub(crate) fn start() -> io::Result<Self> {
-        let shared = Arc::new(Shared {
-            state: Mutex::new(State::default()),
-            changed: Condvar::new(),
-        });
-        let thread = thread::Builder::new()
-            .name("orchbee-files-timer".into())
-            .spawn({
-                let shared = Arc::clone(&shared);
-                move || shared.run()
-            })?;
-        Ok(Self {
-            shared,
-            thread: Some(thread),
-        })
+    /// A timer whose thread has not started.
+    pub(crate) fn new() -> Self {
+        Self {
+            shared: Arc::new(Shared {
+                state: Mutex::new(State::default()),
+                changed: Condvar::new(),
+            }),
+            thread: Mutex::new(None),
+        }
     }
 
     /// Runs `callback` on the timer thread at `at`, or at once when `at` has passed.
+    ///
+    /// # Errors
+    ///
+    /// The timer thread could not start, so `callback` never runs.
     pub(crate) fn schedule(
         &self,
         at: Instant,
         callback: impl FnOnce() + Send + 'static,
-    ) -> TimerId {
+    ) -> io::Result<()> {
+        self.start()?;
         let mut state = self.shared.lock();
         state.next += 1;
         let id = state.next;
         state.callbacks.insert(id, Box::new(callback));
         state.due.push(Reverse((at, id)));
         self.shared.changed.notify_all();
-        TimerId(id)
+        Ok(())
     }
 
-    /// Withdraws `id`; a callback that already ran or is running is not affected.
-    pub(crate) fn cancel(&self, id: TimerId) {
-        self.shared.lock().callbacks.remove(&id.0);
+    fn start(&self) -> io::Result<()> {
+        let mut thread = self.thread.lock().unwrap_or_else(PoisonError::into_inner);
+        if thread.is_none() {
+            let shared = Arc::clone(&self.shared);
+            *thread = Some(
+                thread::Builder::new()
+                    .name("orchbee-files-timer".into())
+                    .spawn(move || shared.run())?,
+            );
+        }
+        Ok(())
     }
 }
 
@@ -88,7 +87,11 @@ impl Drop for Timer {
         self.shared.changed.notify_all();
         // The thread only waits on the condition variable between short callbacks. A callback
         // that held the last handle drops it on the timer thread, which then ends by itself.
-        if let Some(thread) = self.thread.take()
+        let thread = self
+            .thread
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner);
+        if let Some(thread) = thread.take()
             && thread.thread().id() != thread::current().id()
         {
             let _ = thread.join();

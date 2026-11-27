@@ -13,12 +13,12 @@ use orchbee_files_protocol::{ChunkEnd, LineEnding, ReadMode};
 use sha2::{Digest, Sha256};
 
 use super::*;
-use crate::fs::{blocking::Blocking, encoding::Encoding, tests::Scratch, timer::Timer};
+use crate::fs::{encoding::Encoding, tests::Scratch};
 
 const WAIT: Duration = Duration::from_secs(10);
 
 fn transfers() -> Transfers {
-    Transfers::new(Arc::new(Blocking::new(Arc::new(Timer::start().unwrap()))))
+    Transfers::new(Helpers::new())
 }
 
 fn connection() -> ConnectionId {
@@ -47,7 +47,7 @@ fn open(
     transfer: u64,
     path: &Path,
     request: ReadRequest,
-) -> Receiver<Result<ReadFacts, FsError>> {
+) -> Receiver<Result<ReadFacts, Unopened>> {
     let (send, receive) = mpsc::channel();
     transfers.open(
         connection(),
@@ -65,7 +65,7 @@ fn request_chunk(
     transfer: u64,
     offset: u64,
     length: usize,
-) -> Receiver<Result<Chunk, FsError>> {
+) -> Receiver<Result<Chunk, FilesError>> {
     let (send, receive) = mpsc::channel();
     transfers.chunk(
         connection(),
@@ -177,7 +177,7 @@ fn chunk_requests_sent_before_the_read_opens_are_served_in_order() {
         request_chunk(&transfers, 7, 0, 16_384)
             .recv_timeout(WAIT)
             .unwrap(),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(FilesError::new(ErrorCode::InvalidRequest))
     );
     // Past the end, the next offset repeats the end without bytes.
     let again = request_chunk(&transfers, 7, content.len() as u64, 16_384)
@@ -270,7 +270,7 @@ fn a_binary_file_reports_binary_and_serves_text_only_when_forced() {
         request_chunk(&transfers, 1, 0, 16_384)
             .recv_timeout(WAIT)
             .unwrap(),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(FilesError::new(ErrorCode::InvalidRequest))
     );
     assert_eq!(transfers.close(connection(), id(1)), Ok(()));
 
@@ -399,29 +399,26 @@ fn a_read_that_cannot_open_leaves_no_transfer() {
         ..text(None)
     };
     let cases = [
-        (path.clone(), small, FsErrorCode::TooLarge),
+        (path.clone(), small, ErrorCode::TooLarge),
         (
             scratch.path().to_path_buf(),
             text(None),
-            FsErrorCode::IsDirectory,
+            ErrorCode::IsDirectory,
         ),
         (
             scratch.path().join("missing"),
             text(None),
-            FsErrorCode::NotFound,
+            ErrorCode::NotFound,
         ),
     ];
     for (path, request, code) in cases {
         let waiting = {
             let opened = open(&transfers, 1, &path, request);
             let waiting = request_chunk(&transfers, 1, 0, 16_384);
-            assert_eq!(
-                opened
-                    .recv_timeout(WAIT)
-                    .unwrap()
-                    .map_err(|error| error.code),
-                Err(code)
-            );
+            assert!(matches!(
+                opened.recv_timeout(WAIT).unwrap(),
+                Err(Unopened::Failed(error)) if error.code == code
+            ));
             waiting
         };
         // A chunk request that waited on the read fails with it.
@@ -434,7 +431,7 @@ fn a_read_that_cannot_open_leaves_no_transfer() {
         );
         assert_eq!(
             transfers.close(connection(), id(1)),
-            Err(FsError::new(FsErrorCode::InvalidRequest))
+            Err(FilesError::new(ErrorCode::InvalidRequest))
         );
     }
 }
@@ -455,14 +452,14 @@ fn a_transfer_name_is_unique_until_its_transfer_or_lane_closes() {
         open(&transfers, 1, &path, text(None))
             .recv_timeout(WAIT)
             .unwrap(),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest)))
     );
     transfers.lane_closed(connection(), lane(1));
     assert_eq!(
         request_chunk(&transfers, 1, 0, 16_384)
             .recv_timeout(WAIT)
             .unwrap(),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(FilesError::new(ErrorCode::InvalidRequest))
     );
     assert!(
         open(&transfers, 1, &path, text(None))
@@ -473,6 +470,6 @@ fn a_transfer_name_is_unique_until_its_transfer_or_lane_closes() {
     transfers.connection_lost(connection());
     assert_eq!(
         transfers.close(connection(), id(1)),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(FilesError::new(ErrorCode::InvalidRequest))
     );
 }

@@ -1,7 +1,7 @@
 //! Page bounds, cursor identity and lifetime, the single-child chain, and what an entry reports
 //! for links, names and write protection, against real directories.
 
-use std::{collections::BTreeSet, fs::File, time::UNIX_EPOCH};
+use std::{collections::BTreeSet, ffi::OsStr, fs::File};
 
 use super::*;
 use crate::fs::tests::Scratch;
@@ -10,11 +10,11 @@ const WAIT: Duration = Duration::from_secs(10);
 
 /// A measure that charges an entry its name and a fixed overhead, standing in for the wire's.
 fn measured(entry: &Entry) -> usize {
-    entry.name.len() + 64
+    entry.name.as_str().len() + 64
 }
 
-fn descendant_overhead(path: &Path) -> usize {
-    path.as_os_str().len() + 32
+fn descendant_overhead(path: &Path) -> Option<usize> {
+    Some(path.as_os_str().len() + 32)
 }
 
 fn budget(bytes: usize) -> PageBudget<'static> {
@@ -26,7 +26,7 @@ fn budget(bytes: usize) -> PageBudget<'static> {
 }
 
 fn listings() -> Listings {
-    Listings::new(Arc::new(Timer::start().unwrap()))
+    Listings::new(Arc::new(Timer::new()))
 }
 
 fn connection(value: u64) -> ConnectionId {
@@ -68,7 +68,11 @@ fn all_pages(listings: &Listings, path: &Path, bytes: usize) -> Vec<Page> {
 fn names(pages: &[Page]) -> Vec<String> {
     pages
         .iter()
-        .flat_map(|page| page.entries.iter().map(|entry| entry.name.clone()))
+        .flat_map(|page| {
+            page.entries
+                .iter()
+                .map(|entry| entry.name.as_str().to_owned())
+        })
         .collect()
 }
 
@@ -116,7 +120,7 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
         .page(connection(1), scratch.path(), None, false, &one, &never)
         .unwrap();
     let cursor = first.cursor.unwrap();
-    let invalid = Err(FsError::new(FsErrorCode::InvalidRequest));
+    let invalid = Err(FilesError::new(ErrorCode::InvalidRequest));
 
     assert_eq!(
         listings.page(
@@ -196,7 +200,7 @@ fn a_seventeenth_cursor_closes_the_least_recently_used() {
             &one,
             &never
         ),
-        Err(FsError::new(FsErrorCode::InvalidRequest))
+        Err(FilesError::new(ErrorCode::InvalidRequest))
     );
     for cursor in cursors {
         assert!(
@@ -218,8 +222,7 @@ fn a_seventeenth_cursor_closes_the_least_recently_used() {
 fn an_idle_cursor_closes_its_directory() {
     let scratch = Scratch::new("idle");
     files(scratch.path(), 3);
-    let listings =
-        Listings::with_idle(Arc::new(Timer::start().unwrap()), Duration::from_millis(50));
+    let listings = Listings::with_idle(Arc::new(Timer::new()), Duration::from_millis(50));
     let never = AtomicBool::new(false);
     let page = listings
         .page(
@@ -253,7 +256,7 @@ fn a_cancelled_call_stops_reading() {
             &budget(usize::MAX),
             &cancelled
         ),
-        Err(FsError::new(FsErrorCode::Cancelled))
+        Err(FilesError::new(ErrorCode::Cancelled))
     );
 }
 
@@ -319,7 +322,7 @@ fn the_single_child_chain_stops_before_a_listing_that_does_not_fit() {
     files(&deepest, 50);
     let never = AtomicBool::new(false);
     // Room for the two single-entry levels, not for fifty more entries.
-    let bytes = 3 * 70 + 2 * descendant_overhead(&deepest);
+    let bytes = 3 * 70 + 2 * descendant_overhead(&deepest).unwrap();
     let page = listings()
         .page(
             connection(1),
@@ -337,7 +340,7 @@ fn the_single_child_chain_stops_before_a_listing_that_does_not_fit() {
             .descendants
             .iter()
             .map(|descendant| {
-                descendant_overhead(&descendant.path)
+                descendant_overhead(&descendant.path).unwrap()
                     + descendant.entries.iter().map(measured).sum::<usize>()
             })
             .sum::<usize>();
@@ -376,10 +379,10 @@ fn listing_what_is_not_a_directory_says_so() {
             )
             .map_err(|error| error.code)
     };
-    assert_eq!(list(&file), Err(FsErrorCode::NotDirectory));
+    assert_eq!(list(&file), Err(ErrorCode::NotDirectory));
     assert_eq!(
         list(&scratch.path().join("missing")),
-        Err(FsErrorCode::NotFound)
+        Err(ErrorCode::NotFound)
     );
 }
 
@@ -397,7 +400,7 @@ fn entry(directory: &Path, name: &str) -> Entry {
         .unwrap()
         .entries
         .into_iter()
-        .find(|entry| entry.name == name)
+        .find(|entry| entry.name.as_str() == name)
         .unwrap()
 }
 
@@ -415,7 +418,7 @@ fn a_link_reports_its_target_or_unknown_when_the_target_is_gone() {
     }
     let file_link = entry(scratch.path(), "file-link");
     assert_eq!(
-        (file_link.kind, file_link.symlink, file_link.size),
+        (file_link.kind, file_link.symlink, file_link.size.get()),
         (EntryKind::File, true, 12)
     );
     let directory_link = entry(scratch.path(), "directory-link");
@@ -428,11 +431,11 @@ fn a_link_reports_its_target_or_unknown_when_the_target_is_gone() {
         (dangling.kind, dangling.symlink),
         (EntryKind::Unknown, true)
     );
-    let stat = metadata::stat(&scratch.path().join("dangling")).unwrap();
-    assert_eq!(stat, dangling);
+    let read = entry::read(&scratch.path().join("dangling"), OsStr::new("dangling")).unwrap();
+    assert_eq!(read, dangling);
     let plain = entry(scratch.path(), "target.txt");
     assert_eq!(
-        (plain.kind, plain.symlink, plain.size),
+        (plain.kind, plain.symlink, plain.size.get()),
         (EntryKind::File, false, 12)
     );
 }
@@ -503,7 +506,7 @@ fn a_name_that_is_not_unicode_is_listed_as_unrepresentable() {
         .unwrap();
     assert_eq!(page.entries.len(), 1);
     assert!(page.entries[0].unrepresentable);
-    assert_eq!(page.entries[0].name, name.to_string_lossy());
+    assert_eq!(page.entries[0].name.as_str(), name.to_string_lossy());
     assert_eq!(page.entries[0].kind, EntryKind::File);
 }
 
@@ -542,22 +545,4 @@ fn protect(path: &Path) {
     let mut permissions = fs::metadata(path).unwrap().permissions();
     permissions.set_readonly(true);
     fs::set_permissions(path, permissions).unwrap();
-}
-
-#[test]
-fn modification_times_round_half_up_to_the_millisecond() {
-    let scratch = Scratch::new("mtime");
-    let path = scratch.path().join("file");
-    let cases = [
-        (UNIX_EPOCH + Duration::new(1_234, 567_400_000), 1_234_567),
-        (UNIX_EPOCH + Duration::new(1_234, 567_600_000), 1_234_568),
-        (UNIX_EPOCH - Duration::new(0, 1_500_000), -1),
-        (UNIX_EPOCH - Duration::new(0, 1_600_000), -2),
-    ];
-    for (time, expected) in cases {
-        let file = File::create(&path).unwrap();
-        file.set_modified(time).unwrap();
-        drop(file);
-        assert_eq!(metadata::stat(&path).unwrap().mtime_ms, expected);
-    }
 }

@@ -9,10 +9,6 @@ mod calls;
 mod entry;
 mod error;
 mod exit;
-#[expect(
-    dead_code,
-    reason = "no operation this build dispatches reaches the file engine"
-)]
 mod fs;
 #[expect(
     dead_code,

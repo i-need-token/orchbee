@@ -14,8 +14,9 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, FilesNotice, FilesRecord, FilesReply, FrameKind, LaneId,
-    LinkFrame, LinkMessage, encode_files_record, encode_link_message, encode_notice, encode_reply,
+    CallClose, CallId, Chunk, ConnectionId, FilesNotice, FilesRecord, FilesReply, FrameKind,
+    LaneId, LinkFrame, LinkMessage, encode_files_record, encode_link_message, encode_notice,
+    encode_reply,
 };
 
 use crate::outbound::Outbound;
@@ -188,10 +189,20 @@ impl Call {
         self.connection
     }
 
+    /// The lane the call arrived on.
+    pub(crate) const fn lane(&self) -> LaneId {
+        self.lane
+    }
+
     /// Whether the call's Client cancelled it, its lane or connection closed, or the process is
     /// draining.
     pub(crate) fn cancelled(&self) -> bool {
         self.cancelled.load(Ordering::Acquire)
+    }
+
+    /// The flag [`Self::cancelled`] reads, for work that checks it without the call.
+    pub(crate) fn cancellation(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.cancelled)
     }
 
     /// Ends the call without a reply record.
@@ -206,6 +217,17 @@ impl Call {
     /// For a reply over the Result record's bound, which the operation keeps within.
     pub(crate) fn reply(mut self, reply: &FilesReply) {
         let record = FilesRecord::Result(encode_reply(reply));
+        self.calls.queue_frame(self.id, FrameKind::Result, &record);
+        self.finish(CallClose::Complete);
+    }
+
+    /// Ends a read's chunk request with its Chunk record.
+    ///
+    /// # Panics
+    ///
+    /// For data over the Chunk record's bound, which the read keeps within.
+    pub(crate) fn chunk(mut self, chunk: Chunk) {
+        let record = FilesRecord::Chunk(chunk);
         self.calls.queue_frame(self.id, FrameKind::Result, &record);
         self.finish(CallClose::Complete);
     }

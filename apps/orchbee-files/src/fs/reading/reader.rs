@@ -10,14 +10,15 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use orchbee_files_protocol::{ChunkEnd, LineEnding, ReadMode};
+use orchbee_files_protocol::{ChunkEnd, ErrorCode, FilesError, LineEnding, ReadMode, Signed};
 use sha2::{Digest, Sha256};
 
-use crate::fs::{
-    detection::{DETECTION_BYTES, detect},
-    encoding::{self, Decoder, Encoding},
-    metadata::milliseconds,
-    os_error::{FsError, FsErrorCode},
+use crate::{
+    entry, error,
+    fs::{
+        detection::{DETECTION_BYTES, detect},
+        encoding::{self, Decoder, Encoding},
+    },
 };
 
 /// How many file bytes a text read takes from the file at a time.
@@ -41,8 +42,8 @@ pub(crate) struct ReadRequest {
 pub(crate) struct ReadFacts {
     /// The size in bytes when the read opened the file.
     pub(crate) size: u64,
-    /// The modification time in milliseconds since the Unix epoch.
-    pub(crate) mtime_ms: i64,
+    /// The modification time, as entries report it.
+    pub(crate) mtime_ms: Signed,
     /// The encoding text chunks decode from; `None` for a byte read or an undecoded binary file.
     pub(crate) encoding: Option<&'static Encoding>,
     /// The content starts with a byte order mark, which chunks omit.
@@ -71,14 +72,14 @@ pub(crate) enum Reader {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Facts {
     size: u64,
-    mtime_ms: i64,
+    mtime_ms: Signed,
 }
 
 impl Facts {
     fn of(metadata: &fs::Metadata) -> Self {
         Self {
             size: metadata.len(),
-            mtime_ms: milliseconds(metadata.modified()),
+            mtime_ms: entry::milliseconds(metadata.modified()),
         }
     }
 }
@@ -108,19 +109,19 @@ impl Source {
 ///
 /// `is-directory`, `too-large` when the file exceeds the limit, `failed` for what is neither file
 /// nor directory, such as a FIFO a read would wait on, or the system's error.
-pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Reader), FsError> {
-    let error = |error: io::Error| FsError::io(&error);
-    let found = fs::metadata(path).map_err(error)?;
+pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Reader), FilesError> {
+    let failed = |failure: io::Error| error::from_io(&failure);
+    let found = fs::metadata(path).map_err(failed)?;
     if found.is_dir() {
-        return Err(FsError::new(FsErrorCode::IsDirectory));
+        return Err(FilesError::new(ErrorCode::IsDirectory));
     }
     if !found.is_file() {
-        return Err(FsError::new(FsErrorCode::Failed));
+        return Err(FilesError::new(ErrorCode::Failed));
     }
-    let mut file = File::open(path).map_err(error)?;
-    let opened = Facts::of(&file.metadata().map_err(error)?);
+    let mut file = File::open(path).map_err(failed)?;
+    let opened = Facts::of(&file.metadata().map_err(failed)?);
     if opened.size > request.limit {
-        return Err(FsError::new(FsErrorCode::TooLarge));
+        return Err(FilesError::new(ErrorCode::TooLarge));
     }
     let mut facts = ReadFacts {
         size: opened.size,
@@ -138,7 +139,7 @@ pub(crate) fn open(path: &Path, request: &ReadRequest) -> Result<(ReadFacts, Rea
     if request.mode == ReadMode::Bytes {
         return Ok((facts, Reader::Bytes(ByteReader(source(file)))));
     }
-    let head = read_head(&mut file).map_err(error)?;
+    let head = read_head(&mut file).map_err(failed)?;
     let detection = detect(&head);
     if detection.binary && !request.force_text {
         facts.binary = true;
@@ -218,9 +219,9 @@ impl TextReader {
     ///
     /// `invalid-request` for any offset but the next, `too-large` once the file grows past the
     /// limit, or the system's error.
-    pub(crate) fn chunk(&mut self, offset: u64, length: usize) -> Result<Piece, FsError> {
+    pub(crate) fn chunk(&mut self, offset: u64, length: usize) -> Result<Piece, FilesError> {
         if offset != self.output {
-            return Err(FsError::new(FsErrorCode::InvalidRequest));
+            return Err(FilesError::new(ErrorCode::InvalidRequest));
         }
         if let Some(end) = self.end {
             return Ok(Piece {
@@ -250,7 +251,7 @@ impl TextReader {
     }
 
     /// Decodes the next block of the file, or flushes the decoder at its end.
-    fn fill(&mut self) -> Result<(), FsError> {
+    fn fill(&mut self) -> Result<(), FilesError> {
         let mut text = String::new();
         if self.head.is_empty() {
             let mut block = vec![0; BLOCK_BYTES];
@@ -258,7 +259,7 @@ impl TextReader {
                 match self.source.file.read(&mut block) {
                     Ok(read) => break read,
                     Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                    Err(error) => return Err(FsError::io(&error)),
+                    Err(failure) => return Err(error::from_io(&failure)),
                 }
             };
             if read == 0 {
@@ -267,7 +268,7 @@ impl TextReader {
             } else {
                 self.consumed += read as u64;
                 if self.consumed > self.source.limit {
-                    return Err(FsError::new(FsErrorCode::TooLarge));
+                    return Err(FilesError::new(ErrorCode::TooLarge));
                 }
                 self.digest.update(&block[..read]);
                 self.decoder.decode(&block[..read], false, &mut text);
@@ -339,7 +340,7 @@ impl ByteReader {
     /// # Errors
     ///
     /// `too-large` for bytes past the limit, or the system's error.
-    pub(crate) fn chunk(&self, offset: u64, length: usize) -> Result<Piece, FsError> {
+    pub(crate) fn chunk(&self, offset: u64, length: usize) -> Result<Piece, FilesError> {
         let mut bytes = vec![0; length];
         let mut filled = 0;
         while filled < length {
@@ -347,13 +348,13 @@ impl ByteReader {
                 Ok(0) => break,
                 Ok(read) => filled += read,
                 Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
-                Err(error) => return Err(FsError::io(&error)),
+                Err(failure) => return Err(error::from_io(&failure)),
             }
         }
         bytes.truncate(filled);
         let reached = offset.saturating_add(filled as u64);
         if reached > self.0.limit {
-            return Err(FsError::new(FsErrorCode::TooLarge));
+            return Err(FilesError::new(ErrorCode::TooLarge));
         }
         let at_end = filled < length
             || self

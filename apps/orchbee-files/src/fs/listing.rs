@@ -19,13 +19,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use orchbee_files_protocol::ConnectionId;
+use orchbee_files_protocol::{ConnectionId, Entry, EntryKind, ErrorCode, FilesError};
 
-use super::{
-    metadata::{self, Entry, EntryKind},
-    os_error::{FsError, FsErrorCode},
-    timer::Timer,
-};
+use super::timer::Timer;
+use crate::{entry, error};
 
 /// Entries in one page, or in one descendant's listing.
 const MAXIMUM_PAGE_ENTRIES: usize = 2_000;
@@ -61,8 +58,8 @@ pub(crate) struct PageBudget<'a> {
     pub(crate) bytes: usize,
     /// The bytes one entry takes.
     pub(crate) entry: &'a dyn Fn(&Entry) -> usize,
-    /// The bytes one descendant takes besides its entries.
-    pub(crate) descendant: &'a dyn Fn(&Path) -> usize,
+    /// The bytes one descendant takes besides its entries; `None` for a path a page cannot carry.
+    pub(crate) descendant: &'a dyn Fn(&Path) -> Option<usize>,
 }
 
 /// One directory of the single-child chain, listed completely.
@@ -158,7 +155,7 @@ impl Listings {
         single_child: bool,
         budget: &PageBudget<'_>,
         cancelled: &AtomicBool,
-    ) -> Result<Page, FsError> {
+    ) -> Result<Page, FilesError> {
         let mut remaining = match cursor {
             Some(cursor) => self.take(connection, cursor, path)?,
             None => open(path)?,
@@ -188,7 +185,7 @@ impl Listings {
         connection: ConnectionId,
         id: CursorId,
         path: &Path,
-    ) -> Result<Remaining, FsError> {
+    ) -> Result<Remaining, FilesError> {
         let mut state = self.shared.lock();
         let cursors = state.open.get_mut(&connection);
         let position = cursors
@@ -198,7 +195,7 @@ impl Listings {
             (Some(cursors), Some(position)) if cursors[position].path == path => {
                 Ok(cursors.swap_remove(position).remaining)
             }
-            _ => Err(FsError::new(FsErrorCode::InvalidRequest)),
+            _ => Err(FilesError::new(ErrorCode::InvalidRequest)),
         }
     }
 
@@ -226,7 +223,9 @@ impl Listings {
         });
         drop(state);
         let shared = Arc::downgrade(&self.shared);
-        self.timer.schedule(used + self.idle, move || {
+        // Without a timer thread a cursor lives until it is the least recently used or its
+        // connection ends.
+        let _ = self.timer.schedule(used + self.idle, move || {
             if let Some(shared) = shared.upgrade() {
                 shared.expire(connection, id, used);
             }
@@ -261,24 +260,21 @@ impl Shared {
     }
 }
 
-fn open(path: &Path) -> Result<Remaining, FsError> {
+fn open(path: &Path) -> Result<Remaining, FilesError> {
     match fs::read_dir(path) {
         Ok(entries) => Ok(Remaining {
             entries,
             next: None,
         }),
-        Err(error) => {
+        Err(failure) => {
+            let mut refused = error::from_io(&failure);
             // Windows reports a file read as a directory as a missing path.
-            let not_directory = error.kind() == std::io::ErrorKind::NotFound
-                && fs::metadata(path).is_ok_and(|metadata| !metadata.is_dir());
-            Err(if not_directory {
-                FsError {
-                    code: FsErrorCode::NotDirectory,
-                    os_error: error.raw_os_error(),
-                }
-            } else {
-                FsError::io(&error)
-            })
+            if failure.kind() == std::io::ErrorKind::NotFound
+                && fs::metadata(path).is_ok_and(|metadata| !metadata.is_dir())
+            {
+                refused.code = ErrorCode::NotDirectory;
+            }
+            Err(refused)
         }
     }
 }
@@ -290,7 +286,7 @@ fn read(
     bytes: usize,
     budget: &PageBudget<'_>,
     cancelled: &AtomicBool,
-) -> Result<Read, FsError> {
+) -> Result<Read, FilesError> {
     let mut read = Read {
         entries: Vec::new(),
         bytes: 0,
@@ -300,7 +296,7 @@ fn read(
         if read.entries.len().is_multiple_of(CANCELLATION_STRIDE)
             && cancelled.load(Ordering::Acquire)
         {
-            return Err(FsError::new(FsErrorCode::Cancelled));
+            return Err(FilesError::new(ErrorCode::Cancelled));
         }
         let Some(entry) = next(remaining)? else {
             return Ok(read);
@@ -320,16 +316,16 @@ fn read(
     }
 }
 
-fn next(remaining: &mut Remaining) -> Result<Option<Entry>, FsError> {
+fn next(remaining: &mut Remaining) -> Result<Option<Entry>, FilesError> {
     if let Some(entry) = remaining.next.take() {
         return Ok(Some(entry));
     }
     loop {
         match remaining.entries.next() {
             None => return Ok(None),
-            Some(Err(error)) => return Err(FsError::io(&error)),
+            Some(Err(failure)) => return Err(error::from_io(&failure)),
             Some(Ok(child)) => {
-                if let Ok(entry) = metadata::child(&child) {
+                if let Some(entry) = describe(&child) {
                     return Ok(Some(entry));
                 }
             }
@@ -337,16 +333,24 @@ fn next(remaining: &mut Remaining) -> Result<Option<Entry>, FsError> {
     }
 }
 
+/// The entry of a child the directory read returned, from the metadata that read already holds
+/// where the system provides it; `None` when the child's own metadata cannot be read or its name
+/// is longer than an entry carries.
+fn describe(child: &fs::DirEntry) -> Option<Entry> {
+    let own = child.metadata().ok()?;
+    entry::describe(&child.file_name(), &own, || fs::metadata(child.path())).ok()
+}
+
 /// The single-child chain below `path`, whose complete listing is `entries`, within `bytes`.
-/// The chain ends at a directory that cannot be read or does not fit, and the Client lists that
-/// one itself.
+/// The chain ends before a directory that cannot be read, does not fit or has a path a page cannot
+/// carry, and the Client lists that one itself.
 fn descendants(
     path: &Path,
     entries: &[Entry],
     mut bytes: usize,
     budget: &PageBudget<'_>,
     cancelled: &AtomicBool,
-) -> Result<Vec<Descendant>, FsError> {
+) -> Result<Vec<Descendant>, FilesError> {
     let mut chain: Vec<Descendant> = Vec::new();
     let mut directory = path.to_path_buf();
     let mut only = only_directory(entries);
@@ -354,7 +358,8 @@ fn descendants(
         && chain.len() < MAXIMUM_DESCENDANTS
     {
         let child = directory.join(name);
-        let Some(left) = bytes.checked_sub((budget.descendant)(&child)) else {
+        let Some(left) = (budget.descendant)(&child).and_then(|cost| bytes.checked_sub(cost))
+        else {
             break;
         };
         let Ok(mut remaining) = open(&child) else {
@@ -362,7 +367,7 @@ fn descendants(
         };
         let read = match read(&mut remaining, left, budget, cancelled) {
             Ok(read) => read,
-            Err(error) if error.code == FsErrorCode::Cancelled => return Err(error),
+            Err(error) if error.code == ErrorCode::Cancelled => return Err(error),
             Err(_) => break,
         };
         if read.more || read.bytes > left {
@@ -383,7 +388,7 @@ fn descendants(
 fn only_directory(entries: &[Entry]) -> Option<String> {
     match entries {
         [entry] if entry.kind == EntryKind::Directory && !entry.unrepresentable => {
-            Some(entry.name.clone())
+            Some(entry.name.as_str().to_owned())
         }
         _ => None,
     }

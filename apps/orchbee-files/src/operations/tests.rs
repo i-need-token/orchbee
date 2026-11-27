@@ -12,10 +12,10 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice, FilesRecord,
-    FilesReply, FilesRequest, FrameKind, FsGrant, FsList, FsSnapshot, FsUpdate, GitPath,
-    GrantClass, GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List,
-    NoticeKind, Operation, PathsRequest, RecordPlace, RequestId, Root, ScopeUpdate, WatchState,
-    WorkspaceId, WorkspaceRequest, WorkspaceScope, decode_files_record, decode_link_message,
+    FilesReply, FilesRequest, FrameKind, FsGrant, FsSnapshot, FsUpdate, GitPath, GrantClass,
+    GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, NoticeKind,
+    Operation, PathsRequest, RecordPlace, RequestId, Root, ScopeUpdate, WatchState, WorkspaceId,
+    WorkspaceRequest, WorkspaceScope, decode_files_record, decode_link_message,
     encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
@@ -206,7 +206,7 @@ fn a_record_closes_by_its_validity_grant_class_and_workspace() {
     let mark_safe = FilesRequest::GitMarkSafe(GitPath {
         workspace_id: workspace(),
         request_id: RequestId::from_bytes([9; 16]).unwrap(),
-        path: some_path.clone(),
+        path: some_path,
     });
     link.request(6, &mark_safe);
     assert_eq!(
@@ -216,14 +216,6 @@ fn a_record_closes_by_its_validity_grant_class_and_workspace() {
     let record = encode_files_record(&FilesRecord::Request(encode_request(&mark_safe))).unwrap();
     link.send(7, GrantClass::Lifecycle, workspace(), record);
     assert_eq!(link.closed(7), CallClose::Unsupported);
-    let list = FilesRequest::FsList(FsList {
-        workspace_id: workspace(),
-        path: some_path,
-        cursor: None,
-        single_child: false,
-    });
-    link.request(8, &list);
-    assert_eq!(link.closed(8), CallClose::Unsupported);
 }
 
 static NEXT_FIXTURE: AtomicU64 = AtomicU64::new(0);

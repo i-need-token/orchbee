@@ -23,13 +23,23 @@ use orchbee_files_protocol::{Entry, EntryKind, MAXIMUM_SAFE_INTEGER, SafeInteger
 /// for a name longer than an entry carries.
 pub(crate) fn read(path: &Path, name: &OsStr) -> io::Result<Entry> {
     let own = fs::symlink_metadata(path)?;
+    describe(name, &own, || fs::metadata(path))
+}
+
+/// The entry of an item named `name` whose own metadata is `own`, such as a directory listing
+/// read; `target` reads a link's target.
+///
+/// # Errors
+///
+/// As [`read`], for the name.
+pub(crate) fn describe(
+    name: &OsStr,
+    own: &Metadata,
+    target: impl FnOnce() -> io::Result<Metadata>,
+) -> io::Result<Entry> {
     let symlink = own.file_type().is_symlink();
-    let target = if symlink {
-        fs::metadata(path).ok()
-    } else {
-        None
-    };
-    let facts = target.as_ref().unwrap_or(&own);
+    let target = if symlink { target().ok() } else { None };
+    let facts = target.as_ref().unwrap_or(own);
     let kind = if symlink && target.is_none() {
         EntryKind::Unknown
     } else if facts.is_dir() {
@@ -55,7 +65,7 @@ pub(crate) fn read(path: &Path, name: &OsStr) -> io::Result<Entry> {
 }
 
 /// Milliseconds since the Unix epoch, negative before it; 0 where the filesystem keeps no time.
-fn milliseconds(time: io::Result<SystemTime>) -> Signed {
+pub(crate) fn milliseconds(time: io::Result<SystemTime>) -> Signed {
     let milliseconds = match time.map(|time| time.duration_since(UNIX_EPOCH)) {
         Ok(Ok(after)) => i64::try_from(after.as_millis()).unwrap_or(i64::MAX),
         Ok(Err(before)) => i64::try_from(before.duration().as_millis()).map_or(i64::MIN, |m| -m),

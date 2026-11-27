@@ -1,119 +1,97 @@
-//! The file engine's operations in File Bar terms, the seam the operation dispatch calls. Each
-//! takes the decoded request with the native paths scope admitted for it, runs its file calls on
-//! a helper with a deadline, and answers once through `done`: from a helper, from the timer at the
-//! deadline, or at once when it is refused. The dispatch owns scope, the call's stream and its
-//! cancellation flag, and tells the engine when a lane or a connection ends.
+//! The file engine's operations as the dispatch routes them. Each takes its call with the native
+//! paths scope admitted for it, runs its filesystem work on the process's helpers without making
+//! the caller wait, and answers the call once; a call its Client cancelled meanwhile closes as
+//! cancelled instead. The dispatch tells the engine when a lane or a connection ends and when the
+//! process drains.
 
-use std::{
-    io,
-    path::PathBuf,
-    sync::{Arc, atomic::AtomicBool},
-};
+use std::{ffi::OsStr, sync::Arc};
 
 use orchbee_files_protocol::{
-    Chunk, ConnectionId, EncodingName, ErrorCode, FilePath, FilesError, FsList, FsListResult,
-    FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, ReadResult, StatItem,
-    TransferId,
+    CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
+    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
+    StatItem, TransferRequest,
 };
 
 use super::{
-    blocking::Blocking,
+    background,
     guessing::guess_file,
     listing::{CursorId, Listings},
-    metadata::stat,
-    os_error::FsError,
-    reading::{ReadFacts, ReadRequest, Transfers},
+    reading::{ReadRequest, Transfers, Unopened},
     timer::Timer,
     wire,
 };
+use crate::{blocking::Helpers, calls::Call, entry, error, scope::path::NativePath};
 
+/// The listings and read transfers of every connection.
 pub(crate) struct Engine {
-    blocking: Arc<Blocking>,
+    helpers: Helpers,
     listings: Arc<Listings>,
     transfers: Transfers,
 }
 
 impl Engine {
-    /// Starts the engine's timer.
-    ///
-    /// # Errors
-    ///
-    /// The timer thread could not start.
-    pub(crate) fn start() -> io::Result<Self> {
-        let timer = Arc::new(Timer::start()?);
-        let blocking = Arc::new(Blocking::new(Arc::clone(&timer)));
-        Ok(Self {
-            listings: Arc::new(Listings::new(timer)),
-            transfers: Transfers::new(Arc::clone(&blocking)),
-            blocking,
-        })
+    /// An engine whose filesystem work runs on `helpers`.
+    pub(crate) fn new(helpers: Helpers) -> Self {
+        Self {
+            listings: Arc::new(Listings::new(Arc::new(Timer::new()))),
+            transfers: Transfers::new(helpers.clone()),
+            helpers,
+        }
     }
 
-    /// `fs.list` of `path`, the native path of `request.path`.
-    pub(crate) fn list(
-        &self,
-        connection: ConnectionId,
-        request: &FsList,
-        path: PathBuf,
-        cancelled: Arc<AtomicBool>,
-        done: impl FnOnce(Result<FsListResult, FilesError>) + Send + 'static,
-    ) {
+    /// `fs.list` of `path`, which scope admitted for `request`.
+    pub(crate) fn list(&self, call: Call, path: NativePath, request: &FsList) {
         let listings = Arc::clone(&self.listings);
+        let connection = call.connection();
+        let cancelled = call.cancellation();
         let cursor = request
             .cursor
             .map(|cursor| CursorId::from_bytes(*cursor.as_bytes()));
         let single_child = request.single_child;
-        self.blocking.run(
+        background::run(
+            &self.helpers,
+            Operation::FsList,
             move || {
                 let budget = wire::page_budget();
-                listings.page(connection, &path, cursor, single_child, &budget, &cancelled)
+                let path = path.as_path();
+                listings.page(connection, path, cursor, single_child, &budget, &cancelled)
             },
             move |outcome| {
-                let page = outcome.map_err(FsError::from).and_then(|page| page);
-                done(page.map_err(FsError::to_wire).and_then(wire::list_result));
+                let page = outcome.and_then(|page| page);
+                let result = page.and_then(wire::list_result);
+                answer(call, result.map(FilesReply::FsList));
             },
         );
     }
 
-    /// `fs.stat` of each requested path with its native path.
-    pub(crate) fn stat(
-        &self,
-        paths: Vec<(FilePath, PathBuf)>,
-        done: impl FnOnce(Result<FsStatResult, FilesError>) + Send + 'static,
-    ) {
-        self.blocking.run(
+    /// `fs.stat` of each requested path, with its native path or the reason scope refused it.
+    pub(crate) fn stat(&self, call: Call, paths: Vec<(FilePath, Result<NativePath, FilesError>)>) {
+        background::run(
+            &self.helpers,
+            Operation::FsStat,
             move || {
                 paths
                     .into_iter()
-                    .map(|(path, native)| {
-                        let entry = stat(&native).map_err(|error| FsError::io(&error).to_wire());
-                        let outcome = entry.and_then(|entry| {
-                            entry.to_wire().ok_or(FilesError::new(ErrorCode::Failed))
-                        });
-                        StatItem { path, outcome }
+                    .map(|(path, native)| StatItem {
+                        path,
+                        outcome: native.and_then(|native| stat(&native)),
                     })
                     .collect::<Vec<_>>()
             },
             move |outcome| {
-                let items = outcome.map_err(|interrupted| FsError::from(interrupted).to_wire());
-                done(items.and_then(|items| {
-                    List::new(items)
-                        .map(|items| FsStatResult { items })
-                        .map_err(|_| FilesError::new(ErrorCode::InvalidRequest))
-                }));
+                let items = outcome.and_then(|items| {
+                    List::new(items).map_err(|_| FilesError::new(ErrorCode::Failed))
+                });
+                answer(
+                    call,
+                    items.map(|items| FilesReply::FsStat(FsStatResult { items })),
+                );
             },
         );
     }
 
-    /// `fs.read` of `path`, the native path of `request.path`, on `lane`.
-    pub(crate) fn read(
-        &self,
-        connection: ConnectionId,
-        lane: LaneId,
-        request: &FsRead,
-        path: PathBuf,
-        done: impl FnOnce(Result<ReadResult, FilesError>) + Send + 'static,
-    ) {
+    /// `fs.read` of `path`, which scope admitted for `request`, on the call's lane.
+    pub(crate) fn read(&self, call: Call, path: NativePath, request: &FsRead) {
         let read = ReadRequest {
             mode: request.mode,
             encoding: request
@@ -123,74 +101,66 @@ impl Engine {
             force_text: request.force_text,
             limit: request.limit.get(),
         };
+        let (connection, lane) = (call.connection(), call.lane());
+        let path = path.as_path().to_path_buf();
         self.transfers.open(
             connection,
             lane,
             request.transfer,
             path,
             read,
-            move |facts| {
-                done(facts.map_err(FsError::to_wire).and_then(ReadFacts::to_wire));
+            move |opened| match opened {
+                Ok(facts) => answer(call, facts.to_wire().map(FilesReply::Read)),
+                Err(Unopened::Capacity) => call.close(CallClose::Capacity),
+                Err(Unopened::Failed(failure)) => answer(call, Err(failure)),
             },
         );
     }
 
     /// `fs.read-chunk`.
-    pub(crate) fn read_chunk(
-        &self,
-        connection: ConnectionId,
-        request: &FsReadChunk,
-        cancelled: Arc<AtomicBool>,
-        done: impl FnOnce(Result<Chunk, FilesError>) + Send + 'static,
-    ) {
-        let offset = request.offset.get();
+    pub(crate) fn read_chunk(&self, call: Call, request: &FsReadChunk) {
         // A chunk length is at most 128 KiB, which every target's `usize` holds.
         let length = usize::try_from(request.length.get()).unwrap_or(usize::MAX);
+        let (connection, cancelled) = (call.connection(), call.cancellation());
+        let offset = request.offset.get();
         self.transfers.chunk(
             connection,
             request.transfer,
             offset,
             length,
             cancelled,
-            move |chunk| done(chunk.map_err(FsError::to_wire)),
+            move |chunk| match chunk {
+                Ok(chunk) if !call.cancelled() => call.chunk(chunk),
+                Ok(_) => drop(call),
+                Err(failure) => answer(call, Err(failure)),
+            },
         );
     }
 
-    /// `fs.guess-encoding` of `path`, the native path of the request's path.
-    pub(crate) fn guess_encoding(
-        &self,
-        path: PathBuf,
-        done: impl FnOnce(Result<GuessEncodingResult, FilesError>) + Send + 'static,
-    ) {
-        self.blocking.run(
-            move || guess_file(&path),
+    /// `fs.guess-encoding` of `path`, which scope admitted.
+    pub(crate) fn guess_encoding(&self, call: Call, path: NativePath) {
+        background::run(
+            &self.helpers,
+            Operation::FsGuessEncoding,
+            move || guess_file(path.as_path()),
             move |outcome| {
-                let guessed = outcome.map_err(FsError::from).and_then(|guessed| guessed);
-                done(guessed.map_err(FsError::to_wire).and_then(|name| {
+                let guessed = outcome.and_then(|guessed| guessed).and_then(|name| {
                     let encoding = name.map(EncodingName::new).transpose();
                     let encoding = encoding.map_err(|_| FilesError::new(ErrorCode::Failed))?;
                     Ok(GuessEncodingResult { encoding })
-                }));
+                });
+                answer(call, guessed.map(FilesReply::GuessEncoding));
             },
         );
     }
 
     /// `transfer.close`.
-    ///
-    /// # Errors
-    ///
-    /// `invalid-request` for a transfer that is not open.
-    pub(crate) fn close_transfer(
-        &self,
-        connection: ConnectionId,
-        transfer: TransferId,
-    ) -> Result<(), FilesError> {
-        self.transfers
-            .close(connection, transfer)
-            .map_err(FsError::to_wire)
+    pub(crate) fn close_transfer(&self, call: Call, request: &TransferRequest) {
+        let closed = self.transfers.close(call.connection(), request.transfer);
+        answer(call, closed.map(|()| FilesReply::Empty));
     }
 
-    /// Cancels what `lane` of `connection` holds.
+    /// Drops what `lane` of `connection` holds.
     pub(crate) fn lane_closed(&self, connection: ConnectionId, lane: LaneId) {
         self.transfers.lane_closed(connection, lane);
     }
@@ -199,6 +169,26 @@ impl Engine {
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.listings.connection_lost(connection);
         self.transfers.connection_lost(connection);
+    }
+
+    /// Drops every transfer, answering the chunk requests that wait on them.
+    pub(crate) fn drain(&self) {
+        self.transfers.drain();
+    }
+}
+
+/// The entry at `path`.
+fn stat(path: &NativePath) -> Result<Entry, FilesError> {
+    entry::read(path.as_path(), OsStr::new(path.name())).map_err(|failure| error::from_io(&failure))
+}
+
+/// Answers `call` with `reply`, or closes it as cancelled when its Client cancelled it meanwhile.
+fn answer(call: Call, reply: Result<FilesReply, FilesError>) {
+    if call.cancelled() {
+        // Dropping a cancelled call closes it as cancelled.
+        drop(call);
+    } else {
+        call.reply(&reply.unwrap_or_else(FilesReply::Error));
     }
 }
 

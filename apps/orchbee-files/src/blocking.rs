@@ -19,7 +19,8 @@ use orchbee_local_runtime::{LogLevel, LogValue, log_event};
 const DEADLINE: Duration = Duration::from_secs(30);
 const MAXIMUM_ABANDONED: usize = 8;
 
-/// The helpers of every operation in the process.
+/// The helpers of every operation in the process. A clone shares the count of abandoned helpers.
+#[derive(Clone)]
 pub(crate) struct Helpers {
     deadline: Duration,
     /// Helpers whose operation stopped waiting and that have not returned yet.

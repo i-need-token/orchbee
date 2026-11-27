@@ -1,18 +1,18 @@
-//! The file engine: directory pages and entries, and read transfers with encoding detection, run
-//! on helper threads that answer within a deadline. Its callers pass paths that scope and containment already admitted; it decides
-//! nothing about which paths a Client may name, and it never logs a path, a name or file content.
+//! The file engine: directory pages, entries, read transfers with encoding detection and decoding,
+//! and encoding guesses. Its callers pass paths that scope already admitted; it decides nothing
+//! about which paths a Client may name, and it never logs a path, a name or file content.
 
-mod blocking;
+mod background;
 mod detection;
 mod encoding;
 mod engine;
 mod guessing;
 mod listing;
-mod metadata;
-mod os_error;
 mod reading;
 mod timer;
 mod wire;
+
+pub(crate) use engine::Engine;
 
 #[cfg(test)]
 mod tests;

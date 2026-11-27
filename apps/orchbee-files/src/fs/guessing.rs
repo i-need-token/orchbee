@@ -12,11 +12,10 @@ use std::{
 };
 
 use chardetng::{EncodingDetector, Iso2022JpDetection, Utf8Detection};
+use orchbee_files_protocol::{ErrorCode, FilesError};
 
-use super::{
-    detection::detect,
-    os_error::{FsError, FsErrorCode},
-};
+use super::detection::detect;
+use crate::error;
 
 /// The most a guess reads, VS Code's limit for jschardet.
 const GUESS_BYTES: usize = 64 * 1024;
@@ -49,19 +48,19 @@ const GUESSABLE: [(&encoding_rs::Encoding, &str); 19] = [
 /// # Errors
 ///
 /// `is-directory`, `failed` for what is neither file nor directory, or the system's error.
-pub(crate) fn guess_file(path: &Path) -> Result<Option<&'static str>, FsError> {
-    let error = |error: io::Error| FsError::io(&error);
-    let found = fs::metadata(path).map_err(error)?;
+pub(crate) fn guess_file(path: &Path) -> Result<Option<&'static str>, FilesError> {
+    let failed = |failure: io::Error| error::from_io(&failure);
+    let found = fs::metadata(path).map_err(failed)?;
     if found.is_dir() {
-        return Err(FsError::new(FsErrorCode::IsDirectory));
+        return Err(FilesError::new(ErrorCode::IsDirectory));
     }
     if !found.is_file() {
-        return Err(FsError::new(FsErrorCode::Failed));
+        return Err(FilesError::new(ErrorCode::Failed));
     }
     let mut content = Vec::with_capacity(GUESS_BYTES);
     File::open(path)
         .and_then(|file| file.take(GUESS_BYTES as u64).read_to_end(&mut content))
-        .map_err(error)?;
+        .map_err(failed)?;
     Ok(guess(&content, content.len() < GUESS_BYTES))
 }
 

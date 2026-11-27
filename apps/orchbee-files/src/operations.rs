@@ -27,6 +27,7 @@ use orchbee_files_protocol::{
 use crate::{
     blocking::Helpers,
     calls::{Call, Calls, DuplicateCall},
+    fs::Engine,
     grants, roots,
     scope::{Scopes, View},
     subscriptions::{Leaving, Subscriptions},
@@ -37,16 +38,20 @@ pub(crate) struct Services {
     calls: Arc<Calls>,
     scopes: Scopes,
     helpers: Helpers,
+    /// The file engine's listings and read transfers.
+    files: Engine,
     /// The `fs.subscribe` streams.
     roots: Subscriptions,
 }
 
 impl Services {
     pub(crate) fn new(calls: Arc<Calls>) -> Arc<Self> {
+        let helpers = Helpers::new();
         Arc::new(Self {
             calls,
             scopes: Scopes::new(),
-            helpers: Helpers::new(),
+            files: Engine::new(helpers.clone()),
+            helpers,
             roots: Subscriptions::new(),
         })
     }
@@ -76,6 +81,7 @@ impl Services {
     pub(crate) fn lane_closed(&self, connection: ConnectionId, lane: LaneId) {
         self.calls.cancel_lane(connection, lane);
         self.roots.leave(Leaving::Lane(connection, lane));
+        self.files.lane_closed(connection, lane);
     }
 
     /// The Client connection ended, with everything it held.
@@ -83,6 +89,7 @@ impl Services {
         self.calls.cancel_connection(connection);
         self.roots.leave(Leaving::Connection(connection));
         self.scopes.connection_lost(connection);
+        self.files.connection_lost(connection);
     }
 
     /// The Server stated a Workspace's scope, which applies to every call that starts after it.
@@ -110,6 +117,7 @@ impl Services {
     pub(crate) fn drain(&self) {
         self.calls.drain();
         self.roots.leave(Leaving::All);
+        self.files.drain();
     }
 
     fn start(
@@ -170,13 +178,26 @@ impl Services {
             FilesRequest::FsUngrant(request) => {
                 grants::ungrant(&self.scopes, &view, call, &request)
             }
-            FilesRequest::FsList(_)
-            | FilesRequest::FsRelease(_)
-            | FilesRequest::FsStat(_)
-            | FilesRequest::FsRead(_)
-            | FilesRequest::FsReadChunk(_)
-            | FilesRequest::FsGuessEncoding(_)
-            | FilesRequest::TransferClose(_)
+            FilesRequest::FsList(request) => match view.read(&request.path) {
+                Ok(path) => self.files.list(call, path, &request),
+                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            },
+            FilesRequest::FsStat(request) => {
+                let paths = request.paths.as_slice().iter();
+                let paths = paths.map(|path| (path.clone(), view.read(path))).collect();
+                self.files.stat(call, paths);
+            }
+            FilesRequest::FsRead(request) => match view.read(&request.path) {
+                Ok(path) => self.files.read(call, path, &request),
+                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            },
+            FilesRequest::FsReadChunk(request) => self.files.read_chunk(call, &request),
+            FilesRequest::FsGuessEncoding(request) => match view.read(&request.path) {
+                Ok(path) => self.files.guess_encoding(call, path),
+                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            },
+            FilesRequest::TransferClose(request) => self.files.close_transfer(call, &request),
+            FilesRequest::FsRelease(_)
             | FilesRequest::ScmSubscribe(_)
             | FilesRequest::GitStatusPage(_)
             | FilesRequest::GitShow(_)

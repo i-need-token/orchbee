@@ -2,8 +2,10 @@
 //! its chunks, and `transfer.close`, the end of its lane or the end of its connection drops it and
 //! closes its file. Chunk requests may arrive while the read still opens; they wait in arrival
 //! order, as do a text read's requests while another of its chunks is decoded, so text is served
-//! in offset order and bytes in any order. Every file call runs on a helper with a deadline; a text
-//! read whose helper was abandoned fails its later chunks, since its decoder stayed with it.
+//! in offset order and bytes in any order. Every file call runs on one of the process's helpers; a
+//! text read whose helper was abandoned fails its later chunks, since its decoder stayed with it.
+//! A connection holds at most 64 transfers, since a Client may keep a transfer open after the
+//! streams that carried it closed.
 
 use std::{
     collections::{HashMap, VecDeque},
@@ -14,31 +16,37 @@ use std::{
     },
 };
 
-use orchbee_files_protocol::{Chunk, ConnectionId, LaneId, TransferId};
+use orchbee_files_protocol::{
+    Chunk, ConnectionId, ErrorCode, FilesError, LaneId, Operation, TransferId,
+};
 
 mod reader;
 
 use reader::{ByteReader, Piece, Reader, TextReader};
 pub(crate) use reader::{ReadFacts, ReadRequest};
 
-use super::{
-    blocking::Blocking,
-    os_error::{FsError, FsErrorCode},
-};
+use super::background;
+use crate::blocking::Helpers;
 
-/// Open transfers per connection; more are refused as overloaded.
+/// Open transfers per connection.
 const MAXIMUM_TRANSFERS: usize = 64;
-/// Chunk requests that wait on one transfer; more are refused as overloaded. A connection carries
-/// at most 16 streams of chunks at once.
-const MAXIMUM_WAITING: usize = 16;
 
-type Answer = Box<dyn FnOnce(Result<Chunk, FsError>) + Send>;
+type Answer = Box<dyn FnOnce(Result<Chunk, FilesError>) + Send>;
 type Key = (ConnectionId, TransferId);
 
 /// The open transfers of every connection.
 pub(crate) struct Transfers {
-    blocking: Arc<Blocking>,
+    helpers: Helpers,
     shared: Arc<Mutex<State>>,
+}
+
+/// Why a read did not open.
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum Unopened {
+    /// The connection holds as many transfers as it may.
+    Capacity,
+    /// The transfer's name is taken, or the file could not be read.
+    Failed(FilesError),
 }
 
 /// The lock guards the table; it is never held while a file call or an answer runs. A panic ends
@@ -63,7 +71,7 @@ enum Stage {
         reader: Option<Box<TextReader>>,
         waiting: VecDeque<Waiting>,
         running: bool,
-        broken: Option<FsError>,
+        broken: Option<FilesError>,
     },
     Bytes(Arc<ByteReader>),
     Binary,
@@ -87,9 +95,9 @@ impl Stage {
 }
 
 impl Transfers {
-    pub(crate) fn new(blocking: Arc<Blocking>) -> Self {
+    pub(crate) fn new(helpers: Helpers) -> Self {
         Self {
-            blocking,
+            helpers,
             shared: Arc::new(Mutex::new(State::default())),
         }
     }
@@ -103,13 +111,13 @@ impl Transfers {
         transfer: TransferId,
         path: PathBuf,
         request: ReadRequest,
-        done: impl FnOnce(Result<ReadFacts, FsError>) + Send + 'static,
+        done: impl FnOnce(Result<ReadFacts, Unopened>) + Send + 'static,
     ) {
         let key = (connection, transfer);
         let instance = {
             let mut state = lock(&self.shared);
             let refusal = if state.open.contains_key(&key) {
-                Some(FsErrorCode::InvalidRequest)
+                Some(Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest)))
             } else if state
                 .open
                 .keys()
@@ -117,13 +125,13 @@ impl Transfers {
                 .count()
                 >= MAXIMUM_TRANSFERS
             {
-                Some(FsErrorCode::Overloaded)
+                Some(Unopened::Capacity)
             } else {
                 None
             };
-            if let Some(code) = refusal {
+            if let Some(refusal) = refusal {
                 drop(state);
-                done(Err(FsError::new(code)));
+                done(Err(refusal));
                 return;
             }
             state.next += 1;
@@ -139,12 +147,14 @@ impl Transfers {
             instance
         };
         let shared = Arc::clone(&self.shared);
-        let blocking = Arc::clone(&self.blocking);
-        self.blocking.run(
+        let helpers = self.helpers.clone();
+        background::run(
+            &self.helpers,
+            Operation::FsRead,
             move || reader::open(&path, &request),
             move |outcome| {
-                let outcome = outcome.map_err(FsError::from).and_then(|opened| opened);
-                opened(&shared, &blocking, key, instance, outcome, done);
+                let outcome = outcome.and_then(|opened| opened);
+                opened(&shared, &helpers, key, instance, outcome, done);
             },
         );
     }
@@ -158,7 +168,7 @@ impl Transfers {
         offset: u64,
         length: usize,
         cancelled: Arc<AtomicBool>,
-        answer: impl FnOnce(Result<Chunk, FsError>) + Send + 'static,
+        answer: impl FnOnce(Result<Chunk, FilesError>) + Send + 'static,
     ) {
         let key = (connection, transfer);
         let request = Waiting {
@@ -170,30 +180,24 @@ impl Transfers {
         let mut state = lock(&self.shared);
         let Some(open) = state.open.get_mut(&key) else {
             drop(state);
-            (request.answer)(Err(FsError::new(FsErrorCode::InvalidRequest)));
+            (request.answer)(Err(FilesError::new(ErrorCode::InvalidRequest)));
             return;
         };
         match &mut open.stage {
-            Stage::Opening(waiting) | Stage::Text { waiting, .. }
-                if waiting.len() >= MAXIMUM_WAITING =>
-            {
-                drop(state);
-                (request.answer)(Err(FsError::new(FsErrorCode::Overloaded)));
-            }
             Stage::Opening(waiting) => waiting.push_back(request),
             Stage::Text { waiting, .. } => {
                 waiting.push_back(request);
                 drop(state);
-                pump(&self.shared, &self.blocking, key);
+                pump(&self.shared, &self.helpers, key);
             }
             Stage::Bytes(reader) => {
                 let reader = Arc::clone(reader);
                 drop(state);
-                serve_bytes(&self.blocking, transfer, reader, request);
+                serve_bytes(&self.helpers, transfer, reader, request);
             }
             Stage::Binary => {
                 drop(state);
-                (request.answer)(Err(FsError::new(FsErrorCode::InvalidRequest)));
+                (request.answer)(Err(FilesError::new(ErrorCode::InvalidRequest)));
             }
         }
     }
@@ -207,9 +211,9 @@ impl Transfers {
         &self,
         connection: ConnectionId,
         transfer: TransferId,
-    ) -> Result<(), FsError> {
+    ) -> Result<(), FilesError> {
         let removed = lock(&self.shared).open.remove(&(connection, transfer));
-        let removed = removed.ok_or(FsError::new(FsErrorCode::InvalidRequest))?;
+        let removed = removed.ok_or_else(|| FilesError::new(ErrorCode::InvalidRequest))?;
         self.discard(vec![removed]);
         Ok(())
     }
@@ -222,6 +226,11 @@ impl Transfers {
     /// Drops every transfer of `connection`.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.remove(|key, _| key.0 == connection);
+    }
+
+    /// Drops every transfer.
+    pub(crate) fn drain(&self) {
+        self.remove(|_, _| true);
     }
 
     fn remove(&self, matches: impl Fn(&Key, &Transfer) -> bool) {
@@ -245,11 +254,16 @@ impl Transfers {
     fn discard(&self, mut removed: Vec<Transfer>) {
         for open in &mut removed {
             for request in open.stage.waiting() {
-                (request.answer)(Err(FsError::new(FsErrorCode::Cancelled)));
+                (request.answer)(Err(FilesError::new(ErrorCode::Cancelled)));
             }
         }
         if !removed.is_empty() {
-            self.blocking.run(move || drop(removed), |_| {});
+            background::run(
+                &self.helpers,
+                Operation::TransferClose,
+                move || drop(removed),
+                |_| {},
+            );
         }
     }
 }
@@ -257,11 +271,11 @@ impl Transfers {
 /// The read of `key` opened, or failed to.
 fn opened(
     shared: &Arc<Mutex<State>>,
-    blocking: &Arc<Blocking>,
+    helpers: &Helpers,
     key: Key,
     instance: u64,
-    outcome: Result<(ReadFacts, Reader), FsError>,
-    done: impl FnOnce(Result<ReadFacts, FsError>),
+    outcome: Result<(ReadFacts, Reader), FilesError>,
+    done: impl FnOnce(Result<ReadFacts, Unopened>),
 ) {
     let mut state = lock(shared);
     let current = state
@@ -271,7 +285,7 @@ fn opened(
     if !current {
         // Closed while it opened: its file closes with `outcome`.
         drop(state);
-        done(Err(FsError::new(FsErrorCode::Cancelled)));
+        done(Err(Unopened::Failed(FilesError::new(ErrorCode::Cancelled))));
         return;
     }
     let (facts, reader) = match outcome {
@@ -283,10 +297,10 @@ fn opened(
                 .map(|mut open| open.stage.waiting())
                 .unwrap_or_default();
             drop(state);
-            done(Err(error));
             for request in waiting {
-                (request.answer)(Err(error));
+                (request.answer)(Err(error.clone()));
             }
+            done(Err(Unopened::Failed(error)));
             return;
         }
     };
@@ -304,7 +318,7 @@ fn opened(
             };
             drop(state);
             done(Ok(facts));
-            pump(shared, blocking, key);
+            pump(shared, helpers, key);
         }
         Reader::Bytes(reader) => {
             let reader = Arc::new(reader);
@@ -312,7 +326,7 @@ fn opened(
             drop(state);
             done(Ok(facts));
             for request in waiting {
-                serve_bytes(blocking, key.1, Arc::clone(&reader), request);
+                serve_bytes(helpers, key.1, Arc::clone(&reader), request);
             }
         }
         Reader::Binary => {
@@ -320,14 +334,14 @@ fn opened(
             drop(state);
             done(Ok(facts));
             for request in waiting {
-                (request.answer)(Err(FsError::new(FsErrorCode::InvalidRequest)));
+                (request.answer)(Err(FilesError::new(ErrorCode::InvalidRequest)));
             }
         }
     }
 }
 
 /// Starts the next waiting chunk of the text read `key` unless one runs.
-fn pump(shared: &Arc<Mutex<State>>, blocking: &Arc<Blocking>, key: Key) {
+fn pump(shared: &Arc<Mutex<State>>, helpers: &Helpers, key: Key) {
     loop {
         let mut state = lock(shared);
         let Some(open) = state.open.get_mut(&key) else {
@@ -350,9 +364,9 @@ fn pump(shared: &Arc<Mutex<State>>, blocking: &Arc<Blocking>, key: Key) {
             return;
         };
         let refusal = if request.cancelled.load(Ordering::Acquire) {
-            Some(FsError::new(FsErrorCode::Cancelled))
+            Some(FilesError::new(ErrorCode::Cancelled))
         } else {
-            *broken
+            broken.clone()
         };
         let taken = match refusal {
             Some(_) => None,
@@ -360,21 +374,23 @@ fn pump(shared: &Arc<Mutex<State>>, blocking: &Arc<Blocking>, key: Key) {
         };
         let Some(mut taken) = taken else {
             drop(state);
-            let error = refusal.unwrap_or(FsError::new(FsErrorCode::Failed));
+            let error = refusal.unwrap_or_else(|| FilesError::new(ErrorCode::Failed));
             (request.answer)(Err(error));
             continue;
         };
         *running = true;
         drop(state);
         let shared = Arc::clone(shared);
-        let next = Arc::clone(blocking);
+        let next = helpers.clone();
         let Waiting {
             offset,
             length,
             answer,
             ..
         } = request;
-        blocking.run(
+        background::run(
+            helpers,
+            Operation::FsReadChunk,
             move || {
                 let result = taken.chunk(offset, length);
                 (taken, result)
@@ -394,8 +410,8 @@ fn settle(
     shared: &Mutex<State>,
     key: Key,
     instance: u64,
-    outcome: Result<(Box<TextReader>, Result<Piece, FsError>), super::blocking::Interrupted>,
-) -> Result<Piece, FsError> {
+    outcome: Result<(Box<TextReader>, Result<Piece, FilesError>), FilesError>,
+) -> Result<Piece, FilesError> {
     let mut state = lock(shared);
     let open = state
         .open
@@ -403,7 +419,7 @@ fn settle(
         .filter(|open| open.instance == instance);
     let (returned, result) = match outcome {
         Ok((reader, result)) => (Some(reader), result),
-        Err(interrupted) => (None, Err(FsError::from(interrupted))),
+        Err(interrupted) => (None, Err(interrupted)),
     };
     if let Some(Transfer {
         stage:
@@ -419,37 +435,34 @@ fn settle(
         *running = false;
         match returned {
             Some(returned) => *reader = Some(returned),
-            None => *broken = result.as_ref().err().copied(),
+            None => *broken = result.as_ref().err().cloned(),
         }
         return result;
     }
     drop(state);
-    // The transfer closed meanwhile; its file closes here, on the helper.
+    // The transfer closed meanwhile; its file closes here.
     drop(returned);
     result
 }
 
-fn serve_bytes(
-    blocking: &Blocking,
-    transfer: TransferId,
-    reader: Arc<ByteReader>,
-    request: Waiting,
-) {
+fn serve_bytes(helpers: &Helpers, transfer: TransferId, reader: Arc<ByteReader>, request: Waiting) {
     let Waiting {
         offset,
         length,
         cancelled,
         answer,
     } = request;
-    blocking.run(
+    background::run(
+        helpers,
+        Operation::FsReadChunk,
         move || {
             if cancelled.load(Ordering::Acquire) {
-                return Err(FsError::new(FsErrorCode::Cancelled));
+                return Err(FilesError::new(ErrorCode::Cancelled));
             }
             reader.chunk(offset, length)
         },
         move |outcome| {
-            let result = outcome.map_err(FsError::from).and_then(|result| result);
+            let result = outcome.and_then(|result| result);
             answer(result.map(|piece| chunk(transfer, piece)));
         },
     );
