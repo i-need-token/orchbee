@@ -1,7 +1,8 @@
 //! The calls the Server relays to this process and the handles their operations end them
 //! through. A call ends exactly once: by a close, or when its handle is dropped, which closes it
 //! as cancelled after its Client's cancel and as outcome-unknown otherwise, so a Client stream
-//! never waits on a handle nothing holds.
+//! never waits on a handle nothing holds. A request call ends with its one Result record; an
+//! Events call streams a Snapshot record, then Update records, until it ends.
 
 use std::{
     collections::HashMap,
@@ -13,7 +14,8 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, LaneId, LinkMessage, encode_link_message,
+    CallClose, CallId, ConnectionId, FilesNotice, FilesRecord, FilesReply, FrameKind, LaneId,
+    LinkFrame, LinkMessage, encode_files_record, encode_link_message, encode_notice, encode_reply,
 };
 
 use crate::outbound::Outbound;
@@ -80,6 +82,8 @@ impl Calls {
         );
         Ok(Some(Call {
             id,
+            connection,
+            lane,
             calls: Arc::clone(self),
             cancelled,
             ended: false,
@@ -141,6 +145,22 @@ impl Calls {
         }
     }
 
+    /// Queues one reply record of call `id`.
+    ///
+    /// # Panics
+    ///
+    /// For a record over its bound, which the operation that produced it keeps within.
+    fn queue_frame(&self, id: CallId, kind: FrameKind, record: &FilesRecord) {
+        let record = encode_files_record(record).expect("an operation bounds its records");
+        let frame = encode_link_message(&LinkMessage::Frame(LinkFrame {
+            call: id,
+            kind,
+            record,
+        }))
+        .expect("a bounded record fits one frame");
+        self.outbound.push(frame);
+    }
+
     fn queue_close(&self, call: CallId, reason: CallClose) {
         let frame = encode_link_message(&LinkMessage::Close { call, reason })
             .expect("a close always fits one frame");
@@ -155,15 +175,50 @@ impl Calls {
 /// One open call, which its operation ends once.
 pub(crate) struct Call {
     id: CallId,
+    connection: ConnectionId,
+    lane: LaneId,
     calls: Arc<Calls>,
     cancelled: Arc<AtomicBool>,
     ended: bool,
 }
 
 impl Call {
+    /// The connection that made the call.
+    pub(crate) const fn connection(&self) -> ConnectionId {
+        self.connection
+    }
+
+    /// Whether the call's Client cancelled it, its lane or connection closed, or the process is
+    /// draining.
+    pub(crate) fn cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+
     /// Ends the call without a reply record.
     pub(crate) fn close(mut self, reason: CallClose) {
         self.finish(reason);
+    }
+
+    /// Ends a request call with its Result record.
+    ///
+    /// # Panics
+    ///
+    /// For a reply over the Result record's bound, which the operation keeps within.
+    pub(crate) fn reply(mut self, reply: &FilesReply) {
+        let record = FilesRecord::Result(encode_reply(reply));
+        self.calls.queue_frame(self.id, FrameKind::Result, &record);
+        self.finish(CallClose::Complete);
+    }
+
+    /// Starts an Events call's stream with its Snapshot record.
+    ///
+    /// # Panics
+    ///
+    /// As [`Events::update`].
+    pub(crate) fn snapshot(self, notice: &FilesNotice) -> Events {
+        let events = Events { call: self };
+        events.queue(FrameKind::Snapshot, notice);
+        events
     }
 
     fn finish(&mut self, reason: CallClose) {
@@ -176,12 +231,49 @@ impl Call {
 
 impl Drop for Call {
     fn drop(&mut self) {
-        let reason = if self.cancelled.load(Ordering::Acquire) {
+        let reason = if self.cancelled() {
             CallClose::Cancelled
         } else {
             CallClose::OutcomeUnknown
         };
         self.finish(reason);
+    }
+}
+
+/// An Events call after its Snapshot. It ends when dropped: as cancelled once its Client cancelled
+/// it, its lane or connection closed, or the process drained.
+pub(crate) struct Events {
+    call: Call,
+}
+
+impl Events {
+    /// The call's identity, which its subscription is known by.
+    pub(crate) const fn id(&self) -> CallId {
+        self.call.id
+    }
+
+    /// The connection that subscribed.
+    pub(crate) const fn connection(&self) -> ConnectionId {
+        self.call.connection
+    }
+
+    /// The lane the subscription arrived on.
+    pub(crate) const fn lane(&self) -> LaneId {
+        self.call.lane
+    }
+
+    /// Queues one Update record.
+    ///
+    /// # Panics
+    ///
+    /// For a notice over the Notice record's bound, which its producer keeps within.
+    pub(crate) fn update(&self, notice: &FilesNotice) {
+        self.queue(FrameKind::Update, notice);
+    }
+
+    fn queue(&self, kind: FrameKind, notice: &FilesNotice) {
+        let record = FilesRecord::Notice(encode_notice(notice));
+        self.call.calls.queue_frame(self.call.id, kind, &record);
     }
 }
 

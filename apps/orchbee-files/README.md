@@ -25,9 +25,35 @@ children, so a Git or ripgrep process tree does not outlive the call that starte
 any thread ends the whole process instead of unwinding that thread, because a half-serving process
 would leave Client streams open; the Server restarts it on the next demand.
 
+## Scope and grants
+
+These rules are the contract a Client builds on; no single declaration holds them.
+
+- A path is in scope when it lies lexically inside its Workspace's root, spelled as the Workbench
+  reported it or as the real location `fs.subscribe` reports, or when it names a file the requesting
+  connection opened. A Client builds its paths under the root `fs.subscribe` reported.
+- `fs.grant` from a tree, a diff or a Save As dialog needs the path in scope already; a terminal
+  link, a restored tab or the operating system's open may name any path, since the person chose it
+  explicitly. The entry is read before the grant is recorded, so a grant that fails grants nothing,
+  and a directory is refused.
+- Each successful grant of a file adds one grant, and each path of `fs.ungrant` releases one, so
+  two tabs of one file release it independently; a set would let closing either tab cut off the
+  other. Grants outlive their Workspace's close and end with their connection.
+- Grants live in this process. After it restarts, which ends every subscription, a Client grants
+  its open files again.
+
+## Adding a service
+
+A service joins in `src/operations.rs`: its state as a field of `Services`, its operations as arms of
+`route`, and its share of each link event that ends state: a cancel, a lane's close, a connection's
+loss, a scope change and the drain. Its own modules take the shared parts they use, such as
+`Scopes`, `Helpers` or a `Subscriptions` registry, and never `operations`, which depends on them;
+that keeps the module graph acyclic. A filesystem call that can hang runs through `Helpers::run`.
+
 ## Diagnostic log
 
 The process writes to the [daily diagnostic log](../../crates/local-runtime/README.md#diagnostic-log)
-with role `files`: `started` once the Server admitted it, and one `exited` with `outcome`
-(`drained` with its `reason`, `idle` or `session`; `signalled` with its `signal`; or `failed` with
-the `stage` it stopped at and the I/O `error` kind that caused it, when one did).
+with role `files`: `started` once the Server admitted it; `filesystem-timeout` with the `operation`
+whose filesystem call passed its deadline; and one `exited` with `outcome` (`drained` with its
+`reason`, `idle` or `session`; `signalled` with its `signal`; or `failed` with the `stage` it stopped
+at and the I/O `error` kind that caused it, when one did).

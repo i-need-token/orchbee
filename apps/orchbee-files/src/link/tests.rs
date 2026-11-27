@@ -38,7 +38,7 @@ fn only_a_drain_ends_serving_cleanly() {
         read_link_message(&mut server, LinkSide::Files).unwrap(),
         LinkMessage::Close {
             call: call(1),
-            reason: CallClose::Unsupported,
+            reason: CallClose::InvalidRequest,
         }
     );
     // A cancel that crosses its call's close changes nothing.

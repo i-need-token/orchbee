@@ -18,7 +18,7 @@ use std::{
 use orchbee_files_protocol::{DrainReason, LinkMessage, LinkSide, read_link_message};
 use orchbee_local_ipc::LocalStream;
 
-use crate::{calls::Calls, exit::Stage, operations, outbound::Outbound};
+use crate::{calls::Calls, exit::Stage, operations::Services, outbound::Outbound};
 
 /// How long one frame may take to reach a Server that stopped reading.
 const WRITE_TIMEOUT: Duration = Duration::from_secs(30);
@@ -49,12 +49,13 @@ pub(crate) enum End {
 pub(crate) fn serve(stream: LocalStream, ends: Sender<End>, ended: &Receiver<End>) -> End {
     let outbound = Arc::new(Outbound::new());
     let calls = Calls::new(Arc::clone(&outbound));
-    if let Err(error) = start(&stream, &outbound, &calls, ends) {
+    let services = Services::new(Arc::clone(&calls));
+    if let Err(error) = start(&stream, &outbound, &services, ends) {
         return End::Failed(Stage::Threads, error.kind());
     }
     // This function holds a sender until it returns, so the channel never disconnects first.
     let end = ended.recv().unwrap_or(End::ServerGone);
-    calls.drain();
+    services.drain();
     let deadline = Instant::now() + SETTLE_BUDGET;
     calls.settled_before(deadline);
     if matches!(end, End::Drained(_)) {
@@ -69,7 +70,7 @@ pub(crate) fn serve(stream: LocalStream, ends: Sender<End>, ended: &Receiver<End
 fn start(
     stream: &LocalStream,
     outbound: &Arc<Outbound>,
-    calls: &Arc<Calls>,
+    services: &Arc<Services>,
     ends: Sender<End>,
 ) -> io::Result<()> {
     let mut writer = stream.try_clone()?;
@@ -89,17 +90,17 @@ fn start(
                 }
             }
         })?;
-    let calls = Arc::clone(calls);
+    let services = Arc::clone(services);
     thread::Builder::new()
         .name("orchbee-files-reader".into())
         .spawn(move || {
-            let _ = ends.send(read(reader, &calls));
+            let _ = ends.send(read(reader, &services));
         })?;
     Ok(())
 }
 
 /// Applies the Server's frames until one ends the link.
-fn read(mut reader: BufReader<LocalStream>, calls: &Arc<Calls>) -> End {
+fn read(mut reader: BufReader<LocalStream>, services: &Arc<Services>) -> End {
     loop {
         let message = match read_link_message(&mut reader, LinkSide::Server) {
             Ok(message) => message,
@@ -108,17 +109,16 @@ fn read(mut reader: BufReader<LocalStream>, calls: &Arc<Calls>) -> End {
         };
         match message {
             LinkMessage::Request(request) => {
-                match calls.open(request.call, request.connection, request.lane) {
-                    Ok(Some(call)) => operations::dispatch(call),
-                    Ok(None) => {}
-                    Err(_) => return End::Failed(Stage::Read, io::ErrorKind::InvalidData),
+                if services.request(request).is_err() {
+                    return End::Failed(Stage::Read, io::ErrorKind::InvalidData);
                 }
             }
-            LinkMessage::Cancel { call } => calls.cancel(call),
-            LinkMessage::LaneClosed { connection, lane } => calls.cancel_lane(connection, lane),
-            LinkMessage::ConnectionLost { connection } => calls.cancel_connection(connection),
-            // Scope and Agent completion reach the services that act on them in later slices.
-            LinkMessage::Scope(_) | LinkMessage::AgentSettled { .. } => {}
+            LinkMessage::Cancel { call } => services.cancel(call),
+            LinkMessage::LaneClosed { connection, lane } => services.lane_closed(connection, lane),
+            LinkMessage::ConnectionLost { connection } => services.connection_lost(connection),
+            LinkMessage::Scope(update) => services.scope(update),
+            // No service of this build refreshes on an Agent's completion.
+            LinkMessage::AgentSettled { .. } => {}
             LinkMessage::Drain(reason) => return End::Drained(reason),
             // Admission is over, and the codec refuses this process's own kinds.
             LinkMessage::Admitted

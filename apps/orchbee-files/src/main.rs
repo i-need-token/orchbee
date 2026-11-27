@@ -4,14 +4,21 @@
 //! containment and every file or Git effect stay in this process; the Server only relays.
 
 mod admission;
+mod blocking;
 mod calls;
+mod entry;
+mod error;
 mod exit;
+mod grants;
 mod invocation;
 mod link;
 mod operations;
 mod outbound;
+mod roots;
+mod scope;
 #[cfg(unix)]
 mod signals;
+mod subscriptions;
 
 use std::{ffi::OsString, process::ExitCode, sync::mpsc};
 
