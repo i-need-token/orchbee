@@ -1,0 +1,651 @@
+# File Bar and File Overlay Frontend
+
+| Field             | Value                                                                                                                                                                                                                                                                                                                                          |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status            | Proposed. On 2026-11-27 the owner fixed the File Bar's scope and asked for implementation to proceed on the recommended defaults. The [reserved decisions](#reserved-decisions) need acceptance before the release that depends on them; [release gating](#release-gating) keeps every batch out of release builds until the owner releases it |
+| Owner             | `@orchbee/web` Workbench maintainers; `@orchbee/keyboard-shortcuts`, `@orchbee/ui`, `@orchbee/i18n`, `@orchbee/design-tokens` and `@orchbee/desktop` maintainers for their parts; the `orchbee-files` owner for the [alignment points](#alignment-points)                                                                                      |
+| Current authority | [`apps/web/docs/workbench.md`](../../apps/web/docs/workbench.md), [`apps/web/docs/keyboard-shortcuts.md`](../../apps/web/docs/keyboard-shortcuts.md), [`apps/web/docs/unified-search.md`](../../apps/web/docs/unified-search.md), and the standards under [`docs/frontend/`](../../docs/frontend/)                                             |
+| Exit condition    | Deliver batches 1–4, move maintained behavior into `apps/web/docs/file-bar.md` and the owning references, record the TUI staged delivery, then delete this proposal                                                                                                                                                                            |
+
+## Scope
+
+- The File Bar is a Client-local column with three views, Explorer, Search and Source Control, switched by three toggles in its top row. Opening a file shows it in the file overlay: a large surface above the terminal area with its own single tab row and a Monaco editor.
+- Behavior, menus, context menus, keys and defaults follow a fresh VS Code with no extensions installed, at commit `ef5ca45a6e545e4767e0117905ee9d6120b86e11`, except the [exclusions](#exclusions). VS Code source is the specification: no VS Code code is vendored, no lint or TypeScript rule is waived, and nothing is imported from undocumented `monaco-editor` modules.
+- The File Bar and the overlay are Client projections. Workspaces, Tabs and Panels stay with their Workbench owner; file tabs, overlay modes and layout memory are this Client's view state.
+- File access, Git, search and history run in `orchbee-files` on the machine that holds the Directory. This proposal owns the frontend; [File Bar Backend](../platform/file-bar-backend.md) owns that process and the wire contract, and the [client data ports](#client-data-ports) mark where the two designs must agree.
+
+| Term               | zh-CN    | Meaning                                                                                                      |
+| ------------------ | -------- | ------------------------------------------------------------------------------------------------------------ |
+| File Bar           | 文件栏   | The column with the view toggles and the active view; never "Sidebar", which is the left column              |
+| File overlay       | 文件浮窗 | The surface that shows file tabs above the terminal area                                                     |
+| Picture-in-picture | 画中画   | The overlay's small floating mode                                                                            |
+| File tab           | 文件标签 | A tab in the overlay's row; distinct from a terminal Tab (标签页)                                            |
+| Root               | 根目录   | The active Workspace's current directory: its first terminal's working directory, else its primary Directory |
+| Tier               | 档位     | One of the overlay's snapped sizes: default, left-expand, full                                               |
+
+## Module placement
+
+All code starts in `apps/web/src/`. No package is created until a second workspace consumes it ([package boundaries](../../docs/frontend/package-boundaries.md)).
+
+| Module                                             | Owns                                                                                                                                                                                                              | Never                                          |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `file-bar/`                                        | Column, placement, width, visibility, toggles row, File Bar toggle, count badge, view switching                                                                                                                   | Imports `monaco-editor`                        |
+| `file-overlay/`                                    | Modes, tiers, picture-in-picture, tab model and tab row, info row, close flow, per-Workspace stores, restore record                                                                                               | Calls the wire                                 |
+| `code-editor/`                                     | The only importer of `monaco-editor`: lazy entry, worker, models, theme, messages, text, diff and multi-diff editors                                                                                              | Is imported statically outside its lazy loader |
+| `virtual-tree/`                                    | Headless list and tree model, height index, scroll, React adapter, find, sticky scroll, pointer drag                                                                                                              | Knows about files or Git                       |
+| `file-session/`                                    | Port types, resource identity, error codes, cursors, per-Workspace session lifecycle                                                                                                                              | Holds React state                              |
+| `file-explorer/`                                   | Explorer view, decorations, file operations, Explorer drag and drop                                                                                                                                               |                                                |
+| `file-search/`                                     | Search view, Quick Open provider, Search Editor                                                                                                                                                                   |                                                |
+| `source-control/`                                  | Repository rows, Changes, commit input, Git flows, Git Output, Timeline Git entries, Graph                                                                                                                        |                                                |
+| Existing `workbench-client/` and `desktop-client/` | Port adapters: Server clients beside `ServerUserSettingsClient` in `workbench-client/server-workbench/`; Desktop host capabilities beside `desktop-client/file-drop/`; wiring in `startDesktopServerWorkbench.ts` | Holds view state                               |
+
+- Views depend on `virtual-tree/`, the `file-session/` ports and the overlay's open Actions; `file-overlay/` depends on the `code-editor/` loader; the adapters depend on the ports and on what they bind. Views open files through Actions, never through overlay internals.
+- The quick input extends `workbench/components/workbench-search-surface/`, and notification cards extend the Workbench status notice. Neither is a new module.
+- Stores use `createStore` from `zustand/vanilla` behind a Provider ([React](../../docs/frontend/react.md)). A store never holds a Monaco object.
+- The File Bar uses the Sidebar's surface, border and text roles. New Codicons join the `ProductIcon` allowlist and NOTICE in the slice that first uses them.
+
+## Shell layout
+
+### Columns and placement
+
+- From the left: Sidebar, terminal area, File Bar (default); or Sidebar, File Bar, terminal area. The Sidebar never moves, and the terminal area keeps its Tabs, Tab Groups and Panels unchanged.
+- Placement is the global setting `appearance.file_bar.position` (`right` or `left`, default `right`), the analog of `workbench.sideBar.location`. Move File Bar Left, Move File Bar Right and Toggle File Bar Position write it; they appear in Action search, in the toggles-row context menu and in the view title context menu. Dragging the toggles row to the other side of the terminal area is an add-on that invokes the same Action.
+- Copy says "File Bar" wherever VS Code says "Primary Side Bar".
+
+### Width and resize
+
+- Default `300px`, range `240px`–`560px`; the minimum is `280px` on Windows and Linux so the toggles fit beside the caption buttons.
+- The divider reuses the Sidebar divider: double-click resets to `300px`, a focused divider takes ← and → in `10px` steps, and the width commits on release, so the terminal area and its PTYs resize once per gesture.
+- The File Bar docks while the terminal area keeps at least `481px` (about 60 columns). Below that it steps aside after the Sidebar does: its toggle opens it at its width over the terminal area from its side; it takes the keyboard; Esc, an outside click, or opening a file closes it. Only a docked choice persists. In the mobile layout it opens at full width.
+
+### The 36px row
+
+- Each column owns its top `36px` band: the Sidebar's drag band, the terminal area's Tab Strip, and the File Bar's toggles row.
+- The trailing caption reserve (Windows and Linux `titleBarOverlay`, from `env(titlebar-area-*)`) belongs to the column that touches the right edge. The leading reserve (macOS traffic lights and the Sidebar control at x `76`) belongs to the column that touches the left edge; with the Sidebar hidden and the File Bar on the left, the toggles row holds it.
+- The toggles row is a native drag region; its toggles and buttons are no-drag. The selectors join the ordered lists in `DesktopWorkbench.module.css` under [native window drag-region projection](../../apps/desktop/README.md#native-window-drag-region-projection).
+- The File Bar toggle is a `28px` icon button fixed at the trailing end of the row: left of the caption buttons on Windows and Linux, `12px` from the edge on macOS. Like the Sidebar control it stays mounted in both states: inside the toggles row while the File Bar is docked on the right, otherwise in a transparent trailing reserve of the Tab Strip. It reads Hide File Bar / Show File Bar, and its icon mirrors placement and state (`layout-sidebar-right`, `layout-sidebar-right-off`, and the left pair).
+- Every overlay tier and every dialog starts below the row.
+
+### Toggles and visibility
+
+- The File Bar starts hidden, so a person who never shows it pays nothing: no session, no Git read, no prefetch. Showing it for a Workspace starts that Workspace's file session; a File Bar restored as visible counts as shown.
+- Three `28px` toggles, Explorer, Search and Source Control, start the toggles row after any leading reserve. They form a `tablist`; selecting one shows its view. Container behavior, view keys and the context menu (view checkboxes and the move items) follow VS Code's activity bar with File Bar wording.
+- Toggle File Bar (`workbench.file-bar.toggle`) has the proposed window-scope default `Cmd+Option+B` on Apple and `Ctrl+Alt+B` elsewhere; VS Code's `Cmd+B` and `Ctrl+B` toggle it while focus is inside the File Bar or the overlay ([keyboard](#keyboard)).
+- While the full tier covers the File Bar, activating any File Bar control in the row first restores the pre-full tier.
+
+### State scope
+
+| State                                                 | Scope                                    | Persistence                                                             |
+| ----------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| Placement                                             | Global                                   | Setting `appearance.file_bar.position`                                  |
+| Width, docked visibility, active view, hidden toggles | Global                                   | `orchbee:file-bar:layout:v1`                                            |
+| Remembered menu states (view as tree or list, sort)   | VS Code's scope: per Workspace or global | `orchbee:file-bar:view-state:v1`                                        |
+| Tree expansion                                        | Per Workspace, keyed by absolute path    | `orchbee:file-bar:view-state:v1`                                        |
+| Tree selection, focus, scroll                         | Per Workspace and root                   | Memory                                                                  |
+| Overlay mode, tier, tabs, active tab                  | Per Workspace                            | `orchbee:file-overlay:tabs:v1`; MRU and the reopen stack stay in memory |
+| Picture-in-picture position                           | Global                                   | `orchbee:file-overlay:pip-position:v1`                                  |
+| Prompt-written choices                                | Global                                   | Settings ([settings](#settings))                                        |
+| Dismissals VS Code keeps outside its settings         | Global                                   | `orchbee:file-bar:dismissed-notices:v1`                                 |
+
+Each record follows [browser storage](../../docs/frontend/browser-storage.md): strict Zod; bounded to 50 Workspaces by least recent use, 200 tabs and 2,000 expanded paths per Workspace; local only; never file content; entries of Workspaces that no longer exist are dropped.
+
+## Overlay geometry
+
+- The overlay renders through a portal into the Workbench layout root at `--ob-ref-layer-overlay`. Menus, tooltips, dialogs and the quick input keep their `@orchbee/ui` layers above it. The status notice and notification cards use `--ob-ref-layer-toast`, above the overlay and picture-in-picture.
+- The overlay never changes terminal layout: no terminal area resize and no PTY resize.
+- The scrim dims only the covered regions below the 36px row, outside the frame. The 36px row, and the Sidebar and File Bar where the frame does not cover them, are never dimmed and stay operable. Clicking the scrim enters picture-in-picture.
+
+| Tier        | Frame: below the 36px row, `24px` inset on every side | Offered when                                  |
+| ----------- | ----------------------------------------------------- | --------------------------------------------- |
+| Default     | Terminal area                                         | Always                                        |
+| Left-expand | Sidebar and terminal area                             | Sidebar docked and visible, placement `right` |
+| Full        | Whole window width                                    | Always                                        |
+
+- Dragging the frame's left edge never resizes live; a preview frame shows the target tier. Crossing the Sidebar's midline previews left-expand, crossing back previews default, release commits, and Esc cancels. The edge exists only while left-expand is offered.
+- Expand and Restore end the tab row; Restore returns to the pre-full tier. VS Code's `Mod+K Mod+M` toggles full.
+- Layout changes recompute the frame from measured regions. A tier that stops being offered (Sidebar hidden or stepped aside, placement moved left) falls back to default, and Restore then targets default.
+
+## Overlay modes and focus
+
+A Workspace's overlay is `closed`, `open` with a tier, or `pip` remembering its tier. It is closed exactly when it has no tabs.
+
+| From        | Event                                                                                                    | To                                                                                                                                        |
+| ----------- | -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| closed      | A file opens from any source: File Bar, terminal file link, Quick Open, Source Control, Open to the Side | open, at the tier last used in this Workspace, else default                                                                               |
+| open        | Scrim click; Esc that nothing consumed; a terminal-replacing event                                       | pip, with focus on the current terminal                                                                                                   |
+| pip         | Click, Enter or Space on picture-in-picture; a file opens from any source                                | open at the remembered tier                                                                                                               |
+| open or pip | The last tab closes; Close; Close All                                                                    | close flow, then closed                                                                                                                   |
+| any         | Workspace switch                                                                                         | The outgoing overlay, if open, becomes pip because its terminal view was replaced; the incoming Workspace's overlay shows in its own mode |
+
+A terminal-replacing event is one of: the terminal area starts showing another Tab or Workspace; focus moves into a region the overlay covers, including region cycling into the terminal; an Action writes input into the current terminal (Insert Path, cd Here, Open in Integrated Terminal, a drop on the terminal). The overlay derives these from Workbench state and the focus model, not from individual controls.
+
+- Esc: Monaco handles its own Esc first (find widget, multiple cursors, suggestions, peek). The overlay root listens in the bubble phase and enters picture-in-picture only when the event is not `defaultPrevented` and no Monaco widget holds focus without text focus (`hasWidgetFocus() && !hasTextFocus()`). This fallback is not a resolver binding, and inside the overlay the resolver never matches Escape from a wider scope, so Escape always reaches the focused widget first. Views in the File Bar own their Esc, which never reaches the overlay.
+- The overlay is non-modal: a `region` landmark with a localized name, never `role="dialog"`, so the exclusive-surface selector in `workbench-focus-dom.ts` does not treat it as modal. The tab row is a `tablist` that controls the content `tabpanel`.
+- The overlay joins the region cycle (`workbench.focus.next-region`) after the File Bar. Picture-in-picture is one focus stop exposed as a button that restores the overlay; its close control is a separate button shown on hover and focus.
+- A single click in a view opens a preview tab and keeps focus in the view; double-click, Open to the Side, and the keys VS Code uses to pass focus move focus to the editor. Closing returns focus to the invoking control if it is still shown, else to the current terminal.
+- Opening another file swaps content in place. Mode and tier changes do not animate.
+
+### Picture-in-picture
+
+- Size is `40%` of the terminal area's width and of its height below the row, at least `200 × 120px`. It first appears at the terminal area's bottom-right corner with a `24px` inset.
+- It shows the active tab through the same mounted editor laid out again, at the same font size, with no tab row or info row. A click shield turns a click into restore and forwards wheel deltas to the editor's scroll position.
+- A drag past the Tab Strip's drag threshold moves it, clamped to the window below the row. The position persists as the nearest corner plus offsets and is clamped again after layout changes.
+
+## File tabs
+
+- The model is VS Code's single editor group: one ordered row; at most one preview tab, italic, replaced by the next preview open and pinned by double-click, by editing, or by Keep Open; sticky tabs as a prefix; MRU order for quick switch; a reopen stack of `20`; every close variant (close, others, to the right, saved, all). Defaults are VS Code's `workbench.editor.*` values.
+
+| Kind                       | Content                                                                                                    | Batch |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------- | ----- |
+| Text                       | One model per resource; read-only until batch 2, where Monaco's read-only message answers a typing attempt | 1     |
+| Diff                       | Original and modified models                                                                               | 1     |
+| Multi-diff                 | Variable-height list of file diffs                                                                         | 1     |
+| Media, binary, too large   | Preview, or VS Code's placeholder with Open Anyway                                                         | 1     |
+| Git Output                 | Read-only log, streamed                                                                                    | 1     |
+| Commit message             | `COMMIT_EDITMSG`, pinned, with ✓ Commit and Cancel in the content area                                     | 1     |
+| Markdown preview, untitled | Rendered preview; new file                                                                                 | 2     |
+| Search Editor              | Results document                                                                                           | 4     |
+
+- A tab's identity is its kind, its resource keys and any Git reference; a text tab and a diff tab of one file may coexist. Models live in the `code-editor/` registry, one per URI, reference-counted by tabs. A tab is unsaved while the model's `getAlternativeVersionId()` differs from its saved version id.
+- Each Workspace has one store, created on first use by a Provider-scoped registry and disposed with the Workspace. Transitions are a pure reducer over a `FileOverlayEvent` union that returns state and effects (load content, prompt, focus); a controller runs the effects.
+- Invariants: closed exactly when there are no tabs; at most one preview; sticky tabs form a prefix; the active tab is a member; MRU is a permutation of the tabs; the reopen stack holds at most `20` entries and no open tab; an unsaved tab leaves only through a resolved save decision.
+- Restore: when a Workspace first shows after start, its tabs return in order with their states, mode and tier; content loads when a tab activates; a missing file shows VS Code's missing-file state. Commit message and Git Output tabs are not restored. A restored file outside the root is re-validated by the backend as an opened file ([alignment point 6](#alignment-points)).
+
+### Close flow
+
+- Closing the overlay closes every tab with VS Code's Close All Editor Groups semantics, sticky tabs included. Closing the last tab closes the overlay.
+- For unsaved tabs in scope, one tab asks VS Code's single-file question, and several ask the multi-file question with Don't Save, Cancel and Save All in that order, initial focus on Save All, and Esc as Cancel. Both are `AlertDialog`s. A tab whose save fails stays open with a localized error; the others close.
+- A commit message tab among the closed tabs completes the commit, as closing VS Code's commit editor does. Don't Save leaves Git the template, so Git cancels the commit for an empty message.
+
+## Unsaved work
+
+- Desktop, from batch 2: quitting asks every window in turn. Desktop main sends a quit request; the renderer gathers unsaved tabs from all its Workspaces into one dialog, saves when asked, and answers proceed or cancel. A crashed or unresponsive renderer counts as proceed; a second quit while one is pending joins it. Closing a window that Desktop only hides asks nothing, because the renderer and its edits stay alive.
+- Desktop never delays OS logoff or shutdown, so unsaved edits are lost there until hot exit exists (owner decision pending).
+- Closing a Workspace from this window runs the close flow first. When a Workspace disappears for another reason, its unsaved tabs stay in memory behind a notification that offers Save All and Discard, and its file session lives until then ([alignment point 1](#alignment-points)).
+- A browser host, once one exists, follows VS Code for the web: auto-save `afterDelay` at `1000ms`, and `beforeunload` while edits are unsaved. Both sit behind a host capability and stay inert in Desktop.
+
+## Monaco integration
+
+| Topic      | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Dependency | `monaco-editor`, exact version pinned at admission, with its license notice                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Imports    | Only `code-editor/monaco-entry.ts` imports it: the core API entry `esm/vs/editor/editor.api`, the feature and Monarch basic-language entries that the package's metadata lists, and its editor worker. Never the package root and never a language-service contribution. Review enforces this; an automated import rule would change lint policy                                                                                                                                                                                                                                        |
+| Loading    | `loadCodeEditor()` dynamically imports the entry as its own chunk. After the File Bar first shows in a run, the chunk prefetches at idle, because the commit input needs it                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Worker     | `MonacoEnvironment.getWorker` returns a same-origin module worker created with `new Worker(new URL(…, import.meta.url), { type: 'module' })`, as `packages/terminal/src/search/projected-search-controller.ts` does, under the existing `script-src 'self'`. No language workers                                                                                                                                                                                                                                                                                                        |
+| Languages  | Monarch tokenizers and language configurations from the basic-language entries; language by file name and extension; no detection from content; no language services                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Options    | Monaco's defaults, then VS Code's workbench values where they differ; word-based suggestions off. `contextmenu: false`, replaced by an `@orchbee/ui` context menu whose items run Monaco actions                                                                                                                                                                                                                                                                                                                                                                                        |
+| Theme      | Built from `--ob-*` tokens with the canvas color resolver that `followDesktopWindowCaption.ts` uses, applied with `defineTheme` and `setTheme`, rebuilt on appearance change. Syntax colors are new `sys` roles that the color-theme generator derives for every named theme; diff and Git colors map to existing status roles                                                                                                                                                                                                                                                          |
+| Fonts      | VS Code's platform defaults for family and size                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Diff       | `createDiffEditor`; side by side, inline below a `900px` editor; diff computation timeout `5000ms`. Multi-diff is a `virtual-tree/` variable-height list of pooled diff editors, never `createMultiFileDiffEditor`                                                                                                                                                                                                                                                                                                                                                                      |
+| Keys       | [Editor scope](#scopes-and-resolution). The F1 and `Ctrl+G` defaults are removed with `addKeybindingRules`; `getSupportedActions()` joins Action search while an editor has focus                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Messages   | en-US is built in. zh-CN uses the pinned package's own zh-CN message table plus a checked-in override map for Orchbee terms; a language change reaches Monaco after reload                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Public API | `editor.create`, `createDiffEditor`, `createModel`, `setModelLanguage`, `defineTheme`, `setTheme`, `colorize`, `registerLinkOpener`, `registerEditorOpener`, `addKeybindingRules`, `registerCommand`; instance `addAction`, `addCommand`, `trigger`, `getSupportedActions`, `updateOptions`, `saveViewState`, `restoreViewState`, `createDecorationsCollection`, `hasTextFocus`, `hasWidgetFocus`; model `getAlternativeVersionId`, `pushEOL`, `setEOL`, `pushEditOperations`; `languages.register`, `setMonarchTokensProvider`, `setLanguageConfiguration`, `registerCodeLensProvider` |
+| Size       | The File Bar adds at most `10 KB` gzip to the main bundle. The File Bar chunk and the editor chunk get ceilings from the admission measurement, reported in every PR that changes them                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Media      | Images use `data:` URLs, which `img-src 'self' data:` allows. Production CSP has no `media-src`, so `default-src 'self'` blocks audio and video from `data:` URLs (owner decision pending)                                                                                                                                                                                                                                                                                                                                                                                              |
+
+- One editor instance serves the overlay and moves between tabs with `setModel` and view-state restore; one diff editor serves diff tabs; the commit input has its own instance. Links in text open external URLs through the permitted-URL path the terminal uses, and file links in the overlay.
+
+## List and tree engine
+
+`virtual-tree/` is a headless model with a React adapter, written from VS Code's behavior and designed to beat its measured slow points. Where an algorithm follows VS Code closely, the module carries a `NOTICE.reference`, as `@orchbee/tab-strip` does.
+
+```ts
+interface VirtualTreeSource<K, T> {
+	readonly key: (item: T) => K;
+	readonly hasChildren: (item: T) => boolean;
+	readonly children: (item: T, signal: AbortSignal) => readonly T[] | Promise<readonly T[]>;
+	readonly compressible?: (item: T) => boolean;
+}
+
+interface VirtualTreeModel<K, T> {
+	readonly rowCount: number;
+	rowAt(index: number): VirtualTreeRow<K, T>;
+	indexOf(key: K): number;
+	refresh(key: K | null, options?: { readonly recursive?: boolean }): Promise<void>;
+	expand(key: K, options?: { readonly recursive?: boolean }): Promise<void>;
+	collapse(key: K, options?: { readonly recursive?: boolean }): void;
+	setFocus(key: K | null): void;
+	setSelection(keys: Iterable<K>): void;
+	setAnchor(key: K | null): void;
+	selectAll(): void;
+	reveal(key: K): void;
+	viewState(): VirtualTreeViewState<K>;
+	restoreViewState(state: VirtualTreeViewState<K>): void;
+	subscribe(listener: (event: VirtualTreeEvent<K>) => void): () => void;
+}
+```
+
+| Concern          | Design                                                                                                                                                                                                                                                                                                                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Structure        | Nodes keyed by identity and a flat array of visible rows; each node keeps its visible descendant count, so expand, collapse, insert and filter each emit one splice                                                                                                                                                                                                             |
+| Identity refresh | Children arrive sorted, so a keyed merge diff is O(n). Adjacent splices merge, and past a threshold the whole child range is replaced in one splice. An unchanged refresh emits no splice                                                                                                                                                                                       |
+| Traits           | Focus, selection and anchor are separate and stored by key. Select all builds one set in O(n); range selection resolves its two ends through a lazily rebuilt index map                                                                                                                                                                                                         |
+| Heights          | Fixed `22px` rows use arithmetic. Variable heights (multi-diff, Graph) use a Fenwick tree for O(log n) position and index lookup                                                                                                                                                                                                                                                |
+| Scroll           | Custom scrolling. The offset is model state; rows sit in a `contain: strict` container moved with `translate3d`; wheel deltas apply directly with VS Code's sensitivity and Alt fast scroll, without smoothing; no horizontal scrolling; the scrollbar is the Panels' scrollbar presentation the Sidebar uses                                                                   |
+| Rendering        | Only visible rows. Slot components keyed by `index % slotCount` receive row data, so a one-row scroll re-renders one slot. The focused row keeps a slot while scrolled out, so `aria-activedescendant` always resolves. Width measurement is deferred and batched                                                                                                               |
+| Async loading    | Concurrent callers share one in-flight request per node; a loading indicator appears only after `800ms`; collapsed nodes become stale and reload on expand; collapse aborts the request. VS Code's async tree race scenarios are acceptance cases                                                                                                                               |
+| Compact folders  | A single-child folder chain renders as one row. The model keeps the focused segment, which hit testing, menus, drag and the ←, →, Home and End keys share                                                                                                                                                                                                                       |
+| Find             | Highlight or Filter mode, Fuzzy or Contiguous matching. A longer pattern filters only the previous matches; work beyond `16ms` yields in slices; an optional async provider streams more matches (Explorer find through ripgrep, at most `512` files)                                                                                                                           |
+| Type to navigate | Printable keys typed within `800ms` form a prefix, searched from the focus with wraparound                                                                                                                                                                                                                                                                                      |
+| Sticky scroll    | At most `7` rows and `40%` of the height; clicking a sticky row reveals its node                                                                                                                                                                                                                                                                                                |
+| Drag             | Pointer-driven: a drag starts past the Tab Strip's threshold; `holdDragCursor` holds `grabbing`; a label follows the pointer; drop targets register by data attribute and resolve through `elementFromPoint`; folders expand after `500ms` of hover; edges auto-scroll; Esc cancels; the drop invokes an Action. Native drag and drop handles only files dragged in from the OS |
+| Accessibility    | `tree` or `listbox` with `aria-activedescendant` and `aria-multiselectable`; rows carry level, set size, position, expanded and selected state; find announces its result count politely                                                                                                                                                                                        |
+| Presentation     | Default arrow cursor on rows; twisties and indicators are `ProductIcon`s; colors come from `sys` tokens; text is localized                                                                                                                                                                                                                                                      |
+
+### Performance targets
+
+Model measurements run in Node on the reference scenarios: N = 100,000, labels like `file-123.ts`, 1,000 folders × 100 files, 2 warm-up runs and the median of 7. Render measurements run in a Desktop development build, with long-task observation and frame intervals under fixed-speed programmatic scroll.
+
+| Metric                                                    | Target                                                     | VS Code at the pinned commit, model only |
+| --------------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------- |
+| Expand a node with 100,000 children (model)               | ≤5ms, one splice                                           | 1.6ms                                    |
+| Same, to the first painted frame                          | ≤1 frame (16.7ms)                                          | Not measured                             |
+| Collapse any node (model)                                 | ≤1ms                                                       | 0.02ms                                   |
+| Insert 100,000 nodes (model)                              | ≤25ms, one splice                                          | 13.6–19.2ms                              |
+| Script per scroll frame                                   | ≤4ms; no forced synchronous layout; no long task over 50ms | Not measured                             |
+| Live row elements                                         | Visible rows plus the focused row                          | Visible rows                             |
+| Variable-height lookup at 100,000 rows                    | O(log n), ≤2µs                                             | 77µs                                     |
+| Select all of 100,000 siblings, selection paint included  | ≤50ms, O(n)                                                | 34.8s for index mapping alone            |
+| Identity refresh, 100,000 children, 10% scattered changes | ≤100ms, merged splices                                     | 11.9s, 10,000 splices                    |
+| Identity refresh, 100,000 unchanged                       | 0 splices, ≤30ms                                           | 26.7ms                                   |
+| Find keystroke over 100,000 nodes                         | ≤16ms per slice; input never blocks                        | 13–42ms                                  |
+| Concurrent loads of one node                              | 1 request; no indicator before 800ms                       | Same                                     |
+
+## View composition
+
+| Toggle         | Sections                                    | Batch         |
+| -------------- | ------------------------------------------- | ------------- |
+| Explorer       | Folders (the root tree), Timeline           | 1; Timeline 4 |
+| Search         | Search results                              | 3             |
+| Source Control | Repositories (always shown), Changes, Graph | 1; Graph 4    |
+
+Sections stack with `22px` collapsible headers, title actions on hover and focus, and resizable boundaries; their sizes and collapsed states are global. Section sets and defaults follow VS Code.
+
+### Explorer
+
+- The root follows the active Workspace's current directory. A root move keeps nodes, expansion and scroll where paths overlap; the previous tree stays visible until the new listing arrives and then changes in one splice. Each Workspace keeps a cache of recent roots.
+- Defaults are VS Code's: compact folders on, the default `files.exclude` patterns, the default name comparer, colored and badged decorations, auto reveal of the active tab, file nesting off. Git decorations aggregate to folders incrementally. With no directory, the view says the Workbench's `No directory configured.`.
+- Open to the Side (`Ctrl+Enter` on Windows and Linux, `Control+Enter` on macOS, `Alt`+click, and the menu item) opens a pinned tab and focuses the editor.
+- Esc closes find, then cancels a cut, then clears the selection; when none applies, it focuses the current terminal.
+- Dragging a selection onto a terminal Panel inserts every selected path in Orchbee's dropped-path format; a drop on the scrim over the terminal area targets the current terminal. The formatter moves from the Desktop preload to one React-free shared owner, and Explorer drags format with the Worker's platform family.
+- File icons are VS Code's Seti icons, provided by `@orchbee/ui` (owner decision pending); generic file and folder `ProductIcon`s stand in until then.
+- Orchbee additions: Insert Path into Terminal and cd Here in Terminal, available while this window types into the current terminal; Open in Integrated Terminal, which opens one new terminal Tab per selected directory (a file's parent) in the current Workspace; Reveal in File Bar and View Changes on Sidebar Workspace rows; terminal file links, which open a pinned tab at the link's line and column.
+- Remote Directories: Reveal in File Explorer or Finder appears only in Desktop for a Worker on this machine; Download… appears for remote resources; Upload… appears only in a browser host; Desktop accepts files dragged in from the OS.
+
+### Source Control
+
+- The repository row stays visible with one repository. It carries the branch, which opens checkout in the quick input, and the sync control; Publish Branch replaces sync while the branch has no upstream.
+- The count badge (all changes) appears on the Source Control toggle only after the File Bar has shown that Workspace in this run, and moves to the File Bar toggle while the File Bar is hidden. Before that there is no badge and no Git read.
+- The commit input is a Monaco editor of 1–10 lines at a `20px` line height. Esc in it first clears a validation message, and its Esc never reaches the overlay. Esc in the Changes tree clears selection and focus.
+- A single click opens a preview diff, a double-click pins it, and a middle click opens the group's multi-diff at that file. Title actions (Open File, Open Changes, staging, conflict navigation) render at the end of the overlay tab row.
+- Credential, passphrase and host-key prompts use the quick input: masked input that blur does not dismiss, and a yes-or-no pick for a host fingerprint. Esc returns an empty answer. A secret lives only in the prompt's memory and is cleared when the prompt settles.
+- A Git editor request opens `COMMIT_EDITMSG` as a pinned tab with ✓ Commit and Cancel in the content area.
+- Worktree items follow VS Code and run Orchbee's worktree flows; Open in New Window reads Open in New Workspace. There are no AI items.
+
+### Search, Quick Open and batch-4 views
+
+- Search, in batch 3, streams ripgrep results into the virtual tree with VS Code's options, include and exclude patterns, replace with preview diffs, and limits. Esc in the results does not move focus to the input.
+- Quick Open (`Cmd+P` on Apple; `Ctrl+P` inside the File Bar and the overlay on Windows and Linux) is a files session of the unified search surface, not a Files group in All results. `>` switches the session to Actions and `:` goes to a line.
+- Timeline, Graph and Search Editor, in batch 4, reuse the virtual list; the Search Editor is a text tab with its own Monarch grammar. Merge conflicts get inline Accept Current, Accept Incoming, Accept Both and Compare through CodeLens and decorations, and conflict navigation.
+
+### Shared workbench parts
+
+| VS Code part               | Orchbee surface                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Quick pick and input box   | Request-driven sessions of `WorkbenchSearchSurface`: a pick session (items, separators, descriptions, buttons, multiple selection, steps, busy state) and an input session (prompt, value and selection, asynchronous validation with severity, masking, inline buttons, optional persistence through blur). One session at a time; a new request cancels the current one. Top center, below the 36px row, above the overlay. Escape resolves as cancelled |
+| Notifications with buttons | Cards in the status notice region at the bottom right, at the toast layer: severity, message, up to three buttons, close. At most three show; buttonless information hides after `10s`; errors and cards with buttons stay. Errors and warnings announce assertively. A focus Action reaches the newest card and Esc dismisses it                                                                                                                          |
+| Status bar editor items    | The overlay's bottom info row: position, indentation, encoding, line ending, language, and Git blame in batch 4. Each opens its quick input pick. Hidden in picture-in-picture                                                                                                                                                                                                                                                                             |
+| Output panel               | The read-only Git Output tab, bounded and streamed                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Command palette            | None. Action search lists Orchbee Actions and the focused editor's supported actions; VS Code commands reachable only from its palette stay unavailable                                                                                                                                                                                                                                                                                                    |
+
+## Actions and menus
+
+- Every command is an Action in the application `ActionRuntime`. Menus, toolbars, toggles and keys invoke Actions, and handlers are the only writers of their results.
+
+| Namespace                                              | Owner                                                             |
+| ------------------------------------------------------ | ----------------------------------------------------------------- |
+| `workbench.file-bar.*`                                 | `file-bar/`: toggle, move, show and focus views                   |
+| `file-overlay.*`                                       | `file-overlay/`: tabs, close, expand, restore, picture-in-picture |
+| `code-editor.*`                                        | `code-editor/`: bridged Monaco actions and info row commands      |
+| `file-explorer.*`, `file-search.*`, `source-control.*` | The view modules                                                  |
+
+- Each Action records its VS Code command ID as parity metadata, never as product identity or copy.
+- Menus are declarations: ordered groups of Action references with `when` predicates and submenus. One declaration renders the context menu, the "…" menu and the inline toolbar group, so pointer and keyboard menus match. Group order is VS Code's.
+- `when` reads a pure context snapshot: focus region and view; selection summary; resource facts (root, folder, read-only, local or remote Worker, Git state); overlay facts (active tab kind, unsaved, pinned, sticky); host capabilities; offered gates. It never queries the DOM.
+- Menu content follows VS Code, every item in VS Code's groups. That conflicts with the frequent-only and leading-icon rules in [menus](../../docs/frontend/menus.md) and needs a scoped exception (owner decision pending).
+
+## Keyboard
+
+### Scopes and resolution
+
+One listener replaces the capture listeners in `useWorkbenchShortcuts.ts`. It builds the context snapshot, walks the scopes from narrowest to widest, and acts on the first available match. It calls `preventDefault` only for that match and `stopPropagation` only for sequence steps, so neither step of a sequence reaches the focused widget. An unmatched key continues to the focused widget, then to terminal or text input.
+
+| Scope                 | Focus                                       | Owns                                                                                                                             |
+| --------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Temporary surface     | Quick input, menu, dialog                   | Its own keys                                                                                                                     |
+| Code editor           | Monaco text or widget                       | The declared editor key table. While focus is inside an editor, the resolver yields these keys to Monaco and never consumes them |
+| Tree and list widgets | Explorer, Changes, results, Timeline, Graph | Widget commands, modified or not: F2, Delete, Enter, Space, arrows, `Mod+C`, `Mod+X`, `Mod+V`, find                              |
+| File overlay          | Tab row, content, info row                  | Tab commands: `Ctrl+Tab`, close, reopen, next and previous, Keep Open, full                                                      |
+| File Bar              | Anywhere in the column or the overlay       | View, toggle and focus keys: Show Explorer, Show Source Control, Toggle File Bar, Focus File Bar                                 |
+| Terminal              | Focused terminal                            | Existing terminal bindings                                                                                                       |
+| Shell and application | Window                                      | Existing Workbench bindings                                                                                                      |
+
+- The editor key table lists the keys Monaco binds by default. It makes the binding set enumerable, feeds the conflict table, and tells the resolver what to yield.
+- The chain follows focus. Focus in the overlay walks code editor, file overlay, File Bar, then shell; focus in the File Bar walks its widget, File Bar, then shell; a focused terminal never passes through the File Bar or overlay scopes.
+- The resolver owns `Mod+K` sequences wherever they are valid, the editor included: `Mod+K` never reaches Monaco, and a second step that names a Monaco action runs it with `trigger`.
+
+### Model extension
+
+`@orchbee/keyboard-shortcuts` gains two capabilities; terminal input does not change.
+
+| Capability         | Rule                                                                                                                                                                                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Two-step sequences | A binding is one chord or two steps. The first step is exactly `Mod+K`; the second is any chord except Tab and Escape, modified or not. Sequences are valid only in the File Bar, overlay, editor and widget scopes                                  |
+| Pending state      | `Mod+K` is consumed and starts pending, and the status notice shows VS Code's waiting text. A matching second step runs; any other is consumed and reported with VS Code's "not a command" text for `10s`. Pending ends after `5s` or on window blur |
+| Widget-scope keys  | Tree and list scopes may bind unmodified or Shift-only chords; never Tab; Escape only as a declared default. Window scopes keep the current rule of at least one modifier other than Shift                                                           |
+| Recording          | Settings → Keyboard records a second step after `Mod+K` in sequence-capable rows and accepts unmodified keys in widget rows; Tab stays excluded and Escape cancels recording                                                                         |
+| Display            | Apple `⌘K ⌘W`, Standard `Ctrl+K Ctrl+W`: the existing platform formatter per step                                                                                                                                                                    |
+| Storage            | `orchbee:web:keyboard-shortcut-overrides:v2` stores steps; a v1 record migrates each chord to a one-step binding                                                                                                                                     |
+| Conflicts          | Detection follows resolution paths: a narrower scope's binding that shadows a wider one for the same keys is reported                                                                                                                                |
+
+### Conflict table
+
+Focus inside the File Bar or the overlay gives VS Code's meaning; focus anywhere else keeps Orchbee's. The rows cover batches 1 and 2; rows marked batch 3 are provisional, and R5 completes the Search rows.
+
+| Keys: Apple; Standard                              | In the File Bar or overlay                                  | Orchbee elsewhere                                                                   |
+| -------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| —; `Ctrl+Shift+E`                                  | Show Explorer                                               | Split down                                                                          |
+| —; `Ctrl+Shift+G`                                  | Show Source Control; Apple's `⌃⇧G` is free                  | Start Agent                                                                         |
+| `Cmd+Shift+F`; `Ctrl+Shift+F`                      | Show Search (batch 3)                                       | Apple: Search everything, withheld; Standard: Find in terminal, terminal scope only |
+| `Cmd+B`; `Ctrl+B`                                  | Toggle File Bar                                             | Toggle Sidebar; terminal input                                                      |
+| `Cmd+0`; `Ctrl+0`                                  | Focus File Bar                                              | Reset terminal font size                                                            |
+| `Cmd+=`, `Cmd+-`; `Ctrl+=`, `Ctrl+-`               | Editor font zoom; VS Code zooms the window                  | Terminal font size                                                                  |
+| `Cmd+Shift+Enter`; `Ctrl+Shift+Enter`              | Toggle selection in a tree; insert line above in the editor | Maximize Panel                                                                      |
+| `Cmd+Option+↑`/`↓`; `Ctrl+Alt+↑`/`↓`               | Add cursor above or below                                   | Focus Panel above or below                                                          |
+| `Cmd+Option+←`/`→`; —                              | Previous or next tab                                        | Focus Panel left or right                                                           |
+| `Cmd+Shift+Option+arrows`; `Ctrl+Shift+Alt+arrows` | Column selection                                            | Move Panel                                                                          |
+| —; `Shift+Alt+arrows`                              | Copy line (Linux: add cursor); expand or shrink selection   | Resize Panel                                                                        |
+| —; `Ctrl+Shift+K`                                  | Delete line                                                 | Search everything, withheld                                                         |
+| —; `Ctrl+Shift+[`, `Ctrl+Shift+]`                  | Fold, unfold                                                | Focus previous or next Panel                                                        |
+| —; `Ctrl+Shift+,`, `Ctrl+Shift+.`                  | In-place replace                                            | Move terminal Tab back or forward                                                   |
+| —; `Ctrl+Shift+;`                                  | Focus breadcrumbs                                           | Focus last Panel                                                                    |
+| —; `Ctrl+Alt+Enter`                                | Replace all in find                                         | New terminal in current directory                                                   |
+| `Cmd+Shift+[`/`]`; `Ctrl+PageUp`/`PageDown`        | Previous or next tab                                        | Previous or next terminal Tab                                                       |
+| —; `Ctrl+Shift+T`                                  | Reopen closed tab                                           | New terminal                                                                        |
+| `Cmd+W`; —                                         | Close tab                                                   | Close active terminal                                                               |
+| `Cmd+D`; —                                         | Add selection to next match                                 | Split right                                                                         |
+| `Cmd+/`; —                                         | Toggle line comment                                         | Keyboard shortcut reference                                                         |
+| `Cmd+9`; `Ctrl+9`                                  | Secondary key of Open Last Editor                           | Select terminal Tab 9                                                               |
+| `F1`; `F1`                                         | Action search, replacing Monaco's palette                   | Unbound                                                                             |
+| `Cmd+K`; —                                         | Sequence leader                                             | Clear terminal, terminal scope only, so no overlap                                  |
+| `Cmd+P`; `Ctrl+P`                                  | Quick Open (batch 3)                                        | Apple: Quick Open at window scope; Standard: terminal input                         |
+| `Cmd+Option+B`; `Ctrl+Alt+B`                       | Toggle File Bar                                             | Toggle File Bar, new window-scope default                                           |
+
+The TUI counterpart reserves prefix `e` for the File Bar.
+
+## Localization
+
+- Product copy goes through `@orchbee/i18n` in new domains mirrored under both locales: `file-bar`, `file-overlay`, `code-editor`, `file-explorer`, `file-search` and `source-control`. The existing parity tests cover their message IDs and ICU variables.
+- en-US is VS Code's English with Orchbee nouns: File Bar for Primary Side Bar, Orchbee for the product name. Strings VS Code leaves unlocalized, such as its mixed "{0} files and folders" drag label, are localized here.
+- zh-CN for VS Code-derived copy follows the wording of VS Code's Chinese (Simplified) language pack at the matching version, so commands read as Chinese VS Code users know them, adjusted to [product language](../../packages/i18n/docs/product-language.md): 边栏 only for the Sidebar, 标签页 only for terminal Tabs, 文件标签 for file tabs, 工作区 only for Orchbee Workspaces (owner decision pending on attribution).
+- Monaco's own interface follows the [Monaco messages rule](#monaco-integration); its override map is reviewed against the product-language reference.
+- Raw exceptions and Git stderr never enter copy. Known codes (permission denied, read-only, no space, file busy, disconnected, and VS Code's Git error codes) map to localized messages, and other failures use a localized generic message. A Git failure offers Open Git Log, which shows the raw output in the Git Output tab.
+
+## Settings
+
+No VS Code setting exists beyond this table; everything else stays at a fresh VS Code's default.
+
+| Key                                                                                          | Values                      | Written by                                     |
+| -------------------------------------------------------------------------------------------- | --------------------------- | ---------------------------------------------- |
+| `appearance.file_bar.position`                                                               | `right`, `left`             | Move File Bar Left and Right; Settings         |
+| `git.open_repository_in_parent_folders`                                                      | `always`, `never`, `prompt` | Parent repository notification                 |
+| `git.enable_smart_commit`, `git.suggest_smart_commit`                                        | Boolean                     | Smart commit question                          |
+| `git.confirm_sync`, `git.confirm_force_push`                                                 | Boolean                     | Sync and force-push confirmations              |
+| `git.autofetch`                                                                              | Boolean                     | Autofetch question (batch 4)                   |
+| `git.ignore_limit_warning`, `git.ignore_missing_git_warning`                                 | Boolean                     | Too-many-changes and missing-Git notifications |
+| `explorer.confirm_delete`, `explorer.confirm_drag_and_drop`, `explorer.confirm_paste_native` | Boolean                     | "Do not ask me again" checkboxes               |
+
+- The keys live in the user settings registry, `crates/local-runtime/src/user_settings/registry.rs`, at user scope, and the GUI reads and writes them through `ServerUserSettingsClient`. A VS Code write that targets a workspace becomes a user-scope write. Settings lists them under a File Bar category, hidden while the File Bar is not offered. The backend reads none of them ([alignment point 11](#alignment-points)).
+- Remembered menu states (view as tree or list, sort order, Timeline filters) are layout memory in browser storage, not settings.
+
+## Client data ports
+
+`file-session/` declares the ports. Adapters in `workbench-client/server-workbench/` bind them to the Server connection, adapters in `desktop-client/` bind Desktop host capabilities, and Zod parses every wire value in the adapter.
+
+| Convention    | Rule                                                                                                                                                                                                                                                                                         |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Requests      | Take an `AbortSignal` and resolve to a value or an error with a stable code: `not-found`, `exists`, `permission-denied`, `read-only`, `outside-boundary`, `conflict-newer`, `too-large`, `binary`, `no-space`, `busy`, `invalid-name`, `disconnected`, `unavailable`, `cancelled`, `unknown` |
+| Subscriptions | Carry monotonically increasing sequence cursors; a gap or a reconnect triggers a resync snapshot                                                                                                                                                                                             |
+| Streams       | Arrive in bounded batches and end in one terminal state: complete, cancelled, limit reached, or failed                                                                                                                                                                                       |
+| Identity      | A resource is its Worker plus a backend-normalized key; the display path keeps the Worker's spelling and platform family. The client never derives identity from a path string                                                                                                               |
+| Boundary      | The client requests grants only from explicit gestures and presents `outside-boundary` honestly; the backend enforces the boundary                                                                                                                                                           |
+
+| Port                  | Operations                                                                                                                                                                                                                                | Batch        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
+| `FileSessionPort`     | Open a session for a Workspace; root identity stream; Worker platform family and capabilities (trash, watch, ripgrep, Git); close                                                                                                         | 1            |
+| `FileTreePort`        | List a directory; watch expanded directories; stat, also for terminal file links                                                                                                                                                          | 1            |
+| `FileContentPort`     | Read text or bytes with encoding, BOM, line ending, binary and size facts and a version tag, in chunks; save with a version precondition                                                                                                  | 1; save in 2 |
+| `FileMutationPort`    | Create, rename, move, copy, delete to trash or permanently; undo records                                                                                                                                                                  | 2            |
+| `FileGrantPort`       | Opened files and their restore, parent repository consent, Save As targets, paste and drop sources                                                                                                                                        | 1–2          |
+| `FileSearchPort`      | Text search stream; file-name search stream for Quick Open and Explorer find                                                                                                                                                              | 3            |
+| `GitPort`             | Repository discovery; status and decoration stream; `show` at a reference; stage, unstage, discard, commit, fetch, pull, push, sync, publish, later operations; Git Output stream; prompt relay for credentials, host keys and the editor | 1; more in 4 |
+| `LocalHistoryPort`    | Entries, recorded only for saves made in the overlay; content; restore                                                                                                                                                                    | 4            |
+| `TransferPort`        | Download, upload, import of OS drops                                                                                                                                                                                                      | 2            |
+| `DesktopFileHostPort` | Native Save As dialog, Reveal in OS, clipboard file lists, reading local files for drag-in, quit veto                                                                                                                                     | 1–2          |
+
+### Alignment points
+
+| #   | Topic             | The frontend needs                                                                                                                                                                                    |
+| --- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Session lifecycle | Start on the first File Bar display or file open for a Workspace; reconnect with resync; a session that outlives its Workspace while unsaved tabs remain                                              |
+| 2   | Root identity     | A stream of root changes keyed to the Workspace's current directory, with Directory identity                                                                                                          |
+| 3   | Listing and watch | Entry fields and sort inputs; watch events with cursors and coalescing; a stated failure when watching is unavailable                                                                                 |
+| 4   | Read and save     | Encoding, BOM, line endings, binary detection, the `20MB` and `300,000`-line thresholds, chunking, version preconditions                                                                              |
+| 5   | Mutations         | Trash with the permanent-delete fallback, undo records, incremental naming                                                                                                                            |
+| 6   | Grants            | Re-grant of restored opened files; parent repository consent; Save As targets; the commit message; paste and drop sources                                                                             |
+| 7   | Search            | Query options, streaming, limits, cancellation, and file-name search                                                                                                                                  |
+| 8   | Git               | Discovery depth; a warm pool of three repositories per Workspace; status and decorations; operations; Git Output; prompt relay to the window viewing the Workspace, with an empty answer when none is |
+| 9   | Agent completion  | A Git refresh trigger that bypasses debouncing                                                                                                                                                        |
+| 10  | Local history     | Entry model and limits; entries come only from saves made through the overlay, never from Agent or terminal writes                                                                                    |
+| 11  | Settings          | None reach the backend: it reads no settings. Batch 4's autofetch is a Client timer whose fetches the backend coalesces                                                                               |
+| 12  | Transfers         | Chunked download, upload and import with progress and cancellation                                                                                                                                    |
+| 13  | Workbench Actions | Create a terminal Tab in an explicit directory, for Open in Integrated Terminal                                                                                                                       |
+| 14  | Wire contract     | The schema's location under `schemas/` and the shared Zod binding                                                                                                                                     |
+
+## Release gating
+
+- `fileBarOffered = bootstrap.distribution !== 'release'` in `startDesktopServerWorkbench.ts`, passed to the Workbench as `searchOffered` is. Later batches add flags under the same rule: editing (2), search (3), history (4).
+- Without the offer there is no toggle or reserve, no Action, no catalog or Settings row, no notification, no prefetch, no storage read and no session request, and terminal file links keep their current host behavior.
+- The owner removes a batch's flag when releasing that batch.
+
+## TUI staged delivery
+
+The GUI ships first and the TUI counterpart follows. The record for the task and the feature reference:
+
+| Field                | Value                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Missing counterpart  | The TUI File Bar, file overlay and three views                                                                                                |
+| Limitation           | TUI users have no File Bar; shell tools and `$EDITOR` in a terminal remain their path                                                         |
+| Responsible owner    | `orchbee` TUI maintainers (`apps/orchbee/crates/workbench-client`)                                                                            |
+| Completion condition | The TUI offers the same Actions, the same Workspace root and the same `orchbee-files` session, and the feature reference drops the limitation |
+
+Sketch: a column on either side, toggled by prefix `e`, with Explorer, Search and Source Control as TUI lists; files and diffs in an overlay pane with a read-only viewer; editing handed to `$EDITOR` in a new Tab; the same Action IDs, ports and scope rules.
+
+## Verification
+
+Evidence follows [testing](../../docs/TESTING.md) and [modeling and correctness](../../docs/MODELING-AND-CORRECTNESS.md).
+
+| Claim                                                                                                                                                  | Evidence                                                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The tab model, overlay modes, keyboard pending state, notification queue and quick input sessions keep their invariants                                | Explicit types, events and invariants; deterministic tests; `fast-check` sequences against reference models                                                             |
+| The tree model matches a naive tree under any operation sequence                                                                                       | Model-based property tests                                                                                                                                              |
+| Parity algorithms: name comparer, exclude globs, compact chains, fuzzy scores, incremental names, name validation, menu declarations, default bindings | Differential fixtures generated from the pinned commit outside the repository and checked in as data; tests replay them, with exclusions listed in the fixture          |
+| Async tree loading survives races                                                                                                                      | Deterministic scenarios from VS Code's async tree race cases                                                                                                            |
+| Cross-process orders: quit veto, prompt relay, watch cursors, transfers                                                                                | Harmful-order tests at the adapters: double quit, quit during a prompt or a save, reload, disconnect mid-prompt, cursor gaps. TLA+ only if these cannot settle a design |
+| Geometry, focus and timing: tiers, picture-in-picture clamping, Esc to picture-in-picture, region cycling, no PTY resize                               | Pure geometry tests and Desktop real-window traces on Windows and macOS                                                                                                 |
+| Performance targets                                                                                                                                    | Tracked benchmark files that the gate type-checks; measured on request, with results in the PR                                                                          |
+| Production CSP, lazy loading, size budgets                                                                                                             | One production-mode Desktop build when Monaco lands: no CSP violation, chunk sizes in the PR                                                                            |
+| Localization                                                                                                                                           | Existing catalog parity tests; a test that every Monaco override key exists in the pinned table with its placeholders                                                   |
+| Release gate                                                                                                                                           | A release-distribution composition test that finds nothing offered                                                                                                      |
+| Visual result                                                                                                                                          | Whole-window review in both appearances, both placements, with the Sidebar shown and hidden, on Windows and macOS                                                       |
+
+## Delivery slices
+
+Each slice is a few hours for one agent and includes the local gate. Views develop against the in-memory session first and switch to the wire adapters when the backend alignment points land.
+
+### Batch 1: File Bar, overlay, Git review, browsing Explorer
+
+| ID  | Slice                            | Interfaces and files                                                                                                                                                                           | Depends on     | Verification                                                                                                |
+| --- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------------------------------------------------------------- |
+| F1  | Gate and lazy entry              | `fileBarOffered` in `apps/web/src/desktop-client/server-workbench/startDesktopServerWorkbench.ts`; Workbench prop; `apps/web/src/file-bar/index.ts` loader                                     | —              | Release composition test                                                                                    |
+| F2  | Pure shortcut resolver           | Resolver returning match, pending or none over the scope chain; `apps/web/src/keyboard-shortcuts/model/`; scope declarations in `apps/web/src/workbench/utils/workbench-shortcuts.ts`          | —              | Property test: the narrowest available scope wins; nothing unavailable is consumed                          |
+| F3  | Resolver wiring                  | One listener in `apps/web/src/workbench/hooks/useWorkbenchShortcuts.ts`; snapshot from `workbench-focus-dom.ts`; editor yield hook                                                             | F2             | Existing hook tests; terminal key trace in Desktop                                                          |
+| F4  | Sequences and widget keys        | `packages/keyboard-shortcuts/src/` steps, rules and formatter; `apps/web/src/keyboard-shortcuts/model/keyboard-shortcut-storage.ts` v2 with v1 migration; Settings → Keyboard recording        | F2             | Rule tests; migration test; pending-state tests with a fake clock                                           |
+| F5  | Ports and in-memory session      | `apps/web/src/file-session/`: port types, error codes, cursors, in-memory implementation                                                                                                       | —              | Type check; used by later deterministic tests                                                               |
+| S5  | Settings keys                    | Registry keys in `crates/local-runtime/src/user_settings/registry.rs`; File Bar Settings category; snapshot consumption                                                                        | —              | Registry tests in the existing pattern; Settings review                                                     |
+| Q1  | Quick input sessions             | Pick and input sessions in `workbench/components/workbench-search-surface/`, `workbench-search-state.ts`, `WorkbenchSearchProviderCoordinator.ts`                                              | —              | Session tests: replacement, cancellation, stale validation                                                  |
+| N1  | Notification cards               | Queue model and cards in the Workbench status notice region; `Workbench.module.css`                                                                                                            | —              | Queue tests with a fake clock; review                                                                       |
+| I1  | Seti file icons                  | `packages/ui/src/file-icon/`: font, generated lookup, NOTICE, color roles; generator with a freshness check                                                                                    | Seti decision  | Freshness check; review                                                                                     |
+| S1  | File Bar column, right placement | Column, width, divider, visibility, `orchbee:file-bar:layout:v1`, toggles row, File Bar toggle and reserves, drag regions, `workbench.file-bar.toggle`, `file-bar` catalogs                    | F1             | Storage record tests; Desktop review on Windows and macOS                                                   |
+| S2  | Left placement and moving        | Placement setting, Move Actions, toggles-row menu, leading reserve, icon mirroring                                                                                                             | S1, S5         | Review of both placements with the Sidebar shown and hidden                                                 |
+| S3  | Narrow and mobile layouts        | Step-aside rules                                                                                                                                                                               | S1             | Geometry trace at the threshold widths                                                                      |
+| S4  | Drag the File Bar to move it     | Toggles-row drag invoking Move                                                                                                                                                                 | S2, T8         | Desktop trace                                                                                               |
+| O1  | Overlay mode model and stores    | `file-overlay/model/overlay-mode.ts`; Provider-scoped per-Workspace registry; `zustand` in `apps/web/package.json`; terminal-replacing inputs                                                  | —              | `fast-check` sequences over the invariants                                                                  |
+| O2  | Frame and tiers                  | Portal, layer, tier geometry, scrim, Expand and Restore, edge preview and snap, resize recompute, region landmark                                                                              | O1, S1         | Geometry tests; Desktop trace showing an unchanged terminal size                                            |
+| O3  | Picture-in-picture               | Geometry, drag and clamp, `orchbee:file-overlay:pip-position:v1`, click shield, wheel forwarding, close control, Esc fallback, focus to the terminal                                           | O2             | Clamp tests; focus trace                                                                                    |
+| O4  | Tab model                        | `file-overlay/model/file-tabs.ts` reducer and invariants                                                                                                                                       | —              | Model-based test against a reference model                                                                  |
+| O5  | Tab row                          | First evaluate extending `@orchbee/tab-strip`; preview, pinned, sticky and unsaved states; menus; title action slot; reorder with squeeze motion; quick switch                                 | O4, O2         | Menu parity fixture; review                                                                                 |
+| O6  | Close flow and restore           | Close variants, `AlertDialog`s, last-tab close, commit message hook, `orchbee:file-overlay:tabs:v1`, lazy restore                                                                              | O5             | Close-flow tests with a fake save port; storage tests                                                       |
+| O7  | Info row                         | Position, indentation, encoding, line ending, language, each with its quick input pick                                                                                                         | M2, Q1         | Review                                                                                                      |
+| M1  | Monaco admission and loading     | Exact pin; `code-editor/monaco-entry.ts` and `load-code-editor.ts`; worker; idle prefetch                                                                                                      | F1             | Production-mode Desktop build: no CSP violation; chunk sizes                                                |
+| M2  | Read-only text tabs              | Model registry, basic languages, view state, editor reuse, binary and too-large states                                                                                                         | M1, O5, F5     | Reference-count tests; review                                                                               |
+| M3  | Theme                            | Syntax `sys` roles in `packages/design-tokens`, color-theme generator mapping, theme builder                                                                                                   | M1             | `pnpm generate:design-token-inventory`; `pnpm lint:styles`; review in both appearances and two named themes |
+| M4  | Editor key scope and actions     | Editor key table, yielding, `addKeybindingRules`, sequence dispatch through `trigger`, Orchbee editor context menu, Action search entries, options                                             | M2, F3, F4     | Resolver tests with editor snapshots; key trace over the conflict table                                     |
+| M5  | Monaco zh-CN                     | Pinned table plus override map                                                                                                                                                                 | M1             | Override-key test                                                                                           |
+| M6  | Diff tabs                        | `createDiffEditor`, inline threshold, timeout, navigation, titles, Unstage Selected Ranges                                                                                                     | M2             | Review                                                                                                      |
+| M7  | Multi-diff tabs                  | Fenwick height index and pooled diff editors                                                                                                                                                   | M6, T2         | Height index tests; review                                                                                  |
+| M8  | Media previews                   | Images through `data:` URLs; audio and video after the CSP decision                                                                                                                            | M2             | Review under production CSP                                                                                 |
+| T1  | Tree model core                  | `virtual-tree/model/`: structure, splices, identity refresh, traits; model benchmark file                                                                                                      | —              | Model-based tests against a naive tree; benchmark type-checks                                               |
+| T2  | Rendering and scroll             | Slots, custom scroll, height index, focused-row slot, scrollbar, React adapter; render benchmark harness                                                                                       | T1             | Height index property tests; render trace                                                                   |
+| T3  | Interaction and accessibility    | Widget-scope bindings, mouse model, type to navigate, roles                                                                                                                                    | T2, F4         | Interaction tests; screen reader smoke check                                                                |
+| T4  | Async loading                    | Shared requests, the 800ms indicator, stale nodes, abort                                                                                                                                       | T1             | Race scenarios with controlled promises                                                                     |
+| T5  | Compact folders                  | Chains and the focused segment                                                                                                                                                                 | T3             | Differential fixtures                                                                                       |
+| T6  | Find                             | Modes, narrowing, time slicing, async provider hook; benchmark                                                                                                                                 | T3             | Fuzzy fixtures; benchmark                                                                                   |
+| T7  | Sticky scroll                    | Sticky rows and their limits                                                                                                                                                                   | T2             | Review                                                                                                      |
+| T8  | Pointer drag                     | Sources, targets, hover expand, auto-scroll, cursor, label, cancel                                                                                                                             | T2             | Gesture state tests; Desktop trace                                                                          |
+| P1  | File wire adapter                | Session, root stream, listing, watch, read; schemas per alignment point 14                                                                                                                     | F5; points 1–4 | Harmful-order tests: cursor gap, reconnect                                                                  |
+| P2  | Git wire adapter                 | Discovery, status, `show`, operations, Git Output, prompt relay                                                                                                                                | F5; point 8    | Harmful-order tests: a prompt for an unviewed Workspace, cancel while open, disconnect                      |
+| E1  | Explorer browsing                | Folders section, header actions, root binding, comparer, excludes, decorations, auto reveal, empty state                                                                                       | T1–T4, F5      | Comparer and glob fixtures; review                                                                          |
+| E2  | Root moves and view state        | Path-keyed cache, expansion in `orchbee:file-bar:view-state:v1`, one-splice change                                                                                                             | E1             | Re-root reuse tests; storage tests                                                                          |
+| E3  | Explorer menus and additions     | Browse items, Open to the Side, copy paths, Reveal in OS through a Desktop host capability, Open in Integrated Terminal, Insert Path, cd Here, compare, Esc order, Sidebar Workspace row items | E1, O3, M6     | Menu parity fixture; review                                                                                 |
+| E4  | Drag to the terminal             | Formatter moved to a shared React-free owner; drop targets on terminal Panels and the scrim                                                                                                    | T8, E1         | Formatter tests move with it; Desktop trace                                                                 |
+| E5  | Terminal file links              | The overlay as the `file` open-target handler; stat validation                                                                                                                                 | M2, F5         | Review                                                                                                      |
+| G1  | Source Control view              | Repository rows, groups, list and tree modes, sort, view state, badge rule, welcome and progress                                                                                               | T1–T3, F5      | Group and tree building tests; review                                                                       |
+| G2  | Commit input and action button   | Monaco commit input, validation, Esc order, Commit and its menu, smart commit question, button states                                                                                          | G1, M1, S5     | Button state tests; review                                                                                  |
+| G3  | Inline actions and menus         | Stage, unstage, discard (trash for untracked files), open file, open changes; confirmations                                                                                                    | G1             | Menu parity fixture; confirmation tests                                                                     |
+| G4  | Opening changes                  | Preview and pinned diffs, multi-diff on middle click, titles, title actions                                                                                                                    | G1, M6, M7, O5 | Review                                                                                                      |
+| G5  | Fetch, pull, push, sync, publish | Flows, progress, confirmations, error notifications with Open Git Log                                                                                                                          | G1, N1, S5     | Fake-port tests for overlapping and cancelled operations                                                    |
+| G6  | Prompts and commit editor        | Credential, passphrase and host-key prompts in the quick input; the `COMMIT_EDITMSG` tab                                                                                                       | Q1, O6, G1     | Harmful-order tests: a replaced prompt, a Workspace switch, a hidden window                                 |
+| G7  | Git Output and discovery notices | Git Output tab; parent repository, too-many-changes and missing-Git notifications                                                                                                              | N1, M2, G1, S5 | Buffer bound tests; review                                                                                  |
+
+Parallel lanes: F1, F2, F5, Q1, N1, O1, O4 and T1 start together. Then the keyboard lane (F3, F4, M4, T3), the shell lane (S1, S2, S3), the overlay lane (O2, O3, O5, O6), the tree lane (T2, T4, T7, T8, then T5 and T6) and the editor lane (M1, then M2, M3 and M5, then M4, M6, M7 and M8) run side by side. E1–E5 and G1–G7 follow their lanes; I1, S5, P1 and P2 run whenever their decisions or alignment points land.
+
+### Batch 2: editing, file operations, Markdown preview
+
+| ID  | Slice                                 | Interfaces and files                                                                                                                                   | Depends on            | Verification                                                  |
+| --- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------- |
+| W1  | Editable text and save                | `Mod+S`, Save All, Revert, unsaved state, encoding, BOM and line endings kept, auto-save off in Desktop, localized save errors                         | M2, P1                | Unsaved-state tests; version-precondition harmful-order tests |
+| W2  | Save conflicts and disk changes       | Compare and Overwrite, reload of saved models, deleted and read-only states                                                                            | W1                    | Harmful-order tests: an external change during a save         |
+| W3  | Save As and untitled files            | Native dialog for a local Worker; quick input path picker for a remote Worker and in a browser host; grants                                            | W1, Q1                | Picker validation tests; review                               |
+| W4  | Explorer file operations              | New and rename as inline row editors; delete to trash or permanently; cut, copy, paste; incremental naming; name validation; undo stack; confirmations | E1, P1, S5            | Naming and validation fixtures; undo stack tests              |
+| W5  | Explorer drops, OS drag-in, transfers | Move and copy drops; OS drag-in; clipboard file lists; Download and Upload                                                                             | T8, W4                | Transfer harmful-order tests                                  |
+| W6  | Markdown preview                      | Render and sanitize pipeline, structural React rendering; Open Preview and Open Preview to the Side, both in the overlay's row                         | Markdown decision, O5 | Sanitizer allowlist tests; review                             |
+| W7  | Desktop quit veto                     | Quit request in Desktop main, preload bridge, renderer dialog across Workspaces                                                                        | W1                    | Harmful-order tests at the Desktop boundary                   |
+| W8  | Quick Diff and range actions          | Gutter markers, peek, Stage and Revert Selected Ranges                                                                                                 | W1, P2                | Review                                                        |
+
+Parallel lanes: after W1, W2, W3, W7 and W8 run side by side; W4 needs only E1 and starts with them; W6 is independent.
+
+### Batch 3: Search and Quick Open
+
+| ID  | Slice                         | Interfaces and files                                                              | Depends on     | Verification                                          |
+| --- | ----------------------------- | --------------------------------------------------------------------------------- | -------------- | ----------------------------------------------------- |
+| R1  | Search view                   | Query, options, include and exclude, streaming results tree, cancellation, limits | T1–T3, point 7 | Stream tests: batches, terminal states, stale queries |
+| R2  | Replace                       | Replace and Replace All with preview diffs                                        | R1, W1         | Harmful-order tests: a file changed during a replace  |
+| R3  | Quick Open                    | Files session, `:` and `>` prefixes, history                                      | Q1, point 7    | Fuzzy fixtures; session tests                         |
+| R4  | Explorer find through ripgrep | Async match provider                                                              | T6, point 7    | Provider tests                                        |
+| R5  | Search keys                   | The conflict table's Search rows                                                  | R1, R3         | Catalog conflict test                                 |
+
+Parallel lanes: R1, R3 and R4 run side by side; R2 and R5 follow.
+
+### Batch 4: Timeline, Graph, Search Editor, merge conflicts, more Git
+
+| ID  | Slice                            | Interfaces and files                               | Depends on       | Verification              |
+| --- | -------------------------------- | -------------------------------------------------- | ---------------- | ------------------------- |
+| H1  | Timeline                         | Section, Git and local history entries, filters    | T2, P2, point 10 | Review                    |
+| H2  | Graph                            | Section, lanes, Load More                          | T2, P2           | Lane layout tests; review |
+| H3  | Search Editor                    | Tab, grammar, actions                              | R1, M2           | Review                    |
+| H4  | Merge conflicts                  | CodeLens, decorations, navigation                  | W1               | Conflict parsing fixtures |
+| H5  | Branches, stashes, tags, remotes | Quick input flows                                  | G5, Q1           | Fake-port tests           |
+| H6  | Worktrees                        | VS Code items through Orchbee's worktree flows     | G5               | Review                    |
+| H7  | Autofetch and blame              | Autofetch question and runs; blame in the info row | G5, O7, S5       | Review                    |
+
+Parallel lanes: every batch-4 slice can run beside the others.
+
+## Exclusions
+
+- Language services: completion, IntelliSense, definitions, references, symbol rename, outline, `@` symbol search, problems, formatters.
+- Debugging, tasks, extensions, the marketplace, and settings outside [settings](#settings).
+- Multiple editor groups, splits, an editor area, a shared terminal and file tab bar, and a layout system.
+- The command palette and VS Code commands reachable only from it.
+- AI items: Generate Commit Message and AI co-authors.
+- The three-way merge editor and its Resolve in Merge Editor button.
+- Language detection from content, word-based completion, Share, Learn More and marketplace entries.
+- Open in Images Preview, Open in Integrated Browser, vscode.dev links and Open in External Terminal.
+- Retry as Admin and Show Local in Save As.
+- Hot exit.
+- Forwarding the local ssh-agent to remote machines.
+- A Files group in All results, and Review Changes on Agent rows.
+- Dragging files from the File Bar into other applications.
+
+## Completion
+
+1. Settle the pending decisions and record the chosen alternatives here.
+2. Deliver batch 1, record the TUI staged delivery in the task and in `apps/web/docs/file-bar.md`, and remove the batch-1 flag when the owner releases it.
+3. Deliver batches 2–4 the same way.
+4. Move maintained behavior into `apps/web/docs/file-bar.md`, and update `apps/web/docs/workbench.md` (columns, overlay, notification cards), `apps/web/docs/keyboard-shortcuts.md`, `apps/web/docs/unified-search.md` (pick, input and files sessions), the `@orchbee/keyboard-shortcuts` and `@orchbee/ui` READMEs, `docs/frontend/menus.md`, `docs/frontend/dialogs-and-forms.md`, `docs/frontend/keyboard-shortcuts.md`, `docs/GLOSSARY.md` and `packages/i18n/docs/product-language.md`.
+5. Delete this proposal.
+
+## Reserved decisions
+
+On 2026-11-27 the owner asked for implementation to proceed on these recommendations. Each needs
+acceptance before the release it blocks; only the audio and video part of M8 pauses.
+
+| #   | Decision                                                                                                                                                                                                                                                                                                                           | Reserved as                                          | Recommendation                                                                                                                                                                                        | Blocks                                                                                       |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1   | Access boundary and credential relay, as in the backend's [reserved decisions](../platform/file-bar-backend.md#reserved-decisions) 3 and 4. The Client requests grants only from explicit gestures; prompts use the quick input: masked, kept through blur, held in memory only and cleared when settled, with Esc answering empty | Security                                             | Accept                                                                                                                                                                                                | Release of batch 1                                                                           |
+| 2   | Seti file icons: `seti.woff` and `vs-seti-icon-theme.json` from `extensions/theme-seti` at the pinned commit (seti-ui and VS Code, both MIT), the lookup generated in `@orchbee/ui`, and Seti colors mapped to theme-derived roles                                                                                                 | A third-party asset and its notice                   | Accept                                                                                                                                                                                                | Release of batch 1                                                                           |
+| 3   | Keyboard model extension: two-step `Mod+K` sequences, unmodified widget-scope keys, and the v1 to v2 override storage migration                                                                                                                                                                                                    | Public package contract and a durable-data migration | Accept as in [model extension](#model-extension). Until then, release builds keep reading and writing v1 and keep their current bindings                                                              | Release of batch 1                                                                           |
+| 4   | Conflict table and new defaults, including `Cmd+Option+B` and `Ctrl+Alt+B`                                                                                                                                                                                                                                                         | Product outcome and public default bindings          | Accept the focus rule and the batch 1–2 table; R5 adds the Search rows                                                                                                                                | Release of each batch                                                                        |
+| 5   | Standards: a scoped menu exception for File Bar and overlay menus (VS Code's items, with a leading icon only where VS Code shows one); notification cards and quick input sessions in `dialogs-and-forms.md`; sequences and widget keys in `keyboard-shortcuts.md`                                                                 | Repository standards and product outcome             | Accept                                                                                                                                                                                                | Release of menu items beyond the frequent ones in O5, E3 and G3; the Q1 and N1 standard text |
+| 6   | The `config.toml` keys under [settings](#settings), at user scope; a VS Code write that targets a workspace becomes a user-scope write                                                                                                                                                                                             | Public configuration contract and durable user data  | Accept the listed names                                                                                                                                                                               | Release of S5 and of the prompts that write its keys                                         |
+| 7   | Release bundles carry the lazy File Bar and Monaco chunks, never loaded, until batch 1 is released, because the web bundle is built once for every distribution                                                                                                                                                                    | Cost                                                 | Accept; M1 records the growth. The alternative is a distribution-specific web build                                                                                                                   | None                                                                                         |
+| 8   | Markdown preview dependencies: remark and rehype with GFM, an allowlist sanitizer, and structural rendering to React elements with no HTML string injection, at exact pins                                                                                                                                                         | Dependency admission                                 | Accept                                                                                                                                                                                                | Release of batch 2                                                                           |
+| 9   | Unsaved edits at OS session end are lost until hot exit exists, because Desktop does not delay logoff or shutdown                                                                                                                                                                                                                  | User data loss                                       | Accept for batch 2. The alternative delays Windows session end (`query-session-end`) to show the save dialog behind Windows' blocking screen                                                          | Release of batch 2                                                                           |
+| 10  | Audio and video preview: production CSP blocks `data:` media                                                                                                                                                                                                                                                                       | Security: CSP                                        | Add `media-src 'self' blob:` and play from Blob URLs, which avoids a base64 copy; otherwise drop audio and video preview for now. Images are unaffected                                               | Audio and video in M8, paused                                                                |
+| 11  | zh-CN source for VS Code-derived copy                                                                                                                                                                                                                                                                                              | Third-party text and its attribution                 | The VS Code Chinese (Simplified) language pack wording at the matching version, adapted to product language and attributed; until then zh-CN is translated in-house with the pack as a term reference | None                                                                                         |
+
+## Chosen defaults
+
+This page picked these under the owner's instruction; the owner may veto any of them.
+
+- "Opened" in the count badge rule means shown for that Workspace in this run; a File Bar restored as visible counts.
+- While the full tier covers the File Bar, its row controls restore the pre-full tier before acting.
+- Explorer drags format paths with the Worker's platform family, while OS drops keep the local platform. The shared formatter moves to a React-free entry of `@orchbee/terminal`, the owner of terminal input.
+- No browser host runs today (`resolveWebRuntimeMode` returns desktop or unsupported), so web-only behaviors stay inert.
+- The narrow and mobile rules extend the Sidebar's: the File Bar docks while the terminal area keeps `481px`, and opens at full width in the mobile layout.
+- Placement Actions live in Action search and the two context menus; the native application menu gains no entries.
+- A Workspace closed by another Client keeps its unsaved tabs alive behind a Save All or Discard notification.
+- The quit veto asks each window in turn.
+- `Mod+K Mod+M` maps VS Code's maximize-group key onto the full tier. M4's key trace settles whether the `Ctrl+Alt+Enter` row also applies to Apple `Cmd+Option+Enter`.
+- Inline merge actions are VS Code's whole set: Accept Current, Accept Incoming, Accept Both and Compare Changes.
+- Syntax and file-icon color roles are routine additions under the design-token change process.
