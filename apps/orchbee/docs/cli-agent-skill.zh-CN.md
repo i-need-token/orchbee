@@ -98,7 +98,7 @@ orchbee panel split <panel-id> --direction right
 
 `@agent:<kind>` 选择唯一提供方，`@agent:<n>` 选择当前完整列表中的一基序号，而不是当前页的序号。`agent get`、`read`、`prompt`、`send-keys`、`wait` 和 `focus` 共用此解析器；`agent prompt`、`send-keys`、`read` 和 `wait` 也可直接传入 `--panel` 或 `--terminal`（仅通过终端识别的智能体，例如 `antigravity`，以及子终端，应通过 `--panel` 或 `--terminal` 指定；若在 `stage: "agent-terminal"` 被拒绝，可用 `orchbee panel process-info <panel-id>` 检查进程归属）。不完整投影不能证明提供方匹配唯一。v1 `agent get` 将普通 Agent 身份和状态放在 `result.agent`，将各来源分面的详细信息放在 `result.inspection`。
 
-`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。`agent wait` 只观察。默认没有总时限，条件为 idle/done/blocked；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
+`agent prompt <target> <text> --wait` 提交字面输入，并在检查条件前观察活动。以 `-` 开头的文本放在结束选项的 `--` 之后（`agent prompt --panel <panel> --wait -- "-v explain"`），或作为选项值写成 `--text=-v`。`agent wait` 只观察。默认没有总时限，条件为 idle/done/blocked；自动化应指定有限时限。新鲜度、待处理关注和已有工作影响准入。匹配状态不证明某条 prompt 的专属回合已完成。取消等待不会撤销已接受的输入，也不会停止 Agent。
 
 保留已观察的 revision；使用 `--after-revision` 等待后续状态前，先查看 `agent wait --help`。
 
