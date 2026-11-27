@@ -783,11 +783,14 @@ observed only by a fresh scan and stable reference.
   empty evidence. XNU refuses a task-name right with the same `KERN_FAILURE` it gives a process
   whose exit has begun, so that answer asks `getsid` again: a candidate that no longer answers, or
   answers another session, was lost and the scan retries, while one still in the session was
-  refused and the operation fails. An empty right comes only after XNU's permission check, from a
-  process whose task is gone while its exit finishes and whose `getsid` still names the session; it
-  is a loss too. It signals through `proc_signal_with_audittoken`, validates liveness through the
-  task right and exact PID-version query, and deallocates the task-name right after the member
-  operation.
+  refused, as a set-user-ID program such as `top` is while it runs under another effective user.
+  A refused candidate is bound by the PID version that `PROC_PIDUNIQIDENTIFIERINFO` answers for a
+  process of any credentials, in an audit token that holds only its PID and PID version and no task
+  right; a candidate that no longer answers was lost. An empty right comes only after XNU's
+  permission check, from a process whose task is gone while its exit finishes and whose `getsid`
+  still names the session; it is a loss too. It signals through `proc_signal_with_audittoken`,
+  validates liveness through the task right, when it holds one, and the exact PID-version
+  short-record query, and deallocates the task-name right after the member operation.
 - FreeBSD verifies that the Terminal Host is a process reaper before any terminal leader is forked.
   `PROC_REAP_KILL` with `REAPER_KILL_SUBTREE` and `PROC_REAP_GETPIDS` use the retained direct-child
   leader as the subtree identity; the kernel resolves members while holding process identities.

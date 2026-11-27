@@ -339,6 +339,48 @@ test "POSIX native force termination kills a stopped retained session leader" {
     try process.releaseProcessIdentity();
 }
 
+// macOS's top is a set-user-ID program: it runs under another effective user, so XNU refuses the
+// Host its task-name right, yet it keeps the Host's real user, so the Host may signal it. A
+// terminal running it must still be counted, force-terminated, and contained, or a stop that ends
+// it fails and leaves the Session stopping.
+test "macOS force termination contains a set-user-ID session leader" {
+    if (builtin.os.tag != .macos) return error.SkipZigTest;
+    // Only a program whose effective user differs from the test's meets the refusal.
+    const top = std.Io.Dir.cwd().statFile(std.testing.io, "/usr/bin/top", .{}) catch return error.SkipZigTest;
+    if (top.permissions.toMode() & 0o4000 == 0 or std.c.geteuid() == 0) return error.SkipZigTest;
+
+    var process = try Process.spawn(std.testing.allocator, .{
+        .arguments = &.{ "-l", "0", "-s", "1" },
+        .columns = 80,
+        .current_directory = null,
+        .environment = &.{},
+        .executable = "/usr/bin/top",
+        .rows = 24,
+    });
+    defer {
+        if (!process.exit_reaped) {
+            std.posix.kill(process.child_id, std.posix.SIG.KILL) catch {};
+            _ = process.wait() catch {};
+            process.releaseProcessIdentity() catch {};
+        }
+        process.deinit();
+    }
+
+    try std.testing.expect(!try process.processTreeContained());
+    try process.forceTerminate();
+    var contained = false;
+    for (0..200) |_| {
+        if (try process.processTreeContained()) {
+            contained = true;
+            break;
+        }
+        monotonic.sleep(5 * std.time.ns_per_ms);
+    }
+    try std.testing.expect(contained);
+    _ = try process.wait();
+    try process.releaseProcessIdentity();
+}
+
 // macOS waitid can surface CLD_STOPPED despite WEXITED. The observer must not
 // publish that transient stop as completion: the later SIGKILL is the retained
 // child's actual non-reaping exit observation.

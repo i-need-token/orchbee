@@ -191,6 +191,27 @@ enum {
     orchbee_pif_compare_idversion = 0x01,
 };
 
+// XNU answers this private PROC_PIDUNIQIDENTIFIERINFO flavor for a process of
+// any credentials, as it answers PROC_PIDT_SHORTBSDINFO, and its record carries
+// the same PID version TASK_AUDIT_TOKEN reports.
+enum {
+    orchbee_proc_pid_unique_identifier_info = 17,
+};
+
+struct orchbee_proc_unique_identifier_info {
+    uint8_t executable_uuid[16];
+    uint64_t unique_id;
+    uint64_t parent_unique_id;
+    int32_t pid_version;
+    int32_t original_parent_pid_version;
+    uint64_t reserved[2];
+};
+
+_Static_assert(
+    sizeof(struct orchbee_proc_unique_identifier_info) == 56,
+    "XNU's proc_uniqidentifierinfo record is 56 bytes"
+);
+
 // libbsm exposes these accessors for audit_token_t. Declare only the two ABI
 // functions needed here so Zig's bundled macOS cross headers need not mirror
 // the much larger, deprecated audit header surface.
@@ -212,7 +233,7 @@ extern int __proc_info_extended_id(
 // Host's effective or real UID can omit a member after setuid/seteuid and
 // falsely prove containment. The reusable PID from this all-process list is
 // only a negative prefilter; every possible member still requires a stable
-// task/audit-token reference and an authoritative membership recheck.
+// exact-ID reference and an authoritative membership recheck.
 int orchbee_darwin_process_enumeration_scope(void) {
     return PROC_ALL_PIDS;
 }
@@ -303,28 +324,31 @@ static int darwin_read_task_audit_token(
     return -1;
 }
 
-// Revalidate both the retained Mach task identity and its exact BSD PID
-// version. exec can replace the task and increment p_idversion while keeping
-// the same numeric PID and session. A vanished/old reference is therefore a
-// retryable observation failure, never evidence that the current PID binding
-// is non-live.
+// Revalidate the exact BSD PID version, and the retained Mach task identity of
+// a member that granted one. exec can replace the task and increment
+// p_idversion while keeping the same numeric PID and session. A vanished/old
+// reference is therefore a retryable observation failure, never evidence that
+// the current PID binding is non-live. The short record answers for a process
+// of any credentials.
 static int darwin_read_member_process_info(
     const struct orchbee_session_member_ref *member_ref,
-    struct proc_bsdinfo *information
+    struct proc_bsdshortinfo *information
 ) {
-    audit_token_t current_token = {0};
-    const int task_result = darwin_read_task_audit_token(
-        member_ref->task,
-        &current_token
-    );
-    if (task_result == 0) {
-        errno = EAGAIN;
-        return -1;
-    }
-    if (task_result < 0) return -1;
-    if (memcmp(&current_token, &member_ref->audit_token, sizeof(current_token)) != 0) {
-        errno = EAGAIN;
-        return -1;
+    if (member_ref->task != MACH_PORT_NULL) {
+        audit_token_t current_token = {0};
+        const int task_result = darwin_read_task_audit_token(
+            member_ref->task,
+            &current_token
+        );
+        if (task_result == 0) {
+            errno = EAGAIN;
+            return -1;
+        }
+        if (task_result < 0) return -1;
+        if (memcmp(&current_token, &member_ref->audit_token, sizeof(current_token)) != 0) {
+            errno = EAGAIN;
+            return -1;
+        }
     }
 
     const int pid = audit_token_to_pid(member_ref->audit_token);
@@ -332,7 +356,7 @@ static int darwin_read_member_process_info(
     const int length = __proc_info_extended_id(
         orchbee_proc_info_call_pidinfo,
         pid,
-        PROC_PIDTBSDINFO,
+        PROC_PIDT_SHORTBSDINFO,
         orchbee_pif_compare_idversion,
         orchbee_pidversion_external_id(pid_version),
         0,
@@ -355,19 +379,49 @@ static int darwin_read_member_process_info(
 // as a zombie, or when the PID is gone. The caller's prefilter already placed
 // this PID in the owned session, so ask getsid again: a PID that no longer
 // answers, or answers another session, was lost (0), and the scan restarts. A
-// PID still in the session was refused. The owned-session candidate capability
-// is the tracking boundary: skipping an untracked candidate could omit a
-// terminal member from signaling or containment, so a refusal stops the
-// operation. No numeric-PID fallback is permitted.
+// PID still in the session (1) was refused, as a set-user-ID program such as
+// top is while it runs under another effective user. The owned-session
+// candidate capability is the tracking boundary: skipping an untracked
+// candidate could omit a terminal member from signaling or containment.
 static int darwin_classify_unacquired_member(pid_t pid, pid_t session_id) {
     errno = 0;
     const pid_t observed_session = getsid(pid);
     if (observed_session < 0) {
         return orchbee_classify_session_membership_error(errno);
     }
-    if (observed_session != session_id) return 0;
-    errno = EPERM;
-    return -1;
+    return observed_session == session_id;
+}
+
+// Binds a member that refused its task-name right by its PID version, which XNU
+// answers for any process. The audit token holds only the PID and PID version,
+// the two words proc_signal_with_audittoken and the exact-ID status read
+// compare, so both still name exactly this process, and it holds no task right.
+// No numeric-PID fallback is permitted: a PID that no longer answers was lost.
+static int darwin_bind_member_by_version(
+    pid_t pid,
+    struct orchbee_session_member_ref **member_ref
+) {
+    struct orchbee_proc_unique_identifier_info identifier = {0};
+    errno = 0;
+    const int length = proc_pidinfo(
+        pid,
+        orchbee_proc_pid_unique_identifier_info,
+        0,
+        &identifier,
+        (int)sizeof(identifier)
+    );
+    if (length <= 0 && errno == ESRCH) return 0;
+    if (length != (int)sizeof(identifier)) {
+        if (errno == 0) errno = EIO;
+        return -1;
+    }
+    struct orchbee_session_member_ref *reference = calloc(1, sizeof(*reference));
+    if (reference == NULL) return -1;
+    reference->task = MACH_PORT_NULL;
+    reference->audit_token.val[5] = (unsigned int)pid;
+    reference->audit_token.val[7] = (unsigned int)identifier.pid_version;
+    *member_ref = reference;
+    return 1;
 }
 
 static int acquire_session_member_ref(
@@ -385,7 +439,9 @@ static int acquire_session_member_ref(
         if (task_result == KERN_INVALID_ARGUMENT || task_result == KERN_TERMINATED) {
             return 0;
         }
-        return darwin_classify_unacquired_member(pid, session_id);
+        const int membership = darwin_classify_unacquired_member(pid, session_id);
+        if (membership <= 0) return membership;
+        return darwin_bind_member_by_version(pid, member_ref);
     }
     // XNU grants an empty right only after its permission check, to a process
     // whose task is already gone while its exit finishes; getsid still names
@@ -490,7 +546,9 @@ void orchbee_session_member_ref_close(void *raw_member_ref) {
     if (raw_member_ref == NULL) return;
     struct orchbee_session_member_ref *member_ref = raw_member_ref;
 #if defined(__APPLE__)
-    (void)mach_port_deallocate(mach_task_self(), member_ref->task);
+    if (member_ref->task != MACH_PORT_NULL) {
+        (void)mach_port_deallocate(mach_task_self(), member_ref->task);
+    }
 #elif defined(__linux__)
     (void)close(member_ref->pidfd);
 #endif
@@ -611,7 +669,7 @@ int orchbee_session_member_iterator_next(
         }
 
 #if defined(__APPLE__)
-        struct proc_bsdinfo information = {0};
+        struct proc_bsdshortinfo information = {0};
         if (darwin_read_member_process_info(member_ref, &information) != 0) {
             const int binding_error = errno;
             orchbee_session_member_ref_close(member_ref);
@@ -665,9 +723,9 @@ int orchbee_session_member_ref_is_live(void *raw_member_ref, int *live) {
     }
     struct orchbee_session_member_ref *member_ref = raw_member_ref;
 #if defined(__APPLE__)
-    struct proc_bsdinfo information = {0};
+    struct proc_bsdshortinfo information = {0};
     if (darwin_read_member_process_info(member_ref, &information) != 0) return -1;
-    *live = information.pbi_status != SZOMB;
+    *live = information.pbsi_status != SZOMB;
     return 0;
 #elif defined(__linux__)
     struct pollfd descriptor = {
