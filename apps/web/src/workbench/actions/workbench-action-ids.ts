@@ -10,6 +10,7 @@ import {
 	type WorkbenchAgentStartProvider,
 } from '@orchbee/workbench-client-protocol';
 
+import type { FileOverlayActionCatalog } from '../../file-overlay';
 import type { PanelFocusPosition } from '../components/workbench-panel-workspace/model/resolvePanelFocusByPosition';
 import { isWorkbenchWorktreeFailureCause } from '../model/workbench-worktree-failure';
 import {
@@ -317,7 +318,8 @@ export interface WorkbenchFileOverlayTabMoveInput extends WorkbenchFileOverlayTa
 	readonly index: number;
 }
 
-export interface WorkbenchActionCatalog {
+/** The Workbench's Actions, with the file overlay's that it registers for the shown Workspace. */
+export interface WorkbenchActionCatalog extends FileOverlayActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeProjectWorkspaces]: ActionSignature<WorkbenchProjectInput>;

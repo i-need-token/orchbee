@@ -17,6 +17,7 @@ export const enUSFileOverlayMessages = {
 	'fileOverlay.actions.navigateNextInQuickOpen': 'Navigate Next in Quick Open',
 	'fileOverlay.actions.navigatePreviousInQuickOpen': 'Navigate Previous in Quick Open',
 	'fileOverlay.actions.nextEditor': 'Open Next Editor',
+	'fileOverlay.actions.openFile': 'Open File',
 	'fileOverlay.actions.pinEditor': 'Pin Editor',
 	'fileOverlay.actions.positionEditor': 'Open Editor at Position',
 	'fileOverlay.actions.positionEditorNumbered': 'Open Editor {position}',

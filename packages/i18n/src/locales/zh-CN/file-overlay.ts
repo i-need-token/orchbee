@@ -19,6 +19,7 @@ export const zhCNFileOverlayMessages = {
 	'fileOverlay.actions.navigateNextInQuickOpen': '在 Quick Open 中导航到下一个',
 	'fileOverlay.actions.navigatePreviousInQuickOpen': '在 Quick Open 中导航到上一个',
 	'fileOverlay.actions.nextEditor': '打开下一个编辑器',
+	'fileOverlay.actions.openFile': '打开文件',
 	'fileOverlay.actions.pinEditor': '固定编辑器',
 	'fileOverlay.actions.positionEditor': '按位置打开编辑器',
 	'fileOverlay.actions.positionEditorNumbered': '打开第 {position} 个编辑器',

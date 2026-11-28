@@ -95,7 +95,7 @@ interface WorkbenchFileOverlayHost {
 	readonly focusTerminal: () => void;
 	readonly platform: WorkbenchShortcutPlatform;
 	/** Receives how the Workbench gives the overlay the keys. */
-	readonly reference: React.RefObject<FileOverlayFocus | null>;
+	readonly reference: React.RefCallback<FileOverlayFocus>;
 	readonly regions: FileOverlayRegionElements;
 	readonly scrimDrop: PointerDropTarget | null;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
@@ -155,6 +155,9 @@ export function useWorkbenchFileOverlay({
 	const sidebarReference = React.useRef<HTMLDivElement>(null);
 	const terminalAreaReference = React.useRef<HTMLDivElement>(null);
 	const overlayReference = React.useRef<FileOverlayFocus>(null);
+	// The overlay mounts once the change that shows it renders, after the Action that asked for the
+	// keys with that change has returned; until then the ask waits.
+	const focusWaiting = React.useRef(false);
 	const [regions] = React.useState<FileOverlayRegionElements>(() => ({
 		root: rootReference,
 		sidebar: sidebarReference,
@@ -320,7 +323,17 @@ export function useWorkbenchFileOverlay({
 					: [],
 			),
 	);
-	const focusOverlay = useMemoizedFn(() => overlayReference.current?.focus());
+	const focusOverlay = useMemoizedFn((focus: boolean) => {
+		const overlay = overlayReference.current;
+		focusWaiting.current = focus && overlay === null;
+		if (focus) overlay?.focus();
+	});
+	const attachOverlay = useMemoizedFn((overlay: FileOverlayFocus | null) => {
+		overlayReference.current = overlay;
+		if (overlay === null || !focusWaiting.current) return;
+		focusWaiting.current = false;
+		overlay.focus();
+	});
 	React.useEffect(() => {
 		registry?.showTerminal(
 			workspaceId === null ? null : { tabId: activeTabId, terminalContextId, workspaceId },
@@ -380,6 +393,8 @@ export function useWorkbenchFileOverlay({
 			},
 			() => {
 				if (!current) return;
+				// The keys stay where they are, so a later load cannot take them by surprise.
+				focusWaiting.current = false;
 				setLoad({ kind: 'failed' });
 				reportLoadFailure();
 			},
@@ -404,7 +419,7 @@ export function useWorkbenchFileOverlay({
 					dispatch,
 					focusTerminal: returnToTerminal,
 					platform: shortcutPlatform,
-					reference: overlayReference,
+					reference: attachOverlay,
 					regions,
 					scrimDrop,
 					shortcutLabels,

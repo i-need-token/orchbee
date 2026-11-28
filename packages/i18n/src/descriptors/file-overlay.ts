@@ -87,6 +87,10 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.nextEditor',
 		'Action that shows the file of the tab after the active one in the file overlay’s tab row, the first after the last. VS Code calls a file open in a tab an editor.',
 	),
+	openFile: message(
+		'fileOverlay.actions.openFile',
+		'Action that opens a file in a tab of the file overlay, as a click on it in the File Bar does.',
+	),
 	pinEditor: message(
 		'fileOverlay.actions.pinEditor',
 		'Action that pins a file tab to the start of the file overlay’s tab row, the active one unless a tab is named. VS Code calls a file open in a tab an editor.',

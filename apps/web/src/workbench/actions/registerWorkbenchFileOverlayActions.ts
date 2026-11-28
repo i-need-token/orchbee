@@ -11,7 +11,12 @@ import {
 } from '@orchbee/actions';
 import { fileOverlayMessages, workbenchMessages } from '@orchbee/i18n';
 
-import type { FileOverlayEvent, FileOverlayState } from '../../file-overlay';
+import {
+	FILE_OVERLAY_ACTION_IDS,
+	fileOverlayOpenInput,
+	type FileOverlayEvent,
+	type FileOverlayState,
+} from '../../file-overlay';
 import type { WorkbenchQuickNavigateKeys } from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
 import {
 	WORKBENCH_ACTION_IDS,
@@ -56,8 +61,11 @@ export interface FileTabPicker {
 interface RegisterWorkbenchFileOverlayActionsOptions {
 	/** Applies an event to the shown Workspace's overlay and carries out what it asks of the Workbench. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
-	/** Gives the shown overlay's active tab the keys once the overlay shows it. */
-	readonly focusOverlay: () => void;
+	/**
+	 * Whether the shown overlay's active tab takes the keys once the overlay shows the change just
+	 * dispatched. The latest ask decides, so false withdraws one that still waits for the overlay.
+	 */
+	readonly focusOverlay: (focus: boolean) => void;
 	/** The shown Workspace's overlay now, read whenever an Action asks. */
 	readonly getState: () => FileOverlayState;
 	/** The modifier keys of each chord bound to an Action now, which quick navigate waits on. */
@@ -234,11 +242,11 @@ const SCOPE_CHANGED: ActionResult<void> = { code: 'scope-changed', kind: 'blocke
 
 /**
  * The file overlay's Actions. They exist only in a window that offers the File Bar, for the shown
- * Workspace's overlay. A tab Action names its tab with the Workspace that shows it, or without input
- * takes the active tab, as VS Code's editor commands take the active editor. Each is offered only
- * while it has a tab to act on, so that its keys otherwise keep the meaning they have outside the
- * File Bar; one that VS Code shows greyed in a tab's menu is disabled where VS Code's precondition
- * fails, which passes its keys on as well.
+ * Workspace's overlay. Opening a file names that Workspace as well. A tab Action names its tab with
+ * the Workspace that shows it, or without input takes the active tab, as VS Code's editor commands
+ * take the active editor. Each is offered only while it has a tab to act on, so that its keys
+ * otherwise keep the meaning they have outside the File Bar; one that VS Code shows greyed in a tab's
+ * menu is disabled where VS Code's precondition fails, which passes its keys on as well.
  */
 export function registerWorkbenchFileOverlayActions({
 	dispatch,
@@ -309,11 +317,38 @@ export function registerWorkbenchFileOverlayActions({
 		context.markCommitted();
 		const result = apply({ id: picked, type: 'tab-activated' });
 		// VS Code's picker opens the editor and focuses it.
-		focusOverlay();
+		focusOverlay(true);
 		return result;
 	};
 	return [
 		{ dispose: () => registered.abort() },
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: rowExecution,
+				getAvailability: (_context, input) =>
+					input.workspaceId === workspaceId ? ENABLED : HIDDEN,
+				handler: {
+					execute: (context, input) => {
+						if (input.workspaceId !== workspaceId) return SCOPE_CHANGED;
+						context.markCommitted();
+						const result = apply({
+							input: { kind: 'file', resource: input.resource },
+							preview: input.preview,
+							type: 'file-opened',
+						});
+						focusOverlay(input.focus);
+						return result;
+					},
+				},
+				// VS Code parity: opening an editor with its pinned and preserveFocus options, as
+				// vscode.open and the Explorer's open do.
+				id: FILE_OVERLAY_ACTION_IDS.openFile,
+				input: fileOverlayOpenInput,
+				title: fileOverlayMessages.openFile,
+			}),
+		),
 		...PICKED_FILE_TAB_ACTIONS.map(({ id, minimum, pick, title }) =>
 			typedRuntime.register(
 				scope,
