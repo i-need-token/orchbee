@@ -12,9 +12,9 @@
 //!   read, so its load reaches the service ahead of the event of any later change, which finds it
 //!   loaded while a watch covering it is in effect. A watch that takes effect after the load, as
 //!   at the first subscription, for a folder watched one by one or after a restart, asks each
-//!   Client to list again the loaded folders it covers that no watch in effect covered, since
-//!   their changes after the read went unreported, and each repository it overlaps reports a
-//!   change.
+//!   Client to list again the loaded folders it covers that no watch in effect covered, and to
+//!   read again its opened files in those folders, since their changes after the read went
+//!   unreported, and each repository it overlaps reports a change.
 //! - A watch whose path is deleted or missing ends. A missing root is read again every 5,007 ms
 //!   and reported by a `root` Update when it changes within one scope; another missing path is
 //!   checked as often, and its return, or a change adding it, watches it again and reports it and

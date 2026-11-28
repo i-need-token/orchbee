@@ -39,9 +39,9 @@ export type FileRootEvent =
 			readonly changes: readonly FileChange[];
 			readonly kind: 'update';
 			/**
-			 * Folders at or below which changes were dropped, as an overflow drops them: the Client
-			 * lists again every folder it loaded at or below each, and reads again each file it
-			 * opened below one.
+			 * Folders at or below which changes were dropped, as an overflow drops them, and opened
+			 * files whose changes were: the Client lists again every folder it loaded at or below
+			 * each, and reads again each file it opened at or below one.
 			 */
 			readonly rescan: readonly string[];
 			/** The root's new value, when it moved or appeared or went missing. */

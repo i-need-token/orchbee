@@ -130,25 +130,36 @@ fn an_opened_files_deletion_is_held_and_reported_by_whether_it_exists_again() {
 }
 
 #[test]
-fn an_overflow_and_lost_changes_become_rescans_of_loaded_folders() {
+fn an_overflow_and_lost_changes_become_rescans_of_loaded_folders_and_opened_files() {
     let start = Instant::now();
-    let interest = interest(&[(1, &["a", "a/b", "c"], &[])]);
+    let interest = interest(&[(1, &["a", "a/b", "c"], &["c/g.txt", "o/f.txt"])]);
     let mut stream = Stream::default();
-    for index in 0..30_501 {
+    for index in 0..30_500 {
         let added = change(ChangeKind::Added, &format!("a/{index}"));
         stream.observe(added, &interest, start);
     }
+    // The opened file's folder is not loaded, so only the file names its dropped change.
+    stream.observe(change(ChangeKind::Changed, "o/f.txt"), &interest, start);
     stream.lost(Some(&native("a")), &interest, start);
     let due = stream.tick(start + WINDOW, &interest);
     assert_eq!(due.deliveries.len(), 1);
     assert!(due.deliveries[0].changes.is_empty());
-    assert_eq!(due.deliveries[0].rescan, [native("a"), native("a/b")]);
-    // Everywhere lost reaches every loaded folder.
+    assert_eq!(
+        due.deliveries[0].rescan,
+        [native("a"), native("a/b"), native("o/f.txt")]
+    );
+    // Everywhere lost reaches every loaded folder and every opened file.
     stream.lost(None, &interest, start + WINDOW);
     let due = stream.tick(start + WINDOW * 2, &interest);
     assert_eq!(
         due.deliveries[0].rescan,
-        [native("a"), native("a/b"), native("c")]
+        [
+            native("a"),
+            native("a/b"),
+            native("c"),
+            native("c/g.txt"),
+            native("o/f.txt")
+        ]
     );
 }
 

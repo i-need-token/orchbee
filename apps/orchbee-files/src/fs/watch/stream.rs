@@ -5,9 +5,10 @@
 //! deletion for 100 ms, absorbing its other changes, and then reports it by whether the file
 //! exists again. Each Client's changes gather for 75 ms from the first, coalesce as VS Code
 //! coalesces them, and pass through VS Code's throttle, whose overflow becomes a rescan of the
-//! loaded folders whose changes it dropped. Changes the native watcher lost, and those that went
-//! unreported before a watch covered their folder, become a rescan of the loaded folders they were
-//! lost in. Updates hold at most 500 items and fit the Notice record.
+//! loaded folders and opened files whose changes it dropped. Changes the native watcher lost, and
+//! those that went unreported before a watch covered their folder, become a rescan of the loaded
+//! folders they were lost in and of the opened files in those folders, which a Client may have
+//! read before the watch took effect. Updates hold at most 500 items and fit the Notice record.
 //! Time is the caller's, so every rule holds under any clock.
 
 use std::{
@@ -149,14 +150,15 @@ impl Stream {
     }
 
     /// Asks each Client to list again its loaded folders at or below `under`, or all of them,
-    /// whose changes the native watcher lost.
+    /// whose changes the native watcher lost, and to read again its opened files in them.
     pub(super) fn lost(&mut self, under: Option<&NativePath>, interest: &Interest, now: Instant) {
         self.rescan(interest, now, |folder| {
             under.is_none_or(|under| folder.is_within(under))
         });
     }
 
-    /// Asks each Client to list again its loaded folders that `stale` picks.
+    /// Asks each Client to list again its loaded folders that `stale` picks, and to read again
+    /// its opened files whose folder `stale` picks.
     pub(super) fn rescan(
         &mut self,
         interest: &Interest,
@@ -164,20 +166,22 @@ impl Stream {
         stale: impl Fn(&NativePath) -> bool,
     ) {
         for (connection, holder) in &interest.holders {
-            let mut folders = holder
-                .loaded
-                .values()
-                .filter(|folder| stale(folder))
-                .peekable();
-            if folders.peek().is_none() {
+            let folders = holder.loaded.values().filter(|folder| stale(folder));
+            let files = holder
+                .opened
+                .iter()
+                .filter_map(|key| interest.opened.get(key))
+                .filter(|file| file.parent().is_some_and(|folder| stale(&folder)));
+            let mut paths = folders.chain(files).peekable();
+            if paths.peek().is_none() {
                 continue;
             }
             let window = self.windows.entry(*connection).or_insert_with(Window::new);
-            for folder in folders {
+            for path in paths {
                 window
                     .rescan
-                    .entry(folder.key())
-                    .or_insert_with(|| folder.clone());
+                    .entry(path.key())
+                    .or_insert_with(|| path.clone());
             }
             window.flush.get_or_insert(now + WINDOW);
         }
@@ -227,8 +231,8 @@ impl Stream {
                         Ok(chunk) => changes = chunk,
                         Err(refused) => {
                             let holder = interest.holders.get(connection);
-                            for folder in dropped_folders(&refused, holder) {
-                                window.rescan.entry(folder.key()).or_insert(folder);
+                            for path in dropped_paths(&refused, holder) {
+                                window.rescan.entry(path.key()).or_insert(path);
                             }
                         }
                     }
@@ -302,20 +306,27 @@ const MACHINE: Paths = Paths {
     },
 };
 
-/// The folders whose changes the throttle refused that the Client lists: each refused change's
-/// loaded folder, once.
-fn dropped_folders(refused: &[Change], holder: Option<&Holder>) -> Vec<NativePath> {
+/// What the Client reads again for the changes the throttle refused: each refused change's loaded
+/// folder, and each refused change of an opened file, once.
+fn dropped_paths(refused: &[Change], holder: Option<&Holder>) -> Vec<NativePath> {
+    let Some(holder) = holder else {
+        return Vec::new();
+    };
     let mut seen = HashSet::new();
-    refused
-        .iter()
-        .filter_map(|change| change.path.parent())
-        .filter(|folder| {
-            holder.is_some_and(|holder| {
-                holder.everything || holder.loaded.contains_key(&folder.key())
-            })
-        })
-        .filter(|folder| seen.insert(folder.key()))
-        .collect()
+    let mut paths = Vec::new();
+    for change in refused {
+        let key = change.path.key();
+        if holder.opened.contains(&key) && seen.insert(key) {
+            paths.push(change.path.clone());
+        }
+        if let Some(folder) = change.path.parent()
+            && (holder.everything || holder.loaded.contains_key(&folder.key()))
+            && seen.insert(folder.key())
+        {
+            paths.push(folder);
+        }
+    }
+    paths
 }
 
 /// The Updates that carry `changes` and then `rescan`, each within the Notice record's bound. A

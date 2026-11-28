@@ -185,7 +185,8 @@ pub enum FsUpdate {
         /// The changes.
         changes: List<Change, 1, 500>,
     },
-    /// Changes were lost under these folders; the Client re-lists what it loaded there.
+    /// Changes were lost under these folders, or to these opened files; the Client re-lists what
+    /// it loaded there and reads again what it opened there.
     Rescan {
         /// The folders.
         paths: List<FilePath, 1, 500>,

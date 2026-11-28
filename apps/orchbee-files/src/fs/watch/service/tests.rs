@@ -353,6 +353,60 @@ fn a_folder_read_before_its_watch_takes_effect_is_listed_again_once_it_does() {
 }
 
 #[test]
+fn a_file_opened_before_its_watch_takes_effect_is_read_again_once_it_does() {
+    let mut now = Instant::now();
+    let window = Duration::from_millis(75);
+    let mut core = Core::new(Timing::VS_CODE, Vec::new());
+    // The file outside the root is read before its folder's watch takes effect, and the file
+    // inside it before the root's does.
+    core.interest(workspace(), interest(&[], &["o/f.txt", "w/in.txt"]), 1);
+    core.root(workspace(), present("w", 1), now);
+    core.effects();
+    core.native(applied(&[("o", Need::Folder), ("w", Need::Tree)], &[]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core),
+        (vec![], vec![native("o/f.txt"), native("w/in.txt")])
+    );
+
+    // A file opened under a watch in effect is read after it took effect, and the event of a later
+    // change finds it opened.
+    core.interest(
+        workspace(),
+        interest(&[], &["o/f.txt", "w/in.txt", "w/deep/g.txt"]),
+        1,
+    );
+    assert!(core.effects().orders.is_empty());
+    let changed = Change {
+        kind: ChangeKind::Changed,
+        path: native("w/deep/g.txt"),
+        directory: false,
+    };
+    core.native(Native::Changes(vec![changed]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core),
+        (vec![(ChangeKind::Changed, native("w/deep/g.txt"))], vec![])
+    );
+
+    // A restarted watch reads again the files whose folders it alone covers.
+    core.native(Native::Failed(Some(native("w"))), now);
+    core.native(applied(&[], &[("w", Need::Tree)]), now);
+    now += Timing::VS_CODE.restart;
+    core.tick(now);
+    core.effects();
+    core.native(applied(&[("w", Need::Tree)], &[]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core).1,
+        [native("w/deep/g.txt"), native("w/in.txt")]
+    );
+}
+
+#[test]
 fn a_repository_reports_its_working_tree_and_the_first_level_of_its_git_directory() {
     let mut core = Core::new(Timing::VS_CODE, Vec::new());
     let reported = Arc::new(Mutex::new(Vec::new()));
