@@ -30,6 +30,9 @@ interface DecorationPart {
 	readonly tooltip: string;
 }
 
+/** Git's gray for a path it ignores, which has no letter or hover text, as VS Code gives it. */
+const IGNORED_PART: DecorationPart = { color: 'ignored', letter: '', tooltip: '' };
+
 function subscribeToNothing(): () => void {
 	return () => undefined;
 }
@@ -65,8 +68,8 @@ function mergeDecorations(
 
 /**
  * A row's decorations as VS Code's Explorer draws them: Git's, from the session's decorations,
- * which the row follows, and the Explorer's own mark for a link or for an entry that is neither a
- * file nor a folder.
+ * which the row follows and tells that it shows, so Git is asked whether it ignores the path, and
+ * the Explorer's own mark for a link or for an entry that is neither a file nor a folder.
  */
 export function useExplorerRowDecoration(
 	decorations: ExplorerGitDecorations | null,
@@ -77,6 +80,7 @@ export function useExplorerRowDecoration(
 		decorations?.subscribe ?? subscribeToNothing,
 		() => decorations?.version ?? 0,
 	);
+	React.useEffect(() => decorations?.show(item.path), [decorations, item.path]);
 	const git = decorations?.decorationOf(item.path, item.directory) ?? null;
 	const partOf = (decoration: ScmFileDecoration): DecorationPart => ({
 		color: decoration.color,
@@ -91,8 +95,11 @@ export function useExplorerRowDecoration(
 		const tooltip = intl.formatMessage(fileExplorerMessages.unknownType);
 		explorer = { color: null, letter: '?', tooltip };
 	}
+	const own: DecorationPart[] = [];
+	if (git !== null && git.own !== null) own.push(partOf(git.own));
+	if (git?.ignored === true) own.push(IGNORED_PART);
 	return mergeDecorations(
-		git === null || git.own === null ? [] : [partOf(git.own)],
+		own,
 		git === null || git.descendant === null ? null : partOf(git.descendant),
 		explorer,
 		intl.formatMessage(fileExplorerMessages.containsEmphasizedItems),

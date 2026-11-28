@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
 	type FilePathRules,
 	type GitRepositorySummary,
 	type GitStatusEntry,
+	type GitSummary,
 	MemoryFileSessionPort,
 } from '../../../file-session';
 import { ExplorerGitDecorations } from '../ExplorerGitDecorations';
@@ -30,6 +31,16 @@ function entry(path: string, x: string, y: string, original: string | null = nul
 	return { original, path, submodule: false, x, y };
 }
 
+function summary(...repositories: readonly string[]): GitSummary {
+	return {
+		candidates: [],
+		git: { state: 'ok', version: '2.47.1' },
+		repositories: repositories.map(repository),
+		repositoriesTruncated: false,
+		unsafe: [],
+	};
+}
+
 async function settle(): Promise<void> {
 	for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
 }
@@ -44,13 +55,7 @@ async function decorated(
 	port.writeFile(`${root}${rules?.separator ?? '/'}a.txt`, 'a');
 	port.setRoot(WORKSPACE, root);
 	port.git.setStatus(root, 1, entries);
-	port.git.setSummary(WORKSPACE, {
-		candidates: [],
-		git: { state: 'ok', version: '2.47.1' },
-		repositories: [repository(root)],
-		repositoriesTruncated: false,
-		unsafe: [],
-	});
+	port.git.setSummary(WORKSPACE, summary(root));
 	const decorations = new ExplorerGitDecorations(port.open(WORKSPACE));
 	await settle();
 	return decorations;
@@ -65,6 +70,10 @@ function shown(
 	const { descendant, own } = decorations.decorationOf(path, directory);
 	return { descendant: descendant?.status ?? null, own: own?.status ?? null };
 }
+
+afterEach(() => {
+	vi.useRealTimers();
+});
 
 describe('ExplorerGitDecorations', () => {
 	it('colors a folder by the first change below it in VS Code’s path order, never by a deletion', async () => {
@@ -109,5 +118,61 @@ describe('ExplorerGitDecorations', () => {
 
 		expect(shown(decorations, 'c:\\work\\src-x\\m.TS', false).own).toBe('modified');
 		expect(shown(decorations, 'C:\\WORK', true).descendant).toBe('untracked');
+	});
+
+	it('asks each repository which shown paths it ignores once none has come for 500 ms', async () => {
+		vi.useFakeTimers();
+		const port = new MemoryFileSessionPort();
+		port.writeFile('/w/a.txt', 'a');
+		port.setRoot(WORKSPACE, '/w');
+		port.git.setStatus('/w', 1, []);
+		port.git.setStatus('/w/vendor/lib', 1, []);
+		port.git.setIgnored('/w', ['/w/build', '/w/build/out.js']);
+		port.git.setIgnored('/w/vendor/lib', ['/w/vendor/lib/dist']);
+		port.git.setSummary(WORKSPACE, summary('/w', '/w/vendor/lib'));
+		const session = port.open(WORKSPACE);
+		const asked: { readonly paths: readonly string[]; readonly repository: string }[] = [];
+		const decorations = new ExplorerGitDecorations({
+			...session,
+			git: {
+				...session.git,
+				checkIgnore: (request, signal) => {
+					asked.push(request);
+					return session.git.checkIgnore(request, signal);
+				},
+			},
+		});
+		await settle();
+
+		decorations.show('/w/build');
+		await vi.advanceTimersByTimeAsync(300);
+		for (const path of ['/w/build/out.js', '/w/vendor/lib/dist', '/w/vendor/lib', '/w/src']) {
+			decorations.show(path);
+		}
+		await vi.advanceTimersByTimeAsync(499);
+		expect(asked).toEqual([]);
+		await vi.advanceTimersByTimeAsync(1);
+		await settle();
+
+		// A repository's own folder is never asked about, and a path goes to its innermost repository.
+		expect(asked).toEqual([
+			{ paths: ['/w/build', '/w/build/out.js', '/w/src'], repository: '/w' },
+			{ paths: ['/w/vendor/lib/dist'], repository: '/w/vendor/lib' },
+		]);
+		const ignored = [
+			'/w/build',
+			'/w/build/out.js',
+			'/w/vendor/lib/dist',
+			'/w/vendor/lib',
+			'/w/src',
+		];
+		expect(ignored.map((path) => decorations.decorationOf(path, false).ignored)).toEqual([
+			true,
+			true,
+			true,
+			false,
+			false,
+		]);
+		decorations.dispose();
 	});
 });
