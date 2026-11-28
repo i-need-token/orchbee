@@ -19,6 +19,10 @@ export const fileExplorerMessages = defineMessages({
 		'fileExplorer.empty.noDirectory',
 		'Shown in place of the Explorer tree when the active Workspace has no directory to browse; worded as the Workbench says it in place of terminals.',
 	),
+	progress: message(
+		'fileExplorer.progress.label',
+		'Accessible name of the thin progress bar at the top of the Explorer while folders are slow to list.',
+	),
 	readFailureDisconnected: message(
 		'fileExplorer.readFailure.disconnected',
 		'Why a folder could not be listed, quoted in lowercase by the unresolved root’s tooltip and by the notification for a folder that could not be read: the link to the machine that holds the folder dropped.',

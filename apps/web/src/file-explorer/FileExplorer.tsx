@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import type { FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
+import { ExplorerProgress } from './components/explorer-progress/ExplorerProgress';
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
 import { ExplorerUnresolvedRow } from './components/explorer-unresolved-row/ExplorerUnresolvedRow';
 import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
@@ -49,7 +50,7 @@ export function FileExplorer({
 	storage,
 }: FileExplorerProps): ReactNode {
 	const intl = useOrchbeeIntl();
-	const { state, tree } = useExplorerTree({ notifications, session, storage });
+	const { progress, state, tree } = useExplorerTree({ notifications, session, storage });
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
 	const commands = useFileExplorerActions({
 		parentScope: actionScope,
@@ -58,7 +59,11 @@ export function FileExplorer({
 	});
 	switch (state.kind) {
 		case 'loading':
-			return <div className={styles['root']} data-slot='file-explorer' />;
+			return (
+				<div className={styles['root']} data-slot='file-explorer'>
+					{progress ? <ExplorerProgress /> : null}
+				</div>
+			);
 		case 'none':
 			return (
 				<div className={styles['root']} data-slot='file-explorer'>
@@ -76,8 +81,9 @@ export function FileExplorer({
 						onCollapse={commands.collapseFolders}
 						onRefresh={commands.refresh}
 					/>
-					{state.kind === 'tree' ? (
-						<div className={styles['tree']}>
+					<div className={styles['content']}>
+						{progress ? <ExplorerProgress /> : null}
+						{state.kind === 'tree' ? (
 							<VirtualTree
 								label={intl.formatMessage(fileExplorerMessages.tree)}
 								model={state.model}
@@ -85,10 +91,10 @@ export function FileExplorer({
 								renderRow={renderRow}
 								rowHeight={EXPLORER_ROW_HEIGHT}
 							/>
-						</div>
-					) : (
-						<ExplorerUnresolvedRow error={state.error} name={state.name} />
-					)}
+						) : (
+							<ExplorerUnresolvedRow error={state.error} name={state.name} />
+						)}
+					</div>
 				</div>
 			);
 	}

@@ -34,6 +34,8 @@ interface KeptListing extends ExplorerListing {
 
 interface ExplorerListingsOptions {
 	readonly locale: OrchbeeLocale;
+	/** Hears when the first listing starts and when the last one running ends. */
+	readonly onBusy: (busy: boolean) => void;
 	readonly rules: FilePathRules;
 	readonly tree: FileTreePort;
 }
@@ -68,13 +70,17 @@ export class ExplorerListings {
 	/** Least recently used first. */
 	readonly #kept = new Map<string, KeptListing>();
 	readonly #compare: (one: ExplorerItem, other: ExplorerItem) => number;
+	/** Listings running now. */
+	#running = 0;
 	/** How often each folder was made out of date, so a listing that overlapped a change stays so. */
 	readonly #invalidations = new Map<string, number>();
+	readonly #onBusy: (busy: boolean) => void;
 	readonly #rules: FilePathRules;
 	readonly #tree: FileTreePort;
 
 	constructor(options: ExplorerListingsOptions) {
 		this.#compare = explorerItemComparer(options.locale);
+		this.#onBusy = options.onBusy;
 		this.#rules = options.rules;
 		this.#tree = options.tree;
 	}
@@ -97,6 +103,17 @@ export class ExplorerListings {
 
 	/** Lists a folder; the Server then keeps it loaded and reports its changes until it is released. */
 	async list(folder: string, signal: AbortSignal): Promise<ExplorerListing> {
+		this.#running += 1;
+		if (this.#running === 1) this.#onBusy(true);
+		try {
+			return await this.#list(folder, signal);
+		} finally {
+			this.#running -= 1;
+			if (this.#running === 0) this.#onBusy(false);
+		}
+	}
+
+	async #list(folder: string, signal: AbortSignal): Promise<ExplorerListing> {
 		const key = filePathKey(folder, this.#rules);
 		const invalidations = this.#invalidations.get(key) ?? 0;
 		const entries = new Map<string, FileEntry>();

@@ -71,6 +71,12 @@ interface RootTree {
 
 /** How long changes gather before the folders they touch are listed again, as in VS Code. */
 const CHANGE_DELAY_MILLISECONDS = 500;
+/**
+ * How long a listing runs before VS Code's progress bar shows; it waits longer while the window
+ * restores, which the Explorer's first root stands for here.
+ */
+const PROGRESS_DELAY_MILLISECONDS = 800;
+const RESTORE_PROGRESS_DELAY_MILLISECONDS = 1500;
 const LOADING: ExplorerTreeState = { kind: 'loading' };
 const NONE: ExplorerTreeState = { kind: 'none' };
 
@@ -127,6 +133,8 @@ export class ExplorerTree {
 	readonly #memory: ExplorerViewMemory;
 	/** A new root's tree while it loads. */
 	#pending: RootTree | null = null;
+	#progress = false;
+	#progressTimer: ReturnType<typeof setTimeout> | null = null;
 	readonly #reportUnreadable: (name: string, error: FileError) => void;
 	/** The first snapshot's: a session stays on one machine, so they hold for its listings. */
 	#rules: FilePathRules | null = null;
@@ -149,7 +157,12 @@ export class ExplorerTree {
 		return this.#state;
 	}
 
-	/** Hears every change of `state`; bound, so a view can hand it to `useSyncExternalStore`. */
+	/** Whether a listing has run long enough for the progress bar to show. */
+	get progress(): boolean {
+		return this.#progress;
+	}
+
+	/** Hears every change of `state` and `progress`; bound, for `useSyncExternalStore`. */
 	readonly subscribe = (listener: () => void): (() => void) => {
 		this.#listeners.add(listener);
 		return () => {
@@ -170,6 +183,8 @@ export class ExplorerTree {
 		this.#unsubscribe();
 		if (this.#timer !== null) clearTimeout(this.#timer);
 		this.#timer = null;
+		if (this.#progressTimer !== null) clearTimeout(this.#progressTimer);
+		this.#progressTimer = null;
 		this.#due.clear();
 		this.#listeners.clear();
 		const current = this.#current;
@@ -194,6 +209,7 @@ export class ExplorerTree {
 				const rules = (this.#rules ??= event.rules);
 				const listings = (this.#listings ??= new ExplorerListings({
 					locale: this.#locale,
+					onBusy: (busy) => this.#noteBusy(busy),
 					rules,
 					tree: this.#session.tree,
 				}));
@@ -429,6 +445,31 @@ export class ExplorerTree {
 		if (current === null || this.#state.kind !== 'tree') return;
 		// A folder deleted meanwhile shows empty until its parent lists again and drops it.
 		this.#refreshOutdated(current, due);
+	}
+
+	#noteBusy(busy: boolean): void {
+		if (this.#disposed) return;
+		if (busy) {
+			this.#progressTimer ??= setTimeout(
+				() => {
+					this.#progressTimer = null;
+					this.#setProgress(true);
+				},
+				this.#state.kind === 'loading'
+					? RESTORE_PROGRESS_DELAY_MILLISECONDS
+					: PROGRESS_DELAY_MILLISECONDS,
+			);
+			return;
+		}
+		if (this.#progressTimer !== null) clearTimeout(this.#progressTimer);
+		this.#progressTimer = null;
+		this.#setProgress(false);
+	}
+
+	#setProgress(progress: boolean): void {
+		if (this.#progress === progress) return;
+		this.#progress = progress;
+		for (const listener of this.#listeners) listener();
 	}
 
 	#setState(state: ExplorerTreeState): void {

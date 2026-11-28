@@ -7,6 +7,7 @@ export const zhCNFileExplorerMessages = {
 	'fileExplorer.decorations.unknownType': '未知文件类型',
 	'fileExplorer.empty.noDirectory': '尚未配置目录。',
 	'fileExplorer.folder.unreadable': '无法读取文件夹 {name}（{reason}）',
+	'fileExplorer.progress.label': '正在加载文件夹',
 	'fileExplorer.readFailure.disconnected': '与这台机器的连接已断开',
 	'fileExplorer.readFailure.failed': '出现意外错误',
 	'fileExplorer.readFailure.notDirectory': '它不是文件夹',

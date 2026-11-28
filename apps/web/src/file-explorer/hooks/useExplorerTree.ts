@@ -30,6 +30,8 @@ interface ExplorerTreeOptions {
 }
 
 interface ExplorerTreeView {
+	/** Whether a listing has run long enough for the progress bar to show. */
+	readonly progress: boolean;
 	readonly state: ExplorerTreeState;
 	/** The tree over the session; null without a session and before the first one is built. */
 	readonly tree: ExplorerTree | null;
@@ -88,5 +90,9 @@ export function useExplorerTree({
 		tree === null ? subscribeToNothing : tree.subscribe,
 		() => (tree === null ? LOADING : tree.state),
 	);
-	return { state, tree };
+	const progress = React.useSyncExternalStore(
+		tree === null ? subscribeToNothing : tree.subscribe,
+		() => tree?.progress === true,
+	);
+	return { progress, state, tree };
 }

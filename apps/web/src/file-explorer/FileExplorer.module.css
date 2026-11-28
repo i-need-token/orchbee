@@ -1,4 +1,6 @@
+/* Positioned for the progress bar, which sits at the top while no root shows yet. */
 .root {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	height: 100%;
@@ -6,7 +8,8 @@
 }
 
 /* The tree needs a definite size, which the rest of the column below the header gives it. */
-.tree {
+.content {
+	position: relative;
 	min-height: 0;
 	flex: 1;
 }

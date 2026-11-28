@@ -5,6 +5,7 @@ export const enUSFileExplorerMessages = {
 	'fileExplorer.decorations.unknownType': 'Unknown File Type',
 	'fileExplorer.empty.noDirectory': 'No directory configured.',
 	'fileExplorer.folder.unreadable': 'Unable to read the folder {name} ({reason})',
+	'fileExplorer.progress.label': 'Loading folders',
 	'fileExplorer.readFailure.disconnected': 'the machine is disconnected',
 	'fileExplorer.readFailure.failed': 'an unexpected error occurred',
 	'fileExplorer.readFailure.notDirectory': 'it is not a folder',

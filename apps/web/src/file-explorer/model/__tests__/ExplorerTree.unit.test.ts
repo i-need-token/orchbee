@@ -305,6 +305,34 @@ describe('ExplorerTree', () => {
 		tree.dispose();
 	});
 
+	it('shows progress only once a listing has run 1500 ms for the first root and 800 ms later', async () => {
+		vi.useFakeTimers();
+		const port = machine('manual');
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		await vi.advanceTimersByTimeAsync(1499);
+		expect(tree.progress).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(tree.progress).toBe(true);
+		port.flush();
+		await settle();
+		expect(tree.progress).toBe(false);
+
+		const expanding = modelOf(tree).expand('/w/src');
+		await vi.advanceTimersByTimeAsync(799);
+		expect(tree.progress).toBe(false);
+		await vi.advanceTimersByTimeAsync(1);
+		expect(tree.progress).toBe(true);
+		port.flush();
+		await expanding;
+		expect(tree.progress).toBe(false);
+		tree.dispose();
+	});
+
 	it('keeps the tree of a root that went missing and lists it again when it returns', async () => {
 		vi.useFakeTimers();
 		const port = machine();
