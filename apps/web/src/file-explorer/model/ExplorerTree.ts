@@ -122,8 +122,9 @@ function outermost(keys: readonly string[], rules: FilePathRules): readonly stri
  * Folder listings outlive roots, so a root moved up or down draws what was already listed at once
  * and lists again only what the Server stopped watching; the Workspace's memory carries expansion,
  * focus, selection and scroll across roots by path. Changes gather for 500 ms and then list again
- * only the loaded folders they affect, as VS Code's Explorer does, and after records were lost every
- * loaded folder lists again.
+ * only the loaded folders they affect, as VS Code's Explorer does; a rescan, which stands for the
+ * changes the backend dropped below its folders, lists again every loaded folder there; and after
+ * records were lost every loaded folder lists again.
  */
 export class ExplorerTree {
 	#current: RootTree | null = null;
@@ -234,7 +235,7 @@ export class ExplorerTree {
 				if (listings === null || rules === null) return;
 				if (event.root !== null) this.#bind(listings, rules, event.root, false);
 				for (const change of event.changes) this.#note(listings, rules, change);
-				for (const folder of event.rescan) this.#noteFolder(listings, filePathKey(folder, rules));
+				for (const folder of event.rescan) this.#rescan(listings, folder);
 			}
 		}
 	}
@@ -336,13 +337,13 @@ export class ExplorerTree {
 		tree.unsubscribe = tree.model.subscribe((event) => {
 			if (this.#current !== tree) return;
 			if (event.kind === 'collapse') this.#noteExpansionChange(tree);
-			this.#relistUnheld(tree);
+			this.#relistOutdated(tree);
 		});
 		this.#setState(error === null ? shownTree(tree) : unresolvedTree(tree, error));
 		// Folders a change reached while the tree loaded list again, with those drawn unwatched.
 		const listings = this.#listings;
 		if (listings === null) return;
-		for (const key of tree.source.takeUnheld()) listings.invalidate(key);
+		for (const key of tree.source.takeOutdated()) listings.invalidate(key);
 		this.#refreshOutdated(
 			tree,
 			tree.source.readFolders().filter((key) => listings.peek(key) === null),
@@ -363,13 +364,13 @@ export class ExplorerTree {
 		this.#memory.noteExpansion(tree.key, tree.model.viewState().expanded, tree.rules);
 	}
 
-	/** Lists again the folders a tree drew from listings the Server had stopped watching. */
-	#relistUnheld(tree: RootTree): void {
+	/** Lists again the folders a tree drew from listings that may lack changes. */
+	#relistOutdated(tree: RootTree): void {
 		const listings = this.#listings;
-		const unheld = tree.source.takeUnheld();
-		if (listings === null || unheld.length === 0) return;
-		for (const key of unheld) listings.invalidate(key);
-		this.#refreshOutdated(tree, unheld);
+		const outdated = tree.source.takeOutdated();
+		if (listings === null || outdated.length === 0) return;
+		for (const key of outdated) listings.invalidate(key);
+		this.#refreshOutdated(tree, outdated);
 	}
 
 	#refreshOutdated(tree: RootTree, keys: readonly string[]): void {
@@ -378,7 +379,7 @@ export class ExplorerTree {
 				.refresh(key === tree.key ? null : key)
 				.catch(() => undefined)
 				.then(() => {
-					if (this.#current === tree) this.#relistUnheld(tree);
+					if (this.#current === tree) this.#relistOutdated(tree);
 				});
 		}
 	}
@@ -444,6 +445,21 @@ export class ExplorerTree {
 	#noteFolder(listings: ExplorerListings, key: string): void {
 		if (!listings.shows(key)) return;
 		listings.invalidate(key);
+		this.#schedule(key);
+	}
+
+	/**
+	 * The root stream dropped changes at or below `folder`, so every folder loaded there lists again,
+	 * as the backend expects of a rescan, and so does each folder listing when it came: the backend
+	 * sends the rescan where the first dropped change would have gone, ahead of later replies, so such
+	 * a listing may predate the changes.
+	 */
+	#rescan(listings: ExplorerListings, folder: string): void {
+		for (const key of listings.invalidateWithin(folder)) this.#schedule(key);
+	}
+
+	/** Lists a folder the shown tree read again, once changes have gathered. */
+	#schedule(key: string): void {
 		if (this.#current?.source.reads(key) !== true) return;
 		this.#due.add(key);
 		this.#timer ??= setTimeout(() => this.#flush(), CHANGE_DELAY_MILLISECONDS);

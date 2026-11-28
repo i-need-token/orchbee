@@ -6,6 +6,7 @@ import {
 	type FileTreePort,
 	filePathChild,
 	filePathKey,
+	isFilePathWithin,
 } from '../../file-session';
 import { ExplorerListError } from './ExplorerListError';
 import type { ExplorerItem } from './explorer-item';
@@ -72,6 +73,8 @@ export class ExplorerListings {
 	readonly #compare: (one: ExplorerItem, other: ExplorerItem) => number;
 	/** Listings running now. */
 	#running = 0;
+	/** The folders listing now, by key, with how many of their listings run. */
+	readonly #listing = new Map<string, number>();
 	/** How often each folder was made out of date, so a listing that overlapped a change stays so. */
 	readonly #invalidations = new Map<string, number>();
 	readonly #onBusy: (busy: boolean) => void;
@@ -103,18 +106,22 @@ export class ExplorerListings {
 
 	/** Lists a folder; the Server then keeps it loaded and reports its changes until it is released. */
 	async list(folder: string, signal: AbortSignal): Promise<ExplorerListing> {
+		const key = filePathKey(folder, this.#rules);
 		this.#running += 1;
+		this.#listing.set(key, (this.#listing.get(key) ?? 0) + 1);
 		if (this.#running === 1) this.#onBusy(true);
 		try {
-			return await this.#list(folder, signal);
+			return await this.#list(folder, key, signal);
 		} finally {
 			this.#running -= 1;
+			const running = (this.#listing.get(key) ?? 1) - 1;
+			if (running === 0) this.#listing.delete(key);
+			else this.#listing.set(key, running);
 			if (this.#running === 0) this.#onBusy(false);
 		}
 	}
 
-	async #list(folder: string, signal: AbortSignal): Promise<ExplorerListing> {
-		const key = filePathKey(folder, this.#rules);
+	async #list(folder: string, key: string, signal: AbortSignal): Promise<ExplorerListing> {
 		const invalidations = this.#invalidations.get(key) ?? 0;
 		const entries = new Map<string, FileEntry>();
 		let cursor: string | undefined;
@@ -164,6 +171,23 @@ export class ExplorerListings {
 		this.#invalidations.set(key, (this.#invalidations.get(key) ?? 0) + 1);
 		const listing = this.#kept.get(key);
 		if (listing !== undefined) listing.dirty = true;
+	}
+
+	/**
+	 * Marks out of date every listing at or below `folder` that the Server keeps or is listing, as
+	 * after the root stream dropped changes there, and returns their keys. A listing it no longer keeps
+	 * lists again before it counts anyway.
+	 */
+	invalidateWithin(folder: string): readonly string[] {
+		const keys = new Set<string>();
+		for (const [key, listing] of this.#kept) {
+			if (listing.held && isFilePathWithin(key, folder, this.#rules)) keys.add(key);
+		}
+		for (const key of this.#listing.keys()) {
+			if (isFilePathWithin(key, folder, this.#rules)) keys.add(key);
+		}
+		for (const key of keys) this.invalidate(key);
+		return [...keys];
 	}
 
 	/** Notes that the Server dropped every loaded folder, as it does when records were lost. */

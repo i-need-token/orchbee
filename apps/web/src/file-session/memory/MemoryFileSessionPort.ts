@@ -35,6 +35,13 @@ interface MemoryFileSessionOptions {
 	readonly rules?: FilePathRules | undefined;
 }
 
+/** What an overflowing session's root streams lost: the folders a rescan names and the watch state. */
+interface MemoryLostUpdates {
+	/** By comparison key. */
+	readonly folders: Map<string, string>;
+	watch: FileWatchState | null;
+}
+
 /** A grant the machine admitted, in the order it admitted them. */
 interface MemoryGrant {
 	readonly path: string;
@@ -49,6 +56,8 @@ interface MemoryListCursor {
 }
 
 const LINUX_RULES: FilePathRules = { caseSensitive: true, os: 'linux', separator: '/' };
+/** The folders one rescan names, as the backend bounds them. */
+const MAXIMUM_RESCAN_FOLDERS = 500;
 const PAGE_SIZE = 2000;
 const PATHS_PER_REQUEST = 256;
 const SINGLE_CHILD_DEPTH = 64;
@@ -66,12 +75,45 @@ function sameRoot(left: FileRoot, right: FileRoot): boolean {
 	return left.state === right.state && left.path === right.path;
 }
 
+/** How many folders hold a path, up to its filesystem root. */
+function pathDepth(path: string, rules: FilePathRules): number {
+	let depth = 0;
+	for (
+		let parent = filePathParent(path, rules);
+		parent !== null;
+		parent = filePathParent(parent, rules)
+	) {
+		depth += 1;
+	}
+	return depth;
+}
+
+/** The folders of one rescan: past `maximum`, the deepest give way to the folders that hold them. */
+function boundRescan(
+	folders: Map<string, string>,
+	maximum: number,
+	rules: FilePathRules,
+): readonly string[] {
+	while (folders.size > maximum) {
+		const deepest = Math.max(...[...folders.values()].map((folder) => pathDepth(folder, rules)));
+		if (deepest === 0) break;
+		const lifted = [...folders].filter(([, folder]) => pathDepth(folder, rules) === deepest);
+		for (const [key, folder] of lifted) {
+			folders.delete(key);
+			const parent = filePathParent(folder, rules);
+			if (parent !== null) folders.set(filePathKey(parent, rules), parent);
+		}
+	}
+	return [...folders.values()];
+}
+
 /**
  * A deterministic File Bar backend for tests: one machine's files and Git, served to any number
  * of Workspace sessions under the backend's rules. Requests answer in order, or wait for `flush`;
  * listing loads a folder, and only loaded folders and opened files reach the root stream; a path
- * outside the root, the consented repositories and the opened files is `outside-scope`; and a
- * dropped link releases what the connection held.
+ * outside the root, the consented repositories and the opened files is `outside-scope`; a
+ * dropped link releases what the connection held; and an overflow loses a Workspace's root updates
+ * until a drain sends one rescan for them, as the backend's outbound queue does.
  *
  * @internal Tests drive it; production sessions come from the wire adapters.
  */
@@ -86,6 +128,8 @@ export class MemoryFileSessionPort implements FileSessionPort {
 	private readonly listCursors = new Map<string, MemoryListCursor>();
 	private readonly machine: string;
 	private nextCursor = 1;
+	/** The sessions whose root streams overflow, with what they lost. */
+	private readonly overflows = new Map<MemorySessionState, MemoryLostUpdates>();
 	private readonly pageSize: number;
 	private readonly roots = new Map<string, string>();
 	private readonly sessions: MemorySessionState[] = [];
@@ -134,20 +178,72 @@ export class MemoryFileSessionPort implements FileSessionPort {
 	/** Reports how fully a Workspace's root is watched. */
 	public setWatch(workspaceId: string, watch: FileWatchState): void {
 		this.watches.set(workspaceId, watch);
-		for (const stream of this.readyStreams(workspaceId)) {
-			this.sendUpdate(stream, { changes: [], rescan: [], root: null, watch });
+		for (const session of this.openSessions(workspaceId)) {
+			const lost = this.overflows.get(session);
+			if (lost !== undefined) {
+				lost.watch = watch;
+				continue;
+			}
+			for (const stream of session.rootStreams) {
+				if (stream.ready) this.sendUpdate(stream, { changes: [], rescan: [], root: null, watch });
+			}
 		}
 	}
 
 	/** Reports that a Workspace dropped changes in these folders, as a watcher overflow does. */
 	public rescan(workspaceId: string, folders: readonly string[]): void {
+		const rules = this.files.rules;
 		for (const session of this.openSessions(workspaceId)) {
-			const rescan = folders.filter((folder) =>
-				session.loaded.has(filePathKey(folder, this.files.rules)),
-			);
+			const rescan = folders.filter((folder) => session.loaded.has(filePathKey(folder, rules)));
 			if (rescan.length === 0) continue;
+			const lost = this.overflows.get(session);
+			if (lost !== undefined) {
+				for (const folder of rescan) lost.folders.set(filePathKey(folder, rules), folder);
+				continue;
+			}
 			for (const stream of session.rootStreams) {
 				if (stream.ready) this.sendUpdate(stream, { changes: [], rescan, root: null, watch: null });
+			}
+		}
+	}
+
+	/**
+	 * Overflows a Workspace's root streams, as the backend's outbound queue overflows for a Server
+	 * that reads late: until `drain`, every update that would reach them is lost, and the folders of
+	 * the lost changes and rescans gather for one rescan.
+	 */
+	public overflow(workspaceId: string): void {
+		for (const session of this.openSessions(workspaceId)) {
+			if (!this.overflows.has(session)) {
+				this.overflows.set(session, { folders: new Map(), watch: null });
+			}
+		}
+	}
+
+	/**
+	 * Ends a Workspace's overflow, as the backend's writer reaching its collapsed place does: each
+	 * root stream gets its latest root and watch state, then one rescan. Past `maximumFolders`, the
+	 * deepest folders give way to the folders that hold them.
+	 */
+	public drain(workspaceId: string, maximumFolders = MAXIMUM_RESCAN_FOLDERS): void {
+		for (const session of this.openSessions(workspaceId)) {
+			const lost = this.overflows.get(session);
+			if (lost === undefined) continue;
+			this.overflows.delete(session);
+			const root = this.rootOf(workspaceId);
+			const rescan = boundRescan(lost.folders, maximumFolders, this.files.rules);
+			for (const stream of session.rootStreams) {
+				if (!stream.ready) continue;
+				if (!sameRoot(root, stream.root)) {
+					stream.root = root;
+					this.sendUpdate(stream, { changes: [], rescan: [], root, watch: null });
+				}
+				if (lost.watch !== null) {
+					this.sendUpdate(stream, { changes: [], rescan: [], root: null, watch: lost.watch });
+				}
+				if (rescan.length > 0) {
+					this.sendUpdate(stream, { changes: [], rescan, root: null, watch: null });
+				}
 			}
 		}
 	}
@@ -172,6 +268,8 @@ export class MemoryFileSessionPort implements FileSessionPort {
 	public disconnect(options: { readonly delivered?: boolean | undefined } = {}): void {
 		this.answering.disconnect(options.delivered === true);
 		this.listCursors.clear();
+		// The gap stands for everything an overflow lost.
+		this.overflows.clear();
 		for (const session of this.sessions) {
 			session.loaded.clear();
 			session.granted.clear();
@@ -270,6 +368,7 @@ export class MemoryFileSessionPort implements FileSessionPort {
 		session.closed = true;
 		this.answering.cancel(session);
 		this.sessions.splice(this.sessions.indexOf(session), 1);
+		this.overflows.delete(session);
 		for (const [cursor, position] of this.listCursors) {
 			if (position.session === session) this.listCursors.delete(cursor);
 		}
@@ -433,6 +532,15 @@ export class MemoryFileSessionPort implements FileSessionPort {
 						(folder) => folder !== change && isFilePathWithin(change.path, folder.path, rules),
 					),
 			);
+			const lost = this.overflows.get(session);
+			if (lost !== undefined) {
+				// A root move waits for the drain, which compares each stream's root.
+				for (const change of coalesced) {
+					const folder = filePathParent(change.path, rules) ?? change.path;
+					lost.folders.set(filePathKey(folder, rules), folder);
+				}
+				continue;
+			}
 			const root = this.rootOf(session.workspaceId);
 			for (const stream of session.rootStreams) {
 				if (!stream.ready) continue;
@@ -459,11 +567,5 @@ export class MemoryFileSessionPort implements FileSessionPort {
 
 	private openSessions(workspaceId: string): readonly MemorySessionState[] {
 		return this.sessions.filter((session) => session.workspaceId === workspaceId);
-	}
-
-	private readyStreams(workspaceId: string): readonly MemoryRootStream[] {
-		return this.openSessions(workspaceId).flatMap((session) =>
-			[...session.rootStreams].filter((stream) => stream.ready),
-		);
 	}
 }

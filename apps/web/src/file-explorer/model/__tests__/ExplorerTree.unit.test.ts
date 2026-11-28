@@ -145,6 +145,85 @@ describe('ExplorerTree', () => {
 		tree.dispose();
 	});
 
+	it('matches the folders again after a rescan amid changes names only a folder above them', async () => {
+		vi.useFakeTimers();
+		const port = machine();
+		const { listed, session } = observe(port.open(WORKSPACE));
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session,
+		});
+		await settle();
+		const model = modelOf(tree);
+		await model.expand('/w/src');
+		await model.expand('/w/src/lib');
+		listed.length = 0;
+
+		port.writeFile('/w/first.txt', 'f');
+		// The Server reads late, so these changes fold into one rescan, which names `/w` alone once
+		// its folders are past the bound.
+		port.overflow(WORKSPACE);
+		port.writeFile('/w/src/lib/deep.ts', 'd');
+		port.remove('/w/src/b.ts');
+		port.writeFile('/w/top.txt', 't');
+		port.drain(WORKSPACE, 1);
+		port.writeFile('/w/later.txt', 'l');
+		await vi.advanceTimersByTimeAsync(500);
+		await settle();
+
+		expect([...listed].sort()).toEqual(['/w', '/w/src', '/w/src/lib']);
+		expect(rows(tree.state)).toEqual([
+			'/w/docs',
+			'/w/src',
+			'/w/src/lib',
+			'/w/src/lib/c.ts',
+			'/w/src/lib/deep.ts',
+			'/w/a.txt',
+			'/w/first.txt',
+			'/w/later.txt',
+			'/w/top.txt',
+		]);
+		tree.dispose();
+	});
+
+	it('lists a folder again when a rescan of it overtook its first listing', async () => {
+		const port = machine('manual');
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		await settle();
+		port.flush();
+		await settle();
+		const expanding = modelOf(tree).expand('/w/src');
+		await settle();
+
+		// The Server lists the folder and then drops a change in it; the rescan for that change
+		// arrives before the listing does.
+		port.flush();
+		port.overflow(WORKSPACE);
+		port.writeFile('/w/src/e.ts', 'e');
+		port.drain(WORKSPACE);
+		await expanding;
+		await settle();
+		port.flush();
+		await settle();
+
+		expect(rows(tree.state)).toEqual([
+			'/w/docs',
+			'/w/src',
+			'/w/src/lib',
+			'/w/src/b.ts',
+			'/w/src/e.ts',
+			'/w/a.txt',
+		]);
+		tree.dispose();
+	});
+
 	it('shows a new root once it has loaded, and only the latest one', async () => {
 		const port = machine('manual');
 		const { released, session } = observe(port.open(WORKSPACE));
