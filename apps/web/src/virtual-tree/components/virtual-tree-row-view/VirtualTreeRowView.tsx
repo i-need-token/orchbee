@@ -38,6 +38,8 @@ interface VirtualTreeRowViewProps {
 	readonly collapsible: boolean;
 	/** Whether the row holds its own controls, which draws no twistie and no hover or selection. */
 	readonly control?: boolean | undefined;
+	/** Whether the icon the content starts with takes the twistie's place, which draws no twistie. */
+	readonly alignIcon?: boolean | undefined;
 	/** Whether the row is expanded; false for a row that cannot be. */
 	readonly expanded: boolean;
 	/** Whether the row shows that its children are loading. */
@@ -59,6 +61,7 @@ interface VirtualTreeRowViewProps {
  * item's semantics; a sticky row repeats a row the tree already names, so it carries none.
  */
 export function VirtualTreeRowView({
+	alignIcon = false,
 	children,
 	collapsible,
 	control = false,
@@ -95,7 +98,7 @@ export function VirtualTreeRowView({
 				'--ob-comp-virtual-tree-row-start': `${top}px`,
 			}}
 		>
-			{control ? null : (
+			{control || alignIcon ? null : (
 				<span
 					className={styles['twistie']}
 					data-loading={loading ? '' : undefined}

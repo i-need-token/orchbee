@@ -52,6 +52,14 @@ function navigationLabel(row: VirtualTreeRow<string, ExplorerItem>): string {
 	return row.segments.map((segment) => segment.element.name).join('/');
 }
 
+// Seti draws icons for files and none for folders, so a file's icon takes the place of its twistie
+// and lines up with the folders' twisties, as VS Code's `align-icons-and-twisties` sets for such a
+// theme. A folder that cannot open has no icon to put there, so it keeps the room and its name stays
+// in line with the other folders' names.
+function hasFileIcon(row: VirtualTreeRow<string, ExplorerItem>): boolean {
+	return !row.element.directory;
+}
+
 /**
  * The File Bar's Explorer: VS Code's Folders view over the active Workspace's current directory,
  * with its title Actions, and the one sentence VS Code's welcome view becomes when there is no
@@ -108,6 +116,7 @@ export function FileExplorer({
 						{progress ? <ExplorerProgress /> : null}
 						{state.kind === 'tree' ? (
 							<VirtualTree
+								alignIconWithTwistie={hasFileIcon}
 								dragAndDrop={dragAndDrop}
 								keyboardNavigationLabel={navigationLabel}
 								keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}

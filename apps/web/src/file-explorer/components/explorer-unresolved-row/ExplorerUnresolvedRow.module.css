@@ -1,11 +1,14 @@
-/* A top-level tree row's place: 22px high, 8px of indentation and the 16px twistie column before the
-   name. VS Code draws an unresolved root in list.invalidItemForeground, a warning color. */
+/* A top-level folder row's place: 22px high, 8px of indentation and the twistie column, 16px and
+   6px after it, before the name. VS Code draws an unresolved root in list.invalidItemForeground, a
+   warning color. */
 .root {
 	display: flex;
 	box-sizing: border-box;
 	min-height: calc(var(--ob-ref-size-control-2xs) + 2 * var(--ob-ref-space-0-5));
 	align-items: center;
-	padding-inline-start: calc(var(--ob-ref-space-2) + var(--ob-ref-space-4));
+	padding-inline-start: calc(
+		var(--ob-ref-space-2) + var(--ob-ref-space-4) + var(--ob-ref-space-1-5)
+	);
 	color: var(--ob-sys-color-status-warning-text);
 	font: var(--ob-sys-typography-body-sm);
 	white-space: nowrap;

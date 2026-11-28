@@ -13,6 +13,8 @@ interface VirtualTreeSlotProps<K, T> {
 	readonly treeId: string;
 	readonly renderRow: VirtualTreeRowRenderer<K, T>;
 	readonly isControlRow: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
+	/** Whether a row that cannot expand gives its twistie's room to its content's leading icon. */
+	readonly alignIconWithTwistie: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
 }
 
 /**
@@ -20,6 +22,7 @@ interface VirtualTreeSlotProps<K, T> {
  * changed.
  */
 export function VirtualTreeSlot<K, T>({
+	alignIconWithTwistie,
 	isControlRow,
 	renderRow,
 	slot,
@@ -48,6 +51,7 @@ export function VirtualTreeSlot<K, T>({
 			: null;
 	return (
 		<VirtualTreeRowView
+			alignIcon={!row.collapsible && (alignIconWithTwistie?.(row) ?? false)}
 			collapsible={row.collapsible}
 			control={isControlRow?.(row) ?? false}
 			depth={shown.depth}

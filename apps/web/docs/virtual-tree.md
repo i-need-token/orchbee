@@ -47,11 +47,16 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   it its size, so it reads no layout while it renders or scrolls, and the rows for a new size paint
   in the frame that resized it.
 - `renderRow` draws a row's content; the tree draws the row around it, with VS Code's 8 px a level
-  of indentation and the twistie. It runs only when a slot shows another row or the row's revision,
-  position, focus or selection changes, which includes the characters the find highlights in it, so
-  content that depends on other data subscribes to that data itself. A row that `isControlRow`
-  names, such as Source Control's commit input, draws no twistie and paints no hover or selection,
-  as VS Code's `force-no-twistie` and `force-no-hover`.
+  of indentation and its twistie column, 16 px and 6 px after it. It runs only when a slot shows
+  another row or the row's revision, position, focus or selection changes, which includes the
+  characters the find highlights in it, so content that depends on other data subscribes to that
+  data itself. A row that `isControlRow` names, such as Source Control's commit input, draws no
+  twistie and paints no hover or selection, as VS Code's `force-no-twistie` and `force-no-hover`.
+- A row that cannot expand and that `alignIconWithTwistie` names draws no twistie either, so the
+  icon its content starts with takes the twistie's place and lines up with the twisties of the
+  rows beside it, as VS Code's trees align file icons when the file icon theme has none for
+  folders; the Explorer names its files, since Seti has no folder icons. Name only rows that start
+  with an icon: any other row keeps the room, so its label stays in line with the others.
 - Rows are VS Code's 22 px unless `rowHeight` says otherwise. A function reads each row's height
   into a Fenwick index, which answers position and row lookups in O(log n); it is read for every
   row whenever its identity changes or rows change in place, and for inserted rows otherwise, so

@@ -58,6 +58,13 @@ export interface VirtualTreeProps<K, T> {
 	 * draws no twistie and paints no hover or selection.
 	 */
 	readonly isControlRow?: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
+	/**
+	 * Whether a row that cannot expand gives its twistie's room to the icon its content starts with,
+	 * which then lines up with the twisties of the rows beside it, as VS Code's trees align file icons
+	 * with folder twisties when the file icon theme draws no folder icons. A row it answers false for,
+	 * and every row without it, keeps the room.
+	 */
+	readonly alignIconWithTwistie?: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
 	/** Which platform's keys the tree answers to, as VS Code's lists do on it. */
 	readonly platform: KeyboardShortcutPlatform;
 	/**
@@ -107,6 +114,7 @@ export interface VirtualTreeProps<K, T> {
  * VS Code's compact folders, whose names `renderRow` draws with `VirtualTreeSegments`.
  */
 export function VirtualTree<K, T>({
+	alignIconWithTwistie,
 	dragAndDrop,
 	find: findOptions,
 	isControlRow,
@@ -186,6 +194,7 @@ export function VirtualTree<K, T>({
 	for (let slot = 0; slot < slotCount; slot += 1) {
 		slots.push(
 			<VirtualTreeSlot
+				alignIconWithTwistie={alignIconWithTwistie}
 				isControlRow={isControlRow}
 				key={slot}
 				renderRow={renderRow}
@@ -208,6 +217,7 @@ export function VirtualTree<K, T>({
 				<VirtualTreeContent viewport={viewport}>
 					{slots}
 					<VirtualTreeSlot
+						alignIconWithTwistie={alignIconWithTwistie}
 						isControlRow={isControlRow}
 						key='focused'
 						renderRow={renderRow}

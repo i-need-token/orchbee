@@ -28,7 +28,9 @@ const NO_ITEMS: readonly ExplorerItem[] = Object.freeze([]);
  */
 export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerItem> {
 	readonly key = (item: ExplorerItem): string => filePathKey(item.path, this.#rules);
-	// A name that is not valid UTF-8 cannot be named in a listing, so its folder never opens.
+	// A folder keeps its twistie even when the excludes hide every child, as in VS Code, whose Explorer
+	// drops the twistie only of a nesting parent whose nested files are all hidden. A name that is not
+	// valid UTF-8 cannot be named in a listing, so its folder never opens.
 	readonly hasChildren = (item: ExplorerItem): boolean =>
 		item.directory && item.entry?.unrepresentable !== true;
 	/**
