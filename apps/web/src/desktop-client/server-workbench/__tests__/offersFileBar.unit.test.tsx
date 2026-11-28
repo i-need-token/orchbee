@@ -29,6 +29,13 @@ type Distribution = DesktopServerConnectionBootstrap['distribution'];
 const FILE_BAR_ACTION_PREFIX = 'workbench.file-bar.';
 
 /**
+ * How long the File Bar's views may take to show once it is first shown. The first test to show it
+ * imports the views' chunk, whose modules the runner transforms on that first import: over four
+ * seconds on an idle machine, and longer while a full gate loads it.
+ */
+const FILE_BAR_LOAD_TIMEOUT = 20_000;
+
+/**
  * The window the Desktop composition root builds for a distribution, down to the Workbench, with
  * the storage reads, Actions and file sessions it makes observable. Workspace 1 of two is active.
  */
@@ -143,7 +150,8 @@ async function composeWindow(distribution: Distribution) {
 	};
 }
 
-describe('the Desktop window composition', () => {
+// Each test renders the whole window, and one of them waits for the File Bar's chunk as well.
+describe('the Desktop window composition', { timeout: FILE_BAR_LOAD_TIMEOUT + 10_000 }, () => {
 	it('offers no File Bar in a release', async () => {
 		const composed = await composeWindow('release');
 
@@ -175,7 +183,7 @@ describe('the Desktop window composition', () => {
 			expect(fileBar?.getAttribute('aria-label')).toBe('File Bar');
 			await vi.waitFor(
 				() => expect(fileBar?.querySelector('[data-slot="file-bar-toggles-row"]')).not.toBeNull(),
-				{ timeout: 4_000 },
+				{ timeout: FILE_BAR_LOAD_TIMEOUT },
 			);
 		},
 	);
