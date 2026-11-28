@@ -7,15 +7,15 @@ import {
 import type { ReactNode } from 'react';
 
 import type {
-	FileTabMenuCommand,
-	FileTabMenuEntry,
+	FileOverlayMenuCommand,
+	FileOverlayMenuEntry,
 } from '../../../../../../../../file-overlay-contract';
 import styles from './FileTabMenu.module.css';
 
 interface FileTabMenuProps {
-	readonly entries: readonly FileTabMenuEntry[];
+	readonly entries: readonly FileOverlayMenuEntry[];
 	readonly finalFocus: () => HTMLElement | false;
-	readonly onChoose: (entry: FileTabMenuCommand) => void;
+	readonly onChoose: (entry: FileOverlayMenuCommand) => void;
 }
 
 /**

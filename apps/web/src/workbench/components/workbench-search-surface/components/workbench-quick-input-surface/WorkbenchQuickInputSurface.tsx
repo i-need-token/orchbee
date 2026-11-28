@@ -1,6 +1,6 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useOrchbeeIntl, workbenchMessages } from '@orchbee/i18n';
-import { Dialog, DialogContent, ProductIcon } from '@orchbee/ui/components';
+import { Dialog, DialogContent, FileIcon, ProductIcon } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import {
@@ -12,6 +12,7 @@ import type {
 	WorkbenchQuickInputSessions,
 	WorkbenchQuickPickRow,
 } from '../../model/WorkbenchQuickInputSessions';
+import { useWorkbenchQuickInputFocusReturn } from './hooks/useWorkbenchQuickInputFocusReturn';
 import styles from './WorkbenchQuickInputSurface.module.css';
 
 /** An open picker is the narrowest keyboard scope, so its own bindings win while it has focus. */
@@ -26,17 +27,27 @@ export function WorkbenchQuickInputSurface({
 	sessions,
 }: WorkbenchQuickInputSurfaceProps): React.ReactNode {
 	const session = React.useSyncExternalStore(sessions.subscribe, sessions.getSnapshot);
+	// Each session's dialog in turn, which the keys leave once its session ends.
+	const surfaceReference = React.useRef<HTMLDivElement>(null);
+	useWorkbenchQuickInputFocusReturn(sessions, surfaceReference);
 	return session === null ? null : (
-		<QuickInputSession key={session.id} session={session} sessions={sessions} />
+		<QuickInputSession
+			key={session.id}
+			session={session}
+			sessions={sessions}
+			surfaceReference={surfaceReference}
+		/>
 	);
 }
 
 function QuickInputSession({
 	session,
 	sessions,
+	surfaceReference,
 }: {
 	readonly session: WorkbenchQuickInputSession;
 	readonly sessions: WorkbenchQuickInputSessions;
+	readonly surfaceReference: React.RefObject<HTMLDivElement | null>;
 }): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const scopeReference = React.useRef<HTMLDivElement>(null);
@@ -44,7 +55,8 @@ function QuickInputSession({
 	const listId = React.useId();
 	const [filter, setFilter] = React.useState('');
 	const [activeIndex, setActiveIndex] = React.useState(0);
-	const shown = session.kind === 'pick' ? shownRows(session.rows, filter) : [];
+	const shown =
+		session.kind === 'pick' ? shownRows(session.rows, filter, session.matchOnDescription) : [];
 	const choices = shown.flatMap((row) => (row.kind === 'item' ? [row] : []));
 	const active = choices[Math.min(activeIndex, choices.length - 1)];
 	const label = session.frame.title ?? intl.formatMessage(workbenchMessages.quickInputLabel);
@@ -93,6 +105,7 @@ function QuickInputSession({
 				className={styles['surface']}
 				data-slot='workbench-quick-input'
 				finalFocus={false}
+				ref={surfaceReference}
 				showCloseButton={false}
 			>
 				<div className={styles['scope']} ref={scopeReference}>
@@ -161,8 +174,15 @@ function QuickInputSession({
 											onClick={() => sessions.accept(session.id, row.id)}
 											onPointerDown={(event) => event.preventDefault()}
 										>
-											<span className={styles['rowIcon']} />
-											<span className={styles['rowContent']}>
+											<span className={styles['rowIcon']}>
+												{row.icon === undefined ? null : (
+													<FileIcon name={row.icon.name} path={row.icon.path} />
+												)}
+											</span>
+											<span
+												className={styles['rowContent']}
+												data-italic={row.italic ? '' : undefined}
+											>
 												<span className={styles['rowLabel']}>{row.label}</span>
 												{row.description === undefined ? null : (
 													<span className={styles['rowDescription']}>{row.description}</span>
@@ -180,14 +200,22 @@ function QuickInputSession({
 	);
 }
 
-/** The rows a filter keeps: matching items by label, and separators only while nothing is typed. */
+/**
+ * The rows a filter keeps: items whose label, or description when the pick matches on it, holds the
+ * text typed, and separators only while nothing is typed.
+ */
 function shownRows(
 	rows: readonly WorkbenchQuickPickRow[],
 	filter: string,
+	matchOnDescription: boolean,
 ): readonly WorkbenchQuickPickRow[] {
 	const needle = filter.trim().toLocaleLowerCase();
 	if (needle === '') return rows;
+	const matches = (text: string | undefined): boolean =>
+		text !== undefined && text.toLocaleLowerCase().includes(needle);
 	return rows.filter(
-		(row) => row.kind === 'item' && row.label.toLocaleLowerCase().includes(needle),
+		(row) =>
+			row.kind === 'item' &&
+			(matches(row.label) || (matchOnDescription && matches(row.description))),
 	);
 }

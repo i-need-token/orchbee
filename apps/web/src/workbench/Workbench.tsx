@@ -246,6 +246,7 @@ export function Workbench({
 		focusTerminal: view.returnToTerminal,
 		notifications: notificationQueue,
 		offered: fileBarOffered,
+		quickInputSessions,
 		reportActionOutcome: view.reportActionOutcome,
 		rootReference: view.shortcutScopeReference,
 		shortcutLabelForAction,
@@ -827,6 +828,7 @@ export function Workbench({
 					dispatch={fileOverlay.host.dispatch}
 					focusTerminal={fileOverlay.host.focusTerminal}
 					platform={fileOverlay.host.platform}
+					ref={fileOverlay.host.reference}
 					regions={fileOverlay.host.regions}
 					shortcutLabels={fileOverlay.host.shortcutLabels}
 					sidebarDocked={view.sidebarPresentation === 'docked'}

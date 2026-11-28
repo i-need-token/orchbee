@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { fileTabLabels } from '../fileTabLabels';
+import { fileTabLabels } from '../file-tab-labels';
 
 interface GeneratedFile {
 	readonly drive: 'C' | 'D';

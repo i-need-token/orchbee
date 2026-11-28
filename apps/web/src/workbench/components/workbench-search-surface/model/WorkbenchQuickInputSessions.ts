@@ -1,8 +1,18 @@
+/** The icon a pick's item shows before its label: VS Code's icon for a file. */
+interface WorkbenchQuickPickIcon {
+	readonly kind: 'file';
+	readonly name: string;
+	readonly path: string;
+}
+
 /** A row of a pick session: an item to choose, or a separator with an optional label. */
 type WorkbenchQuickPickEntry<Value> =
 	| {
 			readonly description?: string | undefined;
+			readonly icon?: WorkbenchQuickPickIcon | undefined;
 			readonly id: string;
+			/** Shows the item in italics, as VS Code shows an editor in preview. */
+			readonly italic?: boolean | undefined;
 			readonly kind: 'item';
 			readonly label: string;
 			readonly value: Value;
@@ -20,6 +30,10 @@ interface WorkbenchQuickInputFrame {
 
 export interface WorkbenchQuickPickRequest<Value> extends WorkbenchQuickInputFrame {
 	readonly entries: readonly WorkbenchQuickPickEntry<Value>[];
+	/** Filters on the items' descriptions as well as their labels. */
+	readonly matchOnDescription?: boolean | undefined;
+	/** Ends the session as cancelled once it aborts, as when the requester no longer needs a pick. */
+	readonly signal?: AbortSignal | undefined;
 }
 
 interface WorkbenchQuickInputValidation {
@@ -50,7 +64,9 @@ export type WorkbenchQuickInputOutcome<Value> =
 export type WorkbenchQuickPickRow =
 	| {
 			readonly description?: string | undefined;
+			readonly icon?: WorkbenchQuickPickIcon | undefined;
 			readonly id: string;
+			readonly italic: boolean;
 			readonly kind: 'item';
 			readonly label: string;
 	  }
@@ -62,6 +78,7 @@ export type WorkbenchQuickInputSession =
 			readonly frame: WorkbenchQuickInputFrame;
 			readonly id: number;
 			readonly kind: 'pick';
+			readonly matchOnDescription: boolean;
 			readonly rows: readonly WorkbenchQuickPickRow[];
 	  }
 	| {
@@ -117,11 +134,16 @@ export class WorkbenchQuickInputSessions {
 	pick<Value>(
 		request: WorkbenchQuickPickRequest<Value>,
 	): Promise<WorkbenchQuickInputOutcome<Value>> {
+		const { signal } = request;
+		if (signal?.aborted === true) return Promise.resolve(CANCELLED);
 		return new Promise((resolve) => {
 			const id = this.#replace();
+			const onAbort = (): void => this.cancel(id);
+			signal?.addEventListener('abort', onAbort, { once: true });
 			this.#active = {
 				kind: 'pick',
 				settle: (itemId) => {
+					signal?.removeEventListener('abort', onAbort);
 					const entry = request.entries.find(
 						(candidate) => candidate.kind === 'item' && candidate.id === itemId,
 					);
@@ -131,6 +153,7 @@ export class WorkbenchQuickInputSessions {
 					frame: request,
 					id,
 					kind: 'pick',
+					matchOnDescription: request.matchOnDescription === true,
 					rows: Object.freeze(request.entries.map(pickRow)),
 				}),
 			};
@@ -243,7 +266,9 @@ function pickRow<Value>(entry: WorkbenchQuickPickEntry<Value>): WorkbenchQuickPi
 		? Object.freeze({ kind: 'separator', label: entry.label })
 		: Object.freeze({
 				description: entry.description,
+				icon: entry.icon,
 				id: entry.id,
+				italic: entry.italic === true,
 				kind: 'item',
 				label: entry.label,
 			});

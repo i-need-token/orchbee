@@ -109,6 +109,7 @@ export const WORKBENCH_ACTION_IDS = {
 	selectLastFileOverlayTab: 'file-overlay.tab.select-last',
 	selectNextFileOverlayTab: 'file-overlay.tab.select-next',
 	selectPreviousFileOverlayTab: 'file-overlay.tab.select-previous',
+	showRecentFileOverlayTabs: 'file-overlay.tab.show-recent',
 	unpinFileOverlayTab: 'file-overlay.tab.unpin',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -392,6 +393,7 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.selectLastFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectPreviousFileOverlayTab]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.showRecentFileOverlayTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.unpinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;

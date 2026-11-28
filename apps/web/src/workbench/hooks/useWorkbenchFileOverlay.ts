@@ -1,27 +1,37 @@
-import { createTypedActionRuntime, type ActionRuntime, type ActionScope } from '@orchbee/actions';
+import {
+	createTypedActionRuntime,
+	type ActionExecution,
+	type ActionInvocationSource,
+	type ActionRuntime,
+	type ActionScope,
+} from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { fileOverlayMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { fileOverlayMessages, useOrchbeeIntl, type MessageDescriptor } from '@orchbee/i18n';
 import * as React from 'react';
 
 import {
 	FileOverlayRegistry,
 	loadFileOverlay,
+	splitFileTabPath,
 	type FileOverlayCommandSource,
 	type FileOverlayCommands,
 	type FileOverlayEvent,
+	type FileOverlayFocus,
+	type FileOverlayMenuEntry,
 	type FileOverlayModule,
 	type FileOverlayRegionElements,
 	type FileOverlayShortcutLabels,
 	type FileOverlayStore,
-	type FileTabMenuEntry,
+	type FileOverlayTitleActions,
 } from '../../file-overlay';
 import type { WorkbenchWorkspace } from '../../project-workspace';
 import { registerWorkbenchFileOverlayActions } from '../actions/registerWorkbenchFileOverlayActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
+import type { WorkbenchQuickInputSessions } from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
-import { buildFileTabMenuEntries } from '../utils/buildFileTabMenuEntries';
+import { buildFileOverlayTitleActions, buildFileTabMenuEntries } from '../utils/file-overlay-menus';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 type FileOverlayLoad =
@@ -41,6 +51,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly notifications: Pick<WorkbenchNotificationQueue, 'notify'>;
 	/** Whether this window offers the File Bar; without the offer no overlay exists or listens. */
 	readonly offered: boolean;
+	/** The quick input, where Show Editors By Most Recently Used lists the tabs. */
+	readonly quickInputSessions: Pick<WorkbenchQuickInputSessions, 'pick'>;
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	/** The Workbench root, which places the overlay. */
 	readonly rootReference: React.RefObject<HTMLElement | null>;
@@ -65,6 +77,8 @@ interface WorkbenchFileOverlayHost {
 	readonly dispatch: (event: FileOverlayEvent) => void;
 	readonly focusTerminal: () => void;
 	readonly platform: WorkbenchShortcutPlatform;
+	/** Receives how the Workbench gives the overlay the keys. */
+	readonly reference: React.RefObject<FileOverlayFocus | null>;
 	readonly regions: FileOverlayRegionElements;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	readonly store: FileOverlayStore;
@@ -80,6 +94,7 @@ interface WorkbenchFileOverlayView {
 }
 
 const subscribeToNothing = (): (() => void) => () => undefined;
+const NO_TITLE_ACTIONS: FileOverlayTitleActions = { buttons: [], more: [] };
 const noActiveTab = (): null => null;
 const neverShown = (): boolean => false;
 
@@ -102,6 +117,7 @@ export function useWorkbenchFileOverlay({
 	focusTerminal,
 	notifications,
 	offered,
+	quickInputSessions,
 	reportActionOutcome,
 	rootReference,
 	shortcutLabelForAction,
@@ -117,6 +133,7 @@ export function useWorkbenchFileOverlay({
 	);
 	const sidebarReference = React.useRef<HTMLDivElement>(null);
 	const terminalAreaReference = React.useRef<HTMLDivElement>(null);
+	const overlayReference = React.useRef<FileOverlayFocus>(null);
 	const [regions] = React.useState<FileOverlayRegionElements>(() => ({
 		root: rootReference,
 		sidebar: sidebarReference,
@@ -171,20 +188,25 @@ export function useWorkbenchFileOverlay({
 			);
 		},
 	);
-	const tabMenu = useMemoizedFn((tabId: string): readonly FileTabMenuEntry[] =>
-		workspaceId === null
-			? []
-			: buildFileTabMenuEntries({
-					formatMessage: (descriptor) => intl.formatMessage(descriptor),
-					report: (start) => {
-						reportActionOutcome('context-menu', start);
-					},
-					scope: actionScope,
-					shortcutLabelForAction,
-					tabId,
-					typedRuntime,
-					workspaceId,
-				}),
+	const menuOptions = (tabId: string, shownWorkspaceId: string) => ({
+		formatMessage: (descriptor: MessageDescriptor) => intl.formatMessage(descriptor),
+		report: (source: ActionInvocationSource, start: () => ActionExecution<unknown>) => {
+			reportActionOutcome(source, start);
+		},
+		scope: actionScope,
+		shortcutLabelForAction,
+		tabId,
+		typedRuntime,
+		workspaceId: shownWorkspaceId,
+	});
+	const tabMenu = useMemoizedFn((tabId: string): readonly FileOverlayMenuEntry[] =>
+		workspaceId === null ? [] : buildFileTabMenuEntries(menuOptions(tabId, workspaceId)),
+	);
+	const titleActions = useMemoizedFn(
+		(tabId: string): FileOverlayTitleActions =>
+			workspaceId === null
+				? NO_TITLE_ACTIONS
+				: buildFileOverlayTitleActions(menuOptions(tabId, workspaceId)),
 	);
 	const commands = React.useMemo<FileOverlayCommands>(
 		() => ({
@@ -195,12 +217,43 @@ export function useWorkbenchFileOverlay({
 			selectTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.selectFileOverlayTab, tabId, source),
 			tabMenu,
+			titleActions,
 			toggleFull: invokeToggleFull,
 			unpinTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.unpinFileOverlayTab, tabId, source),
 		}),
-		[invokeTabAction, invokeToggleFull, tabMenu],
+		[invokeTabAction, invokeToggleFull, tabMenu, titleActions],
 	);
+	// VS Code's editor picker: each tab by its file's name, icon and folder, the preview tab in italics.
+	const pickTab = useMemoizedFn(async (signal: AbortSignal): Promise<string | null> => {
+		if (store === null) return null;
+		const { tabs } = store.state.getState();
+		const entries = tabs.recent.flatMap((id) => {
+			const tab = tabs.tabs.find((candidate) => candidate.id === id);
+			if (tab === undefined) return [];
+			const { path } = tab.input.resource;
+			const { folder, name } = splitFileTabPath(path);
+			return [
+				{
+					description: folder,
+					icon: { kind: 'file', name, path },
+					id,
+					italic: id === tabs.previewId,
+					kind: 'item',
+					label: name,
+					value: id,
+				} as const,
+			];
+		});
+		const outcome = await quickInputSessions.pick({
+			entries,
+			matchOnDescription: true,
+			placeholder: intl.formatMessage(fileOverlayMessages.tabPickPlaceholder),
+			signal,
+		});
+		return outcome.kind === 'accepted' ? outcome.value : null;
+	});
+	const focusOverlay = useMemoizedFn(() => overlayReference.current?.focus());
 	React.useEffect(() => {
 		registry?.showTerminal(
 			workspaceId === null ? null : { tabId: activeTabId, terminalContextId, workspaceId },
@@ -216,7 +269,9 @@ export function useWorkbenchFileOverlay({
 		if (store === null || workspaceId === null) return undefined;
 		const registrations = registerWorkbenchFileOverlayActions({
 			dispatch,
+			focusOverlay,
 			getState: () => store.state.getState(),
+			pickTab,
 			scope: actionScope,
 			typedRuntime,
 			workspaceId,
@@ -224,7 +279,7 @@ export function useWorkbenchFileOverlay({
 		return () => {
 			for (const registration of registrations) registration.dispose();
 		};
-	}, [actionScope, dispatch, store, typedRuntime, workspaceId]);
+	}, [actionScope, dispatch, focusOverlay, pickTab, store, typedRuntime, workspaceId]);
 	// A failed load says so on a card, and tries again from its button or the next time an overlay
 	// shows.
 	if (!shown && load.kind === 'failed') setLoad(IDLE_LOAD);
@@ -272,6 +327,7 @@ export function useWorkbenchFileOverlay({
 					dispatch,
 					focusTerminal: returnToTerminal,
 					platform: shortcutPlatform,
+					reference: overlayReference,
 					regions,
 					shortcutLabels,
 					store,

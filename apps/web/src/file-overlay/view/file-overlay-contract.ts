@@ -1,5 +1,6 @@
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
-import type { ComponentType, RefObject } from 'react';
+import type { ProductIconName } from '@orchbee/ui/components';
+import type { ComponentType, Ref, RefObject } from 'react';
 
 import type { FileOverlayEvent } from '../model';
 import type { FileOverlayStore } from '../workspace-stores';
@@ -17,8 +18,8 @@ export interface FileOverlayRegionElements {
 /** What invoked one of the overlay's controls, as its Action reports the outcome. */
 export type FileOverlayCommandSource = 'button' | 'keyboard' | 'pointer';
 
-/** An item of a file tab's menu. */
-export interface FileTabMenuCommand {
+/** An item of one of the overlay's menus. */
+export interface FileOverlayMenuCommand {
 	readonly disabled: boolean;
 	readonly id: string;
 	readonly kind: 'command';
@@ -29,10 +30,34 @@ export interface FileTabMenuCommand {
 	readonly shortcut: string | undefined;
 }
 
-/** One row of a file tab's menu: an item, or the line between two of VS Code's groups. */
-export type FileTabMenuEntry =
-	| FileTabMenuCommand
+/** One row of one of the overlay's menus: an item, or the line between two of VS Code's groups. */
+export type FileOverlayMenuEntry =
+	| FileOverlayMenuCommand
 	| { readonly id: string; readonly kind: 'separator' };
+
+/** A title action that VS Code shows as a button, one of its `navigation` group. */
+export interface FileOverlayTitleButton extends FileOverlayMenuCommand {
+	readonly icon: ProductIconName;
+}
+
+/**
+ * The active tab's title actions, which VS Code shows at the end of the tab row: its `navigation`
+ * group as buttons, then More Actions with its other groups.
+ */
+export interface FileOverlayTitleActions {
+	readonly buttons: readonly FileOverlayTitleButton[];
+	/** More Actions' items; empty, it leaves More Actions out. */
+	readonly more: readonly FileOverlayMenuEntry[];
+}
+
+/** How the Workbench gives the keys to the shown overlay. */
+export interface FileOverlayFocus {
+	/**
+	 * Gives the active tab the keys once the overlay shows the change just dispatched, as VS Code
+	 * focuses the editor it opens; nothing happens while the overlay does not open.
+	 */
+	focus(): void;
+}
 
 /** The Actions the overlay's controls run; each runs as a press of its control. */
 export interface FileOverlayCommands {
@@ -43,7 +68,9 @@ export interface FileOverlayCommands {
 	/** Shows one tab: a press on it, or a key that moves along the row. */
 	readonly selectTab: (tabId: string, source: FileOverlayCommandSource) => void;
 	/** One tab's menu as it opens: the items VS Code's tab menu shows for that tab, in its groups. */
-	readonly tabMenu: (tabId: string) => readonly FileTabMenuEntry[];
+	readonly tabMenu: (tabId: string) => readonly FileOverlayMenuEntry[];
+	/** The title actions VS Code shows while a tab is active. */
+	readonly titleActions: (tabId: string) => FileOverlayTitleActions;
 	/** Expand, or Restore while the tier is full: the Action that `Mod+K Mod+M` runs. */
 	readonly toggleFull: () => void;
 	/** Unpin Editor for one sticky tab: its pin button. */
@@ -64,6 +91,8 @@ export interface FileOverlayHostProps {
 	readonly focusTerminal: () => void;
 	/** The platform whose pointer and key conventions the overlay follows. */
 	readonly platform: KeyboardShortcutPlatform;
+	/** Receives how the Workbench gives the keys to the overlay. */
+	readonly ref?: Ref<FileOverlayFocus> | undefined;
 	readonly regions: FileOverlayRegionElements;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	/** Whether the Sidebar shows docked, which left-expand covers. */

@@ -63,4 +63,38 @@ describe('WorkbenchQuickInputSurface', () => {
 		fireEvent.keyDown(input, { key: 'Escape' });
 		await expect(outcome).resolves.toEqual({ kind: 'cancelled' });
 	});
+
+	it('gives the keys back to the element that held them unless the focus has moved on', () => {
+		const sessions = renderSurface();
+		const invoker = document.body.appendChild(document.createElement('button'));
+		const result = document.body.appendChild(document.createElement('button'));
+		const entries = [{ id: 'a', kind: 'item', label: 'a.ts', value: 'a' }] as const;
+		invoker.focus();
+		act(() => {
+			void sessions.pick({ entries });
+		});
+		const first = screen.getByRole('combobox');
+		first.focus();
+		// A request that replaces the open one keeps the element the first one found.
+		act(() => {
+			void sessions.pick({ entries });
+		});
+		const second = screen.getByRole('combobox');
+		second.focus();
+		act(() => {
+			fireEvent.keyDown(second, { key: 'Escape' });
+		});
+		expect(document.activeElement).toBe(invoker);
+		act(() => {
+			void sessions.pick({ entries });
+		});
+		screen.getByRole('combobox').focus();
+		result.focus();
+		act(() => {
+			sessions.close();
+		});
+		expect(document.activeElement).toBe(result);
+		invoker.remove();
+		result.remove();
+	});
 });

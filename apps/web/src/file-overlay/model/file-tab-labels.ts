@@ -13,7 +13,8 @@ function separatorOf(path: string): '/' | '\\' {
 	return /^[A-Za-z]:[\\/]/u.test(path) || path.startsWith(UNC_PREFIX) ? '\\' : '/';
 }
 
-function splitPath(path: string): { readonly folder: string; readonly name: string } {
+/** A path's file name, and the folder that holds it. */
+export function splitFileTabPath(path: string): { readonly folder: string; readonly name: string } {
 	const separator = separatorOf(path);
 	const end = path.lastIndexOf(separator);
 	if (end < 0) return { folder: '', name: path };
@@ -31,7 +32,7 @@ function splitPath(path: string): { readonly folder: string; readonly name: stri
  * Code shows only when the relative ones collide.
  */
 export function fileTabLabels(paths: readonly string[]): readonly FileTabLabel[] {
-	const parts = paths.map(splitPath);
+	const parts = paths.map(splitFileTabPath);
 	const labels = parts.map((part) => ({ description: '', name: part.name }));
 	const byName = new Map<string, number[]>();
 	parts.forEach((part, index) => {

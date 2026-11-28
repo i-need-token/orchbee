@@ -23,8 +23,15 @@ import {
 interface RegisterWorkbenchFileOverlayActionsOptions {
 	/** Applies an event to the shown Workspace's overlay and carries out what it asks of the Workbench. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	/** Gives the shown overlay's active tab the keys once the overlay shows it. */
+	readonly focusOverlay: () => void;
 	/** The shown Workspace's overlay now, read whenever an Action asks. */
 	readonly getState: () => FileOverlayState;
+	/**
+	 * Lists the tabs, the most recently active first, for the person to pick one; answers its id, or
+	 * null once the pick is cancelled or the signal aborts.
+	 */
+	readonly pickTab: (signal: AbortSignal) => Promise<string | null>;
 	readonly scope: ActionScope;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 	/** The Workspace whose overlay shows; a tab named in another one is not offered. */
@@ -111,11 +118,15 @@ const SCOPE_CHANGED: ActionResult<void> = { code: 'scope-changed', kind: 'blocke
  */
 export function registerWorkbenchFileOverlayActions({
 	dispatch,
+	focusOverlay,
 	getState,
+	pickTab,
 	scope,
 	typedRuntime,
 	workspaceId,
 }: RegisterWorkbenchFileOverlayActionsOptions): readonly ActionDisposable[] {
+	// Aborts once the Actions go, as when another Workspace shows, so a pick still open ends with them.
+	const registered = new AbortController();
 	const namedTab = (input: WorkbenchFileOverlayTabInput): NamedFileTab | null => {
 		if (input !== undefined && input.workspaceId !== workspaceId) return null;
 		const { tabs } = getState();
@@ -152,6 +163,7 @@ export function registerWorkbenchFileOverlayActions({
 		mode: 'foreground',
 	} as const;
 	return [
+		{ dispose: () => registered.abort() },
 		...PICKED_FILE_TAB_ACTIONS.map(({ id, minimum, pick, title }) =>
 			typedRuntime.register(
 				scope,
@@ -192,6 +204,42 @@ export function registerWorkbenchFileOverlayActions({
 				id: WORKBENCH_ACTION_IDS.selectFileOverlayTabByPosition,
 				input: workbenchTabPositionInput,
 				title: fileOverlayMessages.positionEditor,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: selectionExecution,
+				getAvailability: rowAvailability,
+				handler: {
+					execute: async (context) => {
+						if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
+						const picking = new AbortController();
+						const stop = (): void => picking.abort();
+						context.signal.addEventListener('abort', stop, { once: true });
+						registered.signal.addEventListener('abort', stop, { once: true });
+						let picked: string | null;
+						try {
+							picked = await pickTab(picking.signal);
+						} finally {
+							context.signal.removeEventListener('abort', stop);
+							registered.signal.removeEventListener('abort', stop);
+						}
+						if (picked === null || picking.signal.aborted) return { kind: 'cancelled' };
+						if (!getState().tabs.tabs.some((tab) => tab.id === picked)) return SCOPE_CHANGED;
+						context.markCommitted();
+						const result = apply({ id: picked, type: 'tab-activated' });
+						// VS Code's picker opens the editor and focuses it.
+						focusOverlay();
+						return result;
+					},
+				},
+				// VS Code parity: workbench.action.showEditorsInActiveGroup, and Show Opened Editors in the
+				// editor title's menu, workbench.action.showEditorsInGroup.
+				id: WORKBENCH_ACTION_IDS.showRecentFileOverlayTabs,
+				input: noActionInput,
+				title: fileOverlayMessages.showEditorsByMostRecentlyUsed,
 			}),
 		),
 		typedRuntime.register(

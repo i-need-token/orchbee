@@ -2,14 +2,14 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useState, type RefObject } from 'react';
 
 import type {
-	FileTabMenuCommand,
-	FileTabMenuEntry,
+	FileOverlayMenuCommand,
+	FileOverlayMenuEntry,
 } from '../../../../../../../file-overlay-contract';
 import { useFileOverlayHostCommands } from '../../../../../contexts/file-overlay-host-store';
 import { activeFileTab } from '../utils/activeFileTab';
 
 interface FileTabMenuState {
-	readonly entries: readonly FileTabMenuEntry[];
+	readonly entries: readonly FileOverlayMenuEntry[];
 	readonly open: boolean;
 }
 
@@ -17,9 +17,9 @@ const CLOSED: FileTabMenuState = { entries: [], open: false };
 
 interface FileTabMenu {
 	/** Runs a chosen item once the active tab has the keys. */
-	readonly choose: (entry: FileTabMenuCommand) => void;
+	readonly choose: (entry: FileOverlayMenuCommand) => void;
 	/** The items of the tab the menu opened on, kept while the menu closes. */
-	readonly entries: readonly FileTabMenuEntry[];
+	readonly entries: readonly FileOverlayMenuEntry[];
 	readonly finalFocus: () => HTMLElement | false;
 	readonly onOpenChange: (open: boolean, details: { readonly event: Event }) => void;
 	readonly open: boolean;
@@ -57,7 +57,7 @@ export function useFileTabMenu(
 		if (tab === undefined) return;
 		setMenu({ entries: commands.tabMenu(tab.id), open: true });
 	});
-	const choose = useMemoizedFn((entry: FileTabMenuCommand) => {
+	const choose = useMemoizedFn((entry: FileOverlayMenuCommand) => {
 		const row = rowReference.current;
 		if (row !== null) activeFileTab(row)?.focus({ preventScroll: true });
 		entry.run();

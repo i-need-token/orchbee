@@ -15,29 +15,13 @@
 	pointer-events: auto;
 }
 
-/* The tab row, as tall as the Tab bar; Expand and Restore end it. */
+/* The tab row, as tall as the Tab bar; the title actions end it. */
 .row {
 	display: flex;
 	flex: none;
 	align-items: center;
 	height: var(--ob-comp-workbench-horizontal-chrome-height);
 	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
-}
-
-.titleActions {
-	display: flex;
-	flex: none;
-	align-items: center;
-	padding-inline: var(--ob-ref-space-2);
-}
-
-.action {
-	color: var(--ob-sys-color-icon-secondary);
-}
-
-.action:hover,
-.action:focus-visible {
-	color: var(--ob-sys-color-icon-hover);
 }
 
 .content {

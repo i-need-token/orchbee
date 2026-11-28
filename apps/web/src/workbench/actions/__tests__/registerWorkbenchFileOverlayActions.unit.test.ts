@@ -24,7 +24,9 @@ function createHarness(paths: readonly string[]) {
 		dispatch: (event) => {
 			store.dispatch(event);
 		},
+		focusOverlay: () => undefined,
 		getState: () => store.state.getState(),
+		pickTab: () => Promise.resolve(null),
 		scope,
 		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 		workspaceId: WORKSPACE_ID,

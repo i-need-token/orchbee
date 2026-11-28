@@ -1,23 +1,12 @@
 import { fileOverlayMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import {
-	Button,
-	Kbd,
-	ProductIcon,
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from '@orchbee/ui/components';
 import { useId, useRef, type ReactNode } from 'react';
 
 import {
 	useWorkbenchKeyboardScope,
 	type WorkbenchKeyboardScope,
 } from '../../../../../../workbench-keyboard-scopes';
-import {
-	useFileOverlayHostCommands,
-	useFileOverlayHostShortcutLabels,
-	useFileOverlayHostStore,
-} from '../../contexts/file-overlay-host-store';
+import { useFileOverlayHostStore } from '../../contexts/file-overlay-host-store';
+import { FileOverlayTitleActions } from './components/file-overlay-title-actions/FileOverlayTitleActions';
 import { FileTabRow } from './components/file-tab-row/FileTabRow';
 import { useFileOverlayFocusReturn } from './hooks/useFileOverlayFocusReturn';
 import { fileTabDomId } from './utils/fileTabDomId';
@@ -28,8 +17,8 @@ const FILE_OVERLAY_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'file-overla
 
 /**
  * The overlay's frame: a region landmark, never a dialog, since the rest of the window stays
- * operable. Its row holds the file tabs and ends with Expand, or Restore while the tier is full; the
- * tabs control the content below as its tab panel.
+ * operable. Its row holds the file tabs, then the active tab's title actions, and ends with Expand,
+ * or Restore while the tier is full; the tabs control the content below as its tab panel.
  */
 export function FileOverlayFrame(): ReactNode {
 	const intl = useOrchbeeIntl();
@@ -38,14 +27,8 @@ export function FileOverlayFrame(): ReactNode {
 	const panelId = `${idPrefix}-panel`;
 	useWorkbenchKeyboardScope(rootReference, FILE_OVERLAY_KEYBOARD_SCOPE);
 	useFileOverlayFocusReturn(rootReference);
-	const full = useFileOverlayHostStore((state) => state.mode.tier === 'full');
 	const activeIndex = useFileOverlayHostStore((state) =>
 		state.tabs.tabs.findIndex((tab) => tab.id === state.tabs.activeId),
-	);
-	const commands = useFileOverlayHostCommands();
-	const shortcutLabels = useFileOverlayHostShortcutLabels();
-	const toggleLabel = intl.formatMessage(
-		full ? fileOverlayMessages.restore : fileOverlayMessages.expand,
 	);
 	return (
 		<section
@@ -56,30 +39,7 @@ export function FileOverlayFrame(): ReactNode {
 		>
 			<div className={styles['row']} data-slot='file-overlay-row'>
 				<FileTabRow idPrefix={idPrefix} panelId={panelId} />
-				<div className={styles['titleActions']}>
-					<Tooltip>
-						<TooltipTrigger
-							render={
-								<Button
-									aria-label={toggleLabel}
-									className={styles['action']}
-									data-slot='file-overlay-toggle-full'
-									size='icon-sm'
-									variant='ghost'
-									onClick={commands.toggleFull}
-								/>
-							}
-						>
-							<ProductIcon name={full ? 'screen-normal' : 'screen-full'} />
-						</TooltipTrigger>
-						<TooltipContent align='end' side='bottom'>
-							{toggleLabel}
-							{shortcutLabels.toggleFull === undefined ? null : (
-								<Kbd>{shortcutLabels.toggleFull}</Kbd>
-							)}
-						</TooltipContent>
-					</Tooltip>
-				</div>
+				<FileOverlayTitleActions />
 			</div>
 			<div
 				aria-labelledby={activeIndex < 0 ? undefined : fileTabDomId(idPrefix, activeIndex)}

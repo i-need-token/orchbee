@@ -1,0 +1,19 @@
+.root {
+	display: flex;
+	flex: none;
+	align-items: center;
+	padding-inline: var(--ob-ref-space-2);
+}
+
+.action {
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.action:is(:hover, :focus-visible, [data-popup-open]) {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+/* More Actions shows above the overlay, as the tab menu does. */
+.layer {
+	z-index: var(--ob-ref-layer-modal);
+}

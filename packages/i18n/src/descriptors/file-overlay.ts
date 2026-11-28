@@ -51,6 +51,10 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.loadFailed',
 		'Error card shown when the file overlay could not be loaded, so the file opened does not show.',
 	),
+	moreActions: message(
+		'fileOverlay.actions.moreActions',
+		'Label of the button near the end of the file overlay’s tab row that opens a menu of more actions for its file tabs.',
+	),
 	nextEditor: message(
 		'fileOverlay.actions.nextEditor',
 		'Action that shows the file of the tab after the active one in the file overlay’s tab row, the first after the last. VS Code calls a file open in a tab an editor.',
@@ -99,13 +103,17 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.showEditor',
 		'Action that shows the file of one tab in the file overlay. VS Code calls a file open in a tab an editor.',
 	),
+	showEditorsByMostRecentlyUsed: message(
+		'fileOverlay.actions.showEditorsByMostRecentlyUsed',
+		'Action that lists the file overlay’s file tabs, the most recently shown first, to pick one to show. VS Code calls a file open in a tab an editor.',
+	),
 	tabMenuClose: message(
 		'fileOverlay.tabs.menu.close',
 		'Item in a file tab’s context menu in the file overlay that closes that tab.',
 	),
 	tabMenuCloseAll: message(
 		'fileOverlay.tabs.menu.closeAll',
-		'Item in a file tab’s context menu in the file overlay that closes every tab except the pinned ones.',
+		'Item in a file tab’s context menu in the file overlay, and in its More Actions menu, that closes every tab except the pinned ones.',
 	),
 	tabMenuCloseOthers: message(
 		'fileOverlay.tabs.menu.closeOthers',
@@ -117,7 +125,7 @@ export const fileOverlayMessages = defineMessages({
 	),
 	tabMenuCloseSaved: message(
 		'fileOverlay.tabs.menu.closeSaved',
-		'Item in a file tab’s context menu in the file overlay that closes every tab without unsaved edits, except the pinned ones.',
+		'Item in a file tab’s context menu in the file overlay, and in its More Actions menu, that closes every tab without unsaved edits, except the pinned ones.',
 	),
 	tabMenuKeepOpen: message(
 		'fileOverlay.tabs.menu.keepOpen',
@@ -127,9 +135,17 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.tabs.menu.pin',
 		'Item in a file tab’s context menu in the file overlay that pins that tab to the start of the row.',
 	),
+	tabMenuShowOpenedEditors: message(
+		'fileOverlay.tabs.menu.showOpenedEditors',
+		'Item in the More Actions menu at the end of the file overlay’s tab row that lists its file tabs, the most recently shown first, to pick one to show. VS Code calls a file open in a tab an editor.',
+	),
 	tabMenuUnpin: message(
 		'fileOverlay.tabs.menu.unpin',
 		'Item in a pinned file tab’s context menu in the file overlay that unpins that tab.',
+	),
+	tabPickPlaceholder: message(
+		'fileOverlay.tabs.pickPlaceholder',
+		'Placeholder of the quick input that lists the file overlay’s file tabs to pick one to show. VS Code calls a file open in a tab an editor.',
 	),
 	tabsLabel: message(
 		'fileOverlay.tabs.label',

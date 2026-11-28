@@ -1,5 +1,5 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import type { CSSProperties, PointerEvent, ReactNode } from 'react';
+import { useLayoutEffect, type CSSProperties, type PointerEvent, type ReactNode } from 'react';
 
 import { fileOverlayCover } from '../../../model';
 import type { FileOverlayHostProps, FileOverlayRegionElements } from '../../file-overlay-contract';
@@ -7,8 +7,10 @@ import { FileOverlayFrame } from './components/file-overlay-frame/FileOverlayFra
 import {
 	FileOverlayHostStoreProvider,
 	useFileOverlayHostDispatch,
+	useFileOverlayHostFocusRequest,
 	useFileOverlayHostStore,
 } from './contexts/file-overlay-host-store';
+import { useFileOverlayFocusRequest } from './hooks/useFileOverlayFocusRequest';
 import { useFileOverlayRegions } from './hooks/useFileOverlayRegions';
 import styles from './FileOverlayHost.module.css';
 
@@ -18,15 +20,18 @@ export function FileOverlayHost({
 	dispatch,
 	focusTerminal,
 	platform,
+	ref,
 	regions,
 	shortcutLabels,
 	sidebarDocked,
 	store,
 }: FileOverlayHostProps): ReactNode {
+	const focusRequest = useFileOverlayFocusRequest(ref);
 	return (
 		<FileOverlayHostStoreProvider
 			commands={commands}
 			dispatch={dispatch}
+			focusRequest={focusRequest}
 			focusTerminal={focusTerminal}
 			platform={platform}
 			shortcutLabels={shortcutLabels}
@@ -51,7 +56,13 @@ function FileOverlayLayer({ regions, sidebarDocked }: FileOverlayLayerProps): Re
 	const open = useFileOverlayHostStore((state) => state.mode.kind === 'open');
 	const tier = useFileOverlayHostStore((state) => state.mode.tier);
 	const dispatch = useFileOverlayHostDispatch();
+	const focusRequest = useFileOverlayHostFocusRequest();
 	const measured = useFileOverlayRegions(regions, sidebarDocked, open);
+	// An ask the overlay does not open for lapses, so that it cannot move the keys when it opens later.
+	// While it opens, the frame's row takes the ask once it shows.
+	useLayoutEffect(() => {
+		if (focusRequest.count > 0 && !open) focusRequest.take();
+	}, [focusRequest, open]);
 	// A press on the scrim shrinks the overlay to picture-in-picture and gives the terminal the keys.
 	// The scrim is gone before the press's mousedown, which would land on the Workbench root and blur
 	// the terminal again, so the press is cancelled.

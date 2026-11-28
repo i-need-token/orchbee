@@ -1,6 +1,12 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileOverlayMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { ProductIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
+import {
+	FileIcon,
+	ProductIcon,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from '@orchbee/ui/components';
 import { useLayoutEffect, useRef, type MouseEvent, type PointerEvent, type ReactNode } from 'react';
 
 import {
@@ -125,7 +131,7 @@ export function FileTab({
 				}
 			>
 				<span className={styles['icon']}>
-					<ProductIcon name='file' />
+					<FileIcon name={name} path={path} />
 				</span>
 				<span className={styles['label']}>
 					<span>{name}</span>

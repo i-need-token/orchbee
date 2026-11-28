@@ -117,6 +117,12 @@
 	white-space: normal;
 }
 
+/* VS Code sets an item in italics, label and description alike, as it does an editor in preview. */
+.rowContent[data-italic] .rowLabel,
+.rowContent[data-italic] .rowDescription {
+	font-style: italic;
+}
+
 .empty {
 	display: flex;
 	height: var(--ob-comp-workbench-search-empty-height);

@@ -8,10 +8,12 @@ import type {
 	FileOverlayCommands,
 	FileOverlayShortcutLabels,
 } from '../../../file-overlay-contract';
+import type { FileOverlayFocusRequest } from '../hooks/useFileOverlayFocusRequest';
 
 interface FileOverlayHostValue {
 	readonly commands: FileOverlayCommands;
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	readonly focusRequest: FileOverlayFocusRequest;
 	readonly focusTerminal: () => void;
 	readonly platform: KeyboardShortcutPlatform;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
@@ -32,14 +34,15 @@ export function FileOverlayHostStoreProvider({
 	children,
 	commands,
 	dispatch,
+	focusRequest,
 	focusTerminal,
 	platform,
 	shortcutLabels,
 	store,
 }: FileOverlayHostStoreProviderProps): ReactNode {
 	const value = useMemo(
-		() => ({ commands, dispatch, focusTerminal, platform, shortcutLabels, store }),
-		[commands, dispatch, focusTerminal, platform, shortcutLabels, store],
+		() => ({ commands, dispatch, focusRequest, focusTerminal, platform, shortcutLabels, store }),
+		[commands, dispatch, focusRequest, focusTerminal, platform, shortcutLabels, store],
 	);
 	return createElement(FileOverlayHostContext.Provider, { value }, children);
 }
@@ -65,6 +68,11 @@ export function useFileOverlayHostDispatch(): (event: FileOverlayEvent) => void 
 /** The Actions the overlay's controls run, each as a press of that control. */
 export function useFileOverlayHostCommands(): FileOverlayCommands {
 	return useFileOverlayHostValue().commands;
+}
+
+/** The Workbench's asks to give the active tab the keys. */
+export function useFileOverlayHostFocusRequest(): FileOverlayFocusRequest {
+	return useFileOverlayHostValue().focusRequest;
 }
 
 /** Gives the keys to the current terminal. */

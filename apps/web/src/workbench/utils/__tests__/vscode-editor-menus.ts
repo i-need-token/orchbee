@@ -1,7 +1,11 @@
 /**
- * VS Code's tab menu, `MenuId.EditorTitleContext` with the built-in extensions'
- * `editor/title/context` entries, transcribed from Visual Studio Code (Code - OSS) at commit
- * ef5ca45a6e545e4767e0117905ee9d6120b86e11.
+ * VS Code's file tab menus, transcribed from Visual Studio Code (Code - OSS) at commit
+ * ef5ca45a6e545e4767e0117905ee9d6120b86e11:
+ *
+ * - The tab menu, `MenuId.EditorTitleContext` with the built-in extensions'
+ *   `editor/title/context` entries.
+ * - The title actions, `MenuId.EditorTitle` as the editor part registers it for every editor;
+ *   the slices that add other kinds of tab add the items VS Code shows for those kinds.
  *
  * The items stand in VS Code's menu order. An item Orchbee offers names its Action and keeps VS
  * Code's `when` and `precondition` over the context keys below; every other item names the reason
@@ -27,13 +31,17 @@
  * OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-/** The context keys the tab menu reads, by VS Code's names; each is about the tab right-clicked. */
+/**
+ * The context keys the menus read, by VS Code's names. Each is about the tab the menu is for: the
+ * tab right-clicked, or the active tab for the title actions.
+ */
 type VSCodeContextKey =
 	| 'activeEditorCannotClose'
 	| 'activeEditorIsLastInGroup'
 	| 'activeEditorIsNotPreview'
 	| 'activeEditorIsPinned'
 	| 'config.workbench.editor.enablePreview'
+	| 'editorPartModal'
 	| 'editorTabsVisible'
 	| 'multipleEditorsSelectedInGroup';
 
@@ -356,5 +364,200 @@ export const VSCODE_EDITOR_TITLE_CONTEXT: readonly VSCodeMenuItem[] = [
 		orchbee: { kind: 'excluded', reason: 'Language services' },
 		order: 0,
 		title: 'Find File References',
+	},
+];
+
+export const VSCODE_EDITOR_TITLE: readonly VSCodeMenuItem[] = [
+	{
+		command: 'workbench.action.toggleMaximizeEditorGroup',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Expand and Restore, which end the row' },
+		order: -10000,
+		title: 'Unmaximize Group',
+	},
+	{
+		command: 'workbench.action.compareEditor.previousChange',
+		group: 'navigation',
+		orchbee: { kind: 'pending', slice: 'M6' },
+		order: 10,
+		title: 'Previous Change',
+	},
+	{
+		command: 'workbench.action.compareEditor.nextChange',
+		group: 'navigation',
+		orchbee: { kind: 'pending', slice: 'M6' },
+		order: 11,
+		title: 'Next Change',
+	},
+	{
+		command: 'workbench.action.compareEditor.swapSides',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Comparing two chosen files' },
+		order: 15,
+		title: 'Swap Left and Right Side',
+	},
+	{
+		command: 'workbench.action.reopenTextEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Custom editors' },
+		order: 16,
+		title: 'Reopen as Text',
+	},
+	{
+		command: 'toggle.diff.ignoreTrimWhitespace',
+		group: 'navigation',
+		orchbee: { kind: 'pending', slice: 'M6' },
+		order: 20,
+		title: 'Show Leading/Trailing Whitespace Differences',
+	},
+	{
+		command: 'workbench.action.toggleSplitEditorInGroupLayout',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Splitting an editor within its group' },
+		order: 99999,
+		title: 'Toggle Layout',
+	},
+	{
+		command: 'workbench.action.splitEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 100000,
+		title: 'Split Editor Down',
+	},
+	{
+		command: 'workbench.action.splitEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 100000,
+		title: 'Split Editor Right',
+	},
+	{
+		command: 'workbench.action.lockEditorGroup',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 999999,
+		title: 'Lock Group',
+	},
+	{
+		command: 'workbench.action.unlockEditorGroup',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 999999,
+		title: 'Unlock Group',
+	},
+	{
+		command: 'workbench.action.closeActiveEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Hiding the tab row' },
+		order: 1000000,
+		title: 'Close',
+	},
+	{
+		command: 'workbench.action.closeActiveEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Hiding the tab row' },
+		order: 1000000,
+		title: 'Close',
+	},
+	{
+		command: 'workbench.action.unpinEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Hiding the tab row' },
+		order: 1000000,
+		title: 'Unpin',
+	},
+	{
+		command: 'workbench.action.unpinEditor',
+		group: 'navigation',
+		orchbee: { kind: 'excluded', reason: 'Hiding the tab row' },
+		order: 1000000,
+		title: 'Unpin',
+	},
+	{
+		command: 'submenu:DiffEditorViewSubmenu',
+		group: '1_diff',
+		orchbee: { kind: 'pending', slice: 'M6' },
+		order: 10,
+		title: 'Diff View',
+	},
+	{
+		command: 'toggle.diff.renderSideBySide',
+		group: '1_diff',
+		orchbee: { kind: 'excluded', reason: 'Custom editors' },
+		order: 10,
+		title: 'Inline View',
+	},
+	{
+		command: 'workbench.action.showEditorsInGroup',
+		group: '3_open',
+		orchbee: { action: 'file-overlay.tab.show-recent', kind: 'offered' },
+		order: 10,
+		title: 'Show Opened Editors',
+		when: { not: { key: 'editorPartModal' } },
+	},
+	{
+		command: 'workbench.action.splitEditor',
+		group: '4_split',
+		orchbee: { kind: 'excluded', reason: 'The Agent Sessions window' },
+		order: 10,
+		title: 'Split Editor Down',
+	},
+	{
+		command: 'workbench.action.splitEditor',
+		group: '4_split',
+		orchbee: { kind: 'excluded', reason: 'The Agent Sessions window' },
+		order: 10,
+		title: 'Split Editor Right',
+	},
+	{
+		command: 'workbench.action.closeEditorsInGroup',
+		group: '5_close',
+		orchbee: { action: 'file-overlay.tab.close-all', kind: 'offered' },
+		order: 10,
+		title: 'Close All',
+		when: { not: { key: 'editorPartModal' } },
+	},
+	{
+		command: 'workbench.action.closeUnmodifiedEditors',
+		group: '5_close',
+		orchbee: { action: 'file-overlay.tab.close-saved', kind: 'offered' },
+		order: 20,
+		title: 'Close Saved',
+		when: { not: { key: 'editorPartModal' } },
+	},
+	{
+		command: 'workbench.action.toggleKeepEditors',
+		group: '7_settings',
+		orchbee: { kind: 'excluded', reason: 'Editor settings' },
+		order: 10,
+		title: 'Enable Preview Editors',
+	},
+	{
+		command: 'workbench.action.toggleMaximizeEditorGroup',
+		group: '8_group_operations',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 5,
+		title: 'Maximize Group',
+	},
+	{
+		command: 'workbench.action.toggleMaximizeEditorGroup',
+		group: '8_group_operations',
+		orchbee: { kind: 'excluded', reason: 'Expand and Restore, which end the row' },
+		order: 5,
+		title: 'Unmaximize Group',
+	},
+	{
+		command: 'workbench.action.toggleEditorGroupLock',
+		group: '8_group_operations',
+		orchbee: { kind: 'excluded', reason: 'Multiple editor groups' },
+		order: 10,
+		title: 'Lock Group',
+	},
+	{
+		command: 'workbench.action.configureEditor',
+		group: '9_configure',
+		orchbee: { kind: 'excluded', reason: 'Editor settings' },
+		order: 10,
+		title: 'Configure Editors',
 	},
 ];

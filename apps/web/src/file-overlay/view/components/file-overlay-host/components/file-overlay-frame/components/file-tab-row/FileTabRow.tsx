@@ -12,6 +12,7 @@ import { fileTabDomId } from '../../utils/fileTabDomId';
 import { FileTab } from './components/file-tab/FileTab';
 import { FileTabMenu } from './components/file-tab-menu/FileTabMenu';
 import { useFileTabFocusHandoff } from './hooks/useFileTabFocusHandoff';
+import { useFileTabFocusRequest } from './hooks/useFileTabFocusRequest';
 import { useFileTabMenu } from './hooks/useFileTabMenu';
 import { useFileTabReveal } from './hooks/useFileTabReveal';
 import { useFileTabRowWheel } from './hooks/useFileTabRowWheel';
@@ -62,6 +63,7 @@ export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	useFileTabRowWheel(rowReference);
 	useFileTabReveal(rowReference, listReference, tabs.activeId, tabs.tabs.length);
 	const handOffFocus = useFileTabFocusHandoff(rowReference, tabs.activeId);
+	useFileTabFocusRequest(rowReference);
 	const menu = useFileTabMenu(rowReference, listReference, tabs.tabs);
 	const onKeyDown = useMemoizedFn((event: KeyboardEvent<HTMLDivElement>) => {
 		const list = listReference.current;
