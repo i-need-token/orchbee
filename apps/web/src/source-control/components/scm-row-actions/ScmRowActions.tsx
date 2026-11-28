@@ -33,7 +33,9 @@ interface ScmRowActionsProps {
 
 /**
  * A row's inline buttons, VS Code's `inline` menu group, left to right. The row decides when they
- * show; Tab moves from the tree to the first of the focused row's.
+ * show; Tab moves from the tree to the first of the focused row's. A click leaves focus where it was,
+ * as VS Code's action items do, so a question the button asks gives it back there even when the
+ * button's row is gone by then.
  */
 export function ScmRowActions({ actions, onRun }: ScmRowActionsProps): ReactNode {
 	return (
@@ -51,6 +53,7 @@ export function ScmRowActions({ actions, onRun }: ScmRowActionsProps): ReactNode
 									tabIndex={0}
 									type='button'
 									onClick={() => onRun(command)}
+									onMouseDown={(event) => event.preventDefault()}
 								/>
 							}
 						>

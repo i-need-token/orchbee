@@ -16,10 +16,12 @@ import {
 	hasWorkbenchCommandSurface,
 	hasWorkbenchExclusiveFocusSurface,
 	isWorkbenchExclusiveFocusTarget,
+	resolveWorkbenchFocusOwnerFromTarget,
 	resolveWorkbenchFocusRegionFromTarget,
 } from '../utils/workbench-focus-dom';
 
-type WorkbenchFocusOwner = WorkbenchFocusRegion | 'exclusive' | null;
+/** `elsewhere` is an element no region holds, such as a File Bar view: the terminal leaves it focus. */
+type WorkbenchFocusOwner = WorkbenchFocusRegion | 'elsewhere' | 'exclusive' | null;
 
 export function useWorkbenchFocusRouting({
 	isSidebarVisible,
@@ -157,9 +159,8 @@ export function useWorkbenchFocusRouting({
 			return;
 		}
 		if (!event.currentTarget.contains(event.target)) return;
-		const region = resolveWorkbenchFocusRegionFromTarget(event.target);
-		focusReturnRegionReference.current = region;
-		if (region !== null) updateOwner(region);
+		focusReturnRegionReference.current = resolveWorkbenchFocusRegionFromTarget(event.target);
+		updateOwner(resolveWorkbenchFocusOwnerFromTarget(event.target));
 	});
 	const onBlurCapture = useMemoizedFn((event: React.FocusEvent<HTMLDivElement>): void => {
 		if (isWorkbenchExclusiveFocusTarget(event.relatedTarget)) {
@@ -173,8 +174,7 @@ export function useWorkbenchFocusRouting({
 			updateOwner('exclusive');
 			return;
 		}
-		const nextRegion = resolveWorkbenchFocusRegionFromTarget(event.relatedTarget);
-		updateOwner(nextRegion);
+		updateOwner(resolveWorkbenchFocusOwnerFromTarget(event.relatedTarget));
 	});
 	React.useEffect(() => {
 		if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
@@ -197,7 +197,7 @@ export function useWorkbenchFocusRouting({
 		updateOwner(
 			typeof document === 'undefined'
 				? null
-				: resolveWorkbenchFocusRegionFromTarget(document.activeElement),
+				: resolveWorkbenchFocusOwnerFromTarget(document.activeElement),
 		);
 	}, [exclusiveSurfaceMounted, updateOwner]);
 	React.useEffect(() => {

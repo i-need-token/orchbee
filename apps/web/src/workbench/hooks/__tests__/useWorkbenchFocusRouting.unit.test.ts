@@ -52,6 +52,7 @@ function FocusRoutingHarness({
 					'Sidebar',
 				)
 			: null,
+		React.createElement('button', { type: 'button' }, 'File Bar'),
 		showDialog ? React.createElement('div', { role: 'dialog', tabIndex: -1 }, 'Dialog') : null,
 		showCommandSurface
 			? React.createElement(
@@ -172,6 +173,23 @@ describe('useWorkbenchFocusRouting', () => {
 		await act(async () => undefined);
 
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('true');
+	});
+
+	it('leaves focus to a part outside the regions that a closing menu gives it back to', async () => {
+		const rendered = render(React.createElement(FocusRoutingHarness, { capture: () => undefined }));
+		const fileBar = screen.getByRole('button', { name: 'File Bar' });
+		act(() => screen.getByRole('dialog').focus());
+		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
+
+		// As Base UI does, the menu leaves the document and then focuses the element it opened over.
+		rendered.rerender(
+			React.createElement(FocusRoutingHarness, { capture: () => undefined, showDialog: false }),
+		);
+		act(() => fileBar.focus());
+		await act(async () => undefined);
+
+		expect(document.activeElement).toBe(fileBar);
+		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
 	});
 
 	it('hands the terminal the keyboard after the surface that asked has closed', async () => {

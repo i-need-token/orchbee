@@ -24,6 +24,17 @@ export function resolveWorkbenchFocusRegionFromTarget(
 	return region === 'terminal' || region === 'tab-strip' || region === 'sidebar' ? region : null;
 }
 
+/**
+ * What holds focus at `target` for the terminal's taking focus by itself: a region, `elsewhere` for an
+ * element no region holds, such as a File Bar view, or null when nothing has focus.
+ */
+export function resolveWorkbenchFocusOwnerFromTarget(
+	target: EventTarget | null,
+): WorkbenchFocusRegion | 'elsewhere' | null {
+	if (!(target instanceof Element) || target === target.ownerDocument.body) return null;
+	return resolveWorkbenchFocusRegionFromTarget(target) ?? 'elsewhere';
+}
+
 /** With `exceptCommandSurface`, the command surface and what it holds do not count. */
 export function isWorkbenchExclusiveFocusTarget(
 	target: EventTarget | null,
