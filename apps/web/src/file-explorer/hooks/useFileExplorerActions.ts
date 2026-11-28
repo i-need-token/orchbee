@@ -34,10 +34,12 @@ interface UseFileExplorerActionsOptions {
 	readonly tree: ExplorerTree | null;
 }
 
-/** The Explorer header's buttons, each running its Action as a press. */
+/** The Explorer's own Action scope, and the header's buttons, each running its Action as a press. */
 interface FileExplorerCommands {
 	readonly collapseFolders: () => void;
 	readonly refresh: () => void;
+	/** Where the Explorer's Actions register, which its tree's keys resolve in too. */
+	readonly scope: ActionScope;
 }
 
 /**
@@ -129,6 +131,7 @@ export function useFileExplorerActions({
 		return {
 			collapseFolders: () => press(FILE_EXPLORER_ACTION_IDS.collapseFolders),
 			refresh: () => press(FILE_EXPLORER_ACTION_IDS.refresh),
+			scope,
 		};
 	}, [scope, typedRuntime]);
 }

@@ -1,8 +1,9 @@
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { prefetchCodeEditor } from '../../../code-editor';
-import { FileExplorer } from '../../../file-explorer';
+import { FileExplorer, type FileExplorerFocus } from '../../../file-explorer';
 import {
 	useWorkbenchKeyboardScope,
 	type WorkbenchKeyboardScope,
@@ -45,9 +46,15 @@ export function FileBarColumn({
 		[idPrefix],
 	);
 	const viewId = `${idPrefix}-view`;
-	const viewReference = useFileBarViewFocusRequest(viewFocusRequest);
 	const [explorerMounted, setExplorerMounted] = useState(activeView === 'explorer');
 	if (activeView === 'explorer' && !explorerMounted) setExplorerMounted(true);
+	const explorerReference = useRef<FileExplorerFocus>(null);
+	const focusView = useMemoizedFn((): boolean => {
+		const explorer = activeView === 'explorer' ? explorerReference.current : null;
+		explorer?.focus();
+		return explorer !== null;
+	});
+	const viewReference = useFileBarViewFocusRequest(viewFocusRequest, focusView);
 	return (
 		<div className={styles['root']} ref={rootReference}>
 			<div className={styles['togglesRow']} data-slot='file-bar-toggles-row'>
@@ -81,6 +88,7 @@ export function FileBarColumn({
 							actionScope={actionScope}
 							notifications={notifications}
 							platform={platform}
+							ref={explorerReference}
 							session={session}
 							storage={storage}
 						/>
