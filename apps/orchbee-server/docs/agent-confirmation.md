@@ -69,10 +69,12 @@ built, which the module's tests do.
   highlighted row is written into the pattern as the Agent's one-time accept; no pattern accepts
   a highlighted "always" or "do not ask again" row.
 - **Captured text.** `rows` captures the command or path rows as `text` and may capture the
-  Agent's own remarks as `notes`. Body rows start in a column the Agent's chrome does not use, so a
-  command cannot draw a border or an option row that the pattern would take for the dialog's own.
-  The rows a command shows are its text, including a row the Agent writes in place of rows it does
-  not show; a dialog that shows none of its command has no text.
+  Agent's own remarks as `notes`, which `danger` reads, and the Agent's own warning on the request
+  as `warning`, which marks the dialog dangerous whatever it says. Body rows start in a column the
+  Agent's chrome does not use, so a command cannot draw a border or an option row that the
+  pattern would take for the dialog's own. The rows a command shows are its text, including a row
+  the Agent writes in place of rows it does not show; a dialog that shows none of its command has
+  no text.
 - **Bounds.** A screen over 64 KiB, a pattern over 8 KiB and a compiled expression over 1 MiB are
   refused.
 - **Identity.** A prompt is its layout, its kind and its captured text. Two screens with the same
@@ -85,12 +87,21 @@ sequences the terminal drew, and its text is what a text read of the same frame 
 layout with its captures and their expected answers in the same change; a layout without captures
 is not admitted.
 
-| Agent       | Layouts                                     | Not read                                                |
-| ----------- | ------------------------------------------- | ------------------------------------------------------- |
-| Claude Code | Bash command, file create, file edit        | Its trust prompt and its screens after an answer        |
-| Codex       | Shell command, under the first-column fence | Every other approval, such as a patch or network access |
-| Gemini CLI  | Shell command, whole-file write             | Replace in a file, its trust prompt, every other tool   |
-| OpenCode    | Shell command, file edit, by style          | Every other permission, and a dialog its box cuts       |
+| Agent       | Layouts                                                  | Not read                                                |
+| ----------- | -------------------------------------------------------- | ------------------------------------------------------- |
+| Claude Code | Bash command, also a sub-agent's; file create, file edit | Its trust prompt and its screens after an answer        |
+| Codex       | Shell command, under the first-column fence              | Every other approval, such as a patch or network access |
+| Gemini CLI  | Shell command, whole-file write                          | Replace in a file, its trust prompt, every other tool   |
+| OpenCode    | Shell command, file edit, by style                       | Every other permission, and a dialog its box cuts       |
+
+Claude Code asks for a sub-agent's Bash command in its own Bash dialog, with
+` · from the <name> agent` after the title, and for a sub-agent that runs in the background adds
+` · ctrl+x ctrl+k twice to stop background agents` to the footer; the Bash layout reads both.
+After one press of that chord the footer says `again` and the dialog is not read. Between the
+command and the question Claude Code may write its own remark, such as
+`A variable in this command can't be checked before it runs` when its check for a dangerous
+removal cannot clear the command, or a note that a rule or hook asks for a person. The remark
+ends in a blank row, and the layout takes it as the warning.
 
 Codex's reason rows cannot start with the command's `$`, so the first `$` row is the command's,
 and the command is every row from there to the two blank rows above the options. Codex writes

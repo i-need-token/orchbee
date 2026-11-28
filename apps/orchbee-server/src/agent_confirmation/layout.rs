@@ -37,7 +37,9 @@ struct RawLayout {
     kind: String,
     accept: String,
     /// One pattern per dialog row or run of rows, each ending in its line break. Joined, they
-    /// must match the region from the top border to the last row.
+    /// must match the region from the top border to the last row. They capture the command or
+    /// path as `text`, and may capture the Agent's remarks as `notes` and its own warning on the
+    /// request as `warning`.
     rows: Vec<String>,
     /// Alternatives for one row of the `text` capture; the first that matches every row gives
     /// each row's text in its own `text` capture. Absent, a row is its text.
@@ -95,7 +97,7 @@ pub(crate) struct Dialog {
     /// The command's rows without the dialog's gutter, none when the Agent shows none, or the
     /// path as one row.
     pub(crate) text: Vec<String>,
-    /// The Agent drew its own danger marker.
+    /// The Agent drew its own danger marker or its own warning on the request.
     pub(crate) marked: bool,
 }
 
@@ -310,10 +312,13 @@ impl Layout {
                     .collect::<Option<Vec<String>>>()
             })?
         };
-        let marked = match (&self.danger, captures.name("notes")) {
-            (Some(danger), Some(notes)) => danger.is_match(notes.as_str()),
-            _ => false,
-        };
+        // A `warning` capture is a remark the Agent itself draws on the request, so having one
+        // marks the dialog whatever it says.
+        let marked = captures.name("warning").is_some()
+            || match (&self.danger, captures.name("notes")) {
+                (Some(danger), Some(notes)) => danger.is_match(notes.as_str()),
+                _ => false,
+            };
         Some(Dialog {
             layout: self.name.clone(),
             kind: self.kind,

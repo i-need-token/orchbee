@@ -1,6 +1,6 @@
-//! Screens captured from Claude Code 2.1.330, Codex CLI 0.171.0 and Gemini CLI 0.70.0 in an
-//! 80-column terminal on Windows, with the machine's own paths and status line replaced. Each
-//! maps to what Orchbee must read from it.
+//! Screens captured from Claude Code 2.1.330 and 2.1.332, Codex CLI 0.171.0 and Gemini CLI
+//! 0.70.0 in an 80-column terminal on Windows, with the machine's own paths and status line
+//! replaced. Each maps to what Orchbee must read from it.
 use orchbee_agent_observation_protocol::AgentReportProvider;
 
 use super::super::layout::{Dialog, Layouts};
@@ -91,6 +91,16 @@ fn every_captured_screen_reads_as_what_it_shows() {
                 Ok(()),
             )),
         ),
+        // Claude Code's own remark under the command marks the dialog.
+        (
+            screen!("32-rm-variable-warning"),
+            Some((
+                "bash",
+                Kind::Command,
+                &[r#"rm -rf "$AAB_UNSET""#],
+                Err(Wait::MarkedDangerous),
+            )),
+        ),
         (
             screen!("40-long-command"),
             Some((
@@ -130,6 +140,20 @@ fn every_captured_screen_reads_as_what_it_shows() {
                 Kind::FileCreate,
                 &[r"sub\dir\aab-deep.txt"],
                 Ok(()),
+            )),
+        ),
+        // A background sub-agent's request names the sub-agent and adds the chord that stops it.
+        (
+            screen!("60-subagent-mkdir"),
+            Some(("bash", Kind::Command, &["mkdir aab-fg"], Ok(()))),
+        ),
+        (
+            screen!("61-subagent-rm-variable"),
+            Some((
+                "bash",
+                Kind::Command,
+                &[r#"rm -rf "$AAB_UNSET""#],
+                Err(Wait::MarkedDangerous),
             )),
         ),
     ];

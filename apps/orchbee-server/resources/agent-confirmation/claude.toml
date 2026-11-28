@@ -1,4 +1,4 @@
-# Claude Code's tool confirmations, as Claude Code 2.1.330 draws them at any width.
+# Claude Code's tool confirmations, as Claude Code 2.1.330 to 2.1.332 draw them at any width.
 #
 # Text the model supplies is always indented: the description under the title, the command or
 # diff between the two dashed rules, and the path. The dashed rules and the top border start in
@@ -15,17 +15,23 @@ accept = "enter"
 danger = '(?i)danger|warning|caution|destructive|unsafe|irreversible|permanent|cannot be undone'
 rows = [
 	'─{20,}\n',
-	' Bash command\n',
+	# A sub-agent's request names the sub-agent after the title.
+	' Bash command(?: · from the [^\n]+ agent)?\n',
 	'''(?P<notes>(?: [\p{L}\p{N}.,:;!?'"“”‘’()\[\]@#&*+=/\\_~—–-][\p{L}\p{N} .,:;!?'"“”‘’()\[\]@#&*+=/\\_~—–-]*\n){0,8})''',
 	'╌{20,}\n',
 	'(?P<text>(?: [^\n]+\n)+)',
 	'╌{20,}\n',
+	# Claude Code's own remark on the command, such as a removal its safety check could not rule
+	# out, sits under the second rule and ends in a blank row. Whatever it says, it marks the
+	# dialog.
+	'(?P<warning>(?: [^\n]+\n)+\n)?',
 	' Do you want to proceed\?\n',
 	' ❯ 1\. Yes\n',
 	'(?:   [2-4]\. Yes, and [^\n]*\n(?:      [^\n]+\n){0,6}){0,3}',
 	'   [2-5]\. No\n',
 	'\n',
-	' Esc to cancel · Tab to amend\n',
+	# A sub-agent running in the background adds the chord that stops it.
+	' Esc to cancel · Tab to amend(?: · ctrl\+x ctrl\+k twice to stop background agents)?\n',
 ]
 # A command on one row has a one-column gutter; a command on several rows has a bar in it.
 text = [' │ (?P<text>.*)', ' (?P<text>[^│].*)']
