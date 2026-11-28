@@ -1,3 +1,6 @@
+mod mutations;
+mod real_locations;
+
 use std::io;
 
 use orchbee_files_protocol::{

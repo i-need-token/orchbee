@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use orchbee_files_protocol::ErrorCode;
 
 use super::NativePath;
@@ -109,4 +111,36 @@ fn containment_compares_whole_segments_by_the_machine_rule() {
             == path(&format!("{}{}a", root.as_str(), std::path::MAIN_SEPARATOR)).key(),
         !super::CASE_SENSITIVE
     );
+}
+
+#[test]
+fn real_locations_compare_whole_components_as_the_machine_spells_them() {
+    #[cfg(windows)]
+    let (member, below, sibling, other_case) = (
+        r"\\?\C:\w\Project",
+        r"\\?\C:\w\Project\src",
+        r"\\?\C:\w\Projects\a",
+        r"\\?\C:\w\project\src",
+    );
+    #[cfg(not(windows))]
+    let (member, below, sibling, other_case) = (
+        "/w/Project",
+        "/w/Project/src",
+        "/w/Projects/a",
+        "/w/project/src",
+    );
+    let within = |path: &str| super::real_within(Path::new(path), Path::new(member));
+    assert!(within(below));
+    assert!(within(member));
+    assert!(!within(sibling));
+    assert!(!super::real_within(Path::new(member), Path::new(below)));
+    // Windows resolved case in both spellings, so another case is another name there; macOS
+    // ignores case; Linux keeps it.
+    assert_eq!(within(other_case), cfg!(target_os = "macos"));
+    #[cfg(windows)]
+    {
+        assert!(within(r"\\?\c:\w\Project\src"));
+        assert!(!within(r"\\?\D:\w\Project\src"));
+        assert!(!within(r"\\?\UNC\server\share\w\Project\src"));
+    }
 }

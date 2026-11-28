@@ -12,9 +12,9 @@ use super::{
     },
     fixture::Fixture,
 };
-use crate::requests::Outcome;
+use crate::{requests::Outcome, scope::Scopes};
 use orchbee_files_protocol::{
-    ConnectionId, RepositoryKind, RequestId, WorkspaceId, WorkspaceScope,
+    ConnectionId, Operation, RepositoryKind, RequestId, ScopeUpdate, WorkspaceId, WorkspaceScope,
 };
 use std::{
     fs,
@@ -121,11 +121,21 @@ fn writes_queue_per_repository_answer_once_per_identity_and_share_fetches() {
     assert_eq!((shown.kind, shown.warm), (RepositoryKind::Root, true));
     let repository = shown.repository.clone();
 
+    let scopes = Scopes::new();
+    scopes.update(ScopeUpdate {
+        workspace,
+        scope: WorkspaceScope::Root(fixture.path("repo")),
+    });
     let call = |request: u128| Call {
         workspace,
         connection,
         request: RequestId::from_bytes(request.to_be_bytes()).unwrap(),
         cancel: Arc::new(AtomicBool::new(false)),
+        scope: Arc::new(
+            scopes
+                .view(workspace, connection, Operation::GitStage)
+                .unwrap(),
+        ),
     };
     let mutate = |request: u128, mutation: Mutation| {
         let (answer, answered) = reply();

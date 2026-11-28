@@ -225,8 +225,13 @@ fn requests_reach_the_engine_and_its_answers_return_as_records() {
 
     fixture.write("repo/added", "added");
     let request_id = RequestId::from_bytes([5; 16]).unwrap();
+    let view = harness
+        .scopes
+        .view(workspace, connection(), Operation::GitStage)
+        .unwrap();
     harness.service().stage(
         harness.open(2),
+        view,
         &GitPaths {
             workspace_id: workspace,
             request_id,
@@ -387,8 +392,13 @@ fn an_editor_prompt_opens_only_for_a_file_in_its_repository_git_directories() {
     harness
         .service()
         .subscribe_relay(harness.open(2), workspace, true);
+    let view = harness
+        .scopes
+        .view(workspace, connection(), Operation::GitCommit)
+        .unwrap();
     harness.service().commit(
         harness.open(3),
+        view,
         &GitCommit {
             workspace_id: workspace,
             request_id: RequestId::from_bytes([8; 16]).unwrap(),

@@ -1,9 +1,10 @@
 //! What the Git engine needs from the rest of the process. The file engine owns this process's file
 //! watches and the machine's trash and implements [`Watches`] and [`Trash`] for it. The scopes
-//! every operation's view reads take the members the engine establishes through [`Members`], and
-//! `git.show` answers through the read transfer [`ShowRead`] the file engine opened for it.
+//! every operation's view reads take the members the engine establishes through [`Members`], and a
+//! mutation's call carries the view it started under as its [`Scope`]. `git.show` answers through
+//! the read transfer [`ShowRead`] the file engine opened for it.
 
-use orchbee_files_protocol::{FilesError, WorkspaceId};
+use orchbee_files_protocol::{ErrorCode, FilesError, WorkspaceId};
 use std::{
     path::Path,
     sync::{Arc, atomic::AtomicBool},
@@ -102,6 +103,20 @@ impl Trash for NoTrash {
     fn trash(&self, _: &Path) -> Result<(), TrashError> {
         Err(TrashError::Unavailable)
     }
+}
+
+/// The scope the call of a mutation started under. Each working-tree entry the mutation changes
+/// passes it when the mutation's job starts, so a link or junction on the way cannot carry the
+/// change outside the scope.
+pub(crate) trait Scope: Send + Sync {
+    /// Admits a change of the entry at `path`, an absolute native path, itself: creating,
+    /// replacing, deleting or trashing it, never what a link there names. It reads the
+    /// filesystem, so the job calls it on its own thread.
+    ///
+    /// # Errors
+    ///
+    /// The code the scope refuses with, such as `outside-scope` or `link-target-outside`.
+    fn entry(&self, path: &str) -> Result<(), ErrorCode>;
 }
 
 /// Where the engine states the scope members it establishes in a Workspace: the working trees of

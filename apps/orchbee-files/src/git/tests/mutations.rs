@@ -1,19 +1,24 @@
 //! The local mutations act on temporary repositories as VS Code's Git extension acts: paths reach
 //! Git literally, the index takes exactly the content sent, a commit takes what `all` asks and
 //! continues a waiting rebase, a locked index is waited out, and a clean never reaches outside the
-//! repository.
+//! repository or through a link outside the scope.
 
 use super::{
     super::{
         mutations::{
-            Commit, Context, Message, clean, commit, discard, stage, stage_content, unstage,
+            Cleaned, Commit, Context, Message, clean, commit, discard, stage, stage_content,
+            unstage,
         },
         ports::{Trash, TrashError},
         runner::Limits,
     },
     fixture::Fixture,
 };
-use orchbee_files_protocol::{CleanMode, CommitAll, ErrorCode};
+use crate::scope::{Scopes, View};
+use orchbee_files_protocol::{
+    CleanMode, CommitAll, ConnectionId, ErrorCode, Operation, ScopeUpdate, WorkspaceId,
+    WorkspaceScope,
+};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -28,6 +33,36 @@ fn context<'a>(fixture: &'a Fixture, limits: &'a Limits) -> Context<'a> {
         output: &fixture.output,
         relay: None,
     }
+}
+
+/// The view a call starts under in a Workspace whose root is `root`.
+fn view(root: &str) -> View {
+    let scopes = Scopes::new();
+    let workspace = WorkspaceId::from_bytes([1; 16]).unwrap();
+    scopes.update(ScopeUpdate {
+        workspace,
+        scope: WorkspaceScope::Root(root.to_owned()),
+    });
+    let connection = ConnectionId::new(1).unwrap();
+    scopes
+        .view(workspace, connection, Operation::GitClean)
+        .unwrap()
+}
+
+/// Links the folder `link` to the folder `target`: a junction on Windows, which needs no
+/// privilege, and a symbolic link elsewhere.
+fn link(target: &str, link: &str) {
+    #[cfg(windows)]
+    {
+        let status = std::process::Command::new("cmd")
+            .args(["/d", "/c", "mklink", "/J", link, target])
+            .stdout(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert!(status.success());
+    }
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
 }
 
 fn staged(fixture: &Fixture) -> String {
@@ -59,7 +94,8 @@ fn staging_takes_paths_literally_and_unstaging_works_before_and_after_the_first_
     unstage(&repository, &all[..1], &context).unwrap();
     assert_eq!(staged(&fixture), "");
 
-    discard(&repository, &all[..1], &[], &context).unwrap();
+    let scope = view(&fixture.path("repo"));
+    discard(&repository, &all[..1], &[], &scope, &context).unwrap();
     assert_eq!(fs::read_to_string(&all[0]).unwrap(), "a");
     let outside = fixture.path("elsewhere");
     assert_eq!(
@@ -200,37 +236,55 @@ fn clean_trashes_inside_the_repository_or_removes_permanently() {
     let repository = fixture.found("repo");
     let limits = fixture.limits();
     let context = context(&fixture, &limits);
+    let scope = view(&fixture.path("repo"));
     fixture.write("repo/kept", "");
     fixture.write("repo/gone", "");
+    fs::create_dir(fixture.path("outside")).unwrap();
+    fixture.write("outside/held", "");
+    link(&fixture.path("outside"), &fixture.path("repo/link"));
     let trash = Recorded(Mutex::new(Vec::new()));
+    let codes = |cleaned: &[Cleaned]| {
+        cleaned
+            .iter()
+            .map(|item| item.error.as_ref().map(|error| error.code))
+            .collect::<Vec<_>>()
+    };
 
     let paths = [
         fixture.path("repo/kept"),
         fixture.path("repo/missing"),
         fixture.path("other"),
+        fixture.path("repo/link/held"),
     ];
-    let cleaned = clean(&repository, &paths, CleanMode::Trash, &trash, &context);
-    let codes = cleaned
-        .iter()
-        .map(|item| item.error.as_ref().map(|error| error.code))
-        .collect::<Vec<_>>();
+    let cleaned = clean(
+        &repository,
+        &paths,
+        CleanMode::Trash,
+        &trash,
+        &scope,
+        &context,
+    );
     assert_eq!(
-        codes,
+        codes(&cleaned),
         [
             None,
             Some(ErrorCode::NotFound),
-            Some(ErrorCode::OutsideScope)
+            Some(ErrorCode::OutsideScope),
+            Some(ErrorCode::LinkTargetOutside)
         ]
     );
     assert_eq!(*trash.0.lock().unwrap(), [PathBuf::from(&paths[0])]);
 
+    let paths = [fixture.path("repo/link/held"), fixture.path("repo/gone")];
     let cleaned = clean(
         &repository,
-        &[fixture.path("repo/gone")],
+        &paths,
         CleanMode::Permanent,
         &trash,
+        &scope,
         &context,
     );
-    assert!(cleaned[0].error.is_none());
+    assert_eq!(codes(&cleaned), [Some(ErrorCode::LinkTargetOutside), None]);
     assert!(!Path::new(&fixture.path("repo/gone")).exists());
+    assert!(Path::new(&fixture.path("outside/held")).exists());
 }

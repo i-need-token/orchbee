@@ -8,7 +8,7 @@ use super::{
     engine::{self, Git, Mutation, Sink},
     errors::GitError,
     mutations::{Commit, Message},
-    ports::{Members, ShowRead, Trash, Watches},
+    ports::{Members, Scope, ShowRead, Trash, Watches},
     records,
     relay::Answer,
     remote::{self, Fetch, Push},
@@ -16,7 +16,7 @@ use super::{
 };
 use crate::{
     calls::{Call, Events},
-    scope::{Scopes, path::NativePath},
+    scope::{Change, Scopes, View, path::NativePath},
 };
 use orchbee_files_protocol::{
     CallClose, ClientFocus, CommitMessage, ConnectionId, Counter, ErrorCode, FetchRemotes,
@@ -241,10 +241,11 @@ impl Service {
     }
 
     /// `git.stage`.
-    pub(crate) fn stage(&self, call: Call, request: &GitPaths) {
+    pub(crate) fn stage(&self, call: Call, view: View, request: &GitPaths) {
         let mutation = Mutation::Stage(strings(request.paths.as_slice()));
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -253,10 +254,11 @@ impl Service {
     }
 
     /// `git.unstage`.
-    pub(crate) fn unstage(&self, call: Call, request: &GitPaths) {
+    pub(crate) fn unstage(&self, call: Call, view: View, request: &GitPaths) {
         let mutation = Mutation::Unstage(strings(request.paths.as_slice()));
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -265,13 +267,20 @@ impl Service {
     }
 
     /// `git.stage-content` once its Puts brought the content.
-    pub(crate) fn stage_content(&self, call: Call, request: &GitStageContent, content: Vec<u8>) {
+    pub(crate) fn stage_content(
+        &self,
+        call: Call,
+        view: View,
+        request: &GitStageContent,
+        content: Vec<u8>,
+    ) {
         let mutation = Mutation::StageContent {
             path: request.path.as_str().to_owned(),
             content,
         };
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -280,10 +289,11 @@ impl Service {
     }
 
     /// `git.discard`.
-    pub(crate) fn discard(&self, call: Call, request: &GitPaths) {
+    pub(crate) fn discard(&self, call: Call, view: View, request: &GitPaths) {
         let mutation = Mutation::Discard(strings(request.paths.as_slice()));
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -292,13 +302,14 @@ impl Service {
     }
 
     /// `git.clean`.
-    pub(crate) fn clean(&self, call: Call, request: &GitClean) {
+    pub(crate) fn clean(&self, call: Call, view: View, request: &GitClean) {
         let mutation = Mutation::Clean {
             paths: strings(request.paths.as_slice()),
             mode: request.mode,
         };
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -307,7 +318,7 @@ impl Service {
     }
 
     /// `git.commit`.
-    pub(crate) fn commit(&self, call: Call, request: &GitCommit) {
+    pub(crate) fn commit(&self, call: Call, view: View, request: &GitCommit) {
         let mutation = Mutation::Commit(Commit {
             message: match &request.message {
                 CommitMessage::Text(text) => Message::Text(text.as_str().to_owned()),
@@ -320,6 +331,7 @@ impl Service {
         });
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -328,7 +340,7 @@ impl Service {
     }
 
     /// `git.fetch`.
-    pub(crate) fn fetch(&self, call: Call, request: &GitFetch) {
+    pub(crate) fn fetch(&self, call: Call, view: View, request: &GitFetch) {
         let mutation = Mutation::Fetch {
             fetch: Fetch {
                 remotes: match &request.remotes {
@@ -344,6 +356,7 @@ impl Service {
         };
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -352,12 +365,13 @@ impl Service {
     }
 
     /// `git.pull`.
-    pub(crate) fn pull(&self, call: Call, request: &GitPull) {
+    pub(crate) fn pull(&self, call: Call, view: View, request: &GitPull) {
         let mutation = Mutation::Pull {
             rebase: request.rebase,
         };
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -366,12 +380,13 @@ impl Service {
     }
 
     /// `git.sync`.
-    pub(crate) fn sync(&self, call: Call, request: &GitPull) {
+    pub(crate) fn sync(&self, call: Call, view: View, request: &GitPull) {
         let mutation = Mutation::Sync {
             rebase: request.rebase,
         };
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -380,7 +395,7 @@ impl Service {
     }
 
     /// `git.push`.
-    pub(crate) fn push(&self, call: Call, request: &GitPush) {
+    pub(crate) fn push(&self, call: Call, view: View, request: &GitPush) {
         let mutation = Mutation::Push(Push {
             remote: request.remote.as_ref().map(|name| name.as_str().to_owned()),
             branch: request.branch.as_ref().map(|name| name.as_str().to_owned()),
@@ -390,6 +405,7 @@ impl Service {
         });
         self.mutate(
             call,
+            view,
             request.workspace_id,
             request.request_id,
             &request.repository,
@@ -398,11 +414,11 @@ impl Service {
     }
 
     /// `git.init`.
-    pub(crate) fn init(&self, call: Call, request: &GitPath) {
+    pub(crate) fn init(&self, call: Call, view: View, request: &GitPath) {
         let Some((git, call)) = self.engine(call) else {
             return;
         };
-        let caller = caller(&call, request.workspace_id, request.request_id);
+        let caller = caller(&call, view, request.workspace_id, request.request_id);
         git.init(
             caller,
             request.path.as_str().to_owned(),
@@ -411,11 +427,11 @@ impl Service {
     }
 
     /// `git.mark-safe`.
-    pub(crate) fn mark_safe(&self, call: Call, request: &GitPath) {
+    pub(crate) fn mark_safe(&self, call: Call, view: View, request: &GitPath) {
         let Some((git, call)) = self.engine(call) else {
             return;
         };
-        let caller = caller(&call, request.workspace_id, request.request_id);
+        let caller = caller(&call, view, request.workspace_id, request.request_id);
         git.mark_safe(
             caller,
             request.path.as_str().to_owned(),
@@ -459,6 +475,7 @@ impl Service {
     fn mutate(
         &self,
         call: Call,
+        view: View,
         workspace: WorkspaceId,
         request: RequestId,
         repository: &FilePath,
@@ -467,7 +484,7 @@ impl Service {
         let Some((git, call)) = self.engine(call) else {
             return;
         };
-        let caller = caller(&call, workspace, request);
+        let caller = caller(&call, view, workspace, request);
         git.mutate(
             caller,
             repository.as_str().to_owned(),
@@ -488,12 +505,13 @@ impl Service {
 }
 
 /// The identity a write carries through the engine, which cancels with `call`.
-fn caller(call: &Call, workspace: WorkspaceId, request: RequestId) -> engine::Call {
+fn caller(call: &Call, view: View, workspace: WorkspaceId, request: RequestId) -> engine::Call {
     engine::Call {
         workspace,
         connection: call.connection(),
         request,
         cancel: call.cancellation(),
+        scope: Arc::new(view),
     }
 }
 
@@ -526,6 +544,16 @@ impl Members for ScopeMembers {
             .filter_map(|member| NativePath::parse(member).ok())
             .collect();
         self.0.set_git_members(workspace, members);
+    }
+}
+
+/// A mutation's working-tree entries pass the view its call started under.
+impl Scope for View {
+    fn entry(&self, path: &str) -> Result<(), ErrorCode> {
+        let path = FilePath::new(path).map_err(|_| ErrorCode::InvalidRequest)?;
+        self.mutable(&path, Change::Entry)
+            .map(drop)
+            .map_err(|refused| refused.code)
     }
 }
 

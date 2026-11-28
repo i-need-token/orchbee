@@ -242,17 +242,17 @@ impl Services {
             FilesRequest::GitRefs(request) => self.git.refs(call, &request),
             FilesRequest::GitUserConfig(request) => self.git.user_config(call, &request),
             FilesRequest::GitOutput(request) => self.git.output(call, &request),
-            FilesRequest::GitStage(request) => self.git.stage(call, &request),
-            FilesRequest::GitUnstage(request) => self.git.unstage(call, &request),
-            FilesRequest::GitDiscard(request) => self.git.discard(call, &request),
-            FilesRequest::GitClean(request) => self.git.clean(call, &request),
-            FilesRequest::GitCommit(request) => self.git.commit(call, &request),
-            FilesRequest::GitFetch(request) => self.git.fetch(call, &request),
-            FilesRequest::GitPull(request) => self.git.pull(call, &request),
-            FilesRequest::GitSync(request) => self.git.sync(call, &request),
-            FilesRequest::GitPush(request) => self.git.push(call, &request),
-            FilesRequest::GitInit(request) => self.git.init(call, &request),
-            FilesRequest::GitMarkSafe(request) => self.git.mark_safe(call, &request),
+            FilesRequest::GitStage(request) => self.git.stage(call, view, &request),
+            FilesRequest::GitUnstage(request) => self.git.unstage(call, view, &request),
+            FilesRequest::GitDiscard(request) => self.git.discard(call, view, &request),
+            FilesRequest::GitClean(request) => self.git.clean(call, view, &request),
+            FilesRequest::GitCommit(request) => self.git.commit(call, view, &request),
+            FilesRequest::GitFetch(request) => self.git.fetch(call, view, &request),
+            FilesRequest::GitPull(request) => self.git.pull(call, view, &request),
+            FilesRequest::GitSync(request) => self.git.sync(call, view, &request),
+            FilesRequest::GitPush(request) => self.git.push(call, view, &request),
+            FilesRequest::GitInit(request) => self.git.init(call, view, &request),
+            FilesRequest::GitMarkSafe(request) => self.git.mark_safe(call, view, &request),
             FilesRequest::RepositoryConsent(request) => self.git.consent(call, &request),
             FilesRequest::RepositoryClose(request) => self.git.close(call, &request),
             FilesRequest::RelaySubscribe(request) => {
@@ -276,7 +276,7 @@ impl Services {
                 self.files
                     .upload(call, transfer, size, move |call, content| {
                         if let Some(services) = services.upgrade() {
-                            services.git.stage_content(call, &request, content);
+                            services.git.stage_content(call, view, &request, content);
                         }
                     });
             }

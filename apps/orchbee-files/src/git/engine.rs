@@ -19,7 +19,7 @@ use super::{
     mutations::{self, Cleaned, Commit, Context},
     native_paths,
     output::{GitOutput, Page},
-    ports::{Change, Members, Report, ShowRead, Trash, Watches},
+    ports::{Change, Members, Report, Scope, ShowRead, Trash, Watches},
     reads::{self, RefsPage, UserConfig},
     relay::{self, Answer, Ask, Relay, Token},
     remote::{self, Fetch, Push},
@@ -199,6 +199,9 @@ pub(super) struct Call {
     pub(super) connection: ConnectionId,
     pub(super) request: RequestId,
     pub(super) cancel: Arc<AtomicBool>,
+    /// The scope the call started under, which the working-tree entries its mutation changes pass
+    /// when its job starts.
+    pub(super) scope: Arc<dyn Scope>,
 }
 
 /// What a read runs with once the engine found its repository.
@@ -670,6 +673,8 @@ struct Job {
     callers: Vec<Caller>,
     /// Stops the run: the caller's own cancel, or for a fetch, set once every caller cancelled.
     cancel: Arc<AtomicBool>,
+    /// The scope of the call that queued it.
+    scope: Arc<dyn Scope>,
     started: bool,
     token: Option<Token>,
 }
@@ -1341,6 +1346,7 @@ impl Actor {
                     fetch: None,
                     callers: vec![caller],
                     cancel: call.cancel,
+                    scope: call.scope,
                     started: false,
                     token: None,
                 };
@@ -1382,6 +1388,7 @@ impl Actor {
             fetch,
             callers: vec![caller],
             cancel,
+            scope: call.scope,
             started: false,
             token: None,
         });
@@ -1411,6 +1418,7 @@ impl Actor {
         job.started = true;
         let id = job.id;
         let cancel = Arc::clone(&job.cancel);
+        let scope = Arc::clone(&job.scope);
         let output = Arc::clone(&space.output);
         let trash = Arc::clone(&self.trash);
         let version = self.version;
@@ -1427,7 +1435,7 @@ impl Actor {
                     output: &output,
                     relay: None,
                 };
-                mutations::init(&path, version, &context).map(Done::Initialized)
+                mutations::init(&path, version, &*scope, &context).map(Done::Initialized)
             }),
             Work::MarkSafe(path) => Box::new(move || {
                 let limits = Limits::new("mark-safe", mutations::CONFIG_DEADLINE, cancel);
@@ -1491,7 +1499,8 @@ impl Actor {
                         output: &output,
                         relay: relayed.as_ref(),
                     };
-                    mutation.execute(&found, snapshot.as_deref(), version, &*trash, &context)
+                    let snapshot = snapshot.as_deref();
+                    mutation.execute(&found, snapshot, version, &*trash, &*scope, &context)
                 })
             }
         };
@@ -2021,14 +2030,15 @@ impl Actor {
 }
 
 impl Mutation {
-    /// Runs the mutation. A discard updates the paths `snapshot` lists as submodules instead of
-    /// checking them out.
+    /// Runs the mutation with the machine's trash and the scope of its call. A discard updates
+    /// the paths `snapshot` lists as submodules instead of checking them out.
     fn execute(
         self,
         found: &Found,
         snapshot: Option<&Snapshot>,
         version: (u32, u32, u32),
         trash: &dyn Trash,
+        scope: &dyn Scope,
         context: &Context<'_>,
     ) -> Ended {
         match self {
@@ -2040,13 +2050,13 @@ impl Mutation {
                 let (submodules, paths) = paths
                     .into_iter()
                     .partition::<Vec<_>, _>(|path| submodule(found, snapshot, path));
-                mutations::discard(found, &paths, &submodules, context).map(|()| Done::Empty)
+                mutations::discard(found, &paths, &submodules, scope, context).map(|()| Done::Empty)
             }
             Self::StageContent { path, content } => {
                 mutations::stage_content(found, &path, content, context).map(|()| Done::Empty)
             }
             Self::Clean { paths, mode } => Ok(Done::Cleaned(mutations::clean(
-                found, &paths, mode, trash, context,
+                found, &paths, mode, trash, scope, context,
             ))),
             Self::Commit(commit) => mutations::commit(found, &commit, context).map(Done::Committed),
             Self::Fetch { fetch, .. } => {

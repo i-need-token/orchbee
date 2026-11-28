@@ -5,16 +5,19 @@
 //! or as its real location, or inside a member the Git engine establishes: the working tree of a
 //! repository consented to in that Workspace, or the file an open editor prompt names. It is also
 //! readable when it is a file the requesting connection opened in that Workspace. Links inside are
-//! followed, as VS Code follows them. An operation keeps the view it started under, so a later
-//! root change never moves it. Opened files outlive their Workspace's close and end with
-//! `fs.ungrant` or their connection; each successful `fs.grant` of a file adds one grant of it,
-//! and the file stays opened while one remains.
+//! followed, as VS Code follows them. A mutation's path passes [`View::mutable`] when its execution
+//! starts: the real location it changes must also lie inside a member's real location, so a link
+//! or junction inside cannot carry the change outside. An operation keeps the view it started
+//! under, so a later root change never moves it. Opened files outlive their Workspace's close and
+//! end with `fs.ungrant` or their connection; each successful `fs.grant` of a file adds one grant
+//! of it, and the file stays opened while one remains.
 
 pub(crate) mod path;
 
 use std::{
     collections::HashMap,
     io,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, MutexGuard, PoisonError},
 };
 
@@ -24,6 +27,7 @@ use orchbee_files_protocol::{
 };
 
 use self::path::NativePath;
+use crate::error::from_io;
 
 /// How many distinct files one connection may hold open in one Workspace. A tab bar holds far
 /// fewer; the bound keeps a Client that never ungrants from growing this process without limit.
@@ -67,6 +71,21 @@ struct StatedRoot {
 /// One connection's opened files in one Workspace, by [`NativePath::key`], each with the number
 /// of grants not yet released.
 type OpenedFiles = HashMap<String, (NativePath, u32)>;
+
+/// What a mutation changes at its path, which decides whose real location must lie in scope.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Change {
+    /// The content of the file at the path, written through a link there, and the file created
+    /// when nothing is there: saving, Save As and recreating a deleted file. The path's own real
+    /// location must lie inside a member's; a file the connection opened is admitted wherever it
+    /// lies, since the person chose it.
+    Content,
+    /// The entry at the path itself, never what a link there names: creating it, renaming or moving
+    /// it (from and to), copying onto it, replacing it, deleting it or moving it to the trash. Its
+    /// folder's real location must lie inside a member's, so a member itself is never such a
+    /// path; an opened file admits nothing more.
+    Entry,
+}
 
 /// The scope one operation starts under: what its paths may name until it ends.
 pub(crate) struct View {
@@ -383,6 +402,123 @@ impl View {
                 NativePath::parse(path.as_str())
             }
         }
+    }
+
+    /// Admits `path` for a mutation that changes it as `change` says, checked each time a
+    /// mutation of the operation starts. The path, or for [`Change::Entry`] its folder, must lie
+    /// lexically inside a member, and its real location inside a member's real location: links
+    /// and junctions on the way resolved, and on Windows 8.3 names and case, compared as
+    /// [`path::real_within`] compares. A location where nothing is yet is where its nearest
+    /// existing folder's real location leads, since nothing below that folder can redirect it. A
+    /// file the connection opened is admitted for [`Change::Content`] without either check. It
+    /// reads the filesystem and may block, so it runs where the mutation runs.
+    ///
+    /// # Errors
+    ///
+    /// - The error of a form this machine does not admit.
+    /// - `outside-scope` when the path, or for [`Change::Entry`] its folder, is not lexically
+    ///   inside a member; also for [`Change::Entry`] of a filesystem root.
+    /// - `link-target-outside` when the real location lies outside every member's, or a link on
+    ///   the way names nothing.
+    /// - The code of the operating system's failure to read a real location, such as
+    ///   `permission-denied` or `not-directory`.
+    pub(crate) fn mutable(
+        &self,
+        path: &FilePath,
+        change: Change,
+    ) -> Result<NativePath, FilesError> {
+        self.mutable_on(&System, path, change)
+    }
+
+    fn mutable_on(
+        &self,
+        filesystem: &impl Filesystem,
+        path: &FilePath,
+        change: Change,
+    ) -> Result<NativePath, FilesError> {
+        let path = NativePath::parse(path.as_str())?;
+        if change == Change::Content && self.opened.contains_key(&path.key()) {
+            return Ok(path);
+        }
+        let changed = match change {
+            Change::Content => Some(path.clone()),
+            Change::Entry => path.parent(),
+        };
+        let Some(changed) =
+            changed.filter(|changed| self.members.iter().any(|member| changed.is_within(member)))
+        else {
+            return Err(FilesError::new(ErrorCode::OutsideScope));
+        };
+        let real = located(filesystem, &changed)?;
+        // A member without a real location now admits nothing by it.
+        let inside = self
+            .members
+            .iter()
+            .filter_map(|member| located(filesystem, member).ok())
+            .any(|member| path::real_within(&real, &member));
+        if inside {
+            Ok(path)
+        } else {
+            Err(FilesError::new(ErrorCode::LinkTargetOutside))
+        }
+    }
+}
+
+/// What the mutation check reads of the filesystem.
+trait Filesystem {
+    /// The real location of `path`, as [`std::fs::canonicalize`] reads it.
+    fn real(&self, path: &Path) -> io::Result<PathBuf>;
+
+    /// Whether an entry is at `path` itself, a link counting whatever it names.
+    fn exists(&self, path: &Path) -> io::Result<bool>;
+}
+
+/// This machine's filesystem.
+struct System;
+
+impl Filesystem for System {
+    fn real(&self, path: &Path) -> io::Result<PathBuf> {
+        std::fs::canonicalize(path)
+    }
+
+    fn exists(&self, path: &Path) -> io::Result<bool> {
+        match std::fs::symlink_metadata(path) {
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(error),
+        }
+    }
+}
+
+/// The real location of `path`; where nothing is at it, the real location of its nearest existing
+/// folder with the missing segments below, which no link can redirect while nothing is there.
+///
+/// # Errors
+///
+/// `link-target-outside` for a link on the way that names nothing, since where a change through it
+/// lands cannot be known, and the operating system's failure otherwise.
+fn located(filesystem: &impl Filesystem, path: &NativePath) -> Result<PathBuf, FilesError> {
+    let mut missing = Vec::new();
+    let mut current = path.clone();
+    loop {
+        let error = match filesystem.real(current.as_path()) {
+            Ok(mut real) => {
+                real.extend(missing.iter().rev());
+                return Ok(real);
+            }
+            Err(error) if error.kind() == io::ErrorKind::NotFound => error,
+            Err(error) => return Err(from_io(&error)),
+        };
+        if filesystem
+            .exists(current.as_path())
+            .map_err(|error| from_io(&error))?
+        {
+            return Err(FilesError::new(ErrorCode::LinkTargetOutside));
+        }
+        // A missing filesystem root leads nowhere.
+        let parent = current.parent().ok_or_else(|| from_io(&error))?;
+        missing.push(current.name().to_owned());
+        current = parent;
     }
 }
 

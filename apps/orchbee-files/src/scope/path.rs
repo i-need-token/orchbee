@@ -7,7 +7,13 @@
 //! bytewise on Linux, and on Windows and macOS ignoring case by simple per-character folding.
 //! Names are never normalized.
 
-use std::{io, path::Path};
+#[cfg(windows)]
+use std::path::Prefix;
+use std::{
+    ffi::OsStr,
+    io,
+    path::{Component, Path},
+};
 
 use orchbee_files_protocol::{ErrorCode, FilesError, OperatingSystem, Separator};
 
@@ -108,6 +114,57 @@ pub(crate) fn real(path: &NativePath) -> io::Result<NativePath> {
     #[cfg(windows)]
     let real = real.strip_prefix(r"\\?\").unwrap_or(real);
     NativePath::parse(real).map_err(|_| io::ErrorKind::Unsupported.into())
+}
+
+/// Whether the real location `path` is the real location `member` or lies below it, component by
+/// component. Both are spelled as [`std::fs::canonicalize`] reads them, so on Windows they compare
+/// exactly: that spelling is `GetFinalPathNameByHandleW`'s, which resolves junctions, 8.3 names and
+/// case, and only a drive letter's case may differ. On macOS names compare ignoring case, as
+/// [`NativePath::is_within`] compares them, and on Linux bytewise; a name that is not UTF-8
+/// compares bytewise everywhere. Names are never normalized.
+pub(crate) fn real_within(path: &Path, member: &Path) -> bool {
+    let mut components = path.components();
+    member.components().all(|expected| {
+        components
+            .next()
+            .is_some_and(|actual| same_component(actual, expected))
+    })
+}
+
+fn same_component(actual: Component<'_>, expected: Component<'_>) -> bool {
+    match (actual, expected) {
+        (Component::Normal(actual), Component::Normal(expected)) => same_real(actual, expected),
+        #[cfg(windows)]
+        (Component::Prefix(actual), Component::Prefix(expected)) => {
+            same_prefix(actual.kind(), expected.kind())
+        }
+        (actual, expected) => actual == expected,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn same_real(actual: &OsStr, expected: &OsStr) -> bool {
+    match (actual.to_str(), expected.to_str()) {
+        (Some(actual), Some(expected)) => same(actual, expected),
+        _ => actual == expected,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn same_real(actual: &OsStr, expected: &OsStr) -> bool {
+    actual == expected
+}
+
+/// A drive letter compares ignoring case, whichever form spells it; any other prefix exactly.
+#[cfg(windows)]
+fn same_prefix(actual: Prefix<'_>, expected: Prefix<'_>) -> bool {
+    match (actual, expected) {
+        (
+            Prefix::Disk(actual) | Prefix::VerbatimDisk(actual),
+            Prefix::Disk(expected) | Prefix::VerbatimDisk(expected),
+        ) => actual.eq_ignore_ascii_case(&expected),
+        (actual, expected) => actual == expected,
+    }
 }
 
 /// Whether this machine's default volumes compare names case-sensitively, as the root facts

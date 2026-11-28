@@ -1,20 +1,22 @@
 //! The local Git mutations Source Control runs, each as VS Code's Git extension runs it at
 //! ef5ca45: stage, unstage, discard, content staging, clean, commit, init and trusting an unsafe
 //! repository. Paths reach Git literally, in batches of at most 30,000 characters, and a command
-//! that meets another process's lock is retried with VS Code's quadratic backoff.
+//! that meets another process's lock is retried with VS Code's quadratic backoff. Each working-tree
+//! entry a discard, a clean or an init changes passes the call's scope first, so a link or junction
+//! on the way cannot carry the change outside it.
 
 use super::{
     command::{self, Access, RelayVariables},
     discovery::Found,
     errors::{Classifier, GitError, GitErrorCode},
-    native_paths,
     output::GitOutput,
-    ports::{Trash, TrashError},
+    ports::{Scope, Trash, TrashError},
     runner::{self, Limits, Ran},
 };
 use orchbee_files_protocol::{CleanMode, CommitAll, ErrorCode};
 use orchbee_git_process::canonical_path;
 use std::{
+    iter,
     path::Path,
     sync::{Mutex, atomic::Ordering},
     thread,
@@ -98,13 +100,18 @@ pub(super) fn unstage(
 }
 
 /// `git.discard`: the working-tree changes of tracked paths, from the index; a submodule is
-/// updated to the commit its repository records instead.
+/// updated to the commit its repository records instead. Nothing changes unless every path
+/// passes `scope`.
 pub(super) fn discard(
     found: &Found,
     paths: &[String],
     submodules: &[String],
+    scope: &dyn Scope,
     context: &Context<'_>,
 ) -> Result<(), GitError> {
+    for path in paths.iter().chain(submodules) {
+        admitted(found, path, scope)?;
+    }
     if !paths.is_empty() {
         batched(
             found,
@@ -175,12 +182,14 @@ pub(super) fn stage_content(
 }
 
 /// `git.clean`: untracked paths to the machine's trash, five at a time, or removed with
-/// `git clean -f`. Paths not yet reached when the call is cancelled answer `cancelled`.
+/// `git clean -f`, each once it passes `scope`. Paths not yet reached when the call is cancelled
+/// answer `cancelled`.
 pub(super) fn clean(
     found: &Found,
     paths: &[String],
     mode: CleanMode,
     trash: &dyn Trash,
+    scope: &dyn Scope,
     context: &Context<'_>,
 ) -> Vec<Cleaned> {
     match mode {
@@ -194,13 +203,13 @@ pub(super) fn clean(
                     }));
                     continue;
                 }
-                thread::scope(|scope| {
+                thread::scope(|threads| {
                     let moving = group
                         .iter()
                         .map(|path| {
                             thread::Builder::new()
                                 .name("orchbee-files-git-trash".into())
-                                .spawn_scoped(scope, move || trash_one(found, path, trash))
+                                .spawn_scoped(threads, move || trash_one(found, path, trash, scope))
                         })
                         .collect::<Vec<_>>();
                     for (path, moving) in group.iter().zip(moving) {
@@ -209,7 +218,7 @@ pub(super) fn clean(
                             Ok(moving) => moving
                                 .join()
                                 .unwrap_or_else(|_| Err(GitError::new(ErrorCode::Failed))),
-                            Err(_) => trash_one(found, path, trash),
+                            Err(_) => trash_one(found, path, trash, scope),
                         };
                         cleaned.push(Cleaned {
                             path: path.clone(),
@@ -221,8 +230,18 @@ pub(super) fn clean(
             cleaned
         }
         CleanMode::Permanent => {
-            let mut cleaned = Vec::with_capacity(paths.len());
-            for batch in batches(paths) {
+            let checked = paths
+                .iter()
+                .map(|path| admitted(found, path, scope))
+                .collect::<Vec<_>>();
+            let removable = paths
+                .iter()
+                .zip(&checked)
+                .filter(|(_, checked)| checked.is_ok())
+                .map(|(path, _)| path.clone())
+                .collect::<Vec<_>>();
+            let mut removed = Vec::with_capacity(removable.len());
+            for batch in batches(&removable) {
                 let error = batched(
                     found,
                     &["clean", "-f", "-q"],
@@ -231,28 +250,40 @@ pub(super) fn clean(
                     context,
                 )
                 .err();
-                cleaned.extend(batch.iter().map(|path| Cleaned {
-                    path: path.clone(),
-                    error: error.clone(),
-                }));
+                removed.extend(iter::repeat_n(error, batch.len()));
             }
-            cleaned
+            let mut removed = removed.into_iter();
+            paths
+                .iter()
+                .zip(checked)
+                .map(|(path, checked)| Cleaned {
+                    path: path.clone(),
+                    error: match checked {
+                        Ok(()) => removed.next().flatten(),
+                        Err(error) => Some(error),
+                    },
+                })
+                .collect()
         }
     }
 }
 
-/// Moves one untracked path to the trash once its folder's real location is inside the
-/// repository, so a link on the way cannot move something outside it.
-fn trash_one(found: &Found, path: &str, trash: &dyn Trash) -> Result<(), GitError> {
+/// Admits a working-tree path a discard, a clean or an init changes: below the repository's
+/// toplevel, and the entry passes the call's scope.
+fn admitted(found: &Found, path: &str, scope: &dyn Scope) -> Result<(), GitError> {
     found.relative(path)?;
+    scope.entry(path).map_err(GitError::new)
+}
+
+/// Moves one untracked path to the trash once it passes `scope`.
+fn trash_one(
+    found: &Found,
+    path: &str,
+    trash: &dyn Trash,
+    scope: &dyn Scope,
+) -> Result<(), GitError> {
+    admitted(found, path, scope)?;
     let path = Path::new(path);
-    let parent = path
-        .parent()
-        .ok_or(GitError::new(ErrorCode::InvalidRequest))?;
-    let real = canonical_path(parent).map_err(|_| GitError::new(ErrorCode::NotFound))?;
-    if native_paths::relative(&found.toplevel, real.as_native()).is_none() {
-        return Err(GitError::new(ErrorCode::LinkTargetOutside));
-    }
     if path.symlink_metadata().is_err() {
         return Err(GitError::new(ErrorCode::NotFound));
     }
@@ -388,14 +419,22 @@ fn identity_failure(found: &Found, error: GitError, context: &Context<'_>) -> Gi
     error
 }
 
-/// `git.init` in `path`, answering the new repository's canonical toplevel. The first branch is
-/// the one the user's `init.defaultBranch` names, else VS Code's default where Git can name it.
+/// `git.init` in `path`, answering the new repository's canonical toplevel, once the `.git` entry
+/// it creates passes `scope`. The first branch is the one the user's `init.defaultBranch` names,
+/// else VS Code's default where Git can name it.
 pub(super) fn init(
     path: &str,
     version: (u32, u32, u32),
+    scope: &dyn Scope,
     context: &Context<'_>,
 ) -> Result<String, GitError> {
     let directory = Path::new(path);
+    let entry = directory
+        .join(".git")
+        .into_os_string()
+        .into_string()
+        .map_err(|_| GitError::new(ErrorCode::InvalidRequest))?;
+    scope.entry(&entry).map_err(GitError::new)?;
     let mut configured = command::git(directory, Access::Read, None);
     configured.args(["config", "--get", "init.defaultBranch"]);
     let named = runner::run(configured, Vec::new(), context.limits, context.output)?
