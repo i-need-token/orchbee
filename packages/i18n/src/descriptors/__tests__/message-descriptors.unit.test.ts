@@ -17,6 +17,7 @@ import { fileExplorerMessages } from '../file-explorer';
 import { fileOverlayMessages } from '../file-overlay';
 import { keyboardShortcutMessages } from '../keyboard-shortcuts';
 import { projectedTerminalMessages } from '../projected-terminal';
+import { sourceControlMessages } from '../source-control';
 
 import { terminalSettingsMessages } from '../terminal-settings';
 import { workbenchMessages } from '../workbench';
@@ -41,6 +42,7 @@ const descriptorCollections: readonly (readonly [
 	['file overlay', fileOverlayMessages],
 	['keyboard shortcuts', keyboardShortcutMessages],
 	['projected terminal', projectedTerminalMessages],
+	['Source Control', sourceControlMessages],
 
 	['terminal settings', terminalSettingsMessages],
 	['Workbench', workbenchMessages],

@@ -34,6 +34,8 @@ export type { OrchbeeMessageId } from './messages';
 export type { MonacoMessageIndex } from './monaco-editor';
 export { enUSSessionConnectionMessages } from './session-connection';
 export type { SessionConnectionMessageId } from './session-connection';
+export { enUSSourceControlMessages } from './source-control';
+export type { SourceControlMessageId } from './source-control';
 export { enUSTerminalSettingsMessages } from './terminal-settings';
 export type { TerminalSettingsMessageId } from './terminal-settings';
 export { enUSWorkbenchMessages } from './workbench';

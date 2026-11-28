@@ -22,6 +22,7 @@ import { zhCNFileOverlayMessages } from './file-overlay';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
 import { zhCNSessionConnectionMessages } from './session-connection';
+import { zhCNSourceControlMessages } from './source-control';
 
 import { zhCNTerminalSettingsMessages } from './terminal-settings';
 import { zhCNWorkbenchMessages } from './workbench';
@@ -50,6 +51,7 @@ export const zhCNMessages = {
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,
 	...zhCNSessionConnectionMessages,
+	...zhCNSourceControlMessages,
 
 	...zhCNTerminalSettingsMessages,
 	...zhCNWorkbenchMessages,

@@ -2,7 +2,7 @@ import type { FileContent, FileReadOptions } from './file-content-port';
 import type { FileError, FileResult } from './file-error';
 
 /** A repository the Workspace's discovery found, as the SCM summary reports it. */
-interface GitRepositorySummary {
+export interface GitRepositorySummary {
 	/** A Git operation of this repository runs now. */
 	readonly busy: boolean;
 	readonly counts: {
@@ -33,7 +33,7 @@ interface GitRepositorySummary {
 		readonly behind: number;
 		readonly name: string;
 	} | null;
-	/** Kept warm after the root left it, so returning shows it at once. */
+	/** A status of it was read, so its head, counts and status pages hold. */
 	readonly warm: boolean;
 }
 

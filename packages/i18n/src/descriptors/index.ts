@@ -15,6 +15,7 @@ export { fileOverlayMessages } from './file-overlay';
 export { keyboardShortcutMessages } from './keyboard-shortcuts';
 export { projectedTerminalMessages } from './projected-terminal';
 export { sessionConnectionMessages, sessionPathRefusalMessages } from './session-connection';
+export { sourceControlMessages } from './source-control';
 
 export { terminalSettingsMessages } from './terminal-settings';
 export { workbenchMessages } from './workbench';

@@ -1,0 +1,40 @@
+.root {
+	position: absolute;
+	z-index: var(--ob-ref-layer-raised);
+	inset-block-start: 0;
+	inset-inline: 0;
+	block-size: var(--ob-ref-space-0-5);
+	overflow: hidden;
+	pointer-events: none;
+}
+
+/* VS Code's infinite progress: a bit 2% of the width crosses in about 4s, three times wider midway. */
+.bit {
+	display: block;
+	block-size: 100%;
+	inline-size: 2%;
+	background: var(--ob-sys-color-status-info);
+	animation: scm-progress calc(var(--ob-sys-motion-duration-spin) * 3)
+		var(--ob-sys-motion-easing-linear) infinite;
+}
+
+@keyframes scm-progress {
+	from {
+		transform: translateX(0%) scaleX(1);
+	}
+
+	50% {
+		transform: translateX(2500%) scaleX(3);
+	}
+
+	to {
+		transform: translateX(4900%) scaleX(1);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.bit {
+		inline-size: 100%;
+		animation: none;
+	}
+}

@@ -18,6 +18,7 @@ export type ProductIconName =
 	| 'check'
 	| 'clear-all'
 	| 'close'
+	| 'cloud-upload'
 	| 'collapse-all'
 	| 'color'
 	| 'copy'
@@ -28,6 +29,10 @@ export type ProductIconName =
 	| 'folder'
 	| 'folder-opened'
 	| 'git-branch'
+	| 'git-branch-changes'
+	| 'git-branch-conflicts'
+	| 'git-branch-staged-changes'
+	| 'git-commit'
 	| 'info'
 	| 'keyboard'
 	| 'layout'
@@ -42,6 +47,7 @@ export type ProductIconName =
 	| 'question'
 	| 'refresh'
 	| 'remove'
+	| 'repo'
 	| 'restore'
 	| 'search'
 	| 'screen-full'
@@ -53,6 +59,7 @@ export type ProductIconName =
 	| 'sidebar-right-off'
 	| 'source-control'
 	| 'split-down'
+	| 'sync'
 	| 'tabs'
 	| 'terminal'
 	| 'trash'
@@ -84,6 +91,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'check' && styles['check'],
 				name === 'clear-all' && styles['clearAll'],
 				name === 'close' && styles['close'],
+				name === 'cloud-upload' && styles['cloudUpload'],
 				name === 'collapse-all' && styles['collapseAll'],
 				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
@@ -94,6 +102,10 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
 				name === 'git-branch' && styles['gitBranch'],
+				name === 'git-branch-changes' && styles['gitBranchChanges'],
+				name === 'git-branch-conflicts' && styles['gitBranchConflicts'],
+				name === 'git-branch-staged-changes' && styles['gitBranchStagedChanges'],
+				name === 'git-commit' && styles['gitCommit'],
 				name === 'info' && styles['info'],
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
@@ -108,6 +120,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'question' && styles['question'],
 				name === 'refresh' && styles['refresh'],
 				name === 'remove' && styles['remove'],
+				name === 'repo' && styles['repo'],
 				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
 				name === 'screen-full' && styles['screenFull'],
@@ -119,6 +132,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'sidebar-right-off' && styles['sidebarRightOff'],
 				name === 'source-control' && styles['sourceControl'],
 				name === 'split-down' && styles['splitDown'],
+				name === 'sync' && styles['sync'],
 				name === 'tabs' && styles['tabs'],
 				name === 'terminal' && styles['terminal'],
 				name === 'trash' && styles['trash'],

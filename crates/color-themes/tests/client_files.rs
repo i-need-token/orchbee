@@ -396,6 +396,22 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     ] {
         colors.push((format!("file-type-{hue}"), color.to_string()));
     }
+    // A path's Git state takes the Tab-group accent of its VS Code hue, already at body contrast,
+    // and an ignored path the comment grey.
+    let accents = &roles.tab_groups;
+    for (state, color) in [
+        ("added", accents.green),
+        ("conflicting", accents.red),
+        ("deleted", accents.red),
+        ("ignored", accents.grey),
+        ("modified", accents.yellow),
+        ("renamed", accents.green),
+        ("stage-deleted", accents.red),
+        ("stage-modified", accents.yellow),
+        ("untracked", accents.green),
+    ] {
+        colors.push((format!("git-{state}"), color.to_string()));
+    }
     // A saved machine's color by name, raised onto the theme as the TUI writes it.
     for ((name, _), color) in orchbee_color_themes::MACHINE_COLORS
         .iter()

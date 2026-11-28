@@ -1,0 +1,30 @@
+.trigger {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: default;
+}
+
+.trigger:hover,
+.trigger[data-popup-open] {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.trigger:active {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.trigger:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

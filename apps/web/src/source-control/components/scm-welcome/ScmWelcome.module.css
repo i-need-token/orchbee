@@ -1,0 +1,25 @@
+/* VS Code's welcome view: paragraphs across the view's width, 20px from its sides, and buttons at
+   most 300px wide, centered beneath them. */
+.root {
+	display: flex;
+	box-sizing: border-box;
+	flex-direction: column;
+	align-items: center;
+	padding: var(--ob-ref-space-3) var(--ob-ref-space-5) var(--ob-ref-space-4);
+	overflow: auto;
+}
+
+.text {
+	width: 100%;
+	margin: 0 0 var(--ob-ref-space-3);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	overflow-wrap: anywhere;
+	user-select: text;
+}
+
+.button {
+	width: 100%;
+	max-width: var(--ob-comp-source-control-welcome-button-max-width);
+	margin-block-end: var(--ob-ref-space-3);
+}

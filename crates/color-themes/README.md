@@ -159,7 +159,8 @@ themes and fails when either is stale:
 
 A block takes surfaces, text, frames, accents, and statuses from the resolver: canvas, chrome as
 `surface-raised`, overlay, the text steps, the frame steps as borders, `accent-action` and
-`accent-link`, the four status roles, the machine colors, the Tab-group accents as the syntax colors, and the
+`accent-link`, the four status roles, the machine colors, the Tab-group accents as the syntax colors and as the
+Git state colors, which take VS Code's hue for each state and the comment grey for an ignored path, and the
 file-type colors, which give Seti's hues the Tab-group accents and its white and greys the text steps they stand
 for. States follow the hand-authored mapping's proportions,
 shifting text, link, and status foregrounds toward white on dark themes and black on light themes,

@@ -21,6 +21,7 @@ import { enUSFileOverlayMessages } from './file-overlay';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
 import { enUSSessionConnectionMessages } from './session-connection';
+import { enUSSourceControlMessages } from './source-control';
 
 import { enUSTerminalSettingsMessages } from './terminal-settings';
 import { enUSWorkbenchMessages } from './workbench';
@@ -49,6 +50,7 @@ export const enUSMessages = {
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,
 	...enUSSessionConnectionMessages,
+	...enUSSourceControlMessages,
 
 	...enUSTerminalSettingsMessages,
 	...enUSWorkbenchMessages,

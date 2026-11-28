@@ -6,6 +6,19 @@
 	--ob-ref-color-agent-error-light: #e1423e;
 	--ob-ref-color-agent-working-dark: #e5e5e5;
 	--ob-ref-color-agent-working-light: #383a42;
+	/* VS Code's Git decoration colors; each -on-light value is its light theme's. */
+	--ob-ref-color-git-added: #81b88b;
+	--ob-ref-color-git-added-on-light: #587c0c;
+	--ob-ref-color-git-conflicting: #e4676b;
+	--ob-ref-color-git-conflicting-on-light: #ad0707;
+	--ob-ref-color-git-deleted: #c74e39;
+	--ob-ref-color-git-deleted-on-light: #ad0707;
+	--ob-ref-color-git-ignored: #8c8c8c;
+	--ob-ref-color-git-ignored-on-light: #8e8e90;
+	--ob-ref-color-git-modified: #e2c08d;
+	--ob-ref-color-git-modified-on-light: #895503;
+	--ob-ref-color-git-untracked: #73c991;
+	--ob-ref-color-git-untracked-on-light: #007100;
 	--ob-ref-color-groknight-gray: #585858;
 	--ob-ref-color-overlay-scrollbar-gray: rgb(128 128 128);
 	/* The Seti file-icon palette; each -on-light shade is VS Code's light-theme 90% value. */
@@ -432,6 +445,7 @@
 		0px 1px 2px rgb(0 0 0 / 0.1), 0px 3px 2px rgb(0 0 0 / 0.1), 0px 4px 8px rgb(0 0 0 / 0.1);
 	--ob-ref-text-decoration-none: none;
 	--ob-ref-text-decoration-underline: underline;
+	--ob-ref-text-decoration-line-through: line-through;
 	--ob-ref-motion-easing-in: cubic-bezier(0.4, 0, 1, 1);
 	--ob-ref-motion-easing-out: cubic-bezier(0, 0, 0.2, 1);
 	--ob-ref-motion-easing-in-out: cubic-bezier(0.4, 0, 0.2, 1);
@@ -793,6 +807,16 @@
 	--ob-sys-color-file-type-red: var(--ob-ref-color-seti-red-on-light);
 	--ob-sys-color-file-type-white: var(--ob-ref-color-seti-white-on-light);
 	--ob-sys-color-file-type-yellow: var(--ob-ref-color-seti-yellow-on-light);
+	/* A path's Git state, as VS Code's gitDecoration colors draw its letter and name. */
+	--ob-sys-color-git-added: var(--ob-ref-color-git-added-on-light);
+	--ob-sys-color-git-conflicting: var(--ob-ref-color-git-conflicting-on-light);
+	--ob-sys-color-git-deleted: var(--ob-ref-color-git-deleted-on-light);
+	--ob-sys-color-git-ignored: var(--ob-ref-color-git-ignored-on-light);
+	--ob-sys-color-git-modified: var(--ob-ref-color-git-modified-on-light);
+	--ob-sys-color-git-renamed: var(--ob-ref-color-git-untracked-on-light);
+	--ob-sys-color-git-stage-deleted: var(--ob-ref-color-git-deleted-on-light);
+	--ob-sys-color-git-stage-modified: var(--ob-ref-color-git-modified-on-light);
+	--ob-sys-color-git-untracked: var(--ob-ref-color-git-untracked-on-light);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-700);
 	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-700);
 	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-700);
@@ -861,6 +885,8 @@
 	--ob-sys-text-decoration-link: var(--ob-ref-text-decoration-none);
 	--ob-sys-text-decoration-link-hover: var(--ob-ref-text-decoration-underline);
 	--ob-sys-text-decoration-link-focus: var(--ob-ref-text-decoration-underline);
+	/* A deleted file's name, struck through as VS Code's Source Control draws it. */
+	--ob-sys-text-decoration-deleted: var(--ob-ref-text-decoration-line-through);
 	--ob-sys-motion-duration-instant: var(--ob-ref-motion-duration-instant);
 	--ob-sys-motion-duration-agent-cycle: var(--ob-ref-motion-duration-1000);
 	--ob-sys-motion-duration-spin: var(--ob-ref-motion-duration-1250);
@@ -940,6 +966,10 @@
 	/* A drag's label follows the pointer, placed from the viewport's corner. */
 	--ob-comp-pointer-drag-label-inline-start: 0px;
 	--ob-comp-pointer-drag-label-block-start: 0px;
+	/* Source Control's runtime geometry: the Repositories list's height while the Changes list
+	   shows below it, and VS Code's widest welcome button. */
+	--ob-comp-source-control-repositories-height: 0px;
+	--ob-comp-source-control-welcome-button-max-width: 300px;
 	/* The code editor's multi-diff runtime geometry: each file sits at its own offset in the content,
 	   and its frame renders no taller than the view. */
 	--ob-comp-code-editor-multi-diff-content-height: 0px;
@@ -1219,6 +1249,16 @@
 	--ob-sys-color-file-type-red: var(--ob-ref-color-seti-red);
 	--ob-sys-color-file-type-white: var(--ob-ref-color-seti-white);
 	--ob-sys-color-file-type-yellow: var(--ob-ref-color-seti-yellow);
+	/* A path's Git state, as VS Code's gitDecoration colors draw its letter and name. */
+	--ob-sys-color-git-added: var(--ob-ref-color-git-added);
+	--ob-sys-color-git-conflicting: var(--ob-ref-color-git-conflicting);
+	--ob-sys-color-git-deleted: var(--ob-ref-color-git-deleted);
+	--ob-sys-color-git-ignored: var(--ob-ref-color-git-ignored);
+	--ob-sys-color-git-modified: var(--ob-ref-color-git-modified);
+	--ob-sys-color-git-renamed: var(--ob-ref-color-git-untracked);
+	--ob-sys-color-git-stage-deleted: var(--ob-ref-color-git-deleted);
+	--ob-sys-color-git-stage-modified: var(--ob-ref-color-git-modified);
+	--ob-sys-color-git-untracked: var(--ob-ref-color-git-untracked);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-400);
 	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-400);
 	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-400);

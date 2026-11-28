@@ -1,0 +1,61 @@
+/* VS Code's 22px pane header: the twistie at the start, the title beside it, and the Actions ending
+   8px from the edge. */
+.root {
+	display: flex;
+	box-sizing: border-box;
+	height: calc(var(--ob-ref-size-control-2xs) + 2 * var(--ob-ref-space-0-5));
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	padding-inline-end: var(--ob-ref-space-2);
+}
+
+.heading {
+	display: flex;
+	min-width: 0;
+	height: 100%;
+	flex: 1;
+	margin: 0;
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.disclosure {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	margin: 0;
+	padding: 0 0 0 var(--ob-ref-space-0-5);
+	border: none;
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: default;
+	text-align: start;
+}
+
+.disclosure:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+.title {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--ob-sys-color-text-label);
+	font: var(--ob-sys-typography-label-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tools {
+	display: flex;
+	flex: none;
+	gap: var(--ob-ref-space-0-5);
+	visibility: hidden;
+}
+
+/* VS Code shows a pane's title Actions while the pointer or focus is anywhere in the pane. */
+[data-slot='scm-section']:is(:hover, :focus-within) .tools {
+	visibility: visible;
+}

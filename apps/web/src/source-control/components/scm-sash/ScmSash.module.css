@@ -1,0 +1,17 @@
+/* VS Code's 4px sash, centered on the boundary, whose line shows once the pointer rests on it. */
+.sash {
+	position: relative;
+	z-index: var(--ob-ref-layer-raised);
+	flex: none;
+	block-size: var(--ob-ref-space-1);
+	margin-block: calc(var(--ob-ref-space-0-5) * -1);
+	cursor: ns-resize;
+	touch-action: none;
+}
+
+.sash:hover,
+.sash:active {
+	background: var(--ob-sys-color-border-focus);
+	transition: background-color var(--ob-sys-motion-duration-instant)
+		var(--ob-sys-motion-easing-standard) var(--ob-sys-motion-duration-slow);
+}

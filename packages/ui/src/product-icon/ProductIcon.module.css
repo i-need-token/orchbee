@@ -218,3 +218,31 @@
 .warning {
 	composes: codicon-warning from global;
 }
+
+.cloudUpload {
+	composes: codicon-cloud-upload from global;
+}
+
+.gitBranchChanges {
+	composes: codicon-git-branch-changes from global;
+}
+
+.gitBranchConflicts {
+	composes: codicon-git-branch-conflicts from global;
+}
+
+.gitBranchStagedChanges {
+	composes: codicon-git-branch-staged-changes from global;
+}
+
+.gitCommit {
+	composes: codicon-git-commit from global;
+}
+
+.repo {
+	composes: codicon-repo from global;
+}
+
+.sync {
+	composes: codicon-sync from global;
+}

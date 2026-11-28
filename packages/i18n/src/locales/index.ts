@@ -15,6 +15,7 @@ export {
 	enUSProjectedTerminalMessages,
 	enUSMessages,
 	enUSSessionConnectionMessages,
+	enUSSourceControlMessages,
 	enUSTerminalSettingsMessages,
 	enUSWorkbenchMessages,
 } from './en-US';
