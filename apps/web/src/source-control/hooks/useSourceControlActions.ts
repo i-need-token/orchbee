@@ -21,7 +21,7 @@ import type {
 	SourceControlPickEntry,
 	SourceControlQuickInput,
 } from '../types/source-control-ports';
-import { gitFailureMessage } from '../utils/gitFailureMessage';
+import { gitFailureNotice } from '../utils/gitFailureNotice';
 import { gitRequestId } from '../utils/gitRequestId';
 
 const SOURCE_CONTROL_ACTION_IDS = {
@@ -141,10 +141,7 @@ export function useSourceControlActions({
 		const settle = (result: FileResult<unknown>): ActionResult<void> => {
 			if (result.kind === 'ok') return { kind: 'completed' };
 			if (result.error.code !== 'cancelled') {
-				void notifications.notify({
-					message: gitFailureMessage(intl, result.error),
-					severity: 'error',
-				});
+				void notifications.notify(gitFailureNotice(intl, result.error));
 			}
 			return { failure: { code: result.error.code }, kind: 'failed' };
 		};

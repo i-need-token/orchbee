@@ -333,7 +333,7 @@ const scmRepositorySchema = z
 	})
 	.transform(({ busy, head, upstream, ...repository }) => ({
 		...repository,
-		busy: busy !== undefined,
+		busy: busy ?? null,
 		head: {
 			branch: head.branch ?? null,
 			commit: head.commit ?? null,

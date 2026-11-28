@@ -5,6 +5,8 @@ import type { SourceControlFocus } from '../types/source-control-focus';
 
 interface UseSourceControlFocusOptions {
 	readonly changesTree: React.RefObject<HTMLDivElement | null>;
+	/** Moves focus into a commit input when the Changes section would take it; false when it did not. */
+	readonly focusInput: () => boolean;
 	readonly reference: React.Ref<SourceControlFocus> | undefined;
 	readonly repositoriesTree: React.RefObject<HTMLDivElement | null>;
 	readonly rootReference: React.RefObject<HTMLDivElement | null>;
@@ -21,11 +23,12 @@ interface SourceControlFocusTracking {
 
 /**
  * Source Control's side of a focus request: the tree of the section focused last takes focus, else
- * the first shown of Changes and Repositories. While no tree shows, the view itself takes focus and
- * hands it to a tree once one shows, unless focus has moved.
+ * the first shown of Changes and Repositories, where a commit input may take it first. While no tree
+ * shows, the view itself takes focus and hands it to a tree once one shows, unless focus has moved.
  */
 export function useSourceControlFocus({
 	changesTree,
+	focusInput,
 	reference,
 	repositoriesTree,
 	rootReference,
@@ -44,12 +47,13 @@ export function useSourceControlFocus({
 		reference,
 		() => ({
 			focus: () => {
+				if (lastReference.current === 'changes' && focusInput()) return;
 				const tree = firstTree();
 				pendingReference.current = tree === null;
 				(tree ?? rootReference.current)?.focus({ preventScroll: true });
 			},
 		}),
-		[firstTree, rootReference],
+		[firstTree, focusInput, rootReference],
 	);
 	React.useLayoutEffect(() => {
 		const root = rootReference.current;

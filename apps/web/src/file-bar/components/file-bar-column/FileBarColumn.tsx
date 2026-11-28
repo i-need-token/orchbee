@@ -37,6 +37,7 @@ export function FileBarColumn({
 	platform,
 	quickInput,
 	session,
+	settings,
 	storage,
 	viewFocusRequest,
 }: FileBarColumnProps): ReactNode {
@@ -118,6 +119,7 @@ export function FileBarColumn({
 							quickInput={quickInput}
 							ref={sourceControlReference}
 							session={session}
+							settings={settings}
 							storage={storage}
 						/>
 					</div>

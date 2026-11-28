@@ -49,7 +49,8 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - `renderRow` draws a row's content; the tree draws the row around it, with VS Code's 8 px a level
   of indentation and the twistie. It runs only when a slot shows another row or the row's revision,
   position, focus or selection changes, so content that depends on other data subscribes to that
-  data itself.
+  data itself. A row that `isControlRow` names, such as Source Control's commit input, draws no
+  twistie and paints no hover or selection, as VS Code's `force-no-twistie` and `force-no-hover`.
 - Rows are VS Code's 22 px unless `rowHeight` says otherwise. A function reads each row's height
   into a Fenwick index, which answers position and row lookups in O(log n); it is read for every
   row whenever its identity changes or rows change in place, and for inserted rows otherwise, so
@@ -105,8 +106,9 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   `interaction/tree-commands.ts` what each does, and `useTreePointer` the clicks. Pass the
   `platform` the Workbench resolves, so the tree answers to that platform's keys.
 - Keys act while the tree element itself has focus, which names the focused row through
-  `aria-activedescendant`. A control inside a row keeps its own keys, and Tab moves into the focused
-  row's first element with a `tabindex` of its own.
+  `aria-activedescendant`. A control inside a row, a code editor's included, keeps its own keys,
+  clicks and context menu, and Tab moves into the focused row's first element with a `tabindex` of
+  its own.
 - `onOpen` hears each row the tree asks the view to open. A click, Space on a row that does not
   expand, and Shift with an arrow or Select All when it leaves one row selected preview the row and
   keep focus in the tree; Enter, a double click or a middle click opens it for good, and Ctrl, Cmd

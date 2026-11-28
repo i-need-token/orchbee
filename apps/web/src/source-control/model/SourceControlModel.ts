@@ -6,7 +6,9 @@ import type {
 	GitRemote,
 	GitRepositorySummary,
 } from '../../file-session';
+import { readSetting, type UserSettingsControl } from '../../user-settings';
 import { VirtualTreeModel } from '../../virtual-tree';
+import { scmActionButtonShown, type ScmPostCommit } from './scm-action-button';
 import type { ScmGroupId, ScmResourceGroups, ScmResourceStatus } from './scm-resource';
 import {
 	SCM_TREE_INPUT,
@@ -16,6 +18,7 @@ import {
 	type ScmTreeSource,
 } from './scm-tree';
 import type { ScmViewMode, ScmViewSortKey, ScmViewState } from './scm-view-state';
+import { ScmCommitInput } from './ScmCommitInput';
 import type { ScmRepositoryState, ScmWorkspace, ScmWorkspaceState } from './ScmWorkspace';
 import { scmWorkspaceOf } from './scmWorkspaceOf';
 import {
@@ -32,10 +35,40 @@ export interface ScmViewMemory {
 	changes: ChangesViewState | null;
 	/** Repositories this window closed in the Workspace, which discovery no longer displays. */
 	readonly closed: Set<string>;
+	/** Each repository's commit input, kept for the run as VS Code keeps its SCM input's value. */
+	readonly inputs: Map<string, ScmCommitInput>;
 }
+
+/** The Git settings Source Control reads, each at its default until the settings arrive. */
+interface ScmGitSettings {
+	readonly confirmForcePush: boolean;
+	readonly confirmSync: boolean;
+	readonly enableSmartCommit: boolean;
+	readonly suggestSmartCommit: boolean;
+}
+
+/** A Git setting one of VS Code's questions writes when answered with Always, Never or Don't Show Again. */
+export type ScmWrittenSetting =
+	| 'git.confirm_sync'
+	| 'git.enable_smart_commit'
+	| 'git.suggest_smart_commit';
+
+/** What this window runs in a repository, which its action button and row show. */
+export interface ScmLocalActivity {
+	/** The commit itself runs. */
+	readonly committing: boolean;
+	/** The push or sync a commit asked for runs after it. */
+	readonly postCommit: boolean;
+	/** A sync, push, pull or publish runs. */
+	readonly syncing: boolean;
+}
+
+const IDLE: ScmLocalActivity = { committing: false, postCommit: false, syncing: false };
 
 /** Everything the Source Control view draws from, apart from its two trees. */
 export interface SourceControlState {
+	/** What this window runs in each repository; a repository missing here runs nothing. */
+	readonly activity: ReadonlyMap<string, ScmLocalActivity>;
 	/** How many repositories this window closed in the Workspace. */
 	readonly closed: number;
 	/** Each displayed repository's remotes, once read; a repository not read yet has none. */
@@ -45,6 +78,7 @@ export interface SourceControlState {
 	/** The Workspace's root; null before the root stream describes it. */
 	readonly root: FileRoot | null;
 	readonly rules: FilePathRules | null;
+	readonly settings: ScmGitSettings;
 	readonly view: ScmViewState;
 	readonly workspace: ScmWorkspaceState;
 }
@@ -54,6 +88,8 @@ interface SourceControlModelOptions {
 	readonly compareNames: (one: string, other: string) => number;
 	readonly memory: ScmViewMemory;
 	readonly session: FileWorkspaceSession;
+	/** The user's settings; without them the Git settings keep their defaults and answers persist nowhere. */
+	readonly settings: UserSettingsControl | undefined;
 	/** A status's localized hover text, which Sort by Status compares. */
 	readonly statusText: (status: ScmResourceStatus) => string;
 	readonly storage: SourceControlViewStateStorage | undefined;
@@ -61,6 +97,25 @@ interface SourceControlModelOptions {
 
 /** The repositories list's input; repository paths are never empty. */
 const REPOSITORIES_INPUT = '';
+
+function gitSettings(control: UserSettingsControl | undefined): ScmGitSettings {
+	const snapshot = control?.getSnapshot().snapshot ?? null;
+	return {
+		confirmForcePush: readSetting(snapshot, 'git.confirm_force_push'),
+		confirmSync: readSetting(snapshot, 'git.confirm_sync'),
+		enableSmartCommit: readSetting(snapshot, 'git.enable_smart_commit'),
+		suggestSmartCommit: readSetting(snapshot, 'git.suggest_smart_commit'),
+	};
+}
+
+function sameSettings(one: ScmGitSettings, other: ScmGitSettings): boolean {
+	return (
+		one.confirmForcePush === other.confirmForcePush &&
+		one.confirmSync === other.confirmSync &&
+		one.enableSmartCommit === other.enableSmartCommit &&
+		one.suggestSmartCommit === other.suggestSmartCommit
+	);
+}
 
 /** What a repository's remotes were read for: a new branch or upstream reads them again. */
 function remotesKey({ head, upstream }: GitRepositorySummary): string {
@@ -87,30 +142,37 @@ export class SourceControlModel {
 		{ readonly abort: AbortController; readonly key: string }
 	>();
 	readonly #session: FileWorkspaceSession;
+	readonly #settings: UserSettingsControl | undefined;
 	readonly #source: ScmTreeSource;
 	readonly #storage: SourceControlViewStateStorage | undefined;
 	readonly #workspace: ScmWorkspace;
 	#disposed = false;
+	/** Which repositories had an action button when the Changes tree last refreshed. */
+	#shownButtons: readonly boolean[] = [];
 	/** The groups the Changes tree last refreshed with, to refresh only when they change. */
 	#shownGroups: readonly (ScmResourceGroups | null)[] = [];
 	#shownRepositories: readonly string[] = [];
 	#state: SourceControlState;
 	readonly #unobserve: () => void;
 	readonly #unsubscribeRoot: () => void;
+	readonly #unsubscribeSettings: () => void;
 
 	constructor(options: SourceControlModelOptions) {
 		this.compareNames = options.compareNames;
 		this.#memory = options.memory;
 		this.#session = options.session;
+		this.#settings = options.settings;
 		this.statusText = options.statusText;
 		this.#storage = options.storage;
 		this.#workspace = scmWorkspaceOf(options.session.git);
 		this.#state = {
+			activity: new Map(),
 			closed: this.#memory.closed.size,
 			remotes: new Map(),
 			repositories: [],
 			root: null,
 			rules: null,
+			settings: gitSettings(options.settings),
 			view: readSourceControlViewState(options.storage, options.session.workspaceId),
 			workspace: this.#workspace.state,
 		};
@@ -135,6 +197,49 @@ export class SourceControlModel {
 		if (remembered !== null) void this.changes.restoreViewState(remembered);
 		this.#unobserve = this.#workspace.observe(() => this.#onWorkspace(), { status: true });
 		this.#unsubscribeRoot = options.session.subscribe((event) => this.#onRoot(event));
+		this.#unsubscribeSettings =
+			options.settings?.subscribe(() => this.#onSettings()) ?? (() => undefined);
+	}
+
+	/** The repository's commit input, which lasts for the run. */
+	input(repository: string): ScmCommitInput {
+		let input = this.#memory.inputs.get(repository);
+		if (input === undefined) {
+			input = new ScmCommitInput();
+			this.#memory.inputs.set(repository, input);
+		}
+		return input;
+	}
+
+	/** The commit input's editor measured its content anew; its row follows. */
+	setInputHeight(repository: string, height: number): void {
+		const input = this.input(repository);
+		if (input.height === height) return;
+		input.height = height;
+		const single = this.#state.repositories.length === 1;
+		void this.changes.refresh(single ? null : this.#source.key({ kind: 'repository', repository }));
+	}
+
+	/** Records what this window starts or ends running in a repository. */
+	setActivity(repository: string, change: Partial<ScmLocalActivity>): void {
+		const activity = new Map(this.#state.activity);
+		const next = { ...(activity.get(repository) ?? IDLE), ...change };
+		if (next.committing || next.postCommit || next.syncing) activity.set(repository, next);
+		else activity.delete(repository);
+		this.#publish({ ...this.#state, activity });
+	}
+
+	/** VS Code's post-commit command storage: what the action button's primary press offers. */
+	remember(repository: string, post: ScmPostCommit | undefined): void {
+		const input = this.input(repository);
+		if (input.remembered === post) return;
+		input.remembered = post;
+		this.#publish({ ...this.#state });
+	}
+
+	/** Keeps a question's answer in the user's settings; without them it is not kept. */
+	writeSetting(key: ScmWrittenSetting, value: boolean): void {
+		void this.#settings?.set(key, value);
 	}
 
 	get state(): SourceControlState {
@@ -196,6 +301,7 @@ export class SourceControlModel {
 		this.#memory.changes = this.changes.viewState();
 		this.#unobserve();
 		this.#unsubscribeRoot();
+		this.#unsubscribeSettings();
 		for (const { abort } of this.#remoteReads.values()) abort.abort();
 		this.#remoteReads.clear();
 		this.changes.dispose();
@@ -222,7 +328,9 @@ export class SourceControlModel {
 				statusText: this.statusText,
 			},
 			repositories: repositories.map(({ groups, summary }) => ({
+				button: scmActionButtonShown(summary),
 				groups,
+				inputHeight: this.input(summary.repository).height,
 				repository: summary.repository,
 			})),
 		};
@@ -249,14 +357,25 @@ export class SourceControlModel {
 		this.#publish({ ...this.#state, closed: closed.size, repositories: displayed, workspace });
 		const repositories = displayed.map(({ summary }) => summary.repository);
 		const groups = displayed.map((repository) => repository.groups);
+		const buttons = displayed.map(({ summary }) => scmActionButtonShown(summary));
 		const repositoriesChanged =
 			repositories.length !== this.#shownRepositories.length ||
 			repositories.some((repository, index) => repository !== this.#shownRepositories[index]);
 		const groupsChanged = groups.some((group, index) => group !== this.#shownGroups[index]);
+		const buttonsChanged = buttons.some((button, index) => button !== this.#shownButtons[index]);
 		this.#shownRepositories = repositories;
 		this.#shownGroups = groups;
+		this.#shownButtons = buttons;
 		if (repositoriesChanged) void this.repositories.refresh(null);
-		if (repositoriesChanged || groupsChanged) void this.changes.refresh(null, { recursive: true });
+		if (repositoriesChanged || groupsChanged || buttonsChanged) {
+			void this.changes.refresh(null, { recursive: true });
+		}
+	}
+
+	#onSettings(): void {
+		const settings = gitSettings(this.#settings);
+		if (sameSettings(settings, this.#state.settings)) return;
+		this.#publish({ ...this.#state, settings });
 	}
 
 	/** Reads the remotes of each repository that is new or whose branch or upstream changed. */

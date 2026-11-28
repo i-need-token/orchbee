@@ -43,6 +43,8 @@ export function scmChangesRowTarget(
 	selection: () => readonly ScmTreeItem[],
 ): ScmRowTarget | null {
 	switch (item.kind) {
+		case 'button':
+		case 'input':
 		case 'workspace':
 			return null;
 		case 'repository': {

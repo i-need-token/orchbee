@@ -1,6 +1,7 @@
 import * as React from 'react';
 
 import type { TreeViewport } from '../../layout/TreeViewport';
+import type { VirtualTreeRow } from '../../model/virtual-tree-types';
 import type { VirtualTreeRowRenderer } from '../../types/virtual-tree-row-renderer';
 import { rowElementId, segmentElementId } from '../../utils/tree-element-ids';
 import { VirtualTreeRowView } from '../virtual-tree-row-view/VirtualTreeRowView';
@@ -11,6 +12,7 @@ interface VirtualTreeSlotProps<K, T> {
 	readonly slot: number | 'focused';
 	readonly treeId: string;
 	readonly renderRow: VirtualTreeRowRenderer<K, T>;
+	readonly isControlRow: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
 }
 
 /**
@@ -18,6 +20,7 @@ interface VirtualTreeSlotProps<K, T> {
  * changed.
  */
 export function VirtualTreeSlot<K, T>({
+	isControlRow,
 	renderRow,
 	slot,
 	treeId,
@@ -46,6 +49,7 @@ export function VirtualTreeSlot<K, T>({
 	return (
 		<VirtualTreeRowView
 			collapsible={row.collapsible}
+			control={isControlRow?.(row) ?? false}
 			depth={shown.depth}
 			dropTarget={shown.dropTarget}
 			expanded={expanded}

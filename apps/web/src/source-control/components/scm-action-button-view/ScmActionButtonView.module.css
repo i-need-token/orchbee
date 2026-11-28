@@ -1,0 +1,115 @@
+/* VS Code's SCM action button: a 28px primary button across the row, 12px from its sides, whose
+   dropdown sits at its end behind a thin separator. */
+.root {
+	display: flex;
+	min-width: 0;
+	height: var(--ob-ref-size-control-sm);
+	flex: 1;
+	margin-inline: var(--ob-ref-space-3);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-action-primary);
+	color: var(--ob-sys-color-action-primary-text);
+	font: var(--ob-sys-typography-control-sm);
+}
+
+/* A disabled button fades as a whole, as VS Code's does. */
+.root[data-disabled] {
+	opacity: var(--ob-sys-opacity-disabled);
+}
+
+.primary,
+.dropdown {
+	display: inline-flex;
+	min-width: 0;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	border: none;
+	background: none;
+	color: inherit;
+	cursor: default;
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.primary {
+	flex: 1;
+	gap: var(--ob-ref-space-1);
+	padding: 0 var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-ui-sm);
+}
+
+/* With a dropdown, the primary button keeps its rounding at the start only. */
+.primary:not(:only-child) {
+	border-end-end-radius: 0;
+	border-start-end-radius: 0;
+}
+
+.dropdown {
+	flex: none;
+	padding: 0 var(--ob-ref-space-1);
+	border-end-end-radius: var(--ob-ref-radius-ui-sm);
+	border-start-end-radius: var(--ob-ref-radius-ui-sm);
+}
+
+.primary:hover:enabled,
+.dropdown:hover:enabled,
+.dropdown[data-popup-open] {
+	background: var(--ob-sys-color-action-primary-hover);
+}
+
+.primary:active:enabled,
+.dropdown:active:enabled {
+	background: var(--ob-sys-color-action-primary-pressed);
+}
+
+.primary:focus-visible,
+.dropdown:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}
+
+/* VS Code's `button.separator`: the button's text color, faded, inset from the button's edges. */
+.separator {
+	width: var(--ob-ref-border-width-default);
+	flex: none;
+	margin-block: var(--ob-ref-space-1);
+	background: currentcolor;
+	opacity: var(--ob-sys-opacity-disabled);
+}
+
+.icon {
+	display: inline-flex;
+	flex: none;
+}
+
+/* VS Code's `sync~spin` while a sync, push or publish runs. */
+.icon[data-spinning] {
+	animation: action-button-spin var(--ob-sys-motion-duration-spin) var(--ob-sys-motion-easing-spin)
+		infinite;
+}
+
+@keyframes action-button-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.icon[data-spinning] {
+		animation: none;
+	}
+}
+
+.label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* The commits to pull and push, each count before its arrow. */
+.count {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+}

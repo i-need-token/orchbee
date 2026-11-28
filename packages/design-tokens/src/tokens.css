@@ -967,8 +967,13 @@
 	--ob-comp-pointer-drag-label-inline-start: 0px;
 	--ob-comp-pointer-drag-label-block-start: 0px;
 	/* Source Control's runtime geometry: the Repositories list's height while the Changes list
-	   shows below it, and VS Code's widest welcome button. */
+	   shows below it, a commit input's height as its content measures, where the input's message
+	   shows below the input, and VS Code's widest welcome button. */
+	--ob-comp-source-control-input-height: 0px;
 	--ob-comp-source-control-repositories-height: 0px;
+	--ob-comp-source-control-validation-block-start: 0px;
+	--ob-comp-source-control-validation-inline-size: 0px;
+	--ob-comp-source-control-validation-inline-start: 0px;
 	--ob-comp-source-control-welcome-button-max-width: 300px;
 	/* The code editor's multi-diff runtime geometry: each file sits at its own offset in the content,
 	   and its frame renders no taller than the view. */

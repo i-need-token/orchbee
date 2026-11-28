@@ -1,4 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { sourceControlMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
@@ -6,7 +7,9 @@ import * as React from 'react';
 import type { Ref } from 'react';
 
 import type { FileWorkspaceSession } from '../file-session';
-import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
+import type { UserSettingsControl } from '../user-settings';
+import { VirtualTree, type VirtualTreeOpenEvent, type VirtualTreeRow } from '../virtual-tree';
+import type { ScmGitCommands } from './actions/scmGitActions';
 import { ScmChangesMenu } from './components/scm-changes-menu/ScmChangesMenu';
 import { ScmContextMenuContent } from './components/scm-context-menu-content/ScmContextMenuContent';
 import { ScmProgress } from './components/scm-progress/ScmProgress';
@@ -14,9 +17,16 @@ import { ScmRepositoryRow } from './components/scm-repository-row/ScmRepositoryR
 import { ScmSash } from './components/scm-sash/ScmSash';
 import { ScmSectionHeader } from './components/scm-section-header/ScmSectionHeader';
 import { ScmWelcome } from './components/scm-welcome/ScmWelcome';
-import { SCM_ROW_HEIGHT, SCM_VISIBLE_REPOSITORIES } from './constants/scm-rows';
+import {
+	SCM_BUTTON_ROW_HEIGHT,
+	SCM_INPUT_ROW_PADDING,
+	SCM_ROW_HEIGHT,
+	SCM_VISIBLE_REPOSITORIES,
+} from './constants/scm-rows';
 import { useGitClientFocus } from './hooks/useGitClientFocus';
 import { useScmChangeRowRenderer } from './hooks/useScmChangeRowRenderer';
+import { useScmControlRenderer } from './hooks/useScmControlRenderer';
+import { useScmGitActions } from './hooks/useScmGitActions';
 import { useScmMenuGroups } from './hooks/useScmMenuGroups';
 import { useScmRowActions } from './hooks/useScmRowActions';
 import { useScmSections } from './hooks/useScmSections';
@@ -24,7 +34,14 @@ import { useScmTreeMenu } from './hooks/useScmTreeMenu';
 import { useSourceControlActions } from './hooks/useSourceControlActions';
 import { useSourceControlFocus } from './hooks/useSourceControlFocus';
 import { useSourceControlModel } from './hooks/useSourceControlModel';
-import { scmCheckoutItem, scmRepositoryNames, scmSyncItem } from './model/scm-repository-row';
+import { scmActivity } from './model/scmActivity';
+import {
+	scmCheckoutItem,
+	scmRepositoryNames,
+	scmSyncItem,
+	type ScmRepositoryActivity,
+} from './model/scm-repository-row';
+import type { ScmTreeItem } from './model/scm-tree';
 import type { SourceControlState } from './model/SourceControlModel';
 import type { SourceControlViewStateStorage } from './model/source-control-view-state-storage';
 import { scmWelcomeItems } from './model/scmWelcomeItems';
@@ -33,6 +50,7 @@ import type {
 	SourceControlNotifications,
 	SourceControlQuickInput,
 } from './types/source-control-ports';
+import { scmRemoteMenuCommands } from './utils/scmRemoteMenuCommands';
 import styles from './SourceControl.module.css';
 
 interface SourceControlProps {
@@ -49,6 +67,8 @@ interface SourceControlProps {
 	readonly ref?: Ref<SourceControlFocus> | undefined;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
+	/** The user's settings, the Git ones read and answered into; without them those keep defaults. */
+	readonly settings?: UserSettingsControl | undefined;
 	/** Where the view mode, sort and sections are saved between runs; without it they are not. */
 	readonly storage?: SourceControlViewStateStorage | undefined;
 }
@@ -56,9 +76,27 @@ interface SourceControlProps {
 /** The rows a section's header and the Changes list keep at least, so neither closes by a drag. */
 const SECTIONS_CHROME = 3 * SCM_ROW_HEIGHT;
 
+/** VS Code's SCM input and action button rows, which hold their own controls. */
+function isControlRow({ element }: VirtualTreeRow<string, ScmTreeItem>): boolean {
+	return element.kind === 'input' || element.kind === 'button';
+}
+
+/** VS Code's Changes row heights: the input's content and padding, the button's, and 22 otherwise. */
+function changeRowHeight({ element }: VirtualTreeRow<string, ScmTreeItem>): number {
+	switch (element.kind) {
+		case 'input':
+			return element.height + SCM_INPUT_ROW_PADDING;
+		case 'button':
+			return SCM_BUTTON_ROW_HEIGHT;
+		default:
+			return SCM_ROW_HEIGHT;
+	}
+}
+
 /** Draws a repository row from the state of the moment the tree draws it. */
 function useRepositoryRenderer(
 	state: SourceControlState | null,
+	gitCommands: ScmGitCommands,
 ): (repository: string) => React.ReactNode {
 	return React.useMemo(() => {
 		const repositories = state?.repositories ?? [];
@@ -73,18 +111,22 @@ function useRepositoryRenderer(
 			)?.summary;
 			if (summary === undefined || state === null) return null;
 			const name = names.get(repository);
+			const { committing, syncing } = scmActivity(summary.busy, state.activity.get(repository));
+			let activity: ScmRepositoryActivity = 'none';
+			if (committing) activity = 'commit';
+			else if (syncing) activity = 'sync';
 			return (
 				<ScmRepositoryRow
-					checkout={scmCheckoutItem(summary, 'none')}
+					checkout={scmCheckoutItem(summary, activity)}
 					description={name?.description ?? null}
 					name={name?.name ?? repository}
 					path={repository}
-					sync={scmSyncItem(summary, state.remotes.get(repository) ?? [], 'none')}
-					onSync={null}
+					sync={scmSyncItem(summary, state.remotes.get(repository) ?? [], activity)}
+					onSync={(action) => gitCommands.run(repository, { kind: action }, 'button')}
 				/>
 			);
 		};
-	}, [state]);
+	}, [gitCommands, state]);
 }
 
 /**
@@ -101,6 +143,7 @@ export function SourceControl({
 	quickInput,
 	ref,
 	session,
+	settings,
 	storage,
 }: SourceControlProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
@@ -108,7 +151,7 @@ export function SourceControl({
 	const repositoriesTree = React.useRef<HTMLDivElement>(null);
 	const changesTree = React.useRef<HTMLDivElement>(null);
 	const dragOrigin = React.useRef(0);
-	const { model, state } = useSourceControlModel({ session, storage });
+	const { model, state } = useSourceControlModel({ session, settings, storage });
 	useGitClientFocus(session?.git ?? null);
 	const scope = React.useMemo(
 		() => actionRuntime.createScope('source-control', actionScope),
@@ -129,18 +172,62 @@ export function SourceControl({
 		scope,
 		session,
 	});
+	const gitCommands = useScmGitActions({
+		model,
+		notifications,
+		quickInput,
+		runtime: actionRuntime,
+		scope,
+		session,
+	});
 	const menus = useScmMenuGroups({ commands, model, rowCommands });
 	const repositoriesMenu = useScmTreeMenu();
 	const changesMenu = useScmTreeMenu();
 	const { drag, dragging, sections, toggleChanges, toggleRepositories } = useScmSections(storage);
-	const renderRepository = useRepositoryRenderer(state);
+	const renderRepository = useRepositoryRenderer(state, gitCommands);
+	const controls = useScmControlRenderer({
+		actionScope: scope,
+		gitCommands,
+		model,
+		platform,
+		state,
+	});
 	const renderRepositoryRow = React.useMemo(
 		() =>
 			(row: VirtualTreeRow<string, string>): React.ReactNode =>
 				renderRepository(row.element),
 		[renderRepository],
 	);
-	const renderChangeRow = useScmChangeRowRenderer({ model, renderRepository, rowCommands, state });
+	const renderChangeRow = useScmChangeRowRenderer({
+		model,
+		renderControl: controls.render,
+		renderRepository,
+		rowCommands,
+		state,
+	});
+	const remoteMenu = useMemoizedFn(() =>
+		state === null ? [] : scmRemoteMenuCommands({ gitCommands, intl, quickInput, state }),
+	);
+	// VS Code's `open` of an SCM input or action button row moves focus into its control, leaving no
+	// row focused and the input's row unselected.
+	const openChange = useMemoizedFn(({ row }: VirtualTreeOpenEvent<string, ScmTreeItem>) => {
+		const { element, key } = row;
+		if (model === null || (element.kind !== 'input' && element.kind !== 'button')) return;
+		controls.focus(element);
+		model.changes.setFocus(null);
+		const { selection } = model.changes;
+		if (element.kind === 'input' && selection.size === 1 && selection.has(key)) {
+			model.changes.setSelection([]);
+		}
+	});
+	// VS Code's view takes focus in the first drawn commit input while the Changes tree focuses no row.
+	const focusInput = useMemoizedFn((): boolean => {
+		if (model === null || state === null || sections.changesCollapsed) return false;
+		if (model.changes.focus !== null) return false;
+		return state.repositories.some(({ summary }) =>
+			controls.focus({ kind: 'input', repository: summary.repository }),
+		);
+	});
 	const welcome =
 		state === null
 			? []
@@ -152,6 +239,7 @@ export function SourceControl({
 				});
 	const focusTracking = useSourceControlFocus({
 		changesTree,
+		focusInput,
 		reference: ref,
 		repositoriesTree,
 		rootReference,
@@ -167,9 +255,9 @@ export function SourceControl({
 			/>
 		);
 	}
-	const busy = state.repositories.some(
-		(repository) => repository.summary.busy || repository.loading,
-	);
+	const busy =
+		state.activity.size > 0 ||
+		state.repositories.some((repository) => repository.summary.busy !== null || repository.loading);
 	if (welcome.length > 0) {
 		return (
 			<div className={styles['root']} data-slot='source-control' ref={rootReference} tabIndex={-1}>
@@ -255,7 +343,7 @@ export function SourceControl({
 					title={intl.formatMessage(sourceControlMessages.changes)}
 					onToggle={toggleChanges}
 				>
-					<ScmChangesMenu viewAndSort={commands.viewAndSort} />
+					<ScmChangesMenu git={remoteMenu} viewAndSort={commands.viewAndSort} />
 				</ScmSectionHeader>
 				{sections.changesCollapsed ? null : (
 					<ContextMenu>
@@ -264,13 +352,15 @@ export function SourceControl({
 							onContextMenu={changesMenu.onTriggerContextMenu}
 						>
 							<VirtualTree
+								isControlRow={isControlRow}
 								label={intl.formatMessage(sourceControlMessages.tree)}
 								model={model.changes}
 								platform={platform}
 								renderRow={renderChangeRow}
-								rowHeight={SCM_ROW_HEIGHT}
+								rowHeight={changeRowHeight}
 								treeReference={changesTree}
 								onContextMenu={({ row }) => changesMenu.show(menus.changes(row))}
+								onOpen={openChange}
 							/>
 						</ContextMenuTrigger>
 						{changesMenu.groups.length === 0 ? null : (

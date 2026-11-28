@@ -37,6 +37,14 @@
 	background: var(--ob-sys-color-surface-hovered);
 }
 
+/* A row that holds its own controls paints no hover or selection, as VS Code's `force-no-hover`. */
+.row[data-control],
+.row[data-control]:hover,
+.row[data-control][aria-selected='true'],
+.row[data-control][aria-selected='true']:hover {
+	background: none;
+}
+
 /* The focused row carries the ring while the tree has keyboard focus. */
 [role='tree']:focus-visible .row[data-focused] {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);

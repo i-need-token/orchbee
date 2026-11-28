@@ -36,6 +36,8 @@ interface VirtualTreeRowViewProps {
 	/** One for a top-level row, and one more for each row it is nested under; it sets the indentation. */
 	readonly depth: number;
 	readonly collapsible: boolean;
+	/** Whether the row holds its own controls, which draws no twistie and no hover or selection. */
+	readonly control?: boolean | undefined;
 	/** Whether the row is expanded; false for a row that cannot be. */
 	readonly expanded: boolean;
 	/** Whether the row shows that its children are loading. */
@@ -59,6 +61,7 @@ interface VirtualTreeRowViewProps {
 export function VirtualTreeRowView({
 	children,
 	collapsible,
+	control = false,
 	depth,
 	dropTarget,
 	expanded,
@@ -79,6 +82,7 @@ export function VirtualTreeRowView({
 			aria-selected={item === null ? undefined : selected}
 			aria-setsize={item?.setSize}
 			className={styles['row']}
+			data-control={control ? '' : undefined}
 			data-drop-target={dropTarget ? '' : undefined}
 			data-focused={focused ? '' : undefined}
 			data-row-index={item?.index}
@@ -91,16 +95,18 @@ export function VirtualTreeRowView({
 				'--ob-comp-virtual-tree-row-start': `${top}px`,
 			}}
 		>
-			<span
-				className={styles['twistie']}
-				data-loading={loading ? '' : undefined}
-				data-open={expanded && !loading ? '' : undefined}
-				data-twistie=''
-			>
-				{collapsible ? (
-					<ProductIcon name={loading ? 'loading' : 'chevron-right'} size='disclosure' />
-				) : null}
-			</span>
+			{control ? null : (
+				<span
+					className={styles['twistie']}
+					data-loading={loading ? '' : undefined}
+					data-open={expanded && !loading ? '' : undefined}
+					data-twistie=''
+				>
+					{collapsible ? (
+						<ProductIcon name={loading ? 'loading' : 'chevron-right'} size='disclosure' />
+					) : null}
+				</span>
+			)}
 			<div className={styles['content']}>{children}</div>
 		</div>
 	);

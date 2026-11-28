@@ -2,6 +2,8 @@ import { sourceControlMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
+	DropdownMenuItem,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
 	DropdownMenuSeparator,
@@ -20,15 +22,17 @@ import type { SourceControlMenuCommand } from '../../types/source-control-menu';
 import styles from './ScmChangesMenu.module.css';
 
 interface ScmChangesMenuProps {
+	/** The Git commands below the submenu, resolved when the menu opens. */
+	readonly git: () => readonly SourceControlMenuCommand[];
 	/** The View & Sort submenu's groups, resolved when the menu opens. */
 	readonly viewAndSort: () => readonly (readonly SourceControlMenuCommand[])[];
 }
 
 /**
  * The Changes title's More Actions menu, VS Code's `...`: its View & Sort submenu, View as List or
- * Tree, then the list's sorts, each with the choice in force checked.
+ * Tree, then the list's sorts, each with the choice in force checked; then Git's Pull, Push and Fetch.
  */
-export function ScmChangesMenu({ viewAndSort }: ScmChangesMenuProps): React.ReactNode {
+export function ScmChangesMenu({ git, viewAndSort }: ScmChangesMenuProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const [open, setOpen] = React.useState(false);
 	const label = intl.formatMessage(sourceControlMessages.moreActions);
@@ -75,8 +79,30 @@ export function ScmChangesMenu({ viewAndSort }: ScmChangesMenuProps): React.Reac
 							))}
 						</DropdownMenuSubContent>
 					</DropdownMenuSub>
+					<ScmChangesMenuGit commands={git()} />
 				</DropdownMenuContent>
 			) : null}
 		</DropdownMenu>
+	);
+}
+
+/** The menu's Git commands with the separator above them; nothing without commands. */
+function ScmChangesMenuGit({
+	commands,
+}: {
+	readonly commands: readonly SourceControlMenuCommand[];
+}): React.ReactNode {
+	if (commands.length === 0) return null;
+	return (
+		<>
+			<DropdownMenuSeparator />
+			<DropdownMenuGroup>
+				{commands.map((command) => (
+					<DropdownMenuItem key={command.id} disabled={command.disabled} onClick={command.onSelect}>
+						{command.label}
+					</DropdownMenuItem>
+				))}
+			</DropdownMenuGroup>
+		</>
 	);
 }

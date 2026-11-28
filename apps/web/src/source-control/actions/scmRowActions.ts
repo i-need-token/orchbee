@@ -8,7 +8,6 @@ import {
 	type ActionExecution,
 	type ActionExecutionContext,
 	type ActionInputFor,
-	type ActionInputValidation,
 	type ActionInvocationSource,
 	type ActionResult,
 	type ActionRuntime,
@@ -31,9 +30,10 @@ import { SCM_GROUP_IDS, type ScmGroupId, type ScmResource } from '../model/scm-r
 import type { ScmChangeTarget, ScmRowTarget } from '../model/scm-row-target';
 import type { SourceControlModel } from '../model/SourceControlModel';
 import type { SourceControlNotifications } from '../types/source-control-ports';
-import { gitFailureMessage } from '../utils/gitFailureMessage';
+import { gitFailureNotice } from '../utils/gitFailureNotice';
 import { gitRequestId } from '../utils/gitRequestId';
 import { SCM_GIT_CATEGORY, SCM_VIEW_CATEGORY } from './scm-action-categories';
+import { scmActionInput } from './scmActionInput';
 
 const SCM_ROW_ACTION_IDS = {
 	closeOtherRepositories: 'source-control.repository.close-others',
@@ -90,36 +90,22 @@ const SCM_ROW_ACTION_TITLES = {
 	[SCM_ROW_ACTION_IDS.unstageAll]: sourceControlMessages.unstageAll,
 } as const satisfies Record<ScmRowActionId, MessageDescriptor>;
 
-function schemaInput<Input>(
-	name: string,
-	code: string,
-	schema: z.ZodType<Input>,
-): ActionInputValidation<Input> {
-	return {
-		name,
-		parse: (input) => {
-			const parsed = schema.safeParse(input);
-			return parsed.success ? { data: parsed.data, success: true } : { code, success: false };
-		},
-	};
-}
-
 const PATH = z.string().min(1);
 const GROUP = z.enum(SCM_GROUP_IDS);
 
-const CHANGES_INPUT = schemaInput<ScmChangesInput>(
+const CHANGES_INPUT = scmActionInput<ScmChangesInput>(
 	'ScmChangesInput',
 	'expected-source-control-changes-input',
 	z.object({ changes: z.array(z.object({ group: GROUP, path: PATH, repository: PATH })).min(1) }),
 );
 
-const GROUP_INPUT = schemaInput<ScmGroupInput>(
+const GROUP_INPUT = scmActionInput<ScmGroupInput>(
 	'ScmGroupInput',
 	'expected-source-control-group-input',
 	z.object({ group: GROUP, repository: PATH }),
 );
 
-const REPOSITORIES_INPUT = schemaInput<ScmRepositoriesInput>(
+const REPOSITORIES_INPUT = scmActionInput<ScmRepositoriesInput>(
 	'ScmRepositoriesInput',
 	'expected-source-control-repositories-input',
 	z.object({ repositories: z.array(PATH).min(1) }),
@@ -391,9 +377,7 @@ function registerRowActions(
 	// ran unknown: the Action fails rather than cancels, and nobody is told.
 	const settle = (error: FileError | null): ActionResult<void> => {
 		if (error === null) return COMPLETED;
-		if (error.code !== 'cancelled') {
-			void notifications.notify({ message: gitFailureMessage(intl, error), severity: 'error' });
-		}
+		if (error.code !== 'cancelled') void notifications.notify(gitFailureNotice(intl, error));
 		return { failure: { code: error.code }, kind: 'failed' };
 	};
 	const runPaths = async (

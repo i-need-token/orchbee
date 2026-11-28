@@ -63,8 +63,16 @@ export function scmCheckoutItem(
 	return { activity, icon, label, rebasing: operation === 'rebase' };
 }
 
+/** VS Code's `headShortName`: the branch, else the commit's first 8 characters; null without HEAD. */
+export function scmHeadShortName({ head }: GitRepositorySummary): string | null {
+	return head.branch ?? head.commit?.slice(0, 8) ?? null;
+}
+
 /** The remote an upstream such as `origin/main` belongs to; remote names may hold slashes. */
-function upstreamRemote(upstream: string, remotes: readonly GitRemote[]): GitRemote | null {
+export function scmUpstreamRemote(
+	upstream: string,
+	remotes: readonly GitRemote[],
+): GitRemote | null {
 	let found: GitRemote | null = null;
 	for (const remote of remotes) {
 		if (!upstream.startsWith(`${remote.name}/`)) continue;
@@ -73,16 +81,20 @@ function upstreamRemote(upstream: string, remotes: readonly GitRemote[]): GitRem
 	return found;
 }
 
+/** A remote whose push URL Git was told never to use, as `no_push`, takes no outgoing commits. */
+export function scmRemoteReadOnly({ pushUrl }: GitRemote): boolean {
+	return pushUrl === null || pushUrl === 'no_push';
+}
+
 /** VS Code's `syncLabel` and `syncTooltip` for a branch that has an upstream. */
-function upstreamItem(
+export function scmUpstreamItem(
 	upstream: NonNullable<GitRepositorySummary['upstream']>,
 	remotes: readonly GitRemote[],
 ): Pick<ScmSyncItem, 'label' | 'tooltip'> {
 	const { ahead, behind, name } = upstream;
 	if (ahead === 0 && behind === 0) return { label: null, tooltip: { kind: 'synchronize' } };
-	const remote = upstreamRemote(name, remotes);
-	// A remote whose push URL Git was told never to use, as `no_push`, takes no outgoing commits.
-	const readOnly = remote !== null && (remote.pushUrl === null || remote.pushUrl === 'no_push');
+	const remote = scmUpstreamRemote(name, remotes);
+	const readOnly = remote !== null && scmRemoteReadOnly(remote);
 	const label = { ahead: readOnly ? null : ahead, behind };
 	if (readOnly || ahead === 0) return { label, tooltip: { behind, kind: 'pull', upstream: name } };
 	if (behind === 0) return { label, tooltip: { ahead, kind: 'push', upstream: name } };
@@ -103,7 +115,7 @@ export function scmSyncItem(
 	} else if (upstream === null) {
 		item = { action: 'publish', icon: 'cloud-upload', label: null, tooltip: { kind: 'publish' } };
 	} else {
-		item = { action: 'sync', icon: 'sync', ...upstreamItem(upstream, remotes) };
+		item = { action: 'sync', icon: 'sync', ...scmUpstreamItem(upstream, remotes) };
 	}
 	if (activity === 'commit') return { ...item, action: null, tooltip: { kind: 'committing' } };
 	if (activity === 'sync') {

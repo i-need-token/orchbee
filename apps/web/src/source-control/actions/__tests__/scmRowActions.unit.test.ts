@@ -25,7 +25,7 @@ function summary(revision: number): GitSummary {
 		git: { state: 'ok', version: '2.47.1' },
 		repositories: [
 			{
-				busy: false,
+				busy: null,
 				counts: { index: 0, merge: 0, untracked: 1, workingTree: 1 },
 				head: { branch: 'main', commit: 'a'.repeat(40), detached: false, unborn: false },
 				kind: 'root',
@@ -72,8 +72,9 @@ async function sourceControl(answer: Presenter, answering: 'immediate' | 'manual
 	const session = port.open(WORKSPACE);
 	const model = new SourceControlModel({
 		compareNames: (one, other) => one.localeCompare(other),
-		memory: { changes: null, closed: new Set() },
+		memory: { changes: null, closed: new Set(), inputs: new Map() },
 		session,
+		settings: undefined,
 		statusText: (status) => status,
 		storage: undefined,
 	});

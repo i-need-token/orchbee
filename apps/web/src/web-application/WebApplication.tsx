@@ -269,6 +269,7 @@ export const WebApplication = React.memo(function WebApplication({
 					suppressClientUpdateFailureNotice={view.settingsOpen}
 					terminalActionShortcutLabels={terminalActionShortcutLabels}
 					terminalSurface={terminalSurface}
+					userSettings={terminalSettingsController.userSettings}
 					workspaceLocationSource={workspaceLocationSource}
 					otherMachines={otherMachines}
 					onManageMachines={machines === undefined ? undefined : view.openMachineSettings}

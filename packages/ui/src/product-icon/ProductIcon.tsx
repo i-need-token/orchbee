@@ -11,6 +11,7 @@ export type ProductIconName =
 	| 'appearance'
 	| 'arrow-down'
 	| 'arrow-left'
+	| 'arrow-up'
 	| 'bell'
 	| 'clipboard'
 	| 'chevron-down'
@@ -86,6 +87,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'appearance' && styles['appearance'],
 				name === 'arrow-down' && styles['arrowDown'],
 				name === 'arrow-left' && styles['arrowLeft'],
+				name === 'arrow-up' && styles['arrowUp'],
 				name === 'bell' && styles['bell'],
 				name === 'clipboard' && styles['clipboard'],
 				name === 'chevron-down' && styles['chevronDown'],

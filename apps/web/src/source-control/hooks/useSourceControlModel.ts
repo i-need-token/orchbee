@@ -3,6 +3,7 @@ import { resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import type { FileWorkspaceSession } from '../../file-session';
+import type { UserSettingsControl } from '../../user-settings';
 import { SCM_STATUS_MESSAGES } from '../constants/scm-status-messages';
 import type { ScmResourceStatus } from '../model/scm-resource';
 import {
@@ -22,6 +23,7 @@ function subscribeToNothing(): () => void {
 interface SourceControlModelOptions {
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
+	readonly settings: UserSettingsControl | undefined;
 	readonly storage: SourceControlViewStateStorage | undefined;
 }
 
@@ -34,10 +36,12 @@ interface SourceControlModelView {
 /**
  * Source Control over the session it is given. Another session or locale builds another model, and
  * the one it replaces is disposed, ending its subscriptions and reads; what each Workspace's view
- * remembers for the run, its tree's place and the repositories closed here, stays for its next one.
+ * remembers for the run, its tree's place, the repositories closed here and the commit inputs, stays
+ * for its next one.
  */
 export function useSourceControlModel({
 	session,
+	settings,
 	storage,
 }: SourceControlModelOptions): SourceControlModelView {
 	const intl = useOrchbeeIntl();
@@ -49,7 +53,11 @@ export function useSourceControlModel({
 	);
 	React.useEffect(() => {
 		if (session === null) return undefined;
-		const memory = memories.get(session.workspaceId) ?? { changes: null, closed: new Set() };
+		const memory = memories.get(session.workspaceId) ?? {
+			changes: null,
+			closed: new Set(),
+			inputs: new Map(),
+		};
 		memories.delete(session.workspaceId);
 		memories.set(session.workspaceId, memory);
 		for (const workspaceId of memories.keys()) {
@@ -66,6 +74,7 @@ export function useSourceControlModel({
 			},
 			memory,
 			session,
+			settings,
 			statusText,
 			storage,
 		});
@@ -74,7 +83,7 @@ export function useSourceControlModel({
 			setModel(null);
 			built.dispose();
 		};
-	}, [locale, memories, session, statusText, storage]);
+	}, [locale, memories, session, settings, statusText, storage]);
 	const state = React.useSyncExternalStore(
 		model === null ? subscribeToNothing : model.subscribe,
 		() => model?.state ?? null,

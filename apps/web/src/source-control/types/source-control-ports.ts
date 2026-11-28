@@ -18,8 +18,18 @@ export interface SourceControlQuickInput {
 	pick<Value>(request: {
 		readonly entries: readonly SourceControlPickEntry<Value>[];
 		readonly placeholder?: string | undefined;
+		/** Ends the pick as cancelled once it aborts, as when what it asks about goes away. */
+		readonly signal?: AbortSignal | undefined;
 		readonly title?: string | undefined;
 	}): Promise<SourceControlQuickInputOutcome<Value>>;
+	/** One line of text, such as a commit message VS Code asks for when the input is empty. */
+	input(request: {
+		/** Keeps the field open when focus leaves it; Escape still cancels. */
+		readonly ignoreFocusOut?: boolean | undefined;
+		readonly placeholder?: string | undefined;
+		readonly prompt?: string | undefined;
+		readonly title?: string | undefined;
+	}): Promise<SourceControlQuickInputOutcome<string>>;
 }
 
 /** The Workbench's notification cards, where Source Control tells what VS Code's Git tells there. */

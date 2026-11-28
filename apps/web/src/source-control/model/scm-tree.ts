@@ -10,8 +10,12 @@ import type { ScmViewMode, ScmViewSortKey } from './scm-view-state';
 
 /** One repository as the Changes tree shows it. */
 interface ScmTreeRepository {
+	/** Whether VS Code's action button shows below the commit input. */
+	readonly button: boolean;
 	/** The groups at the repository's latest read status; null before the first. */
 	readonly groups: ScmResourceGroups | null;
+	/** The commit input's height in CSS pixels, which its row's height follows. */
+	readonly inputHeight: number;
 	readonly repository: string;
 }
 
@@ -25,6 +29,9 @@ export interface ScmTreeSnapshot {
 export type ScmTreeItem =
 	| { readonly kind: 'workspace' }
 	| { readonly kind: 'repository'; readonly repository: string }
+	/** The commit input; a new height is a new item, so the tree reads its row's height again. */
+	| { readonly height: number; readonly kind: 'input'; readonly repository: string }
+	| { readonly kind: 'button'; readonly repository: string }
 	| {
 			readonly group: ScmGroupId;
 			readonly kind: 'group';
@@ -199,6 +206,10 @@ function scmTreeItemKey(item: ScmTreeItem): string {
 			return 'workspace';
 		case 'repository':
 			return `repository\0${item.repository}`;
+		case 'input':
+			return `input\0${item.repository}`;
+		case 'button':
+			return `button\0${item.repository}`;
 		case 'group':
 			return `group\0${item.repository}\0${item.group}`;
 		case 'folder':
@@ -209,23 +220,31 @@ function scmTreeItemKey(item: ScmTreeItem): string {
 }
 
 /**
- * A repository's groups as VS Code's Changes view lists them: none until its status is read, and
- * none while nothing changed among several repositories. Otherwise Merge Changes and Staged Changes
- * show only with rows, and Changes always, as Git's groups hide when empty except that one.
+ * A repository's rows as VS Code's Changes view lists them: the commit input, the action button
+ * when there is one, and the groups. Groups show none until the status is read, and none while
+ * nothing changed, unless the repository is the only one and has no button. Otherwise Merge Changes
+ * and Staged Changes show only with rows, and Changes always, as Git's groups hide when empty except
+ * that one.
  */
-function groupItems(repository: ScmTreeRepository, single: boolean): ScmTreeItem[] {
-	const { groups } = repository;
-	if (groups === null) return [];
+function repositoryItems(repository: ScmTreeRepository, single: boolean): ScmTreeItem[] {
+	const { button, groups, inputHeight } = repository;
+	const items: ScmTreeItem[] = [
+		{ height: inputHeight, kind: 'input', repository: repository.repository },
+	];
+	if (button) items.push({ kind: 'button', repository: repository.repository });
+	if (groups === null) return items;
 	const changed = SCM_GROUP_IDS.some((group) => groups[group].length > 0);
-	if (!changed && !single) return [];
-	return SCM_GROUP_IDS.filter((group) => group === 'workingTree' || groups[group].length > 0).map(
-		(group) => ({
+	if (!changed && (!single || button)) return items;
+	for (const group of SCM_GROUP_IDS) {
+		if (group !== 'workingTree' && groups[group].length === 0) continue;
+		items.push({
 			group,
 			kind: 'group',
 			repository: repository.repository,
 			resources: groups[group],
-		}),
-	);
+		});
+	}
+	return items;
 }
 
 /** The Changes tree's source, whose children are always at hand. */
@@ -235,8 +254,8 @@ export interface ScmTreeSource extends VirtualTreeSource<string, ScmTreeItem> {
 
 /**
  * The Changes tree's source over whatever `snapshot` returns when the model asks, so the view
- * refreshes the model after changing it. One visible repository puts its groups at the top, as
- * VS Code does; several give each a row with its groups beneath. Rows below a group are a sorted
+ * refreshes the model after changing it. One visible repository puts its rows at the top, as
+ * VS Code does; several give each a row with its rows beneath. Rows below a group are a sorted
  * list or a compact folder tree. Every answer is at hand, so the rows change in the task that
  * refreshes them.
  */
@@ -246,12 +265,12 @@ export function scmTreeSource(snapshot: () => ScmTreeSnapshot): ScmTreeSource {
 		switch (item.kind) {
 			case 'workspace': {
 				const [only] = repositories;
-				if (repositories.length === 1 && only !== undefined) return groupItems(only, true);
+				if (repositories.length === 1 && only !== undefined) return repositoryItems(only, true);
 				return repositories.map(({ repository }) => ({ kind: 'repository', repository }));
 			}
 			case 'repository': {
 				const repository = repositories.find((entry) => entry.repository === item.repository);
-				return repository === undefined ? [] : groupItems(repository, false);
+				return repository === undefined ? [] : repositoryItems(repository, false);
 			}
 			case 'group':
 				return options.mode === 'list'
@@ -259,13 +278,16 @@ export function scmTreeSource(snapshot: () => ScmTreeSnapshot): ScmTreeSource {
 					: treeItems(item.repository, item.group, item.resources, options);
 			case 'folder':
 				return item.children;
+			case 'input':
+			case 'button':
 			case 'resource':
 				return [];
 		}
 	};
 	return {
 		children,
-		hasChildren: (item) => item.kind !== 'resource',
+		hasChildren: (item) =>
+			item.kind !== 'resource' && item.kind !== 'input' && item.kind !== 'button',
 		key: scmTreeItemKey,
 	};
 }

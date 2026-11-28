@@ -1,0 +1,122 @@
+/* VS Code's SCM input: a bordered box across the row, 12px from its sides, around an editor that
+   grows with its message. */
+.root {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	padding-inline: var(--ob-ref-space-3);
+}
+
+.box {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	font: var(--ob-sys-typography-body-sm);
+}
+
+/* VS Code outlines the input in the focus color while its text has focus, and in the warning
+   color whenever it has a warning. */
+.box:focus-within {
+	border-color: var(--ob-sys-color-border-focus);
+}
+
+.box[data-warning] {
+	border-color: var(--ob-sys-color-status-warning-border);
+}
+
+/* The message hangs from the box, which squares its lower corners meanwhile. */
+.box[data-validation] {
+	border-end-end-radius: 0;
+	border-end-start-radius: 0;
+}
+
+.editor {
+	min-width: 0;
+	height: var(--ob-comp-source-control-input-height);
+	flex: 1;
+	overflow: hidden;
+	border-radius: var(--ob-ref-radius-ui-sm);
+}
+
+/* The editor shows the box's surface rather than the editor theme's, as VS Code's input does. */
+.editor :global(.monaco-editor),
+.editor :global(.monaco-editor .margin),
+.editor :global(.monaco-editor-background) {
+	background-color: transparent;
+}
+
+/* The editor's background hides the focus outline of the text receiver beneath it; with that
+   background clear, the box's border alone shows focus, as in VS Code. */
+.editor :global(.monaco-editor .native-edit-context:focus) {
+	outline: none;
+}
+
+.editor :global(.monaco-editor .editorPlaceholder) {
+	color: var(--ob-sys-color-text-placeholder);
+}
+
+/* Monaco's hovers and other widgets that overflow the editor render here, above the view. */
+.overflow {
+	position: fixed;
+	z-index: var(--ob-ref-layer-dropdown);
+	top: 0;
+	left: 0;
+	width: 0;
+	height: 0;
+	overflow: visible;
+}
+
+/* VS Code's validation message: a warning strip as wide as the box, below it. */
+.validation {
+	position: fixed;
+	z-index: var(--ob-ref-layer-dropdown);
+	top: var(--ob-comp-source-control-validation-block-start);
+	left: var(--ob-comp-source-control-validation-inline-start);
+	display: flex;
+	box-sizing: border-box;
+	width: var(--ob-comp-source-control-validation-inline-size);
+	align-items: flex-start;
+	padding: var(--ob-ref-space-0-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	border-top: none;
+	border-end-end-radius: var(--ob-ref-radius-ui-sm);
+	border-end-start-radius: var(--ob-ref-radius-ui-sm);
+	background: var(--ob-sys-color-status-warning-surface);
+	color: var(--ob-sys-color-status-warning-text);
+	font: var(--ob-sys-typography-label-sm);
+}
+
+.message {
+	min-width: 0;
+	flex: 1;
+	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-1);
+	overflow-wrap: anywhere;
+}
+
+.close {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: inherit;
+	cursor: default;
+}
+
+.close:hover {
+	background: var(--ob-sys-color-status-warning-surface-hover);
+}
+
+.close:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

@@ -11,6 +11,7 @@ import { scmChangesRowTarget } from '../model/scm-row-target';
 import type { ScmTreeItem } from '../model/scm-tree';
 import type { SourceControlModel, SourceControlState } from '../model/SourceControlModel';
 import { selectedTreeElements } from '../utils/selectedTreeElements';
+import type { ScmControlItem } from './useScmControlRenderer';
 
 const GROUP_MESSAGES = {
 	index: sourceControlMessages.groupIndex,
@@ -28,6 +29,8 @@ function relativeFolder(path: string, repository: string, separator: string): st
 
 interface UseScmChangeRowRendererOptions {
 	readonly model: SourceControlModel | null;
+	/** Draws a repository's commit input or action button. */
+	readonly renderControl: (item: ScmControlItem) => React.ReactNode;
 	/** Draws a repository's row, which the Changes tree shows above its groups among several. */
 	readonly renderRepository: (repository: string) => React.ReactNode;
 	readonly rowCommands: ScmRowCommands;
@@ -41,10 +44,12 @@ type ScmChangeRowRenderer = (
 
 /**
  * Draws a Changes row from plain values: a group, a folder or a file, with the inline buttons VS
- * Code's Git gives it. A button acts on the row, or on every selected row when the row is selected.
+ * Code's Git gives it, a repository's commit input and action button, or its row among several. A
+ * button acts on the row, or on every selected row when the row is selected.
  */
 export function useScmChangeRowRenderer({
 	model,
+	renderControl,
 	renderRepository,
 	rowCommands,
 	state,
@@ -57,6 +62,7 @@ export function useScmChangeRowRenderer({
 		return (row, { focused }) => {
 			const item = row.element;
 			if (item.kind === 'repository') return renderRepository(item.repository);
+			if (item.kind === 'input' || item.kind === 'button') return renderControl(item);
 			const menuTarget = scmItemMenuTarget(item, mode, repositories);
 			if (model === null || menuTarget === null) return null;
 			const actions = scmRowMenus(menuTarget, false).inline.flatMap((command): ScmRowAction[] => {
@@ -115,5 +121,5 @@ export function useScmChangeRowRenderer({
 				}
 			}
 		};
-	}, [intl, model, renderRepository, rowCommands, state]);
+	}, [intl, model, renderControl, renderRepository, rowCommands, state]);
 }

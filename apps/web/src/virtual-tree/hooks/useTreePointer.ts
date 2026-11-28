@@ -19,7 +19,7 @@ import {
 } from '../utils/tree-row-hit';
 
 /** Text fields inside a row keep their own context menu. */
-const TEXT_FIELDS = 'input, select, textarea, [contenteditable]';
+const TEXT_FIELDS = 'input, select, textarea, [contenteditable], .monaco-editor';
 
 /**
  * Handles the pointer as VS Code's tree does. A click focuses, anchors and selects its row and opens

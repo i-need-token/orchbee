@@ -106,13 +106,18 @@ export function scmRowMenus(target: ScmMenuTarget, local: boolean): ScmRowMenus 
 	}
 }
 
-/** What a Changes row's menus are for; null for the Workspace's own row, which offers none. */
+/**
+ * What a Changes row's menus are for; null for the Workspace's own row and for a repository's commit
+ * input and action button, which offer none.
+ */
 export function scmItemMenuTarget(
 	item: ScmTreeItem,
 	mode: ScmViewMode,
 	repositories: number,
 ): ScmMenuTarget | null {
 	switch (item.kind) {
+		case 'button':
+		case 'input':
 		case 'workspace':
 			return null;
 		case 'repository':

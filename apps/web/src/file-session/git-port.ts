@@ -1,10 +1,23 @@
 import type { FileContent, FileReadOptions } from './file-content-port';
 import type { FileError, FileResult } from './file-error';
 
+/** The Git change a repository runs, which keeps conflicting changes from starting. */
+type GitBusyOperation =
+	| 'clean'
+	| 'commit'
+	| 'discard'
+	| 'fetch'
+	| 'pull'
+	| 'push'
+	| 'stage'
+	| 'stage-content'
+	| 'sync'
+	| 'unstage';
+
 /** A repository the Workspace's discovery found, as the SCM summary reports it. */
 export interface GitRepositorySummary {
-	/** A Git operation of this repository runs now. */
-	readonly busy: boolean;
+	/** The Git change of this repository that runs now, from any window; null while none does. */
+	readonly busy: GitBusyOperation | null;
 	readonly counts: {
 		readonly index: number;
 		readonly merge: number;

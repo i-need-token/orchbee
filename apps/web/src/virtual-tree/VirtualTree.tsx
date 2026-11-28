@@ -44,6 +44,11 @@ export interface VirtualTreeProps<K, T> {
 	 */
 	readonly maxStickyRows?: number;
 	readonly renderRow: VirtualTreeRowRenderer<K, T>;
+	/**
+	 * Whether a row holds its own controls, as VS Code's SCM input and action button rows do: it
+	 * draws no twistie and paints no hover or selection.
+	 */
+	readonly isControlRow?: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
 	/** Which platform's keys the tree answers to, as VS Code's lists do on it. */
 	readonly platform: KeyboardShortcutPlatform;
 	/**
@@ -86,6 +91,7 @@ export interface VirtualTreeProps<K, T> {
  */
 export function VirtualTree<K, T>({
 	dragAndDrop,
+	isControlRow,
 	keyboardNavigationLabel,
 	keyboardScope,
 	label,
@@ -159,6 +165,7 @@ export function VirtualTree<K, T>({
 	for (let slot = 0; slot < slotCount; slot += 1) {
 		slots.push(
 			<VirtualTreeSlot
+				isControlRow={isControlRow}
 				key={slot}
 				renderRow={renderRow}
 				slot={slot}
@@ -178,6 +185,7 @@ export function VirtualTree<K, T>({
 			<VirtualTreeContent viewport={viewport}>
 				{slots}
 				<VirtualTreeSlot
+					isControlRow={isControlRow}
 					key='focused'
 					renderRow={renderRow}
 					slot='focused'

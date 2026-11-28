@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import type { FileExplorerProps } from '../file-explorer';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
 import type { SourceControlNotifications, SourceControlQuickInput } from '../source-control';
+import type { UserSettingsControl } from '../user-settings';
 import type { FileBarViewId } from './file-bar-layout';
 import type { FileBarLayoutStorage } from './file-bar-layout-storage';
 
@@ -27,6 +28,8 @@ export interface FileBarColumnProps {
 	readonly quickInput: SourceControlQuickInput;
 	/** The active Workspace's file session the File Bar holds; null while it holds none. */
 	readonly session: FileWorkspaceSession | null;
+	/** The user's settings, which Source Control reads and answers into; without them it keeps defaults. */
+	readonly settings: UserSettingsControl | undefined;
 	/** Device-local storage for what the views remember between runs; without it they remember nothing. */
 	readonly storage: FileBarLayoutStorage | undefined;
 	/** Each increase moves focus into the active view; zero asks for nothing. */

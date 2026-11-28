@@ -13,7 +13,7 @@ const WORKSPACE = 'workspace-1';
 
 function repository(path: string, revision: number): GitRepositorySummary {
 	return {
-		busy: false,
+		busy: null,
 		counts: { index: 0, merge: 0, untracked: 0, workingTree: 0 },
 		head: { branch: 'main', commit: 'a'.repeat(40), detached: false, unborn: false },
 		kind: 'nested',
@@ -82,8 +82,9 @@ function sourceControl(port: MemoryFileSessionPort) {
 	};
 	const model = new SourceControlModel({
 		compareNames: (one, other) => one.localeCompare(other),
-		memory: { changes: null, closed: new Set() },
+		memory: { changes: null, closed: new Set(), inputs: new Map() },
 		session,
+		settings: undefined,
 		statusText: (status) => status,
 		storage: undefined,
 	});
@@ -109,9 +110,13 @@ describe('Source Control when the backend drops the summaries between two it sen
 			port.flush();
 			expect(shownRows(model)).toEqual([
 				'repository /w/a',
+				'input',
+				'button',
 				'group workingTree',
 				'modified /w/a/one.ts',
 				'repository /w/c',
+				'input',
+				'button',
 				'group workingTree',
 				'untracked /w/c/old.ts',
 			]);
@@ -127,11 +132,15 @@ describe('Source Control when the backend drops the summaries between two it sen
 			port.flush();
 			expect(shownRows(model)).toEqual([
 				'repository /w/a',
+				'input',
+				'button',
 				'group index',
 				'index-modified /w/a/two.ts',
 				'group workingTree',
 				'deleted /w/a/one.ts',
 				'repository /w/b',
+				'input',
+				'button',
 				'group index',
 				'index-added /w/b/new.ts',
 				'group workingTree',
@@ -159,7 +168,12 @@ describe('Source Control when the backend drops the summaries between two it sen
 
 		await vi.waitFor(() => {
 			port.flush();
-			expect(shownRows(model)).toEqual(['group workingTree', 'untracked /w/last.ts']);
+			expect(shownRows(model)).toEqual([
+				'input',
+				'button',
+				'group workingTree',
+				'untracked /w/last.ts',
+			]);
 		});
 		expect(reads).toEqual(['/w@2', '/w@5']);
 	});

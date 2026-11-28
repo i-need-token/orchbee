@@ -26,8 +26,11 @@ const entry = (xy: string, path: string): GitStatusEntry => ({
 const repository = (
 	path: string,
 	entries: readonly GitStatusEntry[],
+	button = false,
 ): ScmTreeSnapshot['repositories'][number] => ({
+	button,
 	groups: scmResourceGroups(entries),
+	inputHeight: 24,
 	repository: path,
 });
 
@@ -37,6 +40,9 @@ function label(item: ScmTreeItem): string {
 			return 'workspace';
 		case 'repository':
 			return `repo ${item.repository}`;
+		case 'input':
+		case 'button':
+			return item.kind;
 		case 'group':
 			return `group ${item.group}`;
 		case 'folder':
@@ -77,6 +83,7 @@ const CHANGES = [
 describe('scmTreeSource', () => {
 	it("lists rows by path, a folder's own files before its subfolders', names numerically", async () => {
 		expect(await rows(CHANGES)).toEqual([
+			'input',
 			'group workingTree',
 			'  file A.md',
 			'  file z.md',
@@ -88,6 +95,7 @@ describe('scmTreeSource', () => {
 
 	it('lists rows by name or by status text when asked', async () => {
 		expect(await rows(CHANGES, { sortKey: 'name' })).toEqual([
+			'input',
 			'group workingTree',
 			'  file A.md',
 			'  file b9.ts',
@@ -96,6 +104,7 @@ describe('scmTreeSource', () => {
 			'  file z.md',
 		]);
 		expect(await rows(CHANGES, { sortKey: 'status' })).toEqual([
+			'input',
 			'group workingTree',
 			'  file A.md',
 			'  file z.md',
@@ -107,6 +116,7 @@ describe('scmTreeSource', () => {
 
 	it('nests a tree with folders first and merges single-folder chains', async () => {
 		expect(await rows(CHANGES, { mode: 'tree' })).toEqual([
+			'input',
 			'group workingTree',
 			'  folder src',
 			'    folder deep/one/two',
@@ -120,6 +130,7 @@ describe('scmTreeSource', () => {
 
 	it('shows a path staged and changed once in each group', async () => {
 		expect(await rows([repository('/repo', [entry('MM', '/repo/both.ts')])])).toEqual([
+			'input',
 			'group index',
 			'  file both.ts',
 			'group workingTree',
@@ -127,11 +138,26 @@ describe('scmTreeSource', () => {
 		]);
 	});
 
-	it('keeps an empty Changes for one repository and drops the groups of an unchanged one of several', async () => {
-		expect(await rows([repository('/repo', [])])).toEqual(['group workingTree']);
+	it('keeps an empty Changes for one repository without a button and drops the groups of an unchanged one otherwise', async () => {
+		expect(await rows([repository('/repo', [])])).toEqual(['input', 'group workingTree']);
+		expect(await rows([repository('/repo', [], true)])).toEqual(['input', 'button']);
+		expect(await rows([repository('/repo', [entry('.M', '/repo/a.ts')], true)])).toEqual([
+			'input',
+			'button',
+			'group workingTree',
+			'  file a.ts',
+		]);
 		expect(
 			await rows([repository('/a', []), repository('/b', [entry('M.', '/b/staged.ts')])]),
-		).toEqual(['repo /a', 'repo /b', '  group index', '    file staged.ts', '  group workingTree']);
+		).toEqual([
+			'repo /a',
+			'  input',
+			'repo /b',
+			'  input',
+			'  group index',
+			'    file staged.ts',
+			'  group workingTree',
+		]);
 	});
 
 	it('splits Windows paths at the Worker separator', async () => {
@@ -145,7 +171,7 @@ describe('scmTreeSource', () => {
 			source,
 		});
 		await model.refresh(null);
-		expect(model.rowAt(1).element).toMatchObject({
+		expect(model.rowAt(2).element).toMatchObject({
 			kind: 'folder',
 			names: ['src'],
 			path: 'C:\\repo\\src',

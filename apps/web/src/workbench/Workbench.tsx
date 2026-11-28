@@ -19,6 +19,7 @@ import * as React from 'react';
 import type { CSSProperties } from 'react';
 
 import type { FileSessionPort } from '../file-session';
+import type { UserSettingsControl } from '../user-settings';
 import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
 	MINIMUM_LEFT_PANEL_WIDTH,
@@ -143,6 +144,8 @@ interface WorkbenchProps {
 	readonly suppressClientUpdateFailureNotice?: boolean | undefined;
 	readonly terminalActionShortcutLabels?: WorkbenchTerminalActionShortcutLabels | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
+	/** The user's settings, which the File Bar's views read and answer into; without them they keep defaults. */
+	readonly userSettings?: UserSettingsControl | undefined;
 	/** Where each Workspace stands; without it the sidebar names Workspaces alone. */
 	readonly workspaceLocationSource?: WorkbenchWorkspaceLocationSource | undefined;
 	/** Other machines' Workspaces, which the sidebar lists where the window holds several Sessions. */
@@ -180,6 +183,7 @@ export function Workbench({
 	suppressClientUpdateFailureNotice = false,
 	terminalActionShortcutLabels,
 	terminalSurface,
+	userSettings,
 	workspaceLocationSource,
 	otherMachines,
 	onManageMachines,
@@ -805,6 +809,7 @@ export function Workbench({
 											platform={shortcutPlatform}
 											quickInput={quickInputSessions}
 											session={fileBar.column.session}
+											settings={userSettings}
 											storage={layoutStorage}
 											viewFocusRequest={fileBar.column.viewFocusRequest}
 										/>

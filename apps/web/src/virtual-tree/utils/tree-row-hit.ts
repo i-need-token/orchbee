@@ -1,8 +1,12 @@
 import type { TreeViewport } from '../layout/TreeViewport';
 import type { VirtualTreeRow, VirtualTreeSegment } from '../model/virtual-tree-types';
 
-/** Controls inside a row's content handle their own clicks and drags, as VS Code's lists leave them. */
-export const TREE_ROW_CONTROLS = 'a[href], button, input, select, textarea, [contenteditable]';
+/**
+ * Controls inside a row's content handle their own clicks and drags, as VS Code's lists leave them,
+ * a code editor's included.
+ */
+export const TREE_ROW_CONTROLS =
+	'a[href], button, input, select, textarea, [contenteditable], .monaco-editor';
 
 /** The row an element of the tree belongs to. */
 export interface TreeRowHit<K, T> {

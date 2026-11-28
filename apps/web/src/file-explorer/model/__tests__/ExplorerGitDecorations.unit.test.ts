@@ -13,7 +13,7 @@ const WORKSPACE = 'workspace';
 
 function repository(path: string): GitRepositorySummary {
 	return {
-		busy: false,
+		busy: null,
 		counts: { index: 0, merge: 0, untracked: 0, workingTree: 0 },
 		head: { branch: 'main', commit: 'a'.repeat(40), detached: false, unborn: false },
 		kind: 'root',
