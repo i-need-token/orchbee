@@ -14,6 +14,7 @@ import type { WorkbenchTerminalFocusRequest } from '../../../../../../../../mode
 import { buildWorkbenchPanelMenuEntries } from '../../utils/buildWorkbenchPanelMenuEntries';
 import { useWorkbenchTerminalContextMenu } from './hooks/useWorkbenchTerminalContextMenu';
 import { useWorkbenchTerminalActions } from './hooks/useWorkbenchTerminalActions';
+import { useWorkbenchTerminalPathDrop } from './hooks/useWorkbenchTerminalPathDrop';
 import styles from './WorkbenchTerminalViewport.module.css';
 
 interface WorkbenchTerminalViewportProps {
@@ -55,6 +56,13 @@ export function WorkbenchTerminalViewport({
 		runtime: view.actionRuntime,
 		shortcutLabelForAction: view.shortcutLabelForAction,
 	});
+	// Only the shown layer's terminal takes drops; an incoming or retained one is on its way.
+	const dropTarget = useWorkbenchTerminalPathDrop(
+		layer.mode === 'active' ? view.terminalPathDrops : undefined,
+		terminal.presentationId,
+		terminalActions.scope,
+		viewportRef,
+	);
 	const panelEntries = buildWorkbenchPanelMenuEntries({
 		panelId,
 		source: 'context-menu',
@@ -79,6 +87,7 @@ export function WorkbenchTerminalViewport({
 			<ContextMenuTrigger
 				aria-label={getTerminalDisplayTitle(terminal)}
 				className={styles['viewport']}
+				data-drop-target={dropTarget || undefined}
 				data-panel-id={panelId}
 				data-slot='workbench-terminal-viewport'
 				data-terminal-presentation-id={terminal.presentationId}

@@ -3,6 +3,7 @@ import type { ActionInvocationSource, ActionRuntime, ActionScope } from '@orchbe
 import type { TerminalCloseImpact } from '../../../model/terminal-close-impact';
 import type { WorkbenchAgentStatusView } from '../../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
+import type { WorkbenchTerminalPathDrops } from '../../../model/WorkbenchTerminalPathDrops';
 import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
@@ -130,6 +131,8 @@ export interface WorkbenchPanelWorkspaceView {
 	) => string | null;
 	readonly startPanelDrag: (panelId: string, event: ReactPointerEvent<HTMLElement>) => void;
 	readonly state: PanelWorkspaceState;
+	/** Where the File Bar's files and folders drop on terminals; absent where it is not offered. */
+	readonly terminalPathDrops?: WorkbenchTerminalPathDrops | undefined;
 	readonly togglePanelMaximization: (panelId: string, source?: ActionInvocationSource) => void;
 	readonly workspaceReference: RefObject<HTMLDivElement | null>;
 }

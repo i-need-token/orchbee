@@ -11,3 +11,14 @@
 .viewport:focus-visible {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
+
+/* A drag of files that would drop on the terminal lights it up over its text, as VS Code paints its
+   drop background over a terminal. */
+.viewport[data-drop-target]::after {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+	background: var(--ob-sys-color-surface-hovered);
+	content: '';
+	pointer-events: none;
+}

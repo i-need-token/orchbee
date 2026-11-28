@@ -1256,6 +1256,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Notice after splitting a Panel was refused or failed, worded as the TUI names it.',
 	},
+	terminalPathsNotInserted: {
+		id: 'workbench.terminal.paths.notInserted',
+		defaultMessage: enUSWorkbenchMessages['workbench.terminal.paths.notInserted'],
+		description:
+			'Notice after files and folders dropped on a terminal could not be typed into it as their paths.',
+	},
 	projectRenameNotApplied: {
 		id: 'workbench.projects.rename.notApplied',
 		defaultMessage: enUSWorkbenchMessages['workbench.projects.rename.notApplied'],

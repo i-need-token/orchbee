@@ -75,6 +75,7 @@ import type {
 import type { WorkbenchWorkspaceLocationSource } from './types/workbench-workspace-location';
 import type { WorkbenchProjectFolderAcquisition } from './types/workbench-project-folder-acquisition';
 import type { WorkbenchProjectWorkspaceRuntime } from './model/WorkbenchProjectWorkspaceRuntime';
+import { WorkbenchTerminalPathDrops } from './model/WorkbenchTerminalPathDrops';
 import { workbenchEnvironmentMarkerView } from './model/workbenchEnvironmentMarkerView';
 import { WORKBENCH_RESIZE_TARGET_SIZE_PX } from './model/workbench-resize-target';
 import type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
@@ -223,6 +224,14 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
+	// Only the File Bar's views drag files, so a window that does not offer it takes no such drops.
+	const terminalPathDrops = React.useMemo(
+		() =>
+			fileBarOffered
+				? new WorkbenchTerminalPathDrops(actionRuntime, view.reportActionOutcome)
+				: undefined,
+		[actionRuntime, fileBarOffered, view.reportActionOutcome],
+	);
 	const activeWorkspaceId =
 		view.projectWorkspaceState.activeLocation.kind === 'workspace'
 			? view.projectWorkspaceState.activeLocation.workspaceId
@@ -723,6 +732,7 @@ export function Workbench({
 										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
 										terminalContextId={terminalContext.terminalContextId}
 										terminalFocusRequest={view.terminalFocusRequest}
+										terminalPathDrops={terminalPathDrops}
 										terminalSurface={terminalSurface}
 									/>
 								) : (

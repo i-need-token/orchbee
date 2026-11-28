@@ -18,6 +18,7 @@ import { projectTerminalTabPresentationLayers } from './model/projectTerminalTab
 import { projectWorkbenchPanelWorkspaceTabView } from './model/projectWorkbenchPanelWorkspaceTabView';
 import type { TerminalTabPresentationLayer } from './types/terminal-tab-presentation-layer';
 import type { WorkbenchTerminalFocusRequest } from '../../model/resolveWorkbenchFocusTarget';
+import type { WorkbenchTerminalPathDrops } from '../../model/WorkbenchTerminalPathDrops';
 import styles from './WorkbenchPanelWorkspace.module.css';
 
 interface WorkbenchPanelWorkspaceProps {
@@ -34,6 +35,8 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly terminalAutoFocusAllowed: boolean;
 	readonly terminalContextId: string;
 	readonly terminalFocusRequest: WorkbenchTerminalFocusRequest | null;
+	/** Where the File Bar's files and folders drop on terminals; absent where it is not offered. */
+	readonly terminalPathDrops?: WorkbenchTerminalPathDrops | undefined;
 	readonly terminalSurface?: WorkbenchTerminalSurface | undefined;
 }
 
@@ -50,6 +53,7 @@ export const WorkbenchPanelWorkspace = React.memo(function WorkbenchPanelWorkspa
 	terminalAutoFocusAllowed,
 	terminalContextId,
 	terminalFocusRequest,
+	terminalPathDrops,
 	terminalSurface,
 }: WorkbenchPanelWorkspaceProps): React.ReactNode {
 	const view = useWorkbenchPanelWorkspace({
@@ -63,6 +67,7 @@ export const WorkbenchPanelWorkspace = React.memo(function WorkbenchPanelWorkspa
 		reportActionOutcome,
 		shortcutLabelForAction,
 		terminalContextId,
+		terminalPathDrops,
 	});
 	const handoff = useTerminalTabPresentationHandoff({
 		activeTab: view.activeTab,

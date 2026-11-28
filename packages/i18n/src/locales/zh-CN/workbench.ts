@@ -93,6 +93,7 @@ export const zhCNWorkbenchMessages = {
 	'workbench.tabs.switch.notApplied': '没能切换标签页。',
 	'workbench.panels.move.notApplied': '没能移动面板。',
 	'workbench.panels.split.notApplied': '没能拆分面板。',
+	'workbench.terminal.paths.notInserted': '没能把路径插入终端。',
 	'workbench.projects.rename.notApplied': '没能重命名项目。',
 	'workbench.workspaces.rename.notApplied': '没能重命名工作区。',
 	'workbench.workspaces.create.notApplied': '没能创建工作区。',

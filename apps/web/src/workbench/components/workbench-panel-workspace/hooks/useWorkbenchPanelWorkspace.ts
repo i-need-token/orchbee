@@ -12,6 +12,7 @@ import {
 	WorkbenchTerminalBellEffectCoordinator,
 	type WorkbenchTerminalBellEffect,
 } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
+import type { WorkbenchTerminalPathDrops } from '../../../model/WorkbenchTerminalPathDrops';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityContext,
@@ -71,6 +72,8 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	readonly terminalContextId: string;
+	/** Where the File Bar's files and folders drop on terminals; absent where it is not offered. */
+	readonly terminalPathDrops?: WorkbenchTerminalPathDrops | undefined;
 }
 
 interface PanelDragSession {
@@ -126,6 +129,7 @@ export function useWorkbenchPanelWorkspace({
 	reportActionOutcome,
 	shortcutLabelForAction,
 	terminalContextId,
+	terminalPathDrops,
 }: UseWorkbenchPanelWorkspaceOptions): WorkbenchPanelWorkspaceView {
 	const intl = useOrchbeeIntl();
 	const workspaceReference = React.useRef<HTMLDivElement>(null);
@@ -877,6 +881,7 @@ export function useWorkbenchPanelWorkspace({
 		},
 		startPanelDrag,
 		state,
+		terminalPathDrops,
 		togglePanelMaximization: (panelId, source: ActionInvocationSource = 'programmatic') => {
 			executePanelAction(
 				PANEL_ACTION_IDS.toggleMaximization,

@@ -96,6 +96,7 @@ export const enUSWorkbenchMessages = {
 	'workbench.tabs.switch.notApplied': "Couldn't switch Tabs.",
 	'workbench.panels.move.notApplied': "Couldn't move the Panel.",
 	'workbench.panels.split.notApplied': "Couldn't split the Panel.",
+	'workbench.terminal.paths.notInserted': "Couldn't insert the paths into the terminal.",
 	'workbench.projects.rename.notApplied': "Couldn't rename the Project.",
 	'workbench.workspaces.rename.notApplied': "Couldn't rename the Workspace.",
 	'workbench.workspaces.create.notApplied': "Couldn't create the Workspace.",

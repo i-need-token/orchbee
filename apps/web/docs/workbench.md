@@ -195,6 +195,13 @@ Bar, outside the panel group, so the terminal area and its PTY never resize. Its
 part of the window its tier covers below the 36px row, and its frame, a region landmark rather
 than a dialog, stands 24px inside that.
 
+The File Bar's views drag files and folders as the `file-drag` module's `FILE_DRAG`, a
+[pointer drag](pointer-drag.md), and where the File Bar is offered a `WorkbenchTerminalPathDrops`
+lets the shown terminal Panels take them. A terminal that takes input lights up under such a drag,
+and a drop runs its `terminal.paths.insert` with the paths and the platform family of the machine
+that holds them, so the shell reads them as it reads that machine's own dropped files; a refusal or
+failure shows on the floating status notice.
+
 Where the File Bar is offered, the Workbench also holds a `WorkbenchNotificationQueue` and shows
 its cards above the floating status notice, at the toast layer and so above the overlay. A card has
 a severity, a message, up to three buttons and a close button. The newest three show, and an older

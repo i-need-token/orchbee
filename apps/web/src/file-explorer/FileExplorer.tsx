@@ -10,6 +10,7 @@ import { ExplorerProgress } from './components/explorer-progress/ExplorerProgres
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
 import { ExplorerUnresolvedRow } from './components/explorer-unresolved-row/ExplorerUnresolvedRow';
 import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
+import { useExplorerDrag } from './hooks/useExplorerDrag';
 import { useExplorerFocus } from './hooks/useExplorerFocus';
 import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
@@ -54,7 +55,8 @@ function navigationLabel(row: VirtualTreeRow<string, ExplorerItem>): string {
 /**
  * The File Bar's Explorer: VS Code's Folders view over the active Workspace's current directory,
  * with its title Actions, and the one sentence VS Code's welcome view becomes when there is no
- * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does.
+ * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, and its
+ * rows drag as the File Bar's files and folders.
  */
 export function FileExplorer({
 	actionRuntime,
@@ -70,6 +72,7 @@ export function FileExplorer({
 	const treeReference = useRef<HTMLDivElement>(null);
 	const { progress, state, tree } = useExplorerTree({ notifications, session, storage });
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
+	const dragAndDrop = useExplorerDrag(state.kind === 'tree' ? state.rules : null);
 	const commands = useFileExplorerActions({
 		parentScope: actionScope,
 		runtime: actionRuntime,
@@ -95,6 +98,7 @@ export function FileExplorer({
 						{progress ? <ExplorerProgress /> : null}
 						{state.kind === 'tree' ? (
 							<VirtualTree
+								dragAndDrop={dragAndDrop}
 								keyboardNavigationLabel={navigationLabel}
 								keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}
 								label={intl.formatMessage(fileExplorerMessages.tree)}
