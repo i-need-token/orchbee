@@ -27,12 +27,14 @@ export function VirtualTreeFrame<K, T>({
 	viewport,
 }: VirtualTreeFrameProps<K, T>): React.ReactNode {
 	const focusIndex = React.useSyncExternalStore(viewport.subscribe, () => viewport.focusIndex);
+	const dropOnTree = React.useSyncExternalStore(viewport.subscribe, () => viewport.dropOnTree);
 	return (
 		<div
 			aria-activedescendant={focusIndex < 0 ? undefined : rowElementId(treeId, focusIndex)}
 			aria-label={label}
 			aria-multiselectable
 			className={styles['frame']}
+			data-drop-target={dropOnTree ? '' : undefined}
 			ref={ref}
 			role='tree'
 			tabIndex={0}

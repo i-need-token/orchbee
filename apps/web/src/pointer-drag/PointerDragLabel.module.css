@@ -1,0 +1,19 @@
+/* A drag's label: a pill right of and below the pointer, as VS Code draws its drag image, above
+   every other layer as the system draws a drag image. It lets the pointer through to what lies
+   beneath. */
+.label {
+	position: fixed;
+	z-index: var(--ob-ref-layer-toast);
+	top: var(--ob-comp-pointer-drag-label-block-start);
+	left: var(--ob-comp-pointer-drag-label-inline-start);
+	box-sizing: border-box;
+	padding: var(--ob-ref-space-0-5) var(--ob-ref-space-2);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: nowrap;
+	pointer-events: none;
+}

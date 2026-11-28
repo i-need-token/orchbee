@@ -10,20 +10,10 @@ import {
 import type { TreeViewport } from '../layout/TreeViewport';
 import type { VirtualTreeRow } from '../model/virtual-tree-types';
 import type { VirtualTreeContextMenuEvent } from '../types/virtual-tree-events';
-
-/** Controls inside a row's content handle their own clicks, as VS Code's lists leave them. */
-const ROW_CONTROLS = 'a[href], button, input, select, textarea, [contenteditable]';
+import { hitTreeRow, TREE_ROW_CONTROLS, treePointerTarget } from '../utils/tree-row-hit';
 
 /** Text fields inside a row keep their own context menu. */
 const TEXT_FIELDS = 'input, select, textarea, [contenteditable]';
-
-/** The row a pointer event landed on. */
-interface RowHit<K, T> {
-	readonly row: VirtualTreeRow<K, T>;
-	readonly index: number;
-	readonly sticky: boolean;
-	readonly twistie: boolean;
-}
 
 /**
  * Handles the pointer as VS Code's tree does. A click focuses, anchors and selects its row and opens
@@ -49,29 +39,9 @@ export function useTreePointer<K, T>(
 		if (frame === null || !view) return undefined;
 		const { model } = viewport;
 		/** The element a pointer event targets, unless it belongs to the scrollbar or a row's control. */
-		const targetOf = (event: MouseEvent, controls: string): Element | null => {
-			const target = event.target;
-			if (!(target instanceof view.Element)) return null;
-			if (scrollbarReference.current?.contains(target) === true) return null;
-			const control = target.closest(controls);
-			return control !== null && frame.contains(control) ? null : target;
-		};
-		const hitRow = (target: Element): RowHit<K, T> | null => {
-			const element = target.closest('[data-row-index], [data-sticky-index]');
-			if (element === null || !frame.contains(element)) return null;
-			const twistie = target.closest('[data-twistie]');
-			const onTwistie = twistie !== null && element.contains(twistie);
-			const depth = element.getAttribute('data-sticky-index');
-			if (depth !== null) {
-				const sticky = viewport.stickyRow(Number(depth));
-				if (sticky === null) return null;
-				const index = model.indexOf(sticky.row.key);
-				return index < 0 ? null : { index, row: sticky.row, sticky: true, twistie: onTwistie };
-			}
-			const index = Number(element.getAttribute('data-row-index'));
-			if (!Number.isInteger(index) || index < 0 || index >= model.rowCount) return null;
-			return { index, row: model.rowAt(index), sticky: false, twistie: onTwistie };
-		};
+		const targetOf = (event: MouseEvent): Element | null =>
+			treePointerTarget(frame, scrollbarReference.current, event.target, TREE_ROW_CONTROLS);
+		const hitRow = (target: Element) => hitTreeRow(frame, viewport, target);
 		const addsOne = (event: MouseEvent) => (platform === 'apple' ? event.metaKey : event.ctrlKey);
 		const selectOnly = (row: VirtualTreeRow<K, T>) => {
 			model.setFocus(row.key);
@@ -79,7 +49,7 @@ export function useTreePointer<K, T>(
 			model.setSelection([row.key]);
 		};
 		const onPointer = (event: MouseEvent) => {
-			const target = targetOf(event, ROW_CONTROLS);
+			const target = targetOf(event);
 			if (target === null) return;
 			const hit = hitRow(target);
 			if (hit === null) {
@@ -125,7 +95,7 @@ export function useTreePointer<K, T>(
 			if (event.button === 1) onPointer(event);
 		};
 		const onDoubleClick = (event: MouseEvent) => {
-			const target = targetOf(event, ROW_CONTROLS);
+			const target = targetOf(event);
 			const hit = target === null ? null : hitRow(target);
 			if (hit === null || hit.twistie) return;
 			if (!event.shiftKey && !addsOne(event)) {

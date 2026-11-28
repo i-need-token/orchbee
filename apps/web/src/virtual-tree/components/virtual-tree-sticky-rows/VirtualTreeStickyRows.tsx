@@ -54,6 +54,7 @@ function StickySlot<K, T>({ index, renderRow, viewport }: StickySlotProps<K, T>)
 		<VirtualTreeRowView
 			collapsible={row.collapsible}
 			depth={row.depth}
+			dropTarget={false}
 			expanded={row.collapsible && !row.collapsed}
 			focused={false}
 			height={sticky.height}

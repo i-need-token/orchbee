@@ -32,6 +32,7 @@ export function VirtualTreeSlot<K, T>({
 		<VirtualTreeRowView
 			collapsible={row.collapsible}
 			depth={row.depth}
+			dropTarget={shown.dropTarget}
 			expanded={row.collapsible && !row.collapsed}
 			focused={focused}
 			height={shown.height}

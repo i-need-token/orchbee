@@ -2,10 +2,12 @@ import '@orchbee/ui/styles.css';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
+import { PointerDragKind } from '../pointer-drag';
 import {
 	VirtualTree,
 	VirtualTreeModel,
 	type VirtualTreeContextMenuEvent,
+	type VirtualTreeDragAndDrop,
 	type VirtualTreeOpenEvent,
 	type VirtualTreeProps,
 	type VirtualTreeRow,
@@ -16,8 +18,9 @@ import {
 // measurements `system-tests/virtual-tree.spec.ts` runs in it. A measurement runs in the page, so
 // timers read the main thread directly: script time ends once React's synchronous render commits,
 // and a frame's rendering ends when a task posted from its animation frame callback runs. The page
-// also records the rows the tree asks to open and the context menus it asks for, which the
-// interaction check reads.
+// also records the rows the tree asks to open, the context menus it asks for and the drops it takes,
+// which the interaction checks read. Its rows drag as the Explorer's do: a folder takes a drop and
+// expands under a resting drag, a file hands the drop to its folder, and no row takes itself.
 
 interface FixtureItem {
 	readonly key: string;
@@ -104,7 +107,47 @@ function recordContextMenu({
 	});
 }
 
+/** The keys of the rows a drag from the tree carries. */
+const draggedRows = new PointerDragKind<readonly string[]>();
+
+interface TreeDrop {
+	readonly keys: readonly string[];
+	/** The row the drag was released on; null for the tree itself. */
+	readonly target: string | null;
+	readonly ctrlKey: boolean;
+}
+
+const drops: TreeDrop[] = [];
+/** How many rows the latest drag from the tree carried. */
+let draggedCount = 0;
+
+const dragAndDrop: VirtualTreeDragAndDrop<string, FixtureItem> = {
+	drag: (rows) => {
+		draggedCount = rows.length;
+		const [first] = rows;
+		const label = rows.length === 1 && first !== undefined ? first.element.label : `${rows.length}`;
+		return draggedRows.carry(
+			rows.map((row) => row.key),
+			label,
+		);
+	},
+	drop: (drag, row) => {
+		drops.push({
+			ctrlKey: drag.modifiers.ctrlKey,
+			keys: draggedRows.read(drag) ?? [],
+			target: row?.key ?? null,
+		});
+	},
+	over: (drag, row) => {
+		const keys = draggedRows.read(drag);
+		if (keys === undefined || (row !== null && keys.includes(row.key))) return null;
+		if (row === null) return {};
+		return row.collapsible ? { autoExpand: true } : { bubble: 'up' };
+	},
+};
+
 const props: VirtualTreeProps<string, FixtureItem> = {
+	dragAndDrop,
 	keyboardNavigationLabel: (row) => row.element.label,
 	label: 'Benchmark tree',
 	model,
@@ -296,6 +339,37 @@ async function measureSelectSiblings() {
 	};
 }
 
+/**
+ * Starts a drag from one of 100,003 selected rows, which carries them all, and times the pointer
+ * move that starts it, then cancels it.
+ */
+async function measureDragStart() {
+	await model.expand(LARGE_FOLDER);
+	model.setScrollTop(0);
+	model.selectAll();
+	await settle();
+	const row = host.querySelector('[data-row-index="1"]');
+	if (row === null) throw new Error('The first file has no row.');
+	const box = row.getBoundingClientRect();
+	const pointer = (type: string, clientX: number, buttons: number) =>
+		new PointerEvent(type, {
+			bubbles: true,
+			buttons,
+			cancelable: true,
+			clientX,
+			clientY: box.top + box.height / 2,
+			isPrimary: true,
+			pointerId: 2,
+		});
+	row.dispatchEvent(pointer('pointerdown', box.left + 40, 1));
+	const start = performance.now();
+	row.dispatchEvent(pointer('pointermove', box.left + 60, 1));
+	const scriptMs = performance.now() - start;
+	const frame = await nextPaint();
+	row.dispatchEvent(pointer('pointercancel', box.left + 60, 0));
+	return { carried: draggedCount, renderMs: frame.renderMs, scriptMs };
+}
+
 /** Types a character no row's label starts with, which reads every label once, and times the key. */
 async function measureTypeNavigation() {
 	await model.expand(LARGE_FOLDER);
@@ -307,11 +381,15 @@ async function measureTypeNavigation() {
 
 Object.defineProperty(window, 'virtualTreeFixture', {
 	value: Object.freeze({
+		measureDragStart,
 		measureExpand,
 		measureScroll,
 		measureSelectAll,
 		measureSelectSiblings,
 		measureTypeNavigation,
+		collapse: (key: string) => {
+			model.collapse(key);
+		},
 		scrollTop: () => model.scrollTop,
 		setFocus: (key: string | null) => {
 			model.setFocus(key);
@@ -325,6 +403,7 @@ Object.defineProperty(window, 'virtualTreeFixture', {
 			rowCount: model.rowCount,
 			selection: [...model.selection].sort(),
 		}),
+		takeDrops: () => drops.splice(0),
 		takeRequests: () => requests.splice(0),
 	}),
 });

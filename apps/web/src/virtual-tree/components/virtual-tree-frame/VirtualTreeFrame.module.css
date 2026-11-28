@@ -36,6 +36,11 @@
 	visibility: visible;
 }
 
+/* A drag that would drop into the whole tree lights it up behind its rows. */
+.frame[data-drop-target] {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
 /* The Panels' scrollbar, as the Sidebar shows it, only while the rows overflow: the thumb shows as
    the tree scrolls and fades once it is still, 8 px wide and 2 px from the edge. */
 .scrollbar {

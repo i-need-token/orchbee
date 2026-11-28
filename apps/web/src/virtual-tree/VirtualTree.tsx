@@ -3,6 +3,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
+import type { PointerDrag } from '../pointer-drag';
 import { useWorkbenchKeyboardScope } from '../workbench-keyboard-scopes';
 
 import { VirtualTreeContent } from './components/virtual-tree-content/VirtualTreeContent';
@@ -10,6 +11,7 @@ import { VirtualTreeFrame } from './components/virtual-tree-frame/VirtualTreeFra
 import { VirtualTreeSlot } from './components/virtual-tree-slot/VirtualTreeSlot';
 import { VirtualTreeStickyRows } from './components/virtual-tree-sticky-rows/VirtualTreeStickyRows';
 import { useSlotCount } from './hooks/useSlotCount';
+import { useTreeDrag } from './hooks/useTreeDrag';
 import { useTreeKeyboard } from './hooks/useTreeKeyboard';
 import { useTreePointer } from './hooks/useTreePointer';
 import { useViewportSize } from './hooks/useViewportSize';
@@ -20,6 +22,7 @@ import type { VirtualTreeKeyboardNavigationLabel } from './interaction/type-navi
 import { TreeViewport, type VirtualTreeRowHeight } from './layout/TreeViewport';
 import type { VirtualTreeModel } from './model/VirtualTreeModel';
 import type { VirtualTreeRow } from './model/virtual-tree-types';
+import type { VirtualTreeDragAndDrop } from './types/virtual-tree-drag';
 import type {
 	VirtualTreeContextMenuEvent,
 	VirtualTreeOpenEvent,
@@ -61,6 +64,11 @@ export interface VirtualTreeProps<K, T> {
 	readonly onContextMenu?: ((event: VirtualTreeContextMenuEvent<K, T>) => void) | undefined;
 	/** A row's text for type navigation, such as a file's name; without it, typing does nothing. */
 	readonly keyboardNavigationLabel?: VirtualTreeKeyboardNavigationLabel<K, T> | undefined;
+	/**
+	 * Lets the pointer drag rows and drop on them, as VS Code's tree does through its drag and drop
+	 * controller; without a part, the tree neither drags nor takes drops.
+	 */
+	readonly dragAndDrop?: VirtualTreeDragAndDrop<K, T> | undefined;
 	/** Holds the tree's focusable element, for a view that moves focus to the tree. */
 	readonly treeReference?: React.RefObject<HTMLDivElement | null> | undefined;
 }
@@ -69,10 +77,11 @@ export interface VirtualTreeProps<K, T> {
  * A tree or list over a `VirtualTreeModel`, drawing only the rows in sight. It fills its container,
  * which must give it a definite size, scrolls by the wheel and its scrollbar as VS Code's lists do,
  * keeps the model's scroll offset, so a tree shown again opens where it was left, and keeps the rows
- * whose descendants are in sight stuck at the top, as VS Code's sticky scroll does. Keys, clicks and
- * the context menu work as in VS Code's trees.
+ * whose descendants are in sight stuck at the top, as VS Code's sticky scroll does. Keys, clicks,
+ * the context menu and dragging work as in VS Code's trees.
  */
 export function VirtualTree<K, T>({
+	dragAndDrop,
 	keyboardNavigationLabel,
 	keyboardScope,
 	label,
@@ -115,6 +124,20 @@ export function VirtualTree<K, T>({
 		keyboardNavigationLabel === undefined ? null : navigationLabel,
 	);
 	useTreePointer(frameReference, scrollbarReference, viewport, platform, open, showContextMenu);
+	const dragRows = useMemoizedFn(
+		(rows: readonly VirtualTreeRow<K, T>[]) => dragAndDrop?.drag?.(rows) ?? null,
+	);
+	const dragOver = useMemoizedFn(
+		(drag: PointerDrag, row: VirtualTreeRow<K, T> | null) => dragAndDrop?.over?.(drag, row) ?? null,
+	);
+	const dropOn = useMemoizedFn((drag: PointerDrag, row: VirtualTreeRow<K, T> | null) => {
+		dragAndDrop?.drop?.(drag, row);
+	});
+	useTreeDrag(frameReference, scrollbarReference, viewport, {
+		drag: dragAndDrop?.drag === undefined ? null : dragRows,
+		drop: dropOn,
+		over: dragAndDrop?.over === undefined ? null : dragOver,
+	});
 	useWorkbenchKeyboardScope(
 		frameReference,
 		keyboardScope === undefined

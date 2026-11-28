@@ -38,6 +38,8 @@ interface VirtualTreeRowViewProps {
 	readonly height: number;
 	readonly focused: boolean;
 	readonly selected: boolean;
+	/** Whether a drag would drop into this row or the row it belongs to. */
+	readonly dropTarget: boolean;
 	/** The view's content for the row. */
 	readonly children: React.ReactNode;
 }
@@ -51,6 +53,7 @@ export function VirtualTreeRowView({
 	children,
 	collapsible,
 	depth,
+	dropTarget,
 	expanded,
 	focused,
 	height,
@@ -68,6 +71,7 @@ export function VirtualTreeRowView({
 			aria-selected={item === null ? undefined : selected}
 			aria-setsize={item?.setSize}
 			className={styles['row']}
+			data-drop-target={dropTarget ? '' : undefined}
 			data-focused={focused ? '' : undefined}
 			data-row-index={item?.index}
 			data-sticky-index={place.kind === 'sticky' ? place.index : undefined}

@@ -6,7 +6,7 @@ import { createRsbuild, loadConfig, type RsbuildDevServer } from '@rsbuild/core'
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { z } from 'zod';
 
-// The virtual tree's render benchmark, structure checks and interaction check, on the page that
+// The virtual tree's render benchmark, structure checks and interaction checks, on the page that
 // `src/__tests__/virtual-tree.system-fixture.ts` builds. Structure and interaction are asserted;
 // timings are measured in the page and printed, since they depend on the machine.
 
@@ -33,6 +33,8 @@ test.afterAll(async () => {
 });
 
 interface VirtualTreeFixture {
+	collapse(key: string): void;
+	measureDragStart(): Promise<unknown>;
 	measureExpand(): Promise<unknown>;
 	measureScroll(pixelsPerFrame: number, frames: number): Promise<unknown>;
 	measureSelectAll(): Promise<unknown>;
@@ -42,6 +44,7 @@ interface VirtualTreeFixture {
 	setFocus(key: string | null): void;
 	setScrollTop(offset: number): void;
 	state(): unknown;
+	takeDrops(): unknown;
 	takeRequests(): unknown;
 }
 
@@ -57,6 +60,11 @@ const paintedChangeSchema = z.object({
 const expandSchema = paintedChangeSchema.extend({ rowCount: z.number() });
 const selectAllSchema = paintedChangeSchema.extend({ selected: z.number() });
 const typeNavigationSchema = z.object({ rowCount: z.number(), scriptMs: z.number() });
+const dragStartSchema = z.object({
+	carried: z.number(),
+	renderMs: z.number(),
+	scriptMs: z.number(),
+});
 const scrollSchema = z.object({
 	frameIntervalMs: statsSchema,
 	frameMs: statsSchema,
@@ -79,6 +87,13 @@ const treeRequestsSchema = z.array(
 		pinned: z.boolean().optional(),
 		preserveFocus: z.boolean().optional(),
 		sideBySide: z.boolean().optional(),
+	}),
+);
+const treeDropsSchema = z.array(
+	z.object({
+		ctrlKey: z.boolean(),
+		keys: z.array(z.string()),
+		target: z.string().nullable(),
 	}),
 );
 const traceEventSchema = z.object({
@@ -270,6 +285,129 @@ test('virtual tree answers keys, clicks and the context menu as VS Code does', a
 	expect(await state()).toEqual({ anchor: null, focus: null, rowCount: 3, selection: [] });
 });
 
+test('virtual tree drags rows and takes drops as VS Code does', async ({ page }) => {
+	await openFixture(page);
+	const tree = page.getByRole('tree');
+	const row = (name: string) => page.getByRole('treeitem', { exact: true, name });
+	const label = page.locator('body > div[aria-hidden="true"]');
+	const state = async () =>
+		treeStateSchema.parse(
+			await page.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.state()),
+		);
+	const requests = async () =>
+		treeRequestsSchema.parse(
+			await page.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.takeRequests(),
+			),
+		);
+	const drops = async () =>
+		treeDropsSchema.parse(
+			await page.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.takeDrops(),
+			),
+		);
+	const scrollTop = () =>
+		page.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.scrollTop());
+	const lit = () => page.locator('[role="treeitem"][data-drop-target]').allTextContents();
+	const cursor = () => tree.evaluate((element) => getComputedStyle(element).cursor);
+	const center = async (name: string) => {
+		const box = await row(name).boundingBox();
+		if (box === null) throw new Error(`${name} has no box.`);
+		return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	};
+	const box = await tree.boundingBox();
+	if (box === null) throw new Error('The tree has no box.');
+
+	// A press that travels no farther than 10 px stays a click.
+	const readme = await center('README.md');
+	await page.mouse.move(readme.x, readme.y);
+	await page.mouse.down();
+	await page.mouse.move(readme.x + 6, readme.y + 8);
+	await page.mouse.up();
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: ['README.md'] });
+	expect(await requests()).toHaveLength(1);
+
+	// Farther, an unselected row drags alone and leaves the selection: its label follows the pointer
+	// 10 px off, and every element shows the grabbing cursor.
+	const packageJson = await center('package.json');
+	await page.mouse.move(packageJson.x, packageJson.y);
+	await page.mouse.down();
+	await page.mouse.move(packageJson.x + 20, packageJson.y, { steps: 2 });
+	await expect(label).toHaveText('package.json');
+	const labelBox = await label.boundingBox();
+	expect(Math.abs((labelBox?.x ?? 0) - (packageJson.x + 30))).toBeLessThanOrEqual(1);
+	expect(Math.abs((labelBox?.y ?? 0) - (packageJson.y + 10))).toBeLessThanOrEqual(1);
+	expect(await cursor()).toBe('grabbing');
+
+	// A top-level file hands the drop to the whole tree, and a row never takes itself. The drag holds
+	// the pointer, so no row shows hover and only a drop lights one.
+	await page.mouse.move(readme.x, readme.y, { steps: 2 });
+	await expect(tree).toHaveAttribute('data-drop-target', '');
+	expect(await lit()).toEqual([]);
+	await page.mouse.move(packageJson.x, packageJson.y, { steps: 2 });
+	await expect(tree).not.toHaveAttribute('data-drop-target');
+	expect(await lit()).toEqual([]);
+	expect(await row('package.json').evaluate((element) => element.matches(':hover'))).toBe(false);
+
+	// A folder lights up, and once the drag rests on it for 500 ms it expands with its rows lit.
+	const folder = await center('folder');
+	const arrived = Date.now();
+	await page.mouse.move(folder.x, folder.y, { steps: 2 });
+	await expect.poll(lit).toEqual(['folder']);
+	await expect.poll(async () => (await state()).rowCount).toBe(largeFolderRows);
+	expect(Date.now() - arrived).toBeGreaterThanOrEqual(500);
+	await expect.poll(async () => (await lit()).length).toBe(Math.ceil(treeHeight / rowHeight));
+
+	// The release drops with the keys held, and no click follows it.
+	await page.keyboard.down('Control');
+	await page.mouse.up();
+	await page.keyboard.up('Control');
+	expect(await drops()).toEqual([{ ctrlKey: true, keys: ['package.json'], target: 'folder' }]);
+	await expect(label).toHaveCount(0);
+	expect(await lit()).toEqual([]);
+	expect(await cursor()).not.toBe('grabbing');
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: ['README.md'] });
+	expect(await requests()).toEqual([]);
+
+	// Within 35 px of an edge the tree scrolls while the drag rests there; Esc cancels it, and its
+	// release clicks nothing.
+	const file = await center('file-1.ts');
+	await page.mouse.move(file.x, file.y);
+	await page.mouse.down();
+	await page.mouse.move(file.x, box.y + box.height - 5, { steps: 4 });
+	await expect.poll(scrollTop).toBeGreaterThan(200);
+	const scrolled = await scrollTop();
+	await page.mouse.move(file.x, box.y + 5, { steps: 4 });
+	await expect.poll(scrollTop).toBeLessThan(scrolled - 100);
+	await page.keyboard.press('Escape');
+	await expect(label).toHaveCount(0);
+	expect(await lit()).toEqual([]);
+	await page.mouse.up();
+	expect(await drops()).toEqual([]);
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: ['README.md'] });
+	expect(await requests()).toEqual([]);
+
+	// A selected row carries the selection in tree order, and the empty space drops on the tree.
+	await page.evaluate(() => {
+		(window as unknown as FixtureWindow).virtualTreeFixture.collapse('folder');
+	});
+	await row('package.json').click();
+	await row('README.md').click({ modifiers: ['Shift'] });
+	await requests();
+	const selected = await center('README.md');
+	await page.mouse.move(selected.x, selected.y);
+	await page.mouse.down();
+	await page.mouse.move(selected.x, box.y + box.height / 2, { steps: 4 });
+	await expect(label).toHaveText('2');
+	await expect(tree).toHaveAttribute('data-drop-target', '');
+	await page.mouse.up();
+	expect(await drops()).toEqual([
+		{ ctrlKey: false, keys: ['package.json', 'README.md'], target: null },
+	]);
+	expect(await state()).toMatchObject({ selection: ['README.md', 'package.json'] });
+	expect(await requests()).toEqual([]);
+});
+
 test('virtual tree render benchmark', async ({ browser, page }) => {
 	test.setTimeout(180_000);
 	await openFixture(page);
@@ -313,8 +451,16 @@ test('virtual tree render benchmark', async ({ browser, page }) => {
 			)
 			.then((result) => typeNavigationSchema.parse(result)),
 	);
+	// A drag from one of the 100,003 selected rows carries every one of them.
+	const dragStart = await repeat(() =>
+		page
+			.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.measureDragStart())
+			.then((result) => dragStartSchema.parse(result)),
+	);
+	expect(dragStart.every((run) => run.carried === largeFolderRows)).toBe(true);
 
 	const report = {
+		dragStart: medians(dragStart),
 		expand: medians(expand),
 		scroll,
 		selectAll: medians(selectAll),

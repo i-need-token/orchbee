@@ -3,8 +3,9 @@ This module reimplements list and tree behavior specified by Visual Studio Code
 VS Code source is copied. Where an algorithm follows VS Code closely, such as
 the tree model's visible-descendant counts and single-splice expansion, the
 asynchronous tree's request sharing, loading indicator, refresh, staleness and
-expansion rules, sticky scroll's placement, and the list and tree keys, clicks,
-type navigation and context menu, the MIT license below covers it.
+expansion rules, sticky scroll's placement, the list and tree keys, clicks,
+type navigation and context menu, and drag and drop's dragged rows, drop
+feedback, hover expansion and edge scrolling, the MIT license below covers it.
 
 MIT License
 

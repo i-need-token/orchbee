@@ -30,6 +30,13 @@
 	background: var(--ob-sys-color-surface-selected-hover);
 }
 
+/* The rows a drag would drop into light up over their selection, where VS Code paints its drop
+   background. */
+.row[data-drop-target],
+.row[data-drop-target]:hover {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
 /* The focused row carries the ring while the tree has keyboard focus. */
 [role='tree']:focus-visible .row[data-focused] {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);

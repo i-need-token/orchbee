@@ -176,8 +176,8 @@ does not call `preventDefault()`.
 Configured commands, Workbench bindings, and the File Bar family's bindings resolve in that one
 listener, which runs in the document's capture phase. Configured commands moved there from the
 window's capture phase so that one ordered walk decides every key; they now follow the sidebar
-drag, which takes every key while it holds the pointer, and an until-press notice's dismissal, as
-Workbench bindings already did.
+drag and a [pointer drag](pointer-drag.md), which take every key while they hold the pointer, and
+an until-press notice's dismissal, as Workbench bindings already did.
 
 Where the File Bar is offered, a region that owns keys registers a keyboard scope while it is
 mounted: the File Bar column, the file overlay, a code editor, a tree or list widget, or an open

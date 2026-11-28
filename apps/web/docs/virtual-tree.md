@@ -5,7 +5,8 @@ Source Control views. It holds the loaded items, the flat array of visible rows,
 selection and anchor, and turns every change into the fewest row splices it can. It never knows
 about files, Git, or where its items come from: a view hands it a `VirtualTreeSource` and draws
 each row's content in `VirtualTree`. The public API and its contracts are the TSDoc of
-`virtual-tree-types.ts`, `virtual-tree-events.ts`, `VirtualTreeModel` and `VirtualTree`.
+`virtual-tree-types.ts`, `virtual-tree-events.ts`, `virtual-tree-drag.ts`, `VirtualTreeModel` and
+`VirtualTree`.
 
 ## Connecting a data source
 
@@ -102,6 +103,43 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   />
   ```
 
+## Dragging rows
+
+- `dragAndDrop` turns on dragging rows and dropping on them; each of its three parts is optional,
+  and the drag itself is [Pointer drag](pointer-drag.md)'s. `drag` makes the cargo for the rows a
+  press drags: a selected row drags the whole selection in tree order, any other row drags alone,
+  and neither changes the selection, as in VS Code. A sticky row takes drops for its row but starts
+  no drag.
+- `over` answers whether the drag may drop on a row, or on the tree for null, and how the tree shows
+  it. Answer for a folder with the default `down`, which lights the row and its visible rows, and
+  with `autoExpand`, which expands the row once the drag has rested on it for 500 ms; answer for a
+  file with `up`, which lights its folder, or the whole tree for a top-level file, as VS Code's
+  Explorer does. `drop` receives the row the drag was released on, not the folder it bubbled to, so
+  the view resolves where the drop goes and invokes its Action:
+
+  ```tsx
+  const resources = new PointerDragKind<readonly Resource[]>();
+
+  const dragAndDrop: VirtualTreeDragAndDrop<string, Resource> = {
+  	drag: (rows) =>
+  		resources.carry(
+  			rows.map((row) => row.element),
+  			dragLabel(rows),
+  		),
+  	over: (drag, row) => {
+  		if (resources.read(drag) === undefined) return null;
+  		return row?.collapsible === true ? { autoExpand: true } : { bubble: 'up' };
+  	},
+  	drop: (drag, row) => {
+  		const dropped = resources.read(drag);
+  		if (dropped !== undefined) moveResources(dropped, folderOf(row), drag.modifiers);
+  	},
+  };
+  ```
+
+- While a drag is over the tree, the tree scrolls within 35 px of its top or bottom edge, faster
+  nearer the edge, as VS Code's lists do, whether or not the view takes the drop there.
+
 ## Performance constraints
 
 - `key` and `hasChildren` run for every child on every refresh of its parent; keep them
@@ -129,13 +167,17 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   parent's children, and React's development build diffs a component's changed props a few levels
   deep on every render, so a row prop walks a large folder's children whenever the component draws
   another row; the tree's own row element takes plain values for that reason.
+- The tree hears a drag on every frame but asks `over` again only when the row under the pointer or
+  the keys held change, so `over` may read the whole payload. A drag from a selection collects its
+  rows once, when it starts.
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
   scenarios and the height index; run it before and after a change to the model or the index.
-  `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist and how keys,
-  clicks and the context menu act, and prints the render benchmark: expanding the folder of 100,000
-  files to its painted frame, selecting all of it, with the select-all key from one of its files
-  too, a typed character that matches no row, and scrolling it at fixed speeds, with each frame's
-  script time, long tasks and the layouts that script forced. It needs an installed Playwright
+  `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist, how keys,
+  clicks and the context menu act and how rows drag and take drops, and prints the render
+  benchmark: expanding the folder of 100,000 files to its painted frame, selecting all of it, with
+  the select-all key from one of its files too, a typed character that matches no row, starting a
+  drag from all 100,003 rows selected, and scrolling it at fixed speeds, with each frame's script
+  time, long tasks and the layouts that script forced. It needs an installed Playwright
   Chromium.
 
 ## Decisions
@@ -206,6 +248,18 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   reads them from there; VS Code keeps rows in visual order. The tree's own navigation is
   unaffected, since `aria-activedescendant`, level, position and set size name the focused row, and
   keeping visual order would move elements on every scrolled frame.
+- **Rows drag with the pointer.** VS Code's lists use the browser's drag and drop; these trees use
+  [Pointer drag](pointer-drag.md), as the File Bar proposal asks, so a drag shows Orchbee's
+  `grabbing` cursor and label and carries live rows.
+- **The row under the pointer has the last word.** When a row's answer bubbles up, VS Code asks the
+  view again about the parent and lets that answer decide; here the first answer decides, since a
+  view that bubbles a file up already knows its folder.
+- **A drop lights rows with the hover color.** No theme defines a drop color, and one would take a
+  role in every named theme; while a drag holds the pointer no row shows hover, so the color is
+  free, and it covers the selection as VS Code's `list.dropBackground` does.
+- **Edge scrolling stops once the pointer leaves the tree.** VS Code's lists keep scrolling for a
+  second after the last `dragover`; here the tree scrolls only while it hears the drag.
+- **Sticky rows neither drag nor light up**, as in VS Code, though each takes drops for its row.
 - **A keyboard context menu goes through the view's trigger.** The tree dispatches a `contextmenu`
   event at the focused row's corner once the key is released and prevents the key's default, so the
   browser's own menu event for the key never arrives. VS Code's list raises its own context menu

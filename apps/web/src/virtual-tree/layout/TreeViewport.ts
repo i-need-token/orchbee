@@ -21,6 +21,17 @@ interface RowSlot<K, T> {
 	readonly height: number;
 	readonly focused: boolean;
 	readonly selected: boolean;
+	/** Whether a drag would drop into this row or the row it belongs to. */
+	readonly dropTarget: boolean;
+}
+
+/** Where a drag would drop: into a row and the rows below it that belong to it, or the whole tree. */
+export type TreeDropTarget<K> = { readonly key: K } | 'tree' | null;
+
+/** The indexes of the rows a drag would drop into, first and last; -1 for none. */
+interface DropRows {
+	readonly start: number;
+	readonly end: number;
 }
 
 /** The content's height and how far it is scrolled, in CSS pixels. */
@@ -86,6 +97,8 @@ export class TreeViewport<K, T> {
 	private stickyHeightValue = 0;
 	/** A reveal that arrived before the view had a height, for its first one. */
 	private pendingReveal: { readonly key: K; readonly relativeTop: number | null } | null = null;
+	private dropTargetValue: TreeDropTarget<K> = null;
+	private dropOnTreeValue = false;
 
 	constructor(model: VirtualTreeModel<K, T>) {
 		this.model = model;
@@ -139,6 +152,11 @@ export class TreeViewport<K, T> {
 	/** How far down the view the sticky rows reach, in CSS pixels; 0 while none sticks. */
 	get stickyHeight(): number {
 		return this.stickyHeightValue;
+	}
+
+	/** Whether a drag would drop into the whole tree. */
+	get dropOnTree(): boolean {
+		return this.dropOnTreeValue;
 	}
 
 	/** The sticky row at a depth among them, outermost first, or null when fewer stick. */
@@ -222,6 +240,23 @@ export class TreeViewport<K, T> {
 
 	scrollTo(offset: number): void {
 		this.model.setScrollTop(this.clampScrollTop(offset));
+	}
+
+	/**
+	 * Shows where a drag would drop: into a row, with the rows below it that belong to it as they
+	 * expand or collapse, into the whole tree, or nowhere.
+	 */
+	setDropTarget(target: TreeDropTarget<K>): void {
+		const current = this.dropTargetValue;
+		const sameRow =
+			target !== null &&
+			target !== 'tree' &&
+			current !== null &&
+			current !== 'tree' &&
+			target.key === current.key;
+		if (target === current || sameRow) return;
+		this.dropTargetValue = target;
+		this.update();
 	}
 
 	private readonly hear = (event: VirtualTreeEvent<K>): void => {
@@ -334,18 +369,30 @@ export class TreeViewport<K, T> {
 			changed = true;
 		}
 		const selection = model.selection;
+		const drop = this.dropTargetValue;
+		const dropOnTree = drop === 'tree';
+		if (dropOnTree !== this.dropOnTreeValue) {
+			this.dropOnTreeValue = dropOnTree;
+			changed = true;
+		}
+		const dropStart = drop === null || drop === 'tree' ? -1 : model.indexOf(drop.key);
+		const dropRows: DropRows = {
+			end: dropStart < 0 ? -1 : dropStart + model.rowAt(dropStart).visibleDescendantCount,
+			start: dropStart,
+		};
 		const first = slotCount === 0 ? 0 : start % slotCount;
 		for (let slot = 0; slot < slotCount; slot += 1) {
 			const index = start + ((slot - first + slotCount) % slotCount);
 			const previous = this.slots[slot] ?? null;
-			const next = index < end ? this.slotFor(index, previous, focusIndex, selection) : null;
+			const next =
+				index < end ? this.slotFor(index, previous, focusIndex, selection, dropRows) : null;
 			if (next === previous) continue;
 			this.slots[slot] = next;
 			changed = true;
 		}
 		const focusOutside = focusIndex >= 0 && (focusIndex < start || focusIndex >= end);
 		const focused = focusOutside
-			? this.slotFor(focusIndex, this.focusedSlot, focusIndex, selection)
+			? this.slotFor(focusIndex, this.focusedSlot, focusIndex, selection, dropRows)
 			: null;
 		if (focused !== this.focusedSlot) {
 			this.focusedSlot = focused;
@@ -367,6 +414,7 @@ export class TreeViewport<K, T> {
 		previous: RowSlot<K, T> | null,
 		focusIndex: number,
 		selection: ReadonlySet<K>,
+		dropRows: DropRows,
 	): RowSlot<K, T> {
 		const row = this.model.rowAt(index);
 		const { positionInSet, revision, setSize } = row;
@@ -374,6 +422,7 @@ export class TreeViewport<K, T> {
 		const height = this.heightAt(index);
 		const focused = index === focusIndex;
 		const selected = selection.has(row.key);
+		const dropTarget = dropRows.start >= 0 && index >= dropRows.start && index <= dropRows.end;
 		if (
 			previous !== null &&
 			previous.index === index &&
@@ -384,11 +433,23 @@ export class TreeViewport<K, T> {
 			previous.top === top &&
 			previous.height === height &&
 			previous.focused === focused &&
-			previous.selected === selected
+			previous.selected === selected &&
+			previous.dropTarget === dropTarget
 		) {
 			return previous;
 		}
-		return { focused, height, index, positionInSet, revision, row, selected, setSize, top };
+		return {
+			dropTarget,
+			focused,
+			height,
+			index,
+			positionInSet,
+			revision,
+			row,
+			selected,
+			setSize,
+			top,
+		};
 	}
 
 	/**
