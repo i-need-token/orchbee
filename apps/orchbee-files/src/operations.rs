@@ -19,9 +19,9 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, ErrorCode, FilesError, FilesRecord, FilesReply, FilesRequest,
-    GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError, ScopeUpdate,
-    WorkspaceId, decode_files_record, parse_request,
+    CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesError, FilesRecord, FilesReply,
+    FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError,
+    ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -32,7 +32,7 @@ use crate::{
     fs::{Engine, MachineTrash},
     git::{self, ports::Trash},
     grants, roots,
-    scope::{Scopes, View},
+    scope::{Scopes, View, path::NativePath},
     subscriptions::{Leaving, Subscriptions},
 };
 
@@ -110,6 +110,7 @@ impl Services {
         self.scopes.connection_lost(connection);
         self.files.connection_lost(connection);
         self.git.connection_lost(connection);
+        self.edit.connection_lost(connection);
     }
 
     /// An Agent in `workspace` settled.
@@ -209,7 +210,8 @@ impl Services {
                     // A file granted beyond the root brings its repository to source control.
                     let beyond = view.read(&request.path).is_err();
                     self.detach(call, move |services, call| {
-                        if grants::grant(&services.scopes, &services.helpers, &view, call, path)
+                        let (scopes, helpers) = (&services.scopes, &services.helpers);
+                        if grants::grant(scopes, helpers, &view, call, path, request.source)
                             && beyond
                         {
                             services.git.opened(request.workspace_id, &request.path);
@@ -230,11 +232,13 @@ impl Services {
             },
             FilesRequest::FsStat(request) => {
                 let paths = request.paths.as_slice().iter();
-                let paths = paths.map(|path| (path.clone(), view.read(path))).collect();
+                let paths = paths
+                    .map(|path| (path.clone(), self.readable(&call, &view, path)))
+                    .collect();
                 self.files.stat(call, paths);
             }
             FilesRequest::FsRead(request) => match &request.source {
-                ReadSource::Path(path) => match view.read(path) {
+                ReadSource::Path(path) => match self.readable(&call, &view, path) {
                     Ok(path) => self.files.read(call, path, &request),
                     Err(refused) => call.reply(&FilesReply::Error(refused)),
                 },
@@ -321,16 +325,26 @@ impl Services {
             FilesRequest::FsRestore(request) => self.detach(call, move |services, call| {
                 services.edit.restore(call, view, &request);
             }),
-            FilesRequest::FsClipboard(_)
-            | FilesRequest::FsImportBegin(_)
+            FilesRequest::FsClipboard(request) => self.detach(call, move |services, call| {
+                services.edit.clipboard(call, view, &request);
+            }),
+            FilesRequest::PickerOpen(request) => match self.edit.open_picker(&call, &request) {
+                Ok(()) => self.detach(call, move |services, call| {
+                    services.edit.picker_places(call, &request);
+                }),
+                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            },
+            FilesRequest::PickerList(request) => match self.edit.picker_folder(&call, &request) {
+                Ok(folder) => self.files.picker_list(call, folder, request.cursor),
+                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            },
+            FilesRequest::PickerClose(request) => self.edit.close_picker(call, &request),
+            FilesRequest::FsImportBegin(_)
             | FilesRequest::FsImportItems(_)
             | FilesRequest::FsImportFile(_)
             | FilesRequest::FsImportEnd(_)
             | FilesRequest::FsExportBegin(_)
-            | FilesRequest::FsExportEntries(_)
-            | FilesRequest::PickerOpen(_)
-            | FilesRequest::PickerList(_)
-            | FilesRequest::PickerClose(_) => call.close(CallClose::Unsupported),
+            | FilesRequest::FsExportEntries(_) => call.close(CallClose::Unsupported),
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);
@@ -343,6 +357,18 @@ impl Services {
                     });
             }
         }
+    }
+
+    /// `path` for a read under `view`, or as one of the call's connection's clipboard sources,
+    /// which a paste reads after the root moves.
+    fn readable(
+        &self,
+        call: &Call,
+        view: &View,
+        path: &FilePath,
+    ) -> Result<NativePath, FilesError> {
+        view.read(path)
+            .or_else(|refused| self.edit.clipboard_source(call, path).ok_or(refused))
     }
 
     /// Runs `work` with `call` on a thread of its own, or closes the call as over capacity when no

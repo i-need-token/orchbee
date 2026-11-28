@@ -46,10 +46,15 @@ These rules are the contract a Client builds on; no single declaration holds the
   file whose real location lies in its repository's Git directory or common directory opens a
   prompt; or when it names a file the requesting connection opened. A Client builds its paths under the root `fs.subscribe`
   reported.
-- `fs.grant` from a tree, a diff or a Save As dialog needs the path in scope already; a terminal
-  link, a restored tab or the operating system's open may name any path, since the person chose it
-  explicitly. The entry is read before the grant is recorded, so a grant that fails grants nothing,
-  and a directory is refused.
+- `fs.grant` from a tree or a diff needs the path in scope already; a Save As destination, a
+  terminal link, a restored tab or the operating system's open may name any path, since the person
+  chose it explicitly. The entry is read before the grant is recorded, so a grant that fails grants
+  nothing, and a directory is refused; a Save As destination where nothing is yet is granted
+  without an entry, and the save creates it.
+- An open picker session lists any directory and grants nothing else; `picker.close`, ten minutes
+  without a request or the connection's end closes it. The paths of a connection's last
+  `fs.clipboard`, each in scope when it arrived, stay readable and copyable, and movable when cut,
+  after the root moves, until the next `fs.clipboard` or the connection's end.
 - Each successful grant of a file adds one grant, and each path of `fs.ungrant` releases one, so
   two tabs of one file release it independently; a set would let closing either tab cut off the
   other. Grants outlive their Workspace's close and end with their connection.

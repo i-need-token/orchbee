@@ -383,9 +383,9 @@ impl View {
         }
     }
 
-    /// Admits `path` for a grant from `source`. A file picked in a tree, a diff or a Save As
-    /// dialog is already in scope; a terminal link, a restored tab or the operating system's open
-    /// names a file the person chose explicitly, which may lie anywhere.
+    /// Admits `path` for a grant from `source`. A file picked in a tree or a diff is already in
+    /// scope; a Save As destination, a terminal link, a restored tab or the operating system's
+    /// open names a file the person chose explicitly, which may lie anywhere.
     ///
     /// # Errors
     ///
@@ -397,10 +397,11 @@ impl View {
         source: GrantSource,
     ) -> Result<NativePath, FilesError> {
         match source {
-            GrantSource::Tree | GrantSource::Diff | GrantSource::SaveAs => self.read(path),
-            GrantSource::TerminalLink | GrantSource::Restored | GrantSource::OsOpen => {
-                NativePath::parse(path.as_str())
-            }
+            GrantSource::Tree | GrantSource::Diff => self.read(path),
+            GrantSource::SaveAs
+            | GrantSource::TerminalLink
+            | GrantSource::Restored
+            | GrantSource::OsOpen => NativePath::parse(path.as_str()),
         }
     }
 

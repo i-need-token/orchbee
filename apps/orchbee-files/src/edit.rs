@@ -10,26 +10,33 @@
 //! - `fs.move` and `fs.copy` ([`transfer`]) take each source into a folder.
 //! - `fs.delete` and `fs.restore` ([`delete`]) remove items, to the trash or permanently, and
 //!   recreate what a delete kept.
+//! - `picker.*` ([`pickers`]) browse the whole machine for a Save As or clone dialog, and
+//!   `fs.clipboard` ([`clipboard`]) keeps what a paste may take from beyond the root.
 
+mod clipboard;
 mod delete;
 mod entries;
 mod names;
 mod observer;
 mod outcomes;
+mod pickers;
 mod transfer;
 mod write;
 
 use std::sync::Arc;
 
 use orchbee_files_protocol::{
-    ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsCreate, FsDelete, FsDeleteResult,
-    FsEntryResult, FsExists, FsExistsResult, FsRename, FsRestore, FsTransfer, FsTransferResult,
-    FsWrite, List, MutationReply, Operation, PathItemsResult, RequestOutcome, WorkspaceId,
+    ConnectionId, ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsClipboard, FsCreate,
+    FsDelete, FsDeleteResult, FsEntryResult, FsExists, FsExistsResult, FsRename, FsRestore,
+    FsTransfer, FsTransferResult, FsWrite, List, MutationReply, Operation, PathItemsResult,
+    PickerList, PickerRequest, RequestOutcome, SessionId, WorkspaceId,
 };
 
 use self::{
+    clipboard::Clipboards,
     delete::{Deleting, Stashes},
     outcomes::{Outcomes, finish},
+    pickers::Pickers,
     write::{System, Write, Writing},
 };
 pub(crate) use self::{
@@ -51,6 +58,8 @@ pub(crate) struct Service {
     writing: Writing,
     stashes: Stashes,
     trash: Arc<dyn Trash>,
+    pickers: Pickers,
+    clipboard: Clipboards,
     observer: Arc<dyn Observer>,
 }
 
@@ -68,6 +77,8 @@ impl Service {
             writing: Writing::default(),
             stashes: Stashes::new(),
             trash,
+            pickers: Pickers::new(),
+            clipboard: Clipboards::new(),
             observer,
         }
     }
@@ -180,9 +191,17 @@ impl Service {
             let directory = NativePath::parse(request.target_directory.as_str());
             let admit = |requested: &FilePath| {
                 let directory = directory.clone()?;
+                // A source on the connection's clipboard needs no place in the current boundary.
+                let connection = call.connection();
                 let source = match transfer {
-                    Transfer::Move => self.admit(operation, &view, requested, Change::Entry),
-                    Transfer::Copy => view.read(requested),
+                    Transfer::Move => self
+                        .admit(operation, &view, requested, Change::Entry)
+                        .or_else(|refused| {
+                            self.clipboard.cut(connection, requested).ok_or(refused)
+                        }),
+                    Transfer::Copy => view.read(requested).or_else(|refused| {
+                        self.clipboard.copied(connection, requested).ok_or(refused)
+                    }),
                 }?;
                 let target = names::child(&directory, source.name())?;
                 let named = FilePath::new(target.as_str())
@@ -265,6 +284,111 @@ impl Service {
                 |items| MutationReply::PathItems(PathItemsResult { items }),
             )
         });
+    }
+
+    /// `fs.clipboard` under `view`: each path must lie in its boundary as a copy reads it, or for
+    /// cut items as a move changes it.
+    pub(crate) fn clipboard(&self, call: Call, view: View, request: &FsClipboard) {
+        let view = Arc::new(view);
+        let admitted: Result<Vec<_>, _> = request
+            .paths
+            .as_slice()
+            .iter()
+            .map(|path| {
+                if request.cut {
+                    self.admit(Operation::FsClipboard, &view, path, Change::Entry)
+                } else {
+                    view.read(path)
+                }
+            })
+            .collect();
+        let reply = admitted.map_or_else(FilesReply::Error, |paths| {
+            self.clipboard
+                .replace(call.connection(), paths, request.cut);
+            FilesReply::Empty
+        });
+        finish(call, &reply);
+    }
+
+    /// `path` for a read when it is one of the call's connection's clipboard sources.
+    pub(crate) fn clipboard_source(&self, call: &Call, path: &FilePath) -> Option<NativePath> {
+        self.clipboard.copied(call.connection(), path)
+    }
+
+    /// `picker.open`: opens the picker at once, so its next requests may follow before it
+    /// answers.
+    ///
+    /// # Errors
+    ///
+    /// As the pickers refuse a name.
+    pub(crate) fn open_picker(
+        &self,
+        call: &Call,
+        request: &PickerRequest,
+    ) -> Result<(), FilesError> {
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        self.pickers.open(connection, workspace, request.picker)
+    }
+
+    /// Answers `picker.open` with where the picker starts, which it reads, so it runs on the
+    /// call's own thread; a picker with nowhere to start closes.
+    pub(crate) fn picker_places(&self, call: Call, request: &PickerRequest) {
+        let places = pickers::places(&self.helpers);
+        if places.is_err() {
+            self.pickers.close(call.connection(), request.picker);
+        }
+        finish(
+            call,
+            &places.map_or_else(FilesReply::Error, FilesReply::PickerOpen),
+        );
+    }
+
+    /// The directory `picker.list` pages, which the open picker admits wherever it is.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::picked`].
+    pub(crate) fn picker_folder(
+        &self,
+        call: &Call,
+        request: &PickerList,
+    ) -> Result<NativePath, FilesError> {
+        let (workspace, picker) = (request.workspace_id, request.picker);
+        self.picked(call.connection(), workspace, picker, &request.path)
+    }
+
+    /// `picker.close`.
+    pub(crate) fn close_picker(&self, call: Call, request: &PickerRequest) {
+        self.pickers.close(call.connection(), request.picker);
+        call.reply(&FilesReply::Empty);
+    }
+
+    /// The picker grant: `path`, anywhere on the machine, for what the person chose through
+    /// `picker`, which `connection` must hold open in `workspace`. Each use keeps the picker open
+    /// for ten more minutes. `picker.list` and any target chosen in a picker pass it.
+    ///
+    /// # Errors
+    ///
+    /// `invalid-request` when the picker is not open there, and the error of a form this machine
+    /// does not admit.
+    pub(crate) fn picked(
+        &self,
+        connection: ConnectionId,
+        workspace: WorkspaceId,
+        picker: SessionId,
+        path: &FilePath,
+    ) -> Result<NativePath, FilesError> {
+        if self.pickers.holds(connection, workspace, picker) {
+            NativePath::parse(path.as_str())
+        } else {
+            Err(FilesError::new(ErrorCode::InvalidRequest))
+        }
+    }
+
+    /// Releases what `connection` held: its pickers and its clipboard sources.
+    pub(crate) fn connection_lost(&self, connection: ConnectionId) {
+        self.pickers.connection_lost(connection);
+        self.clipboard.connection_lost(connection);
     }
 
     /// `fs.exists` under `view`, whose names are read as any read is.

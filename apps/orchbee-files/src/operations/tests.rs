@@ -14,13 +14,14 @@ use std::{
 use orchbee_files_protocol::{
     CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, DeleteMode, EncodingName,
     EntryKind, ErrorCode, FileName, FilePath, FilesNotice, FilesRecord, FilesReply, FilesRequest,
-    FrameKind, FsCreate, FsDelete, FsExists, FsExistsResult, FsGrant, FsGrantResult, FsList,
-    FsRename, FsRestore, FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass,
+    FrameKind, FsClipboard, FsCreate, FsDelete, FsExists, FsExistsResult, FsGrant, FsGrantResult,
+    FsList, FsRename, FsRestore, FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass,
     GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, MutationReply,
-    MutationState, NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId,
-    RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate, TransferId, WatchState,
-    WorkspaceId, WorkspaceRequest, WorkspaceScope, WritePrecondition, decode_files_record,
-    decode_link_message, encode_files_record, encode_request, parse_notice, parse_reply,
+    MutationState, NoticeKind, Operation, PathsRequest, PickerList, PickerRequest, Put, PutEnd,
+    RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate,
+    SessionId, TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope,
+    WritePrecondition, decode_files_record, decode_link_message, encode_files_record,
+    encode_request, parse_notice, parse_reply,
 };
 
 use super::Services;
@@ -686,4 +687,121 @@ fn transferred(reply: FilesReply) -> FilePath {
     };
     assert_eq!(item.error, None);
     item.path.clone().unwrap()
+}
+
+#[test]
+fn a_picker_and_the_clipboard_reach_beyond_the_root_only_as_granted() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let separator = std::path::MAIN_SEPARATOR;
+    fs::write(fixture.0.join("folder").join("listed.txt"), b"listed").unwrap();
+    let picker = SessionId::new(1).unwrap();
+    let list = FilesRequest::PickerList(PickerList {
+        workspace_id: workspace(),
+        picker,
+        path: fixture.file("folder"),
+        cursor: None,
+    });
+    let opened = PickerRequest {
+        workspace_id: workspace(),
+        picker,
+    };
+    // A picker lists any folder while it is open, and its list may follow its open at once.
+    link.request(1, &list);
+    assert_eq!(
+        error(link.reply(1, Operation::PickerList)),
+        ErrorCode::InvalidRequest
+    );
+    link.request(2, &FilesRequest::PickerOpen(opened.clone()));
+    link.request(3, &list);
+    let replies = link.replies(&[(2, Operation::PickerOpen), (3, Operation::PickerList)]);
+    let FilesReply::PickerOpen(places) = &replies[0] else {
+        panic!("expected where the picker starts, got {:?}", replies[0]);
+    };
+    assert!(!places.roots.as_slice().is_empty());
+    let FilesReply::PickerList(listed) = &replies[1] else {
+        panic!("expected the folder's entries, got {:?}", replies[1]);
+    };
+    let names: Vec<_> = listed
+        .entries
+        .as_slice()
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    assert_eq!(names, ["listed.txt"]);
+    link.request(4, &FilesRequest::PickerClose(opened));
+    assert_eq!(link.reply(4, Operation::PickerClose), FilesReply::Empty);
+    link.request(5, &list);
+    assert_eq!(
+        error(link.reply(5, Operation::PickerList)),
+        ErrorCode::InvalidRequest
+    );
+
+    // A Save As destination anywhere is granted before it exists, and the save creates it.
+    let saved = fixture.file(&format!("folder{separator}saved.txt"));
+    link.request(6, &grant(&saved, GrantSource::SaveAs));
+    assert_eq!(
+        link.reply(6, Operation::FsGrant),
+        FilesReply::FsGrant(FsGrantResult { entry: None })
+    );
+    assert!(matches!(
+        link.write(7, 7, &saved, "saved"),
+        FilesReply::FsWrite(_)
+    ));
+    assert_eq!(
+        fs::read(fixture.0.join("folder").join("saved.txt")).unwrap(),
+        b"saved"
+    );
+
+    // Clipboard sources stay readable after the root moves, and only cut ones move.
+    let clipboard = |paths: Vec<FilePath>, cut: bool| {
+        FilesRequest::FsClipboard(FsClipboard {
+            workspace_id: workspace(),
+            paths: List::new(paths).unwrap(),
+            cut,
+        })
+    };
+    link.request(9, &clipboard(vec![fixture.file("outside.txt")], true));
+    assert_eq!(
+        error(link.reply(9, Operation::FsClipboard)),
+        ErrorCode::OutsideScope
+    );
+    let source = fixture.file(&format!("root{separator}inside.txt"));
+    link.request(10, &clipboard(vec![source.clone()], false));
+    assert_eq!(link.reply(10, Operation::FsClipboard), FilesReply::Empty);
+    fs::create_dir_all(fixture.0.join("elsewhere").join("moved")).unwrap();
+    link.scope(WorkspaceScope::Root(fixture.path("elsewhere")));
+    let transfer = |request: u8, target_directory: FilePath| FsTransfer {
+        workspace_id: workspace(),
+        request_id: RequestId::from_bytes([request; 16]).unwrap(),
+        sources: List::new(vec![source.clone()]).unwrap(),
+        target_directory,
+        conflict: Conflict::Fail,
+    };
+    let elsewhere = fixture.file("elsewhere");
+    let copy = FilesRequest::FsCopy(transfer(11, elsewhere.clone()));
+    let copied = fixture.file(&format!("elsewhere{separator}inside.txt"));
+    assert_eq!(transferred(link.mutate(11, &copy)), copied);
+    let FilesReply::FsTransfer(refused) =
+        link.mutate(12, &FilesRequest::FsMove(transfer(12, elsewhere)))
+    else {
+        panic!("expected the refused move");
+    };
+    let refusal = refused.items.as_slice()[0]
+        .error
+        .as_ref()
+        .map(|error| error.code);
+    assert_eq!(refusal, Some(ErrorCode::OutsideScope));
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    link.request(13, &clipboard(vec![source.clone()], true));
+    assert_eq!(link.reply(13, Operation::FsClipboard), FilesReply::Empty);
+    link.scope(WorkspaceScope::Root(fixture.path("elsewhere")));
+    let moved = fixture.file(&format!("elsewhere{separator}moved"));
+    let moved = transferred(link.mutate(14, &FilesRequest::FsMove(transfer(14, moved))));
+    assert_eq!(
+        moved,
+        fixture.file(&format!("elsewhere{separator}moved{separator}inside.txt"))
+    );
+    assert!(!fixture.0.join("root").join("inside.txt").exists());
 }

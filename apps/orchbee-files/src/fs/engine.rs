@@ -12,7 +12,8 @@ use std::{
 use orchbee_files_protocol::{
     CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
     FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
-    PathsRequest, Put, ReadMode, StatItem, TransferId, TransferRequest, WatchState, WorkspaceId,
+    PageCursor, PathsRequest, PickerListResult, Put, ReadMode, StatItem, TransferId,
+    TransferRequest, WatchState, WorkspaceId,
 };
 
 use super::{
@@ -102,6 +103,40 @@ impl Engine {
                     Err(_) => {}
                 }
                 answer(call, result.map(FilesReply::FsList));
+            },
+        );
+    }
+
+    /// `picker.list` of `path`, any directory an open picker admits: a page of its entries as
+    /// `fs.list` pages them, without loading the directory for change delivery.
+    pub(crate) fn picker_list(&self, call: Call, path: NativePath, cursor: Option<PageCursor>) {
+        let listings = Arc::clone(&self.listings);
+        let connection = call.connection();
+        let cancelled = call.cancellation();
+        let cursor = cursor.map(|cursor| CursorId::from_bytes(*cursor.as_bytes()));
+        background::run(
+            &self.helpers,
+            Operation::PickerList,
+            move || {
+                let budget = wire::page_budget();
+                listings.page(
+                    connection,
+                    path.as_path(),
+                    cursor,
+                    false,
+                    &budget,
+                    &cancelled,
+                )
+            },
+            move |outcome| {
+                let listed = outcome.and_then(|page| page).and_then(wire::list_result);
+                let result = listed.map(|listed| {
+                    FilesReply::PickerList(PickerListResult {
+                        entries: listed.entries,
+                        cursor: listed.cursor,
+                    })
+                });
+                answer(call, result);
             },
         );
     }
