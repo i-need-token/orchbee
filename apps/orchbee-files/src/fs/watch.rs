@@ -1,14 +1,14 @@
 //! The file engine's watches and the delivery of their changes to `fs.subscribe`: what each Client
 //! loaded, each Workspace's watch state, and the service that turns native events into Updates.
 //!
-//! Listing a folder loads it for the listing connection in that Workspace and `fs.release`
-//! unloads it, as the frontend's model backend does; a connection's end unloads everything it
-//! loaded. [`service`] decides what is watched and delivered; the service thread
-//! `orchbee-files-watch` runs it on the inputs of every other part, the native adapter's thread
-//! `orchbee-files-watcher` owns the one native watcher, and filesystem checks run on the
-//! process's helpers, so the service never waits on a disk. The service thread starts when the Git
-//! engine takes its repository watches or a subscription first joins, the adapter's thread with
-//! the first watch, and both end with the drain.
+//! Listing a folder loads it for the listing connection in that Workspace before reading it, as
+//! does each folder of its single-child chain, and `fs.release` unloads it, as the frontend's model
+//! backend does; a connection's end unloads everything it loaded. [`service`] decides what is
+//! watched and delivered; the service thread `orchbee-files-watch` runs it on the inputs of every
+//! other part, the native adapter's thread `orchbee-files-watcher` owns the one native watcher,
+//! and filesystem checks run on the process's helpers, so the service never waits on a disk. The
+//! service thread starts when the Git engine takes its repository watches or a subscription first
+//! joins, the adapter's thread with the first watch, and both end with the drain.
 
 mod coalesce;
 mod native;

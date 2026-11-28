@@ -45,7 +45,7 @@ fn all_pages(listings: &Listings, path: &Path, bytes: usize) -> Vec<Page> {
     let never = AtomicBool::new(false);
     let mut pages = vec![
         listings
-            .page(connection(1), path, None, false, &budget(bytes), &never)
+            .page(connection(1), path, None, None, &budget(bytes), &never)
             .unwrap(),
     ];
     while let Some(cursor) = pages.last().unwrap().cursor {
@@ -55,7 +55,7 @@ fn all_pages(listings: &Listings, path: &Path, bytes: usize) -> Vec<Page> {
                     connection(1),
                     path,
                     Some(cursor),
-                    false,
+                    None,
                     &budget(bytes),
                     &never,
                 )
@@ -117,7 +117,7 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
     let never = AtomicBool::new(false);
     let one = budget(1);
     let first = listings
-        .page(connection(1), scratch.path(), None, false, &one, &never)
+        .page(connection(1), scratch.path(), None, None, &one, &never)
         .unwrap();
     let cursor = first.cursor.unwrap();
     let invalid = Err(FilesError::new(ErrorCode::InvalidRequest));
@@ -127,14 +127,14 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
             connection(2),
             scratch.path(),
             Some(cursor),
-            false,
+            None,
             &one,
             &never
         ),
         invalid
     );
     assert_eq!(
-        listings.page(connection(1), &other, Some(cursor), false, &one, &never),
+        listings.page(connection(1), &other, Some(cursor), None, &one, &never),
         invalid
     );
     let second = listings
@@ -142,7 +142,7 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
             connection(1),
             scratch.path(),
             Some(cursor),
-            false,
+            None,
             &one,
             &never,
         )
@@ -153,7 +153,7 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
             connection(1),
             scratch.path(),
             Some(cursor),
-            false,
+            None,
             &one,
             &never
         ),
@@ -166,7 +166,7 @@ fn a_cursor_continues_only_its_own_connection_and_path_once() {
             connection(1),
             scratch.path(),
             second.cursor,
-            false,
+            None,
             &one,
             &never
         ),
@@ -184,7 +184,7 @@ fn a_seventeenth_cursor_closes_the_least_recently_used() {
     let mut cursors: Vec<CursorId> = (0..=MAXIMUM_CURSORS)
         .map(|_| {
             listings
-                .page(connection(1), scratch.path(), None, false, &one, &never)
+                .page(connection(1), scratch.path(), None, None, &one, &never)
                 .unwrap()
                 .cursor
                 .unwrap()
@@ -196,7 +196,7 @@ fn a_seventeenth_cursor_closes_the_least_recently_used() {
             connection(1),
             scratch.path(),
             Some(oldest),
-            false,
+            None,
             &one,
             &never
         ),
@@ -209,7 +209,7 @@ fn a_seventeenth_cursor_closes_the_least_recently_used() {
                     connection(1),
                     scratch.path(),
                     Some(cursor),
-                    false,
+                    None,
                     &one,
                     &never
                 )
@@ -229,7 +229,7 @@ fn an_idle_cursor_closes_its_directory() {
             connection(1),
             scratch.path(),
             None,
-            false,
+            None,
             &budget(1),
             &never,
         )
@@ -252,7 +252,7 @@ fn a_cancelled_call_stops_reading() {
             connection(1),
             scratch.path(),
             None,
-            false,
+            None,
             &budget(usize::MAX),
             &cancelled
         ),
@@ -282,7 +282,7 @@ fn the_single_child_chain_lists_up_to_64_complete_levels() {
             connection(1),
             scratch.path(),
             None,
-            true,
+            Some(&mut |_: &Path| true),
             &budget(usize::MAX),
             &never,
         )
@@ -305,7 +305,7 @@ fn the_single_child_chain_lists_up_to_64_complete_levels() {
             connection(1),
             short.path(),
             None,
-            true,
+            Some(&mut |_: &Path| true),
             &budget(usize::MAX),
             &never,
         )
@@ -328,7 +328,7 @@ fn the_single_child_chain_stops_before_a_listing_that_does_not_fit() {
             connection(1),
             scratch.path(),
             None,
-            true,
+            Some(&mut |_: &Path| true),
             &budget(bytes),
             &never,
         )
@@ -352,12 +352,63 @@ fn the_single_child_chain_stops_before_a_listing_that_does_not_fit() {
             connection(1),
             scratch.path(),
             None,
-            false,
+            None,
             &budget(usize::MAX),
             &never,
         )
         .unwrap();
     assert!(plain.descendants.is_empty());
+}
+
+#[test]
+fn the_single_child_chain_enters_each_directory_before_reading_it() {
+    let scratch = Scratch::new("chain-enter");
+    let deepest = chain(scratch.path(), 3);
+    files(&deepest, 2);
+    let first = scratch.path().join("d0");
+    let middle = first.join("d1");
+    let never = AtomicBool::new(false);
+    let mut entered = Vec::new();
+    // A file created as d1 is entered is in d1's listing, so the chain ends with d1.
+    let mut enter = |directory: &Path| {
+        if directory == middle {
+            File::create(directory.join("late.txt")).unwrap();
+        }
+        entered.push(directory.to_path_buf());
+        true
+    };
+    let page = listings()
+        .page(
+            connection(1),
+            scratch.path(),
+            None,
+            Some(&mut enter),
+            &budget(usize::MAX),
+            &never,
+        )
+        .unwrap();
+    assert_eq!(entered, [first.clone(), middle.clone()]);
+    assert_eq!(page.descendants.len(), 2);
+    let names: BTreeSet<&str> = page.descendants[1]
+        .entries
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    assert_eq!(names, BTreeSet::from(["d2", "late.txt"]));
+
+    // A directory the caller refuses ends the chain before it is read.
+    let page = listings()
+        .page(
+            connection(1),
+            scratch.path(),
+            None,
+            Some(&mut |directory: &Path| directory != middle),
+            &budget(usize::MAX),
+            &never,
+        )
+        .unwrap();
+    assert_eq!(page.descendants.len(), 1);
+    assert_eq!(page.descendants[0].path, first);
 }
 
 #[test]
@@ -369,14 +420,7 @@ fn listing_what_is_not_a_directory_says_so() {
     let listings = listings();
     let list = |path: &Path| {
         listings
-            .page(
-                connection(1),
-                path,
-                None,
-                false,
-                &budget(usize::MAX),
-                &never,
-            )
+            .page(connection(1), path, None, None, &budget(usize::MAX), &never)
             .map_err(|error| error.code)
     };
     assert_eq!(list(&file), Err(ErrorCode::NotDirectory));
@@ -393,7 +437,7 @@ fn entry(directory: &Path, name: &str) -> Entry {
             connection(1),
             directory,
             None,
-            false,
+            None,
             &budget(usize::MAX),
             &never,
         )
@@ -499,7 +543,7 @@ fn a_name_that_is_not_unicode_is_listed_as_unrepresentable() {
             connection(1),
             scratch.path(),
             None,
-            false,
+            None,
             &budget(usize::MAX),
             &never,
         )

@@ -5,14 +5,16 @@
 //! Workspace's subscribers, opened files or scope change, and when the process drains.
 
 use std::{
+    collections::HashSet,
     ffi::OsStr,
-    sync::{Arc, atomic::AtomicBool},
+    path::Path,
+    sync::{Arc, Mutex, MutexGuard, PoisonError, atomic::AtomicBool},
 };
 
 use orchbee_files_protocol::{
     CallClose, ConnectionId, EncodingName, Entry, ErrorCode, FilePath, FilesError, FilesReply,
-    FsList, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List, Operation,
-    PageCursor, PathsRequest, PickerListResult, Put, ReadMode, StatItem, TransferId,
+    FsList, FsListResult, FsRead, FsReadChunk, FsStatResult, GuessEncodingResult, LaneId, List,
+    Operation, PageCursor, PathsRequest, PickerListResult, Put, ReadMode, StatItem, TransferId,
     TransferRequest, WatchState, WorkspaceId,
 };
 
@@ -65,8 +67,9 @@ impl Engine {
     }
 
     /// `fs.list` of `path`, which scope admitted for `request`. The folder loads before it is
-    /// read, so a change after the read reaches the Client; a failed listing unloads what it
-    /// loaded, and a single-child chain loads with its listing.
+    /// read, and so does each folder of a single-child chain, so a change after a read reaches the
+    /// Client; a failed listing unloads what it loaded, and a chain folder it entered but left out
+    /// unloads.
     pub(crate) fn list(&self, call: Call, path: NativePath, request: &FsList) {
         let listings = Arc::clone(&self.listings);
         let connection = call.connection();
@@ -78,29 +81,36 @@ impl Engine {
         let cursor = request
             .cursor
             .map(|cursor| CursorId::from_bytes(*cursor.as_bytes()));
-        let single_child = request.single_child;
+        let chain = request.single_child.then(|| {
+            Arc::new(ChainLoads::new(
+                Arc::clone(&self.watching),
+                connection,
+                workspace,
+            ))
+        });
+        let entering = chain.clone();
         background::run(
             &self.helpers,
             Operation::FsList,
             move || {
                 let budget = wire::page_budget();
                 let path = path.as_path();
-                listings.page(connection, path, cursor, single_child, &budget, &cancelled)
+                let mut enter = entering
+                    .as_deref()
+                    .map(|chain| move |below: &Path| chain.enter(below));
+                let enter = enter
+                    .as_mut()
+                    .map(|enter| enter as &mut dyn FnMut(&Path) -> bool);
+                listings.page(connection, path, cursor, enter, &budget, &cancelled)
             },
             move |outcome| {
                 let page = outcome.and_then(|page| page);
                 let result = page.and_then(wire::list_result);
-                match &result {
-                    Ok(listed) => {
-                        let chain = listed.descendants.iter().flat_map(|chain| chain.as_slice());
-                        for descendant in chain {
-                            if let Ok(below) = NativePath::parse(descendant.path.as_str()) {
-                                watching.load(connection, workspace, &below);
-                            }
-                        }
-                    }
-                    Err(_) if loaded => watching.unload(connection, workspace, &[folder]),
-                    Err(_) => {}
+                if let Some(chain) = &chain {
+                    chain.finish(result.as_ref().ok());
+                }
+                if result.is_err() && loaded {
+                    watching.unload(connection, workspace, &[folder]);
                 }
                 answer(call, result.map(FilesReply::FsList));
             },
@@ -123,7 +133,7 @@ impl Engine {
                     connection,
                     path.as_path(),
                     cursor,
-                    false,
+                    None,
                     &budget,
                     &cancelled,
                 )
@@ -350,6 +360,73 @@ impl Engine {
     pub(crate) fn drain(&self) {
         self.transfers.drain();
         self.watching.drain();
+    }
+}
+
+/// The folders one listing's single-child chain entered, each loaded before it was read. Once the
+/// listing answers, a folder it loaded but left out unloads, and a helper the listing abandoned
+/// enters nothing more. A panic ends the process, so a poisoned lock is never observed.
+struct ChainLoads {
+    watching: Arc<Watching>,
+    connection: ConnectionId,
+    workspace: WorkspaceId,
+    /// Each entered folder and whether it was not loaded before; `None` once the listing answered.
+    entered: Mutex<Option<Vec<(NativePath, bool)>>>,
+}
+
+impl ChainLoads {
+    fn new(watching: Arc<Watching>, connection: ConnectionId, workspace: WorkspaceId) -> Self {
+        Self {
+            watching,
+            connection,
+            workspace,
+            entered: Mutex::new(Some(Vec::new())),
+        }
+    }
+
+    /// Loads `folder` as the chain enters it; false for a path this machine cannot name, and once
+    /// the listing answered, which ends the chain.
+    fn enter(&self, folder: &Path) -> bool {
+        let Some(folder) = folder
+            .to_str()
+            .and_then(|folder| NativePath::parse(folder).ok())
+        else {
+            return false;
+        };
+        // The load happens under the lock, so none follows the listing's answer.
+        let mut entered = self.lock();
+        let Some(entered) = entered.as_mut() else {
+            return false;
+        };
+        let fresh = self.watching.load(self.connection, self.workspace, &folder);
+        entered.push((folder, fresh));
+        true
+    }
+
+    /// Ends the chain of a listing that answered `listed`, or failed: each folder it loaded that
+    /// the answer leaves out unloads.
+    fn finish(&self, listed: Option<&FsListResult>) {
+        let kept: HashSet<String> = listed
+            .iter()
+            .filter_map(|listed| listed.descendants.as_ref())
+            .flat_map(|chain| chain.as_slice())
+            .filter_map(|descendant| NativePath::parse(descendant.path.as_str()).ok())
+            .map(|folder| folder.key())
+            .collect();
+        let entered = self.lock().take().unwrap_or_default();
+        let left_out: Vec<NativePath> = entered
+            .into_iter()
+            .filter(|(folder, fresh)| *fresh && !kept.contains(&folder.key()))
+            .map(|(folder, _)| folder)
+            .collect();
+        if !left_out.is_empty() {
+            self.watching
+                .unload(self.connection, self.workspace, &left_out);
+        }
+    }
+
+    fn lock(&self) -> MutexGuard<'_, Option<Vec<(NativePath, bool)>>> {
+        self.entered.lock().unwrap_or_else(PoisonError::into_inner)
     }
 }
 

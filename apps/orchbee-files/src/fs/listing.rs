@@ -6,7 +6,8 @@
 //! the watch then reports. A child whose own metadata cannot be read, such as one removed after
 //! the directory was read, is left out, as VS Code leaves it out. With the single-child chain,
 //! each directory that is its parent's only entry is listed as well, up to 64 levels, while its
-//! whole listing fits the page.
+//! whole listing fits the page; the caller enters each one before it is read, as it does the
+//! listed directory, and may end the chain there.
 
 use std::{
     collections::HashMap,
@@ -139,8 +140,11 @@ impl Listings {
         }
     }
 
-    /// The page of `path` that follows `cursor`, or its first page. It reads the directory, so it
-    /// runs on a helper.
+    /// The page of `path` that follows `cursor`, or its first page. With `chain`, a first page that
+    /// is the whole directory also lists the single-child chain below it, and `chain` enters each
+    /// directory of the chain before it is read; a directory it refuses ends the chain. A
+    /// directory entered and then left out, because it cannot be read or does not fit, is the last
+    /// one entered. It reads the directory, so it runs on a helper.
     ///
     /// # Errors
     ///
@@ -152,7 +156,7 @@ impl Listings {
         connection: ConnectionId,
         path: &Path,
         cursor: Option<CursorId>,
-        single_child: bool,
+        chain: Option<&mut dyn FnMut(&Path) -> bool>,
         budget: &PageBudget<'_>,
         cancelled: &AtomicBool,
     ) -> Result<Page, FilesError> {
@@ -168,9 +172,11 @@ impl Listings {
         };
         if read.more {
             page.cursor = Some(self.store(connection, path, remaining));
-        } else if cursor.is_none() && single_child {
+        } else if cursor.is_none()
+            && let Some(enter) = chain
+        {
             let left = budget.bytes.saturating_sub(read.bytes);
-            page.descendants = descendants(path, &page.entries, left, budget, cancelled)?;
+            page.descendants = descendants(path, &page.entries, left, budget, cancelled, enter)?;
         }
         Ok(page)
     }
@@ -344,15 +350,17 @@ fn describe(child: &fs::DirEntry) -> Option<Entry> {
     entry::describe(&child.file_name(), &own, || fs::metadata(child.path())).ok()
 }
 
-/// The single-child chain below `path`, whose complete listing is `entries`, within `bytes`.
-/// The chain ends before a directory that cannot be read, does not fit or has a path a page cannot
-/// carry, and the Client lists that one itself.
+/// The single-child chain below `path`, whose complete listing is `entries`, within `bytes`, each
+/// directory entered through `enter` before it is read. The chain ends before a directory that
+/// cannot be read, does not fit, has a path a page cannot carry or that `enter` refuses, and the
+/// Client lists that one itself.
 fn descendants(
     path: &Path,
     entries: &[Entry],
     mut bytes: usize,
     budget: &PageBudget<'_>,
     cancelled: &AtomicBool,
+    enter: &mut dyn FnMut(&Path) -> bool,
 ) -> Result<Vec<Descendant>, FilesError> {
     let mut chain: Vec<Descendant> = Vec::new();
     let mut directory = path.to_path_buf();
@@ -365,6 +373,9 @@ fn descendants(
         else {
             break;
         };
+        if !enter(&child) {
+            break;
+        }
         let Ok(mut remaining) = open(&child) else {
             break;
         };
