@@ -192,6 +192,15 @@ pub(super) fn folder(kind: &FileType) -> bool {
     }
 }
 
+/// Runs one filesystem step whose time grows with the item, such as copying a file's content or
+/// removing a folder, on the mutation's own thread: under a helper's deadline it would answer
+/// `timeout` while it went on, and hold a helper that the process's other filesystem work needs.
+/// The steps before it run on helpers and reach the same volumes, so a volume that does not answer
+/// is a `timeout` before such a step starts.
+pub(super) fn long<T>(work: impl FnOnce() -> io::Result<T>) -> Result<T, FilesError> {
+    work().map_err(|failure| error::from_io(&failure))
+}
+
 /// Runs one filesystem step of `operation` on a helper.
 pub(super) fn run<T: Send + 'static>(
     helpers: &Helpers,

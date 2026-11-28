@@ -151,6 +151,8 @@ struct Roots {
 enum Copied {
     /// The item, whole.
     Done,
+    /// A file, empty, whose content follows.
+    File,
     /// A folder, whose children follow, and which takes the source's permissions after them. A
     /// folder copied from what a link names has that real location, which a copy enters once.
     Folder {
@@ -265,8 +267,7 @@ impl Transferring<'_> {
         if self.conflict == Conflict::Merge && kind.is_dir() && folder {
             return self.merge(source, target).map(|()| target.clone());
         }
-        let existing = target.as_path().to_path_buf();
-        self.step(move || entries::remove(&existing))?;
+        entries::long(|| entries::remove(target.as_path()))?;
         match self.place(
             source.as_path(),
             target.as_path(),
@@ -319,14 +320,12 @@ impl Transferring<'_> {
             Err(failure) if failure.kind() == io::ErrorKind::CrossesDevices => {
                 self.copy(from, to, roots)?;
                 // Once copied, the source goes, as VS Code moves across volumes.
-                let source = from.to_path_buf();
-                self.step(move || entries::remove(&source))
-                    .map_err(|error| {
-                        Placing::Failed(Failed {
-                            error: Box::new(error),
-                            copied: Some(to.to_path_buf()),
-                        })
+                entries::long(|| entries::remove(from)).map_err(|error| {
+                    Placing::Failed(Failed {
+                        error: Box::new(error),
+                        copied: Some(to.to_path_buf()),
                     })
+                })
             }
             Err(failure) => Err(error::from_io(&failure).into()),
         }
@@ -347,8 +346,7 @@ impl Transferring<'_> {
             Err(failure) => return Err(error::from_io(&failure).into()),
         };
         self.fill(from, to, roots, first).map_err(|failure| {
-            let created = to.to_path_buf();
-            let _ = self.step(move || entries::remove(&created));
+            let _ = entries::long(|| entries::remove(to));
             Placing::Failed(failure)
         })
     }
@@ -359,13 +357,14 @@ impl Transferring<'_> {
         let mut entered = HashSet::new();
         let mut real_target = None;
         let mut follow = |filling: &mut Vec<Filling>, from: &Path, to: &Path, copied: Copied| {
-            let Copied::Folder {
-                names,
-                permissions,
-                real,
-            } = copied
-            else {
-                return Ok::<(), FilesError>(());
+            let (names, permissions, real) = match copied {
+                Copied::Done => return Ok::<(), FilesError>(()),
+                Copied::File => return entries::long(|| fs::copy(from, to).map(drop)),
+                Copied::Folder {
+                    names,
+                    permissions,
+                    real,
+                } => (names, permissions, real),
             };
             if let Some(real) = real {
                 // What a link names is copied once, and never from inside the copy itself.
@@ -449,10 +448,7 @@ impl Transferring<'_> {
                     merging.push(Merging::Folder(from, to));
                     continue;
                 }
-                Some(_) => {
-                    let existing = to.clone();
-                    self.step(move || entries::remove(&existing))?;
-                }
+                Some(_) => entries::long(|| entries::remove(&to))?,
                 None => {}
             }
             match self.place(&from, &to, &kind, &roots) {
@@ -498,8 +494,8 @@ fn holds(target: &Path, source: &Path) -> io::Result<bool> {
     Ok(real_source.starts_with(real_target))
 }
 
-/// Copies the item at `from` to `to`, where nothing may be: a file whole, a link as a link, and
-/// a folder empty, with its children to follow.
+/// Copies the item at `from` to `to`, where nothing may be: a link as a link, a file empty, with
+/// its content to follow, and a folder empty, with its children to follow.
 fn copy_one(from: &Path, to: &Path, roots: &Roots) -> io::Result<Copied> {
     let facts = fs::symlink_metadata(from)?;
     let kind = facts.file_type();
@@ -516,7 +512,7 @@ fn copy_one(from: &Path, to: &Path, roots: &Roots) -> io::Result<Copied> {
     }
     if kind.is_file() {
         File::create_new(to)?;
-        fs::copy(from, to)?;
+        return Ok(Copied::File);
     }
     // A pipe, socket or device inside a copied folder has no content to copy and stays behind.
     Ok(Copied::Done)
@@ -539,8 +535,7 @@ fn copy_link(from: &Path, to: &Path, kind: &FileType, roots: &Roots) -> io::Resu
                 })
             } else {
                 File::create_new(to)?;
-                fs::copy(from, to)?;
-                Ok(Copied::Done)
+                Ok(Copied::File)
             }
         }
         linked => linked.map(|()| Copied::Done),
