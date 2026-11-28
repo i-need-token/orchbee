@@ -526,3 +526,63 @@ export function transitionFileTabs(tabs: FileTabs, event: FileTabsEvent): FileTa
 	return { effects, tabs: settle(draft, tabs) };
 }
 
+/**
+ * What a Workspace's tabs keep from one run to the next: the row with its active, preview and
+ * sticky tabs. The recent order, unsaved edits and Reopen Closed Editor stay in memory.
+ */
+export interface FileTabsSnapshot {
+	readonly activeIndex: number;
+	/** The row, left to right. */
+	readonly inputs: readonly FileTabInput[];
+	readonly previewIndex: number | null;
+	readonly stickyCount: number;
+}
+
+/** The `limit` most recently active tabs as a later run restores them, in row order; null without tabs. */
+export function snapshotFileTabs(tabs: FileTabs, limit: number): FileTabsSnapshot | null {
+	const kept = new Set(tabs.recent.slice(0, limit));
+	const row = tabs.tabs.filter((tab) => kept.has(tab.id));
+	const activeIndex = row.findIndex((tab) => tab.id === tabs.activeId);
+	if (activeIndex < 0) return null;
+	const previewIndex = row.findIndex((tab) => tab.id === tabs.previewId);
+	return {
+		activeIndex,
+		inputs: row.map((tab) => tab.input),
+		previewIndex: previewIndex < 0 ? null : previewIndex,
+		stickyCount: tabs.tabs.slice(0, tabs.stickyCount).filter((tab) => kept.has(tab.id)).length,
+	};
+}
+
+/**
+ * The tabs a snapshot restores, every one saved, the active one most recent and the rest in row
+ * order; null for a snapshot that breaks the row's rules.
+ */
+export function restoreFileTabs(snapshot: FileTabsSnapshot): FileTabs | null {
+	const tabs = snapshot.inputs.map(
+		(input): FileTab => ({ id: fileTabId(input), input, unsaved: false }),
+	);
+	const ids = tabs.map((tab) => tab.id);
+	const { activeIndex, previewIndex, stickyCount } = snapshot;
+	const active = tabs[activeIndex];
+	const preview = previewIndex === null ? null : tabs[previewIndex];
+	if (
+		active === undefined ||
+		preview === undefined ||
+		new Set(ids).size !== ids.length ||
+		!Number.isInteger(stickyCount) ||
+		stickyCount < 0 ||
+		stickyCount > tabs.length ||
+		(previewIndex !== null && previewIndex < stickyCount)
+	) {
+		return null;
+	}
+	return {
+		activeId: active.id,
+		closed: [],
+		pendingClose: null,
+		previewId: preview?.id ?? null,
+		recent: [active.id, ...ids.filter((id) => id !== active.id)],
+		stickyCount,
+		tabs,
+	};
+}

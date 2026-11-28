@@ -1,9 +1,12 @@
 import {
 	EMPTY_FILE_TABS,
+	restoreFileTabs,
+	snapshotFileTabs,
 	transitionFileTabs,
 	type FileTabs,
 	type FileTabsEffect,
 	type FileTabsEvent,
+	type FileTabsSnapshot,
 } from './file-tabs';
 import {
 	closeFileOverlayMode,
@@ -12,6 +15,8 @@ import {
 	transitionFileOverlayMode,
 	type FileOverlayMode,
 	type FileOverlayModeEvent,
+	type FileOverlayNarrowTier,
+	type FileOverlayTier,
 } from './overlay-mode';
 
 /** One Workspace's file overlay: closed exactly when it has no tabs. */
@@ -93,3 +98,48 @@ function shows(event: FileTabsEvent, before: FileTabs, after: FileTabs): boolean
 	}
 }
 
+/**
+ * What a Workspace's overlay keeps from one run to the next: its tabs, whether it showed them open or
+ * shrunk to picture-in-picture, and its tier.
+ */
+export interface FileOverlaySnapshot {
+	readonly kind: 'open' | 'pip';
+	readonly restoreTier: FileOverlayNarrowTier;
+	readonly tabs: FileTabsSnapshot;
+	readonly tier: FileOverlayTier;
+}
+
+/** The overlay as a later run restores it, with its `limit` most recently active tabs; null while closed. */
+export function snapshotFileOverlay(
+	state: FileOverlayState,
+	limit: number,
+): FileOverlaySnapshot | null {
+	const { kind, restoreTier, tier } = state.mode;
+	const tabs = snapshotFileTabs(state.tabs, limit);
+	if (kind === 'closed' || tabs === null) return null;
+	return { kind, restoreTier, tabs, tier };
+}
+
+/**
+ * The overlay a snapshot restores in a window that offers left-expand or not. It comes back shrunk to
+ * picture-in-picture even if it was open: the terminal takes the keys as a Workspace first shows,
+ * which would shrink an open overlay over it at once. A tier the window does not offer falls back to
+ * default, as when the window stops offering it. Null for tabs that break the row's rules.
+ */
+export function restoreFileOverlay(
+	snapshot: FileOverlaySnapshot,
+	leftExpandOffered: boolean,
+): FileOverlayState | null {
+	const tabs = restoreFileTabs(snapshot.tabs);
+	if (tabs === null) return null;
+	const remembered: FileOverlayMode = {
+		kind: 'pip',
+		leftExpandOffered: true,
+		restoreTier: snapshot.restoreTier,
+		tier: snapshot.tier,
+	};
+	return {
+		mode: transitionFileOverlayMode(remembered, { leftExpandOffered, type: 'layout-changed' }),
+		tabs,
+	};
+}

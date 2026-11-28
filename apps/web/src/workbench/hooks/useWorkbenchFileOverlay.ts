@@ -89,7 +89,10 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Whether the Sidebar shows docked, which offers left-expand while the File Bar is on the right. */
 	readonly sidebarDocked: boolean;
-	/** Where picture-in-picture's position persists, read once as the Workbench starts. */
+	/**
+	 * Where picture-in-picture's position persists, read once as the Workbench starts, and each
+	 * Workspace's tabs, read as its overlay starts.
+	 */
 	readonly storage: FileOverlayPipStorage | undefined;
 	/** Adds the shown overlay to the region cycle. */
 	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
@@ -210,7 +213,7 @@ export function useWorkbenchFileOverlay({
 }: UseWorkbenchFileOverlayOptions): WorkbenchFileOverlayView {
 	const intl = useOrchbeeIntl();
 	const [registry] = React.useState(() =>
-		offered ? new FileOverlayRegistry(sidebarDocked) : null,
+		offered ? new FileOverlayRegistry(sidebarDocked, storage) : null,
 	);
 	// Every Workspace's picture-in-picture shows where a drag last left one.
 	const [pipPosition, setPipPosition] = React.useState<FileOverlayPipPosition | null>(() =>

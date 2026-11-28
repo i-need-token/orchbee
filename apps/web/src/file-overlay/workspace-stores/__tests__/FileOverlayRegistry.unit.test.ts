@@ -65,4 +65,32 @@ describe('FileOverlayRegistry', () => {
 		expect(registry.store('saved').state.getState().mode.kind).toBe('closed');
 		expect(registry.store('unsaved')).toBe(unsaved);
 	});
+
+	it("starts each Workspace's overlay as the device last kept it, until the Workspace vanishes", () => {
+		let stored: string | null = null;
+		const storage = {
+			getItem: () => stored,
+			setItem: (_key: string, value: string) => {
+				stored = value;
+			},
+		};
+		const kept = '0123456789abcdef0123456789abcdef';
+		const gone = 'fedcba9876543210fedcba9876543210';
+		const before = new FileOverlayRegistry(true, storage);
+		before.retain(new Set([kept, gone]));
+		openFile(before, kept, '/a');
+		before.notify(kept, { type: 'terminal-replaced' });
+		openFile(before, gone, '/b');
+
+		const after = new FileOverlayRegistry(true, storage);
+		expect(after.store(kept).state.getState()).toMatchObject({
+			mode: { kind: 'pip' },
+			tabs: { activeId: 'file:/a' },
+		});
+
+		before.retain(new Set([kept]));
+		const later = new FileOverlayRegistry(true, storage);
+		expect(later.store(gone).state.getState().mode.kind).toBe('closed');
+		expect(later.store(kept).state.getState().mode.kind).toBe('pip');
+	});
 });

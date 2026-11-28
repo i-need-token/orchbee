@@ -2,10 +2,14 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 
 import {
 	createFileOverlayState,
+	forgetFileOverlayTabs,
+	readFileOverlayTabs,
 	transitionFileOverlay,
+	writeFileOverlayTabs,
 	type FileOverlayEffect,
 	type FileOverlayEvent,
 	type FileOverlayState,
+	type FileOverlayTabsStorage,
 } from '../model';
 
 /** One Workspace's overlay: its state to select from and the one way to change it. */
@@ -39,22 +43,31 @@ function createFileOverlayStore(initial: FileOverlayState): FileOverlayStore {
 }
 
 /**
- * The overlays of one Workbench's Workspaces. Each starts closed when something first asks for it and
- * lives while its Workspace does, so a Workspace switch keeps every overlay's tabs, mode and tier.
+ * The overlays of one Workbench's Workspaces. Each starts when something first asks for it, as this
+ * device last kept it or else closed, and lives while its Workspace does, so a Workspace switch keeps
+ * every overlay's tabs, mode and tier. Each change to what the device keeps of an overlay is kept.
  */
 export class FileOverlayRegistry {
+	/** The Workspaces the window listed last, whose disappearance drops what the device keeps. */
+	private listed: ReadonlySet<string> = new Set();
 	private leftExpandOffered: boolean;
 	private shown: FileOverlayTerminalView | null = null;
+	private readonly storage: FileOverlayTabsStorage | undefined;
 	private readonly stores = new Map<string, FileOverlayStore>();
 
-	public constructor(leftExpandOffered: boolean) {
+	public constructor(leftExpandOffered: boolean, storage?: FileOverlayTabsStorage) {
 		this.leftExpandOffered = leftExpandOffered;
+		this.storage = storage;
 	}
 
 	public store(workspaceId: string): FileOverlayStore {
 		let store = this.stores.get(workspaceId);
 		if (store === undefined) {
-			store = createFileOverlayStore(createFileOverlayState(this.leftExpandOffered));
+			const restored = readFileOverlayTabs(this.storage, workspaceId, this.leftExpandOffered);
+			store = createFileOverlayStore(restored ?? createFileOverlayState(this.leftExpandOffered));
+			store.state.subscribe((state, previous) => {
+				writeFileOverlayTabs(this.storage, workspaceId, state, previous);
+			});
 			this.stores.set(workspaceId, store);
 		}
 		return store;
@@ -92,14 +105,19 @@ export class FileOverlayRegistry {
 	}
 
 	/**
-	 * Drops the overlays of Workspaces that are gone. One holding unsaved tabs stays in memory, so the
-	 * unsaved work of a Workspace that disappears waits for the person to save or discard it.
+	 * Drops the overlays of Workspaces that are gone, with what the device keeps of each the window
+	 * listed or kept. One holding unsaved tabs stays in memory, so the unsaved work of a Workspace that
+	 * disappears waits for the person to save or discard it.
 	 */
 	public retain(workspaceIds: ReadonlySet<string>): void {
+		const gone = new Set([...this.listed].filter((workspaceId) => !workspaceIds.has(workspaceId)));
+		this.listed = new Set(workspaceIds);
 		for (const [workspaceId, store] of this.stores) {
 			if (workspaceIds.has(workspaceId)) continue;
 			if (store.state.getState().tabs.tabs.some((tab) => tab.unsaved)) continue;
 			this.stores.delete(workspaceId);
+			gone.add(workspaceId);
 		}
+		forgetFileOverlayTabs(this.storage, [...gone]);
 	}
 }
