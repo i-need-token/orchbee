@@ -12,13 +12,17 @@ import * as React from 'react';
 import {
 	DEFAULT_FILE_BAR_LAYOUT,
 	FILE_BAR_WIDTH,
+	hideFileBarToggle,
+	keepFileBarToggle,
 	loadFileBar,
 	readFileBarLayout,
+	shownFileBarToggles,
 	writeFileBarLayout,
 	type FileBarLayout,
 	type FileBarLayoutStorage,
 	type FileBarModule,
 	type FileBarPosition,
+	type FileBarRowMenuEntry,
 	type FileBarViewId,
 } from '../../file-bar';
 import {
@@ -31,6 +35,7 @@ import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFil
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
+import { buildFileBarRowMenu, showFileBarViewActionId } from '../utils/file-bar-row-menu';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 /** The File Bar's panel in the Workbench's resizable group. */
@@ -77,8 +82,12 @@ interface WorkbenchFileBarColumn {
 	/** Selecting a view's toggle in the column. */
 	readonly onSelectView: (view: FileBarViewId) => void;
 	readonly panelReference: React.RefObject<ResizablePanelHandle | null>;
+	/** The toggles row's menu as it opens. */
+	readonly rowMenu: () => readonly FileBarRowMenuEntry[];
 	/** The active Workspace's file session the File Bar holds; null until the hold has started. */
 	readonly session: FileWorkspaceSession | null;
+	/** The view toggles the row shows, in its order. */
+	readonly toggles: readonly FileBarViewId[];
 	/** Each increase moves focus into the active view. */
 	readonly viewFocusRequest: number;
 }
@@ -128,6 +137,8 @@ interface UseWorkbenchFileBarOptions {
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	/** Where file sessions come from; without it the File Bar opens none. */
 	readonly sessionPort: FileSessionPort | undefined;
+	/** The shortcut the toggles row's menu shows for an Action, as VS Code's menus show keybindings. */
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	/** Decides the File Bar's minimum: Windows and Linux draw caption buttons over its row. */
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Adds the docked File Bar to the region cycle. */
@@ -150,15 +161,11 @@ function containsFocus(element: HTMLElement | null): boolean {
 function sameLayout(left: FileBarLayout, right: FileBarLayout): boolean {
 	return (
 		left.activeView === right.activeView &&
+		left.hiddenToggles.length === right.hiddenToggles.length &&
+		left.hiddenToggles.every((view) => right.hiddenToggles.includes(view)) &&
 		left.visible === right.visible &&
 		left.width === right.width
 	);
-}
-
-function showViewActionId(view: FileBarViewId) {
-	return view === 'explorer'
-		? WORKBENCH_ACTION_IDS.showExplorer
-		: WORKBENCH_ACTION_IDS.showSourceControl;
 }
 
 /**
@@ -177,6 +184,7 @@ export function useWorkbenchFileBar({
 	offered,
 	reportActionOutcome,
 	sessionPort,
+	shortcutLabelForAction,
 	shortcutPlatform,
 	storage,
 	supplyFocusRegion,
@@ -295,12 +303,45 @@ export function useWorkbenchFileBar({
 			return;
 		}
 		reportActionOutcome('button', () =>
-			typedRuntime.execute(showViewActionId(view), undefined, {
+			typedRuntime.execute(showFileBarViewActionId(view), undefined, {
 				scope: actionScope,
 				source: 'button',
 			}),
 		);
 	});
+	// VS Code's activity bar menu pins and unpins a container: a toggle kept again opens its view with
+	// the keys. Hiding the active view's toggle opens Explorer and leaves the keys where they are, or,
+	// when Explorer's own toggle goes, opens the next view with the keys, as VS Code reopens its
+	// default container without focus and any other with it.
+	const setToggleShown = useMemoizedFn((view: FileBarViewId, shown: boolean) => {
+		const current = layoutReference.current;
+		if (!shown) {
+			const next = hideFileBarToggle(current, view);
+			commit(next);
+			if (
+				next.activeView !== current.activeView &&
+				next.activeView !== DEFAULT_FILE_BAR_LAYOUT.activeView
+			) {
+				setViewFocusRequest((request) => request + 1);
+			}
+			return;
+		}
+		commit(keepFileBarToggle(current, view));
+		setViewFocusRequest((request) => request + 1);
+	});
+	const rowMenu = useMemoizedFn(() =>
+		buildFileBarRowMenu({
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			layout: layoutReference.current,
+			position,
+			report: reportActionOutcome,
+			scope: actionScope,
+			setToggleShown,
+			shortcutLabelForAction,
+			typedRuntime,
+		}),
+	);
+	const toggles = React.useMemo(() => shownFileBarToggles(layout), [layout]);
 	const invokeToggle = useMemoizedFn(() => {
 		reportActionOutcome('button', () =>
 			typedRuntime.execute(WORKBENCH_ACTION_IDS.toggleFileBar, undefined, {
@@ -472,7 +513,9 @@ export function useWorkbenchFileBar({
 			onResize,
 			onSelectView: selectView,
 			panelReference,
+			rowMenu,
 			session,
+			toggles,
 			viewFocusRequest,
 		},
 		onLayoutChanged,

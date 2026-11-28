@@ -249,6 +249,7 @@ export function Workbench({
 		offered: fileBarOffered,
 		reportActionOutcome: view.reportActionOutcome,
 		sessionPort: fileSessionPort,
+		shortcutLabelForAction,
 		shortcutPlatform,
 		storage: layoutStorage,
 		supplyFocusRegion: view.supplyFocusRegion,
@@ -607,9 +608,11 @@ export function Workbench({
 							platform={shortcutPlatform}
 							position={fileBar.position}
 							quickInput={quickInputSessions}
+							rowMenu={fileBarColumn.rowMenu}
 							session={fileBarColumn.session}
 							settings={userSettings}
 							storage={layoutStorage}
+							toggles={fileBarColumn.toggles}
 							viewFocusRequest={fileBarColumn.viewFocusRequest}
 						/>
 					)}

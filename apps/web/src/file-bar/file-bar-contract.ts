@@ -9,6 +9,29 @@ import type { UserSettingsControl } from '../user-settings';
 import type { FileBarPosition, FileBarViewId } from './file-bar-layout';
 import type { FileBarLayoutStorage } from './file-bar-layout-storage';
 
+/** One row of the toggles row's menu. */
+export type FileBarRowMenuEntry =
+	| {
+			/** Checked while the view's toggle shows in the row. */
+			readonly checked: boolean;
+			/** The last toggle shown cannot be hidden. */
+			readonly disabled: boolean;
+			readonly id: FileBarViewId;
+			readonly kind: 'toggle';
+			readonly label: string;
+			readonly run: () => void;
+			readonly shortcut: string | undefined;
+	  }
+	| {
+			readonly disabled: boolean;
+			readonly id: string;
+			readonly kind: 'command';
+			readonly label: string;
+			readonly run: () => void;
+			readonly shortcut: string | undefined;
+	  }
+	| { readonly id: string; readonly kind: 'separator' };
+
 /** What the Workbench tells the File Bar's column, which owns the views and their toggles. */
 export interface FileBarColumnProps {
 	readonly actionRuntime: ActionRuntime;
@@ -36,12 +59,19 @@ export interface FileBarColumnProps {
 	readonly position: FileBarPosition;
 	/** The window's quick input, where the views ask what VS Code asks there. */
 	readonly quickInput: SourceControlQuickInput;
+	/**
+	 * The toggles row's menu as it opens, VS Code's activity bar menu with File Bar wording: a checkbox
+	 * for each view's toggle, then moving and hiding the File Bar.
+	 */
+	readonly rowMenu: () => readonly FileBarRowMenuEntry[];
 	/** The active Workspace's file session the File Bar holds; null while it holds none. */
 	readonly session: FileWorkspaceSession | null;
 	/** The user's settings, which Source Control reads and answers into; without them it keeps defaults. */
 	readonly settings: UserSettingsControl | undefined;
 	/** Device-local storage for what the views remember between runs; without it they remember nothing. */
 	readonly storage: FileBarLayoutStorage | undefined;
+	/** The view toggles the row shows, in its order. */
+	readonly toggles: readonly FileBarViewId[];
 	/** Each increase moves focus into the active view; zero asks for nothing. */
 	readonly viewFocusRequest: number;
 }

@@ -3,7 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 import { DEFAULT_FILE_BAR_LAYOUT, type FileBarLayout } from '../file-bar-layout';
 import { readFileBarLayout, writeFileBarLayout } from '../file-bar-layout-storage';
 
-const STORED_LAYOUT: FileBarLayout = { activeView: 'source-control', visible: true, width: 360 };
+const STORED_LAYOUT: FileBarLayout = {
+	activeView: 'source-control',
+	hiddenToggles: ['explorer'],
+	visible: true,
+	width: 360,
+};
 
 function storageHolding(value: string | null) {
 	let storedValue = value;
@@ -21,13 +26,17 @@ describe('File Bar layout storage', () => {
 		'not-json',
 		'null',
 		'360',
-		'{"activeView":"explorer","visible":true}',
-		'{"activeView":"explorer","visible":true,"width":360,"extra":true}',
-		'{"activeView":"timeline","visible":true,"width":360}',
-		'{"activeView":"explorer","visible":"yes","width":360}',
-		'{"activeView":"explorer","visible":true,"width":0}',
-		'{"activeView":"explorer","visible":true,"width":100000}',
-		'{"activeView":"explorer","visible":true,"width":300.5}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":true}',
+		'{"activeView":"explorer","visible":true,"width":360}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":true,"width":360,"extra":true}',
+		'{"activeView":"timeline","hiddenToggles":[],"visible":true,"width":360}',
+		'{"activeView":"explorer","hiddenToggles":["timeline"],"visible":true,"width":360}',
+		'{"activeView":"explorer","hiddenToggles":["explorer","explorer"],"visible":true,"width":360}',
+		'{"activeView":"explorer","hiddenToggles":["explorer","source-control"],"visible":true,"width":360}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":"yes","width":360}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":true,"width":0}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":true,"width":100000}',
+		'{"activeView":"explorer","hiddenToggles":[],"visible":true,"width":300.5}',
 	])('restores the defaults from %s', (storedValue) => {
 		expect(readFileBarLayout(storageHolding(storedValue))).toEqual(DEFAULT_FILE_BAR_LAYOUT);
 	});
@@ -39,7 +48,7 @@ describe('File Bar layout storage', () => {
 
 		expect(storage.setItem).toHaveBeenCalledWith(
 			'orchbee:file-bar:layout:v1',
-			'{"activeView":"source-control","visible":true,"width":360}',
+			'{"activeView":"source-control","hiddenToggles":["explorer"],"visible":true,"width":360}',
 		);
 		expect(readFileBarLayout(storage)).toEqual(STORED_LAYOUT);
 	});

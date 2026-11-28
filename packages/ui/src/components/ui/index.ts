@@ -28,6 +28,7 @@ export {
 
 export {
 	ContextMenu,
+	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuGroup,
 	ContextMenuItem,

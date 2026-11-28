@@ -26,6 +26,7 @@ export {
 	ComboboxSearch,
 	ComboboxTrigger,
 	ContextMenu,
+	ContextMenuCheckboxItem,
 	ContextMenuContent,
 	ContextMenuGroup,
 	ContextMenuItem,

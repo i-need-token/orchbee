@@ -15,7 +15,7 @@ import {
 } from '@orchbee/ui/components';
 import type { KeyboardEvent, ReactNode } from 'react';
 
-import { FILE_BAR_VIEW_IDS, type FileBarViewId } from '../../../../file-bar-layout';
+import type { FileBarViewId } from '../../../../file-bar-layout';
 import { FileBarCountBadge } from '../../../file-bar-count-badge/FileBarCountBadge';
 import styles from './FileBarViewSwitcher.module.css';
 
@@ -35,6 +35,8 @@ interface FileBarViewSwitcherProps {
 	readonly changes: number;
 	readonly onSelectView: (view: FileBarViewId) => void;
 	readonly tabIdOf: (view: FileBarViewId) => string;
+	/** The toggles to show, in the row's order. */
+	readonly toggles: readonly FileBarViewId[];
 	/** The active view's region, which the selected toggle controls. */
 	readonly viewId: string;
 }
@@ -50,6 +52,7 @@ export function FileBarViewSwitcher({
 	changes,
 	onSelectView,
 	tabIdOf,
+	toggles,
 	viewId,
 }: FileBarViewSwitcherProps): ReactNode {
 	const intl = useOrchbeeIntl();
@@ -85,7 +88,7 @@ export function FileBarViewSwitcher({
 			role='tablist'
 			onKeyDown={onKeyDown}
 		>
-			{FILE_BAR_VIEW_IDS.map((view) => {
+			{toggles.map((view) => {
 				const count = view === 'source-control' ? changes : 0;
 				const name = intl.formatMessage(VIEW_LABELS[view]);
 				const label =

@@ -10,6 +10,12 @@ import {
 const FILE_BAR_LAYOUT_STORAGE_KEY = 'orchbee:file-bar:layout:v1';
 const StoredFileBarLayoutSchema = z.strictObject({
 	activeView: z.enum(FILE_BAR_VIEW_IDS),
+	// Each view at most once, and never every view: the menu keeps the last toggle.
+	hiddenToggles: z
+		.array(z.enum(FILE_BAR_VIEW_IDS))
+		.refine(
+			(views) => new Set(views).size === views.length && views.length < FILE_BAR_VIEW_IDS.length,
+		),
 	visible: z.boolean(),
 	width: z.number().int().min(FILE_BAR_WIDTH.minimum).max(FILE_BAR_WIDTH.maximum),
 });
