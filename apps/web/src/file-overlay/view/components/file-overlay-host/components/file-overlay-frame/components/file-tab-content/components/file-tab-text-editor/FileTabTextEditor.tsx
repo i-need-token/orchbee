@@ -1,11 +1,11 @@
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import { useRef, useState, type ComponentProps, type ReactNode } from 'react';
 
-import {
-	codeEditorKeyChords,
-	type CodeEditorTextHandle,
-	type loadCodeEditor,
+import type {
+	CodeEditorTextHandle,
+	loadCodeEditor,
 } from '../../../../../../../../../../code-editor';
+import { codeEditorKeyChords } from '../../../../../../../../../../code-editor-keys';
 import { useWorkbenchKeyboardScope } from '../../../../../../../../../../workbench-keyboard-scopes';
 import {
 	useFileOverlayHostEditor,

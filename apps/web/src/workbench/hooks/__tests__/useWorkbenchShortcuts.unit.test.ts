@@ -11,7 +11,7 @@ import { createElement, useRef, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { codeEditorKeyChords } from '../../../code-editor';
+import { codeEditorKeyChords } from '../../../code-editor-keys';
 import {
 	useWorkbenchKeyboardScope,
 	WorkbenchKeyboardScopeContext,

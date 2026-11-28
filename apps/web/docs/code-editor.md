@@ -57,9 +57,10 @@ compares it as a bug, so the diff view lets go of both sides first.
 Monaco's public API neither lists its key bindings nor evaluates their conditions. The editor's
 keyboard scope therefore yields the single keys that `codeEditorKeyChords.ts` holds for each
 operating system, as the pinned package's default keybinding registry declares them, so no wider
-scope takes a key Monaco would handle. `Mod+K` never reaches Monaco, so VS Code's `Mod+K` editor
-keys are Workbench sequences in the same scope, and each runs one of the editor's commands as an
-Action.
+scope takes a key Monaco would handle. The table is the module `src/code-editor-keys/` rather than
+part of this one, whose index the main bundle imports, so it loads with the overlay that yields its
+keys. `Mod+K` never reaches Monaco, so VS Code's `Mod+K` editor keys are Workbench sequences in the
+same scope, and each runs one of the editor's commands as an Action.
 
 The editor registers those Actions in a scope of its own from `getSupportedActions()`, which lists
 only the actions whose precondition holds, and reads the list again as it takes the keys and before
