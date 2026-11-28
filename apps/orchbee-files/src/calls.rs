@@ -2,7 +2,8 @@
 //! through. A call ends exactly once: by a close, or when its handle is dropped, which closes it
 //! as cancelled after its Client's cancel and as outcome-unknown otherwise, so a Client stream
 //! never waits on a handle nothing holds. A request call ends with its one Result record; an
-//! Events call streams a Snapshot record, then Update records, until it ends.
+//! Events call streams a Snapshot record, then Update records, until it ends, and its Updates
+//! collapse while the outbound queue is full.
 
 use std::{
     collections::HashMap,
@@ -15,11 +16,10 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, Chunk, ConnectionId, FilesNotice, FilesRecord, FilesReply, FrameKind,
-    LaneId, LinkFrame, LinkMessage, encode_files_record, encode_link_message, encode_notice,
-    encode_reply,
+    LaneId, LinkMessage, encode_link_message, encode_notice, encode_reply,
 };
 
-use crate::outbound::Outbound;
+use crate::outbound::{self, Outbound};
 
 /// The open calls and the queue their frames leave through. The lock guards the open calls and
 /// whether new ones are refused; it is taken before the queue's own lock, never after, so each
@@ -152,14 +152,7 @@ impl Calls {
     ///
     /// For a record over its bound, which the operation that produced it keeps within.
     fn queue_frame(&self, id: CallId, kind: FrameKind, record: &FilesRecord) {
-        let record = encode_files_record(record).expect("an operation bounds its records");
-        let frame = encode_link_message(&LinkMessage::Frame(LinkFrame {
-            call: id,
-            kind,
-            record,
-        }))
-        .expect("a bounded record fits one frame");
-        self.outbound.push(frame);
+        self.outbound.push(outbound::frame(id, kind, record));
     }
 
     fn queue_close(&self, call: CallId, reason: CallClose) {
@@ -238,9 +231,10 @@ impl Call {
     ///
     /// As [`Events::update`].
     pub(crate) fn snapshot(self, notice: &FilesNotice) -> Events {
-        let events = Events { call: self };
-        events.queue(FrameKind::Snapshot, notice);
-        events
+        let record = FilesRecord::Notice(encode_notice(notice));
+        self.calls
+            .queue_frame(self.id, FrameKind::Snapshot, &record);
+        Events { call: self }
     }
 
     fn finish(&mut self, reason: CallClose) {
@@ -290,18 +284,16 @@ impl Events {
         self.call.cancelled()
     }
 
-    /// Queues one Update record.
+    /// Queues one Update record, which folds into the subscription's collapsed place while the
+    /// outbound queue is full.
     ///
     /// # Panics
     ///
     /// For a notice over the Notice record's bound, which its producer keeps within.
     pub(crate) fn update(&self, notice: &FilesNotice) {
-        self.queue(FrameKind::Update, notice);
-    }
-
-    fn queue(&self, kind: FrameKind, notice: &FilesNotice) {
         let record = FilesRecord::Notice(encode_notice(notice));
-        self.call.calls.queue_frame(self.call.id, kind, &record);
+        let frame = outbound::frame(self.call.id, FrameKind::Update, &record);
+        self.call.calls.outbound.update(self.call.id, notice, frame);
     }
 }
 

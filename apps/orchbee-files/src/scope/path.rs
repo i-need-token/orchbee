@@ -63,6 +63,11 @@ impl NativePath {
         Some(Self(parent.to_owned()))
     }
 
+    /// How many segments lie below the filesystem root; 0 for the root itself.
+    pub(crate) fn depth(&self) -> usize {
+        self.segments().count()
+    }
+
     /// Whether this path is `member` or lies below it, segment by segment.
     pub(crate) fn is_within(&self, member: &Self) -> bool {
         let mut segments = self.segments();
