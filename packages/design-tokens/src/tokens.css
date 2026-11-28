@@ -982,6 +982,8 @@
 	--ob-comp-file-overlay-cover-block-start: 0px;
 	--ob-comp-file-overlay-cover-inline-size: 0px;
 	--ob-comp-file-overlay-cover-block-size: 0px;
+	/* How far a file tab moves along the overlay's tab row from its slot while a drag reorders it. */
+	--ob-comp-file-tab-reorder-offset: 0px;
 
 	--ob-comp-tab-strip-length-negative-14: -14px;
 	--ob-comp-tab-strip-length-negative-12: -12px;

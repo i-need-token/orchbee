@@ -11,8 +11,10 @@
 	scrollbar-width: none;
 }
 
-/* As wide as the tabs together, so a tab that grows or shrinks changes its width. */
+/* As wide as the tabs together, so a tab that grows or shrinks changes its width. Its tabs measure
+   their slots from it. */
 .list {
+	position: relative;
 	display: flex;
 	flex: none;
 	align-items: center;

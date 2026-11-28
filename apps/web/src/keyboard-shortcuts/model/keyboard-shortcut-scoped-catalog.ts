@@ -32,6 +32,8 @@ type KeyboardShortcutScopedName =
 	| 'close-saved-editors'
 	| 'keep-editor'
 	| 'last-editor'
+	| 'move-editor-left'
+	| 'move-editor-right'
 	| 'navigate-next-in-quick-open'
 	| 'navigate-previous-in-quick-open'
 	| 'next-editor'
@@ -99,6 +101,8 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 	'file-overlay.tab.keep': 'keep-editor',
 	'file-overlay.tab.pin': 'pin-editor',
 	'file-overlay.tab.unpin': 'unpin-editor',
+	'file-overlay.tab.move-left': 'move-editor-left',
+	'file-overlay.tab.move-right': 'move-editor-right',
 	'file-overlay.tab.quick-open-previous': 'quick-open-previous-recently-used-editor',
 	'file-overlay.tab.quick-open-least-recent': 'quick-open-least-recently-used-editor',
 	'file-overlay.tab-picker.navigate-next': 'navigate-next-in-quick-open',

@@ -102,6 +102,11 @@ export const WORKBENCH_ACTION_IDS = {
 	closeOtherFileOverlayTabs: 'file-overlay.tab.close-others',
 	closeSavedFileOverlayTabs: 'file-overlay.tab.close-saved',
 	keepFileOverlayTab: 'file-overlay.tab.keep',
+	moveFileOverlayTab: 'file-overlay.tab.move',
+	moveFileOverlayTabLeft: 'file-overlay.tab.move-left',
+	moveFileOverlayTabRight: 'file-overlay.tab.move-right',
+	moveFileOverlayTabToEnd: 'file-overlay.tab.move-to-end',
+	moveFileOverlayTabToStart: 'file-overlay.tab.move-to-start',
 	navigateNextInFileTabPicker: 'file-overlay.tab-picker.navigate-next',
 	navigatePreviousInFileTabPicker: 'file-overlay.tab-picker.navigate-previous',
 	pinFileOverlayTab: 'file-overlay.tab.pin',
@@ -306,6 +311,12 @@ export interface WorkbenchFileOverlayTabTargetInput {
 /** A named file overlay tab, or the active one without input. */
 export type WorkbenchFileOverlayTabInput = undefined | WorkbenchFileOverlayTabTargetInput;
 
+/** A file overlay tab and the place in its row that it moves to. */
+export interface WorkbenchFileOverlayTabMoveInput extends WorkbenchFileOverlayTabTargetInput {
+	/** The tab's place in the row once moved, from 0; a place past the row's end is its last. */
+	readonly index: number;
+}
+
 export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
@@ -390,6 +401,11 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeOtherFileOverlayTabs]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeSavedFileOverlayTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.keepFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabMoveInput>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileOverlayTabLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileOverlayTabRight]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileOverlayTabToEnd]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileOverlayTabToStart]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.navigateNextInFileTabPicker]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.navigatePreviousInFileTabPicker]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.pinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
@@ -628,6 +644,21 @@ export const workbenchFileOverlayTabTargetInput: ActionInputValidation<Workbench
 			return target === null
 				? { code: 'expected-workbench-file-overlay-tab-target-input', success: false }
 				: { data: target, success: true };
+		},
+	};
+
+export const workbenchFileOverlayTabMoveInput: ActionInputValidation<WorkbenchFileOverlayTabMoveInput> =
+	{
+		name: 'WorkbenchFileOverlayTabMoveInput',
+		parse: (input) => {
+			const target = fileOverlayTabTarget(input);
+			const index = isRecord(input) ? input['index'] : undefined;
+			return target !== null &&
+				typeof index === 'number' &&
+				Number.isSafeInteger(index) &&
+				index >= 0
+				? { data: { ...target, index }, success: true }
+				: { code: 'expected-workbench-file-overlay-tab-move-input', success: false };
 		},
 	};
 

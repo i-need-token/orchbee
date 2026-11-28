@@ -16,6 +16,7 @@ import type { WorkbenchQuickNavigateKeys } from '../components/workbench-search-
 import {
 	WORKBENCH_ACTION_IDS,
 	workbenchFileOverlayTabInput,
+	workbenchFileOverlayTabMoveInput,
 	workbenchFileOverlayTabTargetInput,
 	workbenchTabPositionInput,
 	type WorkbenchActionCatalog,
@@ -124,6 +125,45 @@ const PICKED_FILE_TAB_ACTIONS: readonly PickedFileTabAction[] = [
 		minimum: 1,
 		pick: (tabs) => tabs.tabs.at(-1)?.id,
 		title: fileOverlayMessages.lastEditor,
+	},
+];
+
+/** VS Code's Move Editor commands, which move the active tab along the row. */
+interface FileTabMove {
+	readonly id:
+		| typeof WORKBENCH_ACTION_IDS.moveFileOverlayTabLeft
+		| typeof WORKBENCH_ACTION_IDS.moveFileOverlayTabRight
+		| typeof WORKBENCH_ACTION_IDS.moveFileOverlayTabToEnd
+		| typeof WORKBENCH_ACTION_IDS.moveFileOverlayTabToStart;
+	/** The place the active tab moves to from its own in a row of `count` tabs; the ends stop it. */
+	readonly to: (index: number, count: number) => number;
+	readonly title: ActionMessageDescriptor;
+}
+
+const FILE_TAB_MOVES: readonly FileTabMove[] = [
+	{
+		// VS Code parity: workbench.action.moveEditorLeftInGroup.
+		id: WORKBENCH_ACTION_IDS.moveFileOverlayTabLeft,
+		to: (index) => index - 1,
+		title: fileOverlayMessages.moveEditorLeft,
+	},
+	{
+		// VS Code parity: workbench.action.moveEditorRightInGroup.
+		id: WORKBENCH_ACTION_IDS.moveFileOverlayTabRight,
+		to: (index) => index + 1,
+		title: fileOverlayMessages.moveEditorRight,
+	},
+	{
+		// VS Code parity: workbench.action.moveEditorToStart.
+		id: WORKBENCH_ACTION_IDS.moveFileOverlayTabToStart,
+		to: () => 0,
+		title: fileOverlayMessages.moveEditorToStart,
+	},
+	{
+		// VS Code parity: workbench.action.moveEditorToEnd.
+		id: WORKBENCH_ACTION_IDS.moveFileOverlayTabToEnd,
+		to: (_index, count) => count - 1,
+		title: fileOverlayMessages.moveEditorToEnd,
 	},
 ];
 
@@ -365,6 +405,51 @@ export function registerWorkbenchFileOverlayActions({
 					title,
 				}),
 			),
+		),
+		// A move that would pass an end of the row leaves the tab there, as VS Code's does.
+		...FILE_TAB_MOVES.map(({ id, to, title }) =>
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: VIEW_CATEGORY,
+					execution: rowExecution,
+					getAvailability: () => (namedTab(undefined) === null ? HIDDEN : ENABLED),
+					handler: {
+						execute: (context) => {
+							const { tabs } = getState();
+							const index = activeIndex(tabs);
+							const tab = tabs.tabs[index];
+							if (tab === undefined) return SCOPE_CHANGED;
+							context.markCommitted();
+							return apply({ id: tab.id, index: to(index, tabs.tabs.length), type: 'tab-moved' });
+						},
+					},
+					id,
+					input: noActionInput,
+					title,
+				}),
+			),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: rowExecution,
+				getAvailability: (_context, input) => (namedTab(input) === null ? HIDDEN : ENABLED),
+				handler: {
+					execute: (context, input) => {
+						const tab = namedTab(input);
+						if (tab === null) return SCOPE_CHANGED;
+						context.markCommitted();
+						return apply({ id: tab.id, index: input.index, type: 'tab-moved' });
+					},
+				},
+				// VS Code parity: dragging a tab along the row, which moves it as its moveActiveEditor
+				// command does with a position.
+				id: WORKBENCH_ACTION_IDS.moveFileOverlayTab,
+				input: workbenchFileOverlayTabMoveInput,
+				title: fileOverlayMessages.moveEditor,
+			}),
 		),
 		typedRuntime.register(
 			scope,

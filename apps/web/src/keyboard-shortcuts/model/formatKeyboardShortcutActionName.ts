@@ -30,6 +30,10 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.keepEditor);
 		case 'last-editor':
 			return intl.formatMessage(fileOverlayMessages.lastEditor);
+		case 'move-editor-left':
+			return intl.formatMessage(fileOverlayMessages.moveEditorLeft);
+		case 'move-editor-right':
+			return intl.formatMessage(fileOverlayMessages.moveEditorRight);
 		case 'navigate-next-in-quick-open':
 			return intl.formatMessage(fileOverlayMessages.navigateNextInQuickOpen);
 		case 'navigate-previous-in-quick-open':

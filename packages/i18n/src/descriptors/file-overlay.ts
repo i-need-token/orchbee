@@ -55,6 +55,26 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.moreActions',
 		'Label of the button near the end of the file overlay’s tab row that opens a menu of more actions for its file tabs.',
 	),
+	moveEditor: message(
+		'fileOverlay.actions.moveEditor',
+		'Action that moves a file tab to another place in the file overlay’s tab row, as dragging the tab along the row does. VS Code calls a file open in a tab an editor.',
+	),
+	moveEditorLeft: message(
+		'fileOverlay.actions.moveEditorLeft',
+		'Action that moves the active file tab one place to the left in the file overlay’s tab row. VS Code calls a file open in a tab an editor.',
+	),
+	moveEditorRight: message(
+		'fileOverlay.actions.moveEditorRight',
+		'Action that moves the active file tab one place to the right in the file overlay’s tab row. VS Code calls a file open in a tab an editor.',
+	),
+	moveEditorToEnd: message(
+		'fileOverlay.actions.moveEditorToEnd',
+		'Action that moves the active file tab to the end of the file overlay’s tab row. VS Code calls a file open in a tab an editor.',
+	),
+	moveEditorToStart: message(
+		'fileOverlay.actions.moveEditorToStart',
+		'Action that moves the active file tab to the start of the file overlay’s tab row. VS Code calls a file open in a tab an editor.',
+	),
 	navigateNextInQuickOpen: message(
 		'fileOverlay.actions.navigateNextInQuickOpen',
 		'Action that, while the list of the file overlay’s tabs shows, highlights the next tab in the list, the first after the last; letting go of the keys that ran it shows that tab. VS Code calls such a list Quick Open.',

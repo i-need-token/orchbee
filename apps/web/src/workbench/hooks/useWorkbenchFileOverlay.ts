@@ -218,6 +218,18 @@ export function useWorkbenchFileOverlay({
 			);
 		},
 	);
+	const moveTab = useMemoizedFn(
+		(tabId: string, index: number, source: FileOverlayCommandSource) => {
+			if (workspaceId === null) return;
+			const input = { index, tabId, workspaceId };
+			reportActionOutcome(source, () =>
+				typedRuntime.execute(WORKBENCH_ACTION_IDS.moveFileOverlayTab, input, {
+					scope: actionScope,
+					source,
+				}),
+			);
+		},
+	);
 	const menuOptions = (tabId: string, shownWorkspaceId: string) => ({
 		formatMessage: (descriptor: MessageDescriptor) => intl.formatMessage(descriptor),
 		report: (source: ActionInvocationSource, start: () => ActionExecution<unknown>) => {
@@ -244,6 +256,7 @@ export function useWorkbenchFileOverlay({
 				invokeTabAction(WORKBENCH_ACTION_IDS.closeFileOverlayTab, tabId, source),
 			keepTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.keepFileOverlayTab, tabId, source),
+			moveTab,
 			selectTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.selectFileOverlayTab, tabId, source),
 			tabMenu,
@@ -252,7 +265,7 @@ export function useWorkbenchFileOverlay({
 			unpinTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.unpinFileOverlayTab, tabId, source),
 		}),
-		[invokeTabAction, invokeToggleFull, tabMenu, titleActions],
+		[invokeTabAction, invokeToggleFull, moveTab, tabMenu, titleActions],
 	);
 	// How many tab picks wait on the quick input; while one does, its current session is the picker.
 	const tabPicks = React.useRef(0);

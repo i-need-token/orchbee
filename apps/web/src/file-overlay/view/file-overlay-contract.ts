@@ -66,6 +66,8 @@ export interface FileOverlayCommands {
 	readonly closeTab: (tabId: string, source: FileOverlayCommandSource) => void;
 	/** Keep Editor for the preview tab, which a double-click runs. */
 	readonly keepTab: (tabId: string, source: FileOverlayCommandSource) => void;
+	/** Moves one tab to a place in the row, counted from 0: the release of a drag along the row. */
+	readonly moveTab: (tabId: string, index: number, source: FileOverlayCommandSource) => void;
 	/** Shows one tab: a press on it, or a key that moves along the row. */
 	readonly selectTab: (tabId: string, source: FileOverlayCommandSource) => void;
 	/** One tab's menu as it opens: the items VS Code's tab menu shows for that tab, in its groups. */

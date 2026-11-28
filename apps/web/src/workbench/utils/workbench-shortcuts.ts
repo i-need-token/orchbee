@@ -501,8 +501,9 @@ export type WorkbenchScopedShortcutScope =
  * A shortcut of the File Bar family. Its keys follow the scope's rule: the window scope keeps a
  * modifier other than Shift; a region scope also takes a function key alone, such as F4; a widget
  * scope may bind any unmodified or Shift-only key; a region or widget scope may take Tab with the
- * Control key only. Every scope but `shell` and `quick-input` also admits a `Mod+K` sequence. A shortcut without a default on a platform does not exist there. The
- * Action resolves in the scope's Action scope.
+ * Control key only. Every scope but `shell` and `quick-input` also admits a `Mod+K` sequence. A
+ * shortcut without a default on a platform does not exist there. The Action resolves in the
+ * scope's Action scope.
  */
 export interface WorkbenchScopedShortcutDefinition {
 	readonly actionId: string;
@@ -699,6 +700,25 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		exclusiveWith: 'file-overlay.tab.pin',
 		scope: 'file-bar',
 		shortcutId: 'file-overlay.tab.unpin',
+	},
+	// Move Editor Left and Right; VS Code gives Move Editor to Start and to End no keys.
+	fileTabMoveLeft: {
+		actionId: WORKBENCH_ACTION_IDS.moveFileOverlayTabLeft,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('ArrowLeft', ['mod', 'shift'])],
+			standard: [chord('PageUp', ['mod', 'shift'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.move-left',
+	},
+	fileTabMoveRight: {
+		actionId: WORKBENCH_ACTION_IDS.moveFileOverlayTabRight,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('ArrowRight', ['mod', 'shift'])],
+			standard: [chord('PageDown', ['mod', 'shift'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.move-right',
 	},
 	// VS Code's quick switch holds the Control key on a Mac as well: Quick Open Previous Recently
 	// Used Editor in Group, and Least Recently Used.

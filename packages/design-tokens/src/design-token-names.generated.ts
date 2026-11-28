@@ -8,6 +8,7 @@ export const designTokenNames = [
 	'--ob-comp-file-overlay-cover-block-start',
 	'--ob-comp-file-overlay-cover-inline-size',
 	'--ob-comp-file-overlay-cover-inline-start',
+	'--ob-comp-file-tab-reorder-offset',
 	'--ob-comp-machine-color',
 	'--ob-comp-pointer-drag-label-block-start',
 	'--ob-comp-pointer-drag-label-inline-start',

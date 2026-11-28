@@ -53,6 +53,26 @@
 	outline-offset: calc(var(--ob-sys-focus-ring-width) * -1);
 }
 
+/* While a drag reorders the row, each tab stands its offset away from its slot: the other tabs slide
+   out of the held tab's way, and the held tab follows the pointer, then lands in its slot. */
+.tab[data-reorder] {
+	transform: translateX(var(--ob-comp-file-tab-reorder-offset));
+	transition: transform var(--ob-sys-motion-duration-normal) var(--ob-sys-motion-easing-standard);
+}
+
+/* The held tab passes above the others and paints its selection over the overlay's own surface, so
+   that no tab it passes shows through. */
+.tab[data-reorder]:not([data-reorder='shifted']) {
+	z-index: var(--ob-ref-layer-raised);
+	background:
+		linear-gradient(var(--ob-sys-color-surface-selected), var(--ob-sys-color-surface-selected)),
+		var(--ob-sys-color-surface-overlay);
+}
+
+.tab[data-reorder='held'] {
+	transition: none;
+}
+
 .icon {
 	display: inline-flex;
 	color: var(--ob-sys-color-icon-secondary);

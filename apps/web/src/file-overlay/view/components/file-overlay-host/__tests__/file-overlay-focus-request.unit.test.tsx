@@ -19,6 +19,7 @@ afterEach(() => {
 const NO_COMMANDS: FileOverlayCommands = {
 	closeTab: () => undefined,
 	keepTab: () => undefined,
+	moveTab: () => undefined,
 	selectTab: () => undefined,
 	tabMenu: () => [],
 	titleActions: () => ({ buttons: [], more: [] }),

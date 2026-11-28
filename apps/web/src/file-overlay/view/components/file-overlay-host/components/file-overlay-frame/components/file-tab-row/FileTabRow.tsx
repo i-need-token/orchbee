@@ -6,11 +6,13 @@ import { useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
 import { fileTabLabels } from '../../../../../../../model';
 import {
 	useFileOverlayHostCommands,
+	useFileOverlayHostPlatform,
 	useFileOverlayHostStore,
 } from '../../../../contexts/file-overlay-host-store';
 import { fileTabDomId } from '../../utils/fileTabDomId';
 import { FileTab } from './components/file-tab/FileTab';
 import { FileTabMenu } from './components/file-tab-menu/FileTabMenu';
+import { useFileTabDrag } from './hooks/useFileTabDrag';
 import { useFileTabFocusHandoff } from './hooks/useFileTabFocusHandoff';
 import { useFileTabFocusRequest } from './hooks/useFileTabFocusRequest';
 import { useFileTabMenu } from './hooks/useFileTabMenu';
@@ -48,20 +50,32 @@ function tabIndexForKey(key: string, index: number, count: number): number | nul
  * each tab as wide as its label, the row scrolling sideways when they do not fit. Its scrollbar is
  * hidden, so the row stays the height of the Tab bar; the wheel, a sideways swipe and the keys still
  * scroll it, and the active tab always scrolls into view. The keys move along the row and show each
- * tab they reach, and Enter or Space shows the focused one. Each tab has VS Code's tab menu.
+ * tab they reach, and Enter or Space shows the focused one. Each tab has VS Code's tab menu, and a
+ * drag along the row moves a tab while the others slide out of its way.
  */
 export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	const tabs = useFileOverlayHostStore((state) => state.tabs);
 	const commands = useFileOverlayHostCommands();
+	const platform = useFileOverlayHostPlatform();
 	const rowReference = useRef<HTMLDivElement>(null);
 	const listReference = useRef<HTMLDivElement>(null);
 	const labels = useMemo(
 		() => fileTabLabels(tabs.tabs.map((tab) => tab.input.resource.path)),
 		[tabs.tabs],
 	);
+	// The tabs' ids in the row's order, which changes only as a tab opens, closes or moves.
+	const order = JSON.stringify(tabs.tabs.map((tab) => tab.id));
 	useFileTabRowWheel(rowReference);
-	useFileTabReveal(rowReference, listReference, tabs.activeId, tabs.tabs.length);
+	useFileTabReveal(rowReference, listReference, tabs.activeId, order);
+	useFileTabDrag({
+		listReference,
+		moveTab: (tabId, index) => commands.moveTab(tabId, index, 'pointer'),
+		order,
+		platform,
+		rowReference,
+		tabs: tabs.tabs,
+	});
 	const handOffFocus = useFileTabFocusHandoff(rowReference, tabs.activeId);
 	useFileTabFocusRequest(rowReference);
 	const menu = useFileTabMenu(rowReference, listReference, tabs.tabs);
