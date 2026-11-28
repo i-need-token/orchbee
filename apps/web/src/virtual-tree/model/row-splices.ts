@@ -24,17 +24,22 @@ const SPREAD_LIMIT = 4_096;
 export class SpliceList {
 	private readonly limit: number;
 	private splices: VirtualTreeSplice[] = [];
-	private overflowed = false;
+	private overflowing = false;
 
 	constructor(limit: number) {
 		this.limit = limit;
 	}
 
+	/** Whether the list has given up tracking splices for one replacement of its whole range. */
+	get overflowed(): boolean {
+		return this.overflowing;
+	}
+
 	add(start: number, deleteCount: number, insertCount: number): void {
-		if (this.overflowed || (deleteCount === 0 && insertCount === 0)) return;
+		if (this.overflowing || (deleteCount === 0 && insertCount === 0)) return;
 		composeSplice(this.splices, start, deleteCount, insertCount);
 		if (this.splices.length > this.limit) {
-			this.overflowed = true;
+			this.overflowing = true;
 			this.splices = [];
 		}
 	}
@@ -44,11 +49,11 @@ export class SpliceList {
 	 * rows at `base` by `newLength` rows.
 	 */
 	take(base: number, oldLength: number, newLength: number): readonly VirtualTreeSplice[] {
-		const splices = this.overflowed
+		const splices = this.overflowing
 			? [{ deleteCount: oldLength, insertCount: newLength, start: base }]
 			: this.splices;
 		this.splices = [];
-		this.overflowed = false;
+		this.overflowing = false;
 		return splices;
 	}
 }
@@ -124,6 +129,11 @@ export class RowSpliceBuilder {
 	constructor(base: number) {
 		this.base = base;
 		this.cursor = base;
+	}
+
+	/** Whether the splices so far already replace the whole range, so later changes add nothing. */
+	get overflowed(): boolean {
+		return this.splices.overflowed;
 	}
 
 	keep(count: number): void {

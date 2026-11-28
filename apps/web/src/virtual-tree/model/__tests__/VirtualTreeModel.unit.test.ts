@@ -2,7 +2,14 @@ import fc from 'fast-check';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VirtualTreeModel } from '../VirtualTreeModel';
-import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../virtual-tree-types';
+import type {
+	VirtualTreeEvent,
+	VirtualTreeFindQuery,
+	VirtualTreeHighlight,
+	VirtualTreeRow,
+	VirtualTreeSource,
+	VirtualTreeSplice,
+} from '../virtual-tree-types';
 
 interface Item {
 	readonly key: string;
@@ -109,6 +116,12 @@ class World {
 		if (edit.swap) this.swap(folder);
 	}
 
+	/** Adds more files than one slice of a find matches. */
+	grow(folder: Item): void {
+		for (let index = 0; index < 70; index += 1)
+			this.list(folder.key).push(this.create(false, false));
+	}
+
 	/** The folder an edit at this key lands in: the item itself, else its parent, else the input. */
 	folderFor(key: string): Item {
 		const item = this.items().find((candidate) => candidate.key === key);
@@ -195,6 +208,85 @@ function isCompressible(item: Item): boolean {
 	return (Number(item.key.slice(1)) + item.version) % 3 !== 0;
 }
 
+/**
+ * The names find patterns match: a refresh that bumps an item's version can rename it. The long ones
+ * keep matching as typing extends a pattern.
+ */
+const NAMES = [
+	'ab',
+	'ba',
+	'abc',
+	'ca',
+	'b',
+	'aab',
+	'cb',
+	'c',
+	'abcab',
+	'bcabca',
+	'cabbac',
+	'aabbcc',
+];
+
+function nameOf(item: Item): string {
+	return NAMES[(Number(item.key.slice(1)) + item.version) % NAMES.length] ?? '';
+}
+
+/** A find label, computed from a row by the model and from a compact row's items by the naive tree. */
+interface Labeling {
+	readonly row: (row: VirtualTreeRow<string, Item>) => string;
+	readonly items: (items: readonly Item[]) => string;
+}
+
+function joinedNames(items: readonly Item[]): string {
+	return items.map(nameOf).join('/');
+}
+
+function reversedNames(items: readonly Item[]): string {
+	return items.map(nameOf).reverse().join('\\').toUpperCase();
+}
+
+const NAME_LABEL: Labeling = {
+	items: joinedNames,
+	row: (row) => joinedNames(row.segments.map(({ element }) => element)),
+};
+
+/** Another label, so a find that switches to it must match every item again. */
+const REVERSED_LABEL: Labeling = {
+	items: reversedNames,
+	row: (row) => reversedNames(row.segments.map(({ element }) => element)),
+};
+
+/** Which rows a find provider leaves visible, as the model and the naive tree ask it. */
+interface Visibility {
+	readonly row: (row: VirtualTreeRow<string, Item>) => boolean;
+	readonly key: (key: string) => boolean;
+}
+
+function keyVisibility(keeps: (index: number) => boolean): Visibility {
+	return {
+		key: (key) => keeps(Number(key.slice(1))),
+		row: (row) => keeps(Number(row.key.slice(1))),
+	};
+}
+
+const VISIBILITIES: readonly (Visibility | undefined)[] = [
+	undefined,
+	keyVisibility((index) => index % 3 !== 0),
+	keyVisibility((index) => index % 4 !== 1),
+];
+
+/** Whether a label matches, by the definition and not the scoring: in order, or together, ignoring case. */
+function matchesPattern(query: VirtualTreeFindQuery<string, Item>, label: string): boolean {
+	const pattern = query.pattern.toLowerCase();
+	const text = label.toLowerCase();
+	if (query.matchType === 'contiguous') return text.includes(pattern);
+	let next = 0;
+	for (let index = 0; index < text.length && next < pattern.length; index += 1) {
+		if (text[index] === pattern[next]) next += 1;
+	}
+	return next === pattern.length;
+}
+
 interface NaiveNode {
 	readonly key: string;
 	item: Item;
@@ -214,6 +306,10 @@ class NaiveTree {
 	focus: string | null = null;
 	anchor: string | null = null;
 	selection: string[] = [];
+	/** The find the rows show, which the test takes from the model after checking it. */
+	query: VirtualTreeFindQuery<string, Item> | null = null;
+	/** The find the test asked for last. */
+	pending: VirtualTreeFindQuery<string, Item> | null = null;
 	private compressed: boolean;
 	private focusAssigned = false;
 	private focusMergedAtRest = false;
@@ -282,15 +378,72 @@ class NaiveTree {
 	}
 
 	rows(): NaiveNode[] {
+		const shown = this.shown();
 		const result: NaiveNode[] = [];
 		const visit = (node: NaiveNode): void => {
 			for (const child of node.children) {
+				if (!shown.has(child)) continue;
 				if (!this.merged(child)) result.push(child);
 				if (!child.collapsed) visit(child);
 			}
 		};
 		visit(this.root);
 		return result;
+	}
+
+	/** The label the applied find reads from a row: the names of every item the row shows. */
+	label(node: NaiveNode): string {
+		const labeling = this.query?.label === REVERSED_LABEL.row ? REVERSED_LABEL : NAME_LABEL;
+		return labeling.items(this.segments(node).map(({ item }) => item));
+	}
+
+	/** Whether the applied find matches a row's label; a merged node has no row of its own. */
+	matches(node: NaiveNode): boolean {
+		const query = this.query;
+		return query !== null && !this.merged(node) && matchesPattern(query, this.label(node));
+	}
+
+	/**
+	 * The nodes that show under the applied find, as VS Code's tree filter decides: while filtering, a
+	 * row shows when it matches or a row below it shows, unless `visible` hides it, and a merged node
+	 * shows with its only child.
+	 */
+	shown(): Set<NaiveNode> {
+		const query = this.query;
+		const shown = new Set<NaiveNode>();
+		const visit = (node: NaiveNode): boolean => {
+			let below = false;
+			for (const child of node.children) {
+				if (visit(child)) below = true;
+			}
+			let visible = true;
+			if (query !== null && query.filter) {
+				if (this.merged(node)) visible = below;
+				else visible = !this.hiddenByProvider(node) && (this.matches(node) || below);
+			}
+			if (visible) shown.add(node);
+			return visible;
+		};
+		visit(this.root);
+		return shown;
+	}
+
+	/** The items the applied find matched and looked at: a compact row once, none below a hidden row. */
+	findCounts(): { matchCount: number; totalCount: number } {
+		let matchCount = 0;
+		let totalCount = 0;
+		const visit = (node: NaiveNode): void => {
+			for (const child of node.children) {
+				if (!this.merged(child)) {
+					totalCount += 1;
+					if (this.matches(child)) matchCount += 1;
+					if (this.hiddenByProvider(child)) continue;
+				}
+				visit(child);
+			}
+		};
+		visit(this.root);
+		return { matchCount, totalCount };
 	}
 
 	find(key: string): NaiveNode | null {
@@ -497,6 +650,14 @@ class NaiveTree {
 		}
 	}
 
+	/** Whether the applied find's `visible` hides a row, which it does only while filtering. */
+	private hiddenByProvider(node: NaiveNode): boolean {
+		const query = this.query;
+		if (query === null || !query.filter || this.merged(node)) return false;
+		const visibility = VISIBILITIES.find((candidate) => candidate?.row === query.visible);
+		return visibility !== undefined && !visibility.key(node.key);
+	}
+
 	private attached(node: NaiveNode): boolean {
 		for (let current = node; current.parent !== null; current = current.parent) {
 			if (!current.parent.children.includes(current)) return false;
@@ -531,6 +692,8 @@ class NaiveTree {
 
 type Command =
 	| { readonly kind: 'mutate'; readonly edits: readonly Edit[] }
+	/** Adds more top-level files than one slice of a find matches, and refreshes them in. */
+	| { readonly kind: 'grow' }
 	| { readonly kind: 'echo' }
 	| { readonly kind: 'refresh'; readonly pick: number; readonly recursive: boolean }
 	| { readonly kind: 'refreshTwice'; readonly pick: number }
@@ -548,7 +711,24 @@ type Command =
 	| { readonly kind: 'anchor'; readonly pick: number }
 	| { readonly kind: 'select'; readonly picks: readonly number[] }
 	| { readonly kind: 'selectAll' }
-	| { readonly kind: 'compress' };
+	| { readonly kind: 'compress' }
+	| {
+			readonly kind: 'find';
+			/** Typed after the pattern last asked for when `extend` holds; the whole pattern otherwise. */
+			readonly text: string;
+			readonly extend: boolean;
+			/** Switches between fuzzy and contiguous matching. */
+			readonly switchMatch: boolean;
+			/** Switches between the two labels. */
+			readonly switchLabel: boolean;
+			readonly filter: boolean;
+			/** An index into `VISIBILITIES`. */
+			readonly visible: number;
+			/** Runs every waiting task afterwards, so the find applies. */
+			readonly settle: boolean;
+	  }
+	/** Runs the next waiting task, such as a slice of a find. */
+	| { readonly kind: 'tick' };
 
 /** Shrinking long command sequences can take minutes; a failure reports the smallest case found by then. */
 const SHRINK_TIME_LIMIT_MS = 30_000;
@@ -595,6 +775,7 @@ const commandArbitrary: fc.Arbitrary<Command> = fc.oneof(
 		weight: 4,
 	},
 	{ arbitrary: fc.record({ kind: fc.constant('echo') }), weight: 1 },
+	{ arbitrary: fc.record({ kind: fc.constant('grow') }), weight: 1 },
 	{
 		arbitrary: fc.record({
 			kind: fc.constant('refresh'),
@@ -634,7 +815,27 @@ const commandArbitrary: fc.Arbitrary<Command> = fc.oneof(
 	},
 	{ arbitrary: fc.record({ kind: fc.constant('selectAll') }), weight: 1 },
 	{ arbitrary: fc.record({ kind: fc.constant('compress') }), weight: 1 },
+	{
+		// Mostly typing on, as a person does, so most finds look only at the previous one's matches.
+		arbitrary: fc.record({
+			extend: fc.oneof({ arbitrary: fc.constant(true), weight: 3 }, fc.constant(false)),
+			filter: fc.boolean(),
+			kind: fc.constant('find'),
+			settle: fc.oneof(fc.constant(true), { arbitrary: fc.constant(false), weight: 2 }),
+			switchLabel: fc.oneof({ arbitrary: fc.constant(false), weight: 4 }, fc.constant(true)),
+			switchMatch: fc.oneof({ arbitrary: fc.constant(false), weight: 4 }, fc.constant(true)),
+			text: fc.string({ maxLength: 2, unit: fc.constantFrom('a', 'b', 'c', 'B', '/') }),
+			visible: fc.nat({ max: VISIBILITIES.length - 1 }),
+		}),
+		weight: 5,
+	},
+	{ arbitrary: fc.record({ kind: fc.constant('tick') }), weight: 2 },
 );
+
+/** The commands that leave a find untouched, for tests that compare rows with another model's. */
+function findsNothing(command: Command): boolean {
+	return command.kind !== 'find' && command.kind !== 'tick';
+}
 
 function createSource(world: World): VirtualTreeSource<string, Item> {
 	return {
@@ -680,13 +881,17 @@ function expectSameTree(
 	events: readonly VirtualTreeEvent<string>[],
 ): void {
 	const rows = naive.rows();
+	const shown = naive.shown();
 	const after = rowKeys(model);
 	expect(after).toEqual(rows.map((node) => node.key));
+	// Each row's facts gathered into one comparison: one `expect` per row is slow on large trees.
+	const actual: unknown[] = [];
+	const expected: unknown[] = [];
 	for (const [index, node] of rows.entries()) {
 		const row = model.rowAt(index);
 		const segments = naive.segments(node);
 		const head = segments[0] ?? node;
-		const siblings = head.parent?.children ?? [];
+		const siblings = (head.parent?.children ?? []).filter((sibling) => shown.has(sibling));
 		let depth = 0;
 		let level = 0;
 		for (let owner = node.parent; owner !== null; owner = owner.parent) {
@@ -697,28 +902,56 @@ function expectSameTree(
 		if (!node.collapsed) {
 			const count = (current: NaiveNode): void => {
 				for (const child of current.children) {
+					if (!shown.has(child)) continue;
 					if (!naive.merged(child)) below += 1;
 					if (!child.collapsed) count(child);
 				}
 			};
 			count(node);
 		}
-		expect(row.element).toBe(node.item);
-		expect(row.segments.map((segment) => segment.key)).toEqual(segments.map(({ key }) => key));
-		expect(row.depth).toBe(depth);
-		expect(row.level).toBe(level);
-		expect(row.collapsible).toBe(node.collapsible);
-		expect(row.collapsible && !row.collapsed).toBe(node.collapsible && !node.collapsed);
-		expect(row.parent?.key ?? null).toBe(
-			head.parent === naive.root ? null : (head.parent?.key ?? null),
-		);
-		expect(row.positionInSet).toBe(siblings.indexOf(head) + 1);
-		expect(row.setSize).toBe(siblings.length);
-		expect(row.visibleDescendantCount).toBe(below);
+		const label = naive.label(node);
+		const contiguous = naive.query?.matchType === 'contiguous';
+		actual.push({
+			collapsible: row.collapsible,
+			depth: row.depth,
+			element: row.element === node.item,
+			expanded: row.collapsible && !row.collapsed,
+			highlights: readHighlights(model.highlightsOf(row), label, contiguous),
+			key: row.key,
+			level: row.level,
+			matched: model.matchesFind(row),
+			parent: row.parent?.key ?? null,
+			positionInSet: row.positionInSet,
+			segments: row.segments.map((segment) => segment.key),
+			setSize: row.setSize,
+			visibleDescendantCount: row.visibleDescendantCount,
+		});
+		const matched = naive.matches(node);
+		expected.push({
+			collapsible: node.collapsible,
+			depth,
+			element: true,
+			expanded: node.collapsible && !node.collapsed,
+			highlights: matched ? expectedHighlights(naive, label) : '',
+			key: node.key,
+			level,
+			matched,
+			parent: head.parent === naive.root ? null : (head.parent?.key ?? null),
+			positionInSet: siblings.indexOf(head) + 1,
+			segments: segments.map(({ key }) => key),
+			setSize: siblings.length,
+			visibleDescendantCount: below,
+		});
 	}
-	for (const node of naive.nodes()) {
-		expect(model.indexOf(node.key)).toBe(rows.indexOf(naive.tail(node)));
-	}
+	expect(actual).toEqual(expected);
+	const query = naive.query;
+	expect(model.findStatus?.query ?? null).toBe(query);
+	expect(model.findStatus).toEqual(query === null ? null : { ...naive.findCounts(), query });
+	const rowIndex = new Map(rows.map((node, index) => [node, index]));
+	const nodes = naive.nodes();
+	expect(nodes.map((node) => model.indexOf(node.key))).toEqual(
+		nodes.map((node) => rowIndex.get(naive.tail(node)) ?? -1),
+	);
 	expect(model.indexOf('missing')).toBe(-1);
 	expect(model.focus).toBe(naive.focus);
 	expect(model.anchor).toBe(naive.anchor);
@@ -726,8 +959,7 @@ function expectSameTree(
 	// An expanded row names every item it shows, and a collapsed one names none.
 	expect(sorted(model.viewState().expanded)).toEqual(
 		sorted(
-			naive
-				.nodes()
+			nodes
 				.filter((node) => !naive.merged(node) && node.collapsible && !node.collapsed)
 				.flatMap((node) => naive.segments(node).map(({ key }) => key)),
 		),
@@ -753,6 +985,39 @@ function expectSameTree(
 }
 
 /**
+ * What a row's highlights spell, ignoring case, after the position a contiguous match starts at;
+ * empty without highlights. Ranges must ascend with gaps between them, as adjacent ones join.
+ */
+function readHighlights(
+	highlights: readonly VirtualTreeHighlight[],
+	label: string,
+	contiguous: boolean,
+): string {
+	let spelled = '';
+	let end = -1;
+	for (const highlight of highlights) {
+		if (highlight.start <= end || highlight.end <= highlight.start) return 'misordered ranges';
+		spelled += label.slice(highlight.start, highlight.end);
+		end = highlight.end;
+	}
+	const first = highlights[0];
+	if (first === undefined) return '';
+	return contiguous ? `${first.start}:${spelled.toLowerCase()}` : spelled.toLowerCase();
+}
+
+/**
+ * How a matched row's highlights must read: the pattern itself, since every character of it is
+ * highlighted, and for a contiguous match at the pattern's first occurrence.
+ */
+function expectedHighlights(naive: NaiveTree, label: string): string {
+	const query = naive.query;
+	if (query === null) return '';
+	const pattern = query.pattern.toLowerCase();
+	if (query.matchType !== 'contiguous') return pattern;
+	return `${label.toLowerCase().indexOf(pattern)}:${pattern}`;
+}
+
+/**
  * Applies a command to the model and the naive tree. Returns the splices a repeated refresh reported,
  * which must be none, and zero for every other command.
  */
@@ -770,6 +1035,11 @@ function run(
 			return 0;
 		case 'echo':
 			world.echo = !world.echo;
+			return 0;
+		case 'grow':
+			if (naive.nodes().length < 70) world.grow(world.input);
+			void model.refresh(null);
+			naive.refresh(null, false);
 			return 0;
 		case 'refresh': {
 			const key = command.pick % 5 === 0 ? null : pickKey(naive, world, command.pick);
@@ -841,6 +1111,30 @@ function run(
 			model.setCompressed(!model.compressed);
 			naive.setCompressed(model.compressed);
 			return 0;
+		case 'find': {
+			const previous = naive.pending;
+			const base = command.extend ? (previous?.pattern ?? '') : '';
+			const pattern = `${base}${command.text}`.slice(0, 6);
+			const fuzzy = (previous?.matchType !== 'contiguous') !== command.switchMatch;
+			const reversed = (previous?.label === REVERSED_LABEL.row) !== command.switchLabel;
+			const query: VirtualTreeFindQuery<string, Item> | null =
+				pattern === ''
+					? null
+					: {
+							filter: command.filter,
+							label: (reversed ? REVERSED_LABEL : NAME_LABEL).row,
+							matchType: fuzzy ? 'fuzzy' : 'contiguous',
+							pattern,
+							visible: VISIBILITIES[command.visible]?.row,
+						};
+			naive.pending = query;
+			model.find(query);
+			if (command.settle) vi.runAllTimers();
+			return 0;
+		}
+		case 'tick':
+			vi.advanceTimersToNextTimer();
+			return 0;
 	}
 }
 
@@ -859,6 +1153,31 @@ function spliceLimit(command: Command, moved: number): number {
 			return 1;
 		default:
 			return Number.POSITIVE_INFINITY;
+	}
+}
+
+/** What a renderer drew for each row: its revision and the highlights it showed. */
+function drawnRows(
+	model: VirtualTreeModel<string, Item>,
+): Map<VirtualTreeRow<string, Item>, readonly [revision: number, highlights: string]> {
+	const drawn = new Map<VirtualTreeRow<string, Item>, readonly [number, string]>();
+	for (let index = 0; index < model.rowCount; index += 1) {
+		const row = model.rowAt(index);
+		drawn.set(row, [row.revision, JSON.stringify(model.highlightsOf(row))]);
+	}
+	return drawn;
+}
+
+/** A row whose highlights changed has a new revision, so a renderer that skips drawn revisions redraws it. */
+function expectRedrawn(
+	model: VirtualTreeModel<string, Item>,
+	drawn: ReadonlyMap<VirtualTreeRow<string, Item>, readonly [revision: number, highlights: string]>,
+): void {
+	for (let index = 0; index < model.rowCount; index += 1) {
+		const row = model.rowAt(index);
+		const before = drawn.get(row);
+		if (before === undefined || before[1] === JSON.stringify(model.highlightsOf(row))) continue;
+		expect(row.revision).not.toBe(before[0]);
 	}
 }
 
@@ -1235,27 +1554,50 @@ describe('VirtualTreeModel', () => {
 					fc.boolean(),
 					fc.array(commandArbitrary, { maxLength: 40, size: 'max' }),
 					(seed, defaults, compressed, commands) => {
-						const world = new World(seed);
-						const model = new VirtualTreeModel<string, Item>({
-							compressed,
-							input: world.input,
-							source: createSource(world),
-							...(defaults ? { expandedByDefault: (item: Item) => item.expanded } : {}),
+						// Every reading of the clock moves it past a find slice, so a slice matches one batch
+						// of labels and each find waits for a task before it applies; the commands between
+						// meet it while it runs.
+						let clock = 0;
+						const now = vi.spyOn(performance, 'now').mockImplementation(() => {
+							clock += 10;
+							return clock;
 						});
-						const naive = new NaiveTree(world, defaults, compressed);
-						const events: VirtualTreeEvent<string>[] = [];
-						model.subscribe((event) => events.push(event));
-						void model.refresh(null);
-						naive.refresh(null, false);
-						expectSameTree(model, naive, [], events);
-						for (const command of commands) {
-							const before = rowKeys(model);
-							const parents = rowParents(model);
-							events.length = 0;
-							expect(run(command, world, model, naive)).toBe(0);
-							expectSameTree(model, naive, before, events);
-							const limit = spliceLimit(command, movedRows(model, parents));
-							expect(splicesOf(events)).toBeLessThanOrEqual(limit);
+						vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+						try {
+							const world = new World(seed);
+							const model = new VirtualTreeModel<string, Item>({
+								compressed,
+								input: world.input,
+								source: createSource(world),
+								...(defaults ? { expandedByDefault: (item: Item) => item.expanded } : {}),
+							});
+							const naive = new NaiveTree(world, defaults, compressed);
+							const events: VirtualTreeEvent<string>[] = [];
+							model.subscribe((event) => events.push(event));
+							void model.refresh(null);
+							naive.refresh(null, false);
+							expectSameTree(model, naive, [], events);
+							for (const command of commands) {
+								const before = rowKeys(model);
+								const parents = rowParents(model);
+								const drawn = drawnRows(model);
+								events.length = 0;
+								expect(run(command, world, model, naive)).toBe(0);
+								// The rows show the find they showed or the latest one asked for, never another,
+								// and the latest one once no task waits.
+								const shown = model.findStatus?.query ?? null;
+								expect(shown === naive.query || shown === naive.pending).toBe(true);
+								expect(vi.getTimerCount() > 0 || shown === naive.pending).toBe(true);
+								naive.query = shown;
+								expectSameTree(model, naive, before, events);
+								expectRedrawn(model, drawn);
+								const limit = spliceLimit(command, movedRows(model, parents));
+								expect(splicesOf(events)).toBeLessThanOrEqual(limit);
+							}
+							model.dispose();
+						} finally {
+							vi.useRealTimers();
+							now.mockRestore();
 						}
 					},
 				),
@@ -1273,7 +1615,9 @@ describe('VirtualTreeModel', () => {
 					seedArbitrary,
 					// Compact rows stay off: an item that joins a row on restore expands without being saved.
 					fc.array(
-						commandArbitrary.filter((command) => command.kind !== 'compress'),
+						commandArbitrary.filter(
+							(command) => command.kind !== 'compress' && findsNothing(command),
+						),
 						{ maxLength: 30, size: 'max' },
 					),
 					async (seed, commands) => {

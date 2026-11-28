@@ -48,6 +48,13 @@ export class TreeNode<K, T> implements VirtualTreeRow<K, T> {
 	loading = false;
 	/** False once the node has left the tree. */
 	attached = true;
+	/** Whether the find the rows show matched the node's label. */
+	findMatched = false;
+	/** The find pass that last matched the node's label, which left its verdict in `findPassMatched`. */
+	findPass = 0;
+	findPassMatched = false;
+	/** Scratch stamp of the latest row rebuild that kept the node's row. */
+	mark = 0;
 	/** The segments as last read, valid while the revision they were read at holds. */
 	private segmentList: readonly TreeNode<K, T>[] = NO_CHILDREN;
 	private segmentRevision = -1;

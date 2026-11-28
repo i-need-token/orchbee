@@ -1,9 +1,14 @@
 import { ChildrenRequest } from './ChildrenRequest';
+import { FindPass, type FindPassWork } from './FindPass';
+import { findMatcher, scoreHighlights, type FindScore } from './find-score';
 import { longestIncreasingSubsequence } from './longestIncreasingSubsequence';
 import { replaceRows, RowSpliceBuilder, SpliceList } from './row-splices';
 import { chainTail, collectRow, collectRows, NO_CHILDREN, TreeNode } from './tree-node';
 import type {
 	VirtualTreeEvent,
+	VirtualTreeFindQuery,
+	VirtualTreeFindStatus,
+	VirtualTreeHighlight,
 	VirtualTreeModelOptions,
 	VirtualTreeRevealOptions,
 	VirtualTreeRow,
@@ -18,8 +23,15 @@ const EVENT_SPLICE_LIMIT = 64;
 /** How long a row's children load before the row shows it, as in VS Code's asynchronous tree. */
 const LOADING_INDICATOR_DELAY_MS = 800;
 
+/**
+ * How long one slice of a find matches labels before the page gets a task: within a frame, so typing
+ * never waits, as the File Bar proposal asks of a find over 100,000 items.
+ */
+const FIND_SLICE_MS = 8;
+
 const RESOLVED: Promise<void> = Promise.resolve();
 const NO_ITEMS: readonly never[] = [];
+const NO_HIGHLIGHTS: readonly VirtualTreeHighlight[] = [];
 
 type VirtualTreeListener<K> = (event: VirtualTreeEvent<K>) => void;
 
@@ -33,11 +45,38 @@ interface RecursiveOption {
 	readonly recursive?: boolean;
 }
 
+/** A row's highlights as last computed, valid while the scorer and the row's revision hold. */
+interface CachedHighlights {
+	readonly scorer: (label: string) => FindScore | undefined;
+	readonly revision: number;
+	readonly highlights: readonly VirtualTreeHighlight[];
+}
+
+/** What settling the rows for a find counts and collects on its walk over the tree. */
+interface FindTally<K, T> {
+	readonly query: VirtualTreeFindQuery<K, T> | null;
+	/** The finished pass whose verdicts the walk commits, if any. */
+	readonly pass: FindPass<K, T> | null;
+	readonly candidates: TreeNode<K, T>[];
+	/** The rows the walk finds showing, in display order. */
+	readonly rows: TreeNode<K, T>[];
+	matchCount: number;
+	totalCount: number;
+	/** Whether a node's visibility changed, so the rows need rewriting. */
+	changed: boolean;
+	/** Whether any node is hidden. */
+	hiding: boolean;
+}
+
 /**
  * A headless tree: loaded items, the flat array of visible rows, and focus, selection and anchor.
  * Every operation applies completely before its events go out, and changes the rows with as few
  * splices as it can: one for an expand or collapse, plus one for each row that the children an
  * expansion loads move away from elsewhere, and none for a refresh that changes nothing.
+ *
+ * A find matches every loaded item's label and highlights or filters the rows, as VS Code's tree
+ * find does; its work is sliced so typing never waits, and a longer pattern looks only at the items
+ * the shorter one matched.
  *
  * A row's children are fetched by one request at a time. Callers share it while its answer is new
  * enough for them: any answer for an expansion, one requested after it was asked for a refresh.
@@ -96,6 +135,27 @@ export class VirtualTreeModel<K, T> {
 	/** Whether focus rested on a segment above its row's own when the last operation ended. */
 	private focusMergedAtRest = false;
 
+	// Find
+	/** The find the rows show; null while none applies. */
+	private findQuery: VirtualTreeFindQuery<K, T> | null = null;
+	/** Tells whether a label matches the applied find's pattern. */
+	private findTest: ((label: string) => boolean) | null = null;
+	/** Scores labels against the applied find's pattern, for highlights; made when first needed. */
+	private findScorer: ((label: string) => FindScore | undefined) | null = null;
+	private findStatusValue: VirtualTreeFindStatus<K, T> | null = null;
+	/** The pass matching a newer query while the rows still show the applied one. */
+	private findPass: FindPass<K, T> | null = null;
+	/** The nodes whose label the applied find matched, which a longer pattern matches again. */
+	private findCandidates: TreeNode<K, T>[] = [];
+	/** Nodes this operation brought in, gave a new element, or joined to or split from a row. */
+	private findDirty: TreeNode<K, T>[] = [];
+	/** Whether this operation removed nodes during a find, which can hide or show rows above them. */
+	private findStale = false;
+	/** Whether the applied find hides any node, so settling again can show rows. */
+	private findHiding = false;
+	private findChanged = false;
+	private readonly highlights = new WeakMap<TreeNode<K, T>, CachedHighlights>();
+
 	constructor(options: VirtualTreeModelOptions<K, T>) {
 		this.source = options.source;
 		this.expandedByDefault = options.expandedByDefault;
@@ -132,6 +192,11 @@ export class VirtualTreeModel<K, T> {
 	/** Whether items the source calls compressible join their parent's row. */
 	get compressed(): boolean {
 		return this.compression;
+	}
+
+	/** The find the rows show and what it counted; null while none applies. */
+	get findStatus(): VirtualTreeFindStatus<K, T> | null {
+		return this.findStatusValue;
 	}
 
 	rowAt(index: number): VirtualTreeRow<K, T> {
@@ -304,6 +369,72 @@ export class VirtualTreeModel<K, T> {
 		});
 	}
 
+	/**
+	 * Finds rows by their label as VS Code's tree find does, or stops finding with null. Every loaded
+	 * item takes part, collapsed or not. The rows keep showing the previous find until this one has
+	 * matched every item, in slices of a few milliseconds with a task between them, and then change in
+	 * one operation that ends with a `find` event. A pattern that extends the previous one, with the
+	 * same match type and label, matches only the items the previous one matched, and a query that
+	 * changes only `filter` or `visible` settles the rows at once. While a find applies, items that an
+	 * operation brings in, or whose element or compact row it changes, are matched in that operation.
+	 */
+	find(query: VirtualTreeFindQuery<K, T> | null): void {
+		if (this.disposed) return;
+		const applied = this.findQuery;
+		if (query === null || (applied !== null && sameMatching(applied, query))) {
+			this.stopFindPass();
+			if (query !== applied) {
+				this.operate(() => {
+					this.findQuery = query;
+					if (query === null) {
+						this.findTest = null;
+						this.findScorer = null;
+					}
+					this.settleFind(null);
+				});
+			}
+			return;
+		}
+		const pass = this.findPass;
+		if (pass !== null && sameMatching(pass.query, query)) {
+			pass.query = query;
+			return;
+		}
+		let work: FindPassWork<K, T>;
+		if (pass !== null && extendsPattern(pass.query, query)) work = pass.narrowed();
+		else if (applied !== null && extendsPattern(applied, query)) {
+			work = { nodes: [...this.findCandidates], walk: [] };
+		} else work = FindPass.walking(this.root);
+		this.stopFindPass();
+		this.findPass = new FindPass(query, work);
+		this.advanceFind();
+	}
+
+	/**
+	 * The characters of a row's label the applied find matched, for its renderer to highlight. They
+	 * are scored when first asked for, so a find matches labels without scoring them; the row's
+	 * revision changes whenever they may.
+	 */
+	highlightsOf(row: VirtualTreeRow<K, T>): readonly VirtualTreeHighlight[] {
+		const node = this.nodes.get(row.key);
+		const query = this.findQuery;
+		if (node !== row || query === null || !node.findMatched) return NO_HIGHLIGHTS;
+		this.findScorer ??= findMatcher(query.pattern, query.matchType);
+		const scorer = this.findScorer;
+		const cached = this.highlights.get(node);
+		if (cached?.scorer === scorer && cached.revision === node.revision) return cached.highlights;
+		const score = scorer(query.label(node));
+		const highlights = score === undefined ? NO_HIGHLIGHTS : scoreHighlights(score);
+		this.highlights.set(node, { highlights, revision: node.revision, scorer });
+		return highlights;
+	}
+
+	/** Whether the applied find matched a row's label. */
+	matchesFind(row: VirtualTreeRow<K, T>): boolean {
+		const node = this.nodes.get(row.key);
+		return node === row && node.findMatched;
+	}
+
 	viewState(): VirtualTreeViewState<K> {
 		const expanded: K[] = [];
 		const pending: TreeNode<K, T>[] = [...this.root.children];
@@ -379,6 +510,7 @@ export class VirtualTreeModel<K, T> {
 	dispose(): void {
 		if (this.disposed) return;
 		this.disposed = true;
+		this.stopFindPass();
 		this.listeners.clear();
 		const requests = [...this.requests.values()];
 		this.requests.clear();
@@ -735,6 +867,8 @@ export class VirtualTreeModel<K, T> {
 						if (existing.element !== item) {
 							existing.element = item;
 							this.touch(existing);
+							// The row's label may change with the element, and a merged node's names its chain's.
+							if (this.finding) this.findDirty.push(existing, chainTail(existing));
 						}
 						if (collapsible !== existing.collapsible) {
 							(flipped ??= []).push(existing);
@@ -767,6 +901,11 @@ export class VirtualTreeModel<K, T> {
 			}
 			for (const node of this.displaced.splice(displacedBefore)) nodes.set(node.key, node);
 			throw error;
+		}
+		if (this.finding) {
+			for (const child of children) {
+				if (child.childIndex < 0) this.findDirty.push(child);
+			}
 		}
 
 		if (recompressed !== null) {
@@ -1000,6 +1139,8 @@ export class VirtualTreeModel<K, T> {
 			this.touch(node);
 			this.touch(tail);
 		}
+		// Joining or splitting a row changes the labels of the rows the node leaves and joins.
+		if (this.finding) this.findDirty.push(node, tail, chainTail(node));
 	}
 
 	/** Brings every merged flag below a node in line with the setting and recounts; whether any changed. */
@@ -1075,6 +1216,7 @@ export class VirtualTreeModel<K, T> {
 	/** Marks a subtree detached and forgets its keys, unless a newer node already owns one. */
 	private discard(node: TreeNode<K, T>): void {
 		node.attached = false;
+		if (this.finding) this.findStale = true;
 		this.abortRequest(node);
 		if (this.nodes.get(node.key) === node) {
 			this.nodes.delete(node.key);
@@ -1155,6 +1297,229 @@ export class VirtualTreeModel<K, T> {
 		this.rowsChanged = true;
 	}
 
+	// Find
+
+	/** Whether a find applies or is matching, so changed labels must be matched again. */
+	private get finding(): boolean {
+		return this.findQuery !== null || this.findPass !== null;
+	}
+
+	private stopFindPass(): void {
+		const pass = this.findPass;
+		if (pass === null) return;
+		if (pass.timer !== null) clearTimeout(pass.timer);
+		this.findPass = null;
+	}
+
+	/**
+	 * Matches labels for one slice and commits the pass once every node is matched: in this task when
+	 * matching took a fraction of the slice, which leaves room for settling the rows, a walk over every
+	 * node; otherwise in the next task, which first matches whatever an operation added in between.
+	 */
+	private advanceFind(): void {
+		const pass = this.findPass;
+		if (pass === null) return;
+		pass.timer = null;
+		if (!pass.finished) {
+			const start = performance.now();
+			const finished = pass.advance(start + FIND_SLICE_MS);
+			if (!finished || performance.now() - start > FIND_SLICE_MS / 4) {
+				pass.timer = setTimeout(() => {
+					this.advanceFind();
+				}, 0);
+				return;
+			}
+		}
+		this.commitFind(pass);
+	}
+
+	private commitFind(pass: FindPass<K, T>): void {
+		this.findPass = null;
+		this.operate(() => {
+			this.findQuery = pass.query;
+			this.findTest = pass.test;
+			this.findScorer = null;
+			this.settleFind(pass);
+		});
+	}
+
+	/**
+	 * Matches the nodes this operation changed against the applied find, settles the rows again, and
+	 * hands the nodes to a running pass too.
+	 */
+	private reconcileFind(): void {
+		if (this.findDirty.length === 0 && !this.findStale) return;
+		const dirty = this.findDirty;
+		this.findDirty = [];
+		this.findStale = false;
+		const query = this.findQuery;
+		const test = this.findTest;
+		if (query !== null && test !== null) {
+			// A changed label marked its row already, which new highlights need.
+			for (const node of dirty) {
+				if (!node.attached) continue;
+				this.setFindMatched(node, !node.merged && test(query.label(node)), false);
+			}
+			this.settleFind(null);
+		}
+		const pass = this.findPass;
+		if (pass === null) return;
+		for (const node of dirty) {
+			if (node.attached) pass.add(node);
+		}
+	}
+
+	/**
+	 * Brings matches, visibility, counts and rows in line with the applied find, first committing a
+	 * finished pass: a node the pass never matched misses, since a longer pattern skips the shorter
+	 * one's misses. Walks every loaded node and rewrites the rows once if any visibility changed.
+	 */
+	private settleFind(pass: FindPass<K, T> | null): void {
+		const query = this.findQuery;
+		const tally: FindTally<K, T> = {
+			candidates: [],
+			changed: false,
+			hiding: false,
+			matchCount: 0,
+			pass,
+			query,
+			rows: [],
+			totalCount: 0,
+		};
+		// Rows can change only while a node hides or did; highlighting alone leaves every row showing.
+		const gather = query?.filter === true || this.findHiding;
+		this.settleChildren(this.root, tally, true, gather);
+		this.findHiding = tally.hiding;
+		this.findCandidates = tally.candidates;
+		const previous = this.findStatusValue;
+		if (
+			query === null
+				? previous !== null
+				: previous?.query !== query ||
+					previous.matchCount !== tally.matchCount ||
+					previous.totalCount !== tally.totalCount
+		) {
+			this.findStatusValue =
+				query === null
+					? null
+					: { matchCount: tally.matchCount, query, totalCount: tally.totalCount };
+			this.findChanged = true;
+		}
+		if (tally.changed) this.rewriteRows(tally.rows);
+	}
+
+	/**
+	 * Settles a node's children and recounts the node's; returns how many of them show. `counted` says
+	 * whether the find counts them, and `gather` whether their rows show if they do.
+	 */
+	private settleChildren(
+		node: TreeNode<K, T>,
+		tally: FindTally<K, T>,
+		counted: boolean,
+		gather: boolean,
+	): number {
+		let visibleIndex = 0;
+		let renderCount = 0;
+		for (const child of node.children) {
+			if (!this.settleNode(child, tally, counted, gather)) continue;
+			child.visibleChildIndex = visibleIndex;
+			visibleIndex += 1;
+			renderCount += child.renderNodeCount;
+		}
+		node.visibleChildrenCount = visibleIndex;
+		node.childrenRenderCount = renderCount;
+		return visibleIndex;
+	}
+
+	/**
+	 * Settles one node and its subtree and returns whether it shows, as VS Code's filter decides: a
+	 * row that misses shows while filtering only when a row below it shows, and a row `visible` hides
+	 * takes its subtree along, which the counts then leave out.
+	 */
+	private settleNode(
+		node: TreeNode<K, T>,
+		tally: FindTally<K, T>,
+		counted: boolean,
+		gather: boolean,
+	): boolean {
+		const { pass, query, rows } = tally;
+		if (pass !== null) {
+			// A new pattern highlights other characters in every row it matches.
+			const matched = node.findPass === pass.id && node.findPassMatched;
+			this.setFindMatched(node, matched, true);
+		}
+		// The row goes in before the rows below it, and comes out with them if it turns out hidden.
+		const start = rows.length;
+		if (gather && !node.merged) rows.push(node);
+		const parent = node.children.length > 0;
+		const below = gather && !node.collapsed;
+		let visible = true;
+		if (query === null) {
+			if (node.findMatched) this.setFindMatched(node, false, false);
+			if (parent) this.settleChildren(node, tally, false, below);
+		} else if (node.merged) {
+			// A merged node shows in its chain's row, so it shows while that row does.
+			visible = this.settleChildren(node, tally, counted, below) > 0;
+		} else {
+			const matched = node.findMatched;
+			if (counted) {
+				tally.totalCount += 1;
+				if (matched) tally.matchCount += 1;
+			}
+			if (matched) tally.candidates.push(node);
+			const hidden = query.filter && query.visible !== undefined && !query.visible(node);
+			const shown = parent ? this.settleChildren(node, tally, counted && !hidden, below) : 0;
+			visible = !hidden && (!query.filter || matched || shown > 0);
+		}
+		if (!visible) {
+			rows.length = start;
+			tally.hiding = true;
+		}
+		if (visible !== node.visible) {
+			node.visible = visible;
+			tally.changed = true;
+		}
+		return visible;
+	}
+
+	/**
+	 * Records whether the find the rows show matches a node, marking its row when it gains or loses
+	 * highlights, or when `rematched` says a new pattern may highlight other characters in it.
+	 */
+	private setFindMatched(node: TreeNode<K, T>, matched: boolean, rematched: boolean): void {
+		if (matched === node.findMatched && !(matched && rematched)) return;
+		node.findMatched = matched;
+		this.touch(node);
+	}
+
+	/** Replaces the rows with the ones visibility now shows, as splices of the rows that hid or showed. */
+	private rewriteRows(rows: TreeNode<K, T>[]): void {
+		this.stamp += 1;
+		const stamp = this.stamp;
+		for (const row of rows) row.mark = stamp;
+		// Both lists keep display order, so a kept row comes after every row shown before it.
+		const old = this.rows;
+		const builder = new RowSpliceBuilder(0);
+		let next = 0;
+		for (const row of old) {
+			// Scattered changes soon give up on splices for one replacement of every row.
+			if (builder.overflowed) break;
+			if (row.mark !== stamp) {
+				builder.remove(1);
+				continue;
+			}
+			while (next < rows.length && rows[next] !== row) {
+				builder.insert(1);
+				next += 1;
+			}
+			builder.keep(1);
+			next += 1;
+		}
+		builder.insert(rows.length - next);
+		const splices = builder.finish(old.length, rows.length);
+		if (splices.length > 0) this.writeRows(0, old.length, rows, splices);
+	}
+
 	// Traits and events
 
 	private restoreTraits(state: VirtualTreeViewState<K>): void {
@@ -1194,6 +1559,7 @@ export class VirtualTreeModel<K, T> {
 	}
 
 	private flush(): void {
+		this.reconcileFind();
 		this.retargetMergedTraits();
 		this.forgetRemovedTraits();
 		const events: VirtualTreeEvent<K>[] = [];
@@ -1206,6 +1572,10 @@ export class VirtualTreeModel<K, T> {
 		if (this.collapseEvents.length > 0) {
 			events.push(...this.collapseEvents);
 			this.collapseEvents = [];
+		}
+		if (this.findChanged) {
+			events.push({ kind: 'find' });
+			this.findChanged = false;
 		}
 		if (this.focusChanged) events.push({ kind: 'focus' });
 		if (this.selectionChanged) events.push({ kind: 'selection' });
@@ -1312,6 +1682,33 @@ export class VirtualTreeModel<K, T> {
 			this.selectionChanged = true;
 		}
 	}
+}
+
+/** Whether two queries match labels alike, differing at most in how the rows show. */
+function sameMatching<K, T>(
+	left: VirtualTreeFindQuery<K, T>,
+	right: VirtualTreeFindQuery<K, T>,
+): boolean {
+	return (
+		left.pattern === right.pattern &&
+		left.matchType === right.matchType &&
+		left.label === right.label
+	);
+}
+
+/**
+ * Whether every label that misses `previous` misses `next`: the same match type and label, and a
+ * pattern that extends the previous one, ignoring case as matching does.
+ */
+function extendsPattern<K, T>(
+	previous: VirtualTreeFindQuery<K, T>,
+	next: VirtualTreeFindQuery<K, T>,
+): boolean {
+	return (
+		previous.matchType === next.matchType &&
+		previous.label === next.label &&
+		next.pattern.toLowerCase().startsWith(previous.pattern.toLowerCase())
+	);
 }
 
 function renderCountOf<K, T>(nodes: readonly TreeNode<K, T>[]): number {

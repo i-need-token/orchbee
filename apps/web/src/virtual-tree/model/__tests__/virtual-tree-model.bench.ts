@@ -1,7 +1,13 @@
-import { bench, type BenchOptions } from 'vitest';
+import { bench, type BenchOptions, vi } from 'vitest';
 
 import { VirtualTreeModel } from '../VirtualTreeModel';
-import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../virtual-tree-types';
+import type {
+	VirtualTreeEvent,
+	VirtualTreeFindQuery,
+	VirtualTreeRow,
+	VirtualTreeSource,
+	VirtualTreeSplice,
+} from '../virtual-tree-types';
 
 // The reference scenarios of the File Bar proposal's performance targets: N = 100,000 rows labelled
 // like `file-123.ts`, and 1,000 folders of 100 files, with compact rows over the same sizes. Each
@@ -420,6 +426,173 @@ bench(
 				JSON.stringify(inserted) !== JSON.stringify([{ deleteCount: 0, insertCount: N, start: 1 }])
 			) {
 				throw new Error(`Unexpected splices ${JSON.stringify(inserted)}`);
+			}
+		});
+	},
+	OPTIONS,
+);
+
+/** A find's label: the last part of the item's key, as the Explorer labels a file by its name. */
+function findLabel(row: VirtualTreeRow<string, BenchItem>): string {
+	return row.key.slice(row.key.lastIndexOf('/') + 1);
+}
+
+function findQuery(pattern: string, filter: boolean): VirtualTreeFindQuery<string, BenchItem> {
+	return { filter, label: findLabel, matchType: 'fuzzy', pattern };
+}
+
+/**
+ * Calls `find` and runs every task it leaves back to back, as an idle page would; returns how long
+ * each task took, `find` itself first.
+ */
+function findTasks(
+	model: VirtualTreeModel<string, BenchItem>,
+	query: VirtualTreeFindQuery<string, BenchItem> | null,
+): number[] {
+	untimed(() => vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] }));
+	try {
+		let start = performance.now();
+		model.find(query);
+		const tasks = [performance.now() - start];
+		while (vi.getTimerCount() > 0) {
+			start = performance.now();
+			vi.advanceTimersToNextTimer();
+			tasks.push(performance.now() - start);
+		}
+		return tasks;
+	} finally {
+		untimed(() => vi.useRealTimers());
+	}
+}
+
+/** Leaves only the longest task on the clock, for the cases that time what blocks typing. */
+function timeLongestTask(tasks: readonly number[]): void {
+	const total = tasks.reduce((sum, task) => sum + task, 0);
+	excluded += total - Math.max(...tasks);
+}
+
+/** Fails the case when a find did not apply with the counts expected. */
+function expectFound(
+	fixture: Fixture,
+	pattern: string,
+	matchCount: number,
+	rowCount: number,
+): void {
+	untimed(() => {
+		const status = fixture.model.findStatus;
+		if (status?.query.pattern !== pattern) throw new Error(`The find for ${pattern} did not apply`);
+		if (status.matchCount !== matchCount) {
+			throw new Error(`Expected ${matchCount} matches, found ${status.matchCount}`);
+		}
+		if (fixture.model.rowCount !== rowCount) {
+			throw new Error(`Expected ${rowCount} rows, found ${fixture.model.rowCount}`);
+		}
+		fixture.takeSplices();
+	});
+}
+
+/** How many of `file-0.ts` to `file-99999.ts` hold the digit 9 at least `count` times. */
+function filesWithNines(count: number): number {
+	let total = 0;
+	for (let index = 0; index < N; index += 1) {
+		if (String(index).split('9').length - 1 >= count) total += 1;
+	}
+	return total;
+}
+
+const ONE_NINE = filesWithNines(1);
+const TWO_NINES = filesWithNines(2);
+
+/** 100,000 loaded siblings, filtered by `9` when `filtered` is set. */
+function findFixture(filtered: boolean): Fixture {
+	const fixture = loadedRoot(files(N));
+	if (filtered) {
+		findTasks(fixture.model, findQuery('9', true));
+		fixture.takeSplices();
+	}
+	return fixture;
+}
+
+bench(
+	'finds a first key in all 100,000 siblings, highlighting every row, until it applies',
+	() => {
+		const fixture = untimed(() => findFixture(false));
+		findTasks(fixture.model, findQuery('f', false));
+		expectFound(fixture, 'f', N, N);
+	},
+	OPTIONS,
+);
+
+bench(
+	'finds a first key in 100,000 siblings, longest task',
+	() => {
+		const fixture = untimed(() => findFixture(false));
+		timeLongestTask(findTasks(fixture.model, findQuery('f', false)));
+		expectFound(fixture, 'f', N, N);
+	},
+	OPTIONS,
+);
+
+bench(
+	'filters 100,000 siblings by a first key, until it applies',
+	() => {
+		const fixture = untimed(() => findFixture(false));
+		findTasks(fixture.model, findQuery('9', true));
+		expectFound(fixture, '9', ONE_NINE, ONE_NINE);
+	},
+	OPTIONS,
+);
+
+bench(
+	'filters 100,000 siblings by a first key, longest task',
+	() => {
+		const fixture = untimed(() => findFixture(false));
+		timeLongestTask(findTasks(fixture.model, findQuery('9', true)));
+		expectFound(fixture, '9', ONE_NINE, ONE_NINE);
+	},
+	OPTIONS,
+);
+
+bench(
+	'narrows a filter of 100,000 siblings by a second key, until it applies',
+	() => {
+		const fixture = untimed(() => findFixture(true));
+		findTasks(fixture.model, findQuery('99', true));
+		expectFound(fixture, '99', TWO_NINES, TWO_NINES);
+	},
+	OPTIONS,
+);
+
+bench(
+	'clears a filter of 100,000 siblings',
+	() => {
+		const fixture = untimed(() => findFixture(true));
+		findTasks(fixture.model, null);
+		untimed(() => {
+			if (fixture.model.findStatus !== null || fixture.model.rowCount !== N) {
+				throw new Error('The filter did not clear');
+			}
+		});
+	},
+	OPTIONS,
+);
+
+bench(
+	'filters 1,000 expanded folders of 100 files by a first key, until it applies',
+	() => {
+		const fixture = untimed(() => {
+			const created = new Fixture([], true);
+			created.setChildren(ROOT.key, nestedFolders(created));
+			void created.model.refresh(null);
+			created.takeSplices();
+			return created;
+		});
+		findTasks(fixture.model, findQuery('9', true));
+		untimed(() => {
+			// Every folder holds `file-9.ts`, so every folder shows with its files that hold a 9.
+			const status = fixture.model.findStatus;
+			if (status?.matchCount !== FOLDERS * 19 + 271) {
+				throw new Error(`Unexpected ${status?.matchCount} matches`);
 			}
 		});
 	},

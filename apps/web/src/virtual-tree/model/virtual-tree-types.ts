@@ -77,10 +77,58 @@ export interface VirtualTreeRow<K, T> extends VirtualTreeSegment<K, T> {
 	readonly loading: boolean;
 	/**
 	 * Changes whenever the row's element, collapsibility, expansion or loading state changes in place,
-	 * or an item joins or leaves the row or changes its element, so a renderer can skip a row whose
-	 * revision it has drawn. Position, set size, depth and the descendant count are read directly.
+	 * an item joins or leaves the row or changes its element, or the characters find highlights in it
+	 * change, so a renderer can skip a row whose revision it has drawn. Position, set size, depth and
+	 * the descendant count are read directly.
 	 */
 	readonly revision: number;
+}
+
+/** Characters of a label a find matched, from `start` up to but not including `end`. */
+export interface VirtualTreeHighlight {
+	readonly start: number;
+	readonly end: number;
+}
+
+/**
+ * How find matches a label, ignoring case: `fuzzy` finds the pattern's characters in order anywhere
+ * in it, preferring word starts and runs, and `contiguous` finds them together.
+ */
+export type VirtualTreeFindMatchType = 'fuzzy' | 'contiguous';
+
+/** What a model finds among its rows, as VS Code's tree find widget asks for it. */
+export interface VirtualTreeFindQuery<K, T> {
+	/** The text to find, never empty: `find(null)` stops finding. */
+	readonly pattern: string;
+	readonly matchType: VirtualTreeFindMatchType;
+	/**
+	 * Whether rows whose label misses hide, unless a row below them matches, as VS Code's filter mode
+	 * does; otherwise every row shows and the matched characters are highlighted.
+	 */
+	readonly filter: boolean;
+	/**
+	 * The text a row is found by, such as its type navigation label. It must depend only on the row's
+	 * items, since a find that extends the pattern trusts earlier misses, and keep its identity while
+	 * it means the same, since a new function starts the find over.
+	 */
+	readonly label: (row: VirtualTreeRow<K, T>) => string;
+	/**
+	 * While filtering, hides each row it answers false for, with its subtree, as an asynchronous find
+	 * provider's `isVisible` does in VS Code. It is asked again whenever the rows settle.
+	 */
+	readonly visible?: ((row: VirtualTreeRow<K, T>) => boolean) | undefined;
+}
+
+/** The find the rows show and what it counted. */
+export interface VirtualTreeFindStatus<K, T> {
+	readonly query: VirtualTreeFindQuery<K, T>;
+	/** Loaded items whose label matched, a compact row counting once. */
+	readonly matchCount: number;
+	/**
+	 * Loaded items the find looked at: every one, collapsed or not, except those below a row that
+	 * `visible` hid, as VS Code's find counts them.
+	 */
+	readonly totalCount: number;
 }
 
 /**
@@ -111,6 +159,8 @@ export type VirtualTreeEvent<K> =
 	| { readonly kind: 'selection' }
 	| { readonly kind: 'anchor' }
 	| { readonly kind: 'scroll' }
+	/** The find the rows show, or what it counted, changed; read `findStatus`. */
+	| { readonly kind: 'find' }
 	| {
 			readonly kind: 'reveal';
 			/** A row that shows now, for a view to scroll into sight. */
