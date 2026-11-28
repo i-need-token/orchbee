@@ -1,8 +1,10 @@
 import { fileBarMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type * as React from 'react';
 
+import type { VirtualTreeHighlight } from '../../model/virtual-tree-types';
 import type { VirtualTreeRowState } from '../../types/virtual-tree-row-renderer';
 import { segmentElementId } from '../../utils/tree-element-ids';
+import { VirtualTreeLabel } from '../virtual-tree-label/VirtualTreeLabel';
 import styles from './VirtualTreeSegments.module.css';
 
 export interface VirtualTreeSegmentsProps {
@@ -10,11 +12,17 @@ export interface VirtualTreeSegmentsProps {
 	readonly names: readonly string[];
 	/** The row's state as the renderer received it. */
 	readonly state: VirtualTreeRowState;
-	/** What separates the names, `/` unless set, as VS Code's label service separates a path. */
+	/**
+	 * What separates the names, `/` unless set, as VS Code's label service separates a path. The
+	 * row's `keyboardNavigationLabel` must join the names with it, since the find's highlights fall in
+	 * that label.
+	 */
 	readonly separator?: string | undefined;
 }
 
 type CompactRowState = NonNullable<VirtualTreeRowState['compact']>;
+
+const NO_HIGHLIGHTS: readonly VirtualTreeHighlight[] = [];
 
 /** One item's tree item semantics. */
 interface ItemSemantics {
@@ -32,6 +40,7 @@ interface ItemSemantics {
  * descendant while the item has focus and announces with its parents in the row. Its name is
  * underlined under the pointer and while it has the focused row's focus, and lights up while a drag
  * would drop on it. A press on an item's name, or on the separator after it, is a press on that item.
+ * The characters the find matched are highlighted in each name.
  */
 export function VirtualTreeSegments({
 	names,
@@ -39,10 +48,18 @@ export function VirtualTreeSegments({
 	state,
 }: VirtualTreeSegmentsProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
-	const { compact } = state;
-	if (compact === null) return <span className={styles['segments']}>{names.join(separator)}</span>;
+	const { compact, highlights } = state;
+	if (compact === null) {
+		return (
+			<span className={styles['segments']}>
+				<VirtualTreeLabel highlights={highlights} text={names.join(separator)} />
+			</span>
+		);
+	}
 	const last = names.length - 1;
 	const rowId = compact.id;
+	const nameHighlights =
+		highlights.length === 0 ? null : splitHighlights(names, separator, highlights);
 	return (
 		<span className={styles['segments']}>
 			{names.map((name, index) => {
@@ -65,7 +82,9 @@ export function VirtualTreeSegments({
 						key={index}
 						role={item === null ? undefined : 'treeitem'}
 					>
-						<span className={styles['name']}>{name}</span>
+						<span className={styles['name']}>
+							<VirtualTreeLabel highlights={nameHighlights?.[index] ?? NO_HIGHLIGHTS} text={name} />
+						</span>
 						{index < last ? (
 							<span aria-hidden='true' className={styles['separator']}>
 								{separator}
@@ -76,6 +95,29 @@ export function VirtualTreeSegments({
 			})}
 		</span>
 	);
+}
+
+/**
+ * VS Code's `splitMatches`: the highlights in a label that joins the names with the separator, as
+ * each name's own; the characters of a separator are never highlighted.
+ */
+function splitHighlights(
+	names: readonly string[],
+	separator: string,
+	highlights: readonly VirtualTreeHighlight[],
+): readonly (readonly VirtualTreeHighlight[])[] {
+	let nameStart = 0;
+	return names.map((name) => {
+		const nameEnd = nameStart + name.length;
+		const own: VirtualTreeHighlight[] = [];
+		for (const { end, start } of highlights) {
+			const from = Math.max(start, nameStart);
+			const to = Math.min(end, nameEnd);
+			if (from < to) own.push({ end: to - nameStart, start: from - nameStart });
+		}
+		nameStart = nameEnd + separator.length;
+		return own;
+	});
 }
 
 /**

@@ -68,7 +68,7 @@ export function VirtualTreeSlot<K, T>({
 			selected={selected}
 			top={shown.top}
 		>
-			{renderRow(row, { compact, focused, selected })}
+			{renderRow(row, { compact, focused, highlights: viewport.model.highlightsOf(row), selected })}
 		</VirtualTreeRowView>
 	);
 }

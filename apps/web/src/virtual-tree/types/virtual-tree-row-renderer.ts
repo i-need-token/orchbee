@@ -1,6 +1,6 @@
 import type * as React from 'react';
 
-import type { VirtualTreeRow } from '../model/virtual-tree-types';
+import type { VirtualTreeHighlight, VirtualTreeRow } from '../model/virtual-tree-types';
 
 /** What `VirtualTreeSegments` draws the items of a compact row with, besides their names. */
 interface VirtualTreeCompactRowState {
@@ -28,6 +28,11 @@ export interface VirtualTreeRowState {
 	 * renderer passes this state on to it whole; null for a row of one item.
 	 */
 	readonly compact: VirtualTreeCompactRowState | null;
+	/**
+	 * The characters of the row's `keyboardNavigationLabel` that the find matched, for
+	 * `VirtualTreeLabel` or `VirtualTreeSegments` to highlight; empty while it matched none.
+	 */
+	readonly highlights: readonly VirtualTreeHighlight[];
 }
 
 /**

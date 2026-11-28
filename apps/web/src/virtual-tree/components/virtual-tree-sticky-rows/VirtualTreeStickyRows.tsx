@@ -78,7 +78,12 @@ function StickySlot<K, T>({ index, renderRow, viewport }: StickySlotProps<K, T>)
 			selected={false}
 			top={sticky.top}
 		>
-			{renderRow(row, { compact, focused: false, selected: false })}
+			{renderRow(row, {
+				compact,
+				focused: false,
+				highlights: viewport.model.highlightsOf(row),
+				selected: false,
+			})}
 		</VirtualTreeRowView>
 	);
 }

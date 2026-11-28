@@ -1,0 +1,4 @@
+/* VS Code colors the characters a find matched with its list highlight foreground, a link blue. */
+.highlight {
+	color: var(--ob-sys-color-text-link);
+}
