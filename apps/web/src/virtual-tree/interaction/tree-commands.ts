@@ -1,3 +1,4 @@
+import type { TreeFind } from '../find/TreeFind';
 import type { TreeViewport } from '../layout/TreeViewport';
 import type { VirtualTreeModel } from '../model/VirtualTreeModel';
 import type { VirtualTreeRow, VirtualTreeSegment } from '../model/virtual-tree-types';
@@ -7,6 +8,20 @@ import type { TreeKeyCommand } from './tree-keys';
 /** Asks the view to open a row. */
 export type OpenTreeRow<K, T> = (event: VirtualTreeOpenEvent<K, T>) => void;
 
+/** What the tree's keys act through besides its viewport. */
+export interface TreeKeyContext<K, T> {
+	readonly open: OpenTreeRow<K, T>;
+	/** The tree's find, which also decides where moving focus may land; null when it finds nothing. */
+	readonly find: TreeFind<K, T> | null;
+}
+
+/** Whether a key that moves focus may land on a row. */
+type FocusFilter<K, T> = (row: VirtualTreeRow<K, T>) => boolean;
+
+function anyRow(): boolean {
+	return true;
+}
+
 /** How far Ctrl+Up and Ctrl+Down scroll, in CSS pixels, as in VS Code. */
 const SCROLL_STEP = 10;
 
@@ -15,27 +30,37 @@ const SCROLL_STEP = 10;
  * applied. A command applies whenever VS Code's would run; one that does not leaves the key to the
  * next command bound to it, or to the page. Moving focus starts from the top while a collapsed
  * parent hides the focused row, as in VS Code's list, and a row hidden that way neither expands nor
- * opens.
+ * opens. While a find applies, the keys that move focus land only where it allows, except the
+ * `focusAny` family.
  */
 export function runTreeKeyCommand<K, T>(
 	viewport: TreeViewport<K, T>,
 	command: TreeKeyCommand,
-	open: OpenTreeRow<K, T>,
+	{ find, open }: TreeKeyContext<K, T>,
 ): boolean {
 	const count = viewport.model.rowCount;
+	const allows: FocusFilter<K, T> = find?.allowsFocus ?? anyRow;
 	switch (command) {
 		case 'focusNext':
-			return navigate(viewport, nextIndex(viewport));
+			return navigate(viewport, nextIndex(viewport, allows));
 		case 'focusPrevious':
-			return navigate(viewport, previousIndex(viewport));
+			return navigate(viewport, previousIndex(viewport, allows));
+		case 'focusAnyDown':
+			return navigate(viewport, nextIndex(viewport, anyRow));
+		case 'focusAnyUp':
+			return navigate(viewport, previousIndex(viewport, anyRow));
 		case 'focusFirst':
+			return navigate(viewport, allowedFrom(viewport, 0, allows));
+		case 'focusAnyFirst':
 			return navigate(viewport, count > 0 ? 0 : -1);
 		case 'focusLast':
+			return navigate(viewport, allowedBefore(viewport, count - 1, allows));
+		case 'focusAnyLast':
 			return navigate(viewport, count - 1);
 		case 'focusPageDown':
-			return navigate(viewport, pageDownIndex(viewport));
+			return navigate(viewport, pageDownIndex(viewport, allows));
 		case 'focusPageUp':
-			return navigate(viewport, pageUpIndex(viewport));
+			return navigate(viewport, pageUpIndex(viewport, allows));
 		case 'previousSegment':
 			return focusSegment(viewport, (index) => index - 1);
 		case 'nextSegment':
@@ -45,9 +70,9 @@ export function runTreeKeyCommand<K, T>(
 		case 'lastSegment':
 			return focusSegment(viewport, (_, segments) => segments - 1);
 		case 'expandSelectionDown':
-			return expandSelection(viewport, nextIndex(viewport), open);
+			return expandSelection(viewport, nextIndex(viewport, allows), open);
 		case 'expandSelectionUp':
-			return expandSelection(viewport, previousIndex(viewport), open);
+			return expandSelection(viewport, previousIndex(viewport, allows), open);
 		case 'collapse':
 			return collapseOrFocusParent(viewport);
 		case 'collapseAll':
@@ -72,6 +97,14 @@ export function runTreeKeyCommand<K, T>(
 		case 'scrollDown':
 			if (viewport.content.height - viewport.viewportHeight - viewport.scrollTop < 1) return false;
 			viewport.scrollTo(viewport.scrollTop + SCROLL_STEP);
+			return true;
+		case 'find':
+			if (find === null) return false;
+			find.open();
+			return true;
+		case 'closeFind':
+			if (find?.getSnapshot().open !== true) return false;
+			find.close();
 			return true;
 	}
 }
@@ -135,19 +168,42 @@ function navigate<K, T>(viewport: TreeViewport<K, T>, index: number): true {
 	return true;
 }
 
-/** The row below focus, the first row without focus, and -1 past the last row. */
-function nextIndex<K, T>(viewport: TreeViewport<K, T>): number {
-	const count = viewport.model.rowCount;
-	const focus = viewport.focusIndex;
-	const index = focus < 0 ? 0 : focus + 1;
-	return index < count ? index : -1;
+/** VS Code's `findNextIndex`: the first row from `index` down that `allows` takes, or -1. */
+function allowedFrom<K, T>(
+	viewport: TreeViewport<K, T>,
+	index: number,
+	allows: FocusFilter<K, T>,
+): number {
+	const { model } = viewport;
+	for (let position = Math.max(index, 0); position < model.rowCount; position += 1) {
+		if (allows(model.rowAt(position))) return position;
+	}
+	return -1;
 }
 
-/** The row above focus, the first row without focus, and -1 above the first row. */
-function previousIndex<K, T>(viewport: TreeViewport<K, T>): number {
-	if (viewport.model.rowCount === 0) return -1;
+/** VS Code's `findPreviousIndex`: the first row from `index` up that `allows` takes, or -1. */
+function allowedBefore<K, T>(
+	viewport: TreeViewport<K, T>,
+	index: number,
+	allows: FocusFilter<K, T>,
+): number {
+	const { model } = viewport;
+	for (let position = Math.min(index, model.rowCount - 1); position >= 0; position -= 1) {
+		if (allows(model.rowAt(position))) return position;
+	}
+	return -1;
+}
+
+/** The next row below focus that `allows` takes, from the first row without focus; -1 for none. */
+function nextIndex<K, T>(viewport: TreeViewport<K, T>, allows: FocusFilter<K, T>): number {
 	const focus = viewport.focusIndex;
-	return focus < 0 ? 0 : focus - 1;
+	return allowedFrom(viewport, focus < 0 ? 0 : focus + 1, allows);
+}
+
+/** The next row above focus that `allows` takes, from the first row without focus; -1 for none. */
+function previousIndex<K, T>(viewport: TreeViewport<K, T>, allows: FocusFilter<K, T>): number {
+	const focus = viewport.focusIndex;
+	return allowedBefore(viewport, focus < 0 ? 0 : focus - 1, allows);
 }
 
 /** The last row the view shows whole, or the one a row cut by its bottom edge follows. */
@@ -165,28 +221,44 @@ function firstPageIndex<K, T>(viewport: TreeViewport<K, T>): number {
 }
 
 /**
- * VS Code's Page Down: focus goes to the last row in sight, or, when it is there already, the view
- * scrolls a page and focus goes to the last row in sight then.
+ * Where a page key lands, as VS Code's lists pick: the row `allows` takes nearest the page's edge,
+ * unless there is none or focus is on it already, and then the edge row itself.
  */
-function pageDownIndex<K, T>(viewport: TreeViewport<K, T>): number {
+function pageTarget(allowed: number, edge: number, focus: number): number {
+	return allowed > -1 && allowed !== focus ? allowed : edge;
+}
+
+/**
+ * VS Code's Page Down: focus goes to the last row in sight, or, when it is there already, the view
+ * scrolls a page and focus goes to the last row in sight then; a find moves it up to a row it allows.
+ */
+function pageDownIndex<K, T>(viewport: TreeViewport<K, T>, allows: FocusFilter<K, T>): number {
 	if (viewport.model.rowCount === 0) return -1;
 	const focus = viewport.focusIndex;
 	const last = lastPageIndex(viewport);
-	if (focus !== last && (focus < 0 || last > focus)) return last;
+	if (focus !== last && (focus < 0 || last > focus)) {
+		return pageTarget(allowedBefore(viewport, last, allows), last, focus);
+	}
 	const before = viewport.scrollTop;
 	viewport.scrollTo(before + viewport.viewportHeight);
-	return viewport.scrollTop === before ? -1 : lastPageIndex(viewport);
+	if (viewport.scrollTop === before) return -1;
+	const next = lastPageIndex(viewport);
+	return pageTarget(allowedBefore(viewport, next, allows), next, -1);
 }
 
 /** VS Code's Page Up, the mirror of Page Down below the sticky rows. */
-function pageUpIndex<K, T>(viewport: TreeViewport<K, T>): number {
+function pageUpIndex<K, T>(viewport: TreeViewport<K, T>, allows: FocusFilter<K, T>): number {
 	if (viewport.model.rowCount === 0) return -1;
 	const focus = viewport.focusIndex;
 	const first = firstPageIndex(viewport);
-	if (focus !== first && (focus < 0 || focus >= first)) return first;
+	if (focus !== first && (focus < 0 || focus >= first)) {
+		return pageTarget(allowedFrom(viewport, first, allows), first, focus);
+	}
 	const before = viewport.scrollTop + viewport.stickyHeight;
 	viewport.scrollTo(viewport.scrollTop - viewport.viewportHeight);
-	return viewport.scrollTop + viewport.stickyHeight === before ? -1 : firstPageIndex(viewport);
+	if (viewport.scrollTop + viewport.stickyHeight === before) return -1;
+	const next = firstPageIndex(viewport);
+	return pageTarget(allowedFrom(viewport, next, allows), next, -1);
 }
 
 /**

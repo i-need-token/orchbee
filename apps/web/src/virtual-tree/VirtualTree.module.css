@@ -1,0 +1,10 @@
+/* The tree fills its container, which gives it a definite size: the find above, while it shows, and
+   the rows below it in the rest. Its layers stack among themselves, under the page's menus. */
+.root {
+	position: relative;
+	isolation: isolate;
+	display: flex;
+	flex-direction: column;
+	block-size: 100%;
+	inline-size: 100%;
+}

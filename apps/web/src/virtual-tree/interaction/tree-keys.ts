@@ -11,12 +11,18 @@ import {
  */
 export type TreeKeyCommand =
 	| 'clear'
+	| 'closeFind'
 	| 'collapse'
 	| 'collapseAll'
 	| 'expand'
 	| 'expandSelectionDown'
 	| 'expandSelectionUp'
+	| 'find'
 	| 'firstSegment'
+	| 'focusAnyDown'
+	| 'focusAnyFirst'
+	| 'focusAnyLast'
+	| 'focusAnyUp'
 	| 'focusFirst'
 	| 'focusLast'
 	| 'focusNext'
@@ -48,23 +54,23 @@ function bind(
 
 /**
  * VS Code's default list and tree keys on Windows and Linux. Alt with an arrow, Home or End is VS
- * Code's `focusAny` family, which differs from plain focus only while find filters the rows. Within
- * a compact row, Left, Right, Home and End first move among its items, as VS Code's Explorer binds
- * them over its list's keys.
+ * Code's `focusAny` family, which lands on rows a find would pass over. Within a compact row, Left,
+ * Right, Home and End first move among its items, as VS Code's Explorer binds them over its list's
+ * keys, and Escape closes an open find before it clears anything.
  */
 const STANDARD_KEYS: readonly TreeKeyBinding[] = [
 	bind('ArrowDown', 'focusNext'),
 	bind('ArrowUp', 'focusPrevious'),
-	bind('ArrowDown', 'focusNext', ['alt']),
-	bind('ArrowUp', 'focusPrevious', ['alt']),
+	bind('ArrowDown', 'focusAnyDown', ['alt']),
+	bind('ArrowUp', 'focusAnyUp', ['alt']),
 	bind('PageDown', 'focusPageDown'),
 	bind('PageUp', 'focusPageUp'),
 	bind('Home', 'firstSegment'),
 	bind('Home', 'focusFirst'),
 	bind('End', 'lastSegment'),
 	bind('End', 'focusLast'),
-	bind('Home', 'focusFirst', ['alt']),
-	bind('End', 'focusLast', ['alt']),
+	bind('Home', 'focusAnyFirst', ['alt']),
+	bind('End', 'focusAnyLast', ['alt']),
 	bind('ArrowDown', 'expandSelectionDown', ['shift']),
 	bind('ArrowUp', 'expandSelectionUp', ['shift']),
 	bind('ArrowLeft', 'previousSegment'),
@@ -76,9 +82,12 @@ const STANDARD_KEYS: readonly TreeKeyBinding[] = [
 	bind('KeyA', 'selectAll', ['mod']),
 	bind('Enter', 'toggleSelection', ['mod', 'shift']),
 	bind('Space', 'toggleExpand'),
+	bind('Escape', 'closeFind'),
 	bind('Escape', 'clear'),
 	bind('ArrowUp', 'scrollUp', ['mod']),
 	bind('ArrowDown', 'scrollDown', ['mod']),
+	bind('KeyF', 'find', ['mod', 'alt']),
+	bind('F3', 'find'),
 ];
 
 /**
@@ -92,18 +101,18 @@ const APPLE_KEYS: readonly TreeKeyBinding[] = [
 	bind('KeyN', 'focusNext', ['control']),
 	bind('ArrowUp', 'focusPrevious'),
 	bind('KeyP', 'focusPrevious', ['control']),
-	bind('ArrowDown', 'focusNext', ['alt']),
-	bind('KeyN', 'focusNext', ['control', 'alt']),
-	bind('ArrowUp', 'focusPrevious', ['alt']),
-	bind('KeyP', 'focusPrevious', ['control', 'alt']),
+	bind('ArrowDown', 'focusAnyDown', ['alt']),
+	bind('KeyN', 'focusAnyDown', ['control', 'alt']),
+	bind('ArrowUp', 'focusAnyUp', ['alt']),
+	bind('KeyP', 'focusAnyUp', ['control', 'alt']),
 	bind('PageDown', 'focusPageDown'),
 	bind('PageUp', 'focusPageUp'),
 	bind('Home', 'firstSegment'),
 	bind('Home', 'focusFirst'),
 	bind('End', 'lastSegment'),
 	bind('End', 'focusLast'),
-	bind('Home', 'focusFirst', ['alt']),
-	bind('End', 'focusLast', ['alt']),
+	bind('Home', 'focusAnyFirst', ['alt']),
+	bind('End', 'focusAnyLast', ['alt']),
 	bind('ArrowDown', 'expandSelectionDown', ['shift']),
 	bind('ArrowUp', 'expandSelectionUp', ['shift']),
 	bind('ArrowLeft', 'previousSegment'),
@@ -119,7 +128,10 @@ const APPLE_KEYS: readonly TreeKeyBinding[] = [
 	bind('KeyA', 'selectAll', ['mod']),
 	bind('Enter', 'toggleSelection', ['mod', 'shift']),
 	bind('Space', 'toggleExpand'),
+	bind('Escape', 'closeFind'),
 	bind('Escape', 'clear'),
+	bind('KeyF', 'find', ['mod', 'alt']),
+	bind('F3', 'find'),
 ];
 
 const KEYS: Readonly<Record<KeyboardShortcutPlatform, readonly TreeKeyBinding[]>> = {
@@ -130,28 +142,46 @@ const KEYS: Readonly<Record<KeyboardShortcutPlatform, readonly TreeKeyBinding[]>
 /** Shift+F10 asks for the context menu of the focused row, as the context menu key does. */
 const CONTEXT_MENU_CHORD: KeyboardShortcutChord = { code: 'F10', modifiers: ['shift'] };
 
+/** The commands only a tree that finds rows answers. */
+const FIND_COMMANDS: ReadonlySet<TreeKeyCommand> = new Set(['closeFind', 'find']);
+
 function chordsOf(
 	bindings: readonly TreeKeyBinding[],
 	platform: KeyboardShortcutPlatform,
+	find: boolean,
 ): readonly KeyboardShortcutChord[] {
 	const chords = new Map<string, KeyboardShortcutChord>();
-	for (const chord of [...bindings.map((binding) => binding.chord), CONTEXT_MENU_CHORD]) {
+	const bound = bindings.filter((binding) => find || !FIND_COMMANDS.has(binding.command));
+	for (const chord of [...bound.map((binding) => binding.chord), CONTEXT_MENU_CHORD]) {
 		chords.set(keyboardShortcutChordKey(chord, platform), chord);
 	}
 	return Object.freeze([...chords.values()]);
 }
 
+const KEY_CHORDS: Readonly<
+	Record<
+		KeyboardShortcutPlatform,
+		Readonly<Record<'find' | 'plain', readonly KeyboardShortcutChord[]>>
+	>
+> = {
+	apple: { find: chordsOf(APPLE_KEYS, 'apple', true), plain: chordsOf(APPLE_KEYS, 'apple', false) },
+	standard: {
+		find: chordsOf(STANDARD_KEYS, 'standard', true),
+		plain: chordsOf(STANDARD_KEYS, 'standard', false),
+	},
+};
+
 /**
- * The chords a focused tree handles itself on each platform. The tree registers them as its
- * keyboard scope's `yields`, so no wider binding, such as the window's `Mod+Shift+Enter`, takes
- * them from the tree.
+ * The chords a focused tree handles itself on a platform, with the find's when it finds rows. The
+ * tree registers them as its keyboard scope's `yields`, so no wider binding, such as the window's
+ * `Mod+Shift+Enter`, takes them from the tree.
  */
-export const VIRTUAL_TREE_KEY_CHORDS: Readonly<
-	Record<KeyboardShortcutPlatform, readonly KeyboardShortcutChord[]>
-> = Object.freeze({
-	apple: chordsOf(APPLE_KEYS, 'apple'),
-	standard: chordsOf(STANDARD_KEYS, 'standard'),
-});
+export function virtualTreeKeyChords(
+	platform: KeyboardShortcutPlatform,
+	find: boolean,
+): readonly KeyboardShortcutChord[] {
+	return find ? KEY_CHORDS[platform].find : KEY_CHORDS[platform].plain;
+}
 
 /** Numeric-pad keys that move as their arrows do while Num Lock is off. */
 const NUMPAD_NAVIGATION_KEYS = new Set([

@@ -1,0 +1,91 @@
+/* VS Code's tree find widget, as a band above the rows in place of the 30 px it pads the tree by.
+   It stacks over the rows and their sticky layer so its message can cover the first of them. */
+.band {
+	position: relative;
+	z-index: var(--ob-ref-layer-overlay);
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-0-5);
+	padding: var(--ob-ref-space-1);
+	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
+}
+
+/* The toggles sit inside the input's end, as in VS Code's find input. */
+.field {
+	position: relative;
+	min-width: var(--ob-ref-space-0);
+	flex: 1;
+}
+
+.field .input {
+	min-width: var(--ob-ref-space-0);
+	height: var(--ob-ref-size-control-sm);
+	padding-inline-end: calc(
+		var(--ob-ref-size-control-xs) + var(--ob-ref-size-control-xs) + var(--ob-ref-space-0-5) +
+			var(--ob-ref-space-2)
+	);
+	font: var(--ob-sys-typography-label-md);
+}
+
+.field .input:focus-visible {
+	box-shadow: none;
+}
+
+.toggles {
+	position: absolute;
+	inset-block-start: 50%;
+	inset-inline-end: var(--ob-ref-space-1);
+	display: flex;
+	gap: var(--ob-ref-space-0-5);
+	transform: translateY(-50%);
+}
+
+.toggle {
+	width: var(--ob-ref-size-control-xs);
+	height: var(--ob-ref-size-control-xs);
+	min-width: var(--ob-ref-size-control-xs);
+	padding: var(--ob-ref-space-0);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	color: var(--ob-sys-color-text-secondary);
+}
+
+.toggle[aria-pressed='true'] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.close {
+	color: var(--ob-sys-color-icon-muted);
+}
+
+/* VS Code's warning message under the input, opaque over the rows it covers. */
+.message {
+	position: absolute;
+	inset-block-start: 100%;
+	inset-inline: var(--ob-ref-space-1);
+	margin: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-1) var(--ob-ref-space-1-5);
+	border: var(--ob-ref-border-width-default) solid var(--ob-sys-color-status-warning-border);
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background:
+		linear-gradient(
+			var(--ob-sys-color-status-warning-surface),
+			var(--ob-sys-color-status-warning-surface)
+		),
+		var(--ob-sys-color-surface-overlay);
+	box-shadow: var(--ob-sys-shadow-overlay);
+	color: var(--ob-sys-color-status-warning-text);
+	font: var(--ob-sys-typography-label-sm);
+	overflow-wrap: anywhere;
+}
+
+.liveRegion {
+	position: absolute;
+	width: var(--ob-ref-border-width-default);
+	height: var(--ob-ref-border-width-default);
+	padding: var(--ob-ref-space-0);
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}

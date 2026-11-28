@@ -36,6 +36,7 @@ interface VirtualTreeFixture {
 	collapse(key: string): void;
 	measureDragStart(): Promise<unknown>;
 	measureExpand(): Promise<unknown>;
+	measureFind(mode: 'filter' | 'highlight', patterns: readonly string[]): Promise<unknown>;
 	measureScroll(pixelsPerFrame: number, frames: number): Promise<unknown>;
 	measureSelectAll(): Promise<unknown>;
 	measureSelectSiblings(): Promise<unknown>;
@@ -60,6 +61,17 @@ const paintedChangeSchema = z.object({
 const expandSchema = paintedChangeSchema.extend({ rowCount: z.number() });
 const selectAllSchema = paintedChangeSchema.extend({ selected: z.number() });
 const typeNavigationSchema = z.object({ rowCount: z.number(), scriptMs: z.number() });
+const findKeystrokesSchema = z.array(
+	z.object({
+		appliedMs: z.number(),
+		inputMs: z.number(),
+		longestTaskMs: z.number(),
+		matchCount: z.number(),
+		pattern: z.string(),
+		rowCount: z.number(),
+		toPaintMs: z.number(),
+	}),
+);
 const dragStartSchema = z.object({
 	carried: z.number(),
 	renderMs: z.number(),
@@ -289,6 +301,69 @@ test('virtual tree answers keys, clicks and the context menu as VS Code does', a
 	// A click on the empty space clears focus, selection and anchor.
 	await page.mouse.click(emptySpace.x, emptySpace.y);
 	expect(await state()).toEqual({ anchor: null, focus: null, rowCount: 3, selection: [] });
+});
+
+test('virtual tree finds rows as VS Code’s tree find does', async ({ page }) => {
+	await openFixture(page);
+	const tree = page.getByRole('tree');
+	const find = page.getByRole('search', { name: 'Find' });
+	const input = find.getByRole('textbox', { name: 'Type to search' });
+	const announced = page.getByRole('status');
+	const state = async () =>
+		treeStateSchema.parse(
+			await page.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.state()),
+		);
+	const highlighted = (name: string) =>
+		page.getByRole('treeitem', { exact: true, name }).locator('[class*="highlight"]');
+
+	// Ctrl+Alt+F, Cmd+Alt+F on macOS, opens the find above the rows and focuses its input.
+	await page.getByRole('treeitem', { exact: true, name: 'package.json' }).click();
+	await page.keyboard.press('ControlOrMeta+Alt+KeyF');
+	await expect(input).toBeFocused();
+	await expect(find).toMatchAriaSnapshot(`
+		- search "Find":
+		  - textbox "Type to search"
+		  - button "Filter"
+		  - button "Fuzzy Match" [pressed]
+		  - button "Close"
+	`);
+
+	// Typing moves focus to the first match, highlights what matched and announces the count.
+	await page.keyboard.type('READ');
+	await expect.poll(async () => (await state()).focus).toBe('README.md');
+	await expect(highlighted('README.md')).toHaveText(['READ']);
+	await expect(announced).toHaveText('1 result');
+
+	// Filter keeps the matched rows alone, and a click on it leaves focus in the input.
+	await find.getByRole('button', { name: 'Filter' }).click();
+	await expect.poll(async () => (await state()).rowCount).toBe(1);
+	await expect(input).toBeFocused();
+	await expect(input).toHaveAttribute('placeholder', 'Type to filter');
+	await page.keyboard.type('X');
+	await expect(find.getByText('No results found.')).toBeVisible();
+	await expect(announced).toHaveText('No results');
+
+	// Escape shows every row again and returns focus to the tree.
+	await page.keyboard.press('Escape');
+	await expect(find).toBeHidden();
+	await expect(tree).toBeFocused();
+	expect(await state()).toMatchObject({ focus: 'README.md', rowCount: 3 });
+
+	// F3 opens it again with the pattern it closed with, selected, still filtering; Enter returns
+	// to the tree and leaves it open.
+	await page.keyboard.press('F3');
+	await expect(input).toHaveValue('READX');
+	expect(
+		await input.evaluate((element) =>
+			element instanceof HTMLInputElement ? [element.selectionStart, element.selectionEnd] : null,
+		),
+	).toEqual([0, 5]);
+	await page.keyboard.press('End');
+	await page.keyboard.press('Backspace');
+	await expect.poll(async () => (await state()).rowCount).toBe(1);
+	await page.keyboard.press('Enter');
+	await expect(tree).toBeFocused();
+	await expect(find).toBeVisible();
 });
 
 test('virtual tree drags rows and takes drops as VS Code does', async ({ page }) => {
@@ -573,6 +648,14 @@ test('virtual tree joins folders into compact rows and acts on their items as VS
 	await page.mouse.up();
 	expect(await drops()).toEqual([{ ctrlKey: false, keys: ['src'], target: null }]);
 	expect(await requests()).toEqual([]);
+
+	// The find highlights the characters each name matched, and never a separator.
+	await tree.focus();
+	await page.keyboard.press('ControlOrMeta+Alt+KeyF');
+	await page.keyboard.type('p/l');
+	await expect(items.nth(1).locator('[class*="highlight"]')).toHaveText(['p']);
+	await expect(items.nth(2).locator('[class*="highlight"]')).toHaveText(['l']);
+	await expect(items.nth(0).locator('[class*="highlight"]')).toHaveCount(0);
 });
 
 test('virtual tree render benchmark', async ({ browser, page }) => {
@@ -625,10 +708,38 @@ test('virtual tree render benchmark', async ({ browser, page }) => {
 			.then((result) => dragStartSchema.parse(result)),
 	);
 	expect(dragStart.every((run) => run.carried === largeFolderRows)).toBe(true);
+	// Typing into the find over the expanded folder: every file matches `f`, and `9` matches 40,951.
+	const findHighlight = await repeat(() =>
+		page
+			.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.measureFind('highlight', [
+					'f',
+					'fi',
+					'',
+				]),
+			)
+			.then((result) => findKeystrokesSchema.parse(result)),
+	);
+	const findFilter = await repeat(() =>
+		page
+			.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.measureFind('filter', [
+					'9',
+					'99',
+					'',
+				]),
+			)
+			.then((result) => findKeystrokesSchema.parse(result)),
+	);
+	expect(findFilter.every(([nine]) => nine?.matchCount === 40_951)).toBe(true);
 
 	const report = {
 		dragStart: medians(dragStart),
 		expand: medians(expand),
+		find: {
+			filter: keystrokeMedians(findFilter),
+			highlight: keystrokeMedians(findHighlight),
+		},
 		scroll,
 		selectAll: medians(selectAll),
 		selectSiblings: medians(selectSiblings),
@@ -673,6 +784,20 @@ async function repeat<Result>(run: () => Promise<Result>): Promise<Result[]> {
 		run,
 	);
 	return results.slice(2);
+}
+
+/** Each keystroke's medians over the runs, keyed by the pattern it typed. */
+function keystrokeMedians(runs: readonly z.infer<typeof findKeystrokesSchema>[]) {
+	const keystrokes = new Map<string, Record<string, number>[]>();
+	for (const run of runs) {
+		for (const { pattern, ...timings } of run) {
+			const key = pattern === '' ? '(empty)' : pattern;
+			keystrokes.set(key, [...(keystrokes.get(key) ?? []), timings]);
+		}
+	}
+	return Object.fromEntries(
+		Array.from(keystrokes, ([pattern, timings]) => [pattern, medians(timings)]),
+	);
 }
 
 function medians<Result extends Record<string, number>>(runs: readonly Result[]) {

@@ -1,6 +1,7 @@
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { TreeFind } from '../../find/TreeFind';
 import { TreeViewport } from '../../layout/TreeViewport';
 import { VirtualTreeModel } from '../../model/VirtualTreeModel';
 import type { VirtualTreeRow } from '../../model/virtual-tree-types';
@@ -56,6 +57,18 @@ async function openTree(items: readonly Item[], expanded: readonly string[] = []
 	const open = (event: VirtualTreeOpenEvent<string, Item>) => {
 		opened.push(event);
 	};
+	let find: TreeFind<string, Item> | null = null;
+	/** Gives the tree a find over its keys' labels, as a tree with type navigation labels has. */
+	const startFind = (): TreeFind<string, Item> => {
+		const started = new TreeFind(viewport, {
+			focusTree: () => undefined,
+			label: (row: VirtualTreeRow<string, Item>) => row.key,
+			provider: () => null,
+		});
+		started.connect();
+		find = started;
+		return started;
+	};
 	/** Presses a key as the focused tree does, and reports whether the tree used it. */
 	const press = (
 		code: string,
@@ -71,14 +84,14 @@ async function openTree(items: readonly Item[], expanded: readonly string[] = []
 			shiftKey: modifiers.shiftKey ?? false,
 		};
 		return treeKeyCommands(event, platform).some((command) =>
-			runTreeKeyCommand(viewport, command, open),
+			runTreeKeyCommand(viewport, command, { find, open }),
 		);
 	};
 	const takeOpened = () =>
 		opened
 			.splice(0)
 			.map(({ pinned, preserveFocus, row }) => ({ key: row.key, pinned, preserveFocus }));
-	return { model, press, takeOpened, viewport };
+	return { model, press, startFind, takeOpened, viewport };
 }
 
 function selected(model: VirtualTreeModel<string, Item>): string[] {
@@ -195,6 +208,43 @@ describe('tree keys', () => {
 		press('Escape');
 		expect([model.focus, selected(model)]).toEqual([null, []]);
 		expect(press('Escape')).toBe(false);
+	});
+
+	it('moves focus only to rows the find matched while two or more match, and to any row with Alt', async () => {
+		const others = Array.from({ length: 8 }, (_, index) => file(`b${index + 2}`));
+		const { model, press, startFind } = await openTree([
+			file('b0'),
+			file('a1'),
+			file('b1'),
+			file('a2'),
+			...others,
+			file('a3'),
+			file('bz'),
+		]);
+		const find = startFind();
+		find.open();
+		find.type('a');
+		await vi.waitFor(() => {
+			expect(model.findStatus?.query.pattern).toBe('a');
+		});
+		expect(model.focus).toBe('a1');
+
+		const focusAfter = (code: string, modifiers: KeyModifiers = {}) => {
+			press(code, modifiers);
+			return model.focus;
+		};
+		expect([
+			focusAfter('ArrowDown'),
+			focusAfter('ArrowDown', { altKey: true }),
+			focusAfter('ArrowUp'),
+			focusAfter('Home'),
+			focusAfter('Home', { altKey: true }),
+			focusAfter('End'),
+			focusAfter('End', { altKey: true }),
+			focusAfter('Home'),
+			// The last matched row in sight, where the page's last row does not match.
+			focusAfter('PageDown'),
+		]).toEqual(['a2', 'b2', 'a2', 'a1', 'b0', 'a3', 'bz', 'a1', 'a2']);
 	});
 
 	it('scrolls with Cmd+Up on macOS until the top, where it collapses, and with Ctrl+Up only elsewhere', async () => {

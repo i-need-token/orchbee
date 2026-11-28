@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { PointerDragKind } from '../pointer-drag';
 import {
 	VirtualTree,
+	VirtualTreeLabel,
 	VirtualTreeModel,
 	VirtualTreeSegments,
 	type VirtualTreeContextMenuEvent,
@@ -22,9 +23,10 @@ import {
 // and a frame's rendering ends when a task posted from its animation frame callback runs. The page
 // also records the rows the tree asks to open, the context menus it asks for and the drops it takes,
 // which the interaction checks read. Its rows drag as the Explorer's do: a folder takes a drop and
-// expands under a resting drag, a file hands the drop to its folder, and no row takes itself. With
-// `?tree=compact`, the page shows a small tree whose folders join into compact rows, as VS Code's
-// Explorer shows compact folders, and starts with every folder expanded.
+// expands under a resting drag, a file hands the drop to its folder, and no row takes itself. Its
+// rows highlight what the tree's find matched in their names. With `?tree=compact`, the page shows a
+// small tree whose folders join into compact rows, as VS Code's Explorer shows compact folders, and
+// starts with every folder expanded.
 
 interface FixtureItem {
 	readonly key: string;
@@ -198,7 +200,17 @@ const props: VirtualTreeProps<string, FixtureItem> = {
 	platform: /^(?:Mac|iPhone|iPad|iPod)/u.test(navigator.platform) ? 'apple' : 'standard',
 	renderRow: compact
 		? (row, state) => createElement(VirtualTreeSegments, { names: namesOf(row), state })
-		: (row) => row.element.label,
+		: // The label's parts stay one line of text in an element of their own, not items of the row's
+			// flex content.
+			(row, state) =>
+				createElement(
+					'span',
+					null,
+					createElement(VirtualTreeLabel, {
+						highlights: state.highlights,
+						text: row.element.label,
+					}),
+				),
 };
 // The application's English messages, as the product names a compact row's items with them.
 createRoot(host).render(
@@ -355,9 +367,10 @@ async function measureSelectAll() {
 }
 
 /** Presses a key on the tree element, as the keyboard does while the tree has focus. */
-function pressKey(code: string, key: string, primaryModifier = false): void {
+function pressKey(code: string, key: string, primaryModifier = false, altKey = false): void {
 	host.querySelector('[role="tree"]')?.dispatchEvent(
 		new KeyboardEvent('keydown', {
+			altKey,
 			bubbles: true,
 			cancelable: true,
 			code,
@@ -430,10 +443,118 @@ async function measureTypeNavigation() {
 	return { rowCount: model.rowCount, scriptMs: performance.now() - start };
 }
 
+/** The find's band while it is open. */
+function findBand(): Element {
+	const band = host.querySelector('[data-slot="virtual-tree-find"]');
+	if (band === null) throw new Error('The find is not open.');
+	return band;
+}
+
+/** Changes the find's input as typing does: React hears the new value through the input event. */
+function typeInFind(value: string): void {
+	const findInput = findBand().querySelector('input');
+	if (findInput === null) throw new Error('The find has no input.');
+	Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(findInput, value);
+	findInput.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+/** Resolves with the time the rows show the find for `pattern`, or no find for an empty one. */
+function findApplied(pattern: string): Promise<number> {
+	const shown = () => (model.findStatus?.query.pattern ?? '') === pattern;
+	if (shown()) return Promise.resolve(performance.now());
+	return new Promise((resolve) => {
+		const stop = model.subscribe(() => {
+			if (!shown()) return;
+			stop();
+			resolve(performance.now());
+		});
+	});
+}
+
+/**
+ * Watches the main thread until the returned function is called, which reports the longest time
+ * between two of the watcher's own tasks: a bound on the longest task that ran meanwhile.
+ */
+function watchTasks(): () => number {
+	const channel = new MessageChannel();
+	let previous = performance.now();
+	let longest = 0;
+	let watching = true;
+	channel.port1.addEventListener('message', () => {
+		const now = performance.now();
+		longest = Math.max(longest, now - previous);
+		previous = now;
+		if (watching) channel.port2.postMessage(null);
+	});
+	channel.port1.start();
+	channel.port2.postMessage(null);
+	return () => {
+		watching = false;
+		channel.port1.close();
+		return Math.max(longest, performance.now() - previous);
+	};
+}
+
+/**
+ * Types `pattern` into the open find and times it from its input event: the event's own task, until
+ * the rows show the find, until that has painted, and the longest task meanwhile, which the find's
+ * slices keep short.
+ */
+async function timeFindKeystroke(pattern: string) {
+	const stopWatching = watchTasks();
+	const start = performance.now();
+	typeInFind(pattern);
+	const inputMs = performance.now() - start;
+	const appliedAt = await findApplied(pattern);
+	const frame = await nextPaint();
+	const longestTaskMs = stopWatching();
+	await settle();
+	return {
+		appliedMs: appliedAt - start,
+		inputMs,
+		longestTaskMs,
+		matchCount: model.findStatus?.matchCount ?? 0,
+		pattern,
+		rowCount: model.rowCount,
+		toPaintMs: frame.paintedAt - start,
+	};
+}
+
+/**
+ * Opens the find over the expanded folder of 100,000 files in `mode`, times typing each pattern in
+ * turn, and closes the find again.
+ */
+async function measureFind(mode: 'filter' | 'highlight', patterns: readonly string[]) {
+	await model.expand(LARGE_FOLDER);
+	model.setScrollTop(0);
+	model.setFocus(null);
+	pressKey('KeyF', 'f', true, true);
+	await settle();
+	const filter = findBand().querySelector('button[aria-label="Filter"]');
+	if (!(filter instanceof HTMLButtonElement)) throw new Error('The find has no Filter toggle.');
+	if ((filter.getAttribute('aria-pressed') === 'true') !== (mode === 'filter')) filter.click();
+	typeInFind('');
+	await settle();
+	const typed: Awaited<ReturnType<typeof timeFindKeystroke>>[] = [];
+	await patterns.reduce(
+		(previous, pattern) =>
+			previous.then(async () => {
+				typed.push(await timeFindKeystroke(pattern));
+			}),
+		Promise.resolve(),
+	);
+	findBand()
+		.querySelector('input')
+		?.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, code: 'Escape', key: 'Escape' }));
+	await settle();
+	return typed;
+}
+
 Object.defineProperty(window, 'virtualTreeFixture', {
 	value: Object.freeze({
 		measureDragStart,
 		measureExpand,
+		measureFind,
 		measureScroll,
 		measureSelectAll,
 		measureSelectSiblings,

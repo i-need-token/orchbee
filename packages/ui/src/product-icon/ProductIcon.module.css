@@ -143,6 +143,10 @@
 	composes: codicon-link from global;
 }
 
+.listFilter {
+	composes: codicon-list-filter from global;
+}
+
 .loading {
 	composes: codicon-loading from global;
 }
@@ -193,6 +197,10 @@
 
 .search {
 	composes: codicon-search from global;
+}
+
+.searchFuzzy {
+	composes: codicon-search-fuzzy from global;
 }
 
 .screenFull {

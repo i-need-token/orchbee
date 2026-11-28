@@ -40,6 +40,7 @@ export type ProductIconName =
 	| 'keyboard'
 	| 'layout'
 	| 'link'
+	| 'list-filter'
 	| 'loading'
 	| 'machine'
 	| 'more-vertical'
@@ -53,6 +54,7 @@ export type ProductIconName =
 	| 'repo'
 	| 'restore'
 	| 'search'
+	| 'search-fuzzy'
 	| 'screen-full'
 	| 'screen-normal'
 	| 'select-all'
@@ -116,6 +118,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'keyboard' && styles['keyboard'],
 				name === 'layout' && styles['layout'],
 				name === 'link' && styles['link'],
+				name === 'list-filter' && styles['listFilter'],
 				name === 'loading' && styles['loading'],
 				name === 'machine' && styles['machine'],
 				name === 'more-vertical' && styles['moreVertical'],
@@ -129,6 +132,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'repo' && styles['repo'],
 				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
+				name === 'search-fuzzy' && styles['searchFuzzy'],
 				name === 'screen-full' && styles['screenFull'],
 				name === 'screen-normal' && styles['screenNormal'],
 				name === 'select-all' && styles['selectAll'],

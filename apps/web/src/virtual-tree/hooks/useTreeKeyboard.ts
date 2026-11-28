@@ -1,6 +1,7 @@
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
+import type { TreeFind } from '../find/TreeFind';
 import { runTreeKeyCommand, type OpenTreeRow } from '../interaction/tree-commands';
 import { isContextMenuKey, treeKeyCommands } from '../interaction/tree-keys';
 import {
@@ -12,7 +13,8 @@ import type { TreeViewport } from '../layout/TreeViewport';
 
 /**
  * Handles the keys pressed while the tree itself has focus, as VS Code's lists do: its list
- * commands, type navigation when the view supplies labels, Tab into the focused row's first control,
+ * commands, which open and close the find when it has one and move focus only where the find allows,
+ * type navigation when the view supplies labels, Tab into the focused row's first control,
  * and Shift+F10 or the context menu key, which open the context menu beside the focused row once the
  * key is released. Keys pressed in a control inside a row stay with the control, and a key a wider
  * owner took first is left alone. A key the tree uses has its default prevented and still bubbles.
@@ -23,6 +25,7 @@ export function useTreeKeyboard<K, T>(
 	platform: KeyboardShortcutPlatform,
 	open: OpenTreeRow<K, T>,
 	label: VirtualTreeKeyboardNavigationLabel<K, T> | null,
+	find: TreeFind<K, T> | null,
 ): void {
 	React.useEffect(() => {
 		const frame = frameReference.current;
@@ -45,7 +48,7 @@ export function useTreeKeyboard<K, T>(
 				return;
 			}
 			for (const command of treeKeyCommands(event, platform)) {
-				if (!runTreeKeyCommand(viewport, command, open)) continue;
+				if (!runTreeKeyCommand(viewport, command, { find, open })) continue;
 				event.preventDefault();
 				return;
 			}
@@ -72,7 +75,7 @@ export function useTreeKeyboard<K, T>(
 			frame.removeEventListener('blur', onBlur);
 			typeNavigation.dispose();
 		};
-	}, [frameReference, label, open, platform, viewport]);
+	}, [find, frameReference, label, open, platform, viewport]);
 }
 
 /** The element showing a row, which the tree's `aria-activedescendant` names while it is focused. */

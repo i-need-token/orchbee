@@ -7,17 +7,19 @@ import type { PointerDrag } from '../pointer-drag';
 import { useWorkbenchKeyboardScope } from '../workbench-keyboard-scopes';
 
 import { VirtualTreeContent } from './components/virtual-tree-content/VirtualTreeContent';
+import { VirtualTreeFind } from './components/virtual-tree-find/VirtualTreeFind';
 import { VirtualTreeFrame } from './components/virtual-tree-frame/VirtualTreeFrame';
 import { VirtualTreeSlot } from './components/virtual-tree-slot/VirtualTreeSlot';
 import { VirtualTreeStickyRows } from './components/virtual-tree-sticky-rows/VirtualTreeStickyRows';
 import { useSlotCount } from './hooks/useSlotCount';
 import { useTreeDrag } from './hooks/useTreeDrag';
+import { useTreeFind } from './hooks/useTreeFind';
 import { useTreeKeyboard } from './hooks/useTreeKeyboard';
 import { useTreePointer } from './hooks/useTreePointer';
 import { useViewportSize } from './hooks/useViewportSize';
 import { useVirtualTreeScrollbar } from './hooks/useVirtualTreeScrollbar';
 import { useWheelScrolling } from './hooks/useWheelScrolling';
-import { VIRTUAL_TREE_KEY_CHORDS } from './interaction/tree-keys';
+import { virtualTreeKeyChords } from './interaction/tree-keys';
 import type { VirtualTreeKeyboardNavigationLabel } from './interaction/type-navigation';
 import { TreeViewport, type VirtualTreeRowHeight } from './layout/TreeViewport';
 import type { VirtualTreeModel } from './model/VirtualTreeModel';
@@ -27,7 +29,9 @@ import type {
 	VirtualTreeContextMenuEvent,
 	VirtualTreeOpenEvent,
 } from './types/virtual-tree-events';
+import type { VirtualTreeFindOptions } from './types/virtual-tree-find';
 import type { VirtualTreeRowRenderer } from './types/virtual-tree-row-renderer';
+import styles from './VirtualTree.module.css';
 
 export interface VirtualTreeProps<K, T> {
 	readonly model: VirtualTreeModel<K, T>;
@@ -68,10 +72,18 @@ export interface VirtualTreeProps<K, T> {
 	 */
 	readonly onContextMenu?: ((event: VirtualTreeContextMenuEvent<K, T>) => void) | undefined;
 	/**
-	 * A row's text for type navigation, such as a file's name; without it, typing does nothing. VS
-	 * Code's Explorer gives a compact row its items' names joined by `/`.
+	 * A row's text for type navigation and the find, such as a file's name; without it, typing does
+	 * nothing and the tree has no find. VS Code's Explorer gives a compact row its items' names joined
+	 * by `/`.
 	 */
 	readonly keyboardNavigationLabel?: VirtualTreeKeyboardNavigationLabel<K, T> | undefined;
+	/**
+	 * How the find starts, which the tree has while it has `keyboardNavigationLabel`: Mod+Alt+F or F3
+	 * opens it above the rows, as VS Code's `list.find` does. A new default mode or match type applies
+	 * at once, as a change to VS Code's settings does, and a provider finds rows the model has not
+	 * loaded.
+	 */
+	readonly find?: VirtualTreeFindOptions<K, T> | undefined;
 	/**
 	 * Lets the pointer drag rows and drop on them, as VS Code's tree does through its drag and drop
 	 * controller; without a part, the tree neither drags nor takes drops.
@@ -91,6 +103,7 @@ export interface VirtualTreeProps<K, T> {
  */
 export function VirtualTree<K, T>({
 	dragAndDrop,
+	find: findOptions,
 	isControlRow,
 	keyboardNavigationLabel,
 	keyboardScope,
@@ -126,13 +139,12 @@ export function VirtualTree<K, T>({
 	const navigationLabel = useMemoizedFn(
 		(row: VirtualTreeRow<K, T>) => keyboardNavigationLabel?.(row) ?? '',
 	);
-	useTreeKeyboard(
-		frameReference,
-		viewport,
-		platform,
-		open,
-		keyboardNavigationLabel === undefined ? null : navigationLabel,
-	);
+	const rowLabel = keyboardNavigationLabel === undefined ? null : navigationLabel;
+	const focusTree = useMemoizedFn(() => {
+		frameReference.current?.focus();
+	});
+	const find = useTreeFind(viewport, rowLabel, findOptions, focusTree);
+	useTreeKeyboard(frameReference, viewport, platform, open, rowLabel, find);
 	useTreePointer(frameReference, scrollbarReference, viewport, platform, open, showContextMenu);
 	const dragItems = useMemoizedFn(
 		(items: readonly VirtualTreeSegment<K, T>[]) => dragAndDrop?.drag?.(items) ?? null,
@@ -157,7 +169,7 @@ export function VirtualTree<K, T>({
 					actionScope: keyboardScope.actionScope,
 					kind: 'widget',
 					widget: keyboardScope.widget,
-					yields: VIRTUAL_TREE_KEY_CHORDS[platform],
+					yields: virtualTreeKeyChords(platform, find !== null),
 				},
 	);
 
@@ -175,25 +187,28 @@ export function VirtualTree<K, T>({
 		);
 	}
 	return (
-		<VirtualTreeFrame
-			label={label}
-			ref={frameReference}
-			scrollbarReference={scrollbarReference}
-			treeId={treeId}
-			viewport={viewport}
-		>
-			<VirtualTreeContent viewport={viewport}>
-				{slots}
-				<VirtualTreeSlot
-					isControlRow={isControlRow}
-					key='focused'
-					renderRow={renderRow}
-					slot='focused'
-					treeId={treeId}
-					viewport={viewport}
-				/>
-			</VirtualTreeContent>
-			<VirtualTreeStickyRows renderRow={renderRow} viewport={viewport} />
-		</VirtualTreeFrame>
+		<div className={styles['root']} data-slot='virtual-tree'>
+			{find === null ? null : <VirtualTreeFind find={find} platform={platform} />}
+			<VirtualTreeFrame
+				label={label}
+				ref={frameReference}
+				scrollbarReference={scrollbarReference}
+				treeId={treeId}
+				viewport={viewport}
+			>
+				<VirtualTreeContent viewport={viewport}>
+					{slots}
+					<VirtualTreeSlot
+						isControlRow={isControlRow}
+						key='focused'
+						renderRow={renderRow}
+						slot='focused'
+						treeId={treeId}
+						viewport={viewport}
+					/>
+				</VirtualTreeContent>
+				<VirtualTreeStickyRows renderRow={renderRow} viewport={viewport} />
+			</VirtualTreeFrame>
+		</div>
 	);
 }

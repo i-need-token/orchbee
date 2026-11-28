@@ -1,11 +1,11 @@
-/* The tree fills its container, which gives it a definite size, and clips its rows. Focus shows on
-   the focused row, or around the whole tree while no row is focused. Shift-click and double click
-   select rows, never text, as in VS Code's lists. */
+/* The rows take the tree's height below its find, and the frame clips them. Focus shows on the
+   focused row, or around the whole tree while no row is focused. Shift-click and double click select
+   rows, never text, as in VS Code's lists. */
 .frame {
 	position: relative;
 	overflow: hidden;
-	block-size: 100%;
-	inline-size: 100%;
+	flex: 1 1 0;
+	min-block-size: 0;
 	outline: none;
 	user-select: none;
 }

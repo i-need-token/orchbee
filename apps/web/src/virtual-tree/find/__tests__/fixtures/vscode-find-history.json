@@ -1,0 +1,672 @@
+{
+	"source": "https://github.com/microsoft/vscode/tree/ef5ca45a6e545e4767e0117905ee9d6120b86e11",
+	"reference": "HistoryNavigator from src/vs/base/common/history.ts run as it is, behind the methods of HistoryInputBox (src/vs/base/browser/ui/inputbox/inputBox.ts) that the tree find widget calls, its Enter, Down and Up keys and select(), and AbstractFindController open, close and value changes (src/vs/base/browser/ui/tree/abstractTree.ts), transcribed since they need the DOM. Operations are open (list.find), close (list.closeFind), type:<text> (the input changes to text), enter, up and down in the input; a state is open:value:focus after each operation, where open is 1 while the find is open, value is the input text and focus counts the times focus returned to the tree.",
+	"runtime": "Node 22.23.3",
+	"excluded": [
+		"the aria.status announcements of recalled patterns: the find leaves the input to announce its own text",
+		"the history hint suffix of the placeholder: the tree find widget never asks for it",
+		"what each pattern finds: the cases check the input and the history alone"
+	],
+	"cases": [
+		{
+			"ops": "open type:b enter up up enter type:ba up up type:a open down up",
+			"states": "1::0 1:b:0 1:b:1 1:b:1 1:b:1 1:b:2 1:ba:2 1:b:2 1:b:2 1:a:2 1:a:2 1:a:3 1:ba:3"
+		},
+		{
+			"ops": "open close open open close open down open close open",
+			"states": "1::0 0::1 1::1 1::1 0::2 1::2 1::3 1::3 0::4 1::4"
+		},
+		{
+			"ops": "open type:b down close open down down down up open enter type:ab type:a type:a type:a down close open up down type: type:b close",
+			"states": "1::0 1:b:0 1:b:1 0::2 1:b:2 1:b:3 1:b:4 1:b:5 1:b:5 1:b:5 1:b:6 1:ab:6 1:a:6 1:a:6 1:a:6 1:a:7 0::8 1:a:8 1:b:8 1:a:8 1::8 1:b:8 0::9"
+		},
+		{
+			"ops": "open open type:ba type:abc type:b open down down down down type:a up type:b",
+			"states": "1::0 1::0 1:ba:0 1:abc:0 1:b:0 1:b:0 1:b:1 1:b:2 1:b:3 1:b:4 1:a:4 1:b:4 1:b:4"
+		},
+		{
+			"ops": "open down type: open open enter enter down type:a open down down up enter up type:ab up",
+			"states": "1::0 1::1 1::1 1::1 1::1 1::2 1::3 1::4 1:a:4 1:a:4 1:a:5 1:a:6 1:a:6 1:a:7 1:a:7 1:ab:7 1:a:7"
+		},
+		{
+			"ops": "open close open open type: close open open type:ba",
+			"states": "1::0 0::1 1::1 1::1 1::1 0::2 1::2 1::2 1:ba:2"
+		},
+		{
+			"ops": "open down down type:c up down enter type:abc close open up down enter down close open enter close",
+			"states": "1::0 1::1 1::2 1:c:2 1:c:2 1:c:3 1:c:4 1:abc:4 0::5 1:abc:5 1:c:5 1:abc:5 1:abc:6 1:abc:7 0::8 1:abc:8 1:abc:9 0::10"
+		},
+		{
+			"ops": "open type:ab down down type:a type: type:ab up up down close",
+			"states": "1::0 1:ab:0 1:ab:1 1:ab:2 1:a:2 1::2 1:ab:2 1:ab:2 1:ab:2 1:ab:3 0::4"
+		},
+		{
+			"ops": "open enter close open type:ba close open up type:c enter type:a up down open up open enter type:ab close open",
+			"states": "1::0 1::1 0::2 1::2 1:ba:2 0::3 1:ba:3 1:ba:3 1:c:3 1:c:4 1:a:4 1:c:4 1:a:4 1:a:4 1:c:4 1:c:4 1:c:5 1:ab:5 0::6 1:ab:6"
+		},
+		{
+			"ops": "open type:b close open type:c up type:ba down up type:a down down type:c up up type:ba up type:c",
+			"states": "1::0 1:b:0 0::1 1:b:1 1:c:1 1:b:1 1:ba:1 1::1 1:ba:1 1:a:1 1:a:2 1:a:3 1:c:3 1:a:3 1:ba:3 1:ba:3 1:c:3 1:c:3"
+		},
+		{
+			"ops": "open down enter type:ba open open down close open type:c up type:a enter down up close open close open open",
+			"states": "1::0 1::1 1::2 1:ba:2 1:ba:2 1:ba:2 1:ba:3 0::4 1:ba:4 1:c:4 1:ba:4 1:a:4 1:a:5 1:a:6 1:c:6 0::7 1:c:7 0::8 1:c:8 1:c:8"
+		},
+		{
+			"ops": "open close open type:c type:b type:ba down down up type:ab up enter open close open open up type:abc open down",
+			"states": "1::0 0::1 1::1 1:c:1 1:b:1 1:ba:1 1:ba:2 1:ba:3 1:ba:3 1:ab:3 1:ba:3 1:ba:4 1:ba:4 0::5 1:ba:5 1:ba:5 1:ab:5 1:abc:5 1:abc:5 1:abc:6"
+		},
+		{
+			"ops": "open enter close open enter type:c type:a open close open down down up up type:abc type:ba down enter up open up",
+			"states": "1::0 1::1 0::2 1::2 1::3 1:c:3 1:a:3 1:a:3 0::4 1:a:4 1:a:5 1:a:6 1:a:6 1:a:6 1:abc:6 1:ba:6 1:ba:7 1:ba:8 1:a:8 1:a:8 1:ba:8"
+		},
+		{
+			"ops": "open down up up type:c type:abc type: close open up type:a open type:ab type:c type:a down down type:a type:abc open close open",
+			"states": "1::0 1::1 1::1 1::1 1:c:1 1:abc:1 1::1 0::2 1::2 1::2 1:a:2 1:a:2 1:ab:2 1:c:2 1:a:2 1:a:3 1:a:4 1:a:4 1:abc:4 1:abc:4 0::5 1:abc:5"
+		},
+		{
+			"ops": "open down enter close open type:b enter type:a close open",
+			"states": "1::0 1::1 1::2 0::3 1::3 1:b:3 1:b:4 1:a:4 0::5 1:a:5"
+		},
+		{
+			"ops": "open open type:a type:b close open close open close open type:c up",
+			"states": "1::0 1::0 1:a:0 1:b:0 0::1 1:b:1 0::2 1:b:2 0::3 1:b:3 1:c:3 1:b:3"
+		},
+		{
+			"ops": "open down down open open close open open type:ba close open type:ba type:b up down",
+			"states": "1::0 1::1 1::2 1::2 1::2 0::3 1::3 1::3 1:ba:3 0::4 1:ba:4 1:ba:4 1:b:4 1:ba:4 1:b:4"
+		},
+		{
+			"ops": "open close open close open up type:abc",
+			"states": "1::0 0::1 1::1 0::2 1::2 1::2 1:abc:2"
+		},
+		{
+			"ops": "open down open down down up open down type:abc open type:c type:ba open up enter type:ab enter",
+			"states": "1::0 1::1 1::1 1::2 1::3 1::3 1::3 1::4 1:abc:4 1:abc:4 1:c:4 1:ba:4 1:ba:4 1:abc:4 1:abc:5 1:ab:5 1:ab:6"
+		},
+		{
+			"ops": "open enter type:ba type: enter open type: enter",
+			"states": "1::0 1::1 1:ba:1 1::1 1::2 1::2 1::2 1::3"
+		},
+		{
+			"ops": "open close open enter type: type:abc down enter type:",
+			"states": "1::0 0::1 1::1 1::2 1::2 1:abc:2 1:abc:3 1:abc:4 1::4"
+		},
+		{
+			"ops": "open enter down up down type: open up close open down close open down type:ba up down type:ba up up close open down",
+			"states": "1::0 1::1 1::2 1::2 1::3 1::3 1::3 1::3 0::4 1::4 1::5 0::6 1::6 1::7 1:ba:7 1:ba:7 1:ba:8 1:ba:8 1:ba:8 1:ba:8 0::9 1:ba:9 1:ba:10"
+		},
+		{
+			"ops": "open type:a down up open open down down enter down up down type: type:ab type:abc type: type: down",
+			"states": "1::0 1:a:0 1:a:1 1:a:1 1:a:1 1:a:1 1:a:2 1:a:3 1:a:4 1:a:5 1:a:5 1:a:6 1::6 1:ab:6 1:abc:6 1::6 1::6 1::7"
+		},
+		{
+			"ops": "open down up enter down up type:a close open open type:ba type:b down up up down up down",
+			"states": "1::0 1::1 1::1 1::2 1::3 1::3 1:a:3 0::4 1:a:4 1:a:4 1:ba:4 1:b:4 1:b:5 1:a:5 1:a:5 1:b:5 1:a:5 1:b:5"
+		},
+		{
+			"ops": "open type:c type:ab down enter open enter type:ba down up down enter type:ab up up type:b open type:a type:b",
+			"states": "1::0 1:c:0 1:ab:0 1:ab:1 1:ab:2 1:ab:2 1:ab:3 1:ba:3 1:ba:4 1:ab:4 1:ba:4 1:ba:5 1:ab:5 1:ab:5 1:ab:5 1:b:5 1:b:5 1:a:5 1:b:5"
+		},
+		{
+			"ops": "open type:a close open down enter up type:abc",
+			"states": "1::0 1:a:0 0::1 1:a:1 1:a:2 1:a:3 1:a:3 1:abc:3"
+		},
+		{
+			"ops": "open type:b down down down up down type: type:abc down",
+			"states": "1::0 1:b:0 1:b:1 1:b:2 1:b:3 1:b:3 1:b:4 1::4 1:abc:4 1:abc:5"
+		},
+		{
+			"ops": "open close open type:a type:abc type:abc type:ab type:ba down",
+			"states": "1::0 0::1 1::1 1:a:1 1:abc:1 1:abc:1 1:ab:1 1:ba:1 1:ba:2"
+		},
+		{
+			"ops": "open up open down type:abc down open type:ab",
+			"states": "1::0 1::0 1::0 1::1 1:abc:1 1:abc:2 1:abc:2 1:ab:2"
+		},
+		{
+			"ops": "open type:b close open down type:a down open",
+			"states": "1::0 1:b:0 0::1 1:b:1 1:b:2 1:a:2 1:a:3 1:a:3"
+		},
+		{
+			"ops": "open down enter close open type:b down type:c down up type:ab type:ba down down close",
+			"states": "1::0 1::1 1::2 0::3 1::3 1:b:3 1:b:4 1:c:4 1:c:5 1:b:5 1:ab:5 1:ba:5 1::5 1::6 0::7"
+		},
+		{
+			"ops": "open type:b open type:c close open up type:a type:abc type:b type:abc up up open",
+			"states": "1::0 1:b:0 1:b:0 1:c:0 0::1 1:c:1 1:b:1 1:a:1 1:abc:1 1:b:1 1:abc:1 1:c:1 1:b:1 1:b:1"
+		},
+		{
+			"ops": "open type:a open down down down down enter type:abc type:abc up type: down enter enter type:ab open type:b down up",
+			"states": "1::0 1:a:0 1:a:0 1:a:1 1:a:2 1:a:3 1:a:4 1:a:5 1:abc:5 1:abc:5 1:a:5 1::5 1:abc:5 1:abc:6 1:abc:7 1:ab:7 1:ab:7 1:b:7 1:b:8 1:ab:8"
+		},
+		{
+			"ops": "open up open type: down type:ba type:ab type:b",
+			"states": "1::0 1::0 1::0 1::0 1::1 1:ba:1 1:ab:1 1:b:1"
+		},
+		{
+			"ops": "open type:a up open close open type:c down",
+			"states": "1::0 1:a:0 1:a:0 1:a:0 0::1 1:a:1 1:c:1 1:c:2"
+		},
+		{
+			"ops": "open enter up down type:abc down down close open open up close open open up open up up open",
+			"states": "1::0 1::1 1::1 1::2 1:abc:2 1:abc:3 1:abc:4 0::5 1:abc:5 1:abc:5 1:abc:5 0::6 1:abc:6 1:abc:6 1:abc:6 1:abc:6 1:abc:6 1:abc:6 1:abc:6"
+		},
+		{
+			"ops": "open type:ab enter type:b type:ba enter down down up down open up type:ab down up up down close open enter type:a open type:b",
+			"states": "1::0 1:ab:0 1:ab:1 1:b:1 1:ba:1 1:ba:2 1:ba:3 1:ba:4 1:ab:4 1:ba:4 1:ba:4 1:ab:4 1:ab:4 1:ba:4 1:ab:4 1:ab:4 1:ba:4 0::5 1:ba:5 1:ba:6 1:a:6 1:a:6 1:b:6"
+		},
+		{
+			"ops": "open type:a open type:ba close open down type:abc type:abc type:ab up down down up type: down",
+			"states": "1::0 1:a:0 1:a:0 1:ba:0 0::1 1:ba:1 1:ba:2 1:abc:2 1:abc:2 1:ab:2 1:ba:2 1:ab:2 1:ab:3 1:ba:3 1::3 1:ab:3"
+		},
+		{
+			"ops": "open down open up down close open open up type:a open up down down open type:ab down",
+			"states": "1::0 1::1 1::1 1::1 1::2 0::3 1::3 1::3 1::3 1:a:3 1:a:3 1:a:3 1:a:4 1:a:5 1:a:5 1:ab:5 1:ab:6"
+		},
+		{
+			"ops": "open enter up up down type:ba type: up down close open down down up down type:abc type:a type:",
+			"states": "1::0 1::1 1::1 1::1 1::2 1:ba:2 1::2 1::2 1::3 0::4 1::4 1::5 1::6 1::6 1::7 1:abc:7 1:a:7 1::7"
+		},
+		{
+			"ops": "open type:ab up up type:ba type:c close open enter enter up type:ba up type:b open open type:ba",
+			"states": "1::0 1:ab:0 1:ab:0 1:ab:0 1:ba:0 1:c:0 0::1 1:c:1 1:c:2 1:c:3 1:ab:3 1:ba:3 1:c:3 1:b:3 1:b:3 1:b:3 1:ba:3"
+		},
+		{
+			"ops": "open type:ab down type:ab type:ab type:a",
+			"states": "1::0 1:ab:0 1:ab:1 1:ab:1 1:ab:1 1:a:1"
+		},
+		{
+			"ops": "open close open close open type:b type:ab enter type:b type:b up type:abc type:abc type: type:abc down type:c",
+			"states": "1::0 0::1 1::1 0::2 1::2 1:b:2 1:ab:2 1:ab:3 1:b:3 1:b:3 1:ab:3 1:abc:3 1:abc:3 1::3 1:abc:3 1::3 1:c:3"
+		},
+		{
+			"ops": "open close open up down up open enter type: open close open open close open up type:a up type:b up up down down",
+			"states": "1::0 0::1 1::1 1::1 1::2 1::2 1::2 1::3 1::3 1::3 0::4 1::4 1::4 0::5 1::5 1::5 1:a:5 1:a:5 1:b:5 1:a:5 1:a:5 1:b:5 1:b:6"
+		},
+		{
+			"ops": "open down up type:ab down type:a close open",
+			"states": "1::0 1::1 1::1 1:ab:1 1:ab:2 1:a:2 0::3 1:a:3"
+		},
+		{
+			"ops": "open down open up up down open up up",
+			"states": "1::0 1::1 1::1 1::1 1::1 1::2 1::2 1::2 1::2"
+		},
+		{
+			"ops": "open down close open enter down up down enter down enter down up up type:a type:abc close open up up",
+			"states": "1::0 1::1 0::2 1::2 1::3 1::4 1::4 1::5 1::6 1::7 1::8 1::9 1::9 1::9 1:a:9 1:abc:9 0::10 1:abc:10 1:abc:10 1:abc:10"
+		},
+		{
+			"ops": "open up enter type:b type: up down close open up up open down",
+			"states": "1::0 1::0 1::1 1:b:1 1::1 1::1 1::2 0::3 1::3 1::3 1::3 1::3 1::4"
+		},
+		{
+			"ops": "open enter type:abc up up down up down up",
+			"states": "1::0 1::1 1:abc:1 1:abc:1 1:abc:1 1:abc:2 1:abc:2 1:abc:3 1:abc:3"
+		},
+		{
+			"ops": "open up type:ba up up close open up up close open close",
+			"states": "1::0 1::0 1:ba:0 1:ba:0 1:ba:0 0::1 1:ba:1 1:ba:1 1:ba:1 0::2 1:ba:2 0::3"
+		},
+		{
+			"ops": "open up down up type:ab up type:a close open type:ab",
+			"states": "1::0 1::0 1::1 1::1 1:ab:1 1:ab:1 1:a:1 0::2 1:a:2 1:ab:2"
+		},
+		{
+			"ops": "open type:ba open enter up down close open type:a type:b enter type:a enter type:b type: type:ab open",
+			"states": "1::0 1:ba:0 1:ba:0 1:ba:1 1:ba:1 1:ba:2 0::3 1:ba:3 1:a:3 1:b:3 1:b:4 1:a:4 1:a:5 1:b:5 1::5 1:ab:5 1:ab:5"
+		},
+		{
+			"ops": "open type:ba type:a type:c up type:abc down enter down down type:b enter down type:b up up type:c down",
+			"states": "1::0 1:ba:0 1:a:0 1:c:0 1:c:0 1:abc:0 1:abc:1 1:abc:2 1:abc:3 1:abc:4 1:b:4 1:b:5 1:b:6 1:b:6 1:abc:6 1:c:6 1:c:6 1:abc:6"
+		},
+		{
+			"ops": "open type:b type:c down open close open type:ba",
+			"states": "1::0 1:b:0 1:c:0 1:c:1 1:c:1 0::2 1:c:2 1:ba:2"
+		},
+		{
+			"ops": "open down type: up down close",
+			"states": "1::0 1::1 1::1 1::1 1::2 0::3"
+		},
+		{
+			"ops": "open open up open open up type:ba down down enter enter down type:b type: enter down down up open enter type:b",
+			"states": "1::0 1::0 1::0 1::0 1::0 1::0 1:ba:0 1:ba:1 1:ba:2 1:ba:3 1:ba:4 1:ba:5 1:b:5 1::5 1::6 1::7 1::8 1:ba:8 1:ba:8 1:ba:9 1:b:9"
+		},
+		{
+			"ops": "open type: up down up up up up",
+			"states": "1::0 1::0 1::0 1::1 1::1 1::1 1::1 1::1"
+		},
+		{
+			"ops": "open down up type:c up enter type:ba",
+			"states": "1::0 1::1 1::1 1:c:1 1:c:1 1:c:2 1:ba:2"
+		},
+		{
+			"ops": "open up open up open down down type:ab",
+			"states": "1::0 1::0 1::0 1::0 1::0 1::1 1::2 1:ab:2"
+		},
+		{
+			"ops": "open type:ab type:abc open up up down down close open",
+			"states": "1::0 1:ab:0 1:abc:0 1:abc:0 1:abc:0 1:abc:0 1:abc:1 1:abc:2 0::3 1:abc:3"
+		},
+		{
+			"ops": "open up down type:b open down open up type:ba enter down down type:a type:ba type:b up down down type:a down type:a up",
+			"states": "1::0 1::0 1::1 1:b:1 1:b:1 1:b:2 1:b:2 1:b:2 1:ba:2 1:ba:3 1:ba:4 1:ba:5 1:a:5 1:ba:5 1:b:5 1:ba:5 1:ba:6 1:ba:7 1:a:7 1:a:8 1:a:8 1:ba:8"
+		},
+		{
+			"ops": "open down type:b up type:ab up up type:c close",
+			"states": "1::0 1::1 1:b:1 1:b:1 1:ab:1 1:b:1 1:b:1 1:c:1 0::2"
+		},
+		{
+			"ops": "open down up close open up type:abc open close open open open up down type:ba down up type:ba down up type:abc up",
+			"states": "1::0 1::1 1::1 0::2 1::2 1::2 1:abc:2 1:abc:2 0::3 1:abc:3 1:abc:3 1:abc:3 1:abc:3 1:abc:4 1:ba:4 1:ba:5 1:abc:5 1:ba:5 1::5 1:ba:5 1:abc:5 1:abc:5"
+		},
+		{
+			"ops": "open type:b enter open enter enter close open enter type:c type:b up type:abc close open open up type:abc close",
+			"states": "1::0 1:b:0 1:b:1 1:b:1 1:b:2 1:b:3 0::4 1:b:4 1:b:5 1:c:5 1:b:5 1:b:5 1:abc:5 0::6 1:abc:6 1:abc:6 1:b:6 1:abc:6 0::7"
+		},
+		{
+			"ops": "open close open down down type:b down down up type:abc close open type:a enter close",
+			"states": "1::0 0::1 1::1 1::2 1::3 1:b:3 1:b:4 1:b:5 1:b:5 1:abc:5 0::6 1:abc:6 1:a:6 1:a:7 0::8"
+		},
+		{
+			"ops": "open up up type: down up type:a open",
+			"states": "1::0 1::0 1::0 1::0 1::1 1::1 1:a:1 1:a:1"
+		},
+		{
+			"ops": "open enter type:ba down up down",
+			"states": "1::0 1::1 1:ba:1 1:ba:2 1:ba:2 1:ba:3"
+		},
+		{
+			"ops": "open enter enter up enter down type: type:b type:ba close open type:abc close open up up up",
+			"states": "1::0 1::1 1::2 1::2 1::3 1::4 1::4 1:b:4 1:ba:4 0::5 1:ba:5 1:abc:5 0::6 1:abc:6 1:ba:6 1:ba:6 1:ba:6"
+		},
+		{
+			"ops": "open up down up down down up open enter enter down open type:a up enter close open down",
+			"states": "1::0 1::0 1::1 1::1 1::2 1::3 1::3 1::3 1::4 1::5 1::6 1::6 1:a:6 1:a:6 1:a:7 0::8 1:a:8 1:a:9"
+		},
+		{
+			"ops": "open down type:a type:b up type:abc open enter enter",
+			"states": "1::0 1::1 1:a:1 1:b:1 1:b:1 1:abc:1 1:abc:1 1:abc:2 1:abc:3"
+		},
+		{
+			"ops": "open up down type:abc close open up down close open",
+			"states": "1::0 1::0 1::1 1:abc:1 0::2 1:abc:2 1:abc:2 1:abc:3 0::4 1:abc:4"
+		},
+		{
+			"ops": "open enter enter down close open enter down down type:b open enter down up",
+			"states": "1::0 1::1 1::2 1::3 0::4 1::4 1::5 1::6 1::7 1:b:7 1:b:7 1:b:8 1:b:9 1:b:9"
+		},
+		{
+			"ops": "open up up up enter enter up up open type:c close open down type:ba close open down up close open close",
+			"states": "1::0 1::0 1::0 1::0 1::1 1::2 1::2 1::2 1::2 1:c:2 0::3 1:c:3 1:c:4 1:ba:4 0::5 1:ba:5 1:ba:6 1:c:6 0::7 1:c:7 0::8"
+		},
+		{
+			"ops": "open up down type:a type:c up down down type:a up up",
+			"states": "1::0 1::0 1::1 1:a:1 1:c:1 1:c:1 1:c:2 1:c:3 1:a:3 1:c:3 1:c:3"
+		},
+		{
+			"ops": "open type:ab type:abc type:c enter type:c down close open down down open up open open down close open enter close",
+			"states": "1::0 1:ab:0 1:abc:0 1:c:0 1:c:1 1:c:1 1:c:2 0::3 1:c:3 1:c:4 1:c:5 1:c:5 1:c:5 1:c:5 1:c:5 1:c:6 0::7 1:c:7 1:c:8 0::9"
+		},
+		{
+			"ops": "open up up type:abc type:a down down type:a up up",
+			"states": "1::0 1::0 1::0 1:abc:0 1:a:0 1:a:1 1:a:2 1:a:2 1:a:2 1:a:2"
+		},
+		{
+			"ops": "open down down open down type:ab type:ba",
+			"states": "1::0 1::1 1::2 1::2 1::3 1:ab:3 1:ba:3"
+		},
+		{
+			"ops": "open open enter down type:ba down close open enter down type: enter down up close open down up up type:c type:ba enter close",
+			"states": "1::0 1::0 1::1 1::2 1:ba:2 1:ba:3 0::4 1:ba:4 1:ba:5 1:ba:6 1::6 1::7 1::8 1:ba:8 0::9 1:ba:9 1:ba:10 1:ba:10 1:ba:10 1:c:10 1:ba:10 1:ba:11 0::12"
+		},
+		{
+			"ops": "open enter down down enter enter down type:ba type:c down",
+			"states": "1::0 1::1 1::2 1::3 1::4 1::5 1::6 1:ba:6 1:c:6 1:c:7"
+		},
+		{
+			"ops": "open open up enter down open type:a open down up type:abc down down type: enter",
+			"states": "1::0 1::0 1::0 1::1 1::2 1::2 1:a:2 1:a:2 1:a:3 1:a:3 1:abc:3 1:abc:4 1:abc:5 1::5 1::6"
+		},
+		{
+			"ops": "open up open enter up up",
+			"states": "1::0 1::0 1::0 1::1 1::1 1::1"
+		},
+		{
+			"ops": "open type:c close open down down up open type: type:b open up up type:ab down up up down type:b up type: type:c type:b",
+			"states": "1::0 1:c:0 0::1 1:c:1 1:c:2 1:c:3 1:c:3 1:c:3 1::3 1:b:3 1:b:3 1:c:3 1:c:3 1:ab:3 1::3 1:ab:3 1:b:3 1:ab:3 1:b:3 1:c:3 1::3 1:c:3 1:b:3"
+		},
+		{
+			"ops": "open type:c down type:ba close open down type:a down enter enter up",
+			"states": "1::0 1:c:0 1:c:1 1:ba:1 0::2 1:ba:2 1:ba:3 1:a:3 1:a:4 1:a:5 1:a:6 1:ba:6"
+		},
+		{
+			"ops": "open type:a type: type:ba close open type:a close open open type: type:abc enter enter up",
+			"states": "1::0 1:a:0 1::0 1:ba:0 0::1 1:ba:1 1:a:1 0::2 1:a:2 1:a:2 1::2 1:abc:2 1:abc:3 1:abc:4 1:a:4"
+		},
+		{
+			"ops": "open close open up close open close open type:abc up type:abc enter type:a close open up",
+			"states": "1::0 0::1 1::1 1::1 0::2 1::2 0::3 1::3 1:abc:3 1:abc:3 1:abc:3 1:abc:4 1:a:4 0::5 1:a:5 1:abc:5"
+		},
+		{
+			"ops": "open up open type:a type:b type:b up close open",
+			"states": "1::0 1::0 1::0 1:a:0 1:b:0 1:b:0 1:b:0 0::1 1:b:1"
+		},
+		{
+			"ops": "open down down type:ab type:ab type:c type:ab open open close open close open down open type:a type:b type:a up down close",
+			"states": "1::0 1::1 1::2 1:ab:2 1:ab:2 1:c:2 1:ab:2 1:ab:2 1:ab:2 0::3 1:ab:3 0::4 1:ab:4 1:ab:5 1:ab:5 1:a:5 1:b:5 1:a:5 1:ab:5 1:a:5 0::6"
+		},
+		{
+			"ops": "open type:a up down down close open down down close open type:a type:abc type:b type:abc down up up up down type:c type:abc",
+			"states": "1::0 1:a:0 1:a:0 1:a:1 1:a:2 0::3 1:a:3 1:a:4 1:a:5 0::6 1:a:6 1:a:6 1:abc:6 1:b:6 1:abc:6 1:abc:7 1:a:7 1:a:7 1:a:7 1:abc:7 1:c:7 1:abc:7"
+		},
+		{
+			"ops": "open up open enter type:c down open up close open up type: up down up open up open",
+			"states": "1::0 1::0 1::0 1::1 1:c:1 1:c:2 1:c:2 1:c:2 0::3 1:c:3 1:c:3 1::3 1:c:3 1:c:4 1:c:4 1:c:4 1:c:4 1:c:4"
+		},
+		{
+			"ops": "open up up up down enter type:ba open close open type:b up type:b down down close open up up up type:ba",
+			"states": "1::0 1::0 1::0 1::0 1::1 1::2 1:ba:2 1:ba:2 0::3 1:ba:3 1:b:3 1:ba:3 1:b:3 1::3 1::4 0::5 1::5 1:b:5 1:ba:5 1:ba:5 1:ba:5"
+		},
+		{
+			"ops": "open down down down type:c type: type:b up type:abc close open type:c type:b down type:a type:ab down type:b type:abc type: open down",
+			"states": "1::0 1::1 1::2 1::3 1:c:3 1::3 1:b:3 1:b:3 1:abc:3 0::4 1:abc:4 1:c:4 1:b:4 1:b:5 1:a:5 1:ab:5 1:ab:6 1:b:6 1:abc:6 1::6 1::6 1::7"
+		},
+		{
+			"ops": "open down enter type:a up type:c down type:ba up type:ab up down down open close open down open close open up up up",
+			"states": "1::0 1::1 1::2 1:a:2 1:a:2 1:c:2 1:c:3 1:ba:3 1:c:3 1:ab:3 1:ba:3 1:ab:3 1:ab:4 1:ab:4 0::5 1:ab:5 1:ab:6 1:ab:6 0::7 1:ab:7 1:ba:7 1:c:7 1:a:7"
+		},
+		{
+			"ops": "open type:b up type:c type:a up close open close open up open up up type:c enter down",
+			"states": "1::0 1:b:0 1:b:0 1:c:0 1:a:0 1:b:0 0::1 1:b:1 0::2 1:b:2 1:a:2 1:a:2 1:b:2 1:b:2 1:c:2 1:c:3 1:c:4"
+		},
+		{
+			"ops": "open down down up up type:a up close open up close open up down",
+			"states": "1::0 1::1 1::2 1::2 1::2 1:a:2 1:a:2 0::3 1:a:3 1:a:3 0::4 1:a:4 1:a:4 1:a:5"
+		},
+		{
+			"ops": "open up down open close open type:abc up down type:ba enter",
+			"states": "1::0 1::0 1::1 1::1 0::2 1::2 1:abc:2 1:abc:2 1:abc:3 1:ba:3 1:ba:4"
+		},
+		{
+			"ops": "open up enter up close open",
+			"states": "1::0 1::0 1::1 1::1 0::2 1::2"
+		},
+		{
+			"ops": "open up open type:abc open up close",
+			"states": "1::0 1::0 1::0 1:abc:0 1:abc:0 1:abc:0 0::1"
+		},
+		{
+			"ops": "open down down down down up type:a type:ab enter up down close open enter open down type:c close open open type:abc",
+			"states": "1::0 1::1 1::2 1::3 1::4 1::4 1:a:4 1:ab:4 1:ab:5 1:ab:5 1:ab:6 0::7 1:ab:7 1:ab:8 1:ab:8 1:ab:9 1:c:9 0::10 1:c:10 1:c:10 1:abc:10"
+		},
+		{
+			"ops": "open close open type:b up up type:c down down down type:ba down type: up enter close open down",
+			"states": "1::0 0::1 1::1 1:b:1 1:b:1 1:b:1 1:c:1 1:c:2 1:c:3 1:c:4 1:ba:4 1:ba:5 1::5 1:ba:5 1:ba:6 0::7 1:ba:7 1:ba:8"
+		},
+		{
+			"ops": "open type: type:abc down type:abc type:b up down",
+			"states": "1::0 1::0 1:abc:0 1:abc:1 1:abc:1 1:b:1 1:abc:1 1:b:1"
+		},
+		{
+			"ops": "open down down up down type:abc type:a up type:c type:ab close open down down type:a type:ab",
+			"states": "1::0 1::1 1::2 1::2 1::3 1:abc:3 1:a:3 1:a:3 1:c:3 1:ab:3 0::4 1:ab:4 1:ab:5 1:ab:6 1:a:6 1:ab:6"
+		},
+		{
+			"ops": "open close open type:c close open type:ba open type:abc down up down up down down down type:abc open up down up",
+			"states": "1::0 0::1 1::1 1:c:1 0::2 1:c:2 1:ba:2 1:ba:2 1:abc:2 1:abc:3 1:ba:3 1:abc:3 1:ba:3 1:abc:3 1:abc:4 1:abc:5 1:abc:5 1:abc:5 1:ba:5 1:abc:5 1:ba:5"
+		},
+		{
+			"ops": "open close open enter enter up open up type:c type:ba down up open up type:ba up down close open close",
+			"states": "1::0 0::1 1::1 1::2 1::3 1::3 1::3 1::3 1:c:3 1:ba:3 1:ba:4 1:ba:4 1:ba:4 1:ba:4 1:ba:4 1:ba:4 1:ba:5 0::6 1:ba:6 0::7"
+		},
+		{
+			"ops": "open close open down close open close",
+			"states": "1::0 0::1 1::1 1::2 0::3 1::3 0::4"
+		},
+		{
+			"ops": "open type:b type:ba enter up open enter type:b type:ab type: type: type:b close open down close open",
+			"states": "1::0 1:b:0 1:ba:0 1:ba:1 1:ba:1 1:ba:1 1:ba:2 1:b:2 1:ab:2 1::2 1::2 1:b:2 0::3 1:b:3 1:b:4 0::5 1:b:5"
+		},
+		{
+			"ops": "open type:a enter up enter close open type:ba down",
+			"states": "1::0 1:a:0 1:a:1 1:a:1 1:a:2 0::3 1:a:3 1:ba:3 1:ba:4"
+		},
+		{
+			"ops": "open close open type:a type:ab type:ba down enter up type:b type:abc type:abc",
+			"states": "1::0 0::1 1::1 1:a:1 1:ab:1 1:ba:1 1:ba:2 1:ba:3 1:ba:3 1:b:3 1:abc:3 1:abc:3"
+		},
+		{
+			"ops": "open type:ba type: type:c type:ba close open close open open type: up up",
+			"states": "1::0 1:ba:0 1::0 1:c:0 1:ba:0 0::1 1:ba:1 0::2 1:ba:2 1:ba:2 1::2 1:ba:2 1:ba:2"
+		},
+		{
+			"ops": "open down up down type:ab type:ba close open type:abc open type:ba type:ab type:a down close open open down",
+			"states": "1::0 1::1 1::1 1::2 1:ab:2 1:ba:2 0::3 1:ba:3 1:abc:3 1:abc:3 1:ba:3 1:ab:3 1:a:3 1:a:4 0::5 1:a:5 1:a:5 1:a:6"
+		},
+		{
+			"ops": "open up open up type:ab open type:ab up down close open close open open up up type: up type:ab up up open",
+			"states": "1::0 1::0 1::0 1::0 1:ab:0 1:ab:0 1:ab:0 1:ab:0 1:ab:1 0::2 1:ab:2 0::3 1:ab:3 1:ab:3 1:ab:3 1:ab:3 1::3 1:ab:3 1:ab:3 1:ab:3 1:ab:3 1:ab:3"
+		},
+		{
+			"ops": "open enter up type:ba close open type:abc open type:a type:a open up enter open down up up type:ba type:c enter up down",
+			"states": "1::0 1::1 1::1 1:ba:1 0::2 1:ba:2 1:abc:2 1:abc:2 1:a:2 1:a:2 1:a:2 1:abc:2 1:abc:3 1:abc:3 1:abc:4 1:a:4 1:ba:4 1:ba:4 1:c:4 1:c:5 1:abc:5 1:c:5"
+		},
+		{
+			"ops": "open up type:c open type:b type:",
+			"states": "1::0 1::0 1:c:0 1:c:0 1:b:0 1::0"
+		},
+		{
+			"ops": "open up up type: down close open open type:ab down up up open close open down down down up enter type:a type:",
+			"states": "1::0 1::0 1::0 1::0 1::1 0::2 1::2 1::2 1:ab:2 1:ab:3 1:ab:3 1:ab:3 1:ab:3 0::4 1:ab:4 1:ab:5 1:ab:6 1:ab:7 1:ab:7 1:ab:8 1:a:8 1::8"
+		},
+		{
+			"ops": "open type:b close open down up type:abc type:b down",
+			"states": "1::0 1:b:0 0::1 1:b:1 1:b:2 1:b:2 1:abc:2 1:b:2 1:b:3"
+		},
+		{
+			"ops": "open down down open up type:ab type:b up open type:b down",
+			"states": "1::0 1::1 1::2 1::2 1::2 1:ab:2 1:b:2 1:b:2 1:b:2 1:b:2 1:b:3"
+		},
+		{
+			"ops": "open enter enter open up down down type: enter close open type: type:b down type:b up up close",
+			"states": "1::0 1::1 1::2 1::2 1::2 1::3 1::4 1::4 1::5 0::6 1::6 1::6 1:b:6 1:b:7 1:b:7 1:b:7 1:b:7 0::8"
+		},
+		{
+			"ops": "open enter up up type:abc type:ba down type:b type: up down up close open",
+			"states": "1::0 1::1 1::1 1::1 1:abc:1 1:ba:1 1:ba:2 1:b:2 1::2 1:ba:2 1:ba:3 1:ba:3 0::4 1:ba:4"
+		},
+		{
+			"ops": "open type:abc down type: down up",
+			"states": "1::0 1:abc:0 1:abc:1 1::1 1::2 1:abc:2"
+		},
+		{
+			"ops": "open type:ab type: up up open type:a type:a enter open open enter up type:c type:ba down enter type:abc",
+			"states": "1::0 1:ab:0 1::0 1::0 1::0 1::0 1:a:0 1:a:0 1:a:1 1:a:1 1:a:1 1:a:2 1:a:2 1:c:2 1:ba:2 1:ba:3 1:ba:4 1:abc:4"
+		},
+		{
+			"ops": "open type:a open open down type:abc type:ab up close open enter",
+			"states": "1::0 1:a:0 1:a:0 1:a:0 1:a:1 1:abc:1 1:ab:1 1:a:1 0::2 1:a:2 1:a:3"
+		},
+		{
+			"ops": "open down open up type: open type: up enter up type:c up open type:c up down type:ba",
+			"states": "1::0 1::1 1::1 1::1 1::1 1::1 1::1 1::1 1::2 1::2 1:c:2 1:c:2 1:c:2 1:c:2 1:c:2 1:c:3 1:ba:3"
+		},
+		{
+			"ops": "open enter type:ba down down up enter type:ab type:a down open open enter type:abc",
+			"states": "1::0 1::1 1:ba:1 1:ba:2 1:ba:3 1:ba:3 1:ba:4 1:ab:4 1:a:4 1:a:5 1:a:5 1:a:5 1:a:6 1:abc:6"
+		},
+		{
+			"ops": "open type:a down down type:a type: close open down up",
+			"states": "1::0 1:a:0 1:a:1 1:a:2 1:a:2 1::2 0::3 1::3 1::4 1:a:4"
+		},
+		{
+			"ops": "open up down type:ba type:ab type:b type:ab",
+			"states": "1::0 1::0 1::1 1:ba:1 1:ab:1 1:b:1 1:ab:1"
+		},
+		{
+			"ops": "open type:a close open type:a down up type:b type:c close open close open close open up type: up open enter",
+			"states": "1::0 1:a:0 0::1 1:a:1 1:a:1 1:a:2 1:a:2 1:b:2 1:c:2 0::3 1:c:3 0::4 1:c:4 0::5 1:c:5 1:a:5 1::5 1:a:5 1:a:5 1:a:6"
+		},
+		{
+			"ops": "open open down type: type:abc type:ab type:ab up type: down up type: type:ab",
+			"states": "1::0 1::0 1::1 1::1 1:abc:1 1:ab:1 1:ab:1 1:ab:1 1::1 1::2 1:ab:2 1::2 1:ab:2"
+		},
+		{
+			"ops": "open open up down enter down type:abc up down open",
+			"states": "1::0 1::0 1::0 1::1 1::2 1::3 1:abc:3 1:abc:3 1:abc:4 1:abc:4"
+		},
+		{
+			"ops": "open close open up open open close open type:ab down open type:ab up up enter open close open close open up type:abc",
+			"states": "1::0 0::1 1::1 1::1 1::1 1::1 0::2 1::2 1:ab:2 1:ab:3 1:ab:3 1:ab:3 1:ab:3 1:ab:3 1:ab:4 1:ab:4 0::5 1:ab:5 0::6 1:ab:6 1:ab:6 1:abc:6"
+		},
+		{
+			"ops": "open down open down type: up down type:c type:abc open type:ba close open type:a open type:ab type:a enter up",
+			"states": "1::0 1::1 1::1 1::2 1::2 1::2 1::3 1:c:3 1:abc:3 1:abc:3 1:ba:3 0::4 1:ba:4 1:a:4 1:a:4 1:ab:4 1:a:4 1:a:5 1:ba:5"
+		},
+		{
+			"ops": "open type:a type:abc type:a down type:b type:c open type:ba type:a close open open type:abc",
+			"states": "1::0 1:a:0 1:abc:0 1:a:0 1:a:1 1:b:1 1:c:1 1:c:1 1:ba:1 1:a:1 0::2 1:a:2 1:a:2 1:abc:2"
+		},
+		{
+			"ops": "open up up up close open open down close open up open type:c type:ba type:c up open up down open type:c type:ab down",
+			"states": "1::0 1::0 1::0 1::0 0::1 1::1 1::1 1::2 0::3 1::3 1::3 1::3 1:c:3 1:ba:3 1:c:3 1:c:3 1:c:3 1:c:3 1:c:4 1:c:4 1:c:4 1:ab:4 1:ab:5"
+		},
+		{
+			"ops": "open open down down type: up enter enter up",
+			"states": "1::0 1::0 1::1 1::2 1::2 1::2 1::3 1::4 1::4"
+		},
+		{
+			"ops": "open type:abc down open type:b down type:c type: enter type:abc down down close open close open up type:ab enter up enter",
+			"states": "1::0 1:abc:0 1:abc:1 1:abc:1 1:b:1 1:b:2 1:c:2 1::2 1::3 1:abc:3 1:abc:4 1:abc:5 0::6 1:abc:6 0::7 1:abc:7 1:b:7 1:ab:7 1:ab:8 1:abc:8 1:abc:9"
+		},
+		{
+			"ops": "open type:a enter up type:a enter type:a type:c down type:c enter enter down up type:b up open type:c type:ab down down type: type:",
+			"states": "1::0 1:a:0 1:a:1 1:a:1 1:a:1 1:a:2 1:a:2 1:c:2 1:c:3 1:c:3 1:c:4 1:c:5 1:c:6 1:a:6 1:b:6 1:c:6 1:c:6 1:c:6 1:ab:6 1:ab:7 1:ab:8 1::8 1::8"
+		},
+		{
+			"ops": "open close open enter up type: enter down type:a down up down down type:c open type:ab close",
+			"states": "1::0 0::1 1::1 1::2 1::2 1::2 1::3 1::4 1:a:4 1:a:5 1:a:5 1:a:6 1:a:7 1:c:7 1:c:7 1:ab:7 0::8"
+		},
+		{
+			"ops": "open down open up type:a down down up type:b enter down up down enter enter down",
+			"states": "1::0 1::1 1::1 1::1 1:a:1 1:a:2 1:a:3 1:a:3 1:b:3 1:b:4 1:b:5 1:a:5 1:b:5 1:b:6 1:b:7 1:b:8"
+		},
+		{
+			"ops": "open down type:ab up type:b down open close open close open type:a up type:ab up type:b enter",
+			"states": "1::0 1::1 1:ab:1 1:ab:1 1:b:1 1:b:2 1:b:2 0::3 1:b:3 0::4 1:b:4 1:a:4 1:b:4 1:ab:4 1:ab:4 1:b:4 1:b:5"
+		},
+		{
+			"ops": "open type:b type:ab type:ab close open down open type:b close open down open enter down down type:a up type: type:a up up down",
+			"states": "1::0 1:b:0 1:ab:0 1:ab:0 0::1 1:ab:1 1:ab:2 1:ab:2 1:b:2 0::3 1:b:3 1:b:4 1:b:4 1:b:5 1:b:6 1:b:7 1:a:7 1:b:7 1::7 1:a:7 1:ab:7 1:ab:7 1:b:7"
+		},
+		{
+			"ops": "open type:ba close open type:abc type:ab open open down down close open up type:abc close open close open type:c enter down enter",
+			"states": "1::0 1:ba:0 0::1 1:ba:1 1:abc:1 1:ab:1 1:ab:1 1:ab:1 1:ab:2 1:ab:3 0::4 1:ab:4 1:ba:4 1:abc:4 0::5 1:abc:5 0::6 1:abc:6 1:c:6 1:c:7 1:c:8 1:c:9"
+		},
+		{
+			"ops": "open type:b enter open close open up down type:b",
+			"states": "1::0 1:b:0 1:b:1 1:b:1 0::2 1:b:2 1:b:2 1:b:3 1:b:3"
+		},
+		{
+			"ops": "open up up down up type:ba up enter close open down type:a down type: down down down up down",
+			"states": "1::0 1::0 1::0 1::1 1::1 1:ba:1 1:ba:1 1:ba:2 0::3 1:ba:3 1:ba:4 1:a:4 1:a:5 1::5 1::6 1::7 1::8 1:a:8 1:a:9"
+		},
+		{
+			"ops": "open open enter down enter type:ba",
+			"states": "1::0 1::0 1::1 1::2 1::3 1:ba:3"
+		},
+		{
+			"ops": "open type:ab type:abc open type:ba down enter down enter down down open up up type:abc enter",
+			"states": "1::0 1:ab:0 1:abc:0 1:abc:0 1:ba:0 1:ba:1 1:ba:2 1:ba:3 1:ba:4 1:ba:5 1:ba:6 1:ba:6 1:abc:6 1:abc:6 1:abc:6 1:abc:7"
+		},
+		{
+			"ops": "open down up up down up enter enter type:b type:c open down close open type:c close open enter type:c type:a up",
+			"states": "1::0 1::1 1::1 1::1 1::2 1::2 1::3 1::4 1:b:4 1:c:4 1:c:4 1:c:5 0::6 1:c:6 1:c:6 0::7 1:c:7 1:c:8 1:c:8 1:a:8 1:c:8"
+		},
+		{
+			"ops": "open up type:ab close open up type:c type:abc type:ba",
+			"states": "1::0 1::0 1:ab:0 0::1 1:ab:1 1:ab:1 1:c:1 1:abc:1 1:ba:1"
+		},
+		{
+			"ops": "open type: close open open open enter type:a up open up type:c enter type:ab down type:c enter up up up enter",
+			"states": "1::0 1::0 0::1 1::1 1::1 1::1 1::2 1:a:2 1:a:2 1:a:2 1:a:2 1:c:2 1:c:3 1:ab:3 1:ab:4 1:c:4 1:c:5 1:ab:5 1:a:5 1:a:5 1:a:6"
+		},
+		{
+			"ops": "open type:a type:b type:a down type:abc down type: type:ab down open close open up open type:b up enter",
+			"states": "1::0 1:a:0 1:b:0 1:a:0 1:a:1 1:abc:1 1:abc:2 1::2 1:ab:2 1:ab:3 1:ab:3 0::4 1:ab:4 1:abc:4 1:abc:4 1:b:4 1:abc:4 1:abc:5"
+		},
+		{
+			"ops": "open close open close open down type:b down",
+			"states": "1::0 0::1 1::1 0::2 1::2 1::3 1:b:3 1:b:4"
+		},
+		{
+			"ops": "open close open enter type:ab type:ba close open type: open down type:b type:a open up down up",
+			"states": "1::0 0::1 1::1 1::2 1:ab:2 1:ba:2 0::3 1:ba:3 1::3 1::3 1::4 1:b:4 1:a:4 1:a:4 1:ba:4 1:a:4 1:ba:4"
+		},
+		{
+			"ops": "open enter type:ba open type:b up down type:c up down type:c open down",
+			"states": "1::0 1::1 1:ba:1 1:ba:1 1:b:1 1:ba:1 1:b:1 1:c:1 1:b:1 1:c:1 1:c:1 1:c:1 1:c:2"
+		},
+		{
+			"ops": "open up down type:c type:ab down up up enter enter up enter type:c down",
+			"states": "1::0 1::0 1::1 1:c:1 1:ab:1 1:ab:2 1:ab:2 1:ab:2 1:ab:3 1:ab:4 1:ab:4 1:ab:5 1:c:5 1:c:6"
+		},
+		{
+			"ops": "open down down open open down down close open close open up up up down up down type: open down",
+			"states": "1::0 1::1 1::2 1::2 1::2 1::3 1::4 0::5 1::5 0::6 1::6 1::6 1::6 1::6 1::7 1::7 1::8 1::8 1::8 1::9"
+		},
+		{
+			"ops": "open down type:ba enter down up enter down type:abc",
+			"states": "1::0 1::1 1:ba:1 1:ba:2 1:ba:3 1:ba:3 1:ba:4 1:ba:5 1:abc:5"
+		},
+		{
+			"ops": "open type:ba up close open down up open up up type:b up enter type:ba type:c open up enter close open",
+			"states": "1::0 1:ba:0 1:ba:0 0::1 1:ba:1 1:ba:2 1:ba:2 1:ba:2 1:ba:2 1:ba:2 1:b:2 1:ba:2 1:ba:3 1:ba:3 1:c:3 1:c:3 1:b:3 1:b:4 0::5 1:b:5"
+		},
+		{
+			"ops": "open type:ab enter type:ab open down up enter type:abc down open down down",
+			"states": "1::0 1:ab:0 1:ab:1 1:ab:1 1:ab:1 1:ab:2 1:ab:2 1:ab:3 1:abc:3 1:abc:4 1:abc:4 1:abc:5 1:abc:6"
+		},
+		{
+			"ops": "open down up down down type:ab type:ba open type:ab up enter up down down enter enter down",
+			"states": "1::0 1::1 1::1 1::2 1::3 1:ab:3 1:ba:3 1:ba:3 1:ab:3 1:ba:3 1:ba:4 1:ba:4 1:ab:4 1:ab:5 1:ab:6 1:ab:7 1:ab:8"
+		},
+		{
+			"ops": "open type:b up up type:a down type:abc type: up down up close open down down close open open close open",
+			"states": "1::0 1:b:0 1:b:0 1:b:0 1:a:0 1:a:1 1:abc:1 1::1 1:a:1 1:a:2 1:b:2 0::3 1:b:3 1:b:4 1:b:5 0::6 1:b:6 1:b:6 0::7 1:b:7"
+		},
+		{
+			"ops": "open enter type:a type: up down open up type:abc down up enter up open open type:abc close open down up",
+			"states": "1::0 1::1 1:a:1 1::1 1::1 1::2 1::2 1::2 1:abc:2 1:abc:3 1:abc:3 1:abc:4 1:abc:4 1:abc:4 1:abc:4 1:abc:4 0::5 1:abc:5 1:abc:6 1:abc:6"
+		},
+		{
+			"ops": "open up enter open open type:ab down up down",
+			"states": "1::0 1::0 1::1 1::1 1::1 1:ab:1 1:ab:2 1:ab:2 1:ab:3"
+		},
+		{
+			"ops": "open down up up open type: type:ba down up close open type:abc",
+			"states": "1::0 1::1 1::1 1::1 1::1 1::1 1:ba:1 1:ba:2 1:ba:2 0::3 1:ba:3 1:abc:3"
+		},
+		{
+			"ops": "open type:a enter type:b enter up type: close open up",
+			"states": "1::0 1:a:0 1:a:1 1:b:1 1:b:2 1:a:2 1::2 0::3 1::3 1:b:3"
+		},
+		{
+			"ops": "open type:a enter type:b enter up up close open down",
+			"states": "1::0 1:a:0 1:a:1 1:b:1 1:b:2 1:a:2 1:a:2 0::3 1:a:3 1:a:4"
+		},
+		{
+			"ops": "open type:a enter type:b enter type:c up up down down down",
+			"states": "1::0 1:a:0 1:a:1 1:b:1 1:b:2 1:c:2 1:b:2 1:a:2 1:b:2 1:c:2 1:c:3"
+		},
+		{
+			"ops": "open type:a type:b up up down type: up open close open up",
+			"states": "1::0 1:a:0 1:b:0 1:b:0 1:b:0 1:b:1 1::1 1:b:1 1:b:1 0::2 1:b:2 1:b:2"
+		},
+		{
+			"ops": "open type:p0 enter type:p1 enter type:p2 enter type:p3 enter type:p4 enter type:p5 enter type:p6 enter type:p7 enter type:p8 enter type:p9 enter type:p10 enter type:p11 enter type:p12 enter type:p13 enter type:p14 enter type:p15 enter type:p16 enter type:p17 enter type:p18 enter type:p19 enter type:p20 enter type:p21 enter type:p22 enter type:p23 enter type:p24 enter type:p25 enter type:p26 enter type:p27 enter type:p28 enter type:p29 enter type:p30 enter type:p31 enter type:p32 enter type:p33 enter type:p34 enter type:p35 enter type:p36 enter type:p37 enter type:p38 enter type:p39 enter type:p40 enter type:p41 enter type:p42 enter type:p43 enter type:p44 enter type:p45 enter type:p46 enter type:p47 enter type:p48 enter type:p49 enter type:p50 enter type:p51 enter type:p52 enter type:p53 enter type:p54 enter type:p55 enter type:p56 enter type:p57 enter type:p58 enter type:p59 enter type:p60 enter type:p61 enter type:p62 enter type:p63 enter type:p64 enter type:p65 enter type:p66 enter type:p67 enter type:p68 enter type:p69 enter type:p70 enter type:p71 enter type:p72 enter type:p73 enter type:p74 enter type:p75 enter type:p76 enter type:p77 enter type:p78 enter type:p79 enter type:p80 enter type:p81 enter type:p82 enter type:p83 enter type:p84 enter type:p85 enter type:p86 enter type:p87 enter type:p88 enter type:p89 enter type:p90 enter type:p91 enter type:p92 enter type:p93 enter type:p94 enter type:p95 enter type:p96 enter type:p97 enter type:p98 enter type:p99 enter type:p100 enter type:p101 enter type:p102 enter type:p103 enter type:p104 enter up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up up down down close open up up",
+			"states": "1::0 1:p0:0 1:p0:1 1:p1:1 1:p1:2 1:p2:2 1:p2:3 1:p3:3 1:p3:4 1:p4:4 1:p4:5 1:p5:5 1:p5:6 1:p6:6 1:p6:7 1:p7:7 1:p7:8 1:p8:8 1:p8:9 1:p9:9 1:p9:10 1:p10:10 1:p10:11 1:p11:11 1:p11:12 1:p12:12 1:p12:13 1:p13:13 1:p13:14 1:p14:14 1:p14:15 1:p15:15 1:p15:16 1:p16:16 1:p16:17 1:p17:17 1:p17:18 1:p18:18 1:p18:19 1:p19:19 1:p19:20 1:p20:20 1:p20:21 1:p21:21 1:p21:22 1:p22:22 1:p22:23 1:p23:23 1:p23:24 1:p24:24 1:p24:25 1:p25:25 1:p25:26 1:p26:26 1:p26:27 1:p27:27 1:p27:28 1:p28:28 1:p28:29 1:p29:29 1:p29:30 1:p30:30 1:p30:31 1:p31:31 1:p31:32 1:p32:32 1:p32:33 1:p33:33 1:p33:34 1:p34:34 1:p34:35 1:p35:35 1:p35:36 1:p36:36 1:p36:37 1:p37:37 1:p37:38 1:p38:38 1:p38:39 1:p39:39 1:p39:40 1:p40:40 1:p40:41 1:p41:41 1:p41:42 1:p42:42 1:p42:43 1:p43:43 1:p43:44 1:p44:44 1:p44:45 1:p45:45 1:p45:46 1:p46:46 1:p46:47 1:p47:47 1:p47:48 1:p48:48 1:p48:49 1:p49:49 1:p49:50 1:p50:50 1:p50:51 1:p51:51 1:p51:52 1:p52:52 1:p52:53 1:p53:53 1:p53:54 1:p54:54 1:p54:55 1:p55:55 1:p55:56 1:p56:56 1:p56:57 1:p57:57 1:p57:58 1:p58:58 1:p58:59 1:p59:59 1:p59:60 1:p60:60 1:p60:61 1:p61:61 1:p61:62 1:p62:62 1:p62:63 1:p63:63 1:p63:64 1:p64:64 1:p64:65 1:p65:65 1:p65:66 1:p66:66 1:p66:67 1:p67:67 1:p67:68 1:p68:68 1:p68:69 1:p69:69 1:p69:70 1:p70:70 1:p70:71 1:p71:71 1:p71:72 1:p72:72 1:p72:73 1:p73:73 1:p73:74 1:p74:74 1:p74:75 1:p75:75 1:p75:76 1:p76:76 1:p76:77 1:p77:77 1:p77:78 1:p78:78 1:p78:79 1:p79:79 1:p79:80 1:p80:80 1:p80:81 1:p81:81 1:p81:82 1:p82:82 1:p82:83 1:p83:83 1:p83:84 1:p84:84 1:p84:85 1:p85:85 1:p85:86 1:p86:86 1:p86:87 1:p87:87 1:p87:88 1:p88:88 1:p88:89 1:p89:89 1:p89:90 1:p90:90 1:p90:91 1:p91:91 1:p91:92 1:p92:92 1:p92:93 1:p93:93 1:p93:94 1:p94:94 1:p94:95 1:p95:95 1:p95:96 1:p96:96 1:p96:97 1:p97:97 1:p97:98 1:p98:98 1:p98:99 1:p99:99 1:p99:100 1:p100:100 1:p100:101 1:p101:101 1:p101:102 1:p102:102 1:p102:103 1:p103:103 1:p103:104 1:p104:104 1:p104:105 1:p103:105 1:p102:105 1:p101:105 1:p100:105 1:p99:105 1:p98:105 1:p97:105 1:p96:105 1:p95:105 1:p94:105 1:p93:105 1:p92:105 1:p91:105 1:p90:105 1:p89:105 1:p88:105 1:p87:105 1:p86:105 1:p85:105 1:p84:105 1:p83:105 1:p82:105 1:p81:105 1:p80:105 1:p79:105 1:p78:105 1:p77:105 1:p76:105 1:p75:105 1:p74:105 1:p73:105 1:p72:105 1:p71:105 1:p70:105 1:p69:105 1:p68:105 1:p67:105 1:p66:105 1:p65:105 1:p64:105 1:p63:105 1:p62:105 1:p61:105 1:p60:105 1:p59:105 1:p58:105 1:p57:105 1:p56:105 1:p55:105 1:p54:105 1:p53:105 1:p52:105 1:p51:105 1:p50:105 1:p49:105 1:p48:105 1:p47:105 1:p46:105 1:p45:105 1:p44:105 1:p43:105 1:p42:105 1:p41:105 1:p40:105 1:p39:105 1:p38:105 1:p37:105 1:p36:105 1:p35:105 1:p34:105 1:p33:105 1:p32:105 1:p31:105 1:p30:105 1:p29:105 1:p28:105 1:p27:105 1:p26:105 1:p25:105 1:p24:105 1:p23:105 1:p22:105 1:p21:105 1:p20:105 1:p19:105 1:p18:105 1:p17:105 1:p16:105 1:p15:105 1:p14:105 1:p13:105 1:p12:105 1:p11:105 1:p10:105 1:p9:105 1:p8:105 1:p7:105 1:p6:105 1:p5:105 1:p5:105 1:p5:105 1:p5:105 1:p5:105 1:p6:105 1:p7:105 0::106 1:p7:106 1:p104:106 1:p103:106"
+		}
+	]
+}

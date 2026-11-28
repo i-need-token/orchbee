@@ -5,8 +5,8 @@ Source Control views. It holds the loaded items, the flat array of visible rows,
 selection and anchor, and turns every change into the fewest row splices it can. It never knows
 about files, Git, or where its items come from: a view hands it a `VirtualTreeSource` and draws
 each row's content in `VirtualTree`. The public API and its contracts are the TSDoc of
-`virtual-tree-types.ts`, `virtual-tree-events.ts`, `virtual-tree-drag.ts`, `VirtualTreeModel` and
-`VirtualTree`.
+`virtual-tree-types.ts`, `virtual-tree-events.ts`, `virtual-tree-drag.ts`, `virtual-tree-find.ts`,
+`VirtualTreeModel` and `VirtualTree`.
 
 ## Connecting a data source
 
@@ -48,9 +48,10 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   in the frame that resized it.
 - `renderRow` draws a row's content; the tree draws the row around it, with VS Code's 8 px a level
   of indentation and the twistie. It runs only when a slot shows another row or the row's revision,
-  position, focus or selection changes, so content that depends on other data subscribes to that
-  data itself. A row that `isControlRow` names, such as Source Control's commit input, draws no
-  twistie and paints no hover or selection, as VS Code's `force-no-twistie` and `force-no-hover`.
+  position, focus or selection changes, which includes the characters the find highlights in it, so
+  content that depends on other data subscribes to that data itself. A row that `isControlRow`
+  names, such as Source Control's commit input, draws no twistie and paints no hover or selection,
+  as VS Code's `force-no-twistie` and `force-no-hover`.
 - Rows are VS Code's 22 px unless `rowHeight` says otherwise. A function reads each row's height
   into a Fenwick index, which answers position and row lookups in O(log n); it is read for every
   row whenever its identity changes or rows change in place, and for inserted rows otherwise, so
@@ -85,7 +86,8 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   `renderRow` receives. It separates the names with `/`, underlines the focused item's name, lights
   the item a drag would drop on, and makes each item a tree item that the tree names while the item
   has focus; a renderer that draws them otherwise leaves the tree naming an element that does not
-  exist. Join the names with `/` for type navigation, as VS Code's Explorer does:
+  exist. Join the names with `/` for type navigation and the find, as VS Code's Explorer does; the
+  find's highlights fall in that label, and `VirtualTreeSegments` splits them among the names:
 
   ```tsx
   const namesOf = (row: VirtualTreeRow<string, Resource>) =>
@@ -114,8 +116,8 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   keep focus in the tree; Enter, a double click or a middle click opens it for good, and Ctrl, Cmd
   or Alt with a click asks for it beside the current editor. Rows that expand ask too, as in VS
   Code, so a view that opens only files ignores the others.
-- `keyboardNavigationLabel` turns on type navigation: typing moves focus to the next row whose label
-  starts with the typed word. Without it, typing does nothing.
+- `keyboardNavigationLabel` turns on type navigation, where typing moves focus to the next row whose
+  label starts with the typed word, and the find below. Without it, typing does nothing.
 - The view owns the context menu and wraps the tree in a `ContextMenu` trigger. A right click,
   Shift+F10 or the context menu key focuses the row and calls `onContextMenu` with it and the item
   the menu is for, or with `null` on the empty space, before the same `contextmenu` event reaches
@@ -134,6 +136,66 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   	platform={platform}
   	renderRow={renderRow}
   	onOpen={openRow}
+  />
+  ```
+
+## Finding rows
+
+- A tree with `keyboardNavigationLabel` has VS Code's tree find. Mod+Alt+F or F3 opens it above the
+  rows with its input focused, and the rows take the rest of the tree's height. It highlights the
+  rows whose label matches the pattern, or filters the tree down to them and the rows above them,
+  matching the pattern's characters in order anywhere in the label or as one run. Its toggles switch
+  the mode and the match type; `find` sets what they start as, `highlight` and `fuzzy` unless set,
+  as VS Code's settings do by default, and a new default applies at once.
+- Every keystroke finds among every loaded item, collapsed or not, and moves focus from the focused
+  row to the first match, revealing it in the middle of the view when it is out of sight. While two
+  or more rows match, keys that move focus land only on matched rows; Alt with Up, Down, Home or End,
+  and Ctrl+Alt+N or P on macOS, reach every row, as VS Code's `focusAny` commands do.
+- In the input, Enter returns to the tree and leaves the find open, Up and Down walk the last 100
+  patterns, and Down past the newest returns to the tree. Escape, in the input or in the tree,
+  closes the find: every row shows again and focus returns to the tree. The find opens again with
+  the pattern it closed with, selected.
+- The find says under its input when nothing matched, and announces each pattern's count politely
+  through a status region that the tree keeps while it can find. Rows that load or change while a
+  pattern applies update the count without announcing it again.
+- `renderRow` receives the characters of the row's `keyboardNavigationLabel` the find matched in
+  `state.highlights`. `VirtualTreeLabel` draws a text with them highlighted; put it in an element
+  that keeps it one line of text and clips it, such as the Explorer's name element, since the row's
+  content is a flex container that would make each part an item of its own. `VirtualTreeSegments`
+  highlights its names itself.
+- `find.provider` connects an asynchronous source, as VS Code's Explorer finds files that never
+  loaded through its search. The tree still finds among the loaded rows on every keystroke, and
+  asks the provider once typing rests for 250 ms, one request at a time, with only the latest
+  pattern waiting behind it. A newer pattern, closing the find or unmounting the tree aborts the
+  request's `signal`, and its answer is dropped. Load what the provider found into the model before
+  answering, for example by expanding the folders that hold it, so the tree finds those rows too.
+  The answer's `matchCount` and `warning` replace the tree's own count and message, its `isMatch`
+  adds rows that keys may land on, and while filtering, `isVisible` may hide rows until the next
+  answer or a change of mode. `startSession` runs before a session's first request, and
+  `endSession` once the input empties or the tree goes. A provider that rejects leaves the rows and
+  the message as they were, so it reports its own failures:
+
+  ```tsx
+  <VirtualTree
+  	find={{
+  		provider: {
+  			find: async (pattern, { matchType }, signal) => {
+  				const found = await searchFiles(pattern, { limit: 512, matchType, signal });
+  				await loadFolders(model, found, signal);
+  				const keys = new Set(found.map((file) => file.path));
+  				return {
+  					isMatch: (row) => keys.has(row.key),
+  					matchCount: found.length,
+  					warning: found.length === 512 ? limitWarning : undefined,
+  				};
+  			},
+  		},
+  	}}
+  	keyboardNavigationLabel={(row) => row.element.name}
+  	label={label}
+  	model={model}
+  	platform={platform}
+  	renderRow={renderRow}
   />
   ```
 
@@ -207,16 +269,24 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - The tree hears a drag on every frame but asks `over` again only when the row under the pointer or
   the keys held change, so `over` may read the whole payload. A drag from a selection collects its
   rows once, when it starts.
+- The find matches labels in slices of 8 ms with a task between them, so a keystroke never blocks
+  input however many items are loaded, and the rows keep showing the applied find until the new
+  pattern has matched every item. A pattern that extends the applied one looks only at the items
+  that matched it. A keystroke only tests labels; the characters to highlight are scored when a row
+  in sight asks for them.
+- `keyboardNavigationLabel` runs for every item a pattern looks at, so keep it cheap, and make it
+  depend only on the row's items: the find matches a row again only when its items change.
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
   scenarios and the height index; run it before and after a change to the model or the index.
   `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist, how keys,
   clicks and the context menu act, how rows drag and take drops and how compact rows act on their
-  items, and prints the render
-  benchmark: expanding the folder of 100,000 files to its painted frame, selecting all of it, with
-  the select-all key from one of its files too, a typed character that matches no row, starting a
-  drag from all 100,003 rows selected, and scrolling it at fixed speeds, with each frame's script
-  time, long tasks and the layouts that script forced. It needs an installed Playwright
-  Chromium.
+  items, and how the find opens, highlights, filters and closes, and prints the render benchmark:
+  expanding the folder of 100,000 files to its painted frame, selecting all of it, with the
+  select-all key from one of its files too, a typed character that matches no row, starting a drag
+  from all 100,003 rows selected, typing into the find over it in each mode, with each keystroke's
+  own task, its painted frame and the longest task until then, and scrolling it at fixed speeds, with
+  each frame's script time, long tasks and the layouts that script forced. It needs an installed
+  Playwright Chromium.
 
 ## Decisions
 
@@ -315,6 +385,25 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - **A drag carries the item it was pressed on.** VS Code reads the name under the point where the
   browser's drag starts; a pointer drag starts once the pointer is 10 px away, which can be over
   another name, so the tree keeps the item the press landed on.
+- **The find takes the rows' top.** VS Code floats its find widget over the top of the tree, where
+  it can be dragged aside; in the File Bar's narrow lists it would cover the first rows, which a
+  find focuses most often, so the find takes its height from the rows while it is open.
+- **The find matches in slices.** VS Code refilters the whole tree in one task, 13 to 42 ms a
+  keystroke over 100,000 rows by the File Bar proposal's measure; here no task of a keystroke runs
+  longer than a slice and the input's own work, and the rows keep the previous find for the frame
+  or two the slices take.
+- **Model changes update the find quietly.** VS Code announces the count again whenever the model
+  changes while a pattern applies, so every folder that loads repeats it; here only a pattern, a
+  mode or a match type announces.
+- **Keys keep to the tree's matches while a provider works.** VS Code lets keys land on every row
+  until the provider's first answer, and then on rows it or the tree matched; here the tree's own
+  matches hold until the answer arrives.
+- **A recalled pattern is not announced.** VS Code's history input box announces each pattern Up or
+  Down recalls; here the input's new value speaks for itself, and the count follows as for any
+  pattern.
+- **Matches use the link color.** VS Code paints them with `list.highlightForeground`, a link blue in
+  its themes; no Orchbee theme defines a highlight role, so they take the text link role that every
+  theme defines.
 - **A keyboard context menu goes through the view's trigger.** The tree dispatches a `contextmenu`
   event at the focused row's corner once the key is released and prevents the key's default, so the
   browser's own menu event for the key never arrives. VS Code's list raises its own context menu

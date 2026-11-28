@@ -27,6 +27,38 @@ export const fileBarMessages = defineMessages({
 		'fileBar.views.explorer',
 		'Name of the File Bar view that browses the active Workspace’s files, as VS Code names its Explorer.',
 	),
+	findClose: message(
+		'fileBar.tree.find.close',
+		'Accessible name and tooltip of the button that closes the find above a File Bar tree, as VS Code’s tree find widget names it.',
+	),
+	findFilterMode: message(
+		'fileBar.tree.find.filterMode',
+		'Accessible name and tooltip of the toggle in a File Bar tree’s find that hides the rows that do not match instead of highlighting the ones that do, as VS Code names its Filter toggle.',
+	),
+	findFilterPlaceholder: message(
+		'fileBar.tree.find.filterPlaceholder',
+		'Placeholder of a File Bar tree’s find input while it filters the rows, as VS Code’s tree find widget shows it.',
+	),
+	findFuzzyMatch: message(
+		'fileBar.tree.find.fuzzyMatch',
+		'Accessible name and tooltip of the toggle in a File Bar tree’s find that matches the typed characters in order anywhere in a name instead of as one run, as VS Code names its Fuzzy Match toggle.',
+	),
+	findLabel: message(
+		'fileBar.tree.find.label',
+		'Accessible name of the find region above a File Bar tree, which finds its rows by name.',
+	),
+	findNotFound: message(
+		'fileBar.tree.find.notFound',
+		'Shown under a File Bar tree’s find input when no row matches what was typed, as VS Code’s tree find widget says it.',
+	),
+	findResults: message(
+		'fileBar.tree.find.results',
+		'Announced to screen readers after a File Bar tree’s find applies what was typed. `count` is how many items matched.',
+	),
+	findSearchPlaceholder: message(
+		'fileBar.tree.find.searchPlaceholder',
+		'Accessible name of a File Bar tree’s find input, and its placeholder while it highlights the matching rows, as VS Code’s tree find widget shows it.',
+	),
 	hideFileBar: message(
 		'fileBar.actions.hide',
 		'Label of the button that hides the File Bar column while it shows.',

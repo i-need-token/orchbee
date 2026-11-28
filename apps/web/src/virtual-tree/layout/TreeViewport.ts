@@ -239,6 +239,21 @@ export class TreeViewport<K, T> {
 	}
 
 	/**
+	 * Whether a row shows whole between the sticky rows and the bottom of the view, where VS Code's
+	 * `getRelativeTop` answers with a place rather than null.
+	 */
+	inSight(key: K): boolean {
+		const index = this.model.indexOf(key);
+		if (index < 0 || this.height === 0) return false;
+		const top = this.rowTop(index);
+		const scrollTop = this.geometry.offset;
+		return (
+			top >= scrollTop + this.stickyHeightValue &&
+			top + this.heightAt(index) <= scrollTop + this.height
+		);
+	}
+
+	/**
 	 * Scrolls a row to just below the sticky rows of its ancestors, where clicking its sticky row
 	 * takes it in VS Code.
 	 */
