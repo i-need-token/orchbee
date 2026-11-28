@@ -58,11 +58,14 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   keep it stable and cheap. The index, `HeightIndex`, and the wheel arithmetic below live in
   `src/list-scrolling`, so other lists that scroll as these do, such as the code editor's
   multi-diff, use them without the tree's components and styles.
+- `paddingBottom` leaves empty room below the last row that the tree scrolls into, as VS Code's
+  lists do; VS Code's Explorer leaves one row's height. The room takes no row, so a click, a context
+  menu or a drop there acts on the empty space.
 - The scroll offset is model state: `scrollTop`, `setScrollTop` and the view state carry it, so a
-  tree shown again opens where it was left, and the view pulls an offset that the rows no longer
-  reach back within them. `reveal(key, { relativeTop })` expands a row's parents and asks the view
-  to scroll it into sight as VS Code does; a request that arrives before the view has a height
-  waits for it.
+  tree shown again opens where it was left, and the view pulls an offset that the rows and the room
+  below them no longer reach back within them. `reveal(key, { relativeTop })` expands a row's
+  parents and asks the view to scroll it into sight as VS Code does; a request that arrives before
+  the view has a height waits for it.
 - The wheel scrolls as VS Code's lists do, without smoothing: 50 px a notch, Alt five times as far,
   never sideways, and a list keeps every wheel event. The scrollbar is the Panels' scrollbar as the
   Sidebar shows it.

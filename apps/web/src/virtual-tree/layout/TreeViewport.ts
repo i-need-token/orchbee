@@ -50,8 +50,9 @@ interface DropRows {
 
 const NO_DROP_ROWS: DropRows = { end: -1, segment: -1, segmentRow: -1, start: -1 };
 
-/** The content's height and how far it is scrolled, in CSS pixels. */
+/** How far the content scrolls and how far it is scrolled, in CSS pixels. */
 interface ContentGeometry {
+	/** The rows' height and the room left below the last row. */
 	readonly height: number;
 	readonly offset: number;
 }
@@ -79,7 +80,8 @@ const EMPTY_GEOMETRY: ContentGeometry = { height: 0, offset: 0 };
 
 /**
  * The window a mounted tree shows onto its model: the viewport's size, the rows' geometry, and which
- * row each slot shows. The model keeps the scroll offset; the viewport keeps it within the rows.
+ * row each slot shows. The model keeps the scroll offset; the viewport keeps it within the rows and
+ * the room below them.
  *
  * Slot `s` shows the row whose index leaves remainder `s` modulo the slot count, among the slot
  * count rows from the first visible one. The slot count covers every row the viewport can show at
@@ -110,6 +112,9 @@ export class TreeViewport<K, T> {
 	private focusIndexValue = -1;
 	private focusedSegmentValue = -1;
 	private geometry: ContentGeometry = EMPTY_GEOMETRY;
+	/** The rows' height alone, without the room below them. */
+	private rowsHeight = 0;
+	private paddingBottomValue = 0;
 	private maxStickyRowsValue = DEFAULT_MAX_STICKY_ROWS;
 	private readonly stickyRows: StickyRow<K, T>[] = [];
 	private stickyHeightValue = 0;
@@ -147,7 +152,7 @@ export class TreeViewport<K, T> {
 		return this.geometry;
 	}
 
-	/** The offset the view shows: the model's, kept within the rows. */
+	/** The offset the view shows: the model's, kept within the content. */
 	get scrollTop(): number {
 		return this.geometry.offset;
 	}
@@ -228,6 +233,19 @@ export class TreeViewport<K, T> {
 		this.update();
 	}
 
+	/**
+	 * Leaves room below the last row that the view scrolls into, in CSS pixels, as VS Code's lists'
+	 * `paddingBottom` does; none by default.
+	 */
+	setPaddingBottom(padding = 0): void {
+		if (!(Number.isFinite(padding) && padding >= 0)) {
+			throw new RangeError(`Invalid bottom padding ${padding}`);
+		}
+		if (padding === this.paddingBottomValue) return;
+		this.paddingBottomValue = padding;
+		this.update();
+	}
+
 	/** Limits how many rows stick at the top, VS Code's 7 by default; 0 turns sticky scroll off. */
 	setMaxStickyRows(count: number = DEFAULT_MAX_STICKY_ROWS): void {
 		if (!Number.isInteger(count) || count < 0) {
@@ -270,10 +288,10 @@ export class TreeViewport<K, T> {
 	indexAtOffset(offset: number): number {
 		if (offset < 0) return -1;
 		const count = this.model.rowCount;
-		return offset < this.geometry.height ? this.indexAt(offset, count) : count;
+		return offset < this.rowsHeight ? this.indexAt(offset, count) : count;
 	}
 
-	/** The nearest offset the rows allow, in whole pixels. */
+	/** The nearest offset the rows and the room below them allow, in whole pixels. */
 	clampScrollTop(offset: number): number {
 		const max = Math.max(0, this.geometry.height - this.height);
 		return Math.min(Math.max(0, Math.round(offset)), max);
@@ -381,8 +399,10 @@ export class TreeViewport<K, T> {
 	private update(force = false): void {
 		const model = this.model;
 		const count = model.rowCount;
-		const contentHeight =
+		const rowsHeight =
 			this.heights === null ? count * this.fixedHeight() : this.heights.totalHeight;
+		this.rowsHeight = rowsHeight;
+		const contentHeight = rowsHeight + this.paddingBottomValue;
 		const stored = model.scrollTop;
 		const offset = Math.min(stored, Math.max(0, contentHeight - this.height));
 		let changed = force;
@@ -601,7 +621,7 @@ export class TreeViewport<K, T> {
 
 	/** The row holding a content offset, or -1 past the last row. */
 	private rowIndexAt(offset: number, count: number): number {
-		return count > 0 && offset < this.geometry.height ? this.indexAt(offset, count) : -1;
+		return count > 0 && offset < this.rowsHeight ? this.indexAt(offset, count) : -1;
 	}
 
 	private rowTop(index: number): number {

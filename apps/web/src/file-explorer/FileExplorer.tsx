@@ -113,6 +113,7 @@ export function FileExplorer({
 								keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}
 								label={intl.formatMessage(fileExplorerMessages.tree)}
 								model={state.model}
+								paddingBottom={EXPLORER_ROW_HEIGHT}
 								platform={platform}
 								renderRow={renderRow}
 								rowHeight={EXPLORER_ROW_HEIGHT}

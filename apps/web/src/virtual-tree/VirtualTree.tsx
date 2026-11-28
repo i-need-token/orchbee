@@ -43,6 +43,11 @@ export interface VirtualTreeProps<K, T> {
 	 */
 	readonly rowHeight?: VirtualTreeRowHeight<K, T>;
 	/**
+	 * Empty room below the last row in CSS pixels, which the tree scrolls into, as VS Code's lists'
+	 * `paddingBottom` leaves it; none unless set. VS Code's Explorer leaves one row's height.
+	 */
+	readonly paddingBottom?: number;
+	/**
 	 * How many expanded rows at most stick at the top while their descendants scroll beneath them,
 	 * VS Code's 7 by default; 0 turns sticky scroll off. They never cover more than 40% of the tree.
 	 */
@@ -112,6 +117,7 @@ export function VirtualTree<K, T>({
 	model,
 	onContextMenu,
 	onOpen,
+	paddingBottom,
 	platform,
 	renderRow,
 	rowHeight,
@@ -125,6 +131,9 @@ export function VirtualTree<K, T>({
 	React.useLayoutEffect(() => {
 		viewport.setRowHeight(rowHeight);
 	}, [rowHeight, viewport]);
+	React.useLayoutEffect(() => {
+		viewport.setPaddingBottom(paddingBottom);
+	}, [paddingBottom, viewport]);
 	React.useLayoutEffect(() => {
 		viewport.setMaxStickyRows(maxStickyRows);
 	}, [maxStickyRows, viewport]);
