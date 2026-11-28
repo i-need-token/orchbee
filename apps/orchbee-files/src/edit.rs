@@ -5,19 +5,29 @@
 //! caller injected what it changed.
 //!
 //! - `fs.write` ([`write`]) takes the content its Puts staged and rewrites the file in place.
+//! - `fs.create`, `fs.rename` and `fs.exists` ([`entries`]) handle one item, under the names this
+//!   machine holds ([`names`]).
+//! - `fs.move` and `fs.copy` ([`transfer`]) take each source into a folder.
 
+mod entries;
+mod names;
 mod observer;
 mod outcomes;
+mod transfer;
 mod write;
 
 use std::sync::Arc;
 
 use orchbee_files_protocol::{
-    ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsWrite, MutationReply, Operation,
-    RequestOutcome,
+    ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsCreate, FsEntryResult, FsExists,
+    FsExistsResult, FsRename, FsTransfer, FsTransferResult, FsWrite, List, MutationReply,
+    Operation, RequestOutcome, WorkspaceId,
 };
 
-pub(crate) use self::observer::{Observer, Saved, Unobserved};
+pub(crate) use self::{
+    observer::{Moved, Observer, Relocation, Saved, Unobserved},
+    transfer::Transfer,
+};
 use self::{
     outcomes::{Outcomes, finish},
     write::{System, Write, Writing},
@@ -93,6 +103,124 @@ impl Service {
         }
     }
 
+    /// `fs.create` under `view`.
+    pub(crate) fn create(&self, call: Call, view: View, request: &FsCreate) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let view = Arc::new(view);
+        self.outcomes.run(workspace, identity, call, |call| {
+            let path = &request.path;
+            let created = names::created(path)
+                .and_then(|_| self.admit(Operation::FsCreate, &view, path, Change::Entry))
+                .and_then(|path| {
+                    unless_cancelled(call)?;
+                    entries::create(&self.helpers, &path, request.kind)
+                });
+            created.map_or_else(failed, |entry| {
+                MutationReply::FsEntry(FsEntryResult { entry })
+            })
+        });
+    }
+
+    /// `fs.rename` under `view`.
+    pub(crate) fn rename(&self, call: Call, view: View, request: &FsRename) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let view = Arc::new(view);
+        let mut moved = None;
+        self.outcomes.run(workspace, identity, call, |call| {
+            let operation = Operation::FsRename;
+            let renamed = self
+                .admit(operation, &view, &request.from, Change::Entry)
+                .and_then(|from| {
+                    names::created(&request.to)?;
+                    let to = self.admit(operation, &view, &request.to, Change::Entry)?;
+                    unless_cancelled(call)?;
+                    let entry = entries::rename(&self.helpers, &from, &to)?;
+                    Ok((from, to, entry))
+                });
+            match renamed {
+                Ok((from, to, entry)) => {
+                    moved = Some((from, to));
+                    MutationReply::FsEntry(FsEntryResult { entry })
+                }
+                Err(error) => failed(error),
+            }
+        });
+        if let Some((from, to)) = moved {
+            self.moved(workspace, &from, &to, Relocation::Rename);
+        }
+    }
+
+    /// `fs.move` or `fs.copy`, as `transfer` says, under `view`. A move changes each source's
+    /// entry; a copy reads its sources as any read does.
+    pub(crate) fn transfer(
+        &self,
+        call: Call,
+        view: View,
+        request: &FsTransfer,
+        transfer: Transfer,
+    ) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let (view, operation) = (Arc::new(view), transfer.operation());
+        let mut done = Vec::new();
+        self.outcomes.run(workspace, identity, call, |call| {
+            let directory = NativePath::parse(request.target_directory.as_str());
+            let admit = |requested: &FilePath| {
+                let directory = directory.clone()?;
+                let source = match transfer {
+                    Transfer::Move => self.admit(operation, &view, requested, Change::Entry),
+                    Transfer::Copy => view.read(requested),
+                }?;
+                let target = names::child(&directory, source.name())?;
+                let named = FilePath::new(target.as_str())
+                    .map_err(|_| FilesError::new(ErrorCode::InvalidName))?;
+                self.admit(operation, &view, &named, Change::Entry)?;
+                Ok((source, target))
+            };
+            let sources = request.sources.as_slice();
+            let cancelled = || call.cancelled();
+            let transferred = transfer::run(
+                &self.helpers,
+                transfer,
+                sources,
+                &admit,
+                request.conflict,
+                &cancelled,
+            );
+            let items = transferred
+                .into_iter()
+                .map(|transferred| {
+                    done.extend(transferred.done);
+                    transferred.item
+                })
+                .collect();
+            List::new(items).map_or_else(
+                |_| failed(FilesError::new(ErrorCode::Failed)),
+                |items| MutationReply::FsTransfer(FsTransferResult { items }),
+            )
+        });
+        if transfer == Transfer::Move {
+            for (from, to) in &done {
+                self.moved(workspace, from, to, Relocation::Move);
+            }
+        }
+    }
+
+    /// `fs.exists` under `view`, whose names are read as any read is.
+    pub(crate) fn exists(&self, call: Call, view: &View, request: &FsExists) {
+        let existing = view.read(&request.directory).and_then(|directory| {
+            let names = request.names.as_slice().to_vec();
+            entries::exists(&self.helpers, &directory, names)
+        });
+        let reply = existing
+            .and_then(|existing| {
+                List::new(existing).map_err(|_| FilesError::new(ErrorCode::Failed))
+            })
+            .map_or_else(FilesReply::Error, |existing| {
+                FilesReply::FsExists(FsExistsResult { existing })
+            });
+        finish(call, &reply);
+    }
+
     /// Answers `request.outcome` on `call` when a file mutation ran under its identity, and hands
     /// `call` back otherwise, for the Git mutations to answer.
     pub(crate) fn outcome(&self, call: Call, request: &RequestOutcome) -> Option<Call> {
@@ -105,6 +233,18 @@ impl Service {
                 None
             }
             None => Some(call),
+        }
+    }
+
+    /// Tells the observer that an item went from `from` to `to`, unless it stayed where it was.
+    fn moved(&self, workspace: WorkspaceId, from: &NativePath, to: &NativePath, how: Relocation) {
+        if from.as_str() != to.as_str() {
+            self.observer.moved(&Moved {
+                workspace,
+                from,
+                to,
+                relocation: how,
+            });
         }
     }
 
@@ -126,4 +266,13 @@ impl Service {
 /// The recorded reply of a mutation that failed.
 fn failed(error: FilesError) -> MutationReply {
     MutationReply::Error(ErrorReply { error })
+}
+
+/// `cancelled` when `call` was cancelled before its mutation changed anything.
+fn unless_cancelled(call: &Call) -> Result<(), FilesError> {
+    if call.cancelled() {
+        Err(FilesError::new(ErrorCode::Cancelled))
+    } else {
+        Ok(())
+    }
 }

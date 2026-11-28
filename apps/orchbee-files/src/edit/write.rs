@@ -36,6 +36,7 @@ use orchbee_files_protocol::{
 };
 use sha2::{Digest as _, Sha256};
 
+use super::entries;
 use crate::{
     blocking::Helpers,
     entry, error,
@@ -151,7 +152,7 @@ impl Disk for System {
 
     fn create_folders(&self, path: &Path) -> io::Result<()> {
         match path.parent() {
-            Some(parent) => fs::create_dir_all(parent),
+            Some(parent) => entries::create_folders(parent),
             None => Ok(()),
         }
     }

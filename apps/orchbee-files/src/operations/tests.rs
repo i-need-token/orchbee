@@ -12,9 +12,10 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ChangeKind, ConnectionId, EncodingName, EntryKind, ErrorCode, FilePath,
-    FilesNotice, FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsGrantResult, FsList,
-    FsSnapshot, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
+    CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, EncodingName, EntryKind,
+    ErrorCode, FileName, FilePath, FilesNotice, FilesRecord, FilesReply, FilesRequest, FrameKind,
+    FsCreate, FsExists, FsExistsResult, FsGrant, FsGrantResult, FsList, FsRename, FsSnapshot,
+    FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
     LinkMessage, LinkRequest, LinkSide, List, MutationReply, MutationState, NoticeKind, Operation,
     PathsRequest, Put, PutEnd, RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, Root,
     SafeInteger, ScopeUpdate, TransferId, WatchState, WorkspaceId, WorkspaceRequest,
@@ -171,6 +172,13 @@ impl Link {
             .iter()
             .map(|(id, _)| results.remove(id).unwrap())
             .collect()
+    }
+
+    /// The reply to `request`, a mutation, sent on call `id` with the lifecycle grant it needs.
+    fn mutate(&self, id: u64, request: &FilesRequest) -> FilesReply {
+        let record = encode_files_record(&FilesRecord::Request(encode_request(request))).unwrap();
+        self.send(id, GrantClass::Lifecycle, request.workspace(), record);
+        self.reply(id, request.operation())
     }
 
     /// `fs.write` of `text` under `request`, on call `id`, with its one Put on call `id + 1`.
@@ -551,4 +559,93 @@ fn a_write_runs_once_under_its_identity_and_only_in_scope() {
         ErrorCode::OutsideScope
     );
     assert_eq!(fs::read(fixture.0.join("outside.txt")).unwrap(), b"outside");
+}
+
+#[test]
+fn items_change_only_where_their_folder_is_in_scope() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let inside =
+        |relative: &str| fixture.file(&format!("root{}{relative}", std::path::MAIN_SEPARATOR));
+    let identity = |request: u8| RequestId::from_bytes([request; 16]).unwrap();
+    let create = |request: u8, path: FilePath| {
+        FilesRequest::FsCreate(FsCreate {
+            workspace_id: workspace(),
+            request_id: identity(request),
+            path,
+            kind: CreateKind::Directory,
+        })
+    };
+    let transfer = |request: u8, sources: Vec<FilePath>, target_directory: FilePath| FsTransfer {
+        workspace_id: workspace(),
+        request_id: identity(request),
+        sources: List::new(sources).unwrap(),
+        target_directory,
+        conflict: Conflict::Fail,
+    };
+    let made = inside("made");
+    let FilesReply::FsEntry(created) = link.mutate(1, &create(1, made.clone())) else {
+        panic!("expected the created folder");
+    };
+    assert_eq!(created.entry.kind, EntryKind::Directory);
+
+    let copy = transfer(2, vec![inside("inside.txt")], made.clone());
+    let copied = transferred(link.mutate(2, &FilesRequest::FsCopy(copy)));
+    let in_made = |name: &str| inside(&format!("made{}{name}", std::path::MAIN_SEPARATOR));
+    assert_eq!(copied, in_made("inside.txt"));
+    let rename = FilesRequest::FsRename(FsRename {
+        workspace_id: workspace(),
+        request_id: identity(3),
+        from: copied,
+        to: in_made("renamed.txt"),
+    });
+    let FilesReply::FsEntry(renamed) = link.mutate(3, &rename) else {
+        panic!("expected the renamed file");
+    };
+    assert_eq!(renamed.entry.name.as_str(), "renamed.txt");
+    let moved = transfer(4, vec![inside("inside.txt")], made.clone());
+    assert_eq!(
+        transferred(link.mutate(4, &FilesRequest::FsMove(moved))),
+        in_made("inside.txt")
+    );
+
+    let names = ["inside.txt", "missing", "renamed.txt"].map(|name| FileName::new(name).unwrap());
+    let exists = FilesRequest::FsExists(FsExists {
+        workspace_id: workspace(),
+        directory: made,
+        names: List::new(names.to_vec()).unwrap(),
+    });
+    let existing = [names[0].clone(), names[2].clone()];
+    assert_eq!(
+        link.mutate(5, &exists),
+        FilesReply::FsExists(FsExistsResult {
+            existing: List::new(existing.to_vec()).unwrap(),
+        })
+    );
+
+    // Neither an item whose folder lies outside the root nor the root itself is changed.
+    let beyond = fixture.file(&format!("folder{}new", std::path::MAIN_SEPARATOR));
+    assert_eq!(
+        error(link.mutate(6, &create(6, beyond))),
+        ErrorCode::OutsideScope
+    );
+    let root = fixture.file("root");
+    assert_eq!(
+        error(link.mutate(7, &create(7, root))),
+        ErrorCode::OutsideScope
+    );
+    assert!(!fixture.0.join("folder").join("new").exists());
+}
+
+/// The final path of the one item a transfer answered without an error.
+fn transferred(reply: FilesReply) -> FilePath {
+    let FilesReply::FsTransfer(result) = reply else {
+        panic!("expected the transferred items, got {reply:?}");
+    };
+    let [item] = result.items.as_slice() else {
+        panic!("expected one item");
+    };
+    assert_eq!(item.error, None);
+    item.path.clone().unwrap()
 }

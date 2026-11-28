@@ -1,6 +1,6 @@
 //! What a successful edit tells whoever records Local History, which batch ④ serves: each save the
-//! Client asked to record. The caller of [`Service::new`](super::Service::new) injects the
-//! [`Observer`]; [`Unobserved`] hears nothing.
+//! Client asked to record, and each item a rename or move took to another path. The caller of
+//! [`Service::new`](super::Service::new) injects the [`Observer`]; [`Unobserved`] hears nothing.
 //!
 //! An observer hears an edit on the edit's own thread once its reply went out, and a request
 //! repeated under the same identity is heard only when it ran. An observer returns nothing, since
@@ -16,6 +16,11 @@ use crate::{fs::Encoder, scope::path::NativePath};
 pub(crate) trait Observer: Send + Sync {
     /// An `fs.write` whose request named a `history` reason wrote its file.
     fn saved(&self, saved: &Saved<'_>);
+
+    /// An `fs.rename` or `fs.move` took an item from one path to another: a file, a link, which
+    /// moves itself, or a folder with everything in it, which a merge moved into a folder already
+    /// there.
+    fn moved(&self, moved: &Moved<'_>);
 }
 
 /// One save to record.
@@ -51,9 +56,33 @@ impl Saved<'_> {
     }
 }
 
+/// How an item came to its new path, which Local History labels as VS Code does.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Relocation {
+    /// `fs.rename`.
+    Rename,
+    /// `fs.move`.
+    Move,
+}
+
+/// One item taken to another path.
+#[expect(
+    dead_code,
+    reason = "Local History, batch ④, moves the entries of what moved"
+)]
+pub(crate) struct Moved<'a> {
+    pub(crate) workspace: WorkspaceId,
+    pub(crate) from: &'a NativePath,
+    /// Its final path: the name a conflict rule chose, or the folder it merged into.
+    pub(crate) to: &'a NativePath,
+    pub(crate) relocation: Relocation,
+}
+
 /// The observer while nothing records Local History.
 pub(crate) struct Unobserved;
 
 impl Observer for Unobserved {
     fn saved(&self, _: &Saved<'_>) {}
+
+    fn moved(&self, _: &Moved<'_>) {}
 }

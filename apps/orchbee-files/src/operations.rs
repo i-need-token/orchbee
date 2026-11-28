@@ -294,12 +294,26 @@ impl Services {
                         }
                     });
             }
-            FilesRequest::FsCreate(_)
-            | FilesRequest::FsRename(_)
-            | FilesRequest::FsMove(_)
-            | FilesRequest::FsCopy(_)
-            | FilesRequest::FsExists(_)
-            | FilesRequest::FsDelete(_)
+            FilesRequest::FsCreate(request) => self.detach(call, move |services, call| {
+                services.edit.create(call, view, &request);
+            }),
+            FilesRequest::FsRename(request) => self.detach(call, move |services, call| {
+                services.edit.rename(call, view, &request);
+            }),
+            FilesRequest::FsMove(request) => self.detach(call, move |services, call| {
+                services
+                    .edit
+                    .transfer(call, view, &request, edit::Transfer::Move);
+            }),
+            FilesRequest::FsCopy(request) => self.detach(call, move |services, call| {
+                services
+                    .edit
+                    .transfer(call, view, &request, edit::Transfer::Copy);
+            }),
+            FilesRequest::FsExists(request) => self.detach(call, move |services, call| {
+                services.edit.exists(call, &view, &request);
+            }),
+            FilesRequest::FsDelete(_)
             | FilesRequest::FsRestore(_)
             | FilesRequest::FsClipboard(_)
             | FilesRequest::FsImportBegin(_)
