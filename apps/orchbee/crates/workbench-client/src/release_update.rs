@@ -6,7 +6,9 @@
 //! command that opens it. A click first restarts the Session for the active version when that
 //! version asks for it, keeping every terminal; see [`restart`]. A TUI that joined a Session running
 //! an older version also moves that Session onto its own version by itself, keeping every terminal,
-//! and Update offers the move again only when it could not happen. About's Check
+//! and Update offers the move again only when it could not happen. Once the Session runs this
+//! version, the moves of terminals off older Terminal Hosts are watched for a while, and Update offers
+//! the move again when a failed move stopped them with terminals left there. About's Check
 //! for updates asks the Session Server to run its update job now; see [`check`].
 
 use crate::background_thread::BackgroundThread;
@@ -125,6 +127,9 @@ pub enum SessionWait {
     Clients,
     /// A Terminal Host must be replaced, which restarts every terminal: the person decides.
     HostRequired,
+    /// A failed move stopped moving terminals off a Terminal Host older than the Session's Worker,
+    /// so they still run on an older version; a restart's Worker moves them again.
+    MovesStopped,
     /// Another reason, such as the restart failing.
     Other,
 }
@@ -151,7 +156,8 @@ pub enum UpdateSwitch {
     SessionUpdating,
     /// The Session runs this Client's version now.
     SessionUpdated,
-    /// The Session still runs an older version; Update offers the move again.
+    /// The Session still runs an older version, or a failed move left terminals on an older
+    /// Terminal Host; Update offers the move again.
     SessionWaiting(SessionWait),
 }
 
@@ -162,6 +168,10 @@ enum SessionMove {
     #[default]
     Untried,
     Running(restart::Job),
+    /// The Session runs this Client's version, and its moves off older Hosts are watched.
+    Watching(restart::Job),
+    /// The Session moved, and its moves are watched once this connection reads its new version.
+    Rewatch,
     /// The move could not happen, so Update offers it.
     Waiting(SessionWait),
     /// A click asked the person whether to restart every terminal.
@@ -325,13 +335,23 @@ impl Updater {
 
     /// Moves the local Session `session` onto this Client's version by itself, once, when it runs
     /// `older`, an older version; [`Self::take_restart`] reports the move, which keeps every
-    /// terminal.
+    /// terminal. A Session that runs this version, first or after such a move, has its moves of
+    /// terminals off older Hosts watched once, and [`Self::take_restart`] reports when a failed move
+    /// stopped them.
     pub(crate) fn move_older_session(&mut self, older: bool, session: Option<&str>) {
-        if older
-            && matches!(self.session_move, SessionMove::Untried)
-            && let Some(job) = session.and_then(restart::Job::move_session)
-        {
-            self.session_move = SessionMove::Running(job);
+        let job = match self.session_move {
+            SessionMove::Untried if older => session.and_then(restart::Job::move_session),
+            SessionMove::Untried | SessionMove::Rewatch if !older => {
+                session.and_then(restart::Job::watch_moves)
+            }
+            _ => return,
+        };
+        if let Some(job) = job {
+            self.session_move = if older {
+                SessionMove::Running(job)
+            } else {
+                SessionMove::Watching(job)
+            };
         }
     }
 
@@ -389,6 +409,8 @@ impl Updater {
             }
             SessionMove::Untried
             | SessionMove::Running(_)
+            | SessionMove::Watching(_)
+            | SessionMove::Rewatch
             | SessionMove::Asking
             | SessionMove::Done => {}
         }
@@ -425,15 +447,29 @@ impl Updater {
     }
 
     /// The next report of an older Session's move, once. A move that left terminals on a Host it
-    /// must replace still moved the Session; those terminals keep running on their Host.
+    /// must replace still moved the Session; those terminals keep running on their Host, and the
+    /// moves are watched once the Session runs this version. A watch reports only moves a failed
+    /// move stopped.
     fn take_session_move(&mut self) -> Option<UpdateSwitch> {
+        if let SessionMove::Watching(job) = &self.session_move {
+            let stopped = matches!(
+                job.poll()?,
+                restart::Progress::Refused(SessionWait::MovesStopped)
+            );
+            self.session_move = if stopped {
+                SessionMove::Waiting(SessionWait::MovesStopped)
+            } else {
+                SessionMove::Done
+            };
+            return stopped.then_some(UpdateSwitch::SessionWaiting(SessionWait::MovesStopped));
+        }
         let SessionMove::Running(job) = &self.session_move else {
             return None;
         };
         let (next, report) = match job.poll()? {
             restart::Progress::Restarting => return Some(UpdateSwitch::SessionUpdating),
             restart::Progress::Leave | restart::Progress::HostRequired(Some(_)) => {
-                (SessionMove::Done, UpdateSwitch::SessionUpdated)
+                (SessionMove::Rewatch, UpdateSwitch::SessionUpdated)
             }
             restart::Progress::HostRequired(None) => (
                 SessionMove::Waiting(SessionWait::HostRequired),

@@ -246,6 +246,18 @@ offered, takes Update's place. The diagnostic log records each outcome as
 `session-update-restarted`, `session-update-waiting`, `session-update-refused`, or
 `session-update-host-replaced`.
 
+A Session that runs the window's version can still run terminals on a Terminal Host of an older
+version, which its Worker moves one at a time. After each connect, Main reads the bundled Client's
+`status server --format json` every two seconds, for at most three minutes, while its answer lists
+[`server.moves`](../orchbee/docs/native-runtime-status.md#status-server) without `stopped`. Once a
+failed move stopped them with terminals left there, the port offers the move as waiting on
+`moves-stopped`, with `sessionVersion` naming the oldest such Host's version, and the notice says
+that some terminals still run on that version because moving them stopped after a failure. A press
+runs the same `server restart`, whose new Worker moves them again. Moves that run again, or that
+left nothing behind, withdraw the offer, and another document's connect keeps it until its own read
+says so. The diagnostic log records the offer as `session-update-waiting` with the reason
+`moves-stopped`.
+
 A start refused with `session-too-old` runs the same restart first and starts again, so a Session
 the window cannot join at all moves too where its Server can hand over its terminals. Only a
 refusal that remains reaches the page: it says Orchbee could not update the Session and that

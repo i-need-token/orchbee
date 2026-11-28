@@ -12,6 +12,7 @@ import type { DesktopDiagnosticRecorder } from '../diagnostics';
 import { isNewerProductVersion } from '../product-version';
 import type {
 	ServerStartAnswer,
+	SessionMoves,
 	TerminalsStaying,
 	UpdateRestart,
 	UpdateRestartRequest,
@@ -26,6 +27,11 @@ const COMPATIBILITY_WINDOW = 'compatibility-window';
 
 /** How long a place request waits for its document's reply before the switch goes ahead without one. */
 const PLACE_REQUEST_TIMEOUT_MILLISECONDS = 1_000;
+
+/** How often the moves off older Terminal Hosts are read: the Worker moves one terminal per turn. */
+const MOVES_READ_PERIOD_MILLISECONDS = 2_000;
+/** How many reads the moves get after a connect before what is left counts as normal. */
+const MOVES_READS = 90;
 
 /** Main's end of one document's window-update port, as Electron's `MessagePortMain` offers it. */
 export interface DesktopWindowUpdatePort {
@@ -59,6 +65,12 @@ export interface DesktopWindowUpdateOptions {
 	readonly ownVersion: string;
 	/** The active window version the pointer names, or null. */
 	readonly readPointer: (desktopRoot: string) => Promise<string | null>;
+	/**
+	 * Through this window's own Client, reads the terminals that Terminal Hosts older than the
+	 * Session's Worker run, and whether a failed move stopped moving them; `undefined` when the read
+	 * fails.
+	 */
+	readonly readSessionMoves: () => Promise<SessionMoves | undefined>;
 	readonly recordEvent: DesktopDiagnosticRecorder;
 	/**
 	 * Through the bundled Client of window version `version`, restarts the Session's Server and Worker
@@ -95,8 +107,9 @@ interface PendingPlace {
 }
 
 /**
- * The Session's move onto this window's version while its Server runs the older `sessionVersion`:
- * running now, or waiting for the reason `state` names.
+ * The Session's move onto this window's version while its Server runs the older `sessionVersion`,
+ * or a Terminal Host of that version still runs terminals: running now, or waiting for the reason
+ * `state` names.
  */
 interface SessionMove {
 	readonly sessionVersion: string;
@@ -137,12 +150,16 @@ interface ServedPort {
  * a Setup launch falls back to focusing this window. A Session whose Server runs an older version
  * than this window is moved onto this window's version by itself once a document connects; only a
  * move that cannot happen now is offered, with why it waits, until a request or a later document
- * carries it out.
+ * carries it out. A Session that runs this window's version has the moves of terminals off its
+ * older Terminal Hosts watched after each connect, and a failed move that stopped them with
+ * terminals left there offers the move as well, since a restart's Worker moves them again.
  */
 export class DesktopWindowUpdate {
 	#checking = false;
 	#disposed = false;
 	#focusSequence = 0;
+	/** The latest watch of the moves off older Hosts: an earlier one ends at its next step. */
+	#movesWatch = 0;
 	#offer: string | null = null;
 	readonly #options: DesktopWindowUpdateOptions;
 	readonly #ports = new Set<ServedPort>();
@@ -174,7 +191,9 @@ export class DesktopWindowUpdate {
 	 * every terminal. Every document reads that the Session updates meanwhile; the connection then
 	 * ends and the window loads again once the new Server serves. A move that cannot happen now is
 	 * offered with why it waits. A Session as new as this window, or one that names no version,
-	 * clears that offer; a move or a switch already running leaves everything to it.
+	 * clears that offer; a move or a switch already running leaves everything to it. A Session as
+	 * new as this window then has its moves of terminals off older Terminal Hosts watched, which
+	 * alone settles a move offered because they stopped.
 	 */
 	async moveSession(answer: ServerStartAnswer): Promise<void> {
 		const sessionVersion = answer.sessionVersion;
@@ -182,7 +201,10 @@ export class DesktopWindowUpdate {
 			sessionVersion === null ||
 			!isNewerProductVersion(this.#options.ownVersion, sessionVersion)
 		) {
-			this.#setSession(null);
+			if (sessionVersion === null || this.#session?.state !== 'moves-stopped') {
+				this.#setSession(null);
+			}
+			if (sessionVersion !== null) void this.#watchMoves();
 			return;
 		}
 		if (this.#checking || this.#disposed) return;
@@ -431,6 +453,36 @@ export class DesktopWindowUpdate {
 	#setSession(session: SessionMove | null): void {
 		this.#session = session;
 		this.#publish();
+	}
+
+	/**
+	 * Reads the Session's moves every two seconds, at most {@link MOVES_READS} times, while Terminal
+	 * Hosts older than its Worker run terminals that no failed move stopped moving. Once one did,
+	 * the move is offered as waiting on `moves-stopped`, once no move or switch runs, unless another
+	 * move is offered; moves that run again or left nothing behind withdraw that offer. A read that
+	 * fails changes nothing; a later connect starts the watch again.
+	 */
+	async #watchMoves(): Promise<void> {
+		const watch = ++this.#movesWatch;
+		for (let read = 1; ; read += 1) {
+			const moves = await this.#options.readSessionMoves().catch(() => undefined);
+			if (this.#disposed || watch !== this.#movesWatch) return;
+			const offered = this.#session?.state === 'moves-stopped';
+			if (moves?.stopped === true && !this.#checking) {
+				if (this.#session !== null && !offered) return;
+				if (!offered) {
+					this.#options.recordEvent('info', 'session-update-waiting', {
+						reason: 'moves-stopped',
+					});
+				}
+				this.#setSession({ sessionVersion: moves.version, state: 'moves-stopped' });
+				return;
+			}
+			if (moves !== undefined && moves?.stopped !== true && offered) this.#setSession(null);
+			if (moves === null || read >= MOVES_READS) return;
+			await new Promise((resolve) => setTimeout(resolve, MOVES_READ_PERIOD_MILLISECONDS));
+			if (this.#disposed || watch !== this.#movesWatch) return;
+		}
 	}
 
 	/**

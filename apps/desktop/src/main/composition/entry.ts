@@ -44,6 +44,7 @@ import {
 import {
 	readServerStartAnswer,
 	readServerStopStatus,
+	readSessionMoves,
 	restartForUpdate,
 } from '../server-connection';
 import { createUpgradeBackup } from '../upgrade-backup';
@@ -363,6 +364,8 @@ function createWindowUpdate(sessionArguments: readonly string[]): DesktopWindowU
 		},
 		ownVersion,
 		readPointer: readWindowPointer,
+		readSessionMoves: () =>
+			readSessionMoves(resolveClientExecutable(), sessionArguments, resolveClientEnvironment()),
 		recordEvent,
 		restartForVersion: (root, version, request) =>
 			restartForUpdate(

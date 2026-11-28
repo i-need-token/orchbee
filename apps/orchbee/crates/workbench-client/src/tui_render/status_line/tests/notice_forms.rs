@@ -321,6 +321,7 @@ fn every_client_notice() -> Vec<Notice> {
             SessionWait::BackgroundPrograms,
             SessionWait::Clients,
             SessionWait::HostRequired,
+            SessionWait::MovesStopped,
             SessionWait::Other,
         ]
         .map(Notice::SessionUpdateWaiting),

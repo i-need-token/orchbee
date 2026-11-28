@@ -21,23 +21,26 @@ export const DesktopRelaunchPlaceSchema = z.discriminatedUnion('kind', [
 
 /**
  * Where the Session's move onto this window's version stands while its Server runs an older
- * version: `updating` while Main moves it, or why it waits: it runs a background program its Worker
- * would end, a connected Client cannot come back to a new Server by itself, a Terminal Host must be
- * replaced, which restarts every terminal and so waits for the person, or another reason, such as
- * the move failing.
+ * version, or while a Terminal Host of an older version still runs terminals: `updating` while Main
+ * moves it, or why it waits: it runs a background program its Worker would end, a connected Client
+ * cannot come back to a new Server by itself, a Terminal Host must be replaced, which restarts every
+ * terminal and so waits for the person, a failed move stopped moving terminals off an older Host
+ * (`moves-stopped`), which a restart's Worker moves again, or another reason, such as the move
+ * failing.
  */
 const DesktopSessionUpdateStateSchema = z.enum([
 	'background-programs',
 	'clients',
 	'host-required',
+	'moves-stopped',
 	'other',
 	'updating',
 ]);
 
 /**
  * What Update offers: a newer window `version` to switch to, or, while the Session runs
- * `sessionVersion`, older than this window, a move of the Session to this window's own `version`,
- * with where that move stands.
+ * `sessionVersion`, older than this window, or a Terminal Host of that version still runs terminals,
+ * a move of the Session to this window's own `version`, with where that move stands.
  */
 const DesktopWindowUpdateOfferSchema = z.discriminatedUnion('kind', [
 	z.strictObject({ kind: z.literal('window'), version: DesktopWindowVersionSchema }),

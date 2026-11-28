@@ -1212,6 +1212,12 @@ export const workbenchMessages = defineMessages({
 		description:
 			'Notice when moving the Session, which runs the older sessionVersion, would restart every terminal, so it waits for the person; Update asks before restarting.',
 	},
+	updateSessionMovesStopped: {
+		id: 'workbench.update.session.movesStopped',
+		defaultMessage: enUSWorkbenchMessages['workbench.update.session.movesStopped'],
+		description:
+			"Notice when a failed move stopped moving terminals off a Terminal Host of the older sessionVersion onto this window's version, so they still run there; Update restarts the Session, whose new Worker moves them again.",
+	},
 	updateSessionOther: {
 		id: 'workbench.update.session.other',
 		defaultMessage: enUSWorkbenchMessages['workbench.update.session.other'],

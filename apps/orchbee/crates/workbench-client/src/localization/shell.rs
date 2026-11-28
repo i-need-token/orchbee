@@ -487,6 +487,9 @@ impl Locale {
                 SessionWait::HostRequired => {
                     "Updating the Session restarts every terminal, so it waits for you: choose Update when you're ready."
                 }
+                SessionWait::MovesStopped => {
+                    "Some terminals still run on an older Orchbee because moving them to this version stopped after a failure. Choose Update to try again."
+                }
                 SessionWait::Other => {
                     "The Session runs an older Orchbee, so some features aren't available yet. Choose Update to try again."
                 }
@@ -500,6 +503,9 @@ impl Locale {
                 }
                 SessionWait::HostRequired => {
                     "更新会话会重启所有终端，所以在等你确认：准备好后选择“更新”。"
+                }
+                SessionWait::MovesStopped => {
+                    "部分终端仍在旧版 Orchbee 上运行，因为转移到此版本时出错而停止了。选择“更新”重试。"
                 }
                 SessionWait::Other => {
                     "会话仍在运行旧版 Orchbee，部分功能暂不可用。选择“更新”重试。"
@@ -577,6 +583,10 @@ impl Locale {
             Notice::SessionUpdateWaiting(SessionWait::HostRequired) => (
                 "Session update restarts terminals; choose Update.",
                 "更新会话会重启终端；准备好后选择“更新”。",
+            ),
+            Notice::SessionUpdateWaiting(SessionWait::MovesStopped) => (
+                "Terminal moves stopped; choose Update to retry.",
+                "终端转移已停止；选择“更新”重试。",
             ),
             Notice::SessionUpdateWaiting(SessionWait::Other) => (
                 "Session not updated; choose Update to retry.",

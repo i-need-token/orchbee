@@ -12,6 +12,8 @@
 //! way, with its own program and whatever the Session's tier says, since that tier reads the
 //! store's active version, which a macOS bundle may still be installing. A Host that version must
 //! replace asks first, and the confirmed replacement starts the Session again with this program.
+//! Once the Session runs this version, its own program watches the moves of terminals off older
+//! Hosts for a while, and reports when a failed move stopped them.
 use super::SessionWait;
 use crate::background_thread::BackgroundThread;
 use orchbee_local_client_protocol::{
@@ -60,7 +62,7 @@ pub(super) enum Progress {
     /// Nothing changed; the update waits for the Session to move.
     Waiting,
     /// The Session refused to move onto this Client's version, for the reason named; only an
-    /// older Session's move reports it.
+    /// older Session's move reports it, and a watch of the moves reports that they stopped.
     Refused(SessionWait),
     /// A Terminal Host of the Session must be replaced, which restarts its terminals: the person
     /// confirms first. `None` before the restart, when the active version's Worker cannot adopt
@@ -137,6 +139,19 @@ impl Job {
             } else {
                 Progress::Refused(SessionWait::Other)
             });
+        })
+    }
+
+    /// Starts the watch of the moves off older Hosts in the Session `session`, which runs this
+    /// Client's version: reports [`Progress::Refused`] with [`SessionWait::MovesStopped`] once a
+    /// failed move stopped them with terminals left there, and ends without a report otherwise.
+    pub(super) fn watch_moves(session: &str) -> Option<Self> {
+        let executable = std::env::current_exe().ok()?;
+        let session = session.to_owned();
+        Self::spawn(move |report| {
+            if moves_stopped(&executable, &session) {
+                report(Progress::Refused(SessionWait::MovesStopped));
+            }
         })
     }
 
@@ -304,6 +319,34 @@ fn settle(executable: &Path, session: &str) -> Progress {
             return last.map_or(Progress::Leave, |(count, _)| {
                 Progress::HostRequired(Some(count))
             });
+        }
+        thread::sleep(SETTLE_PERIOD);
+    }
+}
+
+/// Whether a failed move stopped the moves of terminals off Hosts older than the Session's Worker
+/// with terminals left there: reads `status server` every [`SETTLE_PERIOD`] while those Hosts run
+/// terminals and no stop is reported, for at most [`SETTLE_BUDGET`]. A read that fails changes
+/// nothing; a running Session without such terminals ends the watch.
+fn moves_stopped(executable: &Path, session: &str) -> bool {
+    let began = Instant::now();
+    loop {
+        if let Some(document) = command_json(
+            executable,
+            session,
+            &["status", "server", "--format", "json"],
+            STATUS_BUDGET,
+        ) {
+            let server = &document["result"]["server"];
+            if server["moves"]["stopped"].is_object() {
+                return true;
+            }
+            if server["state"] == "running" && !server["moves"].is_object() {
+                return false;
+            }
+        }
+        if began.elapsed() >= SETTLE_BUDGET {
+            return false;
         }
         thread::sleep(SETTLE_PERIOD);
     }

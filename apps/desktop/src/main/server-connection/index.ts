@@ -5,6 +5,8 @@ export type { DesktopPathRefusal } from './interpretPathRefusal';
 export type { ServerStartAnswer } from './interpretServerStartAnswer';
 export { readServerState } from './readServerState';
 export { readServerStopStatus } from './readServerStopStatus';
+export { readSessionMoves } from './readSessionMoves';
+export type { SessionMoves } from './readSessionMoves';
 export { restartForUpdate } from './restartForUpdate';
 export type { TerminalsStaying, UpdateRestart, UpdateRestartRequest } from './restartForUpdate';
 export type { ServerStopStatus } from './readServerStopStatus';

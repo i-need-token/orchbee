@@ -1,18 +1,21 @@
 /**
  * Why the Session's move onto this Client's version waits, or `updating` while it runs: a configured
  * command or plugin job runs in the Session, an older Client that cannot reconnect by itself is
- * connected, every terminal would restart, or another reason.
+ * connected, every terminal would restart, a failed move stopped moving terminals off a Terminal
+ * Host of the older `sessionVersion`, or another reason.
  */
 type WorkbenchSessionUpdateState =
 	| 'background-programs'
 	| 'clients'
 	| 'host-required'
+	| 'moves-stopped'
 	| 'other'
 	| 'updating';
 
 /**
  * What Update offers: a newer `version` of this Client to switch to, or, while the Session's Server
- * runs the older `sessionVersion`, a move of the Session onto this Client's own `version`.
+ * runs the older `sessionVersion`, or a Terminal Host of that version still runs terminals, a move
+ * of the Session onto this Client's own `version`.
  */
 export type WorkbenchUpdateOffer =
 	| { readonly kind: 'client'; readonly version: string }

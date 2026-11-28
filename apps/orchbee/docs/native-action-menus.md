@@ -212,6 +212,16 @@ it tries again; a Host that must be replaced asks Restart terminals to update? f
 stops the Session through the TUI's own connection and starts it with this version, which the TUI
 rejoins with every terminal restarted. A newer version in the store takes the row's place.
 
+A local Session that runs the TUI's version, from the start or once such a move succeeded, can
+still run terminals on a Terminal Host of an older version. Its own `orchbee` then reads
+`status server` every two seconds, for at most three minutes, while the answer lists
+[`server.moves`](native-runtime-status.md#status-server) without `stopped`. Once a failed move
+stopped them with terminals left there, the status line says Some terminals still run on an older
+Orchbee because moving them to this version stopped after a failure. Choose Update to try again.
+(`部分终端仍在旧版 Orchbee 上运行，因为转移到此版本时出错而停止了。选择“更新”重试。`), and the
+Update row and control offer the move as above: choosing it runs `server restart`, whose new Worker
+moves them again.
+
 Each displayed chord occupies a separate right-aligned slot after the navigation track and localized
 label, with at least one blank cell between the label and chord. The chord remains complete;
 constrained rows truncate the label first and omit the whole chord only when the remaining row cannot

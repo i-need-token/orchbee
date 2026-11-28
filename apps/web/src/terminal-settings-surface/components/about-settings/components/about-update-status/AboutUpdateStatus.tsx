@@ -49,6 +49,7 @@ const SESSION_WAITS = {
 	'background-programs': workbenchMessages.updateSessionBackgroundPrograms,
 	clients: workbenchMessages.updateSessionClients,
 	'host-required': workbenchMessages.updateSessionHostRequired,
+	'moves-stopped': workbenchMessages.updateSessionMovesStopped,
 	other: workbenchMessages.updateSessionOther,
 } as const satisfies Readonly<Record<string, MessageDescriptor>>;
 

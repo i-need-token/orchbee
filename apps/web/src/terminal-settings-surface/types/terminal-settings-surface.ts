@@ -56,7 +56,13 @@ export type TerminalSettingsUpdateOffer =
 	| {
 			readonly kind: 'session';
 			readonly sessionVersion: string;
-			readonly state: 'background-programs' | 'clients' | 'host-required' | 'other' | 'updating';
+			readonly state:
+				| 'background-programs'
+				| 'clients'
+				| 'host-required'
+				| 'moves-stopped'
+				| 'other'
+				| 'updating';
 			readonly version: string;
 	  };
 

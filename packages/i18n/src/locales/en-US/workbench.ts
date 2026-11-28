@@ -82,6 +82,8 @@ export const enUSWorkbenchMessages = {
 		'The Session still runs Orchbee {sessionVersion} because an older Orchbee is connected to it. Quit that one, then press Update.',
 	'workbench.update.session.hostRequired':
 		"The Session still runs Orchbee {sessionVersion}. Updating it restarts every terminal, so it waits for you: press Update when you're ready.",
+	'workbench.update.session.movesStopped':
+		'Some terminals still run on Orchbee {sessionVersion} because moving them to this version stopped after a failure. Press Update to try again.',
 	'workbench.update.session.other':
 		"The Session still runs Orchbee {sessionVersion}, so some features of this version aren't available yet. Press Update to try again.",
 	'workbench.update.hostReplacement.title': 'Restart terminals to update?',

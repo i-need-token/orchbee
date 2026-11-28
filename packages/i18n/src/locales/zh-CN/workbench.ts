@@ -79,6 +79,8 @@ export const zhCNWorkbenchMessages = {
 		'会话仍在运行 Orchbee {sessionVersion}，因为有较旧的 Orchbee 连接着它。退出那个 Orchbee 后点击“更新”。',
 	'workbench.update.session.hostRequired':
 		'会话仍在运行 Orchbee {sessionVersion}。更新它会重启所有终端，所以在等你确认：准备好后点击“更新”。',
+	'workbench.update.session.movesStopped':
+		'部分终端仍在 Orchbee {sessionVersion} 上运行，因为转移到此版本时出错而停止了。点击“更新”重试。',
 	'workbench.update.session.other':
 		'会话仍在运行 Orchbee {sessionVersion}，此版本的部分功能暂不可用。点击“更新”重试。',
 	'workbench.update.hostReplacement.title': '重启终端以完成更新？',
