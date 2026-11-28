@@ -4,7 +4,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 
 import type { FileWorkspaceSession } from '../file-session';
-import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
+import { VirtualTree, type VirtualTreeRow, type VirtualTreeRowState } from '../virtual-tree';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
 import { ExplorerProgress } from './components/explorer-progress/ExplorerProgress';
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
@@ -44,9 +44,10 @@ export interface FileExplorerProps {
  */
 const EXPLORER_WIDGET = 'explorer';
 
-// Typing moves to the next entry whose name starts with what was typed, as in VS Code's Explorer.
+// Typing moves to the next entry whose name starts with what was typed, as in VS Code's Explorer,
+// which names a compact row by its folders' names joined with `/`.
 function navigationLabel(row: VirtualTreeRow<string, ExplorerItem>): string {
-	return row.element.name;
+	return row.segments.map((segment) => segment.element.name).join('/');
 }
 
 /**
@@ -73,8 +74,8 @@ export function FileExplorer({
 	// Rows follow the decorations themselves, so the renderer changes only when they do.
 	const renderRow = useMemo(
 		() =>
-			(row: VirtualTreeRow<string, ExplorerItem>): ReactNode => (
-				<ExplorerRow decorations={decorations} item={row.element} />
+			(row: VirtualTreeRow<string, ExplorerItem>, rowState: VirtualTreeRowState): ReactNode => (
+				<ExplorerRow decorations={decorations} row={row} state={rowState} />
 			),
 		[decorations],
 	);

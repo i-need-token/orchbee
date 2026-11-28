@@ -17,7 +17,7 @@ const NO_ITEMS: readonly ExplorerItem[] = Object.freeze([]);
 
 /**
  * One root's tree as the virtual tree reads it, keyed by each path's comparison key so a root moved
- * to another spelling of a folder still finds its rows. A folder whose listing is kept draws at once;
+ * to another spelling of a folder still finds its rows, and with VS Code's compact folders. A folder whose listing is kept draws at once;
  * one the Server stopped keeping draws too, and waits to be listed again, as does one that went out
  * of date while this tree first listed its folder.
  *
@@ -30,6 +30,11 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 	// A name that is not valid UTF-8 cannot be named in a listing, so its folder never opens.
 	readonly hasChildren = (item: ExplorerItem): boolean =>
 		item.directory && item.entry?.unrepresentable !== true;
+	/**
+	 * VS Code's compact folders: a folder that is its parent's only child, once the default excludes
+	 * leave it alone, shows in its parent's row; a file never joins, nor a folder that cannot open.
+	 */
+	readonly compressible = (item: ExplorerItem): boolean => this.hasChildren(item);
 	readonly children = (
 		item: ExplorerItem,
 		signal: AbortSignal,

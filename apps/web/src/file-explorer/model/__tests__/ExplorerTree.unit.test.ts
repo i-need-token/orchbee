@@ -63,10 +63,13 @@ async function settle(): Promise<void> {
 	for (let turn = 0; turn < 20; turn += 1) await Promise.resolve();
 }
 
+/** The items the tree shows from top to bottom, each item of a compact row on its own. */
 function rows(state: ExplorerTreeState): readonly string[] {
 	if (state.kind !== 'tree') return [];
 	const { model } = state;
-	return Array.from({ length: model.rowCount }, (_, index) => model.rowAt(index).key);
+	return Array.from({ length: model.rowCount }, (_, index) =>
+		model.rowAt(index).segments.map((segment) => segment.key),
+	).flat();
 }
 
 function modelOf(tree: ExplorerTree): Extract<ExplorerTreeState, { kind: 'tree' }>['model'] {
@@ -332,6 +335,33 @@ describe('ExplorerTree', () => {
 		await settle();
 		expect(saved.length).toBe(writes + 1);
 		expect([...(saved.at(-1) ?? [])].sort()).toEqual(['/w/src', '/w/src/lib']);
+		tree.dispose();
+	});
+
+	it("joins a folder that is its parent's only child into the parent's row, but never a file", async () => {
+		const port = new MemoryFileSessionPort();
+		port.writeFile('/w/a/b/c/d.ts', 'd');
+		port.writeFile('/w/e/f.ts', 'f');
+		port.setRoot(WORKSPACE, '/w');
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		await settle();
+		await modelOf(tree).expand('/w/a');
+		await modelOf(tree).expand('/w/e');
+		await settle();
+
+		const model = modelOf(tree);
+		const names = Array.from({ length: model.rowCount }, (_, index) =>
+			model
+				.rowAt(index)
+				.segments.map((segment) => segment.element.name)
+				.join('/'),
+		);
+		expect(names).toEqual(['a/b/c', 'd.ts', 'e', 'f.ts']);
 		tree.dispose();
 	});
 

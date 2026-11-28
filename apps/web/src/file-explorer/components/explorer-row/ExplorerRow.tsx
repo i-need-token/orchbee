@@ -7,6 +7,11 @@ import {
 } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
+import {
+	VirtualTreeSegments,
+	type VirtualTreeRow,
+	type VirtualTreeRowState,
+} from '../../../virtual-tree';
 import type { ExplorerGitDecorations } from '../../model/ExplorerGitDecorations';
 import type { ExplorerItem } from '../../model/explorer-item';
 import {
@@ -18,7 +23,9 @@ import styles from './ExplorerRow.module.css';
 interface ExplorerRowProps {
 	/** The session's Git decorations; null while there are none to draw. */
 	readonly decorations: ExplorerGitDecorations | null;
-	readonly item: ExplorerItem;
+	readonly row: VirtualTreeRow<string, ExplorerItem>;
+	/** The row's state as the tree draws it, which the names of a compact row take. */
+	readonly state: VirtualTreeRowState;
 }
 
 interface ExplorerRowMarkProps {
@@ -54,14 +61,24 @@ function ExplorerRowMark({ badge, color, tooltip }: ExplorerRowMarkProps): React
  * and VS Code's decorations. Git's color tints the name and the mark at the far end, which shows
  * the row's letters, Git's ahead of the Explorer's own ⤷ for a link or ? for an entry that is
  * neither a file nor a folder; a folder with changes below it shows a dot in their color instead.
+ * A compact row names each of its folders, as VS Code's compact folders do, and carries the
+ * decorations of the last.
  */
-export function ExplorerRow({ decorations, item }: ExplorerRowProps): ReactNode {
+export function ExplorerRow({ decorations, row, state }: ExplorerRowProps): ReactNode {
+	const item = row.element;
 	const decoration = useExplorerRowDecoration(decorations, item);
 	return (
 		<span className={styles['root']}>
 			{item.directory ? null : <FileIcon name={item.name} path={item.path} />}
 			<span className={styles['name']} data-git-color={decoration?.color ?? undefined}>
-				{item.name}
+				{state.compact === null ? (
+					item.name
+				) : (
+					<VirtualTreeSegments
+						names={row.segments.map((segment) => segment.element.name)}
+						state={state}
+					/>
+				)}
 			</span>
 			{decoration !== null && decoration.badge !== null ? (
 				<ExplorerRowMark

@@ -4,6 +4,7 @@ export { VirtualTreeSegments } from './components/virtual-tree-segments/VirtualT
 export { VirtualTreeModel } from './model/VirtualTreeModel';
 export type { VirtualTreeRow, VirtualTreeSource } from './model/virtual-tree-types';
 export type { VirtualTreeDragAndDrop } from './types/virtual-tree-drag';
+export type { VirtualTreeRowState } from './types/virtual-tree-row-renderer';
 export type {
 	VirtualTreeContextMenuEvent,
 	VirtualTreeOpenEvent,
