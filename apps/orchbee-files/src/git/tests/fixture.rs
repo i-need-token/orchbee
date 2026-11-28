@@ -124,6 +124,29 @@ impl Fixture {
         String::from_utf8(ran.stdout).unwrap()
     }
 
+    /// Runs Git in `relative` with author and committer dated `minutes` after a fixed instant, so
+    /// what it commits is named the same in every run, and returns its standard output.
+    pub(super) fn git_at(&self, relative: &str, arguments: &[&str], minutes: i64) -> String {
+        let date = format!("{} +0000", 1_700_000_000 + minutes * 60);
+        let mut command = command::git(Path::new(&self.path(relative)), Access::Write, None);
+        command
+            .env("GIT_AUTHOR_DATE", &date)
+            .env("GIT_COMMITTER_DATE", &date)
+            .args(arguments);
+        let ran = runner::run(command, Vec::new(), &self.limits(), &self.output)
+            .unwrap()
+            .checked(Classifier::General)
+            .unwrap_or_else(|error| panic!("git {arguments:?}: {error:?}"));
+        String::from_utf8(ran.stdout).unwrap()
+    }
+
+    /// The commit `revision` names in the repository at `relative`.
+    pub(super) fn commit_of(&self, relative: &str, revision: &str) -> String {
+        self.git(relative, &["rev-parse", revision])
+            .trim()
+            .to_owned()
+    }
+
     pub(super) fn limits(&self) -> Limits {
         Limits::new(
             "test",

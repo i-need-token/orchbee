@@ -1,12 +1,14 @@
 //! The File Bar's Git engine: repository discovery, status and its refresh schedule, reads,
 //! operations and the credential and editor relay, each run through the Git command line.
 
+mod blame;
 mod command;
 mod consents;
 mod discovery;
 mod engine;
 mod errors;
 mod helper;
+mod history;
 mod json;
 mod mutations;
 mod native_paths;

@@ -12,10 +12,12 @@
 //! options VS Code would read from its configuration.
 
 use super::{
+    blame::{self, Blame, BlameQuery},
     command::{self, Access, RelayVariables},
     consents::Consents,
     discovery::{self, Discovered, Found, Probe},
     errors::GitError,
+    history::{self, ChangesQuery, LogPage, LogQuery, Paged, Stash},
     mutations::{self, Cleaned, Commit, Context},
     native_paths,
     output::{GitOutput, Page},
@@ -369,6 +371,128 @@ impl Git {
                     &limits,
                     &reading.output,
                 )
+            }));
+        });
+    }
+
+    /// `git.log`: one page of commits from `query.skip` on.
+    pub(super) fn log(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        query: LogQuery,
+        cancel: Arc<AtomicBool>,
+        reply: Reply<Paged<LogPage>>,
+    ) {
+        if !query.path.as_deref().is_none_or(native_paths::well_formed) {
+            reply(Err(GitError::new(ErrorCode::InvalidRequest)));
+            return;
+        }
+        self.read(workspace, repository, move |reading| {
+            reply(reading.and_then(|reading| {
+                let limits = Limits::new("log", history::DEADLINE, cancel);
+                let page = history::log(
+                    &reading.found,
+                    reading.version,
+                    &query,
+                    &limits,
+                    &reading.output,
+                )?;
+                Ok(Paged {
+                    start: query.skip,
+                    value: page,
+                })
+            }));
+        });
+    }
+
+    /// `git.blame`: the ranges from `start` on, with each commit Git described.
+    pub(super) fn blame(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        query: BlameQuery,
+        start: u64,
+        cancel: Arc<AtomicBool>,
+        reply: Reply<Paged<Blame>>,
+    ) {
+        if !native_paths::well_formed(&query.path) {
+            reply(Err(GitError::new(ErrorCode::InvalidRequest)));
+            return;
+        }
+        self.read(workspace, repository, move |reading| {
+            reply(reading.and_then(|reading| {
+                let limits = Limits::new("blame", history::DEADLINE, cancel);
+                let mut blamed = blame::blame(&reading.found, &query, &limits, &reading.output)?;
+                history::skip(&mut blamed.ranges, start);
+                Ok(Paged {
+                    start,
+                    value: blamed,
+                })
+            }));
+        });
+    }
+
+    /// `git.changes`: the changes from `start` on.
+    pub(super) fn changes(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        query: ChangesQuery,
+        start: u64,
+        cancel: Arc<AtomicBool>,
+        reply: Reply<Paged<Vec<history::Change>>>,
+    ) {
+        self.read(workspace, repository, move |reading| {
+            reply(reading.and_then(|reading| {
+                let limits = Limits::new("diff", history::DEADLINE, cancel);
+                let mut changes =
+                    history::changes(&reading.found, &query, &limits, &reading.output)?;
+                history::skip(&mut changes, start);
+                Ok(Paged {
+                    start,
+                    value: changes,
+                })
+            }));
+        });
+    }
+
+    /// `git.merge-base`.
+    pub(super) fn merge_base(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        first: String,
+        second: String,
+        cancel: Arc<AtomicBool>,
+        reply: Reply<Option<String>>,
+    ) {
+        self.read(workspace, repository, move |reading| {
+            reply(reading.and_then(|reading| {
+                let limits = Limits::new("merge-base", history::DEADLINE, cancel);
+                history::merge_base(&reading.found, &first, &second, &limits, &reading.output)
+            }));
+        });
+    }
+
+    /// `git.stashes`: the stash list from `start` on.
+    pub(super) fn stashes(
+        &self,
+        workspace: WorkspaceId,
+        repository: String,
+        start: u64,
+        cancel: Arc<AtomicBool>,
+        reply: Reply<Paged<Vec<Stash>>>,
+    ) {
+        self.read(workspace, repository, move |reading| {
+            reply(reading.and_then(|reading| {
+                let limits = Limits::new("stash", history::DEADLINE, cancel);
+                let mut stashes = history::stashes(&reading.found, &limits, &reading.output)?;
+                history::skip(&mut stashes, start);
+                Ok(Paged {
+                    start,
+                    value: stashes,
+                })
             }));
         });
     }

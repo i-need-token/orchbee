@@ -424,13 +424,13 @@ impl Services {
                         }
                     });
             }
+            FilesRequest::GitLog(request) => self.git.log(call, &request),
+            FilesRequest::GitBlame(request) => self.git.blame(call, &request),
+            FilesRequest::GitChanges(request) => self.git.changes(call, &request),
+            FilesRequest::GitMergeBase(request) => self.git.merge_base(call, &request),
+            FilesRequest::GitStashes(request) => self.git.stashes(call, &request),
             // The `files-history` operations this process does not serve yet.
-            FilesRequest::GitLog(_)
-            | FilesRequest::GitBlame(_)
-            | FilesRequest::GitChanges(_)
-            | FilesRequest::GitMergeBase(_)
-            | FilesRequest::GitStashes(_)
-            | FilesRequest::GitCheckout(_)
+            FilesRequest::GitCheckout(_)
             | FilesRequest::GitBranchCreate(_)
             | FilesRequest::GitBranchDelete(_)
             | FilesRequest::GitBranchRename(_)

@@ -35,6 +35,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+mod history;
+
 const WAIT: Duration = Duration::from_secs(60);
 
 /// A commit hook that hands the test the relay variables of the commit's commands, as any of them

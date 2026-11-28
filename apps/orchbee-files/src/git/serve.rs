@@ -2,7 +2,10 @@
 //! the engine, the engine's answer becomes the call's Result record, and a subscription's frames
 //! become its Snapshot and Update records. Each record is measured against its bound before it is
 //! queued, since the call queue ends the process for one over it; the engine's pages, summaries and
-//! prompts keep within the bound, so the measure only turns a defect into a failed call.
+//! prompts keep within the bound, so the measure only turns a defect into a failed call. The
+//! `files-history` operations are served in [`history`].
+
+mod history;
 
 use super::{
     engine::{self, Git, Mutation, Sink},

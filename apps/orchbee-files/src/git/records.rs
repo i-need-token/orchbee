@@ -4,33 +4,46 @@
 //! altered. A summary or a relay snapshot keeps whole entries in order while their JSON fits one
 //! Notice record, and a summary that leaves repositories out says it is truncated. A branch whose
 //! upstream is gone has no upstream here, so the Client offers to publish it again.
+//!
+//! A history page keeps whole values in order while their JSON fits one Result record, and its
+//! cursor names the first value it left for the next page; a value too large for any page is left
+//! out. Git's times in seconds become milliseconds.
 
 use super::{
+    blame::Blame,
     engine::{Done, Ended, Prompt, RelayEvent, ScmSummary},
     errors::GitError,
+    history::{Change, ChangeKind, Commit, LogPage, Paged, Stash},
     output::Page,
     reads::{RefsPage, UserConfig},
     workspace::{PageEntry, RepositorySummary, StatusPage},
 };
 use crate::requests::Outcome;
 use orchbee_files_protocol::{
-    CommitName, Counter, ErrorCode, FilePath, FilesError, FilesNotice, FilesReply,
-    GitCheckIgnoreResult, GitCommitResult, GitInitResult, GitName, GitOutputResult, GitRef,
-    GitRefsResult, GitRemote, GitStatusPageResult, GitUserConfigResult, Head, InvalidValue, List,
-    MAXIMUM_REPLY_BYTES, MAXIMUM_SAFE_INTEGER, MutationState, PageCursor, PathItem,
-    PathItemsResult, RefUpstream, RelaySnapshot, RelayUpdate, RequestOutcomeResult, SafeInteger,
-    ScmRepository, StatusCode, StatusCounts, StatusEntry, Text, Upstream,
+    BlameCommit, BlameRange, CommitName, Counter, ErrorCode, FilePath, FilesError, FilesNotice,
+    FilesReply, GitBlameResult, GitChange, GitChangeKind, GitChangesResult, GitCheckIgnoreResult,
+    GitCommitResult, GitInitResult, GitLogCommit, GitLogResult, GitMergeBaseResult, GitName,
+    GitOutputResult, GitRef, GitRefsResult, GitRemote, GitStash, GitStashesResult, GitStatistics,
+    GitStatusPageResult, GitUserConfigResult, Head, InvalidValue, List, MAXIMUM_REPLY_BYTES,
+    MAXIMUM_SAFE_INTEGER, MutationState, PageCursor, PathItem, PathItemsResult, RefUpstream,
+    RelaySnapshot, RelayUpdate, RequestOutcomeResult, SafeInteger, ScmRepository, Signed,
+    StatusCode, StatusCounts, StatusEntry, Text, Upstream,
 };
 use serde::Serialize;
 use std::{collections::HashSet, io};
 
-/// What a summary's or a relay snapshot's entries may take of a Notice body, leaving room for
-/// the fields around them.
+/// What a summary's, a relay snapshot's or a history page's entries may take of a Notice or
+/// Result body, leaving room for the fields around them.
 const ENTRY_BUDGET: usize = MAXIMUM_REPLY_BYTES - 1024;
 /// The most repositories, candidates or unsafe repositories a summary lists.
 const SUMMARY_LIST: usize = 256;
 /// The most prompts a relay snapshot carries.
 const SNAPSHOT_PROMPTS: usize = 16;
+/// The most values one page of each history read lists, as the protocol bounds them.
+const LOG_PAGE: usize = 1000;
+const BLAME_PAGE: usize = 10_000;
+const CHANGES_PAGE: usize = 2000;
+const STASHES_PAGE: usize = 1000;
 
 /// `scm.subscribe`'s Snapshot and Updates.
 pub(super) fn summary(summary: &ScmSummary) -> Option<FilesNotice> {
@@ -263,6 +276,225 @@ pub(super) fn output(page: Result<Page, GitError>) -> FilesReply {
     })
 }
 
+/// `git.log`.
+pub(super) fn log(page: Result<Paged<LogPage>, GitError>) -> FilesReply {
+    answered(page, |Paged { start, value }| {
+        let (commits, cursor) = paged(start, value.commits, value.more, LOG_PAGE, log_commit);
+        Ok(FilesReply::GitLog(GitLogResult {
+            commits: List::new(commits)?,
+            cursor,
+        }))
+    })
+}
+
+/// A commit of a log page; a reference the protocol cannot carry is left out of it.
+fn log_commit(commit: Commit) -> Option<GitLogCommit> {
+    Some(GitLogCommit {
+        commit: CommitName::new(commit.commit).ok()?,
+        parents: commit_names(commit.parents)?,
+        author_name: Text::new(commit.author_name).ok()?,
+        author_email: Text::new(commit.author_email).ok()?,
+        author_time_ms: milliseconds(commit.author_time),
+        commit_time_ms: milliseconds(commit.commit_time),
+        refs: List::new(
+            commit
+                .references
+                .into_iter()
+                .filter_map(|reference| Text::new(reference).ok())
+                .collect(),
+        )
+        .ok()?,
+        message: Text::new(commit.message).ok()?,
+        message_cut: commit.message_cut,
+        statistics: commit.statistics.map(|statistics| GitStatistics {
+            files: safe(statistics.files),
+            insertions: safe(statistics.insertions),
+            deletions: safe(statistics.deletions),
+        }),
+        path: commit.path.map(FilePath::new).transpose().ok()?,
+    })
+}
+
+/// `git.blame`: the ranges from the page's start, and each commit they name, described the first
+/// time the page names it. A range whose commit Git did not describe is left out.
+pub(super) fn blame(blame: Result<Paged<Blame>, GitError>) -> FilesReply {
+    answered(blame, |Paged { start, value }| {
+        let Blame {
+            ranges: attributed,
+            commits,
+        } = value;
+        let (total, mut budget) = (attributed.len(), ENTRY_BUDGET);
+        let (mut ranges, mut described, mut named) = (Vec::new(), Vec::new(), HashSet::new());
+        let mut taken = 0;
+        for range in attributed {
+            if ranges.len() == BLAME_PAGE {
+                break;
+            }
+            // The page describes each commit once, with the first range that names it.
+            let repeated = named.contains(&range.commit);
+            let description = if repeated {
+                None
+            } else {
+                commits
+                    .get(&range.commit)
+                    .and_then(|commit| blame_commit(&range.commit, commit))
+            };
+            let record = blame_range(&range).filter(|_| repeated || description.is_some());
+            if let Some(record) = record {
+                let its = description.as_ref().map_or(Some(0), size);
+                let needed = size(&record)
+                    .zip(its)
+                    .map(|(own, its)| own.saturating_add(its));
+                match needed.and_then(|needed| budget.checked_sub(needed)) {
+                    Some(left) => {
+                        budget = left;
+                        if let Some(description) = description {
+                            named.insert(range.commit);
+                            described.push(description);
+                        }
+                        ranges.push(record);
+                    }
+                    // Too large for any page.
+                    None if ranges.is_empty() => {}
+                    None => break,
+                }
+            }
+            taken += 1;
+        }
+        Ok(FilesReply::GitBlame(GitBlameResult {
+            ranges: List::new(ranges)?,
+            commits: List::new(described)?,
+            cursor: (taken < total).then(|| page_cursor(start.saturating_add(count(taken)))),
+        }))
+    })
+}
+
+fn blame_range(range: &super::blame::BlameRange) -> Option<BlameRange> {
+    Some(BlameRange {
+        start: SafeInteger::new(range.start).ok()?,
+        end: SafeInteger::new(range.end).ok()?,
+        commit: CommitName::new(range.commit.as_str()).ok()?,
+    })
+}
+
+fn blame_commit(name: &str, commit: &super::blame::BlameCommit) -> Option<BlameCommit> {
+    Some(BlameCommit {
+        commit: CommitName::new(name).ok()?,
+        author_name: Text::new(commit.author_name.as_str()).ok()?,
+        author_email: Text::new(commit.author_email.as_str()).ok()?,
+        author_time_ms: milliseconds(commit.author_time),
+        // Text holds no NUL, which a summary may.
+        summary: Text::new(commit.summary.replace('\0', "\u{fffd}")).ok()?,
+    })
+}
+
+/// `git.changes`.
+pub(super) fn changes(changes: Result<Paged<Vec<Change>>, GitError>) -> FilesReply {
+    answered(changes, |Paged { start, value }| {
+        let (changes, cursor) = paged(start, value, false, CHANGES_PAGE, change);
+        Ok(FilesReply::GitChanges(GitChangesResult {
+            changes: List::new(changes)?,
+            cursor,
+        }))
+    })
+}
+
+fn change(change: Change) -> Option<GitChange> {
+    Some(GitChange {
+        kind: match change.kind {
+            ChangeKind::Added => GitChangeKind::Added,
+            ChangeKind::Modified => GitChangeKind::Modified,
+            ChangeKind::Deleted => GitChangeKind::Deleted,
+            ChangeKind::Renamed => GitChangeKind::Renamed,
+        },
+        path: FilePath::new(change.path).ok()?,
+        original: change.original.map(FilePath::new).transpose().ok()?,
+        insertions: change.insertions.map(safe),
+        deletions: change.deletions.map(safe),
+    })
+}
+
+/// `git.merge-base`.
+pub(super) fn merge_base(base: Result<Option<String>, GitError>) -> FilesReply {
+    answered(base, |commit| {
+        Ok(FilesReply::GitMergeBase(GitMergeBaseResult {
+            commit: commit.map(CommitName::new).transpose()?,
+        }))
+    })
+}
+
+/// `git.stashes`.
+pub(super) fn stashes(stashes: Result<Paged<Vec<Stash>>, GitError>) -> FilesReply {
+    answered(stashes, |Paged { start, value }| {
+        let (stashes, cursor) = paged(start, value, false, STASHES_PAGE, stash);
+        Ok(FilesReply::GitStashes(GitStashesResult {
+            stashes: List::new(stashes)?,
+            cursor,
+        }))
+    })
+}
+
+fn stash(stash: Stash) -> Option<GitStash> {
+    Some(GitStash {
+        index: SafeInteger::new(stash.index).ok()?,
+        commit: CommitName::new(stash.commit).ok()?,
+        parents: commit_names(stash.parents)?,
+        branch: Text::new(stash.branch).ok()?,
+        description: Text::new(stash.description).ok()?,
+        wip: stash.wip,
+        author_time_ms: milliseconds(stash.author_time),
+        commit_time_ms: milliseconds(stash.commit_time),
+    })
+}
+
+/// One page of `values`, which start at index `start` of the whole listing: the records `record`
+/// makes of them, in order, while their JSON fits one Result record and they number at most
+/// `most`. A value the protocol cannot carry, or one too large for any page, is left out. The
+/// cursor names the first value the page left, while one is left or `more` says the listing goes
+/// on.
+fn paged<T, R: Serialize>(
+    start: u64,
+    values: Vec<T>,
+    more: bool,
+    most: usize,
+    record: impl Fn(T) -> Option<R>,
+) -> (Vec<R>, Option<PageCursor>) {
+    let (total, mut budget) = (values.len(), ENTRY_BUDGET);
+    let (mut records, mut taken) = (Vec::new(), 0);
+    for value in values {
+        if records.len() == most {
+            break;
+        }
+        if let Some(made) = record(value) {
+            if admit(&mut budget, &made) {
+                records.push(made);
+            } else if !records.is_empty() {
+                break;
+            }
+        }
+        taken += 1;
+    }
+    let cursor = (taken < total || more).then(|| page_cursor(start.saturating_add(count(taken))));
+    (records, cursor)
+}
+
+/// Commit names as the protocol lists them; `None` when one is not a commit name or they are too
+/// many.
+fn commit_names<const MAX: usize>(names: Vec<String>) -> Option<List<CommitName, 0, MAX>> {
+    let names = names
+        .into_iter()
+        .map(CommitName::new)
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    List::new(names).ok()
+}
+
+/// Git's `seconds` since the Unix epoch in milliseconds, held to the protocol's range.
+fn milliseconds(seconds: i64) -> Signed {
+    let limit = i64::try_from(MAXIMUM_SAFE_INTEGER).unwrap_or(i64::MAX);
+    Signed::new(seconds.saturating_mul(1000).clamp(-limit, limit)).unwrap_or_default()
+}
+
 /// The answer of a request that reports only its success.
 pub(super) fn empty(result: Result<(), GitError>) -> FilesReply {
     answered(result, |()| Ok(FilesReply::Empty))
@@ -370,18 +602,21 @@ fn page_cursor(index: u64) -> PageCursor {
 /// Takes what `value`'s JSON and its separator need from `budget`; false, taking nothing, when
 /// they do not fit.
 fn admit(budget: &mut usize, value: &impl Serialize) -> bool {
-    let mut measure = Measure(1);
-    let needed = match serde_json::to_writer(&mut measure, value) {
-        Ok(()) => measure.0,
-        Err(_) => return false,
-    };
-    match budget.checked_sub(needed) {
+    match size(value).and_then(|needed| budget.checked_sub(needed)) {
         Some(left) => {
             *budget = left;
             true
         }
         None => false,
     }
+}
+
+/// What `value`'s JSON and its separator take of a record.
+fn size(value: &impl Serialize) -> Option<usize> {
+    let mut measure = Measure(1);
+    serde_json::to_writer(&mut measure, value)
+        .ok()
+        .map(|()| measure.0)
 }
 
 /// Counts the bytes written to it and keeps none.
