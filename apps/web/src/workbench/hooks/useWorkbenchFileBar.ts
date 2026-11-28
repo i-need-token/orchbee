@@ -25,11 +25,7 @@ import {
 	type FileBarRowMenuEntry,
 	type FileBarViewId,
 } from '../../file-bar';
-import {
-	FileSessionRegistry,
-	type FileSessionPort,
-	type FileWorkspaceSession,
-} from '../../file-session';
+import type { FileSessionRegistry, FileWorkspaceSession } from '../../file-session';
 import { readSetting, type UserSettingsControl } from '../../user-settings';
 import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFileBarActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
@@ -135,8 +131,8 @@ interface UseWorkbenchFileBarOptions {
 	/** Whether this window offers the File Bar; without the offer nothing registers, reads or loads. */
 	readonly offered: boolean;
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
-	/** Where file sessions come from; without it the File Bar opens none. */
-	readonly sessionPort: FileSessionPort | undefined;
+	/** The Client's file sessions, which the Workbench shares; without them the File Bar opens none. */
+	readonly sessions: FileSessionRegistry | null;
 	/** The shortcut the toggles row's menu shows for an Action, as VS Code's menus show keybindings. */
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	/** Decides the File Bar's minimum: Windows and Linux draw caption buttons over its row. */
@@ -188,7 +184,7 @@ export function useWorkbenchFileBar({
 	mobile,
 	offered,
 	reportActionOutcome,
-	sessionPort,
+	sessions,
 	shortcutLabelForAction,
 	shortcutPlatform,
 	storage,
@@ -475,10 +471,6 @@ export function useWorkbenchFileBar({
 	}
 	const holding = reachable && workspaceId !== null && (docked || shownWorkspaces.has(workspaceId));
 	const [session, setSession] = React.useState<FileWorkspaceSession | null>(null);
-	const sessions = React.useMemo(
-		() => (sessionPort === undefined ? null : new FileSessionRegistry(sessionPort)),
-		[sessionPort],
-	);
 	React.useEffect(() => {
 		if (sessions === null || !holding || workspaceId === null) return undefined;
 		const hold = sessions.hold(workspaceId);

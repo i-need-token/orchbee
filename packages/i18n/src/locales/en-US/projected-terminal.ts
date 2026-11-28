@@ -100,6 +100,9 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.progress.label': 'Terminal task progress',
 	'terminal.projected.link.blocked': "Couldn't open the link: links of this kind are blocked.",
 	'terminal.projected.link.failed': "Couldn't open the link or file.",
+	'terminal.projected.link.fileMissing': "Couldn't open the file: it doesn't exist.",
+	'terminal.projected.link.fileOutside':
+		"Couldn't open the file: it's outside the Workspace's current directory.",
 	'terminal.projected.link.stale': "Couldn't open the target: it changed.",
 	'terminal.projected.paste.failed': "Couldn't paste the clipboard text.",
 	'terminal.projected.pasteReview.cancel': 'Cancel',

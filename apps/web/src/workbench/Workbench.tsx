@@ -18,7 +18,7 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
 
-import type { FileSessionPort } from '../file-session';
+import { FileSessionRegistry, type FileSessionPort } from '../file-session';
 import type { UserSettingsControl } from '../user-settings';
 import {
 	MAXIMUM_LEFT_PANEL_WIDTH,
@@ -55,6 +55,7 @@ import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresenta
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchFileBar } from './hooks/useWorkbenchFileBar';
 import { useWorkbenchFileOverlay } from './hooks/useWorkbenchFileOverlay';
+import { useWorkbenchTerminalFileLinks } from './hooks/useWorkbenchTerminalFileLinks';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
 import type { WorkbenchAuthority } from './types/workbench-authority';
@@ -241,6 +242,11 @@ export function Workbench({
 		view.projectWorkspaceState.activeLocation.kind === 'workspace'
 			? view.projectWorkspaceState.activeLocation.workspaceId
 			: null;
+	// The Client's file sessions, one per Workspace, which the File Bar and terminal file links share.
+	const fileSessions = React.useMemo(
+		() => (fileSessionPort === undefined ? null : new FileSessionRegistry(fileSessionPort)),
+		[fileSessionPort],
+	);
 	// The File Bar's row controls first take the full tier of the overlay below off the File Bar; the
 	// overlay needs the File Bar's side, so it is built after the File Bar.
 	const uncoverFileBarViews = useMemoizedFn(() => fileOverlay.uncoverFileBar());
@@ -251,7 +257,7 @@ export function Workbench({
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
 		reportActionOutcome: view.reportActionOutcome,
-		sessionPort: fileSessionPort,
+		sessions: fileSessions,
 		shortcutLabelForAction,
 		shortcutPlatform,
 		storage: layoutStorage,
@@ -285,6 +291,13 @@ export function Workbench({
 		terminalPathDrops,
 		workspaceId: activeWorkspaceId,
 		workspaces: view.projectWorkspaceState.workspaces,
+	});
+	const openTerminalFile = useWorkbenchTerminalFileLinks({
+		actionRuntime,
+		actionScope: view.actionScope,
+		offered: fileBarOffered,
+		sessions: fileSessions,
+		workspaceId: activeWorkspaceId,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
 	const fileBarBadge = fileBar.toggle?.badge ?? null;
@@ -818,6 +831,7 @@ export function Workbench({
 												actionRuntime={actionRuntime}
 												authority={view.authority}
 												createPanelTerminal={view.createPanelTerminal}
+												openTerminalFile={openTerminalFile}
 												panelWorkspaceStore={terminalContext.panelWorkspaceStore}
 												parentActionScope={view.actionScope}
 												presentationAgentStatuses={agentPresentation.presentationAgentStatuses}

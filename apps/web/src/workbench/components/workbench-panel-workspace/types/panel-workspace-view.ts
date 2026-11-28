@@ -4,6 +4,7 @@ import type { TerminalCloseImpact } from '../../../model/terminal-close-impact';
 import type { WorkbenchAgentStatusView } from '../../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchTerminalBellEffect } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type { WorkbenchTerminalPathDrops } from '../../../model/WorkbenchTerminalPathDrops';
+import type { WorkbenchTerminalFileOpener } from '../../../types/workbench-terminal-surface';
 import type {
 	PanelLayoutNode,
 	PanelSplitDirection,
@@ -76,6 +77,8 @@ export interface SharedSplitResize {
 
 export interface WorkbenchPanelWorkspaceView {
 	readonly onTerminalEdit?: ((presentationId: string) => void) | undefined;
+	/** Opens a followed terminal link's file in the file overlay; absent where it is not offered. */
+	readonly openTerminalFile?: WorkbenchTerminalFileOpener | undefined;
 	readonly actionRuntime: ActionRuntime;
 	readonly actionScope: ActionScope;
 	readonly admitTerminalBellEffect: (event: WorkbenchTerminalBellEffect) => boolean;

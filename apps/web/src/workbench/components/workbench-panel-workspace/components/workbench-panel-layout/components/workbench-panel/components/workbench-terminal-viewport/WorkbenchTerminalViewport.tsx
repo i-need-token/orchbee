@@ -128,6 +128,7 @@ export function WorkbenchTerminalViewport({
 						bindActionContextProvider={terminalActions.bindActionContextProvider}
 						closeTerminal={(source) => view.closeActiveTerminal(panelId, source)}
 						createTab={view.createTerminalTab}
+						openFile={view.openTerminalFile}
 						restoreTerminal={
 							view.restoreHeldTerminal === undefined
 								? undefined

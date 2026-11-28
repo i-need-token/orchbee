@@ -81,9 +81,15 @@ type ProjectedTerminalSurfaceWorkbenchHost = Pick<
 			| 'onPresentationReady'
 			| 'presentationMode'
 			| 'onTerminalEdit'
+			| 'openFile'
 			| 'viewportRef'
 		>
 	>;
+
+type WorkbenchTerminalFileOpener = NonNullable<WorkbenchTerminalSurfaceProps['openFile']>;
+
+/** What a link answers once the host stops opening files, until the terminal starts again without. */
+const NO_FILE_OPENER = { code: 'unsupported', kind: 'failed', retryable: false } as const;
 
 export function useProjectedTerminalSurface(
 	presentation: WorkbenchTerminalPresentation,
@@ -100,6 +106,9 @@ export function useProjectedTerminalSurface(
 	const focusRequest = workbenchHost?.focusRequest ?? 0;
 	const onPresentationReady = workbenchHost?.onPresentationReady;
 	const onTerminalEdit = workbenchHost?.onTerminalEdit;
+	const openFile = workbenchHost?.openFile;
+	// Whether the host opens files decides, as the terminal starts, whether its file links are live.
+	const opensFiles = openFile !== undefined;
 	const presentationMode = workbenchHost?.presentationMode ?? 'active';
 	const viewportRef = workbenchHost?.viewportRef;
 	const capability = React.useContext(ProjectedTerminalSurfaceCapabilityContext);
@@ -158,6 +167,10 @@ export function useProjectedTerminalSurface(
 	const reportTerminalEdit = useMemoizedFn(() => {
 		if (presentationMode === 'active') onTerminalEdit?.();
 	});
+	const openLinkedFile = useMemoizedFn(
+		(target: Parameters<WorkbenchTerminalFileOpener>[0], signal: AbortSignal) =>
+			openFile === undefined ? Promise.resolve(NO_FILE_OPENER) : openFile(target, signal),
+	);
 
 	const settlePasteReview = useMemoizedFn((approved: boolean): void => {
 		const pending = pendingPasteDecision.current;
@@ -288,6 +301,7 @@ export function useProjectedTerminalSurface(
 								admitBellEffect,
 								onTerminalEdit: reportTerminalEdit,
 								bindContextProvider: bindActionContextProvider,
+								openFile: opensFiles ? openLinkedFile : undefined,
 								runtime: actionRuntime,
 								scope: actionScope,
 								viewport: viewportRef?.current,
@@ -350,6 +364,8 @@ export function useProjectedTerminalSurface(
 		admitBellEffect,
 		bindActionContextProvider,
 		capability,
+		openLinkedFile,
+		opensFiles,
 		presentation.presentationId,
 		projectable,
 		reviewPaste,

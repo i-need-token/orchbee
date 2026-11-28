@@ -99,6 +99,8 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.progress.label': '终端任务进度',
 	'terminal.projected.link.blocked': '没能打开链接：此类链接已被阻止。',
 	'terminal.projected.link.failed': '没能打开链接或文件。',
+	'terminal.projected.link.fileMissing': '没能打开文件：它不存在。',
+	'terminal.projected.link.fileOutside': '没能打开文件：它不在工作区的当前目录里。',
 	'terminal.projected.link.stale': '没能打开目标：它已变化。',
 	'terminal.projected.paste.failed': '没能粘贴剪贴板文本。',
 	'terminal.projected.pasteReview.cancel': '取消',

@@ -650,8 +650,9 @@ links take precedence over detected URL and path text. Automatic URL detection a
 operation used again by Workbench Action and Browser effect adapters. Unsupported explicit OSC 8
 metadata and detected filesystem targets may remain in the bounded link cache. A caller must grant
 one attachment explicit local-filesystem-link capability before a filesystem target receives active
-pointer styling, product context, or activation. The `localFileEffects` option grants it, and no
-current composition sets that option, the Server path included. Content revisions, viewport transitions, surface
+pointer styling, product context, or activation. The `localFileEffects` option grants it. The Web
+Workbench sets it only for terminals in a window that offers the File Bar, whose file overlay opens
+file targets itself. Content revisions, viewport transitions, surface
 resize, device-pixel-ratio changes, presentation geometry changes, application-mouse ownership, and
 gesture transitions retire the hover cache. A modifier-assisted click revalidates the hovered
 generation, revision, hover epoch, clicked cell, exact typed target, and current capability before

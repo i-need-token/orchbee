@@ -72,11 +72,22 @@ export interface ProjectedTerminalActionTarget {
 	selectAll(): void;
 }
 
+/**
+ * Opens a local file a followed link names, as the application opens files, and settles cancelled
+ * once the signal aborts.
+ */
+export type ProjectedTerminalFileOpener = (
+	target: Extract<TerminalOpenTarget, { readonly kind: 'file' }>,
+	signal: AbortSignal,
+) => Promise<ProjectedTerminalSideEffectResult>;
+
 export interface RegisterProjectedTerminalActionsOptions {
 	readonly clipboardActionCoordinator?: ProjectedTerminalClipboardActionCoordinator;
 	/** Lets a disabled action name the surface state that stops it. */
 	readonly conditions?: ProjectedTerminalActionConditions;
 	readonly findController: TerminalFindController;
+	/** Opens a link's file target; without it the target goes to the attachment's broker. */
+	readonly openFile?: ProjectedTerminalFileOpener;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects;
 	readonly scope: ActionScope;
 	readonly terminal: ProjectedTerminalActionTarget;
@@ -87,6 +98,7 @@ export function registerProjectedTerminalActions({
 	clipboardActionCoordinator = createProjectedTerminalClipboardActionCoordinator(),
 	conditions = UNKNOWN_PROJECTED_TERMINAL_ACTION_CONDITIONS,
 	findController,
+	openFile,
 	platformEffects = {},
 	scope,
 	terminal,
@@ -518,7 +530,7 @@ export function registerProjectedTerminalActions({
 							target.kind === 'url'
 								? await (platformEffects.openExternal?.(target.url) ??
 										terminal.openLinkAsync(target.url))
-								: await terminal.openTargetAsync(target);
+								: await (openFile?.(target, context.signal) ?? terminal.openTargetAsync(target));
 						if (result.kind === 'completed') {
 							context.markCommitted();
 							return { kind: 'completed' };

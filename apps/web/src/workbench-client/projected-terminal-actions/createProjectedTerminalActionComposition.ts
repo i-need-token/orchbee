@@ -20,6 +20,7 @@ import type { ProjectedTerminalActionConditions } from './projected-terminal-act
 import {
 	registerProjectedTerminalActions,
 	type ProjectedTerminalActionTarget,
+	type ProjectedTerminalFileOpener,
 } from './registerProjectedTerminalActions';
 import {
 	registerProjectedTerminalControlAction,
@@ -63,6 +64,8 @@ interface ProjectedTerminalActionCompositionOptions {
 	readonly conditions?: ProjectedTerminalActionConditions | undefined;
 	/** Present only where another Client can hold the terminal's input and size. */
 	readonly control?: ProjectedTerminalControlTarget | undefined;
+	/** Opens a link's file target; without it the target goes to the attachment's broker. */
+	readonly openFile?: ProjectedTerminalFileOpener | undefined;
 	readonly platformEffects?: ProjectedTerminalPlatformEffects | undefined;
 	readonly reportResult?: ((event: ProjectedTerminalActionResultEvent) => void) | undefined;
 	readonly runtime: ActionRuntime;
@@ -78,6 +81,7 @@ export function createProjectedTerminalActionComposition(
 	const {
 		conditions,
 		control,
+		openFile,
 		platformEffects = {},
 		reportResult,
 		runtime,
@@ -93,6 +97,7 @@ export function createProjectedTerminalActionComposition(
 			clipboardActionCoordinator,
 			...(conditions === undefined ? {} : { conditions }),
 			findController,
+			...(openFile === undefined ? {} : { openFile }),
 			platformEffects,
 			scope: terminalScope,
 			terminal,

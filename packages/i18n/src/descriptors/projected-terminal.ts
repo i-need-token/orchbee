@@ -62,6 +62,8 @@ export const projectedTerminalMessages = defineMessages({
 	commandCompletedBody: message('terminal.projected.commandCompleted.body'),
 	linkBlocked: message('terminal.projected.link.blocked'),
 	linkFailed: message('terminal.projected.link.failed'),
+	linkFileMissing: message('terminal.projected.link.fileMissing'),
+	linkFileOutside: message('terminal.projected.link.fileOutside'),
 	linkStale: message('terminal.projected.link.stale'),
 	matchCase: message('terminal.projected.find.matchCase'),
 	nextMatch: message('terminal.projected.find.next'),

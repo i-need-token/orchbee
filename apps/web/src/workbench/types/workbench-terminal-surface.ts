@@ -41,6 +41,25 @@ export interface WorkbenchTerminalActionContextProvider {
 	executePrepared(invocation: PreparedActionInvocation): ActionExecution;
 }
 
+/** A local file a followed terminal link names, its path resolved against the terminal's directory. */
+export interface WorkbenchTerminalFileTarget {
+	readonly column?: number | undefined;
+	readonly line?: number | undefined;
+	readonly path: string;
+}
+
+/** How opening a terminal link's file went; a failure names why by the File Bar's error code. */
+export type WorkbenchTerminalFileOpenResult =
+	| { readonly kind: 'cancelled' }
+	| { readonly kind: 'completed' }
+	| { readonly code: string; readonly kind: 'failed'; readonly retryable: boolean };
+
+/** Opens the file a followed terminal link names; it settles cancelled once the signal aborts. */
+export type WorkbenchTerminalFileOpener = (
+	target: WorkbenchTerminalFileTarget,
+	signal: AbortSignal,
+) => Promise<WorkbenchTerminalFileOpenResult>;
+
 export interface WorkbenchTerminalSurfaceProps {
 	/** Accepted terminal editing input, distinct from focus, navigation and input rejection. */
 	readonly onTerminalEdit?: (() => void) | undefined;
@@ -59,6 +78,11 @@ export interface WorkbenchTerminalSurfaceProps {
 	readonly closeTerminal: (source: ActionInvocationSource) => void;
 	/** Opens a new Tab as the Workbench's New Tab does. */
 	readonly createTab: (source: ActionInvocationSource) => void;
+	/**
+	 * Opens the file a followed link names, in the file overlay. Absent in a window that does not
+	 * offer the File Bar, where file links keep the terminal's own behavior.
+	 */
+	readonly openFile?: WorkbenchTerminalFileOpener | undefined;
 	/**
 	 * Starts this surface's terminal after a restore held it for an unavailable directory: in the
 	 * saved directory again, or in the home folder. Absent where nothing can hold a restore.

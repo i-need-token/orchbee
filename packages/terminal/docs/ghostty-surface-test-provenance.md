@@ -299,9 +299,9 @@ allowlisted external-link Action and environment-owned effect.
 
 Explicit OSC 8 ranges retain precedence over detected URL or path text. Source-neutral application
 policy limits activation to `http`, `https`, and `mailto`; Host metadata never grants filesystem or
-generic scheme authority. A separate, default-off local attachment capability, which no composition
-supplies today, may admit a typed file target after the same generation/revision-pinned
-revalidation.
+generic scheme authority. A separate, default-off local file capability, which the Web Workbench
+grants only in a window that offers the File Bar, may admit a typed file target after the same
+generation/revision-pinned revalidation.
 
 The headed Canvas 2D witnesses `terminal-parity/FS-05-file-links` and
 `terminal-parity/FS-06-url-policy` feed generation-pinned synthetic Host row windows through the

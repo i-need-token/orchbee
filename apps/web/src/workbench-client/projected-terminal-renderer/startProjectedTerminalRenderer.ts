@@ -51,6 +51,7 @@ import {
 	installProjectedTerminalShortcuts,
 	type ProjectedTerminalActionResultEvent,
 	type ProjectedTerminalControlPresentation,
+	type ProjectedTerminalFileOpener,
 	type ProjectedTerminalShortcutBindingSource,
 	type ProjectedTerminalShortcutPlatform,
 } from '../projected-terminal-actions';
@@ -162,6 +163,11 @@ export interface ProjectedTerminalWorkbenchHost {
 	readonly bindContextProvider: (
 		provider: WorkbenchTerminalActionContextProvider,
 	) => ActionDisposable;
+	/**
+	 * Opens the file a followed link names. Its presence as the terminal starts makes file links
+	 * live, which otherwise only the attachment's own local file effects do.
+	 */
+	readonly openFile?: ProjectedTerminalFileOpener | undefined;
 	readonly runtime: ActionRuntime;
 	readonly scope: ActionScope;
 	readonly viewport?: HTMLElement | null | undefined;
@@ -745,7 +751,8 @@ export async function startProjectedTerminalRenderer(
 				? {}
 				: { droppedFileText: platformEffects.takeDroppedFileText }),
 			labels: terminalLabels,
-			localFileEffects: bootstrap.localFileEffects === true,
+			localFileEffects:
+				bootstrap.localFileEffects === true || workbenchHost?.openFile !== undefined,
 			port: {
 				send: (command) => {
 					transport.send(command);
@@ -984,6 +991,7 @@ export async function startProjectedTerminalRenderer(
 						return inputGranted ? null : 'view-only';
 					},
 				},
+				openFile: workbenchHost?.openFile,
 				platformEffects,
 				reportResult: reportActionResult,
 				runtime: actionRuntime,
@@ -1815,6 +1823,13 @@ function projectedTerminalActionResultPresentation(
 				event.result.code === 'stale-terminal-link-context'
 					? projectedTerminalMessages.linkStale
 					: projectedTerminalMessages.linkBlocked;
+		} else if (event.result.kind === 'failed') {
+			// A file the Workbench opens fails with the File Bar's code for why.
+			if (event.result.failure.code === 'not-found') {
+				message = projectedTerminalMessages.linkFileMissing;
+			} else if (event.result.failure.code === 'outside-scope') {
+				message = projectedTerminalMessages.linkFileOutside;
+			}
 		}
 		return {
 			message,

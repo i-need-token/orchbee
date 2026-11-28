@@ -6,7 +6,10 @@ import type { WorkbenchSharedPanelTerminalCreate } from '../../actions/createSha
 import type { PanelWorkspaceStore } from './model/PanelWorkspaceStore';
 import type { WorkbenchAgentStatusView } from '../../utils/formatWorkbenchAgentStatus';
 import type { WorkbenchAuthority } from '../../types/workbench-authority';
-import type { WorkbenchTerminalSurface } from '../../types/workbench-terminal-surface';
+import type {
+	WorkbenchTerminalFileOpener,
+	WorkbenchTerminalSurface,
+} from '../../types/workbench-terminal-surface';
 import type { WorkbenchAuthorityNoticeView } from '../../hooks/useWorkbenchAuthorityNotice';
 import { WorkbenchPanelCloseDialog } from './components/workbench-panel-close-dialog/WorkbenchPanelCloseDialog';
 import { WorkbenchPanelDragGhost } from './components/workbench-panel-drag-ghost/WorkbenchPanelDragGhost';
@@ -26,6 +29,8 @@ interface WorkbenchPanelWorkspaceProps {
 	readonly actionRuntime: ActionRuntime;
 	readonly authority: WorkbenchAuthority;
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
+	/** Opens a followed terminal link's file in the file overlay; absent where it is not offered. */
+	readonly openTerminalFile?: WorkbenchTerminalFileOpener | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
@@ -45,6 +50,7 @@ export const WorkbenchPanelWorkspace = React.memo(function WorkbenchPanelWorkspa
 	actionRuntime,
 	authority,
 	createPanelTerminal,
+	openTerminalFile,
 	panelWorkspaceStore,
 	parentActionScope,
 	presentationAgentStatuses,
@@ -61,6 +67,7 @@ export const WorkbenchPanelWorkspace = React.memo(function WorkbenchPanelWorkspa
 		actionRuntime,
 		authority,
 		createPanelTerminal,
+		openTerminalFile,
 		panelWorkspaceStore,
 		parentActionScope,
 		presentationAgentStatuses,

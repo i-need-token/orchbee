@@ -13,6 +13,7 @@ import {
 	type WorkbenchTerminalBellEffect,
 } from '../../../model/WorkbenchTerminalBellEffectCoordinator';
 import type { WorkbenchTerminalPathDrops } from '../../../model/WorkbenchTerminalPathDrops';
+import type { WorkbenchTerminalFileOpener } from '../../../types/workbench-terminal-surface';
 import type {
 	WorkbenchAuthority,
 	WorkbenchAuthorityContext,
@@ -65,6 +66,8 @@ interface UseWorkbenchPanelWorkspaceOptions {
 	readonly actionRuntime: ActionRuntime;
 	readonly authority: WorkbenchAuthority;
 	readonly createPanelTerminal: WorkbenchSharedPanelTerminalCreate;
+	/** Opens a followed terminal link's file in the file overlay; absent where it is not offered. */
+	readonly openTerminalFile?: WorkbenchTerminalFileOpener | undefined;
 	readonly panelWorkspaceStore: PanelWorkspaceStore;
 	readonly parentActionScope: ActionScope;
 	readonly presentationAgentStatuses: ReadonlyMap<string, WorkbenchAgentStatusView>;
@@ -123,6 +126,7 @@ export function useWorkbenchPanelWorkspace({
 	actionRuntime,
 	authority,
 	createPanelTerminal,
+	openTerminalFile,
 	panelWorkspaceStore,
 	parentActionScope,
 	presentationAgentStatuses,
@@ -792,6 +796,7 @@ export function useWorkbenchPanelWorkspace({
 		},
 		activeTab,
 		onTerminalEdit,
+		openTerminalFile,
 		cancelPanelVisualSelection,
 		cancelClose: () => pendingConfirmationRef.current?.(false),
 		renamePanel: (panelId, source: ActionInvocationSource = 'programmatic') => {
