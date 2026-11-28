@@ -379,6 +379,23 @@ fn system_colors(theme: &Theme) -> Vec<(String, String)> {
     {
         colors.push((format!("data-{}", index + 1), color.to_string()));
     }
+    // A file type's icon: Seti's hues take the theme's Tab-group accents, and its white and greys
+    // the text steps they stand for.
+    for (hue, color) in [
+        ("blue", roles.tab_groups.blue),
+        ("green", roles.tab_groups.green),
+        ("grey", roles.text_disabled),
+        ("grey-light", roles.text_muted),
+        ("ignore", roles.text_disabled),
+        ("orange", roles.tab_groups.orange),
+        ("pink", roles.tab_groups.pink),
+        ("purple", roles.tab_groups.purple),
+        ("red", roles.tab_groups.red),
+        ("white", roles.text_primary),
+        ("yellow", roles.tab_groups.yellow),
+    ] {
+        colors.push((format!("file-type-{hue}"), color.to_string()));
+    }
     // A saved machine's color by name, raised onto the theme as the TUI writes it.
     for ((name, _), color) in orchbee_color_themes::MACHINE_COLORS
         .iter()

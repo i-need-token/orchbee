@@ -78,6 +78,7 @@ The system tier is a finite cross-component language. Choose the closest existin
 | Brand      | accent, accent-hover, and on-accent for branded calls to action and identity emphasis; never substitute them for status                                          |
 | Data       | five categorical series colors                                                                                                                                   |
 | Syntax     | comment, keyword, string, constant, type, tag, attribute, and variable for highlighted code; each keeps body contrast on the canvas, current line, and selection |
+| File type  | Seti's icon hues blue, green, grey, grey-light, ignore, orange, pink, purple, red, white, and yellow; the Orchbee pair keeps Seti's own colors                   |
 | Typography | body sm/md/lg/xl, display sm/md/lg, control sm, label xs/sm/md/lg, heading xs/sm/md/lg/xl, and code sm/md                                                        |
 | Other      | link decoration rest/hover/focus, semantic motion duration/easing, focus-ring geometry, disabled/muted opacity, and raised/overlay shadow                        |
 

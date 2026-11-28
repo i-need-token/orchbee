@@ -51,6 +51,7 @@ At rest every Orchbee control shows the default arrow, including rows, headings,
 - Product code never imports vendor stylesheets, class names, font characters, or physical icon assets.
 - `@orchbee/ui` maps names to Codicons and loads the provider stylesheet through its style entry.
 - `ProductIcon` is decorative, inherits `currentColor`, and defaults to the `14px` `icon-sm` visual-foundation size; the owning control supplies its accessible name and semantic color. A non-default size requires a documented component variant and explicit component-level requirement.
+- A file's type icon is `FileIcon` from `@orchbee/ui/components`: VS Code's Seti glyph for the file's name and path in a `16px` `icon-md` box, decorative, colored by the `file-type` color roles instead of `currentColor`.
 - Generated shadcn source may retain Lucide imports only inside its compatibility boundary.
 
 An icon change updates the allowlist, mapping, focused test, affected package documentation, and third-party notice when provider or license changes. Verify font loading, optical weight, and alignment in a browser.

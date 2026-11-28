@@ -1,5 +1,5 @@
 import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
+import { FileIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
 import type { ExplorerItem } from '../../model/explorer-item';
@@ -27,8 +27,9 @@ function ExplorerRowMark({ label, letter }: ExplorerRowMarkProps): ReactNode {
 }
 
 /**
- * One Explorer row's label: the entry's name, and VS Code's mark at the far end, where a link's ⤷
- * wins over the ? of an entry that is neither a file nor a folder.
+ * One Explorer row's label: a file's Seti icon, since Seti has no folder icons, the entry's name,
+ * and VS Code's mark at the far end, where a link's ⤷ wins over the ? of an entry that is neither a
+ * file nor a folder.
  */
 export function ExplorerRow({ item }: ExplorerRowProps): ReactNode {
 	const intl = useOrchbeeIntl();
@@ -44,6 +45,7 @@ export function ExplorerRow({ item }: ExplorerRowProps): ReactNode {
 	}
 	return (
 		<span className={styles['root']}>
+			{item.directory ? null : <FileIcon name={item.name} path={item.path} />}
 			<span className={styles['name']}>{item.name}</span>
 			{mark}
 		</span>

@@ -1,0 +1,53 @@
+/* The package stylesheet draws the glyph from data-file-icon in the Seti font at 150%; the box keeps
+   VS Code's 16px icon column and centers the taller glyph on the line. */
+.root {
+	display: inline-flex;
+	flex: none;
+	align-items: center;
+	inline-size: var(--ob-ref-size-icon-md);
+	block-size: var(--ob-ref-size-icon-md);
+}
+
+.blue {
+	color: var(--ob-sys-color-file-type-blue);
+}
+
+.green {
+	color: var(--ob-sys-color-file-type-green);
+}
+
+.grey {
+	color: var(--ob-sys-color-file-type-grey);
+}
+
+.greyLight {
+	color: var(--ob-sys-color-file-type-grey-light);
+}
+
+.ignore {
+	color: var(--ob-sys-color-file-type-ignore);
+}
+
+.orange {
+	color: var(--ob-sys-color-file-type-orange);
+}
+
+.pink {
+	color: var(--ob-sys-color-file-type-pink);
+}
+
+.purple {
+	color: var(--ob-sys-color-file-type-purple);
+}
+
+.red {
+	color: var(--ob-sys-color-file-type-red);
+}
+
+.white {
+	color: var(--ob-sys-color-file-type-white);
+}
+
+.yellow {
+	color: var(--ob-sys-color-file-type-yellow);
+}

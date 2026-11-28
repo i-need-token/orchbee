@@ -24,6 +24,27 @@
 	font-size: var(--ob-ref-size-icon-md);
 }
 
+/* The Seti icon font of VS Code's Seti file-icon theme, which FileIcon draws as generated content at
+   the theme's 150% of the surrounding text, upright whatever the row's own text style. */
+@font-face {
+	font-family: 'Orchbee Seti';
+	font-style: normal;
+	font-weight: normal;
+	font-display: block;
+	src: url('./file-icon/upstream/seti.woff') format('woff');
+}
+
+[data-file-icon]::before {
+	content: attr(data-file-icon);
+	font-family: 'Orchbee Seti';
+	font-size: 150%;
+	font-style: normal;
+	font-weight: normal;
+	line-height: 1;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+}
+
 :root,
 [data-theme='light'],
 [data-theme='dark'] {

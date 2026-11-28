@@ -8,6 +8,29 @@
 	--ob-ref-color-agent-working-light: #383a42;
 	--ob-ref-color-groknight-gray: #585858;
 	--ob-ref-color-overlay-scrollbar-gray: rgb(128 128 128);
+	/* The Seti file-icon palette; each -on-light shade is VS Code's light-theme 90% value. */
+	--ob-ref-color-seti-blue: #519aba;
+	--ob-ref-color-seti-blue-on-light: #498ba7;
+	--ob-ref-color-seti-green: #8dc149;
+	--ob-ref-color-seti-green-on-light: #7fae42;
+	--ob-ref-color-seti-grey: #4d5a5e;
+	--ob-ref-color-seti-grey-on-light: #455155;
+	--ob-ref-color-seti-grey-light: #6d8086;
+	--ob-ref-color-seti-grey-light-on-light: #627379;
+	--ob-ref-color-seti-ignore: #41535b;
+	--ob-ref-color-seti-ignore-on-light: #3b4b52;
+	--ob-ref-color-seti-orange: #e37933;
+	--ob-ref-color-seti-orange-on-light: #cc6d2e;
+	--ob-ref-color-seti-pink: #f55385;
+	--ob-ref-color-seti-pink-on-light: #dd4b78;
+	--ob-ref-color-seti-purple: #a074c4;
+	--ob-ref-color-seti-purple-on-light: #9068b0;
+	--ob-ref-color-seti-red: #cc3e44;
+	--ob-ref-color-seti-red-on-light: #b8383d;
+	--ob-ref-color-seti-white: #d4d7d6;
+	--ob-ref-color-seti-white-on-light: #bfc2c1;
+	--ob-ref-color-seti-yellow: #cbcb41;
+	--ob-ref-color-seti-yellow-on-light: #b7b73b;
 	--ob-ref-color-traffic-light-green: #28c840;
 	--ob-ref-color-traffic-light-red: #ff5f57;
 	--ob-ref-color-traffic-light-yellow: #febc2e;
@@ -758,6 +781,18 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-blue-600);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-600);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-600);
+	/* A file type's icon color: Seti's palette, as VS Code draws it on this polarity. */
+	--ob-sys-color-file-type-blue: var(--ob-ref-color-seti-blue-on-light);
+	--ob-sys-color-file-type-green: var(--ob-ref-color-seti-green-on-light);
+	--ob-sys-color-file-type-grey: var(--ob-ref-color-seti-grey-on-light);
+	--ob-sys-color-file-type-grey-light: var(--ob-ref-color-seti-grey-light-on-light);
+	--ob-sys-color-file-type-ignore: var(--ob-ref-color-seti-ignore-on-light);
+	--ob-sys-color-file-type-orange: var(--ob-ref-color-seti-orange-on-light);
+	--ob-sys-color-file-type-pink: var(--ob-ref-color-seti-pink-on-light);
+	--ob-sys-color-file-type-purple: var(--ob-ref-color-seti-purple-on-light);
+	--ob-sys-color-file-type-red: var(--ob-ref-color-seti-red-on-light);
+	--ob-sys-color-file-type-white: var(--ob-ref-color-seti-white-on-light);
+	--ob-sys-color-file-type-yellow: var(--ob-ref-color-seti-yellow-on-light);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-700);
 	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-700);
 	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-700);
@@ -1172,6 +1207,18 @@
 	--ob-sys-color-data-3: var(--ob-ref-color-orange-400);
 	--ob-sys-color-data-4: var(--ob-ref-color-violet-400);
 	--ob-sys-color-data-5: var(--ob-ref-color-red-400);
+	/* A file type's icon color: Seti's palette, as VS Code draws it on this polarity. */
+	--ob-sys-color-file-type-blue: var(--ob-ref-color-seti-blue);
+	--ob-sys-color-file-type-green: var(--ob-ref-color-seti-green);
+	--ob-sys-color-file-type-grey: var(--ob-ref-color-seti-grey);
+	--ob-sys-color-file-type-grey-light: var(--ob-ref-color-seti-grey-light);
+	--ob-sys-color-file-type-ignore: var(--ob-ref-color-seti-ignore);
+	--ob-sys-color-file-type-orange: var(--ob-ref-color-seti-orange);
+	--ob-sys-color-file-type-pink: var(--ob-ref-color-seti-pink);
+	--ob-sys-color-file-type-purple: var(--ob-ref-color-seti-purple);
+	--ob-sys-color-file-type-red: var(--ob-ref-color-seti-red);
+	--ob-sys-color-file-type-white: var(--ob-ref-color-seti-white);
+	--ob-sys-color-file-type-yellow: var(--ob-ref-color-seti-yellow);
 	--ob-sys-color-machine-cyan: var(--ob-ref-color-cyan-400);
 	--ob-sys-color-machine-teal: var(--ob-ref-color-teal-400);
 	--ob-sys-color-machine-sky: var(--ob-ref-color-sky-400);

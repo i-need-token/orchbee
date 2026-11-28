@@ -1,4 +1,4 @@
-/* VS Code's Explorer label: the name, which truncates first, then its mark. */
+/* VS Code's Explorer label: the file icon's 16px column, 6px, then the name, which truncates first. */
 .root {
 	display: flex;
 	min-width: 0;

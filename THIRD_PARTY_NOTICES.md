@@ -492,6 +492,37 @@ imply endorsement by their creators.
 
 Codicons is licensed separately from Orchbee. The upstream copyright and license remain with their respective owners.
 
+## Seti File Icons
+
+- Copyright notices: Copyright (c) 2014 Jesse Weed (Seti UI); Copyright (c) 2015 - present
+  Microsoft Corporation (Visual Studio Code)
+- Source: <https://github.com/microsoft/vscode>, which builds the icons from Seti UI
+  <https://github.com/jesseweed/seti-ui>
+- Pinned revisions: VS Code `ef5ca45a6e545e4767e0117905ee9d6120b86e11`; Seti UI
+  `2d6c5e68b4ded73c92dac291845ee44e1182d511`
+- Original paths: `extensions/theme-seti/icons/seti.woff`,
+  `extensions/theme-seti/icons/vs-seti-icon-theme.json`, and the file associations of VS Code's
+  built-in languages
+- License: MIT
+- Use in Orchbee: the unmodified icon font and icon theme of the file icons in
+  [`packages/ui/src/file-icon/`](packages/ui/src/file-icon/), drawn in Orchbee theme colors
+- License text and notice: [`NOTICE`](packages/ui/src/file-icon/upstream/NOTICE)
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or
+> substantial portions of the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
 ## Lobe Icons
 
 - Copyright notice: Copyright (c) 2023 LobeHub

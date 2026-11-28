@@ -44,6 +44,12 @@ Product code consumes `ProductIcon` through the package API and uses its Orchbee
 
 The product allowlist is the `ProductIconName` union; each name maps to one Codicons glyph in the component's stylesheet, and a name joins with its first product consumer. Generated shadcn sources retain their upstream Lucide dependencies inside the generated compatibility boundary. See the repository [frontend styling standard](../../docs/frontend/styling.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
 
+## File icons
+
+`FileIcon` draws the icon that VS Code's default Seti file-icon theme gives a file's name and path: the same glyph, and Seti's colors through the `file-type` color roles, which named themes take from their Tab-group accents and text steps. Like `ProductIcon` it is decorative, so the owning row supplies the name. VS Code may also pick a language, and with it an icon, from a file's first line or an open editor; `FileIcon` reads only the name and path.
+
+The font, the icon theme, and the file associations of VS Code's built-in languages are copies from one pinned VS Code commit under [`src/file-icon/upstream`](src/file-icon/upstream), with their [notice](src/file-icon/upstream/NOTICE). `pnpm --filter @orchbee/ui file-icons:generate` rebuilds the lookup table from them, and the package tests fail while the table is stale. Moving the pin replaces all three files from the new commit, regenerates the table, and recomputes the parity fixture, whose expectations come from VS Code's own icon resolution at the pinned commit, run outside the repository.
+
 `holdDragCursor(document)` shows the `grabbing` pointer on every element of that document until its returned release runs; drag owners call it as a drag starts, and the package stylesheet's base layer applies it over any element's own cursor.
 
 The resizable component facade exports `ResizablePanelGroupHandle` for product adapters that need to constrain live layouts through the group imperative API.

@@ -34,8 +34,10 @@
 		"build": "rslib build --log-level error",
 		"component:add": "shadcn add",
 		"dev": "rslib build --watch",
+		"file-icons:generate": "node scripts/generate-file-icon-table.mjs",
 		"typecheck": "tsc --noEmit",
-		"test": "vitest run",
+		"test": "vitest run && pnpm test:file-icons",
+		"test:file-icons": "node scripts/generate-file-icon-table.mjs --check",
 		"test:watch": "vitest",
 		"test:exports": "node ../../scripts/check-package-exports.mjs ."
 	},
