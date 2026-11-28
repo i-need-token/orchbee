@@ -1,8 +1,9 @@
-//! The request identities of file mutations, kept per Workspace as [`Requests`] keeps them. A
-//! mutation runs under its identity once: a repeat while it runs waits for its reply, and a repeat
-//! after it answers the reply it recorded. Git mutations keep their own identities in the Git
-//! engine, so `request.outcome` asks here first and the engine for an identity unknown here; a
-//! Client names each mutation with a fresh identity, so the two never hold the same one.
+//! The request identities of the mutations served beside the Git engine, kept per Workspace as
+//! [`Requests`] keeps them. A mutation runs under its identity once: a repeat while it runs waits
+//! for its reply, and a repeat after it answers the reply it recorded. File edits and Local History
+//! each keep one [`Outcomes`], and Git mutations keep their identities in the Git engine, so
+//! `request.outcome` asks each service in turn and the engine for an identity none of them knows;
+//! a Client names each mutation with a fresh identity, so no two of them hold the same one.
 
 use std::{
     collections::HashMap,
@@ -20,9 +21,10 @@ use crate::{
     requests::{Begin, Outcome, Requests},
 };
 
-/// The identities of every Workspace's file mutations. The lock is never held while a mutation
-/// runs or a call is answered; a panic ends the process, so a poisoned lock is never observed.
-pub(super) struct Outcomes {
+/// The identities of one service's mutations in every Workspace. The lock is never held while a
+/// mutation runs or a call is answered; a panic ends the process, so a poisoned lock is never
+/// observed.
+pub(crate) struct Outcomes {
     spaces: Mutex<HashMap<WorkspaceId, Space>>,
 }
 
@@ -33,7 +35,7 @@ struct Space {
 }
 
 impl Outcomes {
-    pub(super) fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             spaces: Mutex::new(HashMap::new()),
         }
@@ -43,7 +45,7 @@ impl Outcomes {
     /// it returns, unless the identity ran before: a completed run's reply answers `call` at once,
     /// and a run still going answers it when it ends. The reply is recorded whether or not its
     /// Client still waits.
-    pub(super) fn run(
+    pub(crate) fn run(
         &self,
         workspace: WorkspaceId,
         request: RequestId,
@@ -86,8 +88,8 @@ impl Outcomes {
         answer(call, reply);
     }
 
-    /// `request.outcome` of identity `request` in `workspace`, unless no file mutation knows it.
-    pub(super) fn outcome(
+    /// `request.outcome` of identity `request` in `workspace`, unless no mutation here knows it.
+    pub(crate) fn outcome(
         &self,
         workspace: WorkspaceId,
         request: RequestId,
@@ -120,7 +122,7 @@ fn answer(call: Call, reply: MutationReply) {
 }
 
 /// Ends `call` with `reply`, or as failed when its record would pass the Result bound.
-pub(super) fn finish(call: Call, reply: &FilesReply) {
+pub(crate) fn finish(call: Call, reply: &FilesReply) {
     if encode_reply(reply).len() <= MAXIMUM_REPLY_BYTES {
         call.reply(reply);
     } else {

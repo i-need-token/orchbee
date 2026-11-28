@@ -213,15 +213,7 @@ impl Engine {
 
     /// `fs.read` of `path`, which scope admitted for `request`, on the call's lane.
     pub(crate) fn read(&self, call: Call, path: NativePath, request: &FsRead) {
-        let read = ReadRequest {
-            mode: request.mode,
-            encoding: request
-                .encoding
-                .as_ref()
-                .map(|encoding| encoding.as_str().to_owned()),
-            force_text: request.force_text,
-            limit: request.limit.get(),
-        };
+        let read = read_request(request);
         let (connection, lane) = (call.connection(), call.lane());
         let path = path.as_path().to_path_buf();
         self.transfers.open(
@@ -251,6 +243,22 @@ impl Engine {
             force_text: false,
             limit,
         };
+        self.supplied_read(call, transfer, request)
+    }
+
+    /// The read transfer `fs.read` of a Local History entry answers through, which opens at once
+    /// as [`Self::show_read`]'s does and reads the content Local History supplies as `request`
+    /// asks. `None` when it cannot open, after the call was answered.
+    pub(crate) fn history_read(&self, call: Call, request: &FsRead) -> Option<ShowTransfer> {
+        self.supplied_read(call, request.transfer, read_request(request))
+    }
+
+    fn supplied_read(
+        &self,
+        call: Call,
+        transfer: TransferId,
+        request: ReadRequest,
+    ) -> Option<ShowTransfer> {
         match self
             .transfers
             .begin(call.connection(), call.lane(), transfer)
@@ -430,7 +438,8 @@ impl ChainLoads {
     }
 }
 
-/// [`ports::ShowRead`] over the read transfer the engine opened for a `git.show` call.
+/// [`ports::ShowRead`] over the read transfer the engine opened for content another service
+/// supplies: a `git.show` call's, or a Local History entry's.
 pub(crate) struct ShowTransfer {
     opening: Opening,
     call: Call,
@@ -458,6 +467,19 @@ impl ports::ShowRead for ShowTransfer {
     fn fail(self: Box<Self>, error: FilesError) {
         let Self { opening, call, .. } = *self;
         opening.fail(error, answered(call));
+    }
+}
+
+/// What `fs.read` asks of its content.
+fn read_request(request: &FsRead) -> ReadRequest {
+    ReadRequest {
+        mode: request.mode,
+        encoding: request
+            .encoding
+            .as_ref()
+            .map(|encoding| encoding.as_str().to_owned()),
+        force_text: request.force_text,
+        limit: request.limit.get(),
     }
 }
 

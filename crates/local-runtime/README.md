@@ -419,6 +419,7 @@ file; an empty or relative `ORCHBEE_HOME` is `invalid-path` and never falls back
 | `internal/cache/cohort/<key>.txt`                    | What the last full check of one native cohort found; `cohort.lock` guards every record                                                       |
 | `internal/desktop/`                                  | Desktop's Electron `userData`, which its bundled Client creates; [Desktop](../../apps/desktop/docs/data-root.md) owns what it holds          |
 | `internal/backups/<date>-upgrade-<version>/`         | Originals of the records one product version migrated, at their paths relative to the root; the three newest folders stay                    |
+| `internal/local-history/`                            | Local History, which [`orchbee-files`](../../apps/orchbee-files/README.md#local-history) places and keeps                                    |
 | `internal/plugins/registry.json`                     | Plugin registry, folder assignments, and recorded cleanup                                                                                    |
 | `internal/plugins/<folder>/`                         | One plugin's `config/`, `data/`, and `source/<version>/`                                                                                     |
 | `internal/plugins/source.pending/`                   | The source a running install fetches before it moves                                                                                         |

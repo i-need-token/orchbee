@@ -83,6 +83,19 @@ impl NativePath {
             .then(|| self.segments().skip(member.segments().count()))
     }
 
+    /// Where this path lies once `from`, which holds it, moved to `to`; `None` when `from` does
+    /// not hold it.
+    pub(crate) fn rebased(&self, from: &Self, to: &Self) -> Option<Self> {
+        let mut path = to.0.clone();
+        for segment in self.below(from)? {
+            if path.len() > ROOT_BYTES {
+                path.push(SEPARATOR_CHARACTER);
+            }
+            path.push_str(segment);
+        }
+        Some(Self(path))
+    }
+
     /// A key that two paths share exactly when each is within the other: the same location by the
     /// machine's comparison.
     pub(crate) fn key(&self) -> String {

@@ -66,6 +66,23 @@ These rules are the contract a Client builds on; no single declaration holds the
   Quick Open wherever it lies and admits nothing more; and `fs.grant` from a Quick Open pick may
   name any path, as a terminal link may.
 
+## Local History
+
+Local History keeps copies of the files the File Bar saves, as VS Code does, in the data root's
+`internal/local-history/`, which every Session sharing the data root reads and changes under one
+lock; a default uninstall keeps it, and without a data root nothing is recorded.
+
+- It records a save whose `fs.write` names a `history` reason and each `history.restore`. A rename
+  or a move takes the history of each file it moves along and records the file at its new path. A
+  file larger than 256 KiB records nothing.
+- A file keeps VS Code's default 50 entries. A save of the same reason within ten seconds of the
+  newest entry replaces it, unless `history.rename` named that entry. All files together keep at
+  most 1 GiB, and the oldest entries of any file go first.
+- An entry is recorded after the operation that caused it answers, so a list asked at once may not
+  show it yet. Recording never fails that operation; a failure is logged.
+- `history.restore` writes the entry's bytes over its file after any File Bar write of that file
+  ends, and records what it wrote as a restore.
+
 ## Windows Recycle Bin
 
 On Windows the machine's trash is the Recycle Bin. This service moves an item there through the
@@ -170,6 +187,8 @@ its deadline; `git-spawn-failed` with that `kind` and the I/O `error` kind when 
 `git-relay-unavailable` once when the prompt relay could not start, after which Git operations run
 without prompts; `rg-refused` once for each state of the rg beside the executable that is not the
 pinned program, with the I/O `error` kind when it could not be read; `rg-spawn-failed` with the I/O
-`error` kind when the verified rg could not start; and one `exited` with `outcome` (`drained` with
-its `reason`, `idle` or `session`; `signalled` with its `signal`; or `failed` with the `stage` it
-stopped at and the I/O `error` kind that caused it, when one did).
+`error` kind when the verified rg could not start; `history-not-recorded` with the `operation` whose
+save, restore or move Local History could not record and the `error` (`busy`, `newer`, `not-found`
+or the I/O kind); and one `exited` with `outcome` (`drained` with its `reason`, `idle` or `session`;
+`signalled` with its `signal`; or `failed` with the `stage` it stopped at and the I/O `error` kind
+that caused it, when one did).

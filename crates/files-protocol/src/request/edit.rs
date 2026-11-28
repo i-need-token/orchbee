@@ -88,7 +88,7 @@ impl<'de> Deserialize<'de> for WritePrecondition {
     }
 }
 
-/// Why a write happens, which Local History records once `files-history` serves it.
+/// Why a write happens, which Local History records.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum WriteHistory {

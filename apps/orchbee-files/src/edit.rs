@@ -1,5 +1,5 @@
 //! File edits, the operations `files-edit` adds. Each mutation runs under its request identity
-//! ([`outcomes`]), on a thread where waiting is allowed. Each path it changes passes the scope's
+//! ([`Outcomes`]), on a thread where waiting is allowed. Each path it changes passes the scope's
 //! one mutation check, [`View::mutable`], under the view its call started with, when the change
 //! starts. A mutation never logs a path, a name or file content, and tells the [`Observer`] its
 //! caller injected what it changed.
@@ -24,7 +24,6 @@ mod exports;
 mod import;
 mod names;
 mod observer;
-mod outcomes;
 mod pickers;
 mod transfer;
 mod write;
@@ -45,12 +44,11 @@ use self::{
     delete::{Deleting, Stashes},
     exports::Exports,
     import::{Bringing, Declaration, Imports},
-    outcomes::{Outcomes, finish},
     pickers::Pickers,
     write::{System, Write, Writing},
 };
 pub(crate) use self::{
-    observer::{Moved, Observer, Relocation, Saved, Unobserved},
+    observer::{Moved, Observer, Relocation, Saved},
     transfer::Transfer,
 };
 use crate::{
@@ -58,6 +56,7 @@ use crate::{
     calls::Call,
     fs::{Streaming, Target, Unopened},
     git::ports::Trash,
+    outcomes::{Outcomes, finish},
     scope::{Change, View, path::NativePath},
 };
 
@@ -133,7 +132,6 @@ impl Service {
         });
         if let (Some(history), Some((path, write, written))) = (request.history, saved) {
             self.observer.saved(&Saved {
-                workspace,
                 path: &path,
                 history,
                 written: &written,
@@ -185,7 +183,7 @@ impl Service {
             }
         });
         if let Some((from, to)) = moved {
-            self.moved(workspace, &from, &to, Relocation::Rename);
+            self.moved(&from, &to, Relocation::Rename);
         }
     }
 
@@ -247,7 +245,7 @@ impl Service {
         });
         if transfer == Transfer::Move {
             for (from, to) in &done {
-                self.moved(workspace, from, to, Relocation::Move);
+                self.moved(from, to, Relocation::Move);
             }
         }
     }
@@ -594,8 +592,13 @@ impl Service {
         finish(call, &reply);
     }
 
+    /// Runs `work` while no edit writes the file at `path`, as Local History's restore writes it.
+    pub(crate) fn exclusive<T>(&self, path: &NativePath, work: impl FnOnce() -> T) -> T {
+        self.writing.exclusive(path.key(), work)
+    }
+
     /// Answers `request.outcome` on `call` when a file mutation ran under its identity, and hands
-    /// `call` back otherwise, for the Git mutations to answer.
+    /// `call` back otherwise, for another service to answer.
     pub(crate) fn outcome(&self, call: Call, request: &RequestOutcome) -> Option<Call> {
         match self
             .outcomes
@@ -610,10 +613,9 @@ impl Service {
     }
 
     /// Tells the observer that an item went from `from` to `to`, unless it stayed where it was.
-    fn moved(&self, workspace: WorkspaceId, from: &NativePath, to: &NativePath, how: Relocation) {
+    fn moved(&self, from: &NativePath, to: &NativePath, how: Relocation) {
         if from.as_str() != to.as_str() {
             self.observer.moved(&Moved {
-                workspace,
                 from,
                 to,
                 relocation: how,

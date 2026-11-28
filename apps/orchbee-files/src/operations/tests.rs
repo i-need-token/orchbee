@@ -22,9 +22,10 @@ use orchbee_files_protocol::{
     PathsRequest, PickerList, PickerRequest, Put, PutEnd, ReadMode, ReadSource, RecordPlace,
     RelativePath, RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate,
     SessionId, TransferId, TransferRequest, WatchState, WorkspaceId, WorkspaceRequest,
-    WorkspaceScope, WritePrecondition, decode_files_record, decode_link_message,
+    WorkspaceScope, WriteHistory, WritePrecondition, decode_files_record, decode_link_message,
     encode_files_record, encode_request, parse_notice, parse_reply,
 };
+use orchbee_local_runtime::DataRoot;
 
 use super::Services;
 use crate::{
@@ -32,6 +33,8 @@ use crate::{
     outbound::Outbound,
     scope::path::{self, NativePath},
 };
+
+mod history;
 
 /// The process's side of the link: its services and the frames they queue for the Server.
 struct Link {
@@ -42,8 +45,13 @@ struct Link {
 
 impl Link {
     fn new() -> Self {
+        Self::with_root(None)
+    }
+
+    /// A link whose services keep what they persist in `root`.
+    fn with_root(root: Option<DataRoot>) -> Self {
         let outbound = Arc::new(Outbound::new());
-        let services = Services::new(Calls::new(Arc::clone(&outbound)), None);
+        let services = Services::new(Calls::new(Arc::clone(&outbound)), root);
         let (sent, frames) = mpsc::channel();
         let writer = Arc::clone(&outbound);
         thread::spawn(move || {
@@ -191,6 +199,18 @@ impl Link {
 
     /// `fs.write` of `text` under `request`, on call `id`, with its one Put on call `id + 1`.
     fn write(&self, id: u64, request: u8, path: &FilePath, text: &str) -> FilesReply {
+        self.save(id, request, path, text, None)
+    }
+
+    /// [`Self::write`] that names `history`, the reason Local History records it for.
+    fn save(
+        &self,
+        id: u64,
+        request: u8,
+        path: &FilePath,
+        text: &str,
+        history: Option<WriteHistory>,
+    ) -> FilesReply {
         let transfer = TransferId::new(id).unwrap();
         let write = FsWrite {
             workspace_id: workspace(),
@@ -202,7 +222,7 @@ impl Link {
             bom: false,
             precondition: WritePrecondition::None,
             unlock: false,
-            history: None,
+            history,
         };
         let record = FilesRecord::Request(encode_request(&FilesRequest::FsWrite(write)));
         let record = encode_files_record(&record).unwrap();

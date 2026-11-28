@@ -19,8 +19,10 @@ mod grants;
 mod groups;
 mod invocation;
 mod link;
+mod local_history;
 mod operations;
 mod outbound;
+mod outcomes;
 #[cfg(windows)]
 #[allow(
     unsafe_code,

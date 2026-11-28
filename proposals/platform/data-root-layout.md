@@ -53,6 +53,7 @@
     ├── integrations/agent-observation/<version>/
     ├── desktop/
     ├── backups/<date>-<reason>/
+    ├── local-history/
     ├── cache/agent-detection/
     ├── machines/hub.lock
     ├── runtime/<session>/
@@ -63,23 +64,24 @@
         └── <plugin id>/{config,data,source/<version>}/
 ```
 
-| Entry                   | Holds                                                                                                                                         | Default uninstall              | Safe to delete by hand                              |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
-| `config.toml`           | Settings the person writes                                                                                                                    | Kept                           | No                                                  |
-| `sessions`              | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position                                             | Kept                           | Only through `session delete`                       |
-| `logs`                  | Daily logs and destructive-command records                                                                                                    | Removed                        | Yes                                                 |
-| `agent-detection`       | Detection rule overrides the person writes; absent unless created                                                                             | Kept                           | Yes; bundled rules return                           |
-| `internal`              | Everything below; a person has no reason to open it                                                                                           | Partly removed, as below       | No                                                  |
-| `internal/version.json` | The layout version, and the newest Orchbee version that used the root so a refusal can name it                                                | Kept                           | No                                                  |
-| `internal/state`        | Device records: onboarding dismissal, saved machines, Desktop window geometry and notification-area notice, parent-folder repository consents | Kept                           | No                                                  |
-| `internal/integrations` | The Agent observation Capsule that Agent configurations run                                                                                   | Removed with the Agent entries | Only through `agent integration disable`            |
-| `internal/desktop`      | Electron `userData`, in Chromium's own layout                                                                                                 | Kept                           | While Desktop is closed; resets Desktop preferences |
-| `internal/backups`      | Copies taken before a migration or a reset                                                                                                    | Kept                           | Yes                                                 |
-| `internal/cache`        | Downloaded detection rules                                                                                                                    | Removed                        | Yes; rebuilt on demand                              |
-| `internal/machines`     | The machine hub's single-instance lock, whose location freezes at the first public release                                                    | Removed                        | While no hub runs                                   |
-| `internal/runtime`      | Locks, markers, Host registrations, and frame files of live Sessions                                                                          | Removed                        | Only a stopped Session's folder                     |
-| `internal/tmp`          | Scrollback documents an earlier build left; nothing writes here                                                                               | Removed                        | Yes                                                 |
-| `internal/plugins`      | Plugin registry, managed sources, and each plugin's own configuration and data                                                                | Kept                           | No                                                  |
+| Entry                    | Holds                                                                                                                                         | Default uninstall              | Safe to delete by hand                              |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | --------------------------------------------------- |
+| `config.toml`            | Settings the person writes                                                                                                                    | Kept                           | No                                                  |
+| `sessions`               | One folder per Session: lifecycle record, checkpoints, earlier layouts, kept output, TUI position                                             | Kept                           | Only through `session delete`                       |
+| `logs`                   | Daily logs and destructive-command records                                                                                                    | Removed                        | Yes                                                 |
+| `agent-detection`        | Detection rule overrides the person writes; absent unless created                                                                             | Kept                           | Yes; bundled rules return                           |
+| `internal`               | Everything below; a person has no reason to open it                                                                                           | Partly removed, as below       | No                                                  |
+| `internal/version.json`  | The layout version, and the newest Orchbee version that used the root so a refusal can name it                                                | Kept                           | No                                                  |
+| `internal/state`         | Device records: onboarding dismissal, saved machines, Desktop window geometry and notification-area notice, parent-folder repository consents | Kept                           | No                                                  |
+| `internal/integrations`  | The Agent observation Capsule that Agent configurations run                                                                                   | Removed with the Agent entries | Only through `agent integration disable`            |
+| `internal/desktop`       | Electron `userData`, in Chromium's own layout                                                                                                 | Kept                           | While Desktop is closed; resets Desktop preferences |
+| `internal/backups`       | Copies taken before a migration or a reset                                                                                                    | Kept                           | Yes                                                 |
+| `internal/local-history` | Copies of the files the File Bar saved, restored or moved, with their index and lock                                                          | Kept                           | Yes; the history is lost                            |
+| `internal/cache`         | Downloaded detection rules                                                                                                                    | Removed                        | Yes; rebuilt on demand                              |
+| `internal/machines`      | The machine hub's single-instance lock, whose location freezes at the first public release                                                    | Removed                        | While no hub runs                                   |
+| `internal/runtime`       | Locks, markers, Host registrations, and frame files of live Sessions                                                                          | Removed                        | Only a stopped Session's folder                     |
+| `internal/tmp`           | Scrollback documents an earlier build left; nothing writes here                                                                               | Removed                        | Yes                                                 |
+| `internal/plugins`       | Plugin registry, managed sources, and each plugin's own configuration and data                                                                | Kept                           | No                                                  |
 
 - Only `config.toml`, `agent-detection/*.toml`, and a plugin's `config/` folder are meant for hand
   editing. Every other file is internal, and Orchbee refuses an edited record instead of guessing.
@@ -268,6 +270,7 @@ veto). Every other row applies from the first public release:
 | `internal/runtime/`                                                                            | Protocol generations              | Not migrated; [versioning and upgrade](versioning-and-upgrade.md) decides compatibility                                                                                                     |
 | `internal/integrations/`                                                                       | The Capsule manifest              | Replaced by the integration writer, never migrated                                                                                                                                          |
 | `internal/desktop/`                                                                            | Chromium's own                    | Chromium's own                                                                                                                                                                              |
+| `internal/local-history/index.json`, each folder's `entries.json`                              | A top-level integer `version`     | Never migrated: an index this build cannot read is rebuilt from the folders, and a record of a newer version is left to that version                                                        |
 | `logs/`, `internal/backups/`, `internal/tmp/`, plugin sources                                  | None                              | Never migrated                                                                                                                                                                              |
 
 - A build refuses to open a root whose `layout` is higher than its own, before any other read.

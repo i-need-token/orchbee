@@ -269,6 +269,12 @@ impl DataRoot {
         self.internal().join("backups")
     }
 
+    /// Local History, the copies of the files the File Bar saved; `orchbee-files` places what it
+    /// holds.
+    pub fn local_history(&self) -> PathBuf {
+        self.internal().join("local-history")
+    }
+
     /// The plugin store; `PluginStorePaths` places what it holds.
     pub fn plugins(&self) -> PathBuf {
         self.internal().join("plugins")

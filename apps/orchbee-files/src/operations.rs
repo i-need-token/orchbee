@@ -20,8 +20,8 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesError, FilesRecord, FilesReply,
-    FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError,
-    ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
+    FilesRequest, FsRead, GrantClass, HistoryEntryId, LaneId, LinkRequest, ReadSource, RecordPlace,
+    RequestError, ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -30,8 +30,11 @@ use crate::{
     calls::{Call, Calls, DuplicateCall},
     edit,
     fs::{Engine, MachineTrash, Unopened},
-    git::{self, ports::Trash},
-    grants, roots,
+    git::{
+        self,
+        ports::{ShowRead, Trash},
+    },
+    grants, local_history, roots,
     scope::{Scopes, View, path::NativePath},
     search,
     subscriptions::{Leaving, Subscriptions},
@@ -52,6 +55,8 @@ pub(crate) struct Services {
     edit: edit::Service,
     /// Text search and Quick Open's file lists.
     search: search::Service,
+    /// Local History, which records what the edits save and move.
+    history: Arc<local_history::Service>,
 }
 
 impl Services {
@@ -63,8 +68,13 @@ impl Services {
         let files = Engine::new(helpers.clone(), Arc::clone(&scopes), Arc::clone(&roots));
         let watches = files.repository_watches();
         let trash: Arc<dyn Trash> = Arc::new(MachineTrash);
+        let history = Arc::new(local_history::Service::new(
+            helpers.clone(),
+            root.as_ref().map(DataRoot::local_history),
+        ));
         let git = git::Service::start(root, Arc::clone(&scopes), watches, Arc::clone(&trash));
-        let edit = edit::Service::new(helpers.clone(), trash, Arc::new(edit::Unobserved));
+        let observer: Arc<dyn edit::Observer> = Arc::clone(&history) as _;
+        let edit = edit::Service::new(helpers.clone(), trash, observer);
         Arc::new(Self {
             calls,
             files,
@@ -74,6 +84,7 @@ impl Services {
             git,
             edit,
             search: search::Service::new(),
+            history,
         })
     }
 
@@ -263,8 +274,10 @@ impl Services {
                         Err(refused) => call.reply(&FilesReply::Error(refused)),
                     }
                 }
-                // Local History is not served yet.
-                ReadSource::History { .. } => call.close(CallClose::Unsupported),
+                ReadSource::History { path, entry } => match view.read(path) {
+                    Ok(path) => self.read_history(call, path, *entry, &request),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                },
             },
             FilesRequest::FsReadChunk(request) => self.files.read_chunk(call, &request),
             FilesRequest::FsGuessEncoding(request) => match view.read(&request.path) {
@@ -299,7 +312,8 @@ impl Services {
             FilesRequest::RelayAnswer(request) => self.git.answer(call, &request),
             FilesRequest::ClientFocus(request) => self.git.focus(call, &request),
             FilesRequest::RequestOutcome(request) => {
-                if let Some(call) = self.edit.outcome(call, &request) {
+                let call = self.edit.outcome(call, &request);
+                if let Some(call) = call.and_then(|call| self.history.outcome(call, &request)) {
                     self.git.outcome(call, &request);
                 }
             }
@@ -456,11 +470,37 @@ impl Services {
             }
             FilesRequest::GitRemoteAdd(request) => self.git.remote_add(call, view, &request),
             FilesRequest::GitRemoteRemove(request) => self.git.remote_remove(call, view, &request),
-            // Local History is not served yet.
-            FilesRequest::HistoryList(_)
-            | FilesRequest::HistoryRestore(_)
-            | FilesRequest::HistoryRename(_)
-            | FilesRequest::HistoryDelete(_) => call.close(CallClose::Unsupported),
+            FilesRequest::HistoryList(request) => self.detach(call, move |services, call| {
+                services.history.list(call, &view, &request);
+            }),
+            FilesRequest::HistoryRestore(request) => self.detach(call, move |services, call| {
+                services
+                    .history
+                    .restore(call, view, &request, &services.edit);
+            }),
+            FilesRequest::HistoryRename(request) => self.detach(call, move |services, call| {
+                services.history.rename(call, &view, &request);
+            }),
+            FilesRequest::HistoryDelete(request) => self.detach(call, move |services, call| {
+                services.history.delete(call, &view, &request);
+            }),
+        }
+    }
+
+    /// `fs.read` of Local History entry `entry` of the file at `path`, which scope admitted: the
+    /// read transfer opens at once, as a file's does, and a thread of its own supplies the
+    /// content the store keeps, which reading may wait on.
+    fn read_history(&self, call: Call, path: NativePath, entry: HistoryEntryId, request: &FsRead) {
+        let Some(read) = self.files.history_read(call, request) else {
+            return;
+        };
+        let history = Arc::clone(&self.history);
+        let supplied = on_thread(read, move |read| match history.content(&path, entry) {
+            Ok(content) => Box::new(read).supply(Arc::new(content)),
+            Err(error) => Box::new(read).fail(error),
+        });
+        if let Err(read) = supplied {
+            Box::new(read).fail(FilesError::new(ErrorCode::Failed));
         }
     }
 
