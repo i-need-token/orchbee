@@ -3,6 +3,7 @@ import {
 	TERMINAL_ACTION_IDS,
 	type WorkbenchTerminalActionCatalog,
 	type WorkbenchTerminalLinkActionInput,
+	type WorkbenchTerminalPathsInput,
 } from '../../workbench';
 
 import { PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS } from '../../projected-terminal-keyboard-shortcuts';
@@ -14,6 +15,7 @@ export const PROJECTED_TERMINAL_ACTION_IDS = {
 	findOpen: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.findOpen,
 	findPrevious: TERMINAL_ACTION_IDS.findPrevious,
 	hintsOpen: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.hintsOpen,
+	insertPaths: TERMINAL_ACTION_IDS.insertPaths,
 	openLink: TERMINAL_ACTION_IDS.openLink,
 	paste: TERMINAL_ACTION_IDS.paste,
 	promptNext: PROJECTED_TERMINAL_SHORTCUT_ACTION_IDS.promptNext,
@@ -91,6 +93,22 @@ export const projectedTerminalLinkActionInput: ActionInputValidation<ProjectedTe
 				default:
 					return { code: 'invalid-terminal-link-target', success: false };
 			}
+		},
+	};
+
+/** At least one path, each a nonempty string of at most 16,384 characters, for a POSIX or Windows shell. */
+export const projectedTerminalPathsActionInput: ActionInputValidation<WorkbenchTerminalPathsInput> =
+	{
+		name: 'terminal-paths',
+		parse(input) {
+			if (!isRecord(input)) return { code: 'invalid-terminal-paths', success: false };
+			const { paths, platform } = input;
+			return Array.isArray(paths) &&
+				paths.length > 0 &&
+				paths.every((path): path is string => boundedString(path) !== null) &&
+				(platform === 'posix' || platform === 'windows')
+				? { data: { paths: [...paths], platform }, success: true }
+				: { code: 'invalid-terminal-paths', success: false };
 		},
 	};
 

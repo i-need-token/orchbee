@@ -8,6 +8,7 @@ export const zhCNProjectedTerminalMessages = {
 	'terminal.projected.action.findOpen': '在终端中查找',
 	'terminal.projected.action.findPrevious': '查找上一个匹配项',
 	'terminal.projected.action.hintsOpen': '快速选择',
+	'terminal.projected.action.insertPaths': '插入路径',
 	'terminal.projected.action.openLink': '打开链接或文件',
 	'terminal.projected.action.paste': '粘贴',
 	'terminal.projected.action.promptNext': '滚动到下一个 Shell 提示符',

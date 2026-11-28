@@ -8,6 +8,7 @@ import {
 	type TypedActionRuntime,
 } from '@orchbee/actions';
 import { projectedTerminalMessages } from '@orchbee/i18n';
+import { formatDroppedPaths } from '@orchbee/terminal/dropped-paths';
 import {
 	normalizePermittedExternalTerminalUrl,
 	type ProjectedPasteResult,
@@ -35,6 +36,7 @@ import {
 	PROJECTED_TERMINAL_ACTION_IDS,
 	type ProjectedTerminalActionCatalog,
 	projectedTerminalLinkActionInput,
+	projectedTerminalPathsActionInput,
 } from './projected-terminal-action-ids';
 
 export interface ProjectedTerminalActionTarget {
@@ -51,13 +53,15 @@ export interface ProjectedTerminalActionTarget {
 	copySelectionAsync(): Promise<ProjectedTerminalSideEffectResult>;
 	findNext(): boolean;
 	findPrevious(): boolean;
+	/** Gives the terminal the keys, as a drop on it does. */
+	focus(): void;
 	chooseVisibleHint(signal: AbortSignal): Promise<TerminalHintChoiceResult>;
 	linkOpenRequestIsCurrent(request: ProjectedTerminalLinkOpenRequest): boolean;
 	openLinkAsync(target: string): Promise<ProjectedTerminalSideEffectResult>;
 	openTargetAsync(
 		target: Extract<TerminalOpenTarget, { readonly kind: 'file' | 'url' }>,
 	): Promise<ProjectedTerminalSideEffectResult>;
-	paste(text: string, source: 'api' | 'clipboard'): Promise<ProjectedPasteResult>;
+	paste(text: string, source: 'api' | 'clipboard' | 'drop'): Promise<ProjectedPasteResult>;
 	reset(): void;
 	scrollLines(amount: number): boolean;
 	scrollPages(amount: number): boolean;
@@ -299,12 +303,36 @@ export function registerProjectedTerminalActions({
 							if (clipboard.kind === 'failed') {
 								return { failure: { code: clipboard.code }, kind: 'failed' };
 							}
-							return pasteClipboardText(context, await terminal.paste(clipboard.text, 'clipboard'));
+							return settlePaste(context, await terminal.paste(clipboard.text, 'clipboard'));
 						}),
 				},
 				id: PROJECTED_TERMINAL_ACTION_IDS.paste,
 				input: noActionInput,
 				title: projectedTerminalMessages.pasteAction,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category,
+				// Each drop pastes once, in the order the drops arrived.
+				execution: {
+					concurrency: 'serialize',
+					concurrencyKey: () => 'terminal-paths-insert',
+					mode: 'foreground',
+				},
+				getAvailability: inputAvailability,
+				handler: {
+					execute: async (context, input) => {
+						// As a drop of files from the system does, the terminal takes the keys first.
+						terminal.focus();
+						const text = formatDroppedPaths(input.paths, input.platform);
+						return settlePaste(context, await terminal.paste(text, 'drop'));
+					},
+				},
+				id: PROJECTED_TERMINAL_ACTION_IDS.insertPaths,
+				input: projectedTerminalPathsActionInput,
+				title: projectedTerminalMessages.insertPathsAction,
 			}),
 		),
 		typedRuntime.register(
@@ -532,7 +560,7 @@ function commitBooleanResult(context: ActionExecutionContext, committed: boolean
 	return { kind: 'completed' as const };
 }
 
-function pasteClipboardText(context: ActionExecutionContext, result: ProjectedPasteResult) {
+function settlePaste(context: ActionExecutionContext, result: ProjectedPasteResult) {
 	if (result.kind === 'empty') return { kind: 'unchanged' as const };
 	if (result.kind === 'blocked') return { code: 'paste-blocked', kind: 'blocked' as const };
 	context.markCommitted();

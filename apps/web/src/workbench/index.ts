@@ -104,6 +104,7 @@ export { TERMINAL_ACTION_IDS } from './actions/terminal-action-contracts';
 export type {
 	WorkbenchTerminalActionCatalog,
 	WorkbenchTerminalLinkActionInput,
+	WorkbenchTerminalPathsInput,
 } from './actions/terminal-action-contracts';
 export type { WorkbenchTerminalActionShortcutLabels } from './types/workbench-terminal-action-shortcut-labels';
 export type {

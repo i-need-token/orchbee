@@ -6,6 +6,7 @@ export const enUSProjectedTerminalMessages = {
 	'terminal.projected.action.findOpen': 'Find in terminal',
 	'terminal.projected.action.findPrevious': 'Find previous match',
 	'terminal.projected.action.hintsOpen': 'Quick Select',
+	'terminal.projected.action.insertPaths': 'Insert paths',
 	'terminal.projected.action.openLink': 'Open link or file',
 	'terminal.projected.action.paste': 'Paste',
 	'terminal.projected.action.promptNext': 'Scroll to next shell prompt',

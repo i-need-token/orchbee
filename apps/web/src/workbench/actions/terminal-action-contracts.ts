@@ -1,4 +1,5 @@
 import type { ActionSignature } from '@orchbee/actions';
+import type { DroppedPathPlatform } from '@orchbee/terminal/dropped-paths';
 
 export const TERMINAL_ACTION_IDS = {
 	clear: 'terminal.clear',
@@ -8,6 +9,7 @@ export const TERMINAL_ACTION_IDS = {
 	findOpen: 'terminal.search.open',
 	findPrevious: 'terminal.search.previous',
 	hintsOpen: 'terminal.hints.open',
+	insertPaths: 'terminal.paths.insert',
 	openLink: 'terminal.link.open',
 	paste: 'terminal.clipboard.paste',
 	promptNext: 'terminal.history.prompt-next',
@@ -47,6 +49,13 @@ export interface WorkbenchTerminalLinkActionInput {
 		| { readonly kind: 'url'; readonly url: string };
 }
 
+/** Files and folders to type into a terminal, as absolute paths on the machine that holds them. */
+export interface WorkbenchTerminalPathsInput {
+	readonly paths: readonly string[];
+	/** The family of that machine, whose shell reads the paths. */
+	readonly platform: DroppedPathPlatform;
+}
+
 /** Minimal terminal intent catalog owned by the containing Workbench. */
 export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.clear': ActionSignature<void>;
@@ -63,6 +72,8 @@ export interface WorkbenchTerminalActionCatalog {
 	readonly 'terminal.history.scroll-top': ActionSignature<void>;
 	readonly 'terminal.hints.open': ActionSignature<void>;
 	readonly 'terminal.link.open': ActionSignature<WorkbenchTerminalLinkActionInput>;
+	/** Types paths into the terminal as a drop of them does: it takes focus, then pastes them. */
+	readonly 'terminal.paths.insert': ActionSignature<WorkbenchTerminalPathsInput>;
 	readonly 'terminal.reset': ActionSignature<void>;
 	readonly 'terminal.search.next': ActionSignature<void>;
 	readonly 'terminal.search.open': ActionSignature<void>;

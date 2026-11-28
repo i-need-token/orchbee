@@ -245,6 +245,7 @@ function terminalTarget(
 			.mockResolvedValue({ byteLength: 8, kind: 'completed' }),
 		findNext: vi.fn<ProjectedTerminalActionTarget['findNext']>(() => true),
 		findPrevious: vi.fn<ProjectedTerminalActionTarget['findPrevious']>(() => true),
+		focus: vi.fn<ProjectedTerminalActionTarget['focus']>(),
 		linkOpenRequestIsCurrent: vi.fn<ProjectedTerminalActionTarget['linkOpenRequestIsCurrent']>(
 			() => true,
 		),

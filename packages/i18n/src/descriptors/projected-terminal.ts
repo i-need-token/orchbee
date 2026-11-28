@@ -49,6 +49,7 @@ export const projectedTerminalMessages = defineMessages({
 	hintsLoading: message('terminal.projected.hints.loading'),
 	hintsNoMatches: message('terminal.projected.hints.noMatches'),
 	hintsOpenAction: message('terminal.projected.action.hintsOpen'),
+	insertPathsAction: message('terminal.projected.action.insertPaths'),
 	hintsStale: message('terminal.projected.hints.stale'),
 	hintsUnavailable: message('terminal.projected.hints.unavailable'),
 	historyEvicted: message('terminal.projected.history.evicted'),
