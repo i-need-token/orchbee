@@ -377,7 +377,9 @@ terminals in the Keeper and no Keeper replacement runs. The move runs inside the
 quiesces and exports the terminal, the record passes chunk by chunk, and the own Host restores and
 claims it; a step refused before the claim discards the import and resumes the terminal. A terminal
 an older Host refuses as ineligible stays there, a passing refusal waits for a later turn, and any
-other failure stops moves for the Worker's life. After the claim the kernel binds the terminal to
+other failure stops moves for the Worker's life: once the last move's old copy is dropped, that
+turn and every later one answers `Stopped` with the step that failed and its reason, as
+`terminal-move-failed` records them. After the claim the kernel binds the terminal to
 its new identity and runs requests that name the old one against it, answering them in their own
 words; each controller attaches to the own Host under its identities and consumed sequence, and each
 viewer closes, so its Client attaches again. The next turn drops the old copy, or disposes it when

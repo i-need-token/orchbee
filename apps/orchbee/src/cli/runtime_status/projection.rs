@@ -151,6 +151,16 @@ pub(in crate::cli) fn process_lines(
     lines
 }
 /// The text label naming a process role.
+/// The `moves` member: the terminals that Hosts older than the Worker run, the oldest such Host's
+/// version, and the failed move that stopped moving them, when one did.
+fn moves_json(moves: &crate::cli::server_query::Moves) -> Value {
+    let mut value = json!({"terminals": moves.terminals, "version": moves.version});
+    if let Some(stopped) = &moves.stopped {
+        value["stopped"] = json!({"step": stopped.step, "reason": stopped.reason});
+    }
+    value
+}
+
 fn role_label(role: ProcessRole) -> &'static str {
     match role {
         ProcessRole::Server => "role-server",
@@ -210,6 +220,9 @@ impl Report {
                         if let Some(restart) = restart {
                             server["restart"] = restart.clone();
                         }
+                        if let Some(moves) = crate::cli::server_query::moves(result) {
+                            server["moves"] = moves_json(&moves);
+                        }
                         server
                     }
                 };
@@ -243,6 +256,12 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                     .collect(),
                 _ => Vec::new(),
             };
+            // The failed move that stopped moving terminals off older Hosts, with those left there.
+            let stopped = value["server"]["moves"]["stopped"].is_object().then(|| {
+                let moves = &value["server"]["moves"];
+                json!({"step": moves["stopped"]["step"], "reason": moves["stopped"]["reason"],
+                    "left": moves["terminals"]})
+            });
             // Each Host the active version must replace and whose terminals it does not move.
             let staying = value["server"]["restart"]["hosts"]
                 .as_array()
@@ -284,6 +303,9 @@ pub(super) fn emit(report: Report, format: OutputFormat, locale: Locale) -> Outp
                             "restartKeepsTerminals",
                             &value["server"]["restartKeepsTerminals"],
                         ));
+                    }
+                    if let Some(stopped) = &stopped {
+                        entries.push(("movesStopped", stopped));
                     }
                     if value["server"]["restart"].is_object() {
                         entries.push(("restart", &value["server"]["restart"]["tier"]));

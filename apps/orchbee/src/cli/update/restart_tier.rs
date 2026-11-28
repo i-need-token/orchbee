@@ -82,9 +82,11 @@ pub(in crate::cli) fn active(query: &QueryResult) -> Option<Restart> {
 /// compatibility window, shares no `client-server` generation with the active Client, or either is
 /// below its security floor; otherwise `recommended` whenever either is older than its active
 /// component, since a restart keeps every terminal and an older Server leaves the active version's
-/// features unavailable, and also when any Host is below its recommended floor. A Host is
-/// `required` below its security floor or without a `worker-host` generation in common with the
-/// active Worker. Only a process older than its active component gets a tier; a floor or range the
+/// features unavailable, and also when any Host is below its recommended floor or, older than the
+/// Worker, runs terminals after a failed move stopped the Worker's moves, since the restart's Worker
+/// moves them again. A Host is `required` below its security floor or without a `worker-host`
+/// generation in common with the active Worker, else `recommended` when it runs terminals after such
+/// a stop. Only a process older than its active component gets a tier; a floor or range the
 /// manifest omits imposes nothing.
 pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart {
     let processes = query.processes();
@@ -114,6 +116,19 @@ pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart
             tier = tier.max(replacement(entry, worker));
         }
     }
+    // A Host older than the Worker still runs terminals that a failed move stopped moving.
+    let stopped =
+        crate::cli::server_query::moves(query).is_some_and(|moves| moves.stopped.is_some());
+    let behind = |entry: &ProcessEntry| {
+        stopped
+            && entry.terminals > 0
+            && of(ProcessRole::Worker).next().is_some_and(|worker| {
+                compare_product_versions(
+                    entry.product_version.as_str(),
+                    worker.product_version.as_str(),
+                ) == Ordering::Less
+            })
+    };
     let mut hosts = Vec::new();
     for entry in of(ProcessRole::TerminalHost) {
         let connects = shares(
@@ -128,6 +143,9 @@ pub(super) fn evaluate(components: &[Component], query: &QueryResult) -> Restart
                 }
                 if !connects || below(entry, host.security_floor.as_deref()) {
                     Tier::Required
+                } else if behind(entry) {
+                    tier = tier.max(Tier::Recommended);
+                    Tier::Recommended
                 } else {
                     Tier::None
                 }
@@ -190,3 +208,6 @@ fn shares(left: Option<GenerationRange>, right: Option<GenerationRange>) -> bool
         _ => true,
     }
 }
+
+#[cfg(test)]
+mod tests;

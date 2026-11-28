@@ -9,6 +9,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use orchbee_capability_node_protocol::TerminalMoveToken;
 use orchbee_connection_handshake::{
     AcceptorMessage, CapabilityName, CapabilitySet, ConnectionEntry, ConnectionKind, ContractName,
     Delivery, Extensions, FrameFormat, GenerationRange, InvalidValue, MAXIMUM_QUERY_PROCESSES,
@@ -28,6 +29,8 @@ const HOSTS_DUE: Duration = Duration::from_secs(1);
 const CLIENTS: &str = "clients";
 /// The extension that counts the background programs the Worker runs.
 const BACKGROUND_PROGRAMS: &str = "background-programs";
+/// The extension that names the step and reason of the failed move that stopped the Worker's moves.
+const MOVES_STOPPED: &str = "moves-stopped";
 
 /// Sends the `query-result` for the connection accepted at `accepted`; the caller closes the
 /// connection. `clients` is what each connected Client offered, and `keeps_terminals` whether this
@@ -52,7 +55,11 @@ pub(super) fn respond(
         .worker
         .get()
         .and_then(|_| terminals.background_programs(accepted + HOSTS_DUE));
-    let built = extensions(clients, programs).and_then(|extensions| {
+    let stopped = identity
+        .worker
+        .get()
+        .and_then(|_| terminals.moves_stopped());
+    let built = extensions(clients, programs, stopped).and_then(|extensions| {
         result(
             identity,
             state,
@@ -72,9 +79,14 @@ pub(super) fn respond(
     }
 }
 
-/// The reply's `extensions`: each connected Client's offer as `clients`, and the count of
-/// background programs the Worker runs as `background-programs` when it gave one.
-fn extensions(clients: &[ClientOffer], programs: Option<u32>) -> Result<Extensions, InvalidValue> {
+/// The reply's `extensions`: each connected Client's offer as `clients`, the count of background
+/// programs the Worker runs as `background-programs` when it gave one, and the step and reason of
+/// the failed move that stopped its moves as `moves-stopped` when one did.
+fn extensions(
+    clients: &[ClientOffer],
+    programs: Option<u32>,
+    stopped: Option<(TerminalMoveToken, TerminalMoveToken)>,
+) -> Result<Extensions, InvalidValue> {
     let mut extensions = Extensions::new();
     let clients = clients
         .iter()
@@ -89,6 +101,12 @@ fn extensions(clients: &[ClientOffer], programs: Option<u32>) -> Result<Extensio
     extensions.insert(CapabilityName::new(CLIENTS)?, clients.into())?;
     if let Some(programs) = programs {
         extensions.insert(CapabilityName::new(BACKGROUND_PROGRAMS)?, programs.into())?;
+    }
+    if let Some((step, reason)) = stopped {
+        extensions.insert(
+            CapabilityName::new(MOVES_STOPPED)?,
+            serde_json::json!({ "step": step.as_str(), "reason": reason.as_str() }),
+        )?;
     }
     Ok(extensions)
 }

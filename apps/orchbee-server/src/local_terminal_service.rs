@@ -52,6 +52,7 @@ mod controller_connection;
 mod controller_focus;
 mod current_directory;
 mod file_bar;
+mod moves_stopped;
 mod operation_maintenance;
 mod panel_agent;
 mod panel_create;
@@ -107,6 +108,7 @@ pub(crate) struct LocalTerminalService {
     agent_resume: agent_resume::AgentResume,
     agent_start_delivery: agent_start_delivery::AgentStartDelivery,
     agent_confirmations: agent_confirmation::AgentConfirmations,
+    moves_stopped: moves_stopped::MovesStopped,
     #[cfg(windows)]
     plugin_hooks: plugins::PluginHooks,
     worktree_maintenance: operation_maintenance::OperationMaintenance,
@@ -163,6 +165,7 @@ impl LocalTerminalService {
             agent_resume: agent_resume::AgentResume::default(),
             agent_start_delivery: agent_start_delivery::AgentStartDelivery::default(),
             agent_confirmations: agent_confirmation::AgentConfirmations::default(),
+            moves_stopped: moves_stopped::MovesStopped::default(),
             #[cfg(windows)]
             plugin_hooks: plugins::PluginHooks::default(),
             worktree_maintenance: operation_maintenance::OperationMaintenance::new(

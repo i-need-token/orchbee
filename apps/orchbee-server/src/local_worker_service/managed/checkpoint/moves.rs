@@ -4,8 +4,8 @@
 //! each terminal it moved; a Server that ends between turns then leaves no running Host the record
 //! lacks, which would block the Session's recovery, and the next turn, which tells the Worker to
 //! drop a moved terminal's old copy, finds the record naming the new one. The turns end at `Done`,
-//! at a turn the Worker declines or cannot answer, and when the Session stops, after which they
-//! never write the record.
+//! at `Stopped`, which the Session's `query` then reports, at a turn the Worker declines or cannot
+//! answer, and when the Session stops, after which they never write the record.
 
 use std::{
     io,
@@ -133,6 +133,11 @@ impl Turn {
                     }
                     TerminalMoveTurnOutcome::Waiting => {}
                     TerminalMoveTurnOutcome::Done => return,
+                    TerminalMoveTurnOutcome::Stopped { step, reason } => {
+                        self.terminals
+                            .record_moves_stopped(self.placement, step, reason);
+                        return;
+                    }
                 },
                 Err(WorkerRequestError::Backpressure) => {}
                 // A decline, a lost wire, a replaced generation or an answer of another kind.

@@ -3,7 +3,8 @@
 //! a move turn every 2 seconds; the Worker picks the terminal, runs the move inside the turn in
 //! its serialized request loop, so every request the Server writes meanwhile waits for it, rebinds
 //! the kernel and the attachments, and answers what moved. The first failed move stops moves for
-//! the rest of the Worker's life; an older Host left without a terminal drains as P1c's do.
+//! the rest of the Worker's life, and every later turn answers the step and reason it failed for;
+//! an older Host left without a terminal drains as P1c's do.
 
 mod attachments;
 mod steps;
@@ -17,7 +18,7 @@ use std::{
 };
 
 use orchbee_capability_node_protocol::{
-    HostEpoch, HostTerminalId, HostTerminalIdentity, TerminalMoveTurnOutcome,
+    HostEpoch, HostTerminalId, HostTerminalIdentity, TerminalMoveToken, TerminalMoveTurnOutcome,
 };
 use orchbee_local_ipc::LocalStream as UnixStream;
 use orchbee_terminal_protocol::HandoverProcess;
@@ -60,8 +61,8 @@ struct OldCopy {
 /// What the Worker keeps of its moves for its whole life.
 #[derive(Default)]
 pub(super) struct Moves {
-    /// A move failed, so no other runs.
-    stopped: bool,
+    /// The step a move failed at and its reason, after which no other runs.
+    stopped: Option<(&'static str, &'static str)>,
     /// The turns ended: the Server sends no other to this Worker.
     finished: bool,
     /// Host terminals an old Host refused as ineligible, which stay where they run.
@@ -107,12 +108,15 @@ impl Moves {
     ) -> Result<TerminalMoveTurnOutcome, Box<dyn Error>> {
         self.end_old_copy(hosts, server)?;
         let outcome = self.next(hosts, kernel, server, readable)?;
-        // The Server sends no turn after `Done`, so an old copy still to end keeps them coming.
+        // The Server sends no turn after `Done` or `Stopped`, so an old copy still to end keeps them
+        // coming.
         Ok(match outcome {
-            TerminalMoveTurnOutcome::Done if self.old_copy.is_some() => {
+            TerminalMoveTurnOutcome::Done | TerminalMoveTurnOutcome::Stopped { .. }
+                if self.old_copy.is_some() =>
+            {
                 TerminalMoveTurnOutcome::Waiting
             }
-            TerminalMoveTurnOutcome::Done => {
+            TerminalMoveTurnOutcome::Done | TerminalMoveTurnOutcome::Stopped { .. } => {
                 self.finished = true;
                 self.relayed.clear();
                 self.waiting.clear();
@@ -160,7 +164,10 @@ impl Moves {
         server: &UnixStream,
         readable: Instant,
     ) -> Result<TerminalMoveTurnOutcome, Box<dyn Error>> {
-        if !orchbee_local_runtime::moves_live() || self.stopped {
+        if let Some((step, reason)) = self.stopped {
+            return Ok(stopped(step, reason));
+        }
+        if !orchbee_local_runtime::moves_live() {
             return Ok(TerminalMoveTurnOutcome::Done);
         }
         let mut candidates = Vec::new();
@@ -303,13 +310,23 @@ impl Moves {
 
     /// Stops moves for the rest of the Worker's life after `step` failed.
     fn stop(&mut self, step: &'static str, refused: Refused) -> TerminalMoveTurnOutcome {
-        self.stopped = true;
+        self.stopped = Some((step, refused.reason()));
         crate::diagnostic_events::terminal_move_failed(
             step,
             refused.class(),
             refused.reason(),
             true,
         );
-        TerminalMoveTurnOutcome::Done
+        stopped(step, refused.reason())
+    }
+}
+
+/// The answer of a turn after a move failed at `step` for `reason`; a token outside the wire's
+/// grammar reads `other`.
+fn stopped(step: &'static str, reason: &'static str) -> TerminalMoveTurnOutcome {
+    let token = |value| TerminalMoveToken::new(value).or_else(|_| TerminalMoveToken::new("other"));
+    match (token(step), token(reason)) {
+        (Ok(step), Ok(reason)) => TerminalMoveTurnOutcome::Stopped { step, reason },
+        _ => TerminalMoveTurnOutcome::Done,
     }
 }

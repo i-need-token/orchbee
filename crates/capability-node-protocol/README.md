@@ -670,8 +670,10 @@ of terminals from older Terminal Hosts into the Worker's own, under frame versio
 capability name. A request's body after its kind is the request ID (16), Worker ID (16) and positive
 Worker generation (`u64`, big-endian). A result echoes them, then an outcome tag: 1 Moved, with the
 product Terminal ID (16), and the Host creation, epoch and terminal IDs (16 each) it ran as and runs
-as now, which name one creation under two epochs; 2 Waiting, when a later turn may move one; or 3
-Done, after which no turn moves any. A result is at most 154 payload bytes. The Worker owns the
+as now, which name one creation under two epochs; 2 Waiting, when a later turn may move one; 3
+Done, after which no turn moves any; or 4 Stopped, after a move failed, with the step that failed
+and its reason, each a length (`u8`) and 1 to 32 bytes of lowercase ASCII letters, digits and `-`,
+after which no turn moves any either. A result is at most 154 payload bytes. The Worker owns the
 move ([several Hosts](../../apps/orchbee-worker/README.md#several-hosts)) and the Server its turns
 and the rebinding, as the [H3 design](../../proposals/platform/host-handover.md#h3-design) decides.
 Hand-derived golden bytes and malformed bounds verify this representation, and the pair follows

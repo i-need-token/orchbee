@@ -119,8 +119,14 @@ gives the Session's Server and Worker (`none`, `recommended` or `required`), and
 Host's own tier by process ID, the `terminals` it runs, and `moves`: whether that version's Worker
 moves those terminals to its own Host, since that version moves terminals and its Worker shares a
 `worker-host` generation with the Host (a Host that offers no `handover` keeps them all the same);
-text names each `required` Host whose terminals do not move. `doctor` carries the same member in its Session check, and text
-labels it Restart for the update. A `not-running` Session the automatic update's idle move ended carries `movedTo`, the
+text names each `required` Host whose terminals do not move. A Host older than the Worker that
+still runs terminals after a failed move stopped the Worker's moves is `recommended`, and so is the
+Session, since the restart's Worker moves them again. `doctor` carries the same member in its
+Session check, and text labels it Restart for the update. While Hosts older than the Worker run
+terminals, `running` also carries `moves`: their `terminals`, the oldest such Host's `version`, and,
+once a failed move stopped the Worker's moves, `stopped` with the `step` that failed and its
+`reason`, as the Worker's `terminal-move-failed` diagnostic names them; text shows only that stop,
+labelled Terminal moves stopped, with the terminals left. A `not-running` Session the automatic update's idle move ended carries `movedTo`, the
 installed version it moved to, which the next start runs; a person's stop or a crash carries none. On Windows the scope is the Session name, the name of its runtime folder, and the read
 does not activate a missing named Session.
 

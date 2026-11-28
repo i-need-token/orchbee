@@ -52,6 +52,12 @@ impl super::CliText {
             "movedTo" => ("Moved to version", "已迁移到版本"),
             "restart" => ("Restart for the update", "为更新重启"),
             "restartStaying" => ("Terminals that can't move", "无法转移的终端"),
+            "movesStopped" => ("Terminal moves stopped", "终端转移已停止"),
+            "step" => ("Failed step", "失败的步骤"),
+            "left" => (
+                "Terminals on older Terminal Hosts",
+                "旧版本 Terminal Host 上的终端",
+            ),
             "platform" => ("Platform", "平台"),
             "architecture" => ("Architecture", "架构"),
             "profile" => ("Build profile", "构建类型"),

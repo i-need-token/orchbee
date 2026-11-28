@@ -5,8 +5,8 @@ use std::num::NonZeroU64;
 
 use super::{PayloadReader, decode_host_identity, encode_host_identity};
 use crate::{
-    OperationId, ProtocolError, TerminalId, TerminalMoveTurnOutcome, TerminalMoveTurnRequest,
-    TerminalMoveTurnResult, WorkerGeneration, WorkerId,
+    OperationId, ProtocolError, TerminalId, TerminalMoveToken, TerminalMoveTurnOutcome,
+    TerminalMoveTurnRequest, TerminalMoveTurnResult, WorkerGeneration, WorkerId,
 };
 
 pub(super) const REQUEST_KIND: u8 = 43;
@@ -57,8 +57,24 @@ pub(super) fn encode_result(result: TerminalMoveTurnResult) -> Vec<u8> {
         }
         TerminalMoveTurnOutcome::Waiting => bytes.push(2),
         TerminalMoveTurnOutcome::Done => bytes.push(3),
+        TerminalMoveTurnOutcome::Stopped { step, reason } => {
+            bytes.push(4);
+            for token in [step, reason] {
+                let token = token.as_str().as_bytes();
+                // The constructor bounds a token at 32 bytes.
+                bytes.push(token.len() as u8);
+                bytes.extend_from_slice(token);
+            }
+        }
     }
     bytes
+}
+
+fn decode_token(reader: &mut PayloadReader<'_>) -> Result<TerminalMoveToken, ProtocolError> {
+    let length = usize::from(reader.read_u8()?);
+    let token = std::str::from_utf8(reader.read_slice(length)?)
+        .map_err(|_| ProtocolError::InvalidPayload)?;
+    TerminalMoveToken::new(token)
 }
 
 pub(super) fn decode_result(payload: &[u8]) -> Result<TerminalMoveTurnResult, ProtocolError> {
@@ -81,6 +97,10 @@ pub(super) fn decode_result(payload: &[u8]) -> Result<TerminalMoveTurnResult, Pr
         }
         2 => TerminalMoveTurnOutcome::Waiting,
         3 => TerminalMoveTurnOutcome::Done,
+        4 => TerminalMoveTurnOutcome::Stopped {
+            step: decode_token(&mut reader)?,
+            reason: decode_token(&mut reader)?,
+        },
         _ => return Err(ProtocolError::InvalidPayload),
     };
     reader.finish()?;

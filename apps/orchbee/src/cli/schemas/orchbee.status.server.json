@@ -86,7 +86,7 @@
 											"type": "array",
 											"items": {
 												"type": "object",
-												"required": ["processId", "tier"],
+												"required": ["processId", "tier", "terminals", "moves"],
 												"additionalProperties": false,
 												"properties": {
 													"processId": {
@@ -95,7 +95,43 @@
 													},
 													"tier": {
 														"enum": ["none", "recommended", "required"]
+													},
+													"terminals": {
+														"type": "integer",
+														"minimum": 0,
+														"maximum": 4294967295
+													},
+													"moves": {
+														"type": "boolean"
 													}
+												}
+											}
+										}
+									}
+								},
+								"moves": {
+									"type": "object",
+									"required": ["terminals", "version"],
+									"additionalProperties": false,
+									"properties": {
+										"terminals": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 4294967295
+										},
+										"version": {
+											"$ref": "#/$defs/version"
+										},
+										"stopped": {
+											"type": "object",
+											"required": ["step", "reason"],
+											"additionalProperties": false,
+											"properties": {
+												"step": {
+													"$ref": "#/$defs/move_token"
+												},
+												"reason": {
+													"$ref": "#/$defs/move_token"
 												}
 											}
 										}
@@ -156,6 +192,10 @@
 			"minLength": 1,
 			"maxLength": 64,
 			"pattern": "^[!-~]+$"
+		},
+		"move_token": {
+			"type": "string",
+			"pattern": "^[a-z0-9-]{1,32}$"
 		},
 		"process": {
 			"type": "object",

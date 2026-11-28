@@ -96,9 +96,10 @@ second after accepting the connection, leaving the rest of the two-second candid
 reply. Each Host's entry is the one it reports for itself, listed without capabilities and at most
 256 of them. A Host that has not answered, and every Host when the Worker is absent, late, or between
 generations, is left out rather than listed with guessed facts; a Server that did not start its
-Worker lists neither. Its `extensions` carry `clients` and, on Windows while a Worker is listed,
-`background-programs` ([messages](../../schemas/connection/README.md#messages)), which a restart's
-check reads. The query
+Worker lists neither. Its `extensions` carry `clients`, on Windows while a Worker is listed
+`background-programs`, which a restart's check reads, and while a Worker is listed whose moves a
+failed move stopped, `moves-stopped` ([messages](../../schemas/connection/README.md#messages)),
+which `status server` reads. The query
 creates no Connection generation or Workbench/viewer state, acquires no shutdown record lease, and
 closes after one reply, including when Client capacity is full. These are diagnostic facts, never an operation grant or proof of
 future availability. The [runtime status contract](../orchbee/docs/native-runtime-status.md) owns
@@ -369,7 +370,9 @@ the Worker is proven gone, unless a stop is admitted; `Serving` once a replaceme
 
 A replacement that serves, and a Server that [adopted](#cold-adoption) its predecessor's Hosts, sends its Worker a move turn every 2 seconds from its own thread, on the lane
 behind every person's request ([H3 design](../../proposals/platform/host-handover.md#h3-design)); a
-Worker that moves nothing answers the first turn `Done`. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
+Worker that moves nothing answers the first turn `Done`. A `Stopped` answer ends the turns as
+`Done` does, and the Server's `query` answer then names its step and reason until another Worker
+generation serves. A `Moved` answer rebinds the binding that still names the old Host terminal to the new one,
 keeping its operation, fence and lease, so titles and every fact read through it follow; a binding
 closed meanwhile changes nothing. The binding record is written before and right after every turn,
 so it names each Host a turn started and each terminal it moved: a Server that ends between turns

@@ -64,7 +64,9 @@ mod terminal_graphics_decode;
 mod terminal_launch;
 mod terminal_lifecycle;
 mod terminal_move;
-pub use terminal_move::{TerminalMoveTurnOutcome, TerminalMoveTurnRequest, TerminalMoveTurnResult};
+pub use terminal_move::{
+    TerminalMoveToken, TerminalMoveTurnOutcome, TerminalMoveTurnRequest, TerminalMoveTurnResult,
+};
 mod terminal_send;
 mod terminal_titles;
 mod terminal_viewer;

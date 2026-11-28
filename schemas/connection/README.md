@@ -118,7 +118,10 @@ decoders only.
   offered) and `capabilities` (every capability it offered, not only those both sides share). When
   its Worker answers in time it also adds `background-programs`, an integer from 0 to 510 counting
   the plugin jobs and configured commands that Worker runs itself; those its Terminal Host runs
-  outlive a restart and are not counted. A reader that does not know them
+  outlive a restart and are not counted. While it lists a Worker whose moves of terminals from older
+  Terminal Hosts a failed move stopped, it adds `moves-stopped`: an object with exactly `step` and
+  `reason`, each 1 to 32 bytes of lowercase ASCII letters, digits and `-`, naming the step that
+  failed and why, as that Worker's diagnostics record them. A reader that does not know them
   ignores them.
 
 ## Admission

@@ -127,3 +127,101 @@ fn cancellation_and_timeout_use_their_own_localized_stage_without_activation_cop
         );
     }
 }
+
+/// A Session whose moves a failed move stopped reports the stop with the terminals that Hosts
+/// older than its Worker still run, in a document its schema admits with the `restart` member the
+/// update command reads; a stop outside the token grammar reads as none.
+#[test]
+fn stopped_moves_name_their_step_and_the_terminals_left_behind() {
+    use crate::cli::update::restart_tier::{HostRestart, Restart, Tier};
+    use orchbee_connection_handshake::{
+        Build, CapabilityName, Extensions, ProcessEntry, ProcessRole, ProcessState, ProductVersion,
+        QueryResult,
+    };
+    let entry = |role, version: &str, pid, terminals| ProcessEntry {
+        role,
+        product_version: ProductVersion::new(version).unwrap(),
+        build: Build::default(),
+        environment: orchbee_local_runtime::environment_name(),
+        pid: std::num::NonZeroU32::new(pid).unwrap(),
+        state: ProcessState::Ready,
+        terminals,
+        connections: Vec::new(),
+    };
+    let query = |stopped: Value| {
+        let mut extensions = Extensions::new();
+        extensions
+            .insert(CapabilityName::new("moves-stopped").unwrap(), stopped)
+            .unwrap();
+        QueryResult::new(
+            vec![
+                entry(ProcessRole::Server, "2.0.0", 7, 0),
+                entry(ProcessRole::Worker, "2.0.0", 8, 0),
+                entry(ProcessRole::TerminalHost, "1.9.0", 10, 24),
+                entry(ProcessRole::TerminalHost, "1.8.0", 11, 0),
+                entry(ProcessRole::TerminalHost, "2.0.0", 12, 3),
+            ],
+            Some(true),
+            extensions,
+        )
+        .unwrap()
+    };
+    let restart = Restart {
+        tier: Tier::Recommended,
+        hosts: vec![HostRestart {
+            pid: std::num::NonZeroU32::new(10).unwrap(),
+            tier: Tier::Recommended,
+            terminals: 24,
+            moves: true,
+        }],
+    }
+    .json();
+    let report = |result: QueryResult| {
+        Report::Server(ServerReport {
+            scope: format!("orchbee-native-{}", "1".repeat(32)),
+            runtime: PathBuf::from(r"C:\runtime"),
+            endpoint: Some(PathBuf::from(r"\.\pipe\test")),
+            server: Server::Observed(result, Some(restart.clone())),
+        })
+    };
+    let schema: Value =
+        serde_json::from_str(include_str!("../../schemas/orchbee.status.server.json")).unwrap();
+    let validator = jsonschema::draft202012::new(&schema).unwrap();
+    let stopped = json!({"step": "restore", "reason": "missing-resource"});
+    let doc = report(query(stopped.clone())).document();
+    validator.validate(&doc).unwrap();
+    assert_eq!(
+        doc["result"]["server"]["moves"],
+        json!({"terminals": 24, "version": "1.9.0", "stopped": stopped})
+    );
+    for (locale, label) in [
+        (Locale::EnUs, "Terminal moves stopped"),
+        (Locale::ZhCn, "终端转移已停止"),
+    ] {
+        let text = String::from_utf8(
+            emit(report(query(stopped.clone())), OutputFormat::Text, locale).stdout,
+        )
+        .unwrap();
+        let line = text.lines().find(|line| line.starts_with(label)).unwrap();
+        assert!(
+            line.contains("restore") && line.contains("missing-resource") && line.contains("24"),
+            "{text}"
+        );
+    }
+    let unread = report(query(json!({"step": "Restore", "reason": "other"}))).document();
+    validator.validate(&unread).unwrap();
+    assert_eq!(
+        unread["result"]["server"]["moves"],
+        json!({"terminals": 24, "version": "1.9.0"})
+    );
+    let text = String::from_utf8(
+        emit(
+            report(query(json!({"step": "Restore", "reason": "other"}))),
+            OutputFormat::Text,
+            Locale::EnUs,
+        )
+        .stdout,
+    )
+    .unwrap();
+    assert!(!text.contains("Terminal moves stopped"), "{text}");
+}

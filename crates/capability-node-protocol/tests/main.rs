@@ -9,6 +9,7 @@ mod files_process;
 mod graphics_decode;
 mod host_query;
 mod lifecycle;
+mod move_turn;
 mod plugin_terminal_environment;
 mod request_declined;
 mod terminal_titles;
