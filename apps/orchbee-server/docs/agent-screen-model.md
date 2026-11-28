@@ -254,7 +254,7 @@ published working state arms Done. The Agent list status and physical attention 
 `agent wait` has no condition for it, and terminal lists and panel reports show "starting". The
 state lives on the wire, not in Clients, because only the Server knows when a run was first seen;
 deriving it in each Client would need that time on the wire anyway, and publishing working instead
-would mislead automation that waits for working. Changed explicit-report input permits fresh matching screen evidence to republish the settled fallback without bypassing idle confirmation. Prepared timing and fallback commit only after report/metadata admission succeeds. Bundled rule license and attribution ship in the Windows cohort under `licenses/agent-detection`.
+would mislead automation that waits for working. Changed explicit-report input permits fresh matching screen evidence to republish the settled fallback without bypassing idle confirmation. Prepared timing and fallback commit only after report/metadata admission succeeds. Bundled rule license and attribution ship in every cohort's `THIRD_PARTY_NOTICES.txt`.
 
 Working-to-plain-idle transitions hold for three further confirmations or 700 ms; explicit visible idle/blockers, provider change or exit clear that hold. Stable visible blockers refresh at 800 ms so newer weak reports can be challenged without publishing every sampling tick. Startup grace and sampling cadence are adapter responsibilities. Screen and process sampling must retain the existing required-completion and uncertain-viewer-cleanup ownership. No controller/input/focus effect is admitted.
 

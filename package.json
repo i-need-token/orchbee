@@ -46,7 +46,7 @@
 		"test:style-contract": "vitest run --config scripts/style-contract/vitest.config.ts",
 		"test:storage-contract": "vitest run --config scripts/storage-contract/vitest.config.ts",
 		"test:stage-local-runtime": "node scripts/run-checks.mjs test:stage-local-runtime",
-		"test:release-feed": "node --test scripts/package-native-release.test.mjs scripts/package-npm.test.mjs scripts/release-artifacts.test.mjs scripts/release-publish.test.mjs scripts/release-version.test.mjs scripts/sign-release-manifest.test.mjs scripts/website-release.test.mjs",
+		"test:release-feed": "node --test scripts/package-native-release.test.mjs scripts/package-npm.test.mjs scripts/release-artifacts.test.mjs scripts/release-publish.test.mjs scripts/release-version.test.mjs scripts/sign-release-manifest.test.mjs scripts/third-party-notices.test.mjs scripts/website-release.test.mjs",
 		"test:agent-observation-adapters": "vitest run --config crates/agent-integration-writer/tests/agent-observation-adapters/vitest.config.ts",
 		"test:tla": "node scripts/tla/run-models.mjs",
 		"test:tla:changed": "node scripts/tla/run-models.mjs --changed-since",

@@ -227,7 +227,11 @@ signs, notarizes and packages the Intel row with Cargo's and Zig's `x86_64` targ
 row's smoke test and window Update run its files on an Intel Mac. A Windows
 directory holds `orchbee.exe` and its peers, both launchers and the pinned ConPTY bundle; a macOS
 directory holds `orchbee`, `orchbee-server`, `orchbee-worker` and `orchbee-terminal-host`, the
-adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. The Windows row,
+adapter capsule and `cohort.json`, and the tool refuses a ConPTY bundle in it. Every directory also
+carries `THIRD_PARTY_NOTICES.txt` and `licenses/rust-standard-library.html`, the notices of what its
+programs contain, which staging writes and the tool requires; the window carries its own
+`THIRD_PARTY_NOTICES.txt` beside Electron's `LICENSES.chromium.html`, both inside the bundle's
+`Contents/Resources` on macOS. The Windows row,
 both macOS rows and both Linux rows build and publish, so a failure on any of them stops the tag. A macOS row adds the
 disk image `Orchbee-<version>-macos-<cpu>.dmg`, the `.tar.gz`, the window archive
 `orchbee-desktop-<version>-macos-<cpu>.zip`, the feed document, and the platform package

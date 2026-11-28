@@ -15,6 +15,7 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { writeProgramNotices } from './third-party-notices.mjs';
 
 // The environment stem names the staged cohort: the shipped `orchbee` (release) or `ob-dev-` / `ob-test-`
 // plus a 16-digit lowercase hex digest (ORC-382). Mirrors the grammar in desktop-distribution-profile.ts.
@@ -204,15 +205,21 @@ export function stageWindows(root, output, cargoTarget, verifyCapsule, artifactS
 				path.join(prepared, `${artifactStem}-${launcher}.exe`),
 				constants.COPYFILE_EXCL,
 			);
-		const licenses = path.join(prepared, 'licenses', 'agent-detection');
-		mkdirSync(licenses, { recursive: true });
-		for (const name of ['LICENSE', 'NOTICE']) {
-			copyFileSync(
-				path.join(root, 'apps', 'orchbee-server', 'resources', 'agent-detection', name),
-				path.join(licenses, name),
-				constants.COPYFILE_EXCL,
-			);
-		}
+		// The notices of the third-party software the programs contain.
+		writeProgramNotices({
+			root,
+			destination: prepared,
+			packages: [
+				'orchbee',
+				'orchbee-server',
+				'orchbee-worker',
+				'orchbee-launcher',
+				'orchbee-desktop-launcher',
+				...(filesDigest === undefined ? [] : ['orchbee-files']),
+			],
+			platform: 'windows',
+			development: filesDigest !== undefined,
+		});
 		const capsule = path.join(prepared, 'agent-observation-adapters');
 		cpSync(
 			path.join(root, 'crates', 'agent-integration-writer', 'agent-observation-adapters'),

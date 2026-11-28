@@ -86,6 +86,8 @@ const toolingSuites = [
 			'apps/orchbee/src/cli/update/signature.rs',
 			'apps/orchbee/src/cli/update/tests/fixtures/',
 			'apps/website/src/website/release.ts',
+			// Packaging reads every distributed component's license text from it.
+			'THIRD_PARTY_NOTICES.md',
 		],
 	],
 	['test:agent-observation-adapters', ['crates/agent-integration-writer/']],
@@ -384,8 +386,8 @@ export function selectVerificationScope(graph, paths) {
 				continue;
 			}
 			// Proposals are never current authority, and repository standards, root Markdown and the
-			// schema directories' Markdown have no test reader; Markdown inside an owner stays with
-			// that owner.
+			// schema directories' Markdown have no test reader apart from a tooling suite above;
+			// Markdown inside an owner stays with that owner.
 			if (
 				changed.startsWith('proposals/') ||
 				(changed.endsWith('.md') &&

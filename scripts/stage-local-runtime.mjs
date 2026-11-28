@@ -22,6 +22,7 @@ import {
 	stageWindows,
 	terminalHostBuildOptions,
 } from './stage-native-windows.mjs';
+import { RUST_LIBRARY_NOTICES, writeProgramNotices } from './third-party-notices.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const artifacts = ['orchbee', 'orchbee-server', 'orchbee-worker', 'orchbee-terminal-host'];
@@ -415,6 +416,24 @@ function main() {
 			throw new Error('Staged observation-adapters capsule failed canonical verification');
 		runCommand('chmod', ['700', path.posix.join(output, CAPSULE_DIRECTORY)]);
 		hashes[CAPSULE_DIRECTORY] = adaptersDigest;
+		// The notices of the third-party software the programs contain, for the row's target, else
+		// the host's; a WSL cohort's programs build for the distribution's own x86_64 glibc target.
+		const notices = writeProgramNotices({
+			root,
+			destination,
+			target: cross?.rust ?? (distro ? 'x86_64-unknown-linux-gnu' : undefined),
+			packages: [
+				'orchbee',
+				'orchbee-server',
+				'orchbee-worker',
+				...(windowLauncher === undefined ? [] : [windowLauncher]),
+				...(filesProcess === undefined ? [] : [filesProcess]),
+			],
+			platform: process.platform === 'darwin' ? 'macos' : 'linux',
+			development: filesProcess !== undefined,
+		});
+		runCommand('chmod', ['700', path.posix.join(output, path.posix.dirname(RUST_LIBRARY_NOTICES))]);
+		for (const file of notices) runCommand('chmod', ['600', path.posix.join(output, file)]);
 		// The optional member follows the five required ones.
 		if (filesDigest !== undefined) hashes[filesProcess] = filesDigest;
 		writeFileSync(

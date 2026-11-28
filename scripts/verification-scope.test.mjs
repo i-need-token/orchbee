@@ -377,6 +377,9 @@ test('a tooling suite runs with the repository files it reads, and none runs for
 	assert.deepEqual(registry.tooling, ['test:release-feed']);
 	assert.ok(registry.pnpm.includes('@orchbee/terminal-host'));
 	assert.ok(registry.cargo.includes('orchbee-connection-handshake'));
+	const notices = selectVerificationScope(actual, ['THIRD_PARTY_NOTICES.md']);
+	assert.equal(notices.all, false, notices.reasons.join('\n'));
+	assert.deepEqual(notices.tooling, ['test:release-feed']);
 	for (const changed of ['docs/TESTING.md', 'apps/web/src/main.tsx', 'apps/orchbee/src/main.rs']) {
 		const selected = selectVerificationScope(actual, [changed]);
 		assert.deepEqual(selected.tooling, [], changed);

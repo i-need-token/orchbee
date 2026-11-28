@@ -116,6 +116,8 @@ const desktopBuild = path.join(applicationRoot, 'dist');
 // extra resource keeps its directory's base name under the application's resources directory.
 const rendererBuild = path.join(repositoryRoot, 'apps', 'web', 'dist');
 const cohortDirectoryName = 'cohort';
+// The notices of Chromium, Node.js and Electron's other components that the packaged Electron carries.
+const chromiumNotices = 'LICENSES.chromium.html';
 // The icon Desktop shows from start until quit: `.ico` files in the Windows notification area,
 // template PNGs in the macOS menu bar and PNGs in the Linux panel, carried as `resources/tray`.
 const trayIconDirectory = {
@@ -278,6 +280,14 @@ try {
 		await access(executablePath);
 		if (process.platform === 'darwin') {
 			const application = path.join(output, applicationFileName);
+			// The disk image carries only the bundle, so the notices of what it contains travel in its
+			// resources, with the Chromium notices that the packager leaves beside it; signing seals both.
+			const resources = path.join(application, 'Contents', 'Resources');
+			await cp(path.join(output, chromiumNotices), path.join(resources, chromiumNotices), {
+				errorOnExist: true,
+				force: false,
+			});
+			runNode('third-party-notices.mjs', ['window', '--output', resources]);
 			signMacApplication(application);
 			await verifyBundledCohort(
 				path.join(application, 'Contents', 'Resources', cohortDirectoryName),
@@ -291,6 +301,8 @@ try {
 			if (packaging.installer) await createMacDiskImage(application);
 			continue;
 		}
+		// The notices of what the application contains, beside the packaged Chromium notices.
+		runNode('third-party-notices.mjs', ['window', '--output', output]);
 		// The window file list, from the final bytes and before Setup is compiled, so Setup and the
 		// release's window archive carry the same list; it refuses links and names outside the
 		// release path grammar.

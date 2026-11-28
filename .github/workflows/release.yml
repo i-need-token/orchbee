@@ -1121,6 +1121,7 @@ jobs:
     env:
       # AppImage/type2-runtime publishes rolling builds only, so the runtime the AppImage starts with
       # is built here from this commit; its Docker build fetches libfuse and squashfuse by SHA-256.
+      # apps/desktop/installer/linux/appimage-runtime-notices.txt reproduces what it links.
       TYPE2_RUNTIME_COMMIT: fedfad51acc2860b2916a1eef32ba4a500ff31ef
     steps:
       - name: Check out repository

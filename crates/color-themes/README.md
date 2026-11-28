@@ -55,8 +55,9 @@ rejected rather than rewritten. `original` is the source's value or, for a slot 
 not publish, such as the Orchbee cursor, the value Orchbee shipped before the correction.
 
 Every shipped family needs a [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) entry naming
-the copyright holder, source, pinned revision, license, and use, before its file ships. A license
-whose text must travel with the values, such as Apache-2.0, keeps that text in `licenses/`.
+the copyright holder, source, pinned revision, license, use, and the distributions that carry it,
+with its license text, before its file ships. A license whose text must travel with the values,
+such as Apache-2.0, keeps that text in `licenses/`.
 
 ## Shipped themes
 
@@ -203,7 +204,8 @@ omitted; `packages/design-tokens` tests cover the hand-authored GUI derived stat
 The catalog ships 16 themes (ten dark, six light), with Orchbee Light and Dark as the default pair.
 Corrected palettes retain the upstream name and record original and shipped values. Each family
 needs a [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) entry naming copyright, pinned
-source, license and use/modification; ports identify the upstream family and compilation.
+source, license, use/modification and the distributions that carry it, with its license text;
+ports identify the upstream family and compilation.
 Apache-2.0 license text stays under `licenses/`. A recognizable name is not license evidence.
 
 Imported/user-authored themes and a render-time minimum-contrast filter are outside the current

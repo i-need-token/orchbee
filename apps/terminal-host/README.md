@@ -300,7 +300,7 @@ lifecycle and relay policy belong to that client and the SSH Runtime.
 | Ghostty revision     | `9c3ec931d64561a8407dde7ac984ce156ae91539`                       |
 | Ghostty package hash | `ghostty-1.3.2-dev-5UdBCzw0UwUUuHE16pHQg0d9Bplq2ccuQ2cmOJRYkd-y` |
 
-`build.zig.zon` is the source dependency authority; `windows-conpty.json` owns the staged Windows binary dependency. The build rejects another Zig version or Ghostty archive content and does not read a sibling Ghostty checkout.
+`build.zig.zon` is the source dependency authority; `windows-conpty.json` owns the staged Windows binary dependency. The build rejects another Zig version or Ghostty archive content and does not read a sibling Ghostty checkout. A new Ghostty revision also updates the [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md) sections of the libraries Ghostty VT compiles into the Host.
 
 ### Windows control-signal inheritance
 
@@ -362,7 +362,9 @@ unbounded work.
 
 Windows x64 development cohorts stage Microsoft ConPTY `1.25.260930003` (Terminal
 `v1.25.2733.0`, MIT) beside the Host. `windows-conpty.json` owns the upstream URL,
-archive and binary SHA-256 pins; the packaged license travels with the binaries.
+archive and binary SHA-256 pins; the packaged license travels with the binaries. A new pin also
+refreshes `licenses/Microsoft.ConPTY-NOTICE.txt` from that Terminal release's `NOTICE.md`, which
+the cohort's third-party notices reproduce.
 The native stager downloads this exact package and publishes only verified files.
 It does not update the operating system, installed Terminal, PATH or user configuration.
 

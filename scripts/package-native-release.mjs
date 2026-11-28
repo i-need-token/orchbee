@@ -22,6 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { RIPGREP_NOTICES, ripgrepDigest, ripgrepFileName } from './ripgrep.mjs';
 import { verifiedCapsuleDigest } from './stage-local-runtime.mjs';
+import { NOTICES_FILE, RUST_LIBRARY_NOTICES } from './third-party-notices.mjs';
 import { verifyConptyBundle } from '../apps/terminal-host/scripts/windows-conpty.mjs';
 
 // Each cohort role's key in `cohort.json` and the suffix its file adds to the environment stem.
@@ -297,6 +298,10 @@ export function packageRelease(
 				ripgrepNotices?.sha256 !== RIPGREP_NOTICES.sha256
 	)
 		throw new Error('Cohort rg does not match apps/orchbee-files/ripgrep.json');
+	// Staging writes the notices of the third-party software the programs contain.
+	for (const notices of [NOTICES_FILE, RUST_LIBRARY_NOTICES])
+		if (!files.some((entry) => entry.path === notices))
+			throw new Error(`Missing ${notices}, which scripts/stage-local-runtime.mjs writes`);
 	const capsule = verifiedCapsuleDigest(path.join(cohort, 'agent-observation-adapters'));
 	if (capsule === null || capsule !== manifest.artifacts['agent-observation-adapters'])
 		throw new Error('Cohort adapter capsule digest mismatch');
