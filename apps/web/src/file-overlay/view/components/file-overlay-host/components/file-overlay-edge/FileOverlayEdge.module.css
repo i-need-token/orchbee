@@ -1,0 +1,54 @@
+/* The frame's left edge, between its rounded corners. It reaches 12 px out over the scrim and 4 px
+   into the frame, so that most of it takes no press from the frame's content. */
+.edge {
+	position: absolute;
+	top: calc(
+		var(--ob-comp-file-overlay-cover-block-start) + var(--ob-ref-space-6) + var(--ob-ref-radius-2xl)
+	);
+	left: calc(
+		var(--ob-comp-file-overlay-cover-inline-start) + var(--ob-ref-space-6) - var(--ob-ref-space-3)
+	);
+	width: calc(var(--ob-ref-space-3) + var(--ob-ref-space-1));
+	height: calc(
+		var(--ob-comp-file-overlay-cover-block-size) - 2 * var(--ob-ref-space-6) - 2 *
+			var(--ob-ref-radius-2xl)
+	);
+	cursor: col-resize;
+	pointer-events: auto;
+	touch-action: none;
+}
+
+/* Under the pointer or held, the edge strengthens the frame's border, as a divider strengthens. */
+.edge::after {
+	position: absolute;
+	inset-block: 0;
+	left: var(--ob-ref-space-3);
+	width: var(--ob-ref-border-width-strong);
+	content: '';
+}
+
+.edge:hover::after,
+.edge[data-held]::after {
+	background: var(--ob-sys-color-border-strong);
+}
+
+/* While the edge is held, the resize pointer shows wherever the pointer goes. */
+.shield {
+	position: absolute;
+	inset: 0;
+	cursor: col-resize;
+	pointer-events: auto;
+}
+
+/* The outline of the frame a release would leave, standing in the previewed tier's cover as the
+   frame stands in its own; what it outlines stays in view. */
+.preview {
+	position: absolute;
+	top: calc(var(--ob-comp-file-overlay-cover-block-start) + var(--ob-ref-space-6));
+	left: calc(var(--ob-comp-file-overlay-cover-inline-start) + var(--ob-ref-space-6));
+	width: calc(var(--ob-comp-file-overlay-cover-inline-size) - 2 * var(--ob-ref-space-6));
+	height: calc(var(--ob-comp-file-overlay-cover-block-size) - 2 * var(--ob-ref-space-6));
+	border: var(--ob-ref-border-width-strong) solid var(--ob-sys-color-border-strong);
+	border-radius: var(--ob-ref-radius-2xl);
+	pointer-events: none;
+}

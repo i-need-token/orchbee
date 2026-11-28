@@ -5,7 +5,7 @@
 export type FileOverlayTier = 'default' | 'full' | 'left-expand';
 
 /** The tiers below full, which Restore returns to and the frame's left edge chooses between. */
-type FileOverlayNarrowTier = Exclude<FileOverlayTier, 'full'>;
+export type FileOverlayNarrowTier = Exclude<FileOverlayTier, 'full'>;
 
 /**
  * A Workspace's overlay: closed, open at its tier, or shrunk to picture-in-picture. Closed and
