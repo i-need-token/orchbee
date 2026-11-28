@@ -17,6 +17,7 @@ import { zhCNDesktopTrayMessages } from './desktop-tray';
 
 import { zhCNDesktopWindowMessages } from './desktop-window';
 import { zhCNFileBarMessages } from './file-bar';
+import { zhCNFileExplorerMessages } from './file-explorer';
 import { zhCNFileOverlayMessages } from './file-overlay';
 import { zhCNKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { zhCNProjectedTerminalMessages } from './projected-terminal';
@@ -44,6 +45,7 @@ export const zhCNMessages = {
 
 	...zhCNDesktopWindowMessages,
 	...zhCNFileBarMessages,
+	...zhCNFileExplorerMessages,
 	...zhCNFileOverlayMessages,
 	...zhCNKeyboardShortcutMessages,
 	...zhCNProjectedTerminalMessages,

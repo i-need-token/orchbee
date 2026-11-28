@@ -15,7 +15,7 @@ import { MemoryAnswering } from './MemoryAnswering';
 import { MemoryFileSystem, type MemoryFileOptions, type MemoryNode } from './MemoryFileSystem';
 import { MemoryGit } from './MemoryGit';
 import { memoryVersion, readMemoryContent } from './memory-content';
-import { childPath, isWithin, parentPath } from './memory-paths';
+import { filePathChild, filePathParent, isFilePathWithin } from '../file-paths';
 import type { MemoryRootStream, MemorySessionState } from './memory-session-state';
 
 type FileRootUpdate = Extract<FileRootEvent, { readonly kind: 'update' }>;
@@ -370,7 +370,7 @@ export class MemoryFileSessionPort implements FileSessionPort {
 		for (let depth = 0; depth < SINGLE_CHILD_DEPTH; depth += 1) {
 			const only = current.length === 1 ? current[0] : undefined;
 			if (only?.kind !== 'directory') break;
-			folder = childPath(folder, this.files.entry(only).name, rules);
+			folder = filePathChild(folder, this.files.entry(only).name, rules);
 			current = this.files.children(folder);
 			session.loaded.add(filePathKey(folder, rules));
 			chain.push({ entries: current.map((child) => this.files.entry(child)), path: folder });
@@ -390,9 +390,9 @@ export class MemoryFileSessionPort implements FileSessionPort {
 	private browsable(session: MemorySessionState, path: string): boolean {
 		const rules = this.files.rules;
 		const root = this.roots.get(session.workspaceId);
-		if (root !== undefined && isWithin(path, root, rules)) return true;
+		if (root !== undefined && isFilePathWithin(path, root, rules)) return true;
 		for (const repository of this.consented.values()) {
-			if (isWithin(path, repository, rules)) return true;
+			if (isFilePathWithin(path, repository, rules)) return true;
 		}
 		return false;
 	}
@@ -421,7 +421,7 @@ export class MemoryFileSessionPort implements FileSessionPort {
 			if (workspaceId !== null && session.workspaceId !== workspaceId) continue;
 			const reaching = changes.filter((change) => {
 				if (session.granted.has(filePathKey(change.path, rules))) return true;
-				const parent = parentPath(change.path, rules);
+				const parent = filePathParent(change.path, rules);
 				return parent !== null && session.loaded.has(filePathKey(parent, rules));
 			});
 			const deletedFolders = reaching.filter(
@@ -430,7 +430,7 @@ export class MemoryFileSessionPort implements FileSessionPort {
 			const coalesced = reaching.filter(
 				(change) =>
 					!deletedFolders.some(
-						(folder) => folder !== change && isWithin(change.path, folder.path, rules),
+						(folder) => folder !== change && isFilePathWithin(change.path, folder.path, rules),
 					),
 			);
 			const root = this.rootOf(session.workspaceId);

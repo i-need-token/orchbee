@@ -1,0 +1,20 @@
+.root {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+
+/* The tree needs a definite size, which the rest of the column below the header gives it. */
+.tree {
+	min-height: 0;
+	flex: 1;
+}
+
+/* What is left of VS Code's welcome view: one sentence where the tree would start. */
+.empty {
+	margin: 0;
+	padding: var(--ob-ref-space-2) var(--ob-ref-space-5);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+}

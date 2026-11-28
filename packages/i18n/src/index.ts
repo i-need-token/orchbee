@@ -11,6 +11,7 @@ export {
 	desktopTrayMessages,
 	desktopWindowMessages,
 	fileBarMessages,
+	fileExplorerMessages,
 	fileOverlayMessages,
 	keyboardShortcutMessages,
 	projectedTerminalMessages,

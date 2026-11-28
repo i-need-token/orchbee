@@ -1,7 +1,8 @@
 import { resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
-import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { prefetchCodeEditor } from '../../../code-editor';
+import { FileExplorer } from '../../../file-explorer';
 import {
 	useWorkbenchKeyboardScope,
 	type WorkbenchKeyboardScope,
@@ -15,10 +16,18 @@ import styles from './FileBarColumn.module.css';
 /** Focus anywhere in the column reaches the File Bar's keys and its `Mod+K` sequences. */
 const FILE_BAR_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'file-bar' };
 
-/** The column's own 36px band, where the view toggles sit, above the active view. */
+/**
+ * The column's own 36px band, where the view toggles sit, above the active view. A view mounts the
+ * first time it shows and stays while the column does, as VS Code keeps a view it has created, so
+ * switching back finds it as it was.
+ */
 export function FileBarColumn({
+	actionRuntime,
+	actionScope,
 	activeView,
 	onSelectView,
+	platform,
+	session,
 	viewFocusRequest,
 }: FileBarColumnProps): ReactNode {
 	const rootReference = useRef<HTMLDivElement>(null);
@@ -35,6 +44,8 @@ export function FileBarColumn({
 	);
 	const viewId = `${idPrefix}-view`;
 	const viewReference = useFileBarViewFocusRequest(viewFocusRequest);
+	const [explorerMounted, setExplorerMounted] = useState(activeView === 'explorer');
+	if (activeView === 'explorer' && !explorerMounted) setExplorerMounted(true);
 	return (
 		<div className={styles['root']} ref={rootReference}>
 			<div className={styles['togglesRow']} data-slot='file-bar-toggles-row'>
@@ -60,7 +71,18 @@ export function FileBarColumn({
 				ref={viewReference}
 				role='tabpanel'
 				tabIndex={-1}
-			/>
+			>
+				{explorerMounted ? (
+					<div className={styles['viewContent']} hidden={activeView !== 'explorer'}>
+						<FileExplorer
+							actionRuntime={actionRuntime}
+							actionScope={actionScope}
+							platform={platform}
+							session={session}
+						/>
+					</div>
+				) : null}
+			</div>
 		</div>
 	);
 }

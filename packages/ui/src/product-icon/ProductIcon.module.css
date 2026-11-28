@@ -55,6 +55,10 @@
 	composes: codicon-close from global;
 }
 
+.collapseAll {
+	composes: codicon-collapse-all from global;
+}
+
 .color {
 	composes: codicon-symbol-color from global;
 }
@@ -137,6 +141,10 @@
 
 .question {
 	composes: codicon-question from global;
+}
+
+.refresh {
+	composes: codicon-refresh from global;
 }
 
 .remove {

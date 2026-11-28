@@ -38,3 +38,8 @@
 .view:focus-visible {
 	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
+
+/* A view the column keeps while another shows takes no room; `hidden` hides it. */
+.viewContent {
+	height: 100%;
+}

@@ -1,5 +1,5 @@
-import type { FilePathRules } from '../file-resource';
-import { filePathKey } from '../filePathKey';
+import type { FilePathRules } from './file-resource';
+import { filePathKey } from './filePathKey';
 
 const WINDOWS_DRIVE = /^[A-Za-z]:$/u;
 
@@ -13,7 +13,7 @@ function isRootPath(path: string, rules: FilePathRules): boolean {
 }
 
 /** The folder that holds a path, or null for a root such as `/` or `C:\`. */
-export function parentPath(path: string, rules: FilePathRules): string | null {
+export function filePathParent(path: string, rules: FilePathRules): string | null {
 	const index = path.lastIndexOf(rules.separator);
 	if (index < 0 || isRootPath(path, rules)) return null;
 	const parent = path.slice(0, index);
@@ -22,18 +22,20 @@ export function parentPath(path: string, rules: FilePathRules): string | null {
 	return parent;
 }
 
-export function entryName(path: string, rules: FilePathRules): string {
+/** A path's last segment, its entry's name. */
+export function filePathName(path: string, rules: FilePathRules): string {
 	return path.slice(path.lastIndexOf(rules.separator) + 1);
 }
 
-export function childPath(folder: string, name: string, rules: FilePathRules): string {
+/** The path of the entry `name` in `folder`. */
+export function filePathChild(folder: string, name: string, rules: FilePathRules): string {
 	return folder.endsWith(rules.separator)
 		? `${folder}${name}`
 		: `${folder}${rules.separator}${name}`;
 }
 
 /** Whether `path` is `ancestor` or lies below it, compared by the machine's rules. */
-export function isWithin(path: string, ancestor: string, rules: FilePathRules): boolean {
+export function isFilePathWithin(path: string, ancestor: string, rules: FilePathRules): boolean {
 	const key = filePathKey(path, rules);
 	const ancestorKey = filePathKey(ancestor, rules);
 	if (key === ancestorKey) return true;

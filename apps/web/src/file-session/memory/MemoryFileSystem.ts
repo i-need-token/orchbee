@@ -3,7 +3,7 @@ import { filePathKey } from '../filePathKey';
 import type { FileChange } from '../file-session-port';
 import type { FileEntry } from '../file-tree-port';
 import { memoryContentSize, type MemoryContent } from './memory-content';
-import { entryName, isWithin, parentPath } from './memory-paths';
+import { filePathName, filePathParent, isFilePathWithin } from '../file-paths';
 
 /** How a test writes a file. */
 export interface MemoryFileOptions {
@@ -55,7 +55,7 @@ export class MemoryFileSystem {
 		const key = filePathKey(path, this.rules);
 		const children: MemoryNode[] = [];
 		for (const node of this.nodes.values()) {
-			const parent = parentPath(node.path, this.rules);
+			const parent = filePathParent(node.path, this.rules);
 			if (parent !== null && filePathKey(parent, this.rules) === key) children.push(node);
 		}
 		return children;
@@ -64,7 +64,7 @@ export class MemoryFileSystem {
 	public entry(node: MemoryNode): FileEntry {
 		return {
 			mtimeMs: node.mtimeMs,
-			name: entryName(node.path, this.rules),
+			name: filePathName(node.path, this.rules),
 			readonly: node.kind === 'file' && node.readonly,
 			size: node.kind === 'file' ? memoryContentSize(node) : 0,
 			symlink: node.symlink,
@@ -78,7 +78,7 @@ export class MemoryFileSystem {
 		const existing = this.node(path);
 		if (existing?.kind === 'file') throw new Error('A file stands where the folder would go.');
 		if (existing !== null) return [];
-		const parent = parentPath(path, this.rules);
+		const parent = filePathParent(path, this.rules);
 		const changes = parent === null ? [] : this.makeDirectory(parent);
 		this.nodes.set(filePathKey(path, this.rules), {
 			kind: 'directory',
@@ -98,7 +98,7 @@ export class MemoryFileSystem {
 	): FileChange[] {
 		const existing = this.node(path);
 		if (existing?.kind === 'directory') throw new Error('A folder stands where the file would go.');
-		const parent = parentPath(path, this.rules);
+		const parent = filePathParent(path, this.rules);
 		const changes = parent === null ? [] : this.makeDirectory(parent);
 		// An overwrite keeps the name's existing spelling, as a case-insensitive file system does.
 		const spelling = existing?.path ?? path;
@@ -129,7 +129,7 @@ export class MemoryFileSystem {
 		if (existing === null) return [];
 		const changes: FileChange[] = [];
 		for (const [key, node] of this.nodes) {
-			if (!isWithin(node.path, existing.path, this.rules)) continue;
+			if (!isFilePathWithin(node.path, existing.path, this.rules)) continue;
 			this.nodes.delete(key);
 			const change: FileChange = {
 				directory: node.kind === 'directory',

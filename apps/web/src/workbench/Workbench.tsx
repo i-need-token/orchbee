@@ -774,8 +774,12 @@ export function Workbench({
 								>
 									{FileBarColumn === null ? null : (
 										<FileBarColumn
+											actionRuntime={actionRuntime}
+											actionScope={view.actionScope}
 											activeView={fileBar.column.activeView}
 											onSelectView={fileBar.column.onSelectView}
+											platform={shortcutPlatform}
+											session={fileBar.column.session}
 											viewFocusRequest={fileBar.column.viewFocusRequest}
 										/>
 									)}

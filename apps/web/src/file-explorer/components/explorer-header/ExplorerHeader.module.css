@@ -1,0 +1,68 @@
+/* VS Code's 22px pane header. Its merged title starts 20px in, near the top-level names below it,
+   and its Actions end 8px from the edge. */
+.root {
+	display: flex;
+	box-sizing: border-box;
+	height: calc(var(--ob-ref-size-control-2xs) + 2 * var(--ob-ref-space-0-5));
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+	padding-inline: var(--ob-ref-space-5) var(--ob-ref-space-2);
+}
+
+.title {
+	min-width: 0;
+	margin: 0;
+	overflow: hidden;
+	color: var(--ob-sys-color-text-label);
+	font: var(--ob-sys-typography-label-sm);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.tools {
+	display: flex;
+	flex: none;
+	gap: var(--ob-ref-space-0-5);
+	margin-inline-start: auto;
+	visibility: hidden;
+}
+
+/* VS Code shows a pane's title Actions while the pointer or focus is anywhere in the pane. */
+[data-slot='file-explorer']:is(:hover, :focus-within) .tools {
+	visibility: visible;
+}
+
+.tool {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: default;
+}
+
+.tool:hover:not(:disabled) {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.tool:active:not(:disabled) {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.tool:disabled {
+	color: var(--ob-sys-color-icon-disabled);
+}
+
+.tool:focus-visible {
+	outline: none;
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
+}

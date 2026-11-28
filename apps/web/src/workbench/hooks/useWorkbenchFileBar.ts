@@ -15,7 +15,11 @@ import {
 	type FileBarModule,
 	type FileBarViewId,
 } from '../../file-bar';
-import { FileSessionRegistry, type FileSessionPort } from '../../file-session';
+import {
+	FileSessionRegistry,
+	type FileSessionPort,
+	type FileWorkspaceSession,
+} from '../../file-session';
 import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFileBarActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
@@ -63,6 +67,8 @@ interface WorkbenchFileBarColumn {
 	/** Selecting a view's toggle in the column. */
 	readonly onSelectView: (view: FileBarViewId) => void;
 	readonly panelReference: React.RefObject<ResizablePanelHandle | null>;
+	/** The active Workspace's file session the File Bar holds; null until the hold has started. */
+	readonly session: FileWorkspaceSession | null;
 	/** Each increase moves focus into the active view. */
 	readonly viewFocusRequest: number;
 }
@@ -307,6 +313,7 @@ export function useWorkbenchFileBar({
 		setDockedForFocus(docked);
 		if (!docked) setViewFocusRequest(0);
 	}
+	const [session, setSession] = React.useState<FileWorkspaceSession | null>(null);
 	const sessions = React.useMemo(
 		() => (sessionPort === undefined ? null : new FileSessionRegistry(sessionPort)),
 		[sessionPort],
@@ -314,7 +321,11 @@ export function useWorkbenchFileBar({
 	React.useEffect(() => {
 		if (sessions === null || !docked || workspaceId === null) return undefined;
 		const hold = sessions.hold(workspaceId);
-		return () => hold.release();
+		setSession(hold.session);
+		return () => {
+			setSession(null);
+			hold.release();
+		};
 	}, [docked, sessions, workspaceId]);
 	React.useEffect(() => {
 		if (!docked || load.kind !== 'idle') return undefined;
@@ -357,6 +368,7 @@ export function useWorkbenchFileBar({
 			onResize,
 			onSelectView: selectView,
 			panelReference,
+			session,
 			viewFocusRequest,
 		},
 		onLayoutChanged,

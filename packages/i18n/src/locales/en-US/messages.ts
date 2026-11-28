@@ -16,6 +16,7 @@ import { enUSDesktopTrayMessages } from './desktop-tray';
 
 import { enUSDesktopWindowMessages } from './desktop-window';
 import { enUSFileBarMessages } from './file-bar';
+import { enUSFileExplorerMessages } from './file-explorer';
 import { enUSFileOverlayMessages } from './file-overlay';
 import { enUSKeyboardShortcutMessages } from './keyboard-shortcuts';
 import { enUSProjectedTerminalMessages } from './projected-terminal';
@@ -43,6 +44,7 @@ export const enUSMessages = {
 
 	...enUSDesktopWindowMessages,
 	...enUSFileBarMessages,
+	...enUSFileExplorerMessages,
 	...enUSFileOverlayMessages,
 	...enUSKeyboardShortcutMessages,
 	...enUSProjectedTerminalMessages,

@@ -19,6 +19,8 @@ export type { DesktopTrayMessageId } from './desktop-tray';
 export { enUSDesktopWindowMessages } from './desktop-window';
 export type { DesktopWindowMessageId } from './desktop-window';
 export { enUSFileBarMessages } from './file-bar';
+export { enUSFileExplorerMessages } from './file-explorer';
+export type { FileExplorerMessageId } from './file-explorer';
 export type { FileBarMessageId } from './file-bar';
 export { enUSFileOverlayMessages } from './file-overlay';
 export type { FileOverlayMessageId } from './file-overlay';

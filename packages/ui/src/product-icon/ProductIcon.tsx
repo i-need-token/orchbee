@@ -18,6 +18,7 @@ export type ProductIconName =
 	| 'check'
 	| 'clear-all'
 	| 'close'
+	| 'collapse-all'
 	| 'color'
 	| 'copy'
 	| 'edit'
@@ -39,6 +40,7 @@ export type ProductIconName =
 	| 'pin'
 	| 'pin-unsaved'
 	| 'question'
+	| 'refresh'
 	| 'remove'
 	| 'restore'
 	| 'search'
@@ -82,6 +84,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'check' && styles['check'],
 				name === 'clear-all' && styles['clearAll'],
 				name === 'close' && styles['close'],
+				name === 'collapse-all' && styles['collapseAll'],
 				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
 				name === 'edit' && styles['edit'],
@@ -103,6 +106,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'pin' && styles['pin'],
 				name === 'pin-unsaved' && styles['pinUnsaved'],
 				name === 'question' && styles['question'],
+				name === 'refresh' && styles['refresh'],
 				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
 				name === 'search' && styles['search'],
