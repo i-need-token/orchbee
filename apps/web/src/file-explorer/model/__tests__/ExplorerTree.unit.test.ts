@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { type FileWorkspaceSession, MemoryFileSessionPort } from '../../../file-session';
 import { ExplorerTree, type ExplorerTreeState } from '../ExplorerTree';
+import { ExplorerViewMemory } from '../ExplorerViewMemory';
 
 const WORKSPACE = 'workspace';
 
@@ -68,7 +69,11 @@ describe('ExplorerTree', () => {
 		vi.useFakeTimers();
 		const port = machine();
 		const { listed, session } = observe(port.open(WORKSPACE));
-		const tree = new ExplorerTree({ locale: 'en-US', session });
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			session,
+		});
 		await settle();
 		await modelOf(tree).expand('/w/src');
 		listed.length = 0;
@@ -97,7 +102,11 @@ describe('ExplorerTree', () => {
 	it('lists every loaded folder again after records were lost', async () => {
 		const port = machine();
 		const { listed, session } = observe(port.open(WORKSPACE));
-		const tree = new ExplorerTree({ locale: 'en-US', session });
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			session,
+		});
 		await settle();
 		const model = modelOf(tree);
 		await model.expand('/w/src');
@@ -122,7 +131,11 @@ describe('ExplorerTree', () => {
 	it('shows a new root once it has loaded, and only the latest one', async () => {
 		const port = machine('manual');
 		const { released, session } = observe(port.open(WORKSPACE));
-		const tree = new ExplorerTree({ locale: 'en-US', session });
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			session,
+		});
 		await settle();
 		port.flush();
 		await settle();
@@ -142,10 +155,84 @@ describe('ExplorerTree', () => {
 		tree.dispose();
 	});
 
+	it('moves the root down and back up drawing what it listed, and lists again what went unwatched', async () => {
+		const port = machine('manual');
+		const { listed, released, session } = observe(port.open(WORKSPACE));
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			session,
+		});
+		await settle();
+		port.flush();
+		await settle();
+		for (const folder of ['/w/src', '/w/src/lib']) {
+			const expanding = modelOf(tree).expand(folder);
+			await settle();
+			port.flush();
+			await expanding;
+		}
+		listed.length = 0;
+
+		port.setRoot(WORKSPACE, '/w/src');
+		await settle();
+		expect(listed).toEqual([]);
+		expect(rows(tree.state)).toEqual(['/w/src/lib', '/w/src/lib/c.ts', '/w/src/b.ts']);
+		expect(released).toEqual([['/w']]);
+
+		// The Server no longer reports changes in the released root.
+		port.writeFile('/w/e.txt', 'e');
+		port.setRoot(WORKSPACE, '/w');
+		await settle();
+		const model = modelOf(tree);
+		expect(rows(tree.state)).toEqual([
+			'/w/docs',
+			'/w/src',
+			'/w/src/lib',
+			'/w/src/lib/c.ts',
+			'/w/src/b.ts',
+			'/w/a.txt',
+		]);
+		expect(model.focus).toBe('/w/src');
+		expect(model.scrollTop).toBe(22);
+		expect(listed).toEqual(['/w']);
+		port.flush();
+		await settle();
+		expect(rows(tree.state)).toContain('/w/e.txt');
+		tree.dispose();
+	});
+
+	it("restores and saves the Workspace's expanded folders through its record", async () => {
+		const saved: string[][] = [];
+		const record = {
+			read: () => ['/w/docs'],
+			write: (expanded: readonly string[]) => saved.push([...expanded]),
+		};
+		const port = machine();
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(record),
+			session: port.open(WORKSPACE),
+		});
+		await settle();
+		await settle();
+		expect(rows(tree.state)).toEqual(['/w/docs', '/w/docs/d.md', '/w/src', '/w/a.txt']);
+
+		await modelOf(tree).expand('/w/src');
+		expect([...(saved.at(-1) ?? [])].sort()).toEqual(['/w/docs', '/w/src']);
+		modelOf(tree).collapseAll();
+		expect(saved.at(-1)).toEqual([]);
+		tree.dispose();
+	});
+
 	it('keeps the tree of a root that went missing and lists it again when it returns', async () => {
 		vi.useFakeTimers();
 		const port = machine();
-		const tree = new ExplorerTree({ locale: 'en-US', session: port.open(WORKSPACE) });
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			session: port.open(WORKSPACE),
+		});
 		await settle();
 		await modelOf(tree).expand('/w/src');
 

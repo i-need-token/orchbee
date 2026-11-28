@@ -8,6 +8,7 @@ import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
 import { ExplorerUnresolvedRow } from './components/explorer-unresolved-row/ExplorerUnresolvedRow';
+import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
 import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
@@ -74,6 +75,7 @@ export function FileExplorer({
 								model={state.model}
 								platform={platform}
 								renderRow={renderRow}
+								rowHeight={EXPLORER_ROW_HEIGHT}
 							/>
 						</div>
 					) : (

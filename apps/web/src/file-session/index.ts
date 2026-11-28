@@ -1,6 +1,7 @@
 export { FileSessionRegistry } from './FileSessionRegistry';
 export type { FileResource } from './file-resource';
 export { filePathChild, filePathName, filePathParent, isFilePathWithin } from './file-paths';
+export { filePathKey } from './filePathKey';
 export type {
 	FileCapability,
 	FileChange,
