@@ -35,17 +35,36 @@ export function wheelEnvironment(userAgent: string): WheelEnvironment {
 	};
 }
 
+/** How far a wheel event scrolls each way, in whole pixels, positive rightward and downward. */
+interface WheelScrollDeltas {
+	readonly x: number;
+	readonly y: number;
+}
+
 /**
  * How far a wheel event scrolls a list, in whole pixels, positive downward: VS Code's list scrolling
- * without smoothing. Only the predominant axis counts, and a list never scrolls sideways, so a
- * horizontal wheel, or Shift with a vertical one outside macOS, scrolls nothing. Alt scrolls five
- * times as far, and a delta is rounded away from zero, so the slowest wheel still moves.
+ * without smoothing. A list never scrolls sideways, so a horizontal wheel, or Shift with a vertical
+ * one outside macOS, scrolls nothing.
  */
 export function wheelScrollDelta(
 	event: WheelEvent,
 	environment: WheelEnvironment,
 	devicePixelRatio: number,
 ): number {
+	return wheelScrollDeltas(event, environment, devicePixelRatio).y;
+}
+
+/**
+ * How far a wheel event scrolls each way, as VS Code's scrollable elements scroll without
+ * smoothing. Only the predominant axis counts, and outside macOS, which does it itself, Shift turns a
+ * vertical wheel sideways. Alt scrolls five times as far, and a delta is rounded away from zero, so
+ * the slowest wheel still moves.
+ */
+export function wheelScrollDeltas(
+	event: WheelEvent,
+	environment: WheelEnvironment,
+	devicePixelRatio: number,
+): WheelScrollDeltas {
 	const legacyNotch = environment.legacyDeltaScaled
 		? LEGACY_NOTCH * devicePixelRatio
 		: LEGACY_NOTCH;
@@ -72,9 +91,21 @@ export function wheelScrollDelta(
 	}
 	units *= MOUSE_WHEEL_SCROLL_SENSITIVITY;
 	sideways *= MOUSE_WHEEL_SCROLL_SENSITIVITY;
-	if (Math.abs(units) < Math.abs(sideways)) return 0;
-	if (event.shiftKey && !environment.apple) return 0;
-	if (event.altKey) units *= FAST_SCROLL_SENSITIVITY;
+	if (Math.abs(units) >= Math.abs(sideways)) sideways = 0;
+	else units = 0;
+	if (event.shiftKey && !environment.apple && sideways === 0) {
+		sideways = units;
+		units = 0;
+	}
+	if (event.altKey) {
+		units *= FAST_SCROLL_SENSITIVITY;
+		sideways *= FAST_SCROLL_SENSITIVITY;
+	}
+	return { x: unitPixels(sideways), y: unitPixels(units) };
+}
+
+/** Wheel units, positive upward or leftward, as pixels to scroll the other way. */
+function unitPixels(units: number): number {
 	const pixels = PIXELS_PER_UNIT * units;
 	if (pixels === 0) return 0;
 	return -(pixels < 0 ? Math.floor(pixels) : Math.ceil(pixels));

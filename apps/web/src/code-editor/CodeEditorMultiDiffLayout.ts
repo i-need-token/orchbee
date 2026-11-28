@@ -65,6 +65,13 @@ export class CodeEditorMultiDiffLayout {
 		this.offset = this.clampScrollTop(above ? this.offset + height - previous : this.offset);
 	}
 
+	/** The file at the top of the view and how far into it the view is scrolled; null without files. */
+	anchor(): { readonly index: number; readonly offset: number } | null {
+		if (this.heights.count === 0) return null;
+		const index = this.heights.indexAt(this.offset);
+		return { index, offset: this.offset - this.heights.positionOf(index) };
+	}
+
 	/** The first and last files in sight, or null while the view shows none. */
 	visibleRange(): { readonly first: number; readonly last: number } | null {
 		if (this.heights.count === 0 || this.viewHeight === 0) return null;

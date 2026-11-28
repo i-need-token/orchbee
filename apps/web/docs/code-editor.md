@@ -91,10 +91,25 @@ its diff is computed, a file counts as VS Code's estimate of 500 pixels, and a p
 100 below its header. A file wholly above the view that changes height moves the offset, so the
 files in sight stay where they are.
 
-The wheel scrolls the view as the Sidebar's lists scroll, and moves the view and the editors in
-sight in the same frame; a natively scrolled view would show a pinned file's editor a frame behind.
-Hovers and other widgets that overflow an editor render in one layer over the view, outside every
-file's frame.
+As in VS Code's multi-diff, the files share one sideways offset, which the files in sight bound:
+the view's scrollbar reaches as far as the widest of them overflows, and in each diff the side that
+overflows further takes the offset while the diff editor scrolls the other with it. Unlike VS Code,
+a diff editor that scrolls itself sideways, as to show its cursor, moves the shared offset, so every
+file follows it rather than the editor jumping back when the view next scrolls.
+
+The wheel scrolls the view up and down as the Sidebar's lists scroll and sideways as VS Code's
+scrollable elements do, and moves the view and the editors in sight in the same frame; a natively
+scrolled view would show a pinned file's editor a frame behind. Hovers and other widgets that
+overflow an editor render in one layer over the view, outside every file's frame.
+
+The tab's owner draws Collapse All Diffs and Expand All Diffs from a handle the view gives it; both
+keep the file at the top of the view at the top. The owner also names the key the view state is kept
+under. The view state places the view by the file at its top, so a tab returns to the same file
+after files are added above it, and keeps each file's collapse, selections and measured height.
+VS Code keeps those heights in a view model that outlives the view; here the view state carries
+them, so a returning tab measures no file above the view again. A sideways offset waits until a file
+in sight is wide enough to reach it, and scrolling first gives it up, as VS Code gives up a scroll
+restore that the person overtakes.
 
 ## Image preview
 

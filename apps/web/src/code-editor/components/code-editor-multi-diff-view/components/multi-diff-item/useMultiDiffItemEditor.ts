@@ -48,7 +48,8 @@ interface MultiDiffItemEditorOptions {
  * The slot's diff editor, created when the slot first shows a diff and kept while the view is
  * mounted, as the pool's share. It shows each file's diff from the controller's view models,
  * measures the diff once it is computed, so a file counts its estimated height until then, and
- * scrolls as the controller says while the list scrolls through the file.
+ * scrolls as the controller says while the list scrolls through the file. It tells the controller
+ * how far the diff overflows sideways, and hands a file's selections back as the file leaves it.
  */
 export function useMultiDiffItemEditor({
 	controller,
@@ -96,6 +97,7 @@ export function useMultiDiffItemEditor({
 			return undefined;
 		}
 		const shownEditor = instance.getModifiedEditor();
+		const originalEditor = instance.getOriginalEditor();
 		let current = true;
 		// Until the diff is computed, the editor shows every line, and scrolls only as it is told.
 		let computed = false;
@@ -103,30 +105,59 @@ export function useMultiDiffItemEditor({
 		const measure = (): void => {
 			if (computed) controller.setContentHeight(fileKey, shownEditor.getContentHeight());
 		};
-		const scrollTo = (scrollTop: number): void => {
-			applying = true;
-			instance.getOriginalEditor().setScrollTop(scrollTop);
-			applying = false;
+		const overflowOf = (side: editor.ICodeEditor): number =>
+			side.getContentWidth() - side.getLayoutInfo().contentWidth;
+		// As in VS Code's multi-diff, the side that overflows further takes the shared offset, and the
+		// diff editor scrolls the other side with it.
+		const leadingSide = (): editor.ICodeEditor =>
+			overflowOf(shownEditor) > overflowOf(originalEditor) ? shownEditor : originalEditor;
+		const measureOverflow = (): void => {
+			controller.setOverflow(slot, Math.max(overflowOf(shownEditor), overflowOf(originalEditor)));
 		};
 		const listeners = [
 			shownEditor.onDidContentSizeChange(measure),
 			shownEditor.onDidScrollChange((event) => {
 				if (computed && !applying && event.scrollTopChanged) {
-					controller.followInnerScroll(slot, event.scrollTop);
+					controller.followInnerScroll(fileKey, event.scrollTop);
 				}
 			}),
 		];
+		for (const side of [shownEditor, originalEditor]) {
+			listeners.push(
+				side.onDidContentSizeChange(measureOverflow),
+				side.onDidLayoutChange(measureOverflow),
+				side.onDidScrollChange((event) => {
+					if (applying || !event.scrollLeftChanged) return;
+					// The width that let it scroll counts before the offset it scrolled to.
+					measureOverflow();
+					controller.scrollLeftTo(leadingSide().getScrollLeft());
+				}),
+			);
+		}
 		void controller.models.show(fileKey, { modified, original }, instance).then(() => {
 			if (!current) return;
 			computed = true;
 			measure();
 		});
-		controller.setInnerScroller(slot, scrollTo);
-		scrollTo(controller.innerScrollTop(slot));
+		const kept = controller.selectionsOf(fileKey);
+		if (kept !== undefined) shownEditor.setSelections(kept);
+		measureOverflow();
+		controller.setSlotEditor(slot, {
+			key: fileKey,
+			scrollTo: (scrollTop, scrollLeft) => {
+				applying = true;
+				originalEditor.setScrollTop(scrollTop);
+				leadingSide().setScrollLeft(scrollLeft);
+				applying = false;
+			},
+			selections: () => shownEditor.getSelections(),
+		});
 		return () => {
 			current = false;
 			for (const listener of listeners) listener.dispose();
-			controller.setInnerScroller(slot, null);
+			// The file takes its selections along before its diff leaves the editor.
+			controller.setSlotEditor(slot, null);
+			controller.setOverflow(slot, 0);
 			controller.models.release(instance);
 		};
 	}, [controller, fileKey, instance, modified, original, slot]);

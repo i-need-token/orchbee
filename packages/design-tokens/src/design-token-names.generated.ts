@@ -4,6 +4,8 @@ export const designTokenNames = [
 	'--ob-comp-code-editor-multi-diff-frame-height',
 	'--ob-comp-code-editor-multi-diff-item-height',
 	'--ob-comp-code-editor-multi-diff-item-start',
+	'--ob-comp-code-editor-multi-diff-scroll-width',
+	'--ob-comp-code-editor-multi-diff-view-width',
 	'--ob-comp-file-overlay-cover-block-size',
 	'--ob-comp-file-overlay-cover-block-start',
 	'--ob-comp-file-overlay-cover-inline-size',

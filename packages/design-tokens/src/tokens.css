@@ -984,11 +984,14 @@
 	--ob-comp-source-control-validation-inline-start: 0px;
 	--ob-comp-source-control-welcome-button-max-width: 300px;
 	/* The code editor's multi-diff runtime geometry: each file sits at its own offset in the content,
-	   and its frame renders no taller than the view. */
+	   and its frame renders no taller than the view. The sideways scrollbar spans the view and reaches
+	   as far as the widest file in sight overflows it. */
 	--ob-comp-code-editor-multi-diff-content-height: 0px;
 	--ob-comp-code-editor-multi-diff-frame-height: 0px;
 	--ob-comp-code-editor-multi-diff-item-height: 0px;
 	--ob-comp-code-editor-multi-diff-item-start: 0px;
+	--ob-comp-code-editor-multi-diff-scroll-width: 0px;
+	--ob-comp-code-editor-multi-diff-view-width: 0px;
 	--ob-comp-settings-color-theme-swatch-inline-size: 3.5rem;
 	/* The part of the window the open file overlay's tier covers, measured in the Workbench root. */
 	--ob-comp-file-overlay-cover-inline-start: 0px;

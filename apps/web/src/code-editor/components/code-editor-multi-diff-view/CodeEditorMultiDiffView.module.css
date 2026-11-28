@@ -1,18 +1,46 @@
-/* The list scrolls natively. Files sit at their own offsets in the content and keep their places as
-   it scrolls; the controller moves the offset itself when a file above the view changes height, so
-   the browser's own anchoring stays out. */
 .root {
 	position: relative;
 	height: 100%;
 	min-height: 0;
 	min-width: 0;
+	overflow: hidden;
+	background: var(--ob-sys-color-surface-canvas);
+}
+
+/* The list scrolls natively up and down. Files sit at their own offsets in the content and keep their
+   places as it scrolls; the controller moves the offset itself when a file above the view changes
+   height, so the browser's own anchoring stays out. The files scroll sideways inside their editors,
+   so the list never does. */
+.scroller {
+	position: relative;
+	height: 100%;
 	overflow-x: hidden;
 	overflow-y: auto;
 	overflow-anchor: none;
-	background: var(--ob-sys-color-surface-canvas);
 }
 
 .content {
 	position: relative;
 	height: var(--ob-comp-code-editor-multi-diff-content-height);
+}
+
+/* The sideways scrollbar spans the list's width above the bottom of the view, as VS Code's
+   multi-diff lays its scrollbar over the files, and shows only while a file in sight overflows. Its
+   extent is the view's width plus that overflow, so it scrolls exactly as far as the files do. It
+   is as tall as the scrollbar track, which leaves its content no height, so the extent's own height
+   only gives it an area and is clipped. */
+.horizontal {
+	position: absolute;
+	z-index: var(--ob-ref-layer-sticky);
+	inset-block-end: 0;
+	inset-inline-start: 0;
+	width: var(--ob-comp-code-editor-multi-diff-view-width);
+	height: var(--ob-ref-size-scrollbar-track);
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.extent {
+	width: var(--ob-comp-code-editor-multi-diff-scroll-width);
+	height: var(--ob-ref-size-scrollbar-track);
 }
