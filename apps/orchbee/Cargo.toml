@@ -202,3 +202,9 @@ path = "tests/cli_windows_machine_link.rs"
 [[test]]
 name = "cli_windows_machine_hub"
 path = "tests/cli_windows_machine_hub.rs"
+
+# Keep these two real Sessions, their two real shells and a run left to time out away from
+# aggregate suite deadlines.
+[[test]]
+name = "cli_windows_terminal_capture"
+path = "tests/cli_windows_terminal_capture.rs"

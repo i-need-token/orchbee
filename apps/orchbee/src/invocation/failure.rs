@@ -119,6 +119,10 @@ pub(crate) enum ExpectedValue {
     SendKeySequence,
     PromptText,
     CommandText,
+    /// `terminal run --shell`: one marker syntax `--capture` can write.
+    CaptureShell,
+    /// A `terminal run --capture --shell cmd` command: cmd runs each line on its own.
+    CmdCommandLine,
     MouseMode,
     Executable,
     ExecutableName,

@@ -394,6 +394,13 @@ impl super::CliText {
             (Locale::ZhCn, ExpectedValue::CommandText) => {
                 "一个非空 UTF-8 命令字符串，受 256 KiB paste 和 64 KiB argv 限制"
             }
+            (_, ExpectedValue::CaptureShell) => "posix, fish, powershell, cmd",
+            (Locale::EnUs, ExpectedValue::CmdCommandLine) => {
+                "one command line without line breaks, because cmd runs each line on its own"
+            }
+            (Locale::ZhCn, ExpectedValue::CmdCommandLine) => {
+                "不含换行的一行命令，因为 cmd 会把每一行单独执行"
+            }
             (Locale::EnUs, ExpectedValue::PromptText) => {
                 "non-empty UTF-8 prompt within the 256 KiB paste and 64 KiB argv limits"
             }

@@ -133,8 +133,9 @@ fn waiting_is_explicit_bounded_and_keeps_the_original_command() {
         Ok(Request::Mutation {
             command: MutationCommand::TerminalRunWait {
                 target: Target::TerminalOrPanelId(target.to_owned()),
-                command: "Write-Output 'ok'".to_owned(),
+                command: RunCommand::Operand("Write-Output 'ok'".to_owned()),
                 timeout_ms: 1200,
+                capture: None,
             },
             format: OutputFormat::Text,
         })

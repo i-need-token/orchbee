@@ -430,8 +430,8 @@ impl super::CliText {
                 "向终端发送文本或按键。",
             ),
             HelpTopic::Command(CommandPath::TerminalRun) => (
-                "Paste one command and press Enter.",
-                "粘贴一条命令并发送回车。",
+                "Run one command; optionally wait for it or capture its output.",
+                "运行一条命令；可等待它完成或取回它的输出。",
             ),
             HelpTopic::Family(Family::Worktree) => (
                 "Create and manage Git worktrees.",

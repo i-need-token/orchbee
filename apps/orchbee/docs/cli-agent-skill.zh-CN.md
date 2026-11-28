@@ -21,6 +21,10 @@ orchbee panel process-info @panel:0x1 --format json
 
 # 在受管 Shell 中执行单条有界命令并等待完成标记
 orchbee terminal run --panel @panel:0x1 "git status" --wait --timeout 30000 --format json
+
+# 在任意 Shell（包括 SSH 会话和 cmd）中运行一条命令，并取回它自己的输出和状态
+orchbee terminal run --panel @panel:0x1 "uname -a" --capture --shell posix --timeout 60000 --format json
+orchbee terminal run --panel @panel:0x1 --file check.sh --capture --shell posix --timeout 120000 --format json
 ```
 
 - 优先使用紧凑稳定句柄（`@panel:0x1`、`@terminal:0x2`、`@agent:<kind>`、`@agent:<n>`）；PowerShell 中记得给句柄加引号。
@@ -82,7 +86,7 @@ orchbee panel split <panel-id> --direction right
 
 ## 发送输入并读取输出
 
-`terminal run <terminal-id> "git status"` 提交一条字面命令并发送 Enter。`terminal send` 接受 `--text`、`--file`、`--stdin` 之一，可添加 `--paste`/`--enter`，或使用声明的按键。按键有序，最多接受 64 个。文件与 stdin 在本地读取，路由到已保存机器时也一样。来源读取上限为 1 MiB；形成的 paste 与 argv 仍受其声明的更小边界约束。
+`terminal run <terminal-id> "git status"` 提交一条字面命令并发送 Enter。配合 `--wait` 或 `--capture` 时，可用 `--file <path>` 或 `--stdin` 读取命令，命令里的引号和 `$` 无需为你自己的 Shell 转义。`terminal send` 接受 `--text`、`--file`、`--stdin` 之一，可添加 `--paste`/`--enter`，或使用声明的按键。按键有序，最多接受 64 个。文件与 stdin 在本地读取，路由到已保存机器时也一样。来源读取上限为 1 MiB；形成的 paste 与 argv 仍受其声明的更小边界约束。
 
 回执证明输入记录被接受，不证明 Shell 就绪、命令完成或退出状态。不要重放部分或结果未知的输入。检查回执与终端后，再决定下一步发送内容。
 
@@ -179,6 +183,8 @@ channel 选择也可通过帮助发现。`channel set` 保存选择并发起更�
 ## 等待 Shell 命令或新输出
 
 在新初始化的受管 Shell 终端中（Windows 上为 PowerShell，macOS 上为 zsh 或 bash），确认命令行空闲且为空后，使用 `terminal run <target> <command> --wait --timeout 30000 --format json`。它只提交一次，并等待本次调用的 Shell 标记。分别检查 `submission`、`completion`、`failure` 和 `cleanup`。`statusKind: powershell-success` 表示 PowerShell 成功状态（0/1），不是原生进程的数值退出码；`shell-exit-status` 表示 zsh 或 bash 的退出状态（`$?`）。超时／取消不会撤回已接受输入，不要重放。
+
+在其他任何 Shell 中（cmd、SSH 会话、远端或不受管的 Shell），使用 `terminal run <target> <command> --capture --shell <syntax> --timeout 60000 --format json`，并按提示符处的语法选择：`posix` 用于 sh、bash、zsh、ksh 和 dash，涵盖大多数 SSH 主机和 macOS；或 `fish`、`powershell`、`cmd`（只接受一行；含 `if` 或 `for` 的行作为括号块运行，块中引号外的 `)`，包括 `%VAR%` 展开所得，需写成 `^)`）。命令按在该 Shell 里平时输入的样子书写；标记和引号由 Orchbee 添加，`--file`/`--stdin` 还能免去为你自己的 Shell 加引号。`result.capture` 包含 `exitCode`（`$?`、fish 的 `$status`、PowerShell 的原生退出码或 1、cmd 的 ERRORLEVEL）、`output`（本次运行两个标记之间的屏幕文字，不含颜色；仅当命令覆盖了开始标记时为 null）和 `truncated`（只保留了最后一部分，因为输出超过 1 MiB 或其开头已离开终端）。命令成功时 CLI 退出码为 0，状态非零时为 1；文本格式直接打印输出。提示符必须空闲且为空。退出 Shell、等待输入或打开全屏程序的命令不会打印结束标记，会带着已有输出超时，并且仍在运行。超时或取消后绝不要再次运行：用 `terminal wait-output <target> --match "[orchbee end <runId>]" --source recent-unwrapped` 等待，再用 `terminal read` 读取输出。
 
 要排除保留输出，保存 `terminal read --format json` 的 `result.cursor`，向 `terminal wait-output` 传入 `--after <cursor>`，或在新工作前使用 `--after now`。只匹配后续物理输出行，排除当前行和提示符／输入行。重置、淘汰和窗口间隙会明确拒绝游标；提前增大 `--lines`，自动化使用有限 `--timeout`。参见[命令提交](native-terminal-run.md)。
 

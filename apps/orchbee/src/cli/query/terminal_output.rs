@@ -203,6 +203,33 @@ fn read_rows(
     }
 }
 
+/// Plain text rows `[start, start + count)` from one `ReadRows` pinned to `frame`; an aged pin
+/// answers its retryable reason.
+pub(in crate::cli) fn read_text_rows(
+    client: &mut LocalClient,
+    deadline: Instant,
+    viewer: &ViewerId,
+    frame: &TerminalTextFrame,
+    (start, count): (u64, u16),
+    sequence: NonZeroU64,
+) -> Result<Result<Vec<terminal_output::OutputRow>, ViewerRowsRejectedReason>, Failure> {
+    let total = frame
+        .scrollback_rows
+        .checked_add(u64::from(frame.geometry.rows))
+        .ok_or_else(viewer_protocol_invalid)?;
+    let range = SampleRange {
+        start,
+        count,
+        total,
+        capacity_omitted: 0,
+    };
+    match read_rows(client, deadline, viewer, frame, range, false, sequence)? {
+        Ok(Sample::Text(rows)) => Ok(Ok(rows)),
+        Ok(Sample::Render(..) | Sample::Visible) => Err(Failure::new(FailureKind::InternalFailure)),
+        Err(reason) => Ok(Err(reason)),
+    }
+}
+
 /// Validate the complete styled record before exposing any cell to the serializer.
 fn decode_render<'a>(
     record: &'a [u8],

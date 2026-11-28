@@ -21,6 +21,10 @@ orchbee panel process-info @panel:0x1 --format json
 
 # Run one bounded shell command and wait for its completion marker
 orchbee terminal run --panel @panel:0x1 "git status" --wait --timeout 30000 --format json
+
+# In any shell, including SSH sessions and cmd, run one command and return its own output and status
+orchbee terminal run --panel @panel:0x1 "uname -a" --capture --shell posix --timeout 60000 --format json
+orchbee terminal run --panel @panel:0x1 --file check.sh --capture --shell posix --timeout 120000 --format json
 ```
 
 - Prefer printed compact handles (`@panel:0x1`, `@terminal:0x2`, `@agent:<kind>`, `@agent:<n>`); quote handles in PowerShell.
@@ -82,7 +86,7 @@ Inspect each creation receipt: committed layout membership does not prove a proc
 
 ## Send input and read output
 
-`terminal run <terminal-id> "git status"` submits one literal command plus Enter. `terminal send` accepts exactly one of `--text`, `--file` or `--stdin`, with optional `--paste`/`--enter`, or declared keys. Keys are ordered; at most 64 are accepted. File/stdin input is read locally, including when routing to a saved machine. The source read is capped at 1 MiB; the resulting paste and argv retain their smaller declared bounds.
+`terminal run <terminal-id> "git status"` submits one literal command plus Enter. With `--wait` or `--capture`, `--file <path>` or `--stdin` reads the command instead, so quotes and `$` in it need no escaping for your own shell. `terminal send` accepts exactly one of `--text`, `--file` or `--stdin`, with optional `--paste`/`--enter`, or declared keys. Keys are ordered; at most 64 are accepted. File/stdin input is read locally, including when routing to a saved machine. The source read is capped at 1 MiB; the resulting paste and argv retain their smaller declared bounds.
 
 A receipt proves accepted input records, not Shell readiness, command completion or exit status. Never replay partial or unknown delivery. Inspect the receipt and terminal before deciding what to send next.
 
@@ -179,6 +183,8 @@ Detailed behavior and maintenance contracts are indexed in [the native CLI refer
 ## Wait for a shell command or new output
 
 For an idle, empty command line in a newly initialized managed shell terminal (PowerShell on Windows, zsh or bash on macOS), use `terminal run <target> <command> --wait --timeout 30000 --format json`. It submits once and waits for that invocation's shell markers. Inspect `submission`, `completion`, `failure` and `cleanup` separately. `statusKind: powershell-success` reports PowerShell success (0/1), not a native process's numeric exit code; `shell-exit-status` reports the zsh or bash exit status (`$?`). Timeout/cancellation never retracts accepted input; do not replay it.
+
+In any other shell (cmd, an SSH session, a remote or unmanaged shell), use `terminal run <target> <command> --capture --shell <syntax> --timeout 60000 --format json` with the syntax at the prompt: `posix` for sh, bash, zsh, ksh and dash, which covers most SSH hosts and macOS, or `fish`, `powershell`, or `cmd` (one line; a line with `if` or `for` runs as a parenthesized block, where a `)` outside quotes, also one from `%VAR%`, needs `^)`). Write the command exactly as you would type it in that shell; Orchbee adds the markers and quoting, and `--file`/`--stdin` avoid quoting it for your own shell. `result.capture` holds `exitCode` (`$?`, fish `$status`, the PowerShell native exit code or 1, cmd ERRORLEVEL), `output` (the screen text between this run's markers, without color; null only when the command overwrote its begin marker) and `truncated` (only the last part is kept, because the output passed 1 MiB or its start left the terminal). The CLI exits 0 when the command succeeded and 1 when its status is nonzero; the text format prints the output itself. The prompt must be idle and empty. A command that exits the shell, waits for input or opens a full-screen program prints no end marker and times out with the output so far, still running. After a timeout or cancellation never run it again: wait with `terminal wait-output <target> --match "[orchbee end <runId>]" --source recent-unwrapped`, then read the output with `terminal read`.
 
 To exclude retained output, save `terminal read --format json`'s `result.cursor` and pass `--after <cursor>` to `terminal wait-output`, or use `--after now` before new work. Only later physical output rows match. The current row and prompt/input rows are excluded. Reset/eviction/window gaps reject the cursor explicitly; increase `--lines` in advance and use a finite `--timeout` for automation. See [command submission](native-terminal-run.md).
 

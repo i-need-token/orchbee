@@ -3,6 +3,7 @@
 pub(crate) const ORDER_VALUES: &[&str] = &["previous", "next", "first", "last"];
 pub(crate) const CWD_VALUES: &[&str] = &["follow", "home", "current", "workspace"];
 pub(crate) const OUTPUT_SOURCES: &[&str] = &["visible", "recent", "recent-unwrapped", "detection"];
+pub(crate) const CAPTURE_SHELLS: &[&str] = &["posix", "fish", "powershell", "cmd"];
 pub(crate) const KEY_VALUES: &[&str] = &[
     "enter",
     "escape",

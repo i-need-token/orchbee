@@ -47,6 +47,7 @@ mod terminal_buffer;
 mod terminal_output;
 pub(crate) use crate::terminal_copy::TerminalTextPoint;
 mod terminal_run;
+pub(crate) use terminal_run::{CaptureShell, RunCommand};
 mod terminal_stream;
 mod terminal_target;
 pub(crate) use client_control::ClientLayoutTarget;
@@ -575,10 +576,13 @@ pub(crate) enum MutationCommand {
         target: Target,
         input: TerminalSendInput,
     },
+    /// `terminal run --wait` or `--capture`: one submission, then bounded observation.
     TerminalRunWait {
         target: Target,
-        command: String,
+        command: RunCommand,
         timeout_ms: u32,
+        /// `Some` captures the command's own output and status in this shell syntax.
+        capture: Option<CaptureShell>,
     },
 }
 
@@ -1064,6 +1068,10 @@ struct Options {
     name: Option<String>,
     clear: bool,
     prompt_wait: bool,
+    /// `terminal run --capture`: wrap the command in output markers.
+    capture: bool,
+    /// `terminal run --shell <syntax>`: the marker syntax `--capture` writes.
+    capture_shell: Option<String>,
     forever: bool,
     profile: Option<String>,
     /// `operation resume --generation <n>`: the explicit attempt

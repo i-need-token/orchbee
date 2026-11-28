@@ -1944,7 +1944,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
+        commands: &[
+            CommandPath::LayoutApply,
+            CommandPath::TerminalSend,
+            CommandPath::TerminalRun,
+        ],
         role: OptionRole::Business,
         value: Some("filter"),
         repeatable: false,
@@ -1960,7 +1964,11 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         values: &[],
         closed_values: false,
         string_rule: None,
-        commands: &[CommandPath::LayoutApply, CommandPath::TerminalSend],
+        commands: &[
+            CommandPath::LayoutApply,
+            CommandPath::TerminalSend,
+            CommandPath::TerminalRun,
+        ],
         role: OptionRole::Business,
         value: None,
         repeatable: false,
@@ -2284,6 +2292,38 @@ pub(crate) const OPTIONS: &[OptionSpec] = &[
         help: None,
         apply: |options, _, _| {
             options.clear = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
+        spelling: "--capture",
+        values: &[],
+        closed_values: false,
+        string_rule: None,
+        commands: &[CommandPath::TerminalRun],
+        role: OptionRole::Business,
+        value: None,
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, _, _| {
+            options.capture = true;
+            Ok(())
+        },
+    },
+    OptionSpec {
+        spelling: "--shell",
+        values: super::values::CAPTURE_SHELLS,
+        closed_values: true,
+        string_rule: None,
+        commands: &[CommandPath::TerminalRun],
+        role: OptionRole::Business,
+        value: Some("filter"),
+        repeatable: false,
+        joined: true,
+        help: None,
+        apply: |options, value, _| {
+            options.capture_shell = Some(value);
             Ok(())
         },
     },

@@ -454,9 +454,10 @@ pub(crate) fn mutation(command: MutationCommand, format: OutputFormat, locale: L
         target,
         command,
         timeout_ms,
+        capture,
     } = &command
     {
-        return terminal_run::run(target, command, *timeout_ms, format, locale);
+        return terminal_run::run(target, command, *timeout_ms, *capture, format, locale);
     }
     if let MutationCommand::TerminalSend { target, input } = &command {
         return send::run(target, input, format, locale);

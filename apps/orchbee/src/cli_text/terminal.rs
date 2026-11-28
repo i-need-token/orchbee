@@ -40,14 +40,14 @@ pub(super) const HELP_TERMINAL_GET_ZH: crate::cli_text::HelpDetails =
 
 pub(super) const HELP_TERMINAL_RUN_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee terminal run (<target>|--panel <panel>) <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nSubmit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:0x<hex>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB.\nWithout --wait, the five-second send budget and orchbee.terminal.send receipt report input only.\n--wait requires an idle managed shell and an empty input line: managed PowerShell on Windows, managed zsh or bash on macOS and Linux. It checks readiness before submitting once and waits for this invocation's correlated completion. The total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, failure and viewer cleanup separately. statusKind powershell-success is PowerShell's 0/1 status, not a native process exit code; shell-exit-status is the zsh or bash exit status ($?). Use JSON before submitting scripts that need recovery evidence. Cancellation does not stop the command. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
+        "orchbee terminal run (<target>|--panel <panel>) (<command>|--file <path>|--stdin) [--wait|--capture --shell posix|fish|powershell|cmd] [--timeout <ms>] [--format text|json]",
+        "Targets: terminal ID / @terminal:, or Panel ID / @panel: / --panel. Panels select the primary terminal; children require a terminal identity. Bare IDs that name different resources refuse; use a typed handle.\nSubmit one quoted command as paste followed by Enter in one request. Target: exact ID or @terminal:0x<hex>. Whitespace and newlines are preserved. Use -- before operands resembling options. Empty/extra command operands are rejected; total argv is at most 64 KiB. With --wait or --capture, --file <path> or --stdin reads the command instead: UTF-8 without its trailing line breaks, so no quoting or escaping is needed.\nWithout --wait or --capture, the five-second send budget and orchbee.terminal.send receipt report input only.\n--wait requires an idle managed shell and an empty input line: managed PowerShell on Windows, managed zsh or bash on macOS and Linux. It checks readiness before submitting once and waits for this invocation's correlated completion. statusKind powershell-success is PowerShell's 0/1 status, not a native process exit code; shell-exit-status is the zsh or bash exit status ($?).\n--capture works in any shell at an empty prompt, including SSH sessions and shells without integration. --shell names the syntax at the prompt: posix (sh, bash, zsh, ksh, dash), fish, powershell (Windows PowerShell or PowerShell 7) or cmd. The run prints a begin marker, runs the command, then prints an end marker with its status, and returns the screen text between the markers. Write the command as you would type it: posix and fish receive it through eval, so a syntax error is its failure; powershell runs it as a script block in the current scope, where the first terminating error ends it with status 1; cmd takes one line; a line with if or for runs as a parenthesized block, where a ) outside quotes, also one from %VAR%, needs ^). Output is screen text: colors, trailing spaces and overwritten progress are not kept, output over 1 MiB or whose start left the terminal keeps its last part (truncated), and output is null when the command overwrote its begin marker. A command that exits the shell, waits for input or clears the screen loses its end marker or output.\nThe total timeout defaults to 30000 ms. JSON orchbee.terminal.run v1 keeps submission, completion, capture (shell, exitCode, output, truncated), failure and viewer cleanup separately. Exit 0 when the command succeeded, 1 when its status is nonzero. Text output prints the captured output on stdout and a nonzero status on stderr. On timeout or cancellation the command keeps running and JSON keeps the output so far: wait for \"[orchbee end <runId>]\" with terminal wait-output instead of running it again. Use JSON before submitting scripts that need recovery evidence. Never replay accepted, partial or unknown input. No controller, resize or focus is acquired.",
     );
 
 pub(super) const HELP_TERMINAL_RUN_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
-        "orchbee terminal run (<target>|--panel <panel>) <command> [--wait] [--timeout <ms>] [--format text|json]",
-        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:0x<hex>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。\n未加 --wait 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\n--wait 需要空闲的受管 Shell 及空输入行：Windows 上为受管 PowerShell，macOS 与 Linux 上为受管 zsh 或 bash。发送前检查就绪，只提交一次并等待本次调用的关联完成。总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、failure 和 viewer 清理。statusKind 为 powershell-success 时是 PowerShell 的 0/1 状态，不是原生进程退出码；为 shell-exit-status 时是 zsh 或 bash 的退出状态（$?）。需要恢复证据的脚本应在提交前选择 JSON。取消不会停止命令。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
+        "orchbee terminal run (<target>|--panel <panel>) (<command>|--file <path>|--stdin) [--wait|--capture --shell posix|fish|powershell|cmd] [--timeout <ms>] [--format text|json]",
+        "目标：终端 ID／@terminal:，或面板 ID／@panel:／--panel。面板选择主终端，子终端需终端身份。裸 ID 指向不同资源时拒绝，请使用带类型的句柄。\n一次请求发送带引号命令的 paste 和 Enter。目标为完整 ID 或 @terminal:0x<hex>，保留空白和换行。操作数类似选项时使用 --。拒绝空命令和多余命令操作数，参数包最多 64 KiB。配合 --wait 或 --capture 时，可用 --file <path> 或 --stdin 读取命令：UTF-8 文本，去掉末尾换行，无需自行加引号或转义。\n未加 --wait 或 --capture 时，五秒发送预算和 orchbee.terminal.send 回执只说明输入进度。\n--wait 需要空闲的受管 Shell 及空输入行：Windows 上为受管 PowerShell，macOS 与 Linux 上为受管 zsh 或 bash。发送前检查就绪，只提交一次并等待本次调用的关联完成。statusKind 为 powershell-success 时是 PowerShell 的 0/1 状态，不是原生进程退出码；为 shell-exit-status 时是 zsh 或 bash 的退出状态（$?）。\n--capture 适用于停在空提示符处的任意 Shell，包括 SSH 会话和没有集成的 Shell。--shell 指明提示符处的语法：posix（sh、bash、zsh、ksh、dash）、fish、powershell（Windows PowerShell 或 PowerShell 7）或 cmd。运行时先打印开始标记，再运行命令，然后打印带状态的结束标记，并返回两个标记之间的屏幕文字。命令按平时输入的样子书写：posix 和 fish 通过 eval 接收，语法错误即为命令失败；powershell 在当前作用域作为脚本块运行，第一个终止错误会以状态 1 结束它；cmd 只接受一行；含 if 或 for 的行作为括号块运行，块中引号外的 )（包括 %VAR% 展开所得）需写成 ^)。输出是屏幕文字：不保留颜色、行尾空格和被覆盖的进度；超过 1 MiB 或开头已离开终端时只保留最后一部分（truncated）；命令覆盖了开始标记时 output 为 null。退出 Shell、等待输入或清屏的命令会丢失结束标记或输出。\n总期限默认 30000 毫秒。JSON orchbee.terminal.run v1 分别保留 submission、completion、capture（shell、exitCode、output、truncated）、failure 和 viewer 清理。命令成功时退出码为 0，状态非零时为 1。文本输出在 stdout 打印取回的输出，在 stderr 说明非零状态。超时或取消时命令仍在运行，JSON 保留已有输出：用 terminal wait-output 等待 \"[orchbee end <runId>]\"，不要再次运行。需要恢复证据的脚本应在提交前选择 JSON。不要重放已接受、部分或未知输入。不取得 controller、resize 或焦点。",
     );
 
 pub(super) const HELP_TERMINAL_SEND_EN: crate::cli_text::HelpDetails =
@@ -128,6 +128,54 @@ impl super::CliText {
             ),
             (Locale::ZhCn, false) => format!(
                 "终端 {terminal} 中的命令未成功完成。提交和完成证据须在原调用前选择 --format json；不要重放已接受或结果未知的输入。等待功能需要处于空闲状态的受管 {shell_zh}。\n"
+            ),
+        }
+    }
+
+    /// A captured command ended with a nonzero status; its output is already on stdout.
+    pub(crate) fn cli_terminal_run_exited(self, terminal: &str, status: i32) -> String {
+        match self.locale {
+            Locale::EnUs => {
+                format!("Command exited with status {status} in terminal {terminal}.\n")
+            }
+            Locale::ZhCn => format!("终端 {terminal} 中的命令以状态 {status} 结束。\n"),
+        }
+    }
+
+    /// A finished capture whose input is still on screen without its begin marker.
+    pub(crate) fn cli_terminal_run_output_unmarked(self) -> String {
+        match self.locale {
+            Locale::EnUs => "The command finished, but the line marking the start of its output was overwritten, so no output is shown.\n".to_owned(),
+            Locale::ZhCn => "命令已结束，但标记其输出开头的那一行已被覆盖，因此不显示输出。\n".to_owned(),
+        }
+    }
+
+    pub(crate) fn cli_terminal_run_output_truncated(self) -> String {
+        match self.locale {
+            Locale::EnUs => "Only the last part of the output is shown: it exceeded 1 MiB or its start is no longer in the terminal.\n".to_owned(),
+            Locale::ZhCn => "只显示输出的最后一部分：输出超过 1 MiB，或其开头已不在终端中。\n".to_owned(),
+        }
+    }
+
+    /// A capture that ended without its result; `submitted` when the whole command was accepted.
+    pub(crate) fn cli_terminal_run_not_captured(
+        self,
+        terminal: &str,
+        run_id: &str,
+        submitted: bool,
+    ) -> String {
+        match (self.locale, submitted) {
+            (Locale::EnUs, true) => format!(
+                "The command was submitted to terminal {terminal}, but the run ended before its result was captured. It may still be running: do not run it again. To keep waiting, use orchbee terminal wait-output {terminal} --match \"[orchbee end {run_id}]\" --source recent-unwrapped. Output so far requires selecting --format json before the original invocation.\n"
+            ),
+            (Locale::ZhCn, true) => format!(
+                "命令已提交到终端 {terminal}，但本次运行在取回结果前结束。命令可能仍在运行，不要再次运行。如需继续等待，请使用 orchbee terminal wait-output {terminal} --match \"[orchbee end {run_id}]\" --source recent-unwrapped。已有的输出须在原调用前选择 --format json。\n"
+            ),
+            (Locale::EnUs, false) => format!(
+                "Command output was not captured in terminal {terminal}. Submission evidence requires selecting --format json before the original invocation. Never replay accepted or unknown input. Capturing requires a shell waiting at an empty prompt, not a full-screen program.\n"
+            ),
+            (Locale::ZhCn, false) => format!(
+                "未能取回终端 {terminal} 中命令的输出。提交证据须在原调用前选择 --format json；不要重放已接受或结果未知的输入。取回输出需要 Shell 停在空的提示符处，而不是全屏程序。\n"
             ),
         }
     }

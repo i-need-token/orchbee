@@ -4,6 +4,7 @@
 
 mod terminal_output;
 pub(crate) use terminal_output::read_output;
+pub(in crate::cli) use terminal_output::read_text_rows;
 
 pub(crate) fn wait_source_output(
     target: &Target,

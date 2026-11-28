@@ -90,10 +90,30 @@ impl super::CliText {
                 "Wait for this command's correlated managed-shell completion.",
                 "等待受管 Shell 回传本次命令的关联完成结果。",
             ),
+            (CommandPath::TerminalRun, "--capture") => (
+                "",
+                "Run the command between text markers in any shell and return its output and status; requires --shell.",
+                "在任意 Shell 中用文字标记包住命令运行，并取回它的输出和状态；需要 --shell。",
+            ),
+            (CommandPath::TerminalRun, "--shell") => (
+                "<posix|fish|powershell|cmd>",
+                "Syntax of the shell at the prompt; requires --capture.",
+                "提示符处 Shell 的语法；需要 --capture。",
+            ),
+            (CommandPath::TerminalRun, "--file") => (
+                "<path>",
+                "Read the command from a UTF-8 file instead of <command>; requires --wait or --capture.",
+                "从 UTF-8 文件读取命令，代替 <command>；需要 --wait 或 --capture。",
+            ),
+            (CommandPath::TerminalRun, "--stdin") => (
+                "",
+                "Read the command from standard input instead of <command>; requires --wait or --capture.",
+                "从标准输入读取命令，代替 <command>；需要 --wait 或 --capture。",
+            ),
             (CommandPath::TerminalRun, "--timeout") => (
                 "<ms>",
-                "Total wait deadline: 1..3600000 ms; default: 30000; requires --wait.",
-                "总等待时限：1..3600000 毫秒；默认 30000；需要 --wait。",
+                "Total deadline: 1..3600000 ms; default: 30000; requires --wait or --capture.",
+                "总时限：1..3600000 毫秒；默认 30000；需要 --wait 或 --capture。",
             ),
             (CommandPath::TerminalWaitOutput, "--after") => (
                 "<cursor|now>",

@@ -223,6 +223,19 @@ orchbee terminal send "$PANEL" --text 'echo READY-MARKER' --enter
 orchbee terminal wait-output "$PANEL" --match 'READY-MARKER' --timeout 30000
 ```
 
+In any shell, including an SSH session or cmd, `run --capture` returns one command's own output
+and exit status. Orchbee wraps the command in unique markers, so write it in the target shell's
+own syntax and name that syntax with `--shell`:
+
+```sh
+orchbee terminal run "$PANEL" 'grep -c "$USER" /etc/passwd' --capture --shell posix --format json | jq '.result.capture'
+orchbee terminal run "$PANEL" --file check.sh --capture --shell posix --timeout 120000 --format json
+```
+
+`result.capture.exitCode` is the command's status and `output` its screen text between the
+markers; the CLI exits `1` when that status is nonzero. On timeout (`7`) the command keeps
+running: wait for `[orchbee end <runId>]` with `wait-output` instead of running it again.
+
 Independent reads and the remaining send forms:
 
 ```sh
