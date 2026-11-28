@@ -16,6 +16,7 @@ export { editor, languages };
 export { CodeEditorModelRegistry } from './CodeEditorModelRegistry';
 export { CodeEditorTextDocument } from './CodeEditorTextDocument';
 export { CodeEditorViewStates } from './CodeEditorViewStates';
+export { createCodeEditorFileDocuments } from './createCodeEditorFileDocuments';
 export { ImagePreviewDocument } from './ImagePreviewDocument';
 export { CodeEditorDiffView } from './components/code-editor-diff-view/CodeEditorDiffView';
 export { CodeEditorMultiDiffView } from './components/code-editor-multi-diff-view/CodeEditorMultiDiffView';

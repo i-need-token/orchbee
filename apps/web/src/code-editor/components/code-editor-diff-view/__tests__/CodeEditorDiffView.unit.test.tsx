@@ -90,6 +90,7 @@ function textDocument(answers: boolean): CodeEditorTextDocument<FakeModel> {
 	return new CodeEditorTextDocument<FakeModel>({
 		createModel: () => new FakeModel(),
 		limit: 10,
+		updateModel: () => undefined,
 		read: () =>
 			answers
 				? Promise.resolve({

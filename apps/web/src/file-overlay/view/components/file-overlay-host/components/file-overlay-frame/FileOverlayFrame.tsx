@@ -11,6 +11,7 @@ import {
 	type FileOverlayPipPlacement,
 } from './components/file-overlay-pip/FileOverlayPip';
 import { FileOverlayTitleActions } from './components/file-overlay-title-actions/FileOverlayTitleActions';
+import { FileTabContent } from './components/file-tab-content/FileTabContent';
 import { FileTabRow } from './components/file-tab-row/FileTabRow';
 import { useFileOverlayEscape } from './hooks/useFileOverlayEscape';
 import { useFileOverlayFocusReturn } from './hooks/useFileOverlayFocusReturn';
@@ -69,7 +70,9 @@ export function FileOverlayFrame({ pip }: FileOverlayFrameProps): ReactNode {
 				inert={pip !== null}
 				ref={contentReference}
 				role='tabpanel'
-			/>
+			>
+				<FileTabContent />
+			</div>
 			{pip === null ? null : (
 				<FileOverlayPip
 					box={pip.box}

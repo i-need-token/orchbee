@@ -35,6 +35,7 @@ interface ServerFileSessionOptions {
 	readonly machine: string;
 	/** The session closed, so its port forgets it. */
 	readonly onClosed: () => void;
+	readonly remote: boolean;
 	readonly workspaceId: string;
 }
 
@@ -54,6 +55,7 @@ export class ServerFileSession implements FileWorkspaceSession, ServerFileServic
 	readonly git: ServerGitPort;
 	readonly grants: FileGrantPort;
 	readonly machine: string;
+	readonly remote: boolean;
 	readonly tree: FileTreePort;
 	readonly workspaceId: string;
 	readonly #abort = new AbortController();
@@ -73,6 +75,7 @@ export class ServerFileSession implements FileWorkspaceSession, ServerFileServic
 		this.capabilities = options.capabilities;
 		this.git = new ServerGitPort(options.channel, options.workspaceId);
 		this.machine = options.machine;
+		this.remote = options.remote;
 		this.workspaceId = options.workspaceId;
 		this.#channel = options.channel;
 		this.#onClosed = options.onClosed;

@@ -345,6 +345,7 @@ export class MemoryFileSessionPort implements FileSessionPort {
 				},
 			},
 			machine: this.machine,
+			remote: false,
 			subscribe: (listener) => this.subscribe(session, listener),
 			tree: {
 				list: (request, signal) =>

@@ -61,6 +61,11 @@ export interface FileWorkspaceSession {
 	readonly grants: FileGrantPort;
 	/** The machine that holds the Workspace's Directory, as the Server names it. */
 	readonly machine: string;
+	/**
+	 * That machine is another computer, a saved machine the hub reaches, as a VS Code remote window
+	 * is; such a file asks before it opens past a smaller size.
+	 */
+	readonly remote: boolean;
 	readonly tree: FileTreePort;
 	readonly workspaceId: string;
 	/** Ends the session's streams, cursors and grants; its pending requests settle `cancelled`. */

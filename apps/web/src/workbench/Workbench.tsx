@@ -56,6 +56,7 @@ import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresenta
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchFileBar } from './hooks/useWorkbenchFileBar';
 import { useWorkbenchFileOverlay } from './hooks/useWorkbenchFileOverlay';
+import { useWorkbenchFileTabContents } from './hooks/useWorkbenchFileTabContents';
 import { useWorkbenchTerminalFileLinks } from './hooks/useWorkbenchTerminalFileLinks';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
 import { useWorkbenchTabStripMessages } from './hooks/useWorkbenchTabStripMessages';
@@ -244,7 +245,8 @@ export function Workbench({
 		view.projectWorkspaceState.activeLocation.kind === 'workspace'
 			? view.projectWorkspaceState.activeLocation.workspaceId
 			: null;
-	// The Client's file sessions, one per Workspace, which the File Bar and terminal file links share.
+	// The Client's file sessions, one per Workspace, which the File Bar's views, the overlay's tabs and
+	// terminal file links share.
 	const fileSessions = React.useMemo(
 		() => (fileSessionPort === undefined ? null : new FileSessionRegistry(fileSessionPort)),
 		[fileSessionPort],
@@ -322,6 +324,12 @@ export function Workbench({
 		openFile: fileOverlay.openFile,
 		sessions: fileSessions,
 		workspaceId: activeWorkspaceId,
+	});
+	const fileTabContents = useWorkbenchFileTabContents({
+		sessions: fileSessions,
+		store: fileOverlay.host?.store ?? null,
+		workspaceId: activeWorkspaceId,
+		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const fileBarContent = fileBar.column ?? fileBar.overlay;
 	const FileBarColumn = fileBarContent?.content ?? null;
@@ -1040,6 +1048,7 @@ export function Workbench({
 				<div className={styles['fileOverlayRegion']} data-workbench-focus-region='file-overlay'>
 					<FileOverlayHost
 						commands={fileOverlay.host.commands}
+						contents={fileTabContents}
 						dispatch={fileOverlay.host.dispatch}
 						focusTerminal={fileOverlay.host.focusTerminal}
 						movePip={fileOverlay.host.movePip}

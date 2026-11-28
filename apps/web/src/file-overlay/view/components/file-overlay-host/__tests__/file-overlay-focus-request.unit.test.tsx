@@ -50,6 +50,7 @@ function renderOverlay(paths: readonly string[]) {
 		return (
 			<FileOverlayHostStoreProvider
 				commands={NO_COMMANDS}
+				contents={null}
 				dispatch={(event) => {
 					store.dispatch(event);
 				}}

@@ -3,7 +3,7 @@ import { createContext, createElement, useContext, useMemo, type ReactNode } fro
 import { useStore } from 'zustand';
 
 import type { FileOverlayEvent, FileOverlayState } from '../../../../model';
-import type { FileOverlayStore } from '../../../../workspace-stores';
+import type { FileOverlayStore, FileTabContents } from '../../../../workspace-stores';
 import type {
 	FileOverlayCommands,
 	FileOverlayShortcutLabels,
@@ -12,6 +12,7 @@ import type { FileOverlayFocusRequest } from '../hooks/useFileOverlayFocusReques
 
 interface FileOverlayHostValue {
 	readonly commands: FileOverlayCommands;
+	readonly contents: FileTabContents | null;
 	readonly dispatch: (event: FileOverlayEvent) => void;
 	readonly focusRequest: FileOverlayFocusRequest;
 	readonly focusTerminal: () => void;
@@ -34,6 +35,7 @@ interface FileOverlayHostStoreProviderProps extends FileOverlayHostValue {
 export function FileOverlayHostStoreProvider({
 	children,
 	commands,
+	contents,
 	dispatch,
 	focusRequest,
 	focusTerminal,
@@ -45,6 +47,7 @@ export function FileOverlayHostStoreProvider({
 	const value = useMemo(
 		() => ({
 			commands,
+			contents,
 			dispatch,
 			focusRequest,
 			focusTerminal,
@@ -53,7 +56,17 @@ export function FileOverlayHostStoreProvider({
 			shortcutLabels,
 			store,
 		}),
-		[commands, dispatch, focusRequest, focusTerminal, platform, returnFocus, shortcutLabels, store],
+		[
+			commands,
+			contents,
+			dispatch,
+			focusRequest,
+			focusTerminal,
+			platform,
+			returnFocus,
+			shortcutLabels,
+			store,
+		],
 	);
 	return createElement(FileOverlayHostContext.Provider, { value }, children);
 }
@@ -82,6 +95,11 @@ export function useFileOverlayHostReadState(): () => FileOverlayState {
 /** Applies an event to the shown overlay and runs the effects it returns. */
 export function useFileOverlayHostDispatch(): (event: FileOverlayEvent) => void {
 	return useFileOverlayHostValue().dispatch;
+}
+
+/** The content behind the shown Workspace's tabs; null where no file session serves it. */
+export function useFileOverlayHostContents(): FileTabContents | null {
+	return useFileOverlayHostValue().contents;
 }
 
 /** The Actions the overlay's controls run, each as a press of that control. */

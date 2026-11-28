@@ -66,6 +66,7 @@ function renderOverlay(paths: readonly string[], unsaved: readonly string[]) {
 		return (
 			<FileOverlayHostStoreProvider
 				commands={NO_COMMANDS}
+				contents={null}
 				dispatch={(event) => {
 					dispatchFileOverlayEvent(store, event, ports);
 				}}

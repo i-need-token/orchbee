@@ -29,6 +29,7 @@ export class ServerFileSessionPort implements FileSessionPort {
 	readonly #capabilities: ReadonlySet<FileCapability>;
 	readonly #channel: ServerFileChannel;
 	readonly #machine: string;
+	readonly #remote: boolean;
 	readonly #sessions = new Set<ServerFileSession>();
 
 	constructor(options: ServerFileSessionOptions) {
@@ -37,6 +38,7 @@ export class ServerFileSessionPort implements FileSessionPort {
 		);
 		this.#channel = ServerFileChannel.of(options.connection, options.remote);
 		this.#machine = options.machine;
+		this.#remote = options.remote;
 	}
 
 	open(workspaceId: string): FileWorkspaceSession {
@@ -45,6 +47,7 @@ export class ServerFileSessionPort implements FileSessionPort {
 			channel: this.#channel,
 			machine: this.#machine,
 			onClosed: () => this.#sessions.delete(session),
+			remote: this.#remote,
 			workspaceId,
 		});
 		this.#sessions.add(session);

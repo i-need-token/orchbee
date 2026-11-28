@@ -5,7 +5,7 @@ import { CodeEditorTextDocument } from '../CodeEditorTextDocument';
 
 class FakeModel {
 	public disposals = 0;
-	public readonly text: string;
+	public text: string;
 
 	public constructor(content: { readonly text: string }) {
 		this.text = content.text;
@@ -17,18 +17,22 @@ class FakeModel {
 }
 
 const VERSION = { mtimeMs: 1, size: 5 };
-const TEXT: FileResult<FileContent> = {
-	kind: 'ok',
-	value: {
-		bom: false,
-		changed: false,
-		encoding: 'utf8',
-		kind: 'text',
-		lineEnding: 'lf',
-		text: 'hello',
-		version: VERSION,
-	},
-};
+function textResult(text: string): FileResult<FileContent> {
+	return {
+		kind: 'ok',
+		value: {
+			bom: false,
+			changed: false,
+			encoding: 'utf8',
+			kind: 'text',
+			lineEnding: 'lf',
+			text,
+			version: VERSION,
+		},
+	};
+}
+
+const TEXT = textResult('hello');
 const BINARY: FileResult<FileContent> = { kind: 'ok', value: { kind: 'binary', version: VERSION } };
 const TOO_LARGE: FileResult<FileContent> = { error: { code: 'too-large' }, kind: 'error' };
 
@@ -44,6 +48,11 @@ function harness() {
 	const createModel = vi.fn<(content: { readonly text: string }) => FakeModel>(
 		(content) => new FakeModel(content),
 	);
+	const updateModel = vi.fn<(model: FakeModel, content: { readonly text: string }) => void>(
+		(model, content) => {
+			model.text = content.text;
+		},
+	);
 	const document = new CodeEditorTextDocument<FakeModel>({
 		createModel,
 		limit: 10,
@@ -51,6 +60,7 @@ function harness() {
 			new Promise((resolve) => {
 				reads.push({ options, resolve, signal });
 			}),
+		updateModel,
 	});
 	return {
 		async answer(result: FileResult<FileContent>): Promise<PendingRead> {
@@ -64,6 +74,7 @@ function harness() {
 		createModel,
 		document,
 		reads,
+		updateModel,
 	};
 }
 
@@ -105,5 +116,27 @@ describe('CodeEditorTextDocument', () => {
 
 		document.openAnyway();
 		expect(reads).toHaveLength(3);
+	});
+
+	it('takes a reload into the shown model past every refusal, and keeps the text when it fails', async () => {
+		const { answer, createModel, document, reads, updateModel } = harness();
+		await answer(TEXT);
+		const shown = document.getState();
+		if (shown.kind !== 'text') throw new Error(`Expected text, got ${shown.kind}.`);
+
+		document.reload();
+		expect(document.getState()).toBe(shown);
+		expect(reads.at(-1)?.options.forceText).toBe(true);
+		expect(reads.at(-1)?.options.limit).toBeGreaterThan(10);
+		await answer(textResult('world'));
+		const reloaded = document.getState();
+		expect(reloaded.kind === 'text' ? reloaded.model : null).toBe(shown.model);
+		expect(updateModel).toHaveBeenCalledOnce();
+		expect(shown.model.text).toBe('world');
+		expect(createModel).toHaveBeenCalledOnce();
+
+		document.reload();
+		await answer({ error: { code: 'not-found' }, kind: 'error' });
+		expect(document.getState()).toBe(reloaded);
 	});
 });

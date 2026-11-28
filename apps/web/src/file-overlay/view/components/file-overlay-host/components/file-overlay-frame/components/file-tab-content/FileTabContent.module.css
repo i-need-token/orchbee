@@ -1,0 +1,23 @@
+/* The code editor's own placeholder loads with it, so a failed load centers its message here. */
+.failure {
+	box-sizing: border-box;
+	display: flex;
+	height: 100%;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	overflow: auto;
+	gap: var(--ob-ref-space-3);
+	padding: var(--ob-ref-space-4);
+	background: var(--ob-sys-color-surface-canvas);
+	text-align: center;
+}
+
+.message {
+	max-width: var(--ob-ref-layout-prose-width);
+	margin: 0;
+	color: var(--ob-sys-color-text-primary);
+	font: var(--ob-sys-typography-body-md);
+	overflow-wrap: anywhere;
+	user-select: text;
+}

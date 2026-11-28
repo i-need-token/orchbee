@@ -31,6 +31,7 @@ import styles from './FileOverlayHost.module.css';
  */
 export function FileOverlayHost({
 	commands,
+	contents,
 	dispatch,
 	fileBarPosition,
 	focusTerminal,
@@ -49,6 +50,7 @@ export function FileOverlayHost({
 	return (
 		<FileOverlayHostStoreProvider
 			commands={commands}
+			contents={contents}
 			dispatch={dispatch}
 			focusRequest={focusRequest}
 			focusTerminal={focusTerminal}

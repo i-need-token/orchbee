@@ -83,6 +83,7 @@ async function textDocument(): Promise<CodeEditorTextDocument<FakeModel>> {
 	const document = new CodeEditorTextDocument<FakeModel>({
 		createModel: () => new FakeModel(),
 		limit: 10,
+		updateModel: () => undefined,
 		read: () =>
 			Promise.resolve({
 				kind: 'ok',

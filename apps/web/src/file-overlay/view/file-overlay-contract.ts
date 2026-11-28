@@ -4,7 +4,7 @@ import type { ComponentType, Ref, RefObject } from 'react';
 
 import type { PointerDropTarget } from '../../pointer-drag';
 import type { FileOverlayEvent, FileOverlayPipPosition } from '../model';
-import type { FileOverlayStore } from '../workspace-stores';
+import type { FileOverlayStore, FileTabContents } from '../workspace-stores';
 
 /** The Workbench's elements whose boxes place the overlay. */
 export interface FileOverlayRegionElements {
@@ -92,6 +92,8 @@ export interface FileOverlayShortcutLabels {
 /** What the Workbench tells the shown Workspace's overlay. */
 export interface FileOverlayHostProps {
 	readonly commands: FileOverlayCommands;
+	/** The content behind the shown Workspace's tabs; null where no file session serves it. */
+	readonly contents: FileTabContents | null;
 	/** Applies an event to the shown overlay and runs the effects it returns. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
 	/**
