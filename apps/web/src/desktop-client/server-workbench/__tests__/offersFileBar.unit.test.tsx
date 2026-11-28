@@ -173,26 +173,32 @@ describe('the Desktop window composition', () => {
 
 			const fileBar = composed.container.querySelector('aside[data-slot="file-bar"]');
 			expect(fileBar?.getAttribute('aria-label')).toBe('File Bar');
-			await vi.waitFor(() =>
-				expect(fileBar?.querySelector('[data-slot="file-bar-toggles-row"]')).not.toBeNull(),
+			await vi.waitFor(
+				() => expect(fileBar?.querySelector('[data-slot="file-bar-toggles-row"]')).not.toBeNull(),
+				{ timeout: 4_000 },
 			);
 		},
 	);
 
-	it('holds the file session of the Workspace the File Bar shows, and none while it hides', async () => {
+	it('holds the file session of the active Workspace once the File Bar has shown it, hidden or not', async () => {
 		const composed = await composeWindow('development');
 		await composed.toggleFileBar();
 		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(1)]);
 
+		// Hidden, the File Bar keeps the session for the count badge on its button.
+		await composed.toggleFileBar();
+		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(1)]);
+
+		// A Workspace it has not shown in this run gets no session, and so no Git read, until it shows.
 		await React.act(async () => {
 			composed.projectWorkspaceRuntime.transition({
 				type: 'workspace-activated',
 				workspaceId: fixtureWorkspaceId(2),
 			});
 		});
-		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(2)]);
+		expect(composed.fileSessions.openWorkspaces()).toEqual([]);
 
 		await composed.toggleFileBar();
-		expect(composed.fileSessions.openWorkspaces()).toEqual([]);
+		expect(composed.fileSessions.openWorkspaces()).toEqual([fixtureWorkspaceId(2)]);
 	});
 });

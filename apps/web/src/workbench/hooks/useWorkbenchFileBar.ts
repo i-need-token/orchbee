@@ -36,6 +36,7 @@ type FileBarLoad =
 	| { readonly kind: 'ready'; readonly module: FileBarModule };
 
 const IDLE_LOAD: FileBarLoad = { kind: 'idle' };
+const NO_WORKSPACES: ReadonlySet<string> = new Set();
 
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
@@ -73,8 +74,19 @@ interface WorkbenchFileBarColumn {
 	readonly viewFocusRequest: number;
 }
 
+/** Source Control's count badge on the File Bar's button, from the File Bar's chunk. */
+interface WorkbenchFileBarToggleBadge {
+	readonly Badge: FileBarModule['FileBarToggleBadge'];
+	readonly session: FileWorkspaceSession;
+}
+
 /** The button that shows and hides the File Bar. */
 interface WorkbenchFileBarToggle {
+	/**
+	 * Present while the File Bar is hidden after it has shown the active Workspace in this run, so the
+	 * button carries the count its Source Control toggle would.
+	 */
+	readonly badge: WorkbenchFileBarToggleBadge | null;
 	readonly label: string;
 	readonly onToggle: () => void;
 	readonly shown: boolean;
@@ -136,8 +148,9 @@ function showViewActionId(view: FileBarViewId) {
 /**
  * The File Bar's place in the Workbench: its column after the terminal area, its width, whether it
  * shows, its active view and its button. It starts as this device last left it, hidden at first, and
- * the first show loads its views through the File Bar's lazy entry. While it shows, it holds the
- * active Workspace's file session, so a session starts only for a Workspace whose files it shows.
+ * the first show loads its views through the File Bar's lazy entry. It holds the active Workspace's
+ * file session once it has shown that Workspace in this run, hidden or not, so a session starts only
+ * for a Workspace whose files it showed, and the count badge follows it from then on.
  */
 export function useWorkbenchFileBar({
 	actionRuntime,
@@ -313,20 +326,26 @@ export function useWorkbenchFileBar({
 		setDockedForFocus(docked);
 		if (!docked) setViewFocusRequest(0);
 	}
+	// The Workspaces the File Bar has shown in this run, whose sessions it keeps for the count badge.
+	const [shownWorkspaces, setShownWorkspaces] = React.useState<ReadonlySet<string>>(NO_WORKSPACES);
+	if (docked && workspaceId !== null && !shownWorkspaces.has(workspaceId)) {
+		setShownWorkspaces(new Set([...shownWorkspaces, workspaceId]));
+	}
+	const holding = reachable && workspaceId !== null && (docked || shownWorkspaces.has(workspaceId));
 	const [session, setSession] = React.useState<FileWorkspaceSession | null>(null);
 	const sessions = React.useMemo(
 		() => (sessionPort === undefined ? null : new FileSessionRegistry(sessionPort)),
 		[sessionPort],
 	);
 	React.useEffect(() => {
-		if (sessions === null || !docked || workspaceId === null) return undefined;
+		if (sessions === null || !holding || workspaceId === null) return undefined;
 		const hold = sessions.hold(workspaceId);
 		setSession(hold.session);
 		return () => {
 			setSession(null);
 			hold.release();
 		};
-	}, [docked, sessions, workspaceId]);
+	}, [holding, sessions, workspaceId]);
 	React.useEffect(() => {
 		if (!docked || load.kind !== 'idle') return undefined;
 		let current = true;
@@ -344,6 +363,10 @@ export function useWorkbenchFileBar({
 	}, [docked, load.kind]);
 	const toggleView = reachable
 		? {
+				badge:
+					layout.visible || session === null || load.kind !== 'ready'
+						? null
+						: { Badge: load.module.FileBarToggleBadge, session },
 				label: intl.formatMessage(
 					layout.visible ? fileBarMessages.hideFileBar : fileBarMessages.showFileBar,
 				),

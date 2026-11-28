@@ -1,5 +1,10 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { fileBarMessages, useOrchbeeIntl, type MessageDescriptor } from '@orchbee/i18n';
+import {
+	fileBarMessages,
+	sourceControlMessages,
+	useOrchbeeIntl,
+	type MessageDescriptor,
+} from '@orchbee/i18n';
 import {
 	Button,
 	ProductIcon,
@@ -11,6 +16,7 @@ import {
 import type { KeyboardEvent, ReactNode } from 'react';
 
 import { FILE_BAR_VIEW_IDS, type FileBarViewId } from '../../../../file-bar-layout';
+import { FileBarCountBadge } from '../../../file-bar-count-badge/FileBarCountBadge';
 import styles from './FileBarViewSwitcher.module.css';
 
 const VIEW_ICONS: Readonly<Record<FileBarViewId, ProductIconName>> = {
@@ -25,6 +31,8 @@ const VIEW_LABELS: Readonly<Record<FileBarViewId, MessageDescriptor>> = {
 
 interface FileBarViewSwitcherProps {
 	readonly activeView: FileBarViewId;
+	/** Source Control's pending changes, which its toggle's badge counts; zero shows no badge. */
+	readonly changes: number;
 	readonly onSelectView: (view: FileBarViewId) => void;
 	readonly tabIdOf: (view: FileBarViewId) => string;
 	/** The active view's region, which the selected toggle controls. */
@@ -34,10 +42,12 @@ interface FileBarViewSwitcherProps {
 /**
  * The File Bar's view toggles, as VS Code's activity bar shows them at the top of its Side Bar. ← and
  * → move focus between them, Home and End to the ends, and Enter or Space selects one; Tab leaves at
- * the selected toggle.
+ * the selected toggle. Source Control's toggle carries its count badge, which its name and tooltip
+ * also say, as VS Code titles an activity with a badge.
  */
 export function FileBarViewSwitcher({
 	activeView,
+	changes,
 	onSelectView,
 	tabIdOf,
 	viewId,
@@ -76,7 +86,15 @@ export function FileBarViewSwitcher({
 			onKeyDown={onKeyDown}
 		>
 			{FILE_BAR_VIEW_IDS.map((view) => {
-				const label = intl.formatMessage(VIEW_LABELS[view]);
+				const count = view === 'source-control' ? changes : 0;
+				const name = intl.formatMessage(VIEW_LABELS[view]);
+				const label =
+					count === 0
+						? name
+						: intl.formatMessage(fileBarMessages.badgeLabelled, {
+								badge: intl.formatMessage(sourceControlMessages.badge, { count }),
+								label: name,
+							});
 				const selected = view === activeView;
 				return (
 					<Tooltip key={view}>
@@ -99,6 +117,7 @@ export function FileBarViewSwitcher({
 							}
 						>
 							<ProductIcon name={VIEW_ICONS[view]} />
+							<FileBarCountBadge count={count} />
 						</TooltipTrigger>
 						<TooltipContent side='bottom'>{label}</TooltipContent>
 					</Tooltip>

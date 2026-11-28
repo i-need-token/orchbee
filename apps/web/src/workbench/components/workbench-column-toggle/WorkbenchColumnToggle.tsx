@@ -12,8 +12,12 @@ import * as React from 'react';
 import styles from './WorkbenchColumnToggle.module.css';
 
 interface WorkbenchColumnToggleProps {
+	/** A count badge over the icon's bottom end, which `descriptionId` describes. */
+	readonly badge?: React.ReactNode;
 	/** The column it shows and hides: the Sidebar at the window's start, the File Bar at its end. */
 	readonly column: 'file-bar' | 'sidebar';
+	/** The element that describes the button beyond its name, such as what its badge counts. */
+	readonly descriptionId?: string | undefined;
 	readonly label: string;
 	readonly onToggle: () => void;
 	/** Whether the column shows. */
@@ -35,7 +39,9 @@ function columnToggleIcon(
 
 /** The button that shows and hides a column, as VS Code's title bar toggles its side bars. */
 export const WorkbenchColumnToggle = React.memo(function WorkbenchColumnToggle({
+	badge,
 	column,
+	descriptionId,
 	label,
 	onToggle,
 	pressed,
@@ -48,6 +54,7 @@ export const WorkbenchColumnToggle = React.memo(function WorkbenchColumnToggle({
 			<TooltipTrigger
 				render={
 					<Button
+						aria-describedby={descriptionId}
 						aria-label={label}
 						aria-pressed={pressed}
 						className={styles['trigger']}
@@ -63,6 +70,7 @@ export const WorkbenchColumnToggle = React.memo(function WorkbenchColumnToggle({
 				}
 			>
 				<ProductIcon name={columnToggleIcon(column, pressed)} />
+				{badge}
 			</TooltipTrigger>
 			{/* The tooltip opens toward the window's middle, so it stays in the window. */}
 			<TooltipContent align={column === 'sidebar' ? 'start' : 'end'} side='bottom'>

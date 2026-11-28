@@ -1,5 +1,6 @@
 /* The view fills the File Bar's panel: the sections stack from the top, the Changes list takes the
-   room the Repositories list leaves, and the progress line lies over the top edge. */
+   room the Repositories list leaves, and the progress line lies over the top edge. The view holds
+   focus itself only while no tree shows, ringed as the File Bar's view is. */
 .root {
 	position: relative;
 	display: flex;
@@ -8,6 +9,11 @@
 	min-height: 0;
 	flex-direction: column;
 	overflow: hidden;
+	outline: none;
+}
+
+.root:focus-visible {
+	box-shadow: inset 0 0 0 var(--ob-sys-focus-ring-width) var(--ob-sys-color-border-focus);
 }
 
 .section {

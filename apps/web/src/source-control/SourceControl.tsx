@@ -3,6 +3,7 @@ import { sourceControlMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
+import type { Ref } from 'react';
 
 import type { FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
@@ -21,11 +22,13 @@ import { useScmRowActions } from './hooks/useScmRowActions';
 import { useScmSections } from './hooks/useScmSections';
 import { useScmTreeMenu } from './hooks/useScmTreeMenu';
 import { useSourceControlActions } from './hooks/useSourceControlActions';
+import { useSourceControlFocus } from './hooks/useSourceControlFocus';
 import { useSourceControlModel } from './hooks/useSourceControlModel';
 import { scmCheckoutItem, scmRepositoryNames, scmSyncItem } from './model/scm-repository-row';
 import type { SourceControlState } from './model/SourceControlModel';
 import type { SourceControlViewStateStorage } from './model/source-control-view-state-storage';
 import { scmWelcomeItems } from './model/scmWelcomeItems';
+import type { SourceControlFocus } from './types/source-control-focus';
 import type {
 	SourceControlNotifications,
 	SourceControlQuickInput,
@@ -42,6 +45,8 @@ interface SourceControlProps {
 	readonly platform: KeyboardShortcutPlatform;
 	/** Where VS Code's Git pickers ask, such as which parent repository to open. */
 	readonly quickInput: SourceControlQuickInput;
+	/** Receives what moves focus into Source Control. */
+	readonly ref?: Ref<SourceControlFocus> | undefined;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
 	/** Where the view mode, sort and sections are saved between runs; without it they are not. */
@@ -94,6 +99,7 @@ export function SourceControl({
 	notifications,
 	platform,
 	quickInput,
+	ref,
 	session,
 	storage,
 }: SourceControlProps): React.ReactNode {
@@ -135,21 +141,38 @@ export function SourceControl({
 		[renderRepository],
 	);
 	const renderChangeRow = useScmChangeRowRenderer({ model, renderRepository, rowCommands, state });
+	const welcome =
+		state === null
+			? []
+			: scmWelcomeItems({
+					closed: state.closed,
+					displayed: state.repositories.length,
+					root: state.root,
+					summary: state.workspace.summary,
+				});
+	const focusTracking = useSourceControlFocus({
+		changesTree,
+		reference: ref,
+		repositoriesTree,
+		rootReference,
+		treeShown: state !== null && welcome.length === 0,
+	});
 	if (model === null || state === null) {
-		return <div className={styles['root']} data-slot='source-control' />;
+		return (
+			<div
+				className={styles['root']}
+				data-slot='source-control'
+				ref={rootReference}
+				tabIndex={-1}
+			/>
+		);
 	}
 	const busy = state.repositories.some(
 		(repository) => repository.summary.busy || repository.loading,
 	);
-	const welcome = scmWelcomeItems({
-		closed: state.closed,
-		displayed: state.repositories.length,
-		root: state.root,
-		summary: state.workspace.summary,
-	});
 	if (welcome.length > 0) {
 		return (
-			<div className={styles['root']} data-slot='source-control'>
+			<div className={styles['root']} data-slot='source-control' ref={rootReference} tabIndex={-1}>
 				{busy ? <ScmProgress /> : null}
 				<ScmWelcome
 					items={welcome}
@@ -166,13 +189,14 @@ export function SourceControl({
 	const repositoriesHeight = dragging ?? sections.repositoriesSize ?? fitted;
 	const bothExpanded = !sections.repositoriesCollapsed && !sections.changesCollapsed;
 	return (
-		<div className={styles['root']} data-slot='source-control' ref={rootReference}>
+		<div className={styles['root']} data-slot='source-control' ref={rootReference} tabIndex={-1}>
 			{busy ? <ScmProgress /> : null}
 			<section
 				className={styles['section']}
 				data-collapsed={sections.repositoriesCollapsed ? '' : undefined}
 				data-fill={sections.changesCollapsed ? '' : undefined}
 				data-slot='scm-section'
+				onFocus={focusTracking.onRepositoriesFocus}
 			>
 				<ScmSectionHeader
 					collapsed={sections.repositoriesCollapsed}
@@ -224,6 +248,7 @@ export function SourceControl({
 				data-collapsed={sections.changesCollapsed ? '' : undefined}
 				data-fill={sections.changesCollapsed ? undefined : ''}
 				data-slot='scm-section'
+				onFocus={focusTracking.onChangesFocus}
 			>
 				<ScmSectionHeader
 					collapsed={sections.changesCollapsed}

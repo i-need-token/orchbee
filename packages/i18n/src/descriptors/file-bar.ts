@@ -7,6 +7,18 @@ const message = createMessageDescriptorFactory(enUSFileBarMessages);
 
 /** The File Bar: the column of file views beside the terminal area, never the Sidebar. */
 export const fileBarMessages = defineMessages({
+	badgeLabelled: message(
+		'fileBar.badge.labelled',
+		'Accessible name and tooltip of a File Bar toggle that carries a count badge: the toggle’s name, then what the badge counts, as VS Code titles an activity with a badge.',
+	),
+	badgeOverThousands: message(
+		'fileBar.badge.overThousands',
+		'Text of a count badge above a whole number of thousands, as VS Code shows 1,500 changes as 1K+.',
+	),
+	badgeThousands: message(
+		'fileBar.badge.thousands',
+		'Text of a count badge at a whole number of thousands, as VS Code shows 2,000 changes as 2K.',
+	),
 	explorer: message(
 		'fileBar.views.explorer',
 		'Name of the File Bar view that browses the active Workspace’s files, as VS Code names its Explorer.',

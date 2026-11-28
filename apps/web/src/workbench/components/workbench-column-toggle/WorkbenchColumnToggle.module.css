@@ -1,4 +1,6 @@
+/* Positioned for a count badge, which lies over the bottom end of the icon. */
 .trigger {
+	position: relative;
 	color: var(--ob-sys-color-icon-secondary);
 }
 
@@ -11,7 +13,6 @@
    tap on that ring still hits it. The transparent 4 px border holds the ring, the fill stays in the
    padding box, and the radius grows by the ring so the fill keeps the button's corners. */
 .trigger[data-touch] {
-	position: relative;
 	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 	border-width: var(--ob-ref-space-1);

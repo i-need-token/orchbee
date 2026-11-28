@@ -5,6 +5,11 @@ import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'rea
 import { prefetchCodeEditor } from '../../../code-editor';
 import { FileExplorer, type FileExplorerFocus } from '../../../file-explorer';
 import {
+	SourceControl,
+	useSourceControlCount,
+	type SourceControlFocus,
+} from '../../../source-control';
+import {
 	useWorkbenchKeyboardScope,
 	type WorkbenchKeyboardScope,
 } from '../../../workbench-keyboard-scopes';
@@ -29,6 +34,7 @@ export function FileBarColumn({
 	notifications,
 	onSelectView,
 	platform,
+	quickInput,
 	session,
 	storage,
 	viewFocusRequest,
@@ -48,18 +54,24 @@ export function FileBarColumn({
 	const viewId = `${idPrefix}-view`;
 	const [explorerMounted, setExplorerMounted] = useState(activeView === 'explorer');
 	if (activeView === 'explorer' && !explorerMounted) setExplorerMounted(true);
+	const [sourceControlMounted, setSourceControlMounted] = useState(activeView === 'source-control');
+	if (activeView === 'source-control' && !sourceControlMounted) setSourceControlMounted(true);
 	const explorerReference = useRef<FileExplorerFocus>(null);
+	const sourceControlReference = useRef<SourceControlFocus>(null);
 	const focusView = useMemoizedFn((): boolean => {
-		const explorer = activeView === 'explorer' ? explorerReference.current : null;
-		explorer?.focus();
-		return explorer !== null;
+		const view =
+			activeView === 'explorer' ? explorerReference.current : sourceControlReference.current;
+		view?.focus();
+		return view !== null;
 	});
+	const changes = useSourceControlCount(session?.git ?? null);
 	const viewReference = useFileBarViewFocusRequest(viewFocusRequest, focusView);
 	return (
 		<div className={styles['root']} ref={rootReference}>
 			<div className={styles['togglesRow']} data-slot='file-bar-toggles-row'>
 				<FileBarViewSwitcher
 					activeView={activeView}
+					changes={changes ?? 0}
 					onSelectView={onSelectView}
 					tabIdOf={tabIdOf}
 					viewId={viewId}
@@ -89,6 +101,20 @@ export function FileBarColumn({
 							notifications={notifications}
 							platform={platform}
 							ref={explorerReference}
+							session={session}
+							storage={storage}
+						/>
+					</div>
+				) : null}
+				{sourceControlMounted ? (
+					<div className={styles['viewContent']} hidden={activeView !== 'source-control'}>
+						<SourceControl
+							actionRuntime={actionRuntime}
+							actionScope={actionScope}
+							notifications={notifications}
+							platform={platform}
+							quickInput={quickInput}
+							ref={sourceControlReference}
 							session={session}
 							storage={storage}
 						/>

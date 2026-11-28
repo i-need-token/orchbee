@@ -1,0 +1,15 @@
+/* VS Code's compact badge: in the accent colors, over the bottom end of the toggle that holds it. */
+.root {
+	position: absolute;
+	inset-block-end: 0;
+	inset-inline-end: 0;
+	box-sizing: border-box;
+	min-width: var(--ob-ref-size-icon-md);
+	padding-inline: var(--ob-ref-space-0-5);
+	border-radius: var(--ob-ref-radius-full);
+	background: var(--ob-sys-color-action-primary);
+	color: var(--ob-sys-color-action-primary-text);
+	font: var(--ob-sys-typography-label-xs);
+	pointer-events: none;
+	text-align: center;
+}

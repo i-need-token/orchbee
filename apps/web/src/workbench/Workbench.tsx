@@ -256,6 +256,9 @@ export function Workbench({
 		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const FileBarColumn = fileBar.column?.content ?? null;
+	const fileBarBadge = fileBar.toggle?.badge ?? null;
+	const FileBarToggleBadge = fileBarBadge?.Badge ?? null;
+	const fileBarBadgeId = React.useId();
 	const FileOverlayHost = fileOverlay.host?.content ?? null;
 	// The Sidebar and the File Bar share the panel group, so both follow its layout.
 	const onLayoutChanged = useMemoizedFn(
@@ -780,6 +783,7 @@ export function Workbench({
 											notifications={notificationQueue}
 											onSelectView={fileBar.column.onSelectView}
 											platform={shortcutPlatform}
+											quickInput={quickInputSessions}
 											session={fileBar.column.session}
 											storage={layoutStorage}
 											viewFocusRequest={fileBar.column.viewFocusRequest}
@@ -800,7 +804,13 @@ export function Workbench({
 			{fileBar.toggle === null ? null : (
 				<div className={styles['fileBarToggle']} data-slot='workbench-file-bar-toggle-position'>
 					<WorkbenchColumnToggle
+						badge={
+							fileBarBadge === null || FileBarToggleBadge === null ? undefined : (
+								<FileBarToggleBadge descriptionId={fileBarBadgeId} session={fileBarBadge.session} />
+							)
+						}
 						column='file-bar'
+						descriptionId={fileBarBadge === null ? undefined : fileBarBadgeId}
 						label={fileBar.toggle.label}
 						onToggle={fileBar.toggle.onToggle}
 						pressed={fileBar.toggle.shown}

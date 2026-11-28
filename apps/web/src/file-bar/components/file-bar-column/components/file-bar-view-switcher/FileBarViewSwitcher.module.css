@@ -5,7 +5,9 @@
 	gap: var(--ob-ref-space-1);
 }
 
+/* Positioned for the count badge, which lies over the bottom end of the icon. */
 .tab {
+	position: relative;
 	color: var(--ob-sys-color-icon-secondary);
 }
 
