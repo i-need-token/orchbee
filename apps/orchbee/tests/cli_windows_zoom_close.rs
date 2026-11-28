@@ -46,6 +46,8 @@ impl Driver {
 
     fn zoom_current(&self, panels: u64) -> String {
         let client = self.tui.client.clone();
+        // A Client still busy with the last close's own refresh refuses the zoom as busy.
+        self.fixture.settle_ready(&client);
         let zoomed = self.fixture.run(&[
             "panel",
             "maximize",
