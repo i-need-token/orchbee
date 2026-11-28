@@ -97,6 +97,7 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleFileBar: 'workbench.file-bar.toggle',
 	toggleFileOverlayFull: 'file-overlay.tier.toggle-full',
+	closeFileOverlay: 'file-overlay.overlay.close',
 	closeAllFileOverlayTabs: 'file-overlay.tab.close-all',
 	closeFileOverlayTab: 'file-overlay.tab.close',
 	closeFileOverlayTabsToTheRight: 'file-overlay.tab.close-right',
@@ -397,6 +398,7 @@ export interface WorkbenchActionCatalog extends FileOverlayActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileBar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileOverlayFull]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.closeFileOverlay]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeAllFileOverlayTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeFileOverlayTabsToTheRight]: ActionSignature<WorkbenchFileOverlayTabInput>;

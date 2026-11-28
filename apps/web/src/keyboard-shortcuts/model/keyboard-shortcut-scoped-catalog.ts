@@ -28,6 +28,7 @@ import {
 type KeyboardShortcutScopedName =
 	| 'close-all-editors'
 	| 'close-editor'
+	| 'close-file-overlay'
 	| 'close-other-editors'
 	| 'close-saved-editors'
 	| 'keep-editor'
@@ -85,6 +86,7 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 	'workbench.file-bar.toggle': 'toggle-file-bar',
 	'workbench.file-bar.toggle.in-file-bar': 'toggle-file-bar',
 	'file-overlay.tier.toggle-full': 'toggle-file-overlay-full',
+	'file-overlay.overlay.close': 'close-file-overlay',
 	'file-overlay.tab.close': 'close-editor',
 	'file-overlay.tab.close.function-key': 'close-editor',
 	'file-overlay.tab.close-others': 'close-other-editors',

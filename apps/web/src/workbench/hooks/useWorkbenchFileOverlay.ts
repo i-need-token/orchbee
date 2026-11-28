@@ -13,13 +13,17 @@ import * as React from 'react';
 import {
 	FileOverlayRegistry,
 	loadFileOverlay,
+	readFileOverlayPipPosition,
 	splitFileTabPath,
+	writeFileOverlayPipPosition,
 	type FileOverlayCommandSource,
 	type FileOverlayCommands,
 	type FileOverlayEvent,
 	type FileOverlayFocus,
 	type FileOverlayMenuEntry,
 	type FileOverlayModule,
+	type FileOverlayPipPosition,
+	type FileOverlayPipStorage,
 	type FileOverlayRegionElements,
 	type FileOverlayShortcutLabels,
 	type FileOverlayStore,
@@ -78,6 +82,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Whether the Sidebar shows docked, which offers left-expand while the File Bar is on the right. */
 	readonly sidebarDocked: boolean;
+	/** Where picture-in-picture's position persists, read once as the Workbench starts. */
+	readonly storage: FileOverlayPipStorage | undefined;
 	/** The active Workspace's terminals, which the terminal area shows; null outside a Workspace. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
 	/** Drops of files on terminals, which the scrim passes to the terminal it covers. */
@@ -94,6 +100,8 @@ interface WorkbenchFileOverlayHost {
 	readonly content: FileOverlayModule['FileOverlayHost'];
 	readonly dispatch: (event: FileOverlayEvent) => void;
 	readonly focusTerminal: () => void;
+	readonly movePip: (position: FileOverlayPipPosition) => void;
+	readonly pipPosition: FileOverlayPipPosition | null;
 	readonly platform: WorkbenchShortcutPlatform;
 	/** Receives how the Workbench gives the overlay the keys. */
 	readonly reference: React.RefCallback<FileOverlayFocus>;
@@ -147,6 +155,7 @@ export function useWorkbenchFileOverlay({
 	shortcutLabelForAction,
 	shortcutPlatform,
 	sidebarDocked,
+	storage,
 	terminalContext,
 	terminalPathDrops,
 	workspaceId,
@@ -156,6 +165,14 @@ export function useWorkbenchFileOverlay({
 	const [registry] = React.useState(() =>
 		offered ? new FileOverlayRegistry(sidebarDocked) : null,
 	);
+	// Every Workspace's picture-in-picture shows where a drag last left one.
+	const [pipPosition, setPipPosition] = React.useState<FileOverlayPipPosition | null>(() =>
+		offered ? readFileOverlayPipPosition(storage) : null,
+	);
+	const movePip = useMemoizedFn((position: FileOverlayPipPosition) => {
+		setPipPosition(position);
+		writeFileOverlayPipPosition(storage, position);
+	});
 	const sidebarReference = React.useRef<HTMLDivElement>(null);
 	const terminalAreaReference = React.useRef<HTMLDivElement>(null);
 	const overlayReference = React.useRef<FileOverlayFocus>(null);
@@ -223,6 +240,14 @@ export function useWorkbenchFileOverlay({
 			) ?? null,
 		[dispatch, resolveCurrentTerminal, terminalPathDrops],
 	);
+	const invokeCloseOverlay = useMemoizedFn(() => {
+		reportActionOutcome('button', () =>
+			typedRuntime.execute(WORKBENCH_ACTION_IDS.closeFileOverlay, undefined, {
+				scope: actionScope,
+				source: 'button',
+			}),
+		);
+	});
 	const invokeToggleFull = useMemoizedFn(() => {
 		reportActionOutcome('button', () =>
 			typedRuntime.execute(WORKBENCH_ACTION_IDS.toggleFileOverlayFull, undefined, {
@@ -274,6 +299,7 @@ export function useWorkbenchFileOverlay({
 	);
 	const commands = React.useMemo<FileOverlayCommands>(
 		() => ({
+			closeOverlay: invokeCloseOverlay,
 			closeTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.closeFileOverlayTab, tabId, source),
 			keepTab: (tabId, source) =>
@@ -287,7 +313,7 @@ export function useWorkbenchFileOverlay({
 			unpinTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.unpinFileOverlayTab, tabId, source),
 		}),
-		[invokeTabAction, invokeToggleFull, moveTab, tabMenu, titleActions],
+		[invokeCloseOverlay, invokeTabAction, invokeToggleFull, moveTab, tabMenu, titleActions],
 	);
 	// How many tab picks wait on the quick input; while one does, its current session is the picker.
 	const tabPicks = React.useRef(0);
@@ -422,12 +448,13 @@ export function useWorkbenchFileOverlay({
 			current = false;
 		};
 	}, [load.kind, reportLoadFailure, shown]);
+	const closeOverlayShortcutLabel = shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeFileOverlay);
 	const toggleFullShortcutLabel = shortcutLabelForAction(
 		WORKBENCH_ACTION_IDS.toggleFileOverlayFull,
 	);
 	const shortcutLabels = React.useMemo<FileOverlayShortcutLabels>(
-		() => ({ toggleFull: toggleFullShortcutLabel }),
-		[toggleFullShortcutLabel],
+		() => ({ closeOverlay: closeOverlayShortcutLabel, toggleFull: toggleFullShortcutLabel }),
+		[closeOverlayShortcutLabel, toggleFullShortcutLabel],
 	);
 	const host =
 		store === null || !shown || load.kind !== 'ready'
@@ -437,6 +464,8 @@ export function useWorkbenchFileOverlay({
 					content: load.module.FileOverlayHost,
 					dispatch,
 					focusTerminal: returnToTerminal,
+					movePip,
+					pipPosition,
 					platform: shortcutPlatform,
 					reference: attachOverlay,
 					regions,

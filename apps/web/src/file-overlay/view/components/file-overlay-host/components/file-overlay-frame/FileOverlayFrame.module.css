@@ -29,3 +29,11 @@
 	min-height: 0;
 	flex: 1;
 }
+
+/* Picture-in-picture: the same frame at its own box, with no row. */
+.root[data-pip] {
+	top: var(--ob-comp-file-overlay-pip-block-start);
+	left: var(--ob-comp-file-overlay-pip-inline-start);
+	width: var(--ob-comp-file-overlay-pip-inline-size);
+	height: var(--ob-comp-file-overlay-pip-block-size);
+}

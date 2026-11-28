@@ -674,6 +674,26 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
+				execution: rowExecution,
+				getAvailability: rowAvailability,
+				handler: {
+					execute: (context) => {
+						if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
+						context.markCommitted();
+						// Every tab closes, sticky ones too, so the overlay closes with them.
+						return apply({ target: { kind: 'overlay' }, type: 'close-requested' });
+					},
+				},
+				// VS Code parity: workbench.action.closeAllGroups, with its one editor group.
+				id: WORKBENCH_ACTION_IDS.closeFileOverlay,
+				input: noActionInput,
+				title: fileOverlayMessages.closeOverlay,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
 				execution: tabExecution,
 				// VS Code's Keep Open is greyed for a tab that is not in preview.
 				getAvailability: (_context, input) => {

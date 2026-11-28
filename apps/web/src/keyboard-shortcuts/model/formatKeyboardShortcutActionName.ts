@@ -22,6 +22,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.closeAllEditors);
 		case 'close-editor':
 			return intl.formatMessage(fileOverlayMessages.closeEditor);
+		case 'close-file-overlay':
+			return intl.formatMessage(fileOverlayMessages.closeOverlay);
 		case 'close-other-editors':
 			return intl.formatMessage(fileOverlayMessages.closeOtherEditors);
 		case 'close-saved-editors':

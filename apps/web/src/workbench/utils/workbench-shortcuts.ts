@@ -555,6 +555,16 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'file-bar',
 		shortcutId: 'file-overlay.tier.toggle-full',
 	},
+	// Close All Editor Groups, which closes VS Code's one editor group with every tab in it.
+	fileOverlayClose: {
+		actionId: WORKBENCH_ACTION_IDS.closeFileOverlay,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('KeyW', ['mod', 'shift'])],
+			standard: [chord('KeyK', ['mod']), chord('KeyW', ['mod', 'shift'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.overlay.close',
+	},
 	fileTabClose: {
 		actionId: WORKBENCH_ACTION_IDS.closeFileOverlayTab,
 		defaults: {

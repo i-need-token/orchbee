@@ -987,6 +987,12 @@
 	--ob-comp-file-overlay-cover-block-start: 0px;
 	--ob-comp-file-overlay-cover-inline-size: 0px;
 	--ob-comp-file-overlay-cover-block-size: 0px;
+	/* Where the file overlay shows while shrunk to picture-in-picture, measured in the Workbench
+	   root; a drag moves the frame's own copy of the corner until its release. */
+	--ob-comp-file-overlay-pip-inline-start: 0px;
+	--ob-comp-file-overlay-pip-block-start: 0px;
+	--ob-comp-file-overlay-pip-inline-size: 0px;
+	--ob-comp-file-overlay-pip-block-size: 0px;
 	/* How far a file tab moves along the overlay's tab row from its slot while a drag reorders it. */
 	--ob-comp-file-tab-reorder-offset: 0px;
 

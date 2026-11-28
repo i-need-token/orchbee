@@ -25,6 +25,8 @@ interface FileTabRowProps {
 	readonly idPrefix: string;
 	/** The content panel's element id, which the active tab controls. */
 	readonly panelId: string;
+	/** False while picture-in-picture hides the row. */
+	readonly shown: boolean;
 }
 
 /** The tab a key moves the focus to from the tab at `index`; VS Code's tabs do not wrap. */
@@ -53,7 +55,7 @@ function tabIndexForKey(key: string, index: number, count: number): number | nul
  * tab they reach, and Enter or Space shows the focused one. Each tab has VS Code's tab menu, and a
  * drag along the row moves a tab while the others slide out of its way.
  */
-export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
+export function FileTabRow({ idPrefix, panelId, shown }: FileTabRowProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	const tabs = useFileOverlayHostStore((state) => state.tabs);
 	const commands = useFileOverlayHostCommands();
@@ -77,7 +79,7 @@ export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 		tabs: tabs.tabs,
 	});
 	const handOffFocus = useFileTabFocusHandoff(rowReference, tabs.activeId);
-	useFileTabFocusRequest(rowReference);
+	useFileTabFocusRequest(rowReference, shown);
 	const menu = useFileTabMenu(rowReference, listReference, tabs.tabs);
 	const onKeyDown = useMemoizedFn((event: KeyboardEvent<HTMLDivElement>) => {
 		const list = listReference.current;

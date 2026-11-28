@@ -3,7 +3,7 @@ import type { ProductIconName } from '@orchbee/ui/components';
 import type { ComponentType, Ref, RefObject } from 'react';
 
 import type { PointerDropTarget } from '../../pointer-drag';
-import type { FileOverlayEvent } from '../model';
+import type { FileOverlayEvent, FileOverlayPipPosition } from '../model';
 import type { FileOverlayStore } from '../workspace-stores';
 
 /** The Workbench's elements whose boxes place the overlay. */
@@ -54,14 +54,17 @@ export interface FileOverlayTitleActions {
 /** How the Workbench gives the keys to the shown overlay. */
 export interface FileOverlayFocus {
 	/**
-	 * Gives the active tab the keys once the overlay shows the change just dispatched, as VS Code
-	 * focuses the editor it opens; nothing happens while the overlay does not open.
+	 * Gives the overlay the keys once it shows the change just dispatched: the active tab while the
+	 * overlay is open, as VS Code focuses the editor it opens, or picture-in-picture while it stays
+	 * shrunk. Nothing happens while the overlay is closed.
 	 */
 	focus(): void;
 }
 
 /** The Actions the overlay's controls run; each runs as a press of its control. */
 export interface FileOverlayCommands {
+	/** Closes the overlay with every tab in it: picture-in-picture's close button. */
+	readonly closeOverlay: () => void;
 	/** Close Editor for one tab: its close button or a middle click. */
 	readonly closeTab: (tabId: string, source: FileOverlayCommandSource) => void;
 	/** Keep Editor for the preview tab, which a double-click runs. */
@@ -82,6 +85,7 @@ export interface FileOverlayCommands {
 
 /** The keys bound to the overlay's Actions, each absent while nothing binds it. */
 export interface FileOverlayShortcutLabels {
+	readonly closeOverlay: string | undefined;
 	readonly toggleFull: string | undefined;
 }
 
@@ -94,6 +98,10 @@ export interface FileOverlayHostProps {
 	readonly focusTerminal: () => void;
 	/** The platform whose pointer and key conventions the overlay follows. */
 	readonly platform: KeyboardShortcutPlatform;
+	/** Keeps where a drag left picture-in-picture, which every Workspace's overlay shares. */
+	readonly movePip: (position: FileOverlayPipPosition) => void;
+	/** Where picture-in-picture shows; null places it at the terminal area's bottom-right corner. */
+	readonly pipPosition: FileOverlayPipPosition | null;
 	/** Receives how the Workbench gives the keys to the overlay. */
 	readonly ref?: Ref<FileOverlayFocus> | undefined;
 	readonly regions: FileOverlayRegionElements;

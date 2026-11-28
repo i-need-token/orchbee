@@ -1,0 +1,37 @@
+/* Picture-in-picture's controls lie over the frame's content, which shows through them. */
+.root {
+	position: absolute;
+	inset: 0;
+}
+
+/* The click shield: the whole of picture-in-picture is one button, rounded as the frame is inside
+   its border. A drag moves it on touch screens too. */
+.shield {
+	position: absolute;
+	inset: 0;
+	padding: 0;
+	border: none;
+	border-radius: calc(var(--ob-ref-radius-2xl) - var(--ob-ref-border-width-default));
+	background: transparent;
+	cursor: pointer;
+	touch-action: none;
+}
+
+.shield:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: calc(var(--ob-sys-focus-ring-width) * -1);
+}
+
+/* Close sits in the top corner. Where the pointer can hover, it shows only while the pointer is over
+   picture-in-picture or the keys are in it. */
+.close {
+	position: absolute;
+	top: var(--ob-ref-space-2);
+	right: var(--ob-ref-space-2);
+}
+
+@media (hover: hover) {
+	.root:not(:hover, :focus-within) .close {
+		opacity: 0;
+	}
+}

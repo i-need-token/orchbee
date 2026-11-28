@@ -17,6 +17,7 @@ afterEach(() => {
 });
 
 const NO_COMMANDS: FileOverlayCommands = {
+	closeOverlay: () => undefined,
 	closeTab: () => undefined,
 	keepTab: () => undefined,
 	moveTab: () => undefined,
@@ -55,10 +56,10 @@ function renderOverlay(paths: readonly string[]) {
 				focusRequest={focusRequest}
 				focusTerminal={() => undefined}
 				platform='standard'
-				shortcutLabels={{ toggleFull: undefined }}
+				shortcutLabels={{ closeOverlay: undefined, toggleFull: undefined }}
 				store={store}
 			>
-				<FileOverlayFrame />
+				<FileOverlayFrame pip={null} />
 			</FileOverlayHostStoreProvider>
 		);
 	}

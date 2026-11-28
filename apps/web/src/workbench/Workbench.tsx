@@ -272,6 +272,7 @@ export function Workbench({
 		shortcutLabelForAction,
 		shortcutPlatform,
 		sidebarDocked: view.sidebarPresentation === 'docked',
+		storage: layoutStorage,
 		terminalContext,
 		terminalPathDrops,
 		workspaceId: activeWorkspaceId,
@@ -851,6 +852,8 @@ export function Workbench({
 					commands={fileOverlay.host.commands}
 					dispatch={fileOverlay.host.dispatch}
 					focusTerminal={fileOverlay.host.focusTerminal}
+					movePip={fileOverlay.host.movePip}
+					pipPosition={fileOverlay.host.pipPosition}
 					platform={fileOverlay.host.platform}
 					ref={fileOverlay.host.reference}
 					regions={fileOverlay.host.regions}

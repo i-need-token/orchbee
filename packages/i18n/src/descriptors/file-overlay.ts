@@ -23,6 +23,10 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.closeEditorsToTheRight',
 		'Action that closes the file tabs after a file tab in the file overlay’s tab row, except the pinned ones; the tab is the active one unless a tab is named. VS Code calls a file open in a tab an editor.',
 	),
+	closeOverlay: message(
+		'fileOverlay.actions.closeOverlay',
+		'Action that closes the file overlay with every file tab in it, pinned ones too; also the accessible name of the close button on the file overlay shrunk to picture-in-picture.',
+	),
 	closeOtherEditors: message(
 		'fileOverlay.actions.closeOtherEditors',
 		'Action that closes every file tab in the file overlay but one, except the pinned ones; the one kept is the active tab unless a tab is named. VS Code calls a file open in a tab an editor.',
@@ -134,6 +138,10 @@ export const fileOverlayMessages = defineMessages({
 	restore: message(
 		'fileOverlay.actions.restore',
 		'Label of the button at the end of the file overlay’s tab row that returns the widened overlay to its size before.',
+	),
+	restorePip: message(
+		'fileOverlay.pip.restore',
+		'Accessible name of the file overlay shrunk to picture-in-picture, a small frame over the terminal area; activating it shows the overlay again at its size before.',
 	),
 	retry: message(
 		'fileOverlay.actions.retry',

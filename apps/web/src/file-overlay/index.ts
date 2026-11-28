@@ -1,7 +1,12 @@
 export { FILE_OVERLAY_ACTION_IDS, fileOverlayOpenInput } from './file-overlay-actions';
 export type { FileOverlayActionCatalog } from './file-overlay-actions';
-export { splitFileTabPath } from './model';
-export type { FileOverlayEvent, FileOverlayState } from './model';
+export { readFileOverlayPipPosition, splitFileTabPath, writeFileOverlayPipPosition } from './model';
+export type {
+	FileOverlayEvent,
+	FileOverlayPipPosition,
+	FileOverlayPipStorage,
+	FileOverlayState,
+} from './model';
 export { loadFileOverlay } from './view';
 export type {
 	FileOverlayCommandSource,
