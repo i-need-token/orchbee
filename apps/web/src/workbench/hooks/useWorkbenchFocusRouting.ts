@@ -10,6 +10,7 @@ import {
 import type {
 	WorkbenchFocusInvocation,
 	WorkbenchFocusRouting,
+	WorkbenchSuppliedFocusRegion,
 	WorkbenchTerminalHandover,
 } from '../types/workbench-focus-routing';
 import {
@@ -20,7 +21,7 @@ import {
 	resolveWorkbenchFocusRegionFromTarget,
 } from '../utils/workbench-focus-dom';
 
-/** `elsewhere` is an element no region holds, such as a File Bar view: the terminal leaves it focus. */
+/** `elsewhere` is an element no region holds, such as a column's toggle: the terminal leaves it focus. */
 type WorkbenchFocusOwner = WorkbenchFocusRegion | 'elsewhere' | 'exclusive' | null;
 
 export function useWorkbenchFocusRouting({
@@ -50,6 +51,10 @@ export function useWorkbenchFocusRouting({
 	const pendingFocusRegionReference = React.useRef<WorkbenchFocusRegion | null>(null);
 	/** The region of the last focus outside any menu or dialog, where a closing one returns it. */
 	const focusReturnRegionReference = React.useRef<WorkbenchFocusRegion | null>(null);
+	/** How each region that shows only at times takes the keys, while it shows. */
+	const [suppliedRegions] = React.useState(
+		() => new Map<WorkbenchSuppliedFocusRegion, () => void>(),
+	);
 
 	const updateOwner = useMemoizedFn((nextOwner: WorkbenchFocusOwner): void => {
 		ownerReference.current = nextOwner;
@@ -59,6 +64,7 @@ export function useWorkbenchFocusRouting({
 		...(resolveTerminalTarget() === null ? [] : (['terminal'] as const)),
 		...(isTabStripVisible ? (['tab-strip'] as const) : []),
 		...(isSidebarVisible ? (['sidebar'] as const) : []),
+		...suppliedRegions.keys(),
 	]);
 	const requestTerminalFocus = useMemoizedFn((): boolean => {
 		if (typeof document !== 'undefined') {
@@ -131,8 +137,20 @@ export function useWorkbenchFocusRouting({
 			case 'terminal':
 				requestTerminalFocus();
 				break;
+			case 'file-bar':
+			case 'file-overlay':
+				suppliedRegions.get(region)?.();
+				break;
 		}
 	});
+	const supplyRegion = useMemoizedFn(
+		(region: WorkbenchSuppliedFocusRegion, focus: () => void): (() => void) => {
+			suppliedRegions.set(region, focus);
+			return () => {
+				if (suppliedRegions.get(region) === focus) suppliedRegions.delete(region);
+			};
+		},
+	);
 	const focus = useMemoizedFn(
 		(
 			intent: WorkbenchFocusIntent,
@@ -227,6 +245,7 @@ export function useWorkbenchFocusRouting({
 		onBlurCapture,
 		onFocusCapture,
 		sidebarFocusRequest,
+		supplyRegion,
 		tabStripFocusRequest,
 		terminalAutoFocusAllowed: !exclusiveSurfaceMounted && ownerAllowsTerminalAutoFocus,
 		terminalFocusRequest,

@@ -94,6 +94,7 @@ import type {
 } from '../model/WorkbenchProjectWorkspaceRuntime';
 import { findActiveTerminalFocusTarget } from '../utils/workbench-terminal-focus-target';
 import { hasWorkbenchExclusiveFocusSurface } from '../utils/workbench-focus-dom';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type {
 	WorkbenchAgentStartInput,
 	WorkbenchWorkspaceAgentLaunch,
@@ -328,6 +329,8 @@ interface WorkbenchView {
 	readonly settingsShortcutId: string;
 	readonly settingsShortcutLabel: string | undefined;
 	readonly sidebarFocusRequest: number;
+	/** Adds the File Bar or the file overlay to the region cycle while it shows. */
+	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
 	readonly setTabTitle: (tabId: string) => void;
 	/** Selects a Tab and gives the keyboard to the Panel it focused last; absent without routing. */
 	readonly selectTab: TabStripSelectCallback | undefined;
@@ -1377,6 +1380,7 @@ export function useWorkbench({
 			formatWorkbenchShortcut('settings', shortcutPlatform, shortcutBindings),
 		),
 		sidebarFocusRequest: focusRouting.sidebarFocusRequest,
+		supplyFocusRegion: focusRouting.supplyRegion,
 		selectTab,
 		setTabTitle,
 		nameEditor,

@@ -21,12 +21,18 @@ export function resolveWorkbenchFocusRegionFromTarget(
 	const region = target.closest<HTMLElement>('[data-workbench-focus-region]')?.dataset[
 		'workbenchFocusRegion'
 	];
-	return region === 'terminal' || region === 'tab-strip' || region === 'sidebar' ? region : null;
+	return region === 'terminal' ||
+		region === 'tab-strip' ||
+		region === 'sidebar' ||
+		region === 'file-bar' ||
+		region === 'file-overlay'
+		? region
+		: null;
 }
 
 /**
  * What holds focus at `target` for the terminal's taking focus by itself: a region, `elsewhere` for an
- * element no region holds, such as a File Bar view, or null when nothing has focus.
+ * element no region holds, such as a column's toggle, or null when nothing has focus.
  */
 export function resolveWorkbenchFocusOwnerFromTarget(
 	target: EventTarget | null,

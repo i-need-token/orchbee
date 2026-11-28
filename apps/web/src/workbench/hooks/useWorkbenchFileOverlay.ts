@@ -26,6 +26,7 @@ import {
 	type FileOverlayPipStorage,
 	type FileOverlayRegionElements,
 	type FileOverlayShortcutLabels,
+	type FileOverlayState,
 	type FileOverlayStore,
 	type FileOverlayTitleActions,
 } from '../../file-overlay';
@@ -38,6 +39,8 @@ import {
 	type FileTabPicker,
 } from '../actions/registerWorkbenchFileOverlayActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
+import type { WorkbenchFocusRegion } from '../model/resolveWorkbenchFocusTarget';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
 import type {
@@ -47,6 +50,7 @@ import type {
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchTerminalPathDrops } from '../model/WorkbenchTerminalPathDrops';
 import { buildFileOverlayTitleActions, buildFileTabMenuEntries } from '../utils/file-overlay-menus';
+import { resolveWorkbenchFocusRegionFromTarget } from '../utils/workbench-focus-dom';
 import type { WorkbenchScopedShortcutBinding } from '../utils/workbench-shortcuts';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
@@ -84,6 +88,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly sidebarDocked: boolean;
 	/** Where picture-in-picture's position persists, read once as the Workbench starts. */
 	readonly storage: FileOverlayPipStorage | undefined;
+	/** Adds the shown overlay to the region cycle. */
+	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
 	/** The active Workspace's terminals, which the terminal area shows; null outside a Workspace. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
 	/** Drops of files on terminals, which the scrim passes to the terminal it covers. */
@@ -122,6 +128,29 @@ interface WorkbenchFileOverlayView {
 	readonly terminalAreaReference: React.RefObject<HTMLDivElement | null>;
 }
 
+/**
+ * Whether the open overlay lies over a region at its tier. Every tier covers the terminal area and
+ * none the 36px row the Tab Strip is in; left-expand adds the docked Sidebar, and full adds the File
+ * Bar too. A Sidebar that is not docked opens over the terminal area, so every tier covers it.
+ */
+function coversFocusRegion(
+	tier: FileOverlayState['mode']['tier'],
+	region: WorkbenchFocusRegion,
+	sidebarDocked: boolean,
+): boolean {
+	switch (region) {
+		case 'terminal':
+			return true;
+		case 'sidebar':
+			return !sidebarDocked || tier !== 'default';
+		case 'file-bar':
+			return tier === 'full';
+		case 'file-overlay':
+		case 'tab-strip':
+			return false;
+	}
+}
+
 const subscribeToNothing = (): (() => void) => () => undefined;
 const NO_TITLE_ACTIONS: FileOverlayTitleActions = { buttons: [], more: [] };
 const noActiveTab = (): null => null;
@@ -156,6 +185,7 @@ export function useWorkbenchFileOverlay({
 	shortcutPlatform,
 	sidebarDocked,
 	storage,
+	supplyFocusRegion,
 	terminalContext,
 	terminalPathDrops,
 	workspaceId,
@@ -390,6 +420,28 @@ export function useWorkbenchFileOverlay({
 	React.useEffect(() => {
 		registry?.retain(new Set(workspaces.map((workspace) => workspace.id)));
 	}, [registry, workspaces]);
+	// The shown overlay takes its place in the region cycle after the File Bar: open, its active tab
+	// takes the keys; shrunk, picture-in-picture does.
+	React.useEffect(() => {
+		if (!shown) return undefined;
+		return supplyFocusRegion('file-overlay', () => focusOverlay(true));
+	}, [focusOverlay, shown, supplyFocusRegion]);
+	// Focus moving into a region the open overlay covers replaces what it covered, as region cycling
+	// into the terminal does: the overlay shrinks out of the way and the keys stay where they went.
+	React.useEffect(() => {
+		const root = rootReference.current;
+		if (store === null || root === null) return undefined;
+		const onFocusIn = (event: FocusEvent): void => {
+			const { mode } = store.state.getState();
+			if (mode.kind !== 'open') return;
+			const region = resolveWorkbenchFocusRegionFromTarget(event.target);
+			if (region !== null && coversFocusRegion(mode.tier, region, sidebarDocked)) {
+				dispatch({ type: 'terminal-replaced' });
+			}
+		};
+		root.addEventListener('focusin', onFocusIn);
+		return () => root.removeEventListener('focusin', onFocusIn);
+	}, [dispatch, rootReference, sidebarDocked, store]);
 	React.useEffect(() => {
 		if (store === null || workspaceId === null) return undefined;
 		const registrations = registerWorkbenchFileOverlayActions({

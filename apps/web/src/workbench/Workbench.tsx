@@ -252,6 +252,7 @@ export function Workbench({
 		sessionPort: fileSessionPort,
 		shortcutPlatform,
 		storage: layoutStorage,
+		supplyFocusRegion: view.supplyFocusRegion,
 		workspaceId: activeWorkspaceId,
 	});
 	// The scrim covers the terminal a press on it gives the keys to, so files dropped there go to it.
@@ -273,6 +274,7 @@ export function Workbench({
 		shortcutPlatform,
 		sidebarDocked: view.sidebarPresentation === 'docked',
 		storage: layoutStorage,
+		supplyFocusRegion: view.supplyFocusRegion,
 		terminalContext,
 		terminalPathDrops,
 		workspaceId: activeWorkspaceId,
@@ -797,6 +799,7 @@ export function Workbench({
 									aria-label={fileBar.column.label}
 									className={styles['fileBarPanel']}
 									data-slot='file-bar'
+									data-workbench-focus-region='file-bar'
 									ref={fileBar.column.elementReference}
 								>
 									{FileBarColumn === null ? null : (
@@ -848,20 +851,22 @@ export function Workbench({
 			{/* The shown Workspace's file overlay lies over the layout, after the File Bar in the focus
 			    order, and never takes part in the layout, so the terminal area keeps its size. */}
 			{fileOverlay.host === null || FileOverlayHost === null ? null : (
-				<FileOverlayHost
-					commands={fileOverlay.host.commands}
-					dispatch={fileOverlay.host.dispatch}
-					focusTerminal={fileOverlay.host.focusTerminal}
-					movePip={fileOverlay.host.movePip}
-					pipPosition={fileOverlay.host.pipPosition}
-					platform={fileOverlay.host.platform}
-					ref={fileOverlay.host.reference}
-					regions={fileOverlay.host.regions}
-					scrimDrop={fileOverlay.host.scrimDrop}
-					shortcutLabels={fileOverlay.host.shortcutLabels}
-					sidebarDocked={view.sidebarPresentation === 'docked'}
-					store={fileOverlay.host.store}
-				/>
+				<div className={styles['fileOverlayRegion']} data-workbench-focus-region='file-overlay'>
+					<FileOverlayHost
+						commands={fileOverlay.host.commands}
+						dispatch={fileOverlay.host.dispatch}
+						focusTerminal={fileOverlay.host.focusTerminal}
+						movePip={fileOverlay.host.movePip}
+						pipPosition={fileOverlay.host.pipPosition}
+						platform={fileOverlay.host.platform}
+						ref={fileOverlay.host.reference}
+						regions={fileOverlay.host.regions}
+						scrimDrop={fileOverlay.host.scrimDrop}
+						shortcutLabels={fileOverlay.host.shortcutLabels}
+						sidebarDocked={view.sidebarPresentation === 'docked'}
+						store={fileOverlay.host.store}
+					/>
+				</div>
 			)}
 			{view.searchState.kind === 'closed' ? null : (
 				<WorkbenchSearchSurface

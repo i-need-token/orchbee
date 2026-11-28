@@ -22,6 +22,7 @@ import {
 } from '../../file-session';
 import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFileBarActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
+import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
@@ -121,6 +122,8 @@ interface UseWorkbenchFileBarOptions {
 	readonly sessionPort: FileSessionPort | undefined;
 	/** Decides the File Bar's minimum: Windows and Linux draw caption buttons over its row. */
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
+	/** Adds the docked File Bar to the region cycle. */
+	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
 	/** Where the File Bar keeps its layout on this device. */
 	readonly storage: FileBarLayoutStorage | undefined;
 	/** The active Workspace, whose files the File Bar shows; null outside a Workspace. */
@@ -163,6 +166,7 @@ export function useWorkbenchFileBar({
 	sessionPort,
 	shortcutPlatform,
 	storage,
+	supplyFocusRegion,
 	workspaceId,
 }: UseWorkbenchFileBarOptions): WorkbenchFileBarView {
 	const intl = useOrchbeeIntl();
@@ -326,6 +330,11 @@ export function useWorkbenchFileBar({
 		setDockedForFocus(docked);
 		if (!docked) setViewFocusRequest(0);
 	}
+	// The docked File Bar takes its place in the region cycle, where its active view takes the keys.
+	React.useEffect(() => {
+		if (!docked) return undefined;
+		return supplyFocusRegion('file-bar', () => setViewFocusRequest((request) => request + 1));
+	}, [docked, supplyFocusRegion]);
 	// The Workspaces the File Bar has shown in this run, whose sessions it keeps for the count badge.
 	const [shownWorkspaces, setShownWorkspaces] = React.useState<ReadonlySet<string>>(NO_WORKSPACES);
 	if (docked && workspaceId !== null && !shownWorkspaces.has(workspaceId)) {

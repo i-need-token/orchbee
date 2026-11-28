@@ -5,11 +5,11 @@ import {
 	type WorkbenchFocusRegion,
 } from '../resolveWorkbenchFocusTarget';
 
-const WORKBENCH_FOCUS_REGIONS = [
+const WORKBENCH_FOCUS_REGIONS: readonly WorkbenchFocusRegion[] = [
 	'terminal',
 	'tab-strip',
 	'sidebar',
-] as const satisfies readonly WorkbenchFocusRegion[];
+];
 
 describe('resolveWorkbenchFocusTarget', () => {
 	it('cycles through the canonical available region order in both directions', () => {

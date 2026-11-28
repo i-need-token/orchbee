@@ -184,6 +184,11 @@ button.statusNoticeText {
 	background: var(--ob-sys-color-surface-subtle);
 }
 
+/* The file overlay's focus region adds no box, so the overlay lies over the Workbench root. */
+.fileOverlayRegion {
+	display: contents;
+}
+
 /* The File Bar shares the Sidebar's surface. */
 .fileBarPanel {
 	overflow: hidden;

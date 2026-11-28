@@ -1,4 +1,14 @@
-const WORKBENCH_FOCUS_REGIONS = ['terminal', 'tab-strip', 'sidebar'] as const;
+/**
+ * The region cycle's order. The File Bar and the file overlay come last, the overlay after the File
+ * Bar, so the region after the overlay is the terminal it covers.
+ */
+const WORKBENCH_FOCUS_REGIONS = [
+	'terminal',
+	'tab-strip',
+	'sidebar',
+	'file-bar',
+	'file-overlay',
+] as const;
 
 export type WorkbenchFocusRegion = (typeof WORKBENCH_FOCUS_REGIONS)[number];
 

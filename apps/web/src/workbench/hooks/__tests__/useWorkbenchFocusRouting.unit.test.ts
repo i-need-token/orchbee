@@ -52,7 +52,7 @@ function FocusRoutingHarness({
 					'Sidebar',
 				)
 			: null,
-		React.createElement('button', { type: 'button' }, 'File Bar'),
+		React.createElement('button', { type: 'button' }, 'Column toggle'),
 		showDialog ? React.createElement('div', { role: 'dialog', tabIndex: -1 }, 'Dialog') : null,
 		showCommandSurface
 			? React.createElement(
@@ -177,7 +177,7 @@ describe('useWorkbenchFocusRouting', () => {
 
 	it('leaves focus to a part outside the regions that a closing menu gives it back to', async () => {
 		const rendered = render(React.createElement(FocusRoutingHarness, { capture: () => undefined }));
-		const fileBar = screen.getByRole('button', { name: 'File Bar' });
+		const toggle = screen.getByRole('button', { name: 'Column toggle' });
 		act(() => screen.getByRole('dialog').focus());
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
 
@@ -185,10 +185,10 @@ describe('useWorkbenchFocusRouting', () => {
 		rendered.rerender(
 			React.createElement(FocusRoutingHarness, { capture: () => undefined, showDialog: false }),
 		);
-		act(() => fileBar.focus());
+		act(() => toggle.focus());
 		await act(async () => undefined);
 
-		expect(document.activeElement).toBe(fileBar);
+		expect(document.activeElement).toBe(toggle);
 		expect(screen.getByLabelText('terminal autofocus').textContent).toBe('false');
 	});
 
@@ -308,5 +308,40 @@ describe('useWorkbenchFocusRouting', () => {
 
 		expect(screen.getByLabelText('sidebar request').textContent).toBe('1');
 		expect(screen.getByLabelText('tab strip request').textContent).toBe('0');
+	});
+
+	it('routes to a supplied region in its place in the cycle until it is withdrawn', () => {
+		let routing: WorkbenchFocusRouting | undefined;
+		render(
+			React.createElement(FocusRoutingHarness, {
+				capture: (candidate) => {
+					routing = candidate;
+				},
+				showDialog: false,
+			}),
+		);
+		if (routing === undefined) throw new Error('Expected focus routing to be captured.');
+		const focused: string[] = [];
+		const withdrawFileBar = routing.supplyRegion('file-bar', () => focused.push('file-bar'));
+		const withdrawOverlay = routing.supplyRegion('file-overlay', () => focused.push('overlay'));
+		const next = { direction: 'next', kind: 'cycle' } as const;
+		const previous = { direction: 'previous', kind: 'cycle' } as const;
+
+		screen.getByRole('button', { name: 'Sidebar' }).focus();
+		expect(routing.getResolution(next)).toEqual({ kind: 'target', region: 'file-bar' });
+		screen.getByRole('button', { name: 'Terminal' }).focus();
+		expect(routing.getResolution(previous)).toEqual({ kind: 'target', region: 'file-overlay' });
+		act(() => {
+			routing?.focus(previous);
+		});
+		expect(focused).toEqual(['overlay']);
+
+		withdrawFileBar();
+		withdrawOverlay();
+		expect(routing.getResolution(previous)).toEqual({ kind: 'target', region: 'sidebar' });
+		expect(routing.getResolution({ kind: 'direct', region: 'file-bar' })).toEqual({
+			kind: 'unavailable',
+			reason: 'target-unavailable',
+		});
 	});
 });
