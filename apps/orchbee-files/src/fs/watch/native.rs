@@ -2,7 +2,10 @@
 //! inotify on Linux, where [`linux`] walks each recursive watch's folders itself. The adapter
 //! thread owns the one watcher, created on first use, and applies the service's orders; a path an
 //! order both starts and stops stops first. A watch that cannot start is refused to the service as
-//! missing, past a limit or broken.
+//! missing, past a limit or broken. Each applied order reports the watches it started and
+//! stopped; a watch counts as started once `notify` returns from starting it, when each platform
+//! already reports later changes. A folder appearing in a recursive watch on Linux is reported as
+//! lost changes once it is watched, since changes in it before then went unreported.
 //!
 //! Events arrive on the watcher's own thread, which translates them into changes: a creation is
 //! added, a removal deleted, a rename's old path deleted and its new path added, any other change
@@ -132,14 +135,18 @@ fn why(kind: &ErrorKind) -> Why {
 
 impl Watches {
     fn apply(&mut self, order: Order) {
+        let stopped = order.unwatch.clone();
         let restarting: HashSet<String> = order.watch.iter().map(|(path, _)| path.key()).collect();
         let (first, later): (Vec<_>, Vec<_>) = order
             .unwatch
             .into_iter()
             .partition(|(path, _)| restarting.contains(&path.key()));
         self.stop(first);
-        self.start(order.watch);
+        let started = self.start(order.watch);
         self.stop(later);
+        let _ = self
+            .service
+            .send(Input::Native(Native::Applied { started, stopped }));
     }
 
     fn refuse(&self, path: NativePath, need: Need, why: Why) {
@@ -202,10 +209,11 @@ impl Watches {
         }
     }
 
+    /// Starts each request and returns those that started.
     #[cfg(not(target_os = "linux"))]
-    fn start(&mut self, requests: Vec<(NativePath, Need)>) {
+    fn start(&mut self, requests: Vec<(NativePath, Need)>) -> Vec<(NativePath, Need)> {
         if requests.is_empty() {
-            return;
+            return requests;
         }
         let operations = requests
             .iter()
@@ -215,13 +223,16 @@ impl Watches {
             })
             .collect();
         let Some(failed) = self.update(operations) else {
-            return;
+            return Vec::new();
         };
-        for (failed, why) in failed {
-            if let Some((path, need)) = requests.iter().find(|(path, _)| path.as_path() == failed) {
-                self.refuse(path.clone(), *need, why);
+        let mut started = Vec::new();
+        for (path, need) in requests {
+            match failed.iter().find(|(failed, _)| path.as_path() == failed) {
+                Some((_, why)) => self.refuse(path, need, *why),
+                None => started.push((path, need)),
             }
         }
+        started
     }
 
     #[cfg(not(target_os = "linux"))]
@@ -238,10 +249,11 @@ impl Watches {
         self.watcher = None;
     }
 
-    /// Starts each request: a recursive one watches each folder the walk finds, within the
-    /// budget; a folder below its root that fails is left unwatched.
+    /// Starts each request and returns those that started: a recursive one watches each folder
+    /// the walk finds, within the budget; a folder below its root that fails is left unwatched.
     #[cfg(target_os = "linux")]
-    fn start(&mut self, requests: Vec<(NativePath, Need)>) {
+    fn start(&mut self, requests: Vec<(NativePath, Need)>) -> Vec<(NativePath, Need)> {
+        let mut started = Vec::new();
         for (path, need) in requests {
             let folders = match need {
                 Need::Tree => match linux::directories(&path, self.trees.budget()) {
@@ -254,10 +266,14 @@ impl Watches {
                 Need::Folder => vec![path.clone()],
             };
             match self.watch_folders(&folders) {
-                Ok(watched) => self.trees.hold(&path, need, watched),
+                Ok(watched) => {
+                    self.trees.hold(&path, need, watched);
+                    started.push((path, need));
+                }
                 Err(why) => self.refuse(path, need, why),
             }
         }
+        started
     }
 
     /// Watches the folders of `folders` not yet watched, the first being the request's own path.
@@ -322,7 +338,11 @@ impl Watches {
                     .ok_or(Why::Limit)
                     .and_then(|folders| self.watch_folders(&folders));
                 match added {
-                    Ok(added) => self.trees.extend(&tree, added),
+                    Ok(added) => {
+                        self.trees.extend(&tree, added);
+                        let lost = Native::Lost(Some(folder));
+                        let _ = self.service.send(Input::Native(lost));
+                    }
                     Err(Why::Limit) => self.refuse(tree, Need::Tree, Why::Limit),
                     // The folder went away again or cannot be watched; the tree keeps the rest.
                     Err(_) => {}

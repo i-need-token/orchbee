@@ -5,8 +5,9 @@
 //! deletion for 100 ms, absorbing its other changes, and then reports it by whether the file
 //! exists again. Each Client's changes gather for 75 ms from the first, coalesce as VS Code
 //! coalesces them, and pass through VS Code's throttle, whose overflow becomes a rescan of the
-//! loaded folders whose changes it dropped. Changes the native watcher lost become a rescan of the
-//! loaded folders they were lost in. Updates hold at most 500 items and fit the Notice record.
+//! loaded folders whose changes it dropped. Changes the native watcher lost, and those that went
+//! unreported before a watch covered their folder, become a rescan of the loaded folders they were
+//! lost in. Updates hold at most 500 items and fit the Notice record.
 //! Time is the caller's, so every rule holds under any clock.
 
 use std::{
@@ -150,11 +151,23 @@ impl Stream {
     /// Asks each Client to list again its loaded folders at or below `under`, or all of them,
     /// whose changes the native watcher lost.
     pub(super) fn lost(&mut self, under: Option<&NativePath>, interest: &Interest, now: Instant) {
+        self.rescan(interest, now, |folder| {
+            under.is_none_or(|under| folder.is_within(under))
+        });
+    }
+
+    /// Asks each Client to list again its loaded folders that `stale` picks.
+    pub(super) fn rescan(
+        &mut self,
+        interest: &Interest,
+        now: Instant,
+        stale: impl Fn(&NativePath) -> bool,
+    ) {
         for (connection, holder) in &interest.holders {
             let mut folders = holder
                 .loaded
                 .values()
-                .filter(|folder| under.is_none_or(|under| folder.is_within(under)))
+                .filter(|folder| stale(folder))
                 .peekable();
             if folders.peek().is_none() {
                 continue;

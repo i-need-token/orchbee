@@ -252,24 +252,104 @@ fn a_deleted_folder_is_checked_until_it_returns_with_the_opened_files_in_it() {
 
 /// The changes delivered to Clients in the core's effects.
 fn delivered(core: &mut Core) -> Vec<(ChangeKind, NativePath)> {
-    core.effects()
-        .notices
-        .into_iter()
-        .filter_map(|notice| match notice {
+    updates(core).0
+}
+
+/// The changes, and the folders to list again, delivered to Clients in the core's effects.
+fn updates(core: &mut Core) -> (Vec<(ChangeKind, NativePath)>, Vec<NativePath>) {
+    let parse = |path: &FilePath| NativePath::parse(path.as_str()).unwrap();
+    let mut changes = Vec::new();
+    let mut rescan = Vec::new();
+    for notice in core.effects().notices {
+        match notice {
             Notice::To {
-                notice: FilesNotice::FsUpdate(FsUpdate::Changes { changes }),
+                notice: FilesNotice::FsUpdate(FsUpdate::Changes { changes: delivered }),
                 ..
-            } => Some(changes),
-            _ => None,
-        })
-        .flat_map(|changes| changes.as_slice().to_vec())
-        .map(|change| {
-            (
-                change.kind,
-                NativePath::parse(change.path.as_str()).unwrap(),
-            )
-        })
-        .collect()
+            } => changes.extend(
+                delivered
+                    .as_slice()
+                    .iter()
+                    .map(|change| (change.kind, parse(&change.path))),
+            ),
+            Notice::To {
+                notice: FilesNotice::FsUpdate(FsUpdate::Rescan { paths }),
+                ..
+            } => rescan.extend(paths.as_slice().iter().map(parse)),
+            _ => {}
+        }
+    }
+    (changes, rescan)
+}
+
+/// The native watcher's report that it started `started` and stopped `stopped`.
+fn applied(started: &[(&str, Need)], stopped: &[(&str, Need)]) -> Native {
+    let order = order(started, stopped);
+    Native::Applied {
+        started: order.watch,
+        stopped: order.unwatch,
+    }
+}
+
+#[test]
+fn a_folder_read_before_its_watch_takes_effect_is_listed_again_once_it_does() {
+    let mut now = Instant::now();
+    let window = Duration::from_millis(75);
+    let mut core = Core::new(Timing::VS_CODE, Vec::new());
+    // The folders load and are read before the root's watch takes effect, so a change between a
+    // read and the watch has no event.
+    core.interest(workspace(), interest(&["w", "w/a"], &[]), 1);
+    core.root(workspace(), present("w", 1), now);
+    assert_eq!(core.effects().orders, [order(&[("w", Need::Tree)], &[])]);
+    core.native(applied(&[("w", Need::Tree)], &[]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core),
+        (vec![], vec![native("w"), native("w/a")])
+    );
+
+    // A folder that loads while the watch is in effect is read after it took effect, and the
+    // event of a later change finds it loaded.
+    core.interest(workspace(), interest(&["w", "w/a", "w/b"], &[]), 1);
+    let created = Change {
+        kind: ChangeKind::Added,
+        path: native("w/b/new.txt"),
+        directory: false,
+    };
+    core.native(Native::Changes(vec![created]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core),
+        (vec![(ChangeKind::Added, native("w/b/new.txt"))], vec![])
+    );
+
+    // A failed watch reported nothing until its restart took effect.
+    core.native(Native::Failed(Some(native("w"))), now);
+    assert_eq!(core.effects().orders, [order(&[], &[("w", Need::Tree)])]);
+    core.native(applied(&[], &[("w", Need::Tree)]), now);
+    now += Timing::VS_CODE.restart;
+    core.tick(now);
+    assert_eq!(core.effects().orders, [order(&[("w", Need::Tree)], &[])]);
+    core.native(applied(&[("w", Need::Tree)], &[]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(
+        updates(&mut core).1,
+        [native("w"), native("w/a"), native("w/b")]
+    );
+
+    // A watch that takes over from one in effect asks for no listing.
+    core.interest(workspace(), interest(&["w/a"], &[]), 2);
+    core.root(workspace(), present("w/a", 2), now);
+    assert_eq!(
+        core.effects().orders,
+        [order(&[("w/a", Need::Tree)], &[("w", Need::Tree)])]
+    );
+    core.native(applied(&[("w/a", Need::Tree)], &[("w", Need::Tree)]), now);
+    now += window;
+    core.tick(now);
+    assert_eq!(updates(&mut core), (vec![], vec![]));
 }
 
 #[test]

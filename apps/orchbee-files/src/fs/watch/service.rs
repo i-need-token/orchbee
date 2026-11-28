@@ -8,6 +8,13 @@
 //! - The watched paths are the fewest that cover every request: a request inside a recursive watch
 //!   adds none. A change of the set watches before it stops, so a path two requests share keeps
 //!   its watch.
+//! - A watch is in effect once the native watcher reports it started. A folder loads before it is
+//!   read, so its load reaches the service ahead of the event of any later change, which finds it
+//!   loaded while a watch covering it is in effect. A watch that takes effect after the load, as
+//!   at the first subscription, for a folder watched one by one or after a restart, asks each
+//!   Client to list again the loaded folders it covers that no watch in effect covered, since
+//!   their changes after the read went unreported, and each repository it overlaps reports a
+//!   change.
 //! - A watch whose path is deleted or missing ends. A missing root is read again every 5,007 ms
 //!   and reported by a `root` Update when it changes within one scope; another missing path is
 //!   checked as often, and its return, or a change adding it, watches it again and reports it and
@@ -75,6 +82,11 @@ type Key = (String, Need);
 /// What the native watcher reported.
 #[derive(Debug)]
 pub(super) enum Native {
+    /// An order was carried out: these of its watches started, and these stopped.
+    Applied {
+        started: Vec<(NativePath, Need)>,
+        stopped: Vec<(NativePath, Need)>,
+    },
     Changes(Vec<Change>),
     /// Changes at or below the path, or anywhere, were dropped.
     Lost(Option<NativePath>),
@@ -156,6 +168,9 @@ pub(super) struct Core {
     repositories: HashMap<(WorkspaceId, String), Watched>,
     /// What the native watcher was told to watch.
     watched: BTreeMap<Key, NativePath>,
+    /// The watched paths the native watcher reported started and that have not stopped, failed or
+    /// ended since.
+    effective: BTreeMap<Key, NativePath>,
     /// Requests refused for a limit, until no one makes them.
     refused: HashMap<Key, Why>,
     /// Missing paths, by [`NativePath::key`], until they return or no one requests them.
@@ -238,6 +253,7 @@ impl Core {
             workspaces: HashMap::new(),
             repositories: HashMap::new(),
             watched: BTreeMap::new(),
+            effective: BTreeMap::new(),
             refused: HashMap::new(),
             suspended: HashMap::new(),
             out: Effects::default(),
@@ -337,6 +353,7 @@ impl Core {
     /// Takes what the native watcher reported.
     pub(super) fn native(&mut self, native: Native, now: Instant) {
         match native {
+            Native::Applied { started, stopped } => self.applied(started, stopped, now),
             Native::Changes(changes) => self.changes(changes, now),
             Native::Lost(under) => {
                 for workspace in self.workspaces.values_mut() {
@@ -346,20 +363,17 @@ impl Core {
                 }
                 for watched in self.repositories.values() {
                     let repository = &watched.repository;
-                    let touched = under.as_ref().is_none_or(|under| {
-                        overlaps(&repository.tree, under)
-                            || repository
-                                .git_dir
-                                .as_ref()
-                                .is_some_and(|git_dir| overlaps(git_dir, under))
-                    });
-                    if touched {
+                    if under
+                        .as_ref()
+                        .is_none_or(|under| touches(repository, under))
+                    {
                         let report = repository.report.clone();
                         self.out.reports.push((report, ports::Change::Content));
                     }
                 }
             }
             Native::Refused { path, need, why } => {
+                self.effective.remove(&(path.key(), need));
                 // A recursive watch past its limit may hold some of its folders.
                 if let Some(watched) = self.watched.remove(&(path.key(), need)) {
                     self.unwatch(vec![(watched, need)]);
@@ -382,6 +396,7 @@ impl Core {
                     .collect();
                 let mut unwatch = Vec::new();
                 for key in ended {
+                    self.effective.remove(&key);
                     if let Some(watched) = self.watched.remove(&key) {
                         unwatch.push((watched, key.1));
                     }
@@ -391,6 +406,7 @@ impl Core {
                 self.plan();
             }
             Native::Failed(None) => {
+                self.effective.clear();
                 let unwatch: Vec<(NativePath, Need)> = std::mem::take(&mut self.watched)
                     .into_iter()
                     .map(|((_, need), path)| (path, need))
@@ -536,6 +552,53 @@ impl Core {
         }
     }
 
+    /// Takes an order the native watcher carried out: a path it started again stopped before its
+    /// starts, any other after them. A watch the service still wants comes into effect.
+    fn applied(
+        &mut self,
+        started: Vec<(NativePath, Need)>,
+        stopped: Vec<(NativePath, Need)>,
+        now: Instant,
+    ) {
+        let restarted: HashSet<String> = started.iter().map(|(path, _)| path.key()).collect();
+        let (first, later): (Vec<_>, Vec<_>) = stopped
+            .into_iter()
+            .partition(|(path, _)| restarted.contains(&path.key()));
+        for (path, need) in first {
+            self.effective.remove(&(path.key(), need));
+        }
+        // A watch the service stopped wanting meanwhile stops with a later order.
+        let fresh: Vec<(NativePath, Need)> = started
+            .into_iter()
+            .filter(|(path, need)| {
+                let key = (path.key(), *need);
+                self.watched.contains_key(&key) && !self.effective.contains_key(&key)
+            })
+            .collect();
+        if !fresh.is_empty() {
+            let before = Coverage::of(self.effective.iter().map(|((_, need), path)| (path, *need)));
+            let after = Coverage::of(fresh.iter().map(|(path, need)| (path, *need)));
+            for workspace in self.workspaces.values_mut() {
+                workspace.stream.rescan(&workspace.interest, now, |folder| {
+                    after.covers(folder) && !before.covers(folder)
+                });
+            }
+            for watched in self.repositories.values() {
+                let repository = &watched.repository;
+                if fresh.iter().any(|(path, _)| touches(repository, path)) {
+                    let report = repository.report.clone();
+                    self.out.reports.push((report, ports::Change::Content));
+                }
+            }
+        }
+        for (path, need) in fresh {
+            self.effective.insert((path.key(), need), path);
+        }
+        for (path, need) in later {
+            self.effective.remove(&(path.key(), need));
+        }
+    }
+
     fn changes(&mut self, mut changes: Vec<Change>, now: Instant) {
         // A file an import is still staging never shows; publishing it reports the file.
         changes.retain(|change| !staging::is_staging(change.path.name()));
@@ -555,6 +618,7 @@ impl Core {
                         continue;
                     }
                     for ended in ended {
+                        self.effective.remove(&ended);
                         if let Some(path) = self.watched.remove(&ended) {
                             unwatch.push((path, ended.1));
                         }
@@ -866,8 +930,47 @@ pub(super) fn cover(
         .collect()
 }
 
+/// The folders a set of watches covers: those inside its recursive watches and at its folder
+/// watches.
+struct Coverage<'a> {
+    trees: Vec<&'a NativePath>,
+    /// By [`NativePath::key`].
+    folders: HashSet<String>,
+}
+
+impl<'a> Coverage<'a> {
+    fn of(watches: impl Iterator<Item = (&'a NativePath, Need)>) -> Self {
+        let mut coverage = Self {
+            trees: Vec::new(),
+            folders: HashSet::new(),
+        };
+        for (path, need) in watches {
+            match need {
+                Need::Tree => coverage.trees.push(path),
+                Need::Folder => {
+                    coverage.folders.insert(path.key());
+                }
+            }
+        }
+        coverage
+    }
+
+    fn covers(&self, folder: &NativePath) -> bool {
+        self.trees.iter().any(|tree| folder.is_within(tree)) || self.folders.contains(&folder.key())
+    }
+}
+
 fn overlaps(one: &NativePath, other: &NativePath) -> bool {
     one.is_within(other) || other.is_within(one)
+}
+
+/// Whether `path` overlaps `repository`'s working tree or Git directory.
+fn touches(repository: &Repository, path: &NativePath) -> bool {
+    overlaps(&repository.tree, path)
+        || repository
+            .git_dir
+            .as_ref()
+            .is_some_and(|git_dir| overlaps(git_dir, path))
 }
 
 /// What `change` tells `repository`'s engine, if anything.
