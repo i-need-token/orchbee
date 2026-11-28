@@ -25,3 +25,36 @@
 .tab[aria-selected='true']:hover {
 	background: var(--ob-sys-color-surface-selected-hover);
 }
+
+/* Touch sizes (D19): each toggle owns a 44 px target and paints its 36 px fill 4 px inside it, so a
+   tap on that ring still hits it, as the Workbench's column buttons do: the transparent 4 px border
+   holds the ring, and the radius grows by the ring so the fill keeps the button's corners. */
+:global([data-workbench-touch]) .root {
+	gap: var(--ob-ref-space-0);
+}
+
+:global([data-workbench-touch]) .tab {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+	border-width: var(--ob-ref-space-1);
+	border-color: transparent;
+	border-radius: calc(var(--ob-ref-radius-ui-md) + var(--ob-ref-space-1));
+}
+
+/* The selected fill keeps to the padding box as well, which the background shorthand above resets. */
+:global([data-workbench-touch]) .tab[aria-selected='true'],
+:global([data-workbench-touch]) .tab[aria-selected='true']:hover {
+	background-clip: padding-box;
+}
+
+/* The rounded corners would leave the target's corners out of it; the square keeps them in. */
+:global([data-workbench-touch]) .tab::after {
+	position: absolute;
+	inset: calc(var(--ob-ref-space-1) * -1);
+	content: '';
+}
+
+/* The focus ring stays on the fill, inside the ring of the target. */
+:global([data-workbench-touch]) .tab:focus-visible {
+	border-color: transparent;
+}

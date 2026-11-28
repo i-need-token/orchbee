@@ -83,8 +83,23 @@
 	inset-inline-end: var(--ob-ref-space-3);
 }
 
-.root[data-window-controls='leading'] :global([data-file-bar-toggle-place]) {
+.root[data-window-controls='leading'] :global([data-file-bar-toggle-place]),
+.root[data-window-controls='leading']
+	:global([data-slot='workbench-mobile-bar-file-bar-toggle-place']) {
 	width: calc(var(--ob-ref-space-2) + var(--ob-ref-size-control-sm) + var(--ob-ref-space-3));
+}
+
+/* With touch sizes nothing stands at the window's end, so the File Bar button's target fills its
+   corner, as everywhere else. */
+.root[data-window-controls='leading']
+	:global([data-workbench-touch] [data-slot='workbench-file-bar-toggle-position']) {
+	inset-inline-end: var(--ob-ref-space-0);
+}
+
+.root[data-window-controls='leading'] :global([data-workbench-touch] [data-file-bar-toggle-place]),
+.root[data-window-controls='leading']
+	:global([data-workbench-touch] [data-slot='workbench-mobile-bar-file-bar-toggle-place']) {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
 /* The mobile bar's start never yields the traffic lights or the sidebar button's place. */
@@ -135,6 +150,14 @@
 	inset-inline-end: calc(
 		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width) +
 			var(--ob-ref-space-2)
+	);
+}
+
+/* With touch sizes its target fills the corner left of them. */
+.root[data-window-controls='trailing']
+	:global([data-workbench-touch] [data-slot='workbench-file-bar-toggle-position']) {
+	inset-inline-end: calc(
+		var(--ob-comp-workbench-window-inline-size) - env(titlebar-area-x) - env(titlebar-area-width)
 	);
 }
 

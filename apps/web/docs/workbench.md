@@ -167,27 +167,32 @@ narrows the File Bar narrows first, down to its minimum, and widens back as the 
 less room it steps aside as the Sidebar does in a narrow window: its button opens it at its width
 over the terminal area from its side, where it takes the keys until Escape, a press outside it or a
 file opening closes it, and the Sidebar and the Tab list over the content give way to it. Only a
-docked choice persists, so regained room docks it as it was left. The mobile layout offers no Action
-or button for it yet. The Workbench owns the File Bar's place, its width, visibility and active
+docked choice persists, so regained room docks it as it was left. The mobile layout never docks it:
+its button opens it filling the window as the sidebar list does, its top row at touch sizes, and the
+lists that fill the window give way to it and it to them; the terminal taking the keys closes it,
+as it closes those lists. The Workbench owns the File Bar's place, its width, visibility and active
 view, its button and its Actions, and keeps them in the `file-bar` module's layout record; the File
 Bar's views reach it only through `loadFileBar()`, which loads them as their own chunk the first
 time a window shows the File Bar. A failed load says so inside the File Bar and tries again the next
 time it shows. A shown File Bar loads the [code editor](code-editor.md) at idle.
 
 The File Bar button floats at the window's top end over whichever chrome lies beneath it: the File
-Bar's toggles row while the File Bar reaches the window's end, on the right of the terminal area or
-open across it, else a reserve at the end of the horizontal Tab bar. Like the Sidebar button, it is
-one element in every state rather than one per row, so it keeps focus as it toggles. It follows the
-layout and the File Bar over it in the document because Electron folds app regions in document order
-and its no-drag region must come after the toggles row's drag region. Where Windows and Linux draw
-their caption buttons over the row, the button stands left of them and the File Bar's minimum width
-grows so that its toggles still fit.
+Bar's toggles row while the File Bar reaches the window's end, on the right of the terminal area,
+open across it or filling the window, else a reserve at the end of the horizontal Tab bar, or in the
+mobile bar a place after `Tabs 8` that both of the bar's sides hold, so the current Tab stays
+centered. It stays over the sidebar list filling the window, whose top band leaves its place empty,
+so the File Bar can take that list's place, and the Tab list covers it, as it covers the sidebar
+button. Like the Sidebar button, it is one element in every state rather than one per row, so it
+keeps focus as it toggles. It follows the layout and the File Bar over it in the document because
+Electron folds app regions in document order and its no-drag region must come after the toggles
+row's drag region. Where Windows and Linux draw their caption buttons over the row, the button
+stands left of them and the File Bar's minimum width grows so that its toggles still fit.
 
 Once the File Bar has shown the active Workspace in this run, the Workbench holds that Workspace's
 file session from its `fileSessionPort` input through a `FileSessionRegistry`, which opens a
 Workspace's session on its first hold and closes it on the last release; the hold stays while the
-File Bar hides, for its button's count badge. Switching Workspaces moves the hold, and a withheld or
-mobile File Bar holds none, so no session exists for a Workspace whose files the File Bar has not
+File Bar hides, for its button's count badge. Switching Workspaces moves the hold, and a withheld
+File Bar holds none, so no session exists for a Workspace whose files the File Bar has not
 shown. A window without the input opens no session. Desktop passes it where it offers the File
 Bar and the shown Session's handshake lists `files`: that Session's runtime opens sessions through
 `ServerFileSessionPort` over its connection and closes them when it is disposed. A session's Source

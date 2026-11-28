@@ -576,7 +576,8 @@ export function Workbench({
 	} else if (view.mobileLayout) {
 		tabChrome = (
 			<WorkbenchMobileBar
-				covered={tabListShown || view.sidebarPresentation === 'fill'}
+				covered={tabListShown || view.sidebarPresentation === 'fill' || fileBar.overlay !== null}
+				fileBarTogglePlace={fileBar.toggle !== null}
 				identityIcons={agentPresentation.tabIdentityIcons}
 				onOpenTabList={view.toggleTabList}
 				statusAdornments={agentPresentation.tabStatusAdornments}
@@ -612,9 +613,10 @@ export function Workbench({
 		);
 	}
 
-	// The File Bar's landmark, docked in its panel or opened over the terminal area. Over the terminal
-	// area its row holds the places of the buttons floating over the window's ends it reaches, while the
-	// chrome beneath keeps them too, so nothing beneath moves as it opens.
+	// The File Bar's landmark, docked in its panel, opened over the terminal area or filling the window.
+	// Over the terminal area or the window its row holds the places of the buttons floating over the
+	// window's ends it reaches, while the chrome beneath keeps them too, so nothing beneath moves as it
+	// opens.
 	const fileBarLandmark =
 		fileBarContent === null ? null : (
 			<aside
@@ -688,6 +690,46 @@ export function Workbench({
 			</ResizablePanel>
 		);
 	const fileBarOverlay = fileBar.overlay;
+	// Without room to dock, the File Bar opens over the terminal area from its side, past a scrim that
+	// takes the press closing it; in the mobile layout it fills the window, as the sidebar list does.
+	let fileBarSurface: React.ReactNode = null;
+	if (fileBarOverlay?.fill === true) {
+		fileBarSurface = (
+			<div
+				className={styles['fileBarFill']}
+				data-slot='workbench-file-bar-fill'
+				onKeyDown={fileBarOverlay.onKeyDown}
+			>
+				{fileBarLandmark}
+			</div>
+		);
+	} else if (fileBarOverlay !== null) {
+		fileBarSurface = (
+			<>
+				{/* Nothing dims: the scrim only takes the press that closes the File Bar. */}
+				<div
+					aria-hidden='true'
+					className={styles['fileBarScrim']}
+					data-slot='workbench-file-bar-scrim'
+					onPointerDown={fileBarOverlay.onScrimPointerDown}
+				/>
+				<div
+					className={styles['fileBarOverlay']}
+					data-side={fileBar.position}
+					data-slot='workbench-file-bar-overlay'
+					onKeyDown={fileBarOverlay.onKeyDown}
+					style={
+						{
+							'--ob-comp-workbench-file-bar-overlay-inline-size': `${fileBarOverlay.width}px`,
+							'--ob-comp-workbench-file-bar-overlay-inline-start': `${fileBarOverlay.inlineStart}px`,
+						} satisfies CSSProperties
+					}
+				>
+					{fileBarLandmark}
+				</div>
+			</>
+		);
+	}
 
 	const sequenceNotice = view.shortcutSequenceNotice;
 	const statusNotice = (
@@ -787,31 +829,7 @@ export function Workbench({
 					{sidebarPanel}
 				</div>
 			) : null}
-			{fileBarOverlay === null ? null : (
-				<>
-					{/* Nothing dims: the scrim only takes the press that closes the File Bar. */}
-					<div
-						aria-hidden='true'
-						className={styles['fileBarScrim']}
-						data-slot='workbench-file-bar-scrim'
-						onPointerDown={fileBarOverlay.onScrimPointerDown}
-					/>
-					<div
-						className={styles['fileBarOverlay']}
-						data-side={fileBar.position}
-						data-slot='workbench-file-bar-overlay'
-						onKeyDown={fileBarOverlay.onKeyDown}
-						style={
-							{
-								'--ob-comp-workbench-file-bar-overlay-inline-size': `${fileBarOverlay.width}px`,
-								'--ob-comp-workbench-file-bar-overlay-inline-start': `${fileBarOverlay.inlineStart}px`,
-							} satisfies CSSProperties
-						}
-					>
-						{fileBarLandmark}
-					</div>
-				</>
-			)}
+			{fileBarSurface}
 			{/* The Tab list covers the sidebar button, as it covers the bar. */}
 			{tabListShown ? null : (
 				<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
@@ -958,14 +976,18 @@ export function Workbench({
 				</ResizablePanelGroup>
 			</div>
 			{/* The File Bar button floats over the top end of whichever chrome lies beneath it: the File
-			    Bar's toggles row while it docks on the right or opens over the terminal area to the
-			    window's end, else the Tab bar or the no-Workspace row. It follows the layout and the File
-			    Bar over it, so its no-drag region comes after the toggles row's drag region, and it stays
-			    over the scrim of the File Bar it closes. */}
-			{fileBar.toggle === null ? null : (
+			    Bar's toggles row while it docks on the right or opens over the terminal area or the window
+			    to the window's end, else the Tab bar, the mobile bar or the no-Workspace row. It follows
+			    the layout and the File Bar over it, so its no-drag region comes after the toggles row's
+			    drag region. It stays over the scrim of the File Bar it closes and over the sidebar list
+			    filling the window, whose top band leaves its place empty, so the File Bar can take that
+			    list's place; the Tab list covers it, as it covers the sidebar button. */}
+			{fileBar.toggle === null || tabListShown ? null : (
 				<div
 					className={styles['fileBarToggle']}
-					data-over-file-bar={fileBarOverlay === null ? undefined : ''}
+					data-raised={
+						fileBarOverlay !== null || view.sidebarPresentation === 'fill' ? '' : undefined
+					}
 					data-slot='workbench-file-bar-toggle-position'
 				>
 					<WorkbenchColumnToggle
@@ -982,6 +1004,7 @@ export function Workbench({
 						shortcutId={WORKBENCH_ACTION_IDS.toggleFileBar}
 						shortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleFileBar)}
 						side={fileBar.position}
+						touch={view.touchSizes}
 					/>
 				</div>
 			)}

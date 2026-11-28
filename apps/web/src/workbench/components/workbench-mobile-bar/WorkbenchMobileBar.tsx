@@ -21,6 +21,8 @@ const graphemes =
 interface WorkbenchMobileBarProps {
 	/** A list covers the window, so the bar leaves the accessibility tree and the tab order. */
 	readonly covered: boolean;
+	/** Whether the File Bar button floats over the end, after `Tabs 8`, where the bar keeps its place. */
+	readonly fileBarTogglePlace: boolean;
 	readonly identityIcons?: ReadonlyMap<string, ReactNode> | undefined;
 	readonly onOpenTabList: () => void;
 	readonly statusAdornments?: ReadonlyMap<string, Readonly<TabStatusAdornment>> | undefined;
@@ -33,16 +35,18 @@ interface WorkbenchMobileBarProps {
 
 /**
  * The mobile layout's bar in place of the Tab strip: the sidebar button's place, the current Tab
- * centered on the whole bar, and `Tabs 8`. A tap anywhere between the two buttons opens the Tab
- * list. The sidebar button itself floats above the start, where it stands in every layout. Each
- * side holds both sides' contents, one of them hidden, so the two take the same width and the
- * current Tab stays centered whatever stands at either edge, a desktop window's controls included.
- * The start and the current Tab share one box, so a narrow window takes their space and never the
- * end's. The current Tab's name shows whole or ends in a whole character and a whole ellipsis, and
- * otherwise leaves the icon alone; a Tab its place cannot hold hides.
+ * centered on the whole bar, and `Tabs 8`, then the File Bar button's place where the window offers
+ * the File Bar. A tap anywhere between the buttons opens the Tab list. The sidebar and File Bar
+ * buttons themselves float above the ends, where they stand in every layout. Each side holds both
+ * sides' contents, one of them hidden, so the two take the same width and the current Tab stays
+ * centered whatever stands at either edge, a desktop window's controls included. The start and the
+ * current Tab share one box, so a narrow window takes their space and never the end's. The current
+ * Tab's name shows whole or ends in a whole character and a whole ellipsis, and otherwise leaves the
+ * icon alone; a Tab its place cannot hold hides.
  */
 export function WorkbenchMobileBar({
 	covered,
+	fileBarTogglePlace,
 	identityIcons,
 	onOpenTabList,
 	statusAdornments,
@@ -82,6 +86,15 @@ export function WorkbenchMobileBar({
 				touch={touch}
 				word={word}
 			/>
+			{/* The end's copy is the place of the File Bar button, which floats above it. */}
+			{fileBarTogglePlace ? (
+				<span
+					aria-hidden='true'
+					className={styles['fileBarTogglePlace']}
+					data-file-bar-toggle-place={shown ? '' : undefined}
+					data-slot='workbench-mobile-bar-file-bar-toggle-place'
+				/>
+			) : null}
 			{/* A desktop window's own controls at the top end, where they draw over the page. */}
 			<span className={styles['trailing']} data-slot='workbench-mobile-bar-trailing' />
 		</span>

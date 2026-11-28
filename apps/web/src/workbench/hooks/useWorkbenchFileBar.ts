@@ -33,6 +33,7 @@ import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import { buildFileBarRowMenu, showFileBarViewActionId } from '../utils/file-bar-row-menu';
 import { isUnclaimedEscape } from '../utils/isUnclaimedEscape';
+import { resolveWorkbenchFocusRegionFromTarget } from '../utils/workbench-focus-dom';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 /** The File Bar's panel in the Workbench's resizable group. */
@@ -119,12 +120,17 @@ interface WorkbenchFileBarColumn extends WorkbenchFileBarContent {
 	readonly terminalAreaMinSize: string;
 }
 
-/** The File Bar opened over the terminal area from its side, without room to dock. */
+/**
+ * The File Bar opened over the terminal area from its side without room to dock, or filling the
+ * window in the mobile layout.
+ */
 interface WorkbenchFileBarOverlay extends WorkbenchFileBarContent {
 	/** Whether it reaches the window's end, where its row keeps the caption buttons' place. */
 	readonly atWindowEnd: boolean;
 	/** Whether it starts at the window's start, where its row keeps the Sidebar button's place. */
 	readonly atWindowStart: boolean;
+	/** Whether it fills the window, as the sidebar list does in the mobile layout. */
+	readonly fill: boolean;
 	/**
 	 * Where the terminal area starts in the Workbench root: it opens from there on the left, and on
 	 * either side reaches no further.
@@ -171,11 +177,14 @@ export interface WorkbenchFileBarView {
 		layout: Readonly<Record<string, number>>,
 		meta: ResizableLayoutChangedMeta,
 	) => void;
-	/** Present while the File Bar shows over the terminal area, without room to dock. */
+	/**
+	 * Present while the File Bar shows over the terminal area without room to dock, or fills the
+	 * window in the mobile layout.
+	 */
 	readonly overlay: WorkbenchFileBarOverlay | null;
 	/** The side of the terminal area the File Bar takes, as the user's settings name it. */
 	readonly position: FileBarPosition;
-	/** Present while the window offers the File Bar outside the mobile layout. */
+	/** Present while the window offers the File Bar. */
 	readonly toggle: WorkbenchFileBarToggle | null;
 }
 
@@ -190,7 +199,7 @@ interface UseWorkbenchFileBarOptions {
 	readonly closeSurfacesOverContent: () => void;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly focusTerminal: () => void;
-	/** The mobile layout, which has no room to dock the File Bar. */
+	/** The mobile layout, where the File Bar never docks and fills the window as it opens. */
 	readonly mobile: boolean;
 	/** Whether this window offers the File Bar; without the offer nothing registers, reads or loads. */
 	readonly offered: boolean;
@@ -252,7 +261,7 @@ function sameLayout(left: FileBarLayout, right: FileBarLayout): boolean {
  * room does. With less room it steps aside, as the Sidebar does in a narrow window: its button opens
  * it at its width over the terminal area from its side, where it takes the keys until Esc, a press
  * outside or a file opening closes it. Only a docked choice persists, so room regained docks it again
- * as it was left.
+ * as it was left. In the mobile layout it opens filling the window, as the sidebar list does.
  */
 export function useWorkbenchFileBar({
 	actionRuntime,
@@ -356,18 +365,19 @@ export function useWorkbenchFileBar({
 		setLoad((current) => (current.kind === 'failed' ? IDLE_LOAD : current));
 		liveWidth.current = layoutReference.current.width;
 	});
-	// The mobile layout has no room to dock it yet, so it offers no Action there.
-	const reachable = offered && !mobile;
 	// Whether the panel group the File Bar shares with the terminal area leaves that area its minimum
 	// beside the File Bar at its narrowest; unmeasured, it does.
 	const [roomToDock, setRoomToDock] = React.useState(true);
 	const [overlayOpen, setOverlayOpen] = React.useState(false);
-	// Gaining or losing the room to dock closes the File Bar over the terminal area, so it docks again
-	// as it was left, as the Sidebar does across its docking width; a surface opening over the content
-	// in its place closes it too.
-	const [roomSeen, setRoomSeen] = React.useState(roomToDock);
-	if (roomSeen !== roomToDock) {
-		setRoomSeen(roomToDock);
+	// The mobile layout never docks it, whatever room its panel group reports.
+	const stepsAside = mobile || !roomToDock;
+	// Gaining or losing the room to dock closes the File Bar over the terminal area or the window, so
+	// it docks again as it was left, as the Sidebar does across its docking width, while crossing the
+	// mobile width alone keeps it open in the other form, as it keeps the Sidebar; a surface opening
+	// over the content in its place closes it too.
+	const [stepsAsideSeen, setStepsAsideSeen] = React.useState(stepsAside);
+	if (stepsAsideSeen !== stepsAside) {
+		setStepsAsideSeen(stepsAside);
 		setOverlayOpen(false);
 	}
 	const [surfacesSeen, setSurfacesSeen] = React.useState(surfacesOverContent);
@@ -375,9 +385,9 @@ export function useWorkbenchFileBar({
 		setSurfacesSeen(surfacesOverContent);
 		if (surfacesOverContent) setOverlayOpen(false);
 	}
-	const dockable = reachable && roomToDock;
+	const dockable = offered && !stepsAside;
 	const docked = dockable && layout.visible;
-	const overlayShown = reachable && !roomToDock && overlayOpen;
+	const overlayShown = offered && stepsAside && overlayOpen;
 	const shown = docked || overlayShown;
 	// Over the terminal area the File Bar takes the keys as it opens, as the Sidebar over the content
 	// does, and the Sidebar and the Tab list give way to it.
@@ -593,7 +603,7 @@ export function useWorkbenchFileBar({
 		},
 	);
 	React.useEffect(() => {
-		if (!reachable) return undefined;
+		if (!offered) return undefined;
 		const registration = registerWorkbenchFileBarActions({
 			isVisible: shown,
 			move,
@@ -604,14 +614,14 @@ export function useWorkbenchFileBar({
 			typedRuntime,
 		});
 		return () => registration.dispose();
-	}, [actionScope, move, position, reachable, shown, showView, toggle, typedRuntime]);
+	}, [actionScope, move, offered, position, shown, showView, toggle, typedRuntime]);
 	// The room the File Bar shares with the terminal area decides whether it docks. As the room
 	// narrows, the terminal area's minimum takes from the docked File Bar, whose pixel width the panel
 	// group then keeps as the room widens again, so the File Bar widens back itself, a frame later,
 	// once the group has followed the room, which no group reports while a divider drags.
 	React.useLayoutEffect(() => {
 		const area = areaReference.current;
-		if (!reachable || area === null) return undefined;
+		if (!offered || area === null) return undefined;
 		let frame = 0;
 		const measure = (): void => {
 			const { width } = area.getBoundingClientRect();
@@ -628,13 +638,13 @@ export function useWorkbenchFileBar({
 			cancelAnimationFrame(frame);
 			observer.disconnect();
 		};
-	}, [fitColumn, minimumWidth, reachable]);
+	}, [fitColumn, minimumWidth, offered]);
 	// Over the terminal area the File Bar follows that area, which it opens from.
 	const [overlayPlace, setOverlayPlace] = React.useState<FileBarOverlayPlace | null>(null);
 	React.useLayoutEffect(() => {
 		const area = areaReference.current;
 		const root = rootReference.current;
-		if (!overlayShown || area === null || root === null) return undefined;
+		if (!overlayShown || mobile || area === null || root === null) return undefined;
 		const measure = (): void => {
 			const box = area.getBoundingClientRect();
 			const start = Math.round(box.left - root.getBoundingClientRect().left);
@@ -648,7 +658,18 @@ export function useWorkbenchFileBar({
 		observer.observe(area);
 		observer.observe(root);
 		return () => observer.disconnect();
-	}, [layout.width, overlayShown, rootReference]);
+	}, [layout.width, mobile, overlayShown, rootReference]);
+	// Filling the window, it covers the terminal, which never takes the keys beneath it, so the
+	// terminal taking them closes it, as it closes the lists that fill the window.
+	React.useEffect(() => {
+		const root = rootReference.current;
+		if (!overlayShown || !mobile || root === null) return undefined;
+		const onFocusIn = (event: FocusEvent): void => {
+			if (resolveWorkbenchFocusRegionFromTarget(event.target) === 'terminal') setOverlayOpen(false);
+		};
+		root.addEventListener('focusin', onFocusIn);
+		return () => root.removeEventListener('focusin', onFocusIn);
+	}, [mobile, overlayShown, rootReference]);
 	// The File Bar mounts afresh wherever it shows next, docked on either side or over the terminal
 	// area, so leaving a place drops its focus request, which would otherwise take focus there; only a
 	// request made as it shows from hiding survives.
@@ -683,7 +704,7 @@ export function useWorkbenchFileBar({
 	if (shown && workspaceId !== null && !shownWorkspaces.has(workspaceId)) {
 		setShownWorkspaces(new Set([...shownWorkspaces, workspaceId]));
 	}
-	const holding = reachable && workspaceId !== null && (shown || shownWorkspaces.has(workspaceId));
+	const holding = offered && workspaceId !== null && (shown || shownWorkspaces.has(workspaceId));
 	const [session, setSession] = React.useState<FileWorkspaceSession | null>(null);
 	React.useEffect(() => {
 		if (sessions === null || !holding || workspaceId === null) return undefined;
@@ -709,7 +730,7 @@ export function useWorkbenchFileBar({
 			current = false;
 		};
 	}, [shown, load.kind]);
-	const toggleView = reachable
+	const toggleView = offered
 		? {
 				badge:
 					shown || session === null || load.kind !== 'ready'
@@ -753,20 +774,39 @@ export function useWorkbenchFileBar({
 			overlay: null,
 		};
 	}
-	if (!overlayShown || overlayPlace === null) return { ...base, column: null, overlay: null };
+	if (!overlayShown) return { ...base, column: null, overlay: null };
+	const overlayContent = {
+		...content(),
+		onKeyDown: onOverlayKeyDown,
+		onScrimPointerDown: onOverlayScrimPointerDown,
+		width: layout.width,
+	};
+	// Filling the window, it touches both of the window's ends.
+	if (mobile) {
+		return {
+			...base,
+			column: null,
+			overlay: {
+				...overlayContent,
+				atWindowEnd: true,
+				atWindowStart: true,
+				fill: true,
+				inlineStart: 0,
+			},
+		};
+	}
+	if (overlayPlace === null) return { ...base, column: null, overlay: null };
 	// Reaching across the terminal area, it touches both of the area's ends.
 	const { across, start } = overlayPlace;
 	return {
 		...base,
 		column: null,
 		overlay: {
-			...content(),
+			...overlayContent,
 			atWindowEnd: position === 'right' || across,
 			atWindowStart: start === 0 && (position === 'left' || across),
+			fill: false,
 			inlineStart: start,
-			onKeyDown: onOverlayKeyDown,
-			onScrimPointerDown: onOverlayScrimPointerDown,
-			width: layout.width,
 		},
 	};
 }

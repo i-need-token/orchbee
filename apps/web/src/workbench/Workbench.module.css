@@ -77,7 +77,7 @@ button.statusNoticeText {
 	z-index: var(--ob-ref-layer-base);
 }
 
-.fileBarToggle[data-over-file-bar] {
+.fileBarToggle[data-raised] {
 	z-index: var(--ob-ref-layer-raised);
 }
 
@@ -176,13 +176,16 @@ button.statusNoticeText {
 	border-inline-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
 }
 
-.fileBarOverlay > .fileBarPanel {
+.fileBarOverlay > .fileBarPanel,
+.fileBarFill > .fileBarPanel {
 	flex: 1;
 	min-width: var(--ob-ref-space-0);
 }
 
-/* The mobile layout: the sidebar list fills the window and covers the terminal (D3). */
-.sidebarFill {
+/* The mobile layout: the sidebar list or the File Bar fills the window and covers the terminal
+   (D3). */
+.sidebarFill,
+.fileBarFill {
 	position: absolute;
 	inset: 0;
 	z-index: var(--ob-ref-layer-raised);
@@ -191,10 +194,15 @@ button.statusNoticeText {
 }
 
 /* Touch sizes (D19): the sidebar button's 44 px target fills the row's corner, so its 36 px fill
-   stands 4 px from the 44 px row's edges. */
+   stands 4 px from the 44 px row's edges; the File Bar button's fills the other corner. */
 .root[data-workbench-touch] .sidebarToggle {
 	inset-block-start: var(--ob-ref-space-0);
 	inset-inline-start: var(--ob-ref-space-0);
+}
+
+.root[data-workbench-touch] .fileBarToggle {
+	inset-block-start: var(--ob-ref-space-0);
+	inset-inline-end: var(--ob-ref-space-0);
 }
 
 /* The sidebar button's place in the chrome beneath it: its fill and 8 px on each side, as the
@@ -247,6 +255,10 @@ button.statusNoticeText {
 	padding: var(--ob-ref-space-3);
 	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-body-sm);
+}
+
+.root[data-workbench-touch] .fileBarFailure {
+	margin-block-start: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
 }
 
 .windowDragRegion {

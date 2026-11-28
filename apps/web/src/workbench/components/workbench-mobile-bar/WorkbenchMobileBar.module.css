@@ -75,6 +75,16 @@
 	flex: none;
 }
 
+/* The File Bar button's place: its fill and 4 px on each side, as the sidebar button's. */
+.fileBarTogglePlace {
+	flex: none;
+	width: calc(var(--ob-ref-size-control-sm) + var(--ob-ref-space-2));
+}
+
+.root[data-touch] .fileBarTogglePlace {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
 /* The sidebar button's place: its fill and 4 px on each side. As the start's minimum width, it is
    also the start's floor, which its maximum width never cuts. */
 .leading {

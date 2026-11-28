@@ -35,6 +35,16 @@
 	height: 100%;
 }
 
+/* Touch sizes (D18, D19), which only the mobile layout's fill takes: the row is 44 px, as the lists'
+   top bands, and the File Bar button's target fills its end corner. */
+:global([data-workbench-touch]) .togglesRow {
+	height: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
+:global([data-workbench-touch]) .fileBarTogglePlace {
+	width: calc(var(--ob-ref-size-control-lg) + var(--ob-ref-space-2));
+}
+
 .view {
 	min-height: 0;
 	flex: 1;
