@@ -249,6 +249,7 @@ export function Workbench({
 		reportActionOutcome: view.reportActionOutcome,
 		rootReference: view.shortcutScopeReference,
 		shortcutLabelForAction,
+		shortcutPlatform,
 		sidebarDocked: view.sidebarPresentation === 'docked',
 		terminalContext,
 		workspaceId: activeWorkspaceId,
@@ -808,6 +809,8 @@ export function Workbench({
 				<FileOverlayHost
 					commands={fileOverlay.host.commands}
 					dispatch={fileOverlay.host.dispatch}
+					focusTerminal={fileOverlay.host.focusTerminal}
+					platform={fileOverlay.host.platform}
 					regions={fileOverlay.host.regions}
 					shortcutLabels={fileOverlay.host.shortcutLabels}
 					sidebarDocked={view.sidebarPresentation === 'docked'}

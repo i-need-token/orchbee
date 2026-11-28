@@ -1,0 +1,140 @@
+/* As wide as its label, as VS Code's fit sizing makes a tab: the row scrolls rather than cut a name
+   short. Every tab keeps one weight, so showing another tab never shifts the row; the selection
+   surface marks the active one. */
+.tab {
+	position: relative;
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1-5);
+	height: var(--ob-ref-size-control-sm);
+	padding-inline: var(--ob-ref-space-2) var(--ob-ref-space-1);
+	border-radius: var(--ob-ref-radius-ui-md);
+	color: var(--ob-sys-color-text-secondary);
+	font: var(--ob-sys-typography-body-sm);
+	white-space: nowrap;
+	cursor: default;
+	user-select: none;
+}
+
+/* The last sticky tab ends the sticky ones with a divider while other tabs follow it, as VS Code's
+   last pinned tab border does. Its margin doubles the row's gap, and the divider sits in the middle. */
+.tab[data-sticky]:has(+ .tab:not([data-sticky])) {
+	margin-inline-end: var(--ob-ref-space-1);
+}
+
+.tab[data-sticky]:has(+ .tab:not([data-sticky]))::after {
+	position: absolute;
+	inset-block: var(--ob-ref-space-1-5);
+	inset-inline-end: calc((var(--ob-ref-space-2) + var(--ob-ref-border-width-default)) / -2);
+	width: var(--ob-ref-border-width-default);
+	background: var(--ob-sys-color-border-default);
+	content: '';
+	pointer-events: none;
+}
+
+.tab:hover,
+.tab:focus-visible {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.tab[data-active] {
+	background: var(--ob-sys-color-surface-selected);
+	color: var(--ob-sys-color-text-primary);
+}
+
+.tab[data-active]:hover {
+	background: var(--ob-sys-color-surface-selected-hover);
+}
+
+.tab:focus-visible {
+	outline: var(--ob-sys-focus-ring-width) solid var(--ob-sys-color-border-focus);
+	outline-offset: calc(var(--ob-sys-focus-ring-width) * -1);
+}
+
+.icon {
+	display: inline-flex;
+	color: var(--ob-sys-color-icon-secondary);
+}
+
+.tab:is(:hover, :focus-visible) .icon {
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.tab[data-active] .icon {
+	color: var(--ob-sys-color-icon-primary);
+}
+
+.label {
+	display: flex;
+	align-items: baseline;
+	gap: var(--ob-ref-space-1-5);
+}
+
+/* The preview tab, which the next file opened in preview replaces, sets its label in italics. */
+.tab[data-preview] .label {
+	font-style: italic;
+}
+
+.description {
+	color: var(--ob-sys-color-text-muted);
+}
+
+/* The button keeps its place while hidden, so the pointer reaching a tab never moves its label. A
+   sticky tab always shows its pin, and an unsaved tab its dot. */
+.action {
+	display: inline-flex;
+	width: var(--ob-ref-size-control-2xs);
+	height: var(--ob-ref-size-control-2xs);
+	flex: none;
+	align-items: center;
+	justify-content: center;
+	margin: 0;
+	padding: 0;
+	border: none;
+	border-radius: var(--ob-ref-radius-ui-sm);
+	background: none;
+	color: var(--ob-sys-color-icon-secondary);
+	cursor: default;
+	visibility: hidden;
+}
+
+.tab:is(:hover, :focus-visible, [data-active], [data-sticky], [data-unsaved]) .action {
+	visibility: visible;
+}
+
+.action:hover {
+	background: var(--ob-sys-color-surface-hovered);
+	color: var(--ob-sys-color-icon-hover);
+}
+
+.tab[data-active] .action:hover {
+	background: var(--ob-sys-color-surface-pressed);
+}
+
+.action:active {
+	background: var(--ob-sys-color-surface-pressed);
+	color: var(--ob-sys-color-icon-primary);
+}
+
+/* An unsaved tab's dot gives way to the button's own glyph under the pointer, as in VS Code. */
+.restGlyph {
+	display: contents;
+}
+
+.hoverGlyph {
+	display: none;
+}
+
+.action:hover .restGlyph {
+	display: none;
+}
+
+.action:hover .hoverGlyph {
+	display: contents;
+}
+
+.path {
+	overflow-wrap: anywhere;
+}

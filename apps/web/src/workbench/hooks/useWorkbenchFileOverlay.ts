@@ -6,6 +6,7 @@ import * as React from 'react';
 import {
 	FileOverlayRegistry,
 	loadFileOverlay,
+	type FileOverlayCommandSource,
 	type FileOverlayCommands,
 	type FileOverlayEvent,
 	type FileOverlayModule,
@@ -16,6 +17,7 @@ import {
 import type { WorkbenchWorkspace } from '../../project-workspace';
 import { registerWorkbenchFileOverlayActions } from '../actions/registerWorkbenchFileOverlayActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
+import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
@@ -42,6 +44,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly rootReference: React.RefObject<HTMLElement | null>;
 	/** The keys that run an Action now, for the overlay's tooltips. */
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
+	/** The platform whose pointer and key conventions the overlay follows. */
+	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Whether the Sidebar shows docked, which offers left-expand while the File Bar is on the right. */
 	readonly sidebarDocked: boolean;
 	/** The active Workspace's terminals, which the terminal area shows; null outside a Workspace. */
@@ -57,6 +61,8 @@ interface WorkbenchFileOverlayHost {
 	readonly commands: FileOverlayCommands;
 	readonly content: FileOverlayModule['FileOverlayHost'];
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	readonly focusTerminal: () => void;
+	readonly platform: WorkbenchShortcutPlatform;
 	readonly regions: FileOverlayRegionElements;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	readonly store: FileOverlayStore;
@@ -75,6 +81,13 @@ const subscribeToNothing = (): (() => void) => () => undefined;
 const noActiveTab = (): null => null;
 const neverShown = (): boolean => false;
 
+/** The overlay's Actions that name one tab. */
+type FileOverlayTabActionId =
+	| typeof WORKBENCH_ACTION_IDS.closeFileOverlayTab
+	| typeof WORKBENCH_ACTION_IDS.keepFileOverlayTab
+	| typeof WORKBENCH_ACTION_IDS.selectFileOverlayTab
+	| typeof WORKBENCH_ACTION_IDS.unpinFileOverlayTab;
+
 /**
  * Keeps one file overlay per Workspace for this Workbench and tells the overlays what the Workbench
  * changes beneath them: the terminal the active Workspace shows, whether left-expand is offered, and
@@ -90,6 +103,7 @@ export function useWorkbenchFileOverlay({
 	reportActionOutcome,
 	rootReference,
 	shortcutLabelForAction,
+	shortcutPlatform,
 	sidebarDocked,
 	terminalContext,
 	workspaceId,
@@ -136,7 +150,8 @@ export function useWorkbenchFileOverlay({
 			if (effect.kind === 'focus-terminal') focusTerminal();
 		}
 	});
-	const toggleFull = useMemoizedFn(() => dispatch({ type: 'full-toggled' }));
+	// The overlay keeps one function across renders, whichever the Workbench passes.
+	const returnToTerminal = useMemoizedFn(() => focusTerminal());
 	const invokeToggleFull = useMemoizedFn(() => {
 		reportActionOutcome('button', () =>
 			typedRuntime.execute(WORKBENCH_ACTION_IDS.toggleFileOverlayFull, undefined, {
@@ -145,9 +160,28 @@ export function useWorkbenchFileOverlay({
 			}),
 		);
 	});
+	const invokeTabAction = useMemoizedFn(
+		(actionId: FileOverlayTabActionId, tabId: string, source: FileOverlayCommandSource) => {
+			if (workspaceId === null) return;
+			const input = { tabId, workspaceId };
+			reportActionOutcome(source, () =>
+				typedRuntime.execute(actionId, input, { scope: actionScope, source }),
+			);
+		},
+	);
 	const commands = React.useMemo<FileOverlayCommands>(
-		() => ({ toggleFull: invokeToggleFull }),
-		[invokeToggleFull],
+		() => ({
+			closeTab: (tabId, source) =>
+				invokeTabAction(WORKBENCH_ACTION_IDS.closeFileOverlayTab, tabId, source),
+			keepTab: (tabId, source) =>
+				invokeTabAction(WORKBENCH_ACTION_IDS.keepFileOverlayTab, tabId, source),
+			selectTab: (tabId, source) =>
+				invokeTabAction(WORKBENCH_ACTION_IDS.selectFileOverlayTab, tabId, source),
+			toggleFull: invokeToggleFull,
+			unpinTab: (tabId, source) =>
+				invokeTabAction(WORKBENCH_ACTION_IDS.unpinFileOverlayTab, tabId, source),
+		}),
+		[invokeTabAction, invokeToggleFull],
 	);
 	React.useEffect(() => {
 		registry?.showTerminal(
@@ -161,15 +195,18 @@ export function useWorkbenchFileOverlay({
 		registry?.retain(new Set(workspaces.map((workspace) => workspace.id)));
 	}, [registry, workspaces]);
 	React.useEffect(() => {
-		if (store === null) return undefined;
-		const registration = registerWorkbenchFileOverlayActions({
-			getMode: () => store.state.getState().mode,
+		if (store === null || workspaceId === null) return undefined;
+		const registrations = registerWorkbenchFileOverlayActions({
+			dispatch,
+			getState: () => store.state.getState(),
 			scope: actionScope,
-			toggleFull,
 			typedRuntime,
+			workspaceId,
 		});
-		return () => registration.dispose();
-	}, [actionScope, store, toggleFull, typedRuntime]);
+		return () => {
+			for (const registration of registrations) registration.dispose();
+		};
+	}, [actionScope, dispatch, store, typedRuntime, workspaceId]);
 	// A failed load says so on a card, and tries again from its button or the next time an overlay
 	// shows.
 	if (!shown && load.kind === 'failed') setLoad(IDLE_LOAD);
@@ -215,6 +252,8 @@ export function useWorkbenchFileOverlay({
 					commands,
 					content: load.module.FileOverlayHost,
 					dispatch,
+					focusTerminal: returnToTerminal,
+					platform: shortcutPlatform,
 					regions,
 					shortcutLabels,
 					store,

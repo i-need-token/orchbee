@@ -24,12 +24,6 @@
 	border-block-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-subtle);
 }
 
-.tabs {
-	min-width: 0;
-	flex: 1;
-	align-self: stretch;
-}
-
 .titleActions {
 	display: flex;
 	flex: none;

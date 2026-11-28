@@ -96,6 +96,10 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleFileBar: 'workbench.file-bar.toggle',
 	toggleFileOverlayFull: 'file-overlay.tier.toggle-full',
+	closeFileOverlayTab: 'file-overlay.tab.close',
+	keepFileOverlayTab: 'file-overlay.tab.keep',
+	selectFileOverlayTab: 'file-overlay.tab.select',
+	unpinFileOverlayTab: 'file-overlay.tab.unpin',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
 	toggleSidebar: 'workbench.sidebar.toggle',
@@ -277,6 +281,15 @@ export interface WorkbenchSearchOpenInput {
 	readonly filter: WorkbenchSearchFilter;
 }
 
+/** One file overlay tab, named with the Workspace whose overlay holds it. */
+export interface WorkbenchFileOverlayTabTargetInput {
+	readonly tabId: string;
+	readonly workspaceId: string;
+}
+
+/** A named file overlay tab, or the active one without input. */
+export type WorkbenchFileOverlayTabInput = undefined | WorkbenchFileOverlayTabTargetInput;
+
 export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.setWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.createWorkspaceProject]: ActionSignature<WorkbenchWorkspaceProjectCreateInput>;
@@ -355,6 +368,10 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileBar]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileOverlayFull]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.closeFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.keepFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.selectFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.unpinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleSidebar]: ActionSignature<void>;
@@ -558,6 +575,39 @@ export const workbenchTabSetTargetInput: ActionInputValidation<WorkbenchTabSetTa
 			terminalContextId.length > 0
 			? { data: { tabIds: [...tabIds], terminalContextId }, success: true }
 			: { code: 'expected-workbench-tab-set-target-input', success: false };
+	},
+};
+
+function fileOverlayTabTarget(input: unknown): WorkbenchFileOverlayTabTargetInput | null {
+	if (!isRecord(input)) return null;
+	const { tabId, workspaceId } = input;
+	return typeof tabId === 'string' &&
+		tabId.length > 0 &&
+		typeof workspaceId === 'string' &&
+		workspaceId.length > 0
+		? { tabId, workspaceId }
+		: null;
+}
+
+export const workbenchFileOverlayTabTargetInput: ActionInputValidation<WorkbenchFileOverlayTabTargetInput> =
+	{
+		name: 'WorkbenchFileOverlayTabTargetInput',
+		parse: (input) => {
+			const target = fileOverlayTabTarget(input);
+			return target === null
+				? { code: 'expected-workbench-file-overlay-tab-target-input', success: false }
+				: { data: target, success: true };
+		},
+	};
+
+export const workbenchFileOverlayTabInput: ActionInputValidation<WorkbenchFileOverlayTabInput> = {
+	name: 'WorkbenchFileOverlayTabInput',
+	parse: (input) => {
+		if (input === undefined) return { data: undefined, success: true };
+		const target = fileOverlayTabTarget(input);
+		return target === null
+			? { code: 'expected-workbench-file-overlay-tab-input', success: false }
+			: { data: target, success: true };
 	},
 };
 

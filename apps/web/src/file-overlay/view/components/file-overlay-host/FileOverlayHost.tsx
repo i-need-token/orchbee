@@ -16,6 +16,8 @@ import styles from './FileOverlayHost.module.css';
 export function FileOverlayHost({
 	commands,
 	dispatch,
+	focusTerminal,
+	platform,
 	regions,
 	shortcutLabels,
 	sidebarDocked,
@@ -25,6 +27,8 @@ export function FileOverlayHost({
 		<FileOverlayHostStoreProvider
 			commands={commands}
 			dispatch={dispatch}
+			focusTerminal={focusTerminal}
+			platform={platform}
 			shortcutLabels={shortcutLabels}
 			store={store}
 		>

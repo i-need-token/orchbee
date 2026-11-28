@@ -71,6 +71,10 @@
 	composes: codicon-ellipsis from global;
 }
 
+.file {
+	composes: codicon-file from global;
+}
+
 .files {
 	composes: codicon-files from global;
 }
@@ -125,6 +129,10 @@
 
 .pin {
 	composes: codicon-pinned from global;
+}
+
+.pinUnsaved {
+	composes: codicon-pinned-dirty from global;
 }
 
 .question {
@@ -193,6 +201,10 @@
 
 .ungroup {
 	composes: codicon-ungroup-by-ref-type from global;
+}
+
+.unsaved {
+	composes: codicon-circle-filled from global;
 }
 
 .warning {

@@ -22,6 +22,7 @@ export type ProductIconName =
 	| 'copy'
 	| 'edit'
 	| 'ellipsis'
+	| 'file'
 	| 'files'
 	| 'folder'
 	| 'folder-opened'
@@ -36,6 +37,7 @@ export type ProductIconName =
 	| 'new-folder'
 	| 'panels'
 	| 'pin'
+	| 'pin-unsaved'
 	| 'question'
 	| 'remove'
 	| 'restore'
@@ -53,6 +55,7 @@ export type ProductIconName =
 	| 'terminal'
 	| 'trash'
 	| 'ungroup'
+	| 'unsaved'
 	| 'warning';
 
 interface ProductIconProps {
@@ -83,6 +86,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'copy' && styles['copy'],
 				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
+				name === 'file' && styles['file'],
 				name === 'files' && styles['files'],
 				name === 'folder' && styles['folder'],
 				name === 'folder-opened' && styles['folderOpened'],
@@ -97,6 +101,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'new-folder' && styles['newFolder'],
 				name === 'panels' && styles['panels'],
 				name === 'pin' && styles['pin'],
+				name === 'pin-unsaved' && styles['pinUnsaved'],
 				name === 'question' && styles['question'],
 				name === 'remove' && styles['remove'],
 				name === 'restore' && styles['restore'],
@@ -114,6 +119,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'terminal' && styles['terminal'],
 				name === 'trash' && styles['trash'],
 				name === 'ungroup' && styles['ungroup'],
+				name === 'unsaved' && styles['unsaved'],
 				name === 'warning' && styles['warning'],
 			)}
 			data-icon={name}

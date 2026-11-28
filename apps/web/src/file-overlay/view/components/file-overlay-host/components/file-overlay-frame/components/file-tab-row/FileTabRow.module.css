@@ -1,0 +1,20 @@
+/* The row hides its native scrollbar, so it stays the height of the Tab bar: the wheel, a sideways
+   swipe and the keys scroll it, and the active tab always scrolls into view. */
+.root {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	align-self: stretch;
+	padding-inline-start: var(--ob-ref-space-2);
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+}
+
+/* As wide as the tabs together, so a tab that grows or shrinks changes its width. */
+.list {
+	display: flex;
+	flex: none;
+	align-items: center;
+	gap: var(--ob-ref-space-1);
+}

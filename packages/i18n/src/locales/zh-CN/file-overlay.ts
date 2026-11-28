@@ -1,10 +1,20 @@
 import type { FileOverlayMessageId } from '../en-US';
 
 export const zhCNFileOverlayMessages = {
+	'fileOverlay.actions.close': '关闭',
+	'fileOverlay.actions.closeEditor': '关闭编辑器',
 	'fileOverlay.actions.expand': '展开',
+	'fileOverlay.actions.keepEditor': '保留编辑器',
 	'fileOverlay.actions.restore': '还原',
 	'fileOverlay.actions.retry': '重试',
+	'fileOverlay.actions.showEditor': '显示编辑器',
 	'fileOverlay.actions.toggleFull': '展开 / 还原文件浮窗',
+	'fileOverlay.actions.unpin': '取消固定',
+	'fileOverlay.actions.unpinEditor': '取消固定编辑器',
 	'fileOverlay.label': '文件浮窗',
 	'fileOverlay.loadFailed': '没能加载文件浮窗。',
+	'fileOverlay.tabs.label': '打开的编辑器',
+	'fileOverlay.tabs.pinnedName': '{name}，已固定',
+	'fileOverlay.tabs.previewName': '{name}，预览',
+	'fileOverlay.tabs.previewPath': '{path}（预览）',
 } as const satisfies Readonly<Record<FileOverlayMessageId, string>>;

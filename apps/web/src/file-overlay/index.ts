@@ -1,6 +1,7 @@
 export type { FileOverlayEvent, FileOverlayState } from './model';
 export { loadFileOverlay } from './view';
 export type {
+	FileOverlayCommandSource,
 	FileOverlayCommands,
 	FileOverlayModule,
 	FileOverlayRegionElements,
