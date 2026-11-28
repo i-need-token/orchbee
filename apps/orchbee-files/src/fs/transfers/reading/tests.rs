@@ -13,7 +13,10 @@ use orchbee_files_protocol::{ChunkEnd, LineEnding, ReadMode};
 use sha2::{Digest, Sha256};
 
 use super::*;
-use crate::fs::{encoding::Encoding, tests::Scratch, timer::Timer};
+use crate::{
+    fs::{encoding::Encoding, tests::Scratch},
+    timer::Timer,
+};
 
 const WAIT: Duration = Duration::from_secs(10);
 

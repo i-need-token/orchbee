@@ -1,7 +1,7 @@
-//! rg's arguments for a text search, as VS Code's `getRgArgs` builds them at ef5ca45, with the one
-//! departure the File Bar makes: a folder inside a Git working tree below its top keeps the
-//! `.gitignore` files up to the top. rg runs in the folder, so every path it reports is relative
-//! to it.
+//! rg's arguments for a text search and for a file listing, as VS Code's `getRgArgs` and
+//! `ripgrepFileSearch.ts` build them at ef5ca45, with the one departure the File Bar makes: a
+//! folder inside a Git working tree below its top keeps the `.gitignore` files up to the top.
+//! rg runs in the folder, so every path it reports is relative to it.
 
 use std::{collections::HashSet, path::Path};
 
@@ -144,6 +144,42 @@ pub(super) fn text(
     Ok(arguments)
 }
 
+/// The arguments of a file listing's run in one folder; `exceptions` makes it the second run.
+pub(super) fn files(folder: &FolderOptions<'_>, exceptions: Option<&[String]>) -> Vec<String> {
+    let parents = folder.keeps_parent_ignores() && exceptions.is_none();
+    let mut arguments = ["--files", "--hidden", "--case-sensitive"]
+        .map(String::from)
+        .to_vec();
+    if !parents {
+        arguments.push("--no-require-git".to_owned());
+    }
+    if folder.ignore_glob_case {
+        arguments.extend(
+            ["--glob-case-insensitive", "--ignore-file-case-insensitive"].map(String::from),
+        );
+    }
+    match exceptions {
+        Some(exceptions) => push_globs(&mut arguments, exception_globs(exceptions)),
+        None => {
+            let includes = listing_globs(folder.includes).map(|include| anchor(&include));
+            push_globs(&mut arguments, includes);
+            let excludes =
+                listing_globs(folder.excludes).map(|exclude| format!("!{}", anchor(&exclude)));
+            push_globs(&mut arguments, excludes);
+        }
+    }
+    if exceptions.is_some() || !folder.use_ignore_files {
+        arguments.push("--no-ignore".to_owned());
+    } else if !folder.use_parent_ignore_files && !parents {
+        arguments.push("--no-ignore-parent".to_owned());
+    }
+    if folder.follow_symlinks {
+        arguments.push("--follow".to_owned());
+    }
+    arguments.extend(["--no-config", "--no-ignore-global"].map(String::from));
+    arguments
+}
+
 fn push_globs(arguments: &mut Vec<String>, globs: impl IntoIterator<Item = String>) {
     for glob in globs {
         arguments.push("-g".to_owned());
@@ -233,6 +269,32 @@ pub(super) fn anchor(glob: &str) -> String {
     } else {
         format!("/{glob}")
     }
+}
+
+/// `globExprsToRgGlobs` for a listing: trailing slashes trimmed, backslashes made slashes except
+/// a UNC prefix, which then matches everything under it, and a `c:/` drive dropped.
+fn listing_globs(keys: &[String]) -> impl Iterator<Item = String> + '_ {
+    keys.iter().filter(|key| !key.is_empty()).map(|key| {
+        let trimmed = key.trim_end_matches('\\').trim_end_matches('/');
+        let unc = trimmed.starts_with("\\\\");
+        let mut glob = if unc {
+            format!("\\\\{}", trimmed[2..].replace('\\', "/"))
+        } else {
+            trimmed.replace('\\', "/")
+        };
+        if unc {
+            glob.push_str("**");
+        }
+        let drive = glob.as_bytes();
+        if drive.len() >= 3
+            && drive[0].eq_ignore_ascii_case(&b'c')
+            && drive[1] == b':'
+            && drive[2] == b'/'
+        {
+            glob.replace_range(..3, "/");
+        }
+        glob
+    })
 }
 
 /// `performBraceExpansionForRipgrep`: the first brace group outside escapes expands into its

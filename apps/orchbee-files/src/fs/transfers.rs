@@ -22,8 +22,7 @@ mod uploads;
 pub(crate) use reading::{Opening, ReadFacts, ReadRequest};
 pub(crate) use streams::{Delivery, Streaming};
 
-use super::timer::Timer;
-use crate::blocking::Helpers;
+use crate::{blocking::Helpers, timer::Timer};
 
 /// Open transfers per connection.
 const MAXIMUM_TRANSFERS: usize = 64;

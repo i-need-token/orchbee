@@ -11,7 +11,7 @@ use orchbee_files_protocol::{
 };
 
 use super::*;
-use crate::{blocking::Helpers, calls::Calls, fs::timer::Timer, outbound::Outbound};
+use crate::{blocking::Helpers, calls::Calls, outbound::Outbound, timer::Timer};
 
 const WAIT: Duration = Duration::from_secs(20);
 

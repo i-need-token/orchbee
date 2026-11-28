@@ -1,6 +1,6 @@
-//! One thread that runs short callbacks at their deadlines, such as the file engine's idle
-//! expiries. It starts with the first callback scheduled. A callback runs on the timer thread, so
-//! it hands work on and never blocks; it may schedule other callbacks.
+//! One thread that runs short callbacks at their deadlines, such as the idle expiries of the file
+//! engine and of Quick Open's file lists. It starts with the first callback scheduled. A callback
+//! runs on the timer thread, so it hands work on and never blocks; it may schedule other callbacks.
 
 use std::{
     cmp::Reverse,

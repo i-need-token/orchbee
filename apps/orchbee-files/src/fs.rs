@@ -10,7 +10,6 @@ mod encoding;
 mod engine;
 mod guessing;
 mod listing;
-mod timer;
 mod transfers;
 mod trash;
 mod watch;

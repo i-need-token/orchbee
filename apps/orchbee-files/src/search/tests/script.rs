@@ -1,9 +1,9 @@
 //! A scripted rg for the search suites: each run plays the next queued script, then the standing
-//! one, and is recorded with its arguments and how it ended.
+//! one, and is recorded with its arguments, its folder and how it ended.
 
 use std::{
     collections::VecDeque,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Mutex, MutexGuard, PoisonError},
     thread,
     time::{Duration, Instant},
@@ -61,6 +61,7 @@ impl Run {
 #[derive(Clone, Debug)]
 pub(super) struct Seen {
     pub(super) arguments: Vec<String>,
+    pub(super) folder: PathBuf,
     pub(super) ended: Ended,
 }
 
@@ -139,7 +140,7 @@ impl Script {
 }
 
 impl Launch for Script {
-    fn run(&self, arguments: &[String], _folder: &Path, feed: &mut dyn Feed) -> Ended {
+    fn run(&self, arguments: &[String], folder: &Path, feed: &mut dyn Feed) -> Ended {
         let run = self
             .queued
             .lock()
@@ -158,6 +159,7 @@ impl Launch for Script {
         }
         state.seen.push(Seen {
             arguments: arguments.to_vec(),
+            folder: folder.to_path_buf(),
             ended,
         });
         ended
@@ -206,6 +208,14 @@ pub(super) fn matched(path: &str, line: u64, text: &str, spans: &[(usize, usize)
         },
     });
     format!("{message}\n")
+}
+
+/// `rg --files` output listing `paths`.
+pub(super) fn listed(paths: &[&str]) -> String {
+    paths
+        .iter()
+        .map(|path| format!("{}\n", native(path)))
+        .collect()
 }
 
 /// `path`, its segments separated by `/`, as rg prints it on this platform.

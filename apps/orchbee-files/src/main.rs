@@ -37,6 +37,7 @@ mod seeded;
 mod signals;
 mod staging;
 mod subscriptions;
+mod timer;
 
 use std::{ffi::OsString, process::ExitCode, sync::mpsc};
 

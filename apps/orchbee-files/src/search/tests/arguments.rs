@@ -8,6 +8,7 @@ use super::super::args::{self, FolderOptions, TextQuery};
 #[derive(Deserialize)]
 struct Corpus {
     text: Vec<TextCase>,
+    files: Vec<FileCase>,
 }
 
 #[derive(Deserialize)]
@@ -23,6 +24,13 @@ struct TextCase {
     encoding: Option<String>,
     context: u32,
     expected: Expected,
+}
+
+#[derive(Deserialize)]
+struct FileCase {
+    #[serde(flatten)]
+    folder: Folder,
+    expected: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -115,6 +123,22 @@ fn text_search_arguments_match_vs_code() {
                     )
                 }
             }
+        }
+    }
+}
+
+#[test]
+fn file_listing_arguments_match_vs_code() {
+    for case in corpus().files {
+        let exceptions = case.folder.exceptions.as_deref();
+        for below_top in [false, true] {
+            let actual = args::files(&case.folder.options(below_top), exceptions);
+            let expected = if below_top {
+                case.folder.below_top(&case.expected)
+            } else {
+                case.expected.clone()
+            };
+            assert_eq!(actual, expected, "includes {:?}", case.folder.includes);
         }
     }
 }

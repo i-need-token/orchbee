@@ -22,8 +22,7 @@ use std::{
 
 use orchbee_files_protocol::{ConnectionId, Entry, EntryKind, ErrorCode, FilesError};
 
-use super::timer::Timer;
-use crate::{entry, error, staging};
+use crate::{entry, error, staging, timer::Timer};
 
 /// Entries in one page, or in one descendant's listing.
 const MAXIMUM_PAGE_ENTRIES: usize = 2_000;

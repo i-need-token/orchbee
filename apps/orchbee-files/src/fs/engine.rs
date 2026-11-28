@@ -22,7 +22,6 @@ use super::{
     background,
     guessing::guess_file,
     listing::{CursorId, Listings},
-    timer::Timer,
     transfers::{Opening, ReadFacts, ReadRequest, Streaming, Transfers, Unopened},
     watch::{Timing, Watching},
     wire,
@@ -34,6 +33,7 @@ use crate::{
     git::ports,
     scope::{Scopes, path::NativePath},
     subscriptions::Subscriptions,
+    timer::Timer,
 };
 
 /// The listings, transfers and watches of every connection.

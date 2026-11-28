@@ -438,7 +438,8 @@ a 30 s deadline (`timeout`). With 8 abandoned helpers outstanding, new filesyste
   Workspace keeps at most 2 lists, the one serving queries and one loading to replace it, and all
   lists in the process total at most 256 MiB, the least recently used evicted first. After an idle
   discard the next Quick Open waits for its listing. Each query is scored by a Rust port of
-  VS Code's `fuzzyScorer.ts` and returns the best 512 with match ranges.
+  VS Code's `fuzzyScorer.ts` and returns the best 512 with match ranges, or as many of them as one
+  128 KiB result carries, with `limitHit`.
 - Quick Open reaches past the root only through what the user types or picks. For an absolute, `~`
   or `../` path or a `file://` link, which the Client resolves to one absolute path,
   `fs.stat {source: quick-open}` stats exactly that path and lists nothing; the Client shows it only

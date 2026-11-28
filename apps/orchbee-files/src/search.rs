@@ -1,17 +1,23 @@
-//! `files-search`: text search, served with the rg that ships beside this process, as VS Code
-//! ef5ca45 serves it with its own.
+//! `files-search`: text search and Quick Open, served with the rg that ships beside this process,
+//! as VS Code ef5ca45 serves them with its own.
 //!
 //! `search.text` starts a search, which runs on a thread of its own and queues its results;
 //! `search.next` takes them in batches, one call at a time, so the Client's pace bounds what waits
 //! on the link. A new search from a connection in a Workspace cancels the one before it, and a
 //! search ends with its last batch, its lane, its connection, its Workspace's scope change or the
-//! drain. Every rg this process runs takes one of 4 slots, and a cancelled run stops rg's process
+//! drain. `search.find-files` scores a Quick Open file list, made by the first query that names
+//! it. Every rg this process runs takes one of 4 slots, and a cancelled run stops rg's process
 //! tree before it gives its slot back.
 
 mod args;
+mod array_sort;
+mod file_list;
+mod fuzzy;
 mod glob;
 mod js;
 mod json;
+mod listing;
+mod lists;
 mod paths;
 mod pattern;
 mod preview;
@@ -19,6 +25,7 @@ mod program;
 mod queue;
 mod regexp;
 mod rg;
+mod scoring;
 mod slots;
 mod text;
 
@@ -33,27 +40,32 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, ConnectionId, ErrorCode, FilesError, FilesReply, LaneId, List, SearchId,
-    SearchRequest, SearchText, WorkspaceId,
+    CallClose, ConnectionId, ErrorCode, FilesError, FilesReply, LaneId, List, SearchCloseCache,
+    SearchFindFiles, SearchFindFilesResult, SearchId, SearchRequest, SearchText, WorkspaceId,
 };
 
 use self::{
+    lists::{Key, Lists},
     preview::PreviewOptions,
     queue::{Queue, Taken},
     rg::Launch,
     slots::Slots,
 };
-use crate::{calls::Call, scope::View};
+use crate::{
+    calls::Call,
+    scope::{View, path::NativePath},
+};
 
 /// The longest `search.next` waits for results before it answers with what there is.
 const BATCH_WAIT: Duration = Duration::from_millis(250);
 
-/// The searches of every connection.
+/// The searches and file lists of every connection.
 pub(crate) struct Service {
     launch: Arc<dyn Launch>,
     slots: Arc<Slots>,
     /// The running searches; the lock is never held while a call is answered.
     texts: Mutex<HashMap<(ConnectionId, SearchId), Running>>,
+    lists: Lists,
 }
 
 /// One search that has not reported its end.
@@ -72,6 +84,7 @@ impl Service {
     fn with_launch(launch: Arc<dyn Launch>) -> Self {
         let slots = Arc::new(Slots::new());
         Self {
+            lists: Lists::new(Arc::clone(&launch), Arc::clone(&slots)),
             launch,
             slots,
             texts: Mutex::default(),
@@ -187,6 +200,56 @@ impl Service {
         }
     }
 
+    /// `search.find-files`, on a thread of its own, in `folders`, which the call's scope admitted:
+    /// the best files of the list `request.cache` names, once the list is made.
+    pub(crate) fn find_files(
+        &self,
+        call: Call,
+        folders: Vec<NativePath>,
+        request: &SearchFindFiles,
+    ) {
+        let key = Key {
+            connection: call.connection(),
+            workspace: request.workspace_id,
+            cache: request.cache,
+        };
+        let listing = listing::Request {
+            folders,
+            includes: globs(&request.includes),
+            excludes: globs(&request.excludes),
+            use_ignore_files: request.use_ignore_files,
+            use_parent_ignore_files: request.use_parent_ignore_files,
+            follow_symlinks: request.follow_symlinks,
+        };
+        let list = match self.lists.get(key, &listing, || call.cancelled()) {
+            Ok(list) => list,
+            Err(error) => return answer(call, &FilesReply::Error(error)),
+        };
+        let maximum = usize::try_from(request.max_results.get()).unwrap_or(usize::MAX);
+        let Some(found) =
+            scoring::find(&list, request.query.as_str(), maximum, || call.cancelled())
+        else {
+            return drop(call);
+        };
+        let results = List::new(found.results).expect("a query returns at most its maximum");
+        let result = SearchFindFilesResult {
+            results,
+            truncated: list.truncated(),
+            limit_hit: found.limit_hit,
+        };
+        answer(call, &FilesReply::SearchFindFiles(result));
+    }
+
+    /// `search.close-cache`: drops the list, made or not.
+    pub(crate) fn close_cache(&self, call: Call, request: &SearchCloseCache) {
+        self.lists.close(Key {
+            connection: call.connection(),
+            workspace: request.workspace_id,
+            cache: request.cache,
+        });
+        call.reply(&FilesReply::Empty);
+    }
+
     /// The Client closed `lane`, which carried searches.
     pub(crate) fn lane_closed(&self, connection: ConnectionId, lane: LaneId) {
         self.cancel(|(held, _), running| *held == connection && running.lane == lane);
@@ -194,15 +257,18 @@ impl Service {
 
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.cancel(|(held, _), _| *held == connection);
+        self.lists.connection_lost(connection);
     }
 
-    /// The scope of `workspace` changed, so its searches read the old root.
+    /// The scope of `workspace` changed, so its searches and lists read the old root.
     pub(crate) fn scope_changed(&self, workspace: WorkspaceId) {
         self.cancel(|_, running| running.workspace == workspace);
+        self.lists.scope_changed(workspace);
     }
 
     pub(crate) fn drain(&self) {
         self.cancel(|_, _| true);
+        self.lists.drain();
     }
 
     /// Cancels and forgets every search that `matches`.

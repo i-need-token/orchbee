@@ -256,6 +256,28 @@ fn regex_parse_error(lines: &[&str]) -> String {
     message
 }
 
+/// The file search's `rgErrorMsgForDisplay`: the failure a listing's standard error reports, when
+/// it is one VS Code fails on. A listing passes rg only globs, so each is `invalid-request`.
+pub(super) fn listing_error(stderr: &[u8]) -> Option<FilesError> {
+    let text = String::from_utf8_lossy(stderr);
+    let lines: Vec<&str> = js::trim(&text).split('\n').collect();
+    let first = js::trim(lines.first().copied().unwrap_or_default());
+    let message = if first.starts_with("Error parsing regex") {
+        first.to_owned()
+    } else if first.starts_with("regex parse error") {
+        uppercase_first(js::trim(lines.last().copied().unwrap_or_default()))
+    } else if first.starts_with("error parsing glob") || first.starts_with("unsupported encoding") {
+        uppercase_first(first)
+    } else if first == "Literal '\\n' not allowed." {
+        "Literal '\\n' currently not supported".to_owned()
+    } else if first.starts_with("Literal ") {
+        first.to_owned()
+    } else {
+        return None;
+    };
+    Some(with_detail(ErrorCode::InvalidRequest, &message))
+}
+
 /// An error of `code` whose `detail` is `message`, as much of it as an error carries.
 fn with_detail(code: ErrorCode, message: &str) -> FilesError {
     let mut error = FilesError::new(code);

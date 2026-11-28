@@ -83,6 +83,11 @@ impl Excludes {
         }
     }
 
+    /// The exceptions' patterns, without the `!`.
+    pub(super) fn exceptions(&self) -> &[String] {
+        &self.exceptions
+    }
+
     /// Whether `path` is excluded: a plain pattern matches it and no exception covers it.
     pub(super) fn matches(&self, path: &[u16], basename: Option<&[u16]>) -> bool {
         self.plain.matches(path, basename) && !self.is_excepted(path, basename)

@@ -50,7 +50,7 @@ pub(crate) struct Services {
     git: git::Service,
     /// File edits: writes and the other `files-edit` operations.
     edit: edit::Service,
-    /// Text search.
+    /// Text search and Quick Open's file lists.
     search: search::Service,
 }
 
@@ -401,9 +401,16 @@ impl Services {
                     services.search.next(call, &request)
                 });
             }
-            FilesRequest::SearchFindFiles(_) | FilesRequest::SearchCloseCache(_) => {
-                call.close(CallClose::Unsupported);
+            FilesRequest::SearchFindFiles(request) => {
+                let folders = request.folders.as_slice().iter();
+                match folders.map(|folder| view.read(folder)).collect() {
+                    Ok(folders) => self.detach(call, move |services, call| {
+                        services.search.find_files(call, folders, &request);
+                    }),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                }
             }
+            FilesRequest::SearchCloseCache(request) => self.search.close_cache(call, &request),
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);

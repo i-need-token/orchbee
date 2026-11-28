@@ -3,7 +3,7 @@
 use serde::Deserialize;
 
 use super::super::{
-    glob::{self, Excludes, Globs},
+    glob::{Excludes, Globs},
     js,
 };
 
@@ -95,11 +95,7 @@ fn excludes_and_exceptions_match_as_vs_code_matches() {
     for exclude in &platform.excludes {
         let excludes = Excludes::new(&exclude.keys, exclude.ignore_case);
         let context = (&exclude.keys, exclude.ignore_case);
-        assert_eq!(
-            glob::exceptions(&exclude.keys),
-            exclude.exceptions,
-            "{context:?}"
-        );
+        assert_eq!(excludes.exceptions(), exclude.exceptions, "{context:?}");
         let pairs = || paths.iter().zip(&basenames);
         let matches = bits(pairs().map(|(path, name)| excludes.matches(path, Some(name))));
         let excepted = bits(pairs().map(|(path, name)| excludes.is_excepted(path, Some(name))));

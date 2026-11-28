@@ -85,6 +85,11 @@ pub(super) fn is_ascii_lower(unit: u16) -> bool {
     (0x61..=0x7A).contains(&unit)
 }
 
+/// `0` to `9`.
+pub(super) fn is_ascii_digit(unit: u16) -> bool {
+    (0x30..=0x39).contains(&unit)
+}
+
 /// The ECMAScript `Canonicalize` of a pattern without the `u` flag, under which `i` compares
 /// code units: the unit's uppercase when that is one unit and does not move a non-ASCII unit
 /// into ASCII.

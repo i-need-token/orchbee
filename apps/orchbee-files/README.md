@@ -137,9 +137,9 @@ whose rg is not those bytes has no search.
 
 ## Search
 
-Text search runs rg with the arguments VS Code ef5ca45 builds for it. rg owns traversal, ignore
-files and matching, as it does in VS Code; an in-process walker such as the `ignore` or `grep-*`
-crates was rejected because it would find files VS Code does not.
+Text search and Quick Open run rg with the arguments VS Code ef5ca45 builds for them. rg owns
+traversal, ignore files and matching, as it does in VS Code; an in-process walker such as the
+`ignore` or `grep-*` crates was rejected because it would find files VS Code does not.
 
 - Parent ignore files are the one departure from those arguments. With `useIgnoreFiles` and
   without `useParentIgnoreFiles`, a folder below the top of its Git working tree drops
