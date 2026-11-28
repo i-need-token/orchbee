@@ -5,7 +5,10 @@ import {
 	type KeyboardShortcutPlatform,
 } from '@orchbee/keyboard-shortcuts';
 
-/** What a key asks of the tree; each is the VS Code list command of the same name. */
+/**
+ * What a key asks of the tree; each is the VS Code list command of the same name, and the segment
+ * commands are VS Code's compact folder commands, such as `previousCompressedFolder`.
+ */
 export type TreeKeyCommand =
 	| 'clear'
 	| 'collapse'
@@ -13,12 +16,16 @@ export type TreeKeyCommand =
 	| 'expand'
 	| 'expandSelectionDown'
 	| 'expandSelectionUp'
+	| 'firstSegment'
 	| 'focusFirst'
 	| 'focusLast'
 	| 'focusNext'
 	| 'focusPageDown'
 	| 'focusPageUp'
 	| 'focusPrevious'
+	| 'lastSegment'
+	| 'nextSegment'
+	| 'previousSegment'
 	| 'scrollDown'
 	| 'scrollUp'
 	| 'select'
@@ -41,7 +48,9 @@ function bind(
 
 /**
  * VS Code's default list and tree keys on Windows and Linux. Alt with an arrow, Home or End is VS
- * Code's `focusAny` family, which differs from plain focus only while find filters the rows.
+ * Code's `focusAny` family, which differs from plain focus only while find filters the rows. Within
+ * a compact row, Left, Right, Home and End first move among its items, as VS Code's Explorer binds
+ * them over its list's keys.
  */
 const STANDARD_KEYS: readonly TreeKeyBinding[] = [
 	bind('ArrowDown', 'focusNext'),
@@ -50,14 +59,18 @@ const STANDARD_KEYS: readonly TreeKeyBinding[] = [
 	bind('ArrowUp', 'focusPrevious', ['alt']),
 	bind('PageDown', 'focusPageDown'),
 	bind('PageUp', 'focusPageUp'),
+	bind('Home', 'firstSegment'),
 	bind('Home', 'focusFirst'),
+	bind('End', 'lastSegment'),
 	bind('End', 'focusLast'),
 	bind('Home', 'focusFirst', ['alt']),
 	bind('End', 'focusLast', ['alt']),
 	bind('ArrowDown', 'expandSelectionDown', ['shift']),
 	bind('ArrowUp', 'expandSelectionUp', ['shift']),
+	bind('ArrowLeft', 'previousSegment'),
 	bind('ArrowLeft', 'collapse'),
 	bind('ArrowLeft', 'collapseAll', ['mod']),
+	bind('ArrowRight', 'nextSegment'),
 	bind('ArrowRight', 'expand'),
 	bind('Enter', 'select'),
 	bind('KeyA', 'selectAll', ['mod']),
@@ -85,17 +98,21 @@ const APPLE_KEYS: readonly TreeKeyBinding[] = [
 	bind('KeyP', 'focusPrevious', ['control', 'alt']),
 	bind('PageDown', 'focusPageDown'),
 	bind('PageUp', 'focusPageUp'),
+	bind('Home', 'firstSegment'),
 	bind('Home', 'focusFirst'),
+	bind('End', 'lastSegment'),
 	bind('End', 'focusLast'),
 	bind('Home', 'focusFirst', ['alt']),
 	bind('End', 'focusLast', ['alt']),
 	bind('ArrowDown', 'expandSelectionDown', ['shift']),
 	bind('ArrowUp', 'expandSelectionUp', ['shift']),
+	bind('ArrowLeft', 'previousSegment'),
 	bind('ArrowLeft', 'collapse'),
 	bind('ArrowUp', 'scrollUp', ['mod']),
 	bind('ArrowUp', 'collapse', ['mod']),
 	bind('ArrowLeft', 'collapseAll', ['mod']),
 	bind('ArrowUp', 'collapseAll', ['mod', 'shift']),
+	bind('ArrowRight', 'nextSegment'),
 	bind('ArrowRight', 'expand'),
 	bind('Enter', 'select'),
 	bind('ArrowDown', 'select', ['mod']),

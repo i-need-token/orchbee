@@ -1,7 +1,7 @@
 import { ChildrenRequest } from './ChildrenRequest';
 import { longestIncreasingSubsequence } from './longestIncreasingSubsequence';
 import { replaceRows, RowSpliceBuilder, SpliceList } from './row-splices';
-import { collectRows, NO_CHILDREN, TreeNode } from './tree-node';
+import { chainTail, collectRow, collectRows, NO_CHILDREN, TreeNode } from './tree-node';
 import type {
 	VirtualTreeEvent,
 	VirtualTreeModelOptions,
@@ -43,10 +43,15 @@ interface RecursiveOption {
  * enough for them: any answer for an expansion, one requested after it was asked for a refresh.
  * Refreshes asked while an older request runs share one more request once it ends. Collapsing the
  * row, its leaving the tree, and `dispose` abort the request, and its late answer is dropped.
+ *
+ * An expanded item whose only child the source calls compressible shows in the child's row, as VS
+ * Code's compact folders do: the row's segments name both, and it expands and collapses with its last
+ * item. Selection and anchor hold rows, by their last item's key; focus may rest on any segment.
  */
 export class VirtualTreeModel<K, T> {
 	private readonly source: VirtualTreeSource<K, T>;
 	private readonly expandedByDefault: ((item: T) => boolean) | undefined;
+	private compression: boolean;
 	private readonly root: TreeNode<K, T>;
 	private readonly nodes = new Map<K, TreeNode<K, T>>();
 	private rows: TreeNode<K, T>[] = [];
@@ -84,10 +89,17 @@ export class VirtualTreeModel<K, T> {
 	private removedKeys: K[] = [];
 	/** Nodes whose key a refresh gave to a new node elsewhere; they leave once the refresh ends. */
 	private displaced: TreeNode<K, T>[] = [];
+	/** Nodes that joined their child's row in this operation; their selection moves to that row. */
+	private mergedNodes: TreeNode<K, T>[] = [];
+	/** Whether this operation set focus itself, which keeps it where it was set. */
+	private focusAssigned = false;
+	/** Whether focus rested on a segment above its row's own when the last operation ended. */
+	private focusMergedAtRest = false;
 
 	constructor(options: VirtualTreeModelOptions<K, T>) {
 		this.source = options.source;
 		this.expandedByDefault = options.expandedByDefault;
+		this.compression = options.compressed ?? true;
 		this.root = new TreeNode(options.source.key(options.input), options.input, null, true);
 		this.root.collapsed = false;
 	}
@@ -117,13 +129,21 @@ export class VirtualTreeModel<K, T> {
 		return this.scrollOffset;
 	}
 
+	/** Whether items the source calls compressible join their parent's row. */
+	get compressed(): boolean {
+		return this.compression;
+	}
+
 	rowAt(index: number): VirtualTreeRow<K, T> {
 		const row = this.rows[index];
 		if (row === undefined) throw new RangeError(`No row ${index} among ${this.rows.length} rows`);
 		return row;
 	}
 
-	/** The row index of a key, or -1 while it is not loaded or a collapsed parent hides it. */
+	/**
+	 * The row index of a key, which for an item a compact row joins is that row's, or -1 while it is
+	 * not loaded or a collapsed parent hides it.
+	 */
 	indexOf(key: K): number {
 		const node = this.nodes.get(key);
 		return node === undefined ? -1 : this.indexOfNode(node);
@@ -148,22 +168,27 @@ export class VirtualTreeModel<K, T> {
 	/**
 	 * Expands a row, fetching its children first when it has none loaded, and settles once they have
 	 * arrived. `recursive` also expands every loaded row below it; rows whose children arrived
-	 * asynchronously stay collapsed.
+	 * asynchronously stay collapsed. A row that comes to join its only child expands the child too.
+	 * An item a compact row joins expands the row.
 	 */
 	expand(key: K, options?: RecursiveOption): Promise<void> {
-		const node = this.nodes.get(key);
-		if (node === undefined || !node.collapsible) return RESOLVED;
+		const found = this.nodes.get(key);
+		if (found === undefined) return RESOLVED;
+		const node = chainTail(found);
+		if (!node.collapsible) return RESOLVED;
 		const recursive = options?.recursive === true;
 		return this.settle(() => this.expandNode(node, recursive));
 	}
 
 	/**
 	 * Collapses a row, aborting the request for its children; children a refresh was fetching again
-	 * go, to load when the row next expands. `recursive` also collapses every row below it.
+	 * go, to load when the row next expands. `recursive` also collapses every row below it. An item a
+	 * compact row joins collapses the row, which keeps its segments, as in VS Code.
 	 */
 	collapse(key: K, options?: RecursiveOption): void {
-		const node = this.nodes.get(key);
-		if (node === undefined) return;
+		const found = this.nodes.get(key);
+		if (found === undefined) return;
+		const node = chainTail(found);
 		const recursive = options?.recursive === true;
 		this.operate(() => {
 			if (!recursive) {
@@ -208,18 +233,24 @@ export class VirtualTreeModel<K, T> {
 		});
 	}
 
+	/** Focuses an item: a row's, or one segment of a compact row. */
 	setFocus(key: K | null): void {
 		if (key === this.focusKey || (key !== null && !this.nodes.has(key))) return;
 		this.operate(() => {
 			this.focusKey = key;
 			this.focusChanged = true;
+			this.focusAssigned = true;
 		});
 	}
 
+	/** Anchors a row; the key of an item a compact row joins anchors the row. */
 	setAnchor(key: K | null): void {
-		if (key === this.anchorKey || (key !== null && !this.nodes.has(key))) return;
+		const node = key === null ? null : this.nodes.get(key);
+		if (node === undefined) return;
+		const next = node === null ? null : chainTail(node).key;
+		if (next === this.anchorKey) return;
 		this.operate(() => {
-			this.anchorKey = key;
+			this.anchorKey = next;
 			this.anchorChanged = true;
 		});
 	}
@@ -235,11 +266,15 @@ export class VirtualTreeModel<K, T> {
 		});
 	}
 
-	/** Replaces the selection with the given keys that are loaded. */
+	/**
+	 * Replaces the selection with the given keys that are loaded; the key of an item a compact row
+	 * joins selects the row.
+	 */
 	setSelection(keys: Iterable<K>): void {
 		const next = new Set<K>();
 		for (const key of keys) {
-			if (this.nodes.has(key)) next.add(key);
+			const node = this.nodes.get(key);
+			if (node !== undefined) next.add(node.merged ? chainTail(node).key : key);
 		}
 		this.replaceSelection(next);
 	}
@@ -251,11 +286,35 @@ export class VirtualTreeModel<K, T> {
 		this.replaceSelection(next);
 	}
 
+	/**
+	 * Turns compact rows on or off, in one splice. Items keep their expansion, so the items a row
+	 * joined show expanded in rows of their own once compact rows are off.
+	 */
+	setCompressed(compressed: boolean): void {
+		if (compressed === this.compression) return;
+		this.operate(() => {
+			this.compression = compressed;
+			const before = this.rows.length;
+			if (!this.remerge(this.root)) return;
+			const rows: TreeNode<K, T>[] = [];
+			collectRows(this.root, rows);
+			this.writeRows(0, before, rows, [
+				{ deleteCount: before, insertCount: rows.length, start: 0 },
+			]);
+		});
+	}
+
 	viewState(): VirtualTreeViewState<K> {
 		const expanded: K[] = [];
 		const pending: TreeNode<K, T>[] = [...this.root.children];
 		for (let node = pending.pop(); node !== undefined; node = pending.pop()) {
-			if (node.collapsible && !node.collapsed) expanded.push(node.key);
+			// A compact row's items share its expansion, so they are named with the row's own item.
+			if (!node.merged && node.collapsible && !node.collapsed) {
+				expanded.push(node.key);
+				for (let owner = node.owner; owner?.merged === true; owner = owner.owner) {
+					expanded.push(owner.key);
+				}
+			}
 			for (const child of node.children) pending.push(child);
 		}
 		return {
@@ -497,6 +556,7 @@ export class VirtualTreeModel<K, T> {
 		since: number,
 	): Promise<void> | null {
 		const pending: Promise<void>[] = [];
+		const joined = node.merged ? node.children[0] : undefined;
 		const toRefresh = this.setChildren(node, items, recursive, since, pending);
 		node.stale = false;
 		node.loadedSynchronously = synchronous;
@@ -504,6 +564,21 @@ export class VirtualTreeModel<K, T> {
 			if (!child.attached) continue;
 			try {
 				collect(pending, this.refreshSubtree(child, recursive, since));
+			} catch (error) {
+				pending.push(Promise.reject(error));
+			}
+		}
+		// A row that comes to join its only child expands the child, as VS Code's compressed
+		// asynchronous tree does, so the row shows what is inside it; a child it joined already keeps
+		// the expansion it was given.
+		const only = node.merged ? node.children[0] : undefined;
+		if (only !== undefined && only !== joined && only.collapsible && only.collapsed) {
+			const stale = only.stale;
+			try {
+				collect(pending, this.expandNode(only, false));
+				// Children kept from an earlier expansion are fetched again, as the refresh does for every
+				// expanded row it reaches.
+				if (!stale) collect(pending, this.refreshSubtree(only, recursive, since));
 			} catch (error) {
 				pending.push(Promise.reject(error));
 			}
@@ -523,6 +598,10 @@ export class VirtualTreeModel<K, T> {
 		} else {
 			this.setCollapsed(node, false, true);
 		}
+		// A row that came to join its only child shows what is inside the child too.
+		const only = node.merged ? node.children[0] : undefined;
+		if (only?.collapsible === true && only.collapsed)
+			collect(pending, this.expandNode(only, false));
 		return settleAll(pending);
 	}
 
@@ -549,14 +628,19 @@ export class VirtualTreeModel<K, T> {
 				this.touch(child);
 			}
 			this.expandDescendants(child, pending);
+			// The caller writes the rows once the subtree is expanded, so joining a row marks it alone.
+			if (this.shouldMerge(child) !== child.merged) this.setMerged(child, !child.merged);
 		}
 		node.childrenRenderCount = renderCountOf(node.children);
 	}
 
-	/** Collapses every row below a collapsed one without touching the rows; recounts on the way up. */
+	/**
+	 * Collapses every row below a collapsed one without touching the rows; recounts on the way up. An
+	 * item a compact row joins stays expanded, since the row collapses with its last item.
+	 */
 	private collapseDescendants(node: TreeNode<K, T>): void {
 		for (const child of node.children) {
-			if (child.collapsible && !child.collapsed) {
+			if (child.collapsible && !child.collapsed && !child.merged) {
 				child.collapsed = true;
 				this.touch(child);
 				this.abortLoad(child);
@@ -609,17 +693,19 @@ export class VirtualTreeModel<K, T> {
 		pending: Promise<void>[],
 	): readonly TreeNode<K, T>[] {
 		const source = this.source;
+		const compressible = source.compressible;
 		const nodes = this.nodes;
 		this.stamp += 1;
 		const stamp = this.stamp;
 		const oldChildren = parent.children;
 		const children: TreeNode<K, T>[] = [];
 		const toRefresh: TreeNode<K, T>[] = [];
-		// New rows that start expanded, reused rows that change kind, and collapsed reused rows a
-		// recursive refresh empties.
+		// New rows that start expanded, reused rows that change kind, collapsed reused rows a
+		// recursive refresh empties, and reused rows whose compressibility changes.
 		let expandedNew: TreeNode<K, T>[] | null = null;
 		let flipped: TreeNode<K, T>[] | null = null;
 		let cleared: TreeNode<K, T>[] | null = null;
+		let recompressed: TreeNode<K, T>[] | null = null;
 		let ordered = true;
 		let lastIndex = -1;
 		let reused = 0;
@@ -643,6 +729,9 @@ export class VirtualTreeModel<K, T> {
 						if (existing.childIndex < lastIndex) ordered = false;
 						else lastIndex = existing.childIndex;
 						const collapsible = source.hasChildren(item);
+						if (compressible !== undefined && compressible(item) !== existing.compressible) {
+							(recompressed ??= []).push(existing);
+						}
 						if (existing.element !== item) {
 							existing.element = item;
 							this.touch(existing);
@@ -663,6 +752,7 @@ export class VirtualTreeModel<K, T> {
 				const collapsible = source.hasChildren(item);
 				const node = new TreeNode(key, item, parent, collapsible);
 				node.claim = stamp;
+				if (compressible !== undefined) node.compressible = compressible(item);
 				if (collapsible && this.startsExpanded(key, item)) {
 					node.collapsed = false;
 					(expandedNew ??= []).push(node);
@@ -679,6 +769,13 @@ export class VirtualTreeModel<K, T> {
 			throw error;
 		}
 
+		if (recompressed !== null) {
+			for (const node of recompressed) node.compressible = !node.compressible;
+		}
+		// A parent that stops joining its only child takes its own row back before the children's rows
+		// change, so they change below it.
+		if (parent.merged && !this.canMerge(parent, children)) this.unmerge(parent);
+
 		// Reused rows that changed kind or went stale drop their children; the builder needs the rows
 		// they held.
 		let resized: Map<TreeNode<K, T>, number> | null = null;
@@ -691,6 +788,8 @@ export class VirtualTreeModel<K, T> {
 		}
 		if (cleared !== null) {
 			for (const node of cleared) {
+				// A row that joined the child it drops takes its own row back first.
+				if (node.merged) this.unmerge(node);
 				const before = node.renderNodeCount;
 				// Its request, if any, answers for what the node was before.
 				this.abortRequest(node);
@@ -754,6 +853,7 @@ export class VirtualTreeModel<K, T> {
 		if (delta !== 0 && parent.childIndex >= 0 && parent.visible && !parent.collapsed) {
 			this.propagate(parent, delta);
 		}
+		this.updateMerge(parent);
 		return toRefresh;
 	}
 
@@ -765,7 +865,9 @@ export class VirtualTreeModel<K, T> {
 		moved: ReadonlySet<TreeNode<K, T>> | null,
 		resized: ReadonlyMap<TreeNode<K, T>, number> | null,
 	): void {
-		const base = parent.owner === null ? 0 : this.indexOfNode(parent) + 1;
+		// A merged parent's children start at the row it shares with them.
+		let base = 0;
+		if (parent.owner !== null) base = this.indexOfNode(parent) + (parent.merged ? 0 : 1);
 		const oldLength = parent.childrenRenderCount;
 		const builder = new RowSpliceBuilder(base);
 		let oldPosition = 0;
@@ -799,15 +901,15 @@ export class VirtualTreeModel<K, T> {
 		const splices = builder.finish(oldLength, newLength);
 		if (splices.length === 0) return;
 		const range: TreeNode<K, T>[] = [];
-		for (const child of children) {
-			if (!child.visible) continue;
-			range.push(child);
-			if (!child.collapsed && child.childrenRenderCount > 0) collectRows(child, range);
-		}
+		for (const child of children) collectRow(child, range);
 		this.writeRows(base, oldLength, range, splices);
 	}
 
-	/** Expands or collapses one row and splices the rows below it; false when nothing changed. */
+	/**
+	 * Expands or collapses one row and splices the rows below it; false when nothing changed. A merged
+	 * node takes its own row back to collapse, and a node that expands joins its only child's row when
+	 * it may.
+	 */
 	private setCollapsed(node: TreeNode<K, T>, collapsed: boolean, notify: boolean): boolean {
 		if (
 			node.owner === null ||
@@ -817,6 +919,7 @@ export class VirtualTreeModel<K, T> {
 		) {
 			return false;
 		}
+		if (node.merged) this.unmerge(node);
 		const revealed = this.isRevealed(node);
 		const start = revealed ? this.indexOfNode(node) + 1 : -1;
 		node.collapsed = collapsed;
@@ -835,9 +938,82 @@ export class VirtualTreeModel<K, T> {
 			}
 		}
 		if (collapsed) this.abortLoad(node);
+		else this.updateMerge(node);
 		if (notify)
 			this.collapseEvents.push({ collapsed, key: node.key, kind: 'collapse', recursive: false });
 		return true;
+	}
+
+	// Compact rows
+
+	/** Whether a node would join the row of its only child among `children`. */
+	private canMerge(node: TreeNode<K, T>, children: readonly TreeNode<K, T>[]): boolean {
+		return (
+			this.compression &&
+			node.owner !== null &&
+			node.attached &&
+			node.collapsible &&
+			!node.collapsed &&
+			children.length === 1 &&
+			children[0]?.compressible === true
+		);
+	}
+
+	private shouldMerge(node: TreeNode<K, T>): boolean {
+		return this.canMerge(node, node.children);
+	}
+
+	/** Joins or leaves its only child's row as the node now should. */
+	private updateMerge(node: TreeNode<K, T>): void {
+		const merge = this.shouldMerge(node);
+		if (merge === node.merged) return;
+		if (merge) this.merge(node);
+		else this.unmerge(node);
+	}
+
+	/** Joins a node's row with its only child's: its own row goes, and the child's shows both. */
+	private merge(node: TreeNode<K, T>): void {
+		const revealed = this.isRevealed(node);
+		const start = revealed ? this.indexOfNode(node) : -1;
+		this.setMerged(node, true);
+		if (node.childIndex >= 0 && node.visible) this.propagate(node, -1);
+		if (revealed) this.writeRows(start, 1, [], [{ deleteCount: 1, insertCount: 0, start }]);
+	}
+
+	/** Gives a merged node its own row back, right above the row it shared. */
+	private unmerge(node: TreeNode<K, T>): void {
+		const revealed = this.isRevealed(node);
+		const start = revealed ? this.indexOfNode(node) : -1;
+		this.setMerged(node, false);
+		if (node.childIndex >= 0 && node.visible) this.propagate(node, 1);
+		if (revealed) this.writeRows(start, 0, [node], [{ deleteCount: 0, insertCount: 1, start }]);
+	}
+
+	/** Sets the flag alone, marking the rows whose segments change; the caller owns rows and counts. */
+	private setMerged(node: TreeNode<K, T>, merged: boolean): void {
+		const tail = chainTail(node);
+		node.merged = merged;
+		if (merged) {
+			this.touch(chainTail(node));
+			this.mergedNodes.push(node);
+		} else {
+			this.touch(node);
+			this.touch(tail);
+		}
+	}
+
+	/** Brings every merged flag below a node in line with the setting and recounts; whether any changed. */
+	private remerge(node: TreeNode<K, T>): boolean {
+		let changed = false;
+		for (const child of node.children) {
+			if (child.children.length > 0 && this.remerge(child)) changed = true;
+			if (this.shouldMerge(child) !== child.merged) {
+				this.setMerged(child, !child.merged);
+				changed = true;
+			}
+		}
+		if (changed) node.childrenRenderCount = renderCountOf(node.children);
+		return changed;
 	}
 
 	private setCollapsible(node: TreeNode<K, T>, collapsible: boolean): void {
@@ -859,6 +1035,8 @@ export class VirtualTreeModel<K, T> {
 	private removeNode(node: TreeNode<K, T>): void {
 		const owner = node.owner;
 		if (owner === null) return;
+		// An owner that showed in the node's row takes its own row back first.
+		if (owner.merged) this.unmerge(owner);
 		const count = node.renderNodeCount;
 		if (count > 0 && this.isRevealed(node)) {
 			const start = this.indexOfNode(node);
@@ -883,6 +1061,7 @@ export class VirtualTreeModel<K, T> {
 		}
 		this.discard(node);
 		this.rowsChanged = true;
+		this.updateMerge(owner);
 	}
 
 	private removeDisplaced(): void {
@@ -921,15 +1100,18 @@ export class VirtualTreeModel<K, T> {
 
 	// Rows
 
+	/** Whether the node's row shows: every node above it is committed, expanded and visible. */
 	private isRevealed(node: TreeNode<K, T>): boolean {
 		if (node.owner === null || !node.attached || !node.visible || node.childIndex < 0) return false;
 		for (let owner = node.owner; owner.owner !== null; owner = owner.owner) {
-			if (owner.collapsed || !owner.visible) return false;
+			if (owner.collapsed || !owner.visible || owner.childIndex < 0) return false;
 		}
 		return true;
 	}
 
-	private indexOfNode(node: TreeNode<K, T>): number {
+	/** The index of the row a node shows in: its own, or for a merged node its chain's. */
+	private indexOfNode(target: TreeNode<K, T>): number {
+		const node = target.merged ? chainTail(target) : target;
 		const rows = this.rows;
 		const cached = node.rowIndex;
 		if (cached >= 0 && rows[cached] === node) return cached;
@@ -968,6 +1150,8 @@ export class VirtualTreeModel<K, T> {
 
 	private touch(node: TreeNode<K, T>): void {
 		node.revision += 1;
+		// A merged node draws in its chain's row, which is its tail's.
+		if (node.merged) chainTail(node).revision += 1;
 		this.rowsChanged = true;
 	}
 
@@ -1010,6 +1194,7 @@ export class VirtualTreeModel<K, T> {
 	}
 
 	private flush(): void {
+		this.retargetMergedTraits();
 		this.forgetRemovedTraits();
 		const events: VirtualTreeEvent<K>[] = [];
 		if (this.rowsChanged) {
@@ -1034,6 +1219,9 @@ export class VirtualTreeModel<K, T> {
 		this.anchorChanged = false;
 		this.scrollChanged = false;
 		this.revealRequest = null;
+		this.focusAssigned = false;
+		const focus = this.focusKey === null ? undefined : this.nodes.get(this.focusKey);
+		this.focusMergedAtRest = focus?.merged === true;
 		if (events.length === 0 || this.listeners.size === 0) return;
 		this.deliveries.push({ events, listeners: [...this.listeners] });
 		// Events of an operation a listener starts wait behind the ones being delivered, so a listener
@@ -1062,6 +1250,39 @@ export class VirtualTreeModel<K, T> {
 					});
 				}
 			}
+		}
+	}
+
+	/**
+	 * Moves the traits of items that joined their child's row in this operation to that row, as VS
+	 * Code's compressed tree keeps them on rows: the selection and the anchor, and focus when it rested
+	 * on the item's own row and the operation did not set it.
+	 */
+	private retargetMergedTraits(): void {
+		const merged = this.mergedNodes;
+		if (merged.length === 0) return;
+		this.mergedNodes = [];
+		const selection = this.selectionKeys;
+		let next: Set<K> | null = null;
+		for (const node of merged) {
+			if (!node.attached || !node.merged || !selection.has(node.key)) continue;
+			next ??= new Set(selection);
+			next.delete(node.key);
+			next.add(chainTail(node).key);
+		}
+		if (next !== null) {
+			this.selectionKeys = next;
+			this.selectionChanged = true;
+		}
+		const anchor = this.anchorKey === null ? undefined : this.nodes.get(this.anchorKey);
+		if (anchor?.merged === true) {
+			this.anchorKey = chainTail(anchor).key;
+			this.anchorChanged = true;
+		}
+		const focus = this.focusKey === null ? undefined : this.nodes.get(this.focusKey);
+		if (focus?.merged === true && !this.focusAssigned && !this.focusMergedAtRest) {
+			this.focusKey = chainTail(focus).key;
+			this.focusChanged = true;
 		}
 	}
 

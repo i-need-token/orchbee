@@ -1,0 +1,506 @@
+{
+	"source": "https://github.com/microsoft/vscode/tree/ef5ca45a6e545e4767e0117905ee9d6120b86e11",
+	"reference": "compress and CompressedObjectTreeModel.setChildren from src/vs/base/browser/ui/tree/compressedObjectTreeModel.ts over the inputs of its unit tests; a row lists the elements of one rendered compressed node, and every element is expanded, as an object tree leaves it by default",
+	"runtime": "Node 22.23.3",
+	"excluded": [
+		"decompress: the model never rebuilds a tree from compressed nodes, so the tests check compression only",
+		"model.size: the model reports rows, not a count of loaded elements",
+		"the diffIdentityProvider run of each sequence: the model always matches children by key, so one run covers both",
+		"the constructor test, which only checks that an empty model exists"
+	],
+	"trees": [
+		{
+			"name": "small",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": []
+			},
+			"rows": [[1]]
+		},
+		{
+			"name": "no compression",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": []
+					},
+					{
+						"element": 12,
+						"incompressible": false,
+						"children": []
+					},
+					{
+						"element": 13,
+						"incompressible": false,
+						"children": []
+					}
+				]
+			},
+			"rows": [[1], [11], [12], [13]]
+		},
+		{
+			"name": "single hierarchy",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": false,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": false,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1, 11, 111, 1111]]
+		},
+		{
+			"name": "deep compression",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": false,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": false,
+										"children": []
+									},
+									{
+										"element": 1112,
+										"incompressible": false,
+										"children": []
+									},
+									{
+										"element": 1113,
+										"incompressible": false,
+										"children": []
+									},
+									{
+										"element": 1114,
+										"incompressible": false,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1, 11, 111], [1111], [1112], [1113], [1114]]
+		},
+		{
+			"name": "double deep compression",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": false,
+								"children": [
+									{
+										"element": 1112,
+										"incompressible": false,
+										"children": []
+									},
+									{
+										"element": 1113,
+										"incompressible": false,
+										"children": []
+									}
+								]
+							}
+						]
+					},
+					{
+						"element": 12,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 121,
+								"incompressible": false,
+								"children": [
+									{
+										"element": 1212,
+										"incompressible": false,
+										"children": []
+									},
+									{
+										"element": 1213,
+										"incompressible": false,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1], [11, 111], [1112], [1113], [12, 121], [1212], [1213]]
+		},
+		{
+			"name": "incompressible leaf",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": false,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": true,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1, 11, 111], [1111]]
+		},
+		{
+			"name": "incompressible branch",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": true,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": false,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [
+				[1, 11],
+				[111, 1111]
+			]
+		},
+		{
+			"name": "incompressible chain",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": false,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": true,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": true,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1, 11], [111], [1111]]
+		},
+		{
+			"name": "incompressible tree",
+			"tree": {
+				"element": 1,
+				"incompressible": false,
+				"children": [
+					{
+						"element": 11,
+						"incompressible": true,
+						"children": [
+							{
+								"element": 111,
+								"incompressible": true,
+								"children": [
+									{
+										"element": 1111,
+										"incompressible": true,
+										"children": []
+									}
+								]
+							}
+						]
+					}
+				]
+			},
+			"rows": [[1], [11], [111], [1111]]
+		}
+	],
+	"sequences": [
+		{
+			"name": "flat",
+			"steps": [
+				{
+					"parent": null,
+					"children": [
+						{
+							"element": 0,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 1,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 2,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[0], [1], [2]]
+				},
+				{
+					"parent": null,
+					"children": [
+						{
+							"element": 3,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 4,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 5,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[3], [4], [5]]
+				},
+				{
+					"parent": null,
+					"children": [],
+					"rows": []
+				}
+			]
+		},
+		{
+			"name": "nested",
+			"steps": [
+				{
+					"parent": null,
+					"children": [
+						{
+							"element": 0,
+							"incompressible": false,
+							"children": [
+								{
+									"element": 10,
+									"incompressible": false,
+									"children": []
+								},
+								{
+									"element": 11,
+									"incompressible": false,
+									"children": []
+								},
+								{
+									"element": 12,
+									"incompressible": false,
+									"children": []
+								}
+							]
+						},
+						{
+							"element": 1,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 2,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[0], [10], [11], [12], [1], [2]]
+				},
+				{
+					"parent": 12,
+					"children": [
+						{
+							"element": 120,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 121,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[0], [10], [11], [12], [120], [121], [1], [2]]
+				},
+				{
+					"parent": 0,
+					"children": [],
+					"rows": [[0], [1], [2]]
+				},
+				{
+					"parent": null,
+					"children": [],
+					"rows": []
+				}
+			]
+		},
+		{
+			"name": "compressed",
+			"steps": [
+				{
+					"parent": null,
+					"children": [
+						{
+							"element": 1,
+							"incompressible": false,
+							"children": [
+								{
+									"element": 11,
+									"incompressible": false,
+									"children": [
+										{
+											"element": 111,
+											"incompressible": false,
+											"children": [
+												{
+													"element": 1111,
+													"incompressible": false,
+													"children": []
+												},
+												{
+													"element": 1112,
+													"incompressible": false,
+													"children": []
+												},
+												{
+													"element": 1113,
+													"incompressible": false,
+													"children": []
+												}
+											]
+										}
+									]
+								}
+							]
+						}
+					],
+					"rows": [[1, 11, 111], [1111], [1112], [1113]]
+				},
+				{
+					"parent": 11,
+					"children": [
+						{
+							"element": 111,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 112,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 113,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[1, 11], [111], [112], [113]]
+				},
+				{
+					"parent": 113,
+					"children": [
+						{
+							"element": 1131,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[1, 11], [111], [112], [113, 1131]]
+				},
+				{
+					"parent": 1131,
+					"children": [
+						{
+							"element": 1132,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[1, 11], [111], [112], [113, 1131, 1132]]
+				},
+				{
+					"parent": 1131,
+					"children": [
+						{
+							"element": 1132,
+							"incompressible": false,
+							"children": []
+						},
+						{
+							"element": 1133,
+							"incompressible": false,
+							"children": []
+						}
+					],
+					"rows": [[1, 11], [111], [112], [113, 1131], [1132], [1133]]
+				}
+			]
+		}
+	]
+}

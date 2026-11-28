@@ -21,7 +21,7 @@ import { VIRTUAL_TREE_KEY_CHORDS } from './interaction/tree-keys';
 import type { VirtualTreeKeyboardNavigationLabel } from './interaction/type-navigation';
 import { TreeViewport, type VirtualTreeRowHeight } from './layout/TreeViewport';
 import type { VirtualTreeModel } from './model/VirtualTreeModel';
-import type { VirtualTreeRow } from './model/virtual-tree-types';
+import type { VirtualTreeRow, VirtualTreeSegment } from './model/virtual-tree-types';
 import type { VirtualTreeDragAndDrop } from './types/virtual-tree-drag';
 import type {
 	VirtualTreeContextMenuEvent,
@@ -62,7 +62,10 @@ export interface VirtualTreeProps<K, T> {
 	 * from a view's `ContextMenu` trigger around the tree, which the same event opens.
 	 */
 	readonly onContextMenu?: ((event: VirtualTreeContextMenuEvent<K, T>) => void) | undefined;
-	/** A row's text for type navigation, such as a file's name; without it, typing does nothing. */
+	/**
+	 * A row's text for type navigation, such as a file's name; without it, typing does nothing. VS
+	 * Code's Explorer gives a compact row its items' names joined by `/`.
+	 */
 	readonly keyboardNavigationLabel?: VirtualTreeKeyboardNavigationLabel<K, T> | undefined;
 	/**
 	 * Lets the pointer drag rows and drop on them, as VS Code's tree does through its drag and drop
@@ -78,7 +81,8 @@ export interface VirtualTreeProps<K, T> {
  * which must give it a definite size, scrolls by the wheel and its scrollbar as VS Code's lists do,
  * keeps the model's scroll offset, so a tree shown again opens where it was left, and keeps the rows
  * whose descendants are in sight stuck at the top, as VS Code's sticky scroll does. Keys, clicks,
- * the context menu and dragging work as in VS Code's trees.
+ * the context menu and dragging work as in VS Code's trees, and on the items of a compact row as on
+ * VS Code's compact folders, whose names `renderRow` draws with `VirtualTreeSegments`.
  */
 export function VirtualTree<K, T>({
 	dragAndDrop,
@@ -124,17 +128,18 @@ export function VirtualTree<K, T>({
 		keyboardNavigationLabel === undefined ? null : navigationLabel,
 	);
 	useTreePointer(frameReference, scrollbarReference, viewport, platform, open, showContextMenu);
-	const dragRows = useMemoizedFn(
-		(rows: readonly VirtualTreeRow<K, T>[]) => dragAndDrop?.drag?.(rows) ?? null,
+	const dragItems = useMemoizedFn(
+		(items: readonly VirtualTreeSegment<K, T>[]) => dragAndDrop?.drag?.(items) ?? null,
 	);
 	const dragOver = useMemoizedFn(
-		(drag: PointerDrag, row: VirtualTreeRow<K, T> | null) => dragAndDrop?.over?.(drag, row) ?? null,
+		(drag: PointerDrag, target: VirtualTreeSegment<K, T> | null) =>
+			dragAndDrop?.over?.(drag, target) ?? null,
 	);
-	const dropOn = useMemoizedFn((drag: PointerDrag, row: VirtualTreeRow<K, T> | null) => {
-		dragAndDrop?.drop?.(drag, row);
+	const dropOn = useMemoizedFn((drag: PointerDrag, target: VirtualTreeSegment<K, T> | null) => {
+		dragAndDrop?.drop?.(drag, target);
 	});
 	useTreeDrag(frameReference, scrollbarReference, viewport, {
-		drag: dragAndDrop?.drag === undefined ? null : dragRows,
+		drag: dragAndDrop?.drag === undefined ? null : dragItems,
 		drop: dropOn,
 		over: dragAndDrop?.over === undefined ? null : dragOver,
 	});

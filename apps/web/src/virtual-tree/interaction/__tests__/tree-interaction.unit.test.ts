@@ -227,7 +227,7 @@ describe('tree clicks', () => {
 			'r1',
 			['r1', 'r2', 'r3', 'r5'],
 		]);
-		toggleRow(model, 'r5');
+		toggleRow(model, 'r5', 'r5');
 		expect([model.focus, model.anchor, selected(model)]).toEqual(['r5', 'r5', ['r1', 'r2', 'r3']]);
 		// Without an anchor, the focused row becomes one.
 		model.setAnchor(null);

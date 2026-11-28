@@ -1,6 +1,6 @@
 import type { TreeViewport } from '../layout/TreeViewport';
 import type { VirtualTreeModel } from '../model/VirtualTreeModel';
-import type { VirtualTreeRow } from '../model/virtual-tree-types';
+import type { VirtualTreeRow, VirtualTreeSegment } from '../model/virtual-tree-types';
 import type { VirtualTreeOpenEvent } from '../types/virtual-tree-events';
 import type { TreeKeyCommand } from './tree-keys';
 
@@ -36,6 +36,14 @@ export function runTreeKeyCommand<K, T>(
 			return navigate(viewport, pageDownIndex(viewport));
 		case 'focusPageUp':
 			return navigate(viewport, pageUpIndex(viewport));
+		case 'previousSegment':
+			return focusSegment(viewport, (index) => index - 1);
+		case 'nextSegment':
+			return focusSegment(viewport, (index) => index + 1);
+		case 'firstSegment':
+			return focusSegment(viewport, () => 0);
+		case 'lastSegment':
+			return focusSegment(viewport, (_, segments) => segments - 1);
 		case 'expandSelectionDown':
 			return expandSelection(viewport, nextIndex(viewport), open);
 		case 'expandSelectionUp':
@@ -54,7 +62,7 @@ export function runTreeKeyCommand<K, T>(
 		case 'selectAll':
 			return selectAll(viewport, open);
 		case 'toggleSelection':
-			return toggleSelection(viewport.model);
+			return toggleSelection(viewport);
 		case 'clear':
 			return clear(viewport.model);
 		case 'scrollUp':
@@ -85,6 +93,36 @@ export function toggleCollapsed<K, T>(
 function focusedRow<K, T>(viewport: TreeViewport<K, T>): VirtualTreeRow<K, T> | null {
 	const index = viewport.focusIndex;
 	return index < 0 ? null : viewport.model.rowAt(index);
+}
+
+/** The focused item: the focused row's own, or the focused item of a compact row; null without one. */
+export function focusedSegment<K, T>(
+	viewport: TreeViewport<K, T>,
+): VirtualTreeSegment<K, T> | null {
+	const row = focusedRow(viewport);
+	if (row === null) return null;
+	const segment = viewport.focusedSegment;
+	return segment < 0 ? row : (row.segments[segment] ?? row);
+}
+
+/**
+ * VS Code's compact folder navigation, its Left, Right, Home and End: focus moves among the items of
+ * the focused compact row, to the one `target` picks from the focused one's index and their count.
+ * It applies only while the row shows several items and focus moves, leaving the key to the list
+ * command bound after it otherwise, as VS Code's Explorer does on the first or the last item.
+ */
+function focusSegment<K, T>(
+	viewport: TreeViewport<K, T>,
+	target: (index: number, segments: number) => number,
+): boolean {
+	const row = focusedRow(viewport);
+	const index = viewport.focusedSegment;
+	if (row === null || index < 0) return false;
+	const next = target(index, row.segments.length);
+	const segment = row.segments[next];
+	if (next === index || segment === undefined) return false;
+	viewport.model.setFocus(segment.key);
+	return true;
 }
 
 /** VS Code's `navigate`: focuses the row, if any, then scrolls focus into sight and anchors it. */
@@ -162,7 +200,8 @@ function expandSelection<K, T>(
 	open: OpenTreeRow<K, T>,
 ): true {
 	const { model } = viewport;
-	const previous = model.focus;
+	// Selection holds rows, and focus may rest on an item a compact row joins.
+	const previous = focusedRow(viewport)?.key ?? model.focus;
 	if (index >= 0) model.setFocus(model.rowAt(index).key);
 	const focus = model.focus;
 	if (focus !== null && focus !== previous) {
@@ -285,8 +324,9 @@ function firstSelectedRow<K, T>(viewport: TreeViewport<K, T>): VirtualTreeRow<K,
 }
 
 /** VS Code's Ctrl+Shift+Enter: the focused row joins or leaves the selection. */
-function toggleSelection<K, T>(model: VirtualTreeModel<K, T>): true {
-	const focus = model.focus;
+function toggleSelection<K, T>(viewport: TreeViewport<K, T>): true {
+	const { model } = viewport;
+	const focus = focusedRow(viewport)?.key ?? model.focus;
 	if (focus === null) return true;
 	const next = new Set(model.selection);
 	if (!next.delete(focus)) next.add(focus);
@@ -338,9 +378,12 @@ export function selectRange<K, T>(viewport: TreeViewport<K, T>, index: number): 
 	model.setFocus(model.rowAt(index).key);
 }
 
-/** VS Code's Ctrl-click, Cmd-click on macOS: the row joins or leaves the selection, with focus and the anchor. */
-export function toggleRow<K, T>(model: VirtualTreeModel<K, T>, key: K): void {
-	model.setFocus(key);
+/**
+ * VS Code's Ctrl-click, Cmd-click on macOS: the row joins or leaves the selection, and takes the
+ * anchor and focus, which lands on `focus`, an item of the row.
+ */
+export function toggleRow<K, T>(model: VirtualTreeModel<K, T>, key: K, focus: K): void {
+	model.setFocus(focus);
 	model.setAnchor(key);
 	const next = new Set(model.selection);
 	if (!next.delete(key)) next.add(key);

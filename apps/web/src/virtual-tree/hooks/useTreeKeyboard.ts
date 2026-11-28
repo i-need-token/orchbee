@@ -80,6 +80,14 @@ function rowElement(frame: HTMLElement, index: number): Element | null {
 	return index < 0 ? null : frame.querySelector(`[data-row-index="${index}"]`);
 }
 
+/** The focused row's element, or the focused item's in a compact row. */
+function focusedElement<K, T>(frame: HTMLElement, viewport: TreeViewport<K, T>): Element | null {
+	const row = rowElement(frame, viewport.focusIndex);
+	const segment = viewport.focusedSegment;
+	if (row === null || segment < 0) return row;
+	return row.querySelector(`[data-tree-segment="${segment}"]`) ?? row;
+}
+
 /**
  * VS Code's Tab in a list: moves focus to the first element of the focused row that sets a
  * `tabindex` of its own, when it shows and Tab could reach it; otherwise Tab leaves the tree.
@@ -96,7 +104,9 @@ function focusRowControl<K, T>(frame: HTMLElement, viewport: TreeViewport<K, T>)
 
 /**
  * Asks for the context menu from the keyboard: a `contextmenu` event on the focused row, or on the
- * tree without one, at the row's bottom-left corner within the tree, where VS Code anchors its menu.
+ * focused item's name in a compact row, as VS Code's Explorer anchors a compact folder's menu, or on
+ * the tree without one, at that element's bottom-left corner within the tree, where VS Code anchors
+ * its menu.
  * It bubbles through the tree's own handling to a view's menu trigger, as a right click does. The
  * browser's own menu for the key stays away, since the tree prevents the key's default on its press
  * and, for the context menu key on Windows, on its release.
@@ -104,7 +114,7 @@ function focusRowControl<K, T>(frame: HTMLElement, viewport: TreeViewport<K, T>)
 function showContextMenu<K, T>(frame: HTMLElement, viewport: TreeViewport<K, T>): void {
 	const view = frame.ownerDocument.defaultView;
 	if (!view) return;
-	const target = rowElement(frame, viewport.focusIndex) ?? frame;
+	const target = focusedElement(frame, viewport) ?? frame;
 	const bounds = frame.getBoundingClientRect();
 	const anchor = target.getBoundingClientRect();
 	target.dispatchEvent(

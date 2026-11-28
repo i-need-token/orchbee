@@ -10,8 +10,15 @@ type RowPlace =
 			readonly id: string;
 			/** The row's index, which a click resolves. */
 			readonly index: number;
+			/** The level assistive technology announces, which counts the items compact rows join. */
+			readonly level: number;
 			readonly positionInSet: number;
 			readonly setSize: number;
+			/**
+			 * The element that names a compact row, its last item's, as VS Code's Explorer names the row
+			 * by its last item; without it the row would take the names of all its items.
+			 */
+			readonly labelledBy: string | undefined;
 	  }
 	| {
 			readonly kind: 'sticky';
@@ -26,7 +33,7 @@ type RowPlace =
  */
 interface VirtualTreeRowViewProps {
 	readonly place: RowPlace;
-	/** One for a top-level row; it sets the indentation. */
+	/** One for a top-level row, and one more for each row it is nested under; it sets the indentation. */
 	readonly depth: number;
 	readonly collapsible: boolean;
 	/** Whether the row is expanded; false for a row that cannot be. */
@@ -66,7 +73,8 @@ export function VirtualTreeRowView({
 	return (
 		<div
 			aria-expanded={item !== null && collapsible ? expanded : undefined}
-			aria-level={item === null ? undefined : depth}
+			aria-labelledby={item?.labelledBy}
+			aria-level={item?.level}
 			aria-posinset={item?.positionInSet}
 			aria-selected={item === null ? undefined : selected}
 			aria-setsize={item?.setSize}

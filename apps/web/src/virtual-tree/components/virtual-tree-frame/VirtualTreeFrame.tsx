@@ -1,7 +1,7 @@
 import * as React from 'react';
 
-import { rowElementId } from '../../utils/rowElementId';
 import type { TreeViewport } from '../../layout/TreeViewport';
+import { rowElementId, segmentElementId } from '../../utils/tree-element-ids';
 import styles from './VirtualTreeFrame.module.css';
 
 interface VirtualTreeFrameProps<K, T> {
@@ -15,8 +15,9 @@ interface VirtualTreeFrameProps<K, T> {
 }
 
 /**
- * The tree's focusable element. It names the focused row through `aria-activedescendant`, so focus
- * stays here while the row elements are reused, and it holds the scrollbar over the rows.
+ * The tree's focusable element. It names the focused row through `aria-activedescendant`, or the
+ * focused item of a compact row, as VS Code's Explorer names a compact folder's, so focus stays here
+ * while the row elements are reused, and it holds the scrollbar over the rows.
  */
 export function VirtualTreeFrame<K, T>({
 	children,
@@ -27,10 +28,19 @@ export function VirtualTreeFrame<K, T>({
 	viewport,
 }: VirtualTreeFrameProps<K, T>): React.ReactNode {
 	const focusIndex = React.useSyncExternalStore(viewport.subscribe, () => viewport.focusIndex);
+	const focusedSegment = React.useSyncExternalStore(
+		viewport.subscribe,
+		() => viewport.focusedSegment,
+	);
 	const dropOnTree = React.useSyncExternalStore(viewport.subscribe, () => viewport.dropOnTree);
+	let activeDescendant: string | undefined;
+	if (focusIndex >= 0) {
+		const rowId = rowElementId(treeId, focusIndex);
+		activeDescendant = focusedSegment < 0 ? rowId : segmentElementId(rowId, focusedSegment);
+	}
 	return (
 		<div
-			aria-activedescendant={focusIndex < 0 ? undefined : rowElementId(treeId, focusIndex)}
+			aria-activedescendant={activeDescendant}
 			aria-label={label}
 			aria-multiselectable
 			className={styles['frame']}

@@ -33,6 +33,10 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   theirs too; `recursive` also makes collapsed rows below forget theirs. A refresh asked while an
   older read runs waits for it and reads once more, however many refreshes arrive meanwhile, so a
   burst of watcher events costs a folder at most two reads.
+- `compressible` turns on compact rows: an expanded item whose only child the source calls
+  compressible shares a row with it, as VS Code's Explorer joins a folder with its only subfolder.
+  Answer false for files, which VS Code keeps out of compact folders. `compressed` and
+  `setCompressed` turn compact rows off and on, as VS Code's Explorer does for screen readers.
 - A view restores a tree with `restoreViewState`, which expands the saved rows as they load, and
   calls `dispose` when the tree goes away for good.
 - Source callbacks must not call back into the model.
@@ -68,6 +72,33 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   twistie also collapses it, with Alt every row below it too. `reveal` keeps a row clear of the rows
   that would stick above it.
 
+## Compact rows
+
+- A compact row's `segments` are its items, outermost first; the row's key, element, expansion and
+  loading state are its last item's. Expanding or collapsing the row expands or collapses that
+  item, and selection and the anchor hold rows' last items.
+- Focus may rest on any item of a compact row: a click on an item's name focuses that item, and
+  Left, Right, Home and End move among the items before they collapse, expand or move to another
+  row, as in VS Code. The context menu and dragging one row alone take the focused or pressed item.
+- Draw a compact row's names with `VirtualTreeSegments`, which takes the names and the row state
+  `renderRow` receives. It separates the names with `/`, underlines the focused item's name, lights
+  the item a drag would drop on, and makes each item a tree item that the tree names while the item
+  has focus; a renderer that draws them otherwise leaves the tree naming an element that does not
+  exist. Join the names with `/` for type navigation, as VS Code's Explorer does:
+
+  ```tsx
+  const namesOf = (row: VirtualTreeRow<string, Resource>) =>
+  	row.segments.map((segment) => segment.element.name);
+
+  <VirtualTree
+  	keyboardNavigationLabel={(row) => namesOf(row).join('/')}
+  	label={label}
+  	model={model}
+  	platform={platform}
+  	renderRow={(row, state) => <VirtualTreeSegments names={namesOf(row)} state={state} />}
+  />;
+  ```
+
 ## Keys, clicks and the context menu
 
 - Keys and clicks work as in VS Code's trees: `interaction/tree-keys.ts` holds each platform's keys,
@@ -84,9 +115,10 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - `keyboardNavigationLabel` turns on type navigation: typing moves focus to the next row whose label
   starts with the typed word. Without it, typing does nothing.
 - The view owns the context menu and wraps the tree in a `ContextMenu` trigger. A right click,
-  Shift+F10 or the context menu key focuses the row and calls `onContextMenu` with it, or with
-  `null` on the empty space, before the same `contextmenu` event reaches the trigger; from a key it
-  opens at the focused row's bottom-left corner.
+  Shift+F10 or the context menu key focuses the row and calls `onContextMenu` with it and the item
+  the menu is for, or with `null` on the empty space, before the same `contextmenu` event reaches
+  the trigger; from a key it opens at the focused row's bottom-left corner, or below the focused
+  item's name in a compact row.
 - Name the tree's widget in the shortcut catalog with `keyboardScope`, and the tree registers itself
   as that widget's keyboard scope. While it has focus, the widget's bindings, such as F2 to rename,
   come first; then the tree's own keys, which no wider binding, such as the window's
@@ -106,33 +138,36 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 ## Dragging rows
 
 - `dragAndDrop` turns on dragging rows and dropping on them; each of its three parts is optional,
-  and the drag itself is [Pointer drag](pointer-drag.md)'s. `drag` makes the cargo for the rows a
-  press drags: a selected row drags the whole selection in tree order, any other row drags alone,
-  and neither changes the selection, as in VS Code. A sticky row takes drops for its row but starts
-  no drag.
+  and the drag itself is [Pointer drag](pointer-drag.md)'s. Its parts take items, so a compact row
+  drags and takes drops for one of its items. `drag` makes the cargo for the rows a press drags: a
+  selected row drags the whole selection in tree order, any other row drags alone, and neither
+  changes the selection, as in VS Code; one compact row that drags alone carries the item whose name
+  was pressed. A sticky row takes drops for its row but starts no drag.
 - `over` answers whether the drag may drop on a row, or on the tree for null, and how the tree shows
   it. Answer for a folder with the default `down`, which lights the row and its visible rows, and
   with `autoExpand`, which expands the row once the drag has rested on it for 500 ms; answer for a
   file with `up`, which lights its folder, or the whole tree for a top-level file, as VS Code's
-  Explorer does. `drop` receives the row the drag was released on, not the folder it bubbled to, so
-  the view resolves where the drop goes and invokes its Action:
+  Explorer does. Over the name of an item that a compact row joins, `over` hears that item, and an
+  accepted drop lights its name alone while `autoExpand` still expands the row. `drop` receives the
+  item the drag was released on, not the folder it bubbled to, so the view resolves where the drop
+  goes and invokes its Action:
 
   ```tsx
   const resources = new PointerDragKind<readonly Resource[]>();
 
   const dragAndDrop: VirtualTreeDragAndDrop<string, Resource> = {
-  	drag: (rows) =>
+  	drag: (items) =>
   		resources.carry(
-  			rows.map((row) => row.element),
-  			dragLabel(rows),
+  			items.map((item) => item.element),
+  			dragLabel(items),
   		),
-  	over: (drag, row) => {
+  	over: (drag, target) => {
   		if (resources.read(drag) === undefined) return null;
-  		return row?.collapsible === true ? { autoExpand: true } : { bubble: 'up' };
+  		return target?.collapsible === true ? { autoExpand: true } : { bubble: 'up' };
   	},
-  	drop: (drag, row) => {
+  	drop: (drag, target) => {
   		const dropped = resources.read(drag);
-  		if (dropped !== undefined) moveResources(dropped, folderOf(row), drag.modifiers);
+  		if (dropped !== undefined) moveResources(dropped, folderOf(target), drag.modifiers);
   	},
   };
   ```
@@ -173,7 +208,8 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
   scenarios and the height index; run it before and after a change to the model or the index.
   `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist, how keys,
-  clicks and the context menu act and how rows drag and take drops, and prints the render
+  clicks and the context menu act, how rows drag and take drops and how compact rows act on their
+  items, and prints the render
   benchmark: expanding the folder of 100,000 files to its painted frame, selecting all of it, with
   the select-all key from one of its files too, a typed character that matches no row, starting a
   drag from all 100,003 rows selected, and scrolling it at fixed speeds, with each frame's script
@@ -260,6 +296,23 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - **Edge scrolling stops once the pointer leaves the tree.** VS Code's lists keep scrolling for a
   second after the last `dragover`; here the tree scrolls only while it hears the drag.
 - **Sticky rows neither drag nor light up**, as in VS Code, though each takes drops for its row.
+- **Only expanded items join.** An item joins its only child's row while it is expanded, and
+  collapsing a compact row collapses its last item, so the row stays whole. VS Code's compressed
+  tree joins a loaded item with its only child whatever their state, and turning compact rows off
+  gives every item the row's state; here each item keeps its own, so a collapsed compact row that
+  comes apart shows the path down to its collapsed last item.
+- **Focus stays on its item.** The focused item of a compact row stays focused while the row draws
+  again, and while the row comes apart or joins others, as long as the item shows. VS Code keeps the
+  focused name in the row's rendered template, so the last name takes focus back whenever the row
+  renders again.
+- **Each item is announced at its own level.** VS Code announces a compact row's names at the
+  row's depth plus their index, which is wrong for a compact row inside another; here each item
+  announces its own level, its place among its siblings and whether its row is selected. Its label
+  is localized and names its parents in the row as a list, where VS Code joins them with spaces
+  after an English "compact".
+- **A drag carries the item it was pressed on.** VS Code reads the name under the point where the
+  browser's drag starts; a pointer drag starts once the pointer is 10 px away, which can be over
+  another name, so the tree keeps the item the press landed on.
 - **A keyboard context menu goes through the view's trigger.** The tree dispatches a `contextmenu`
   event at the focused row's corner once the key is released and prevents the key's default, so the
   browser's own menu event for the key never arrives. VS Code's list raises its own context menu

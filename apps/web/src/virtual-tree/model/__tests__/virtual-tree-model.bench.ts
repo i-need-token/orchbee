@@ -4,8 +4,9 @@ import { VirtualTreeModel } from '../VirtualTreeModel';
 import type { VirtualTreeEvent, VirtualTreeSource, VirtualTreeSplice } from '../virtual-tree-types';
 
 // The reference scenarios of the File Bar proposal's performance targets: N = 100,000 rows labelled
-// like `file-123.ts`, and 1,000 folders of 100 files. Each case builds its tree outside the measured
-// region and times one operation, so its median compares with VS Code's model measurements.
+// like `file-123.ts`, and 1,000 folders of 100 files, with compact rows over the same sizes. Each
+// case builds its tree outside the measured region and times one operation, so its median compares
+// with VS Code's model measurements.
 
 const N = 100_000;
 const FOLDERS = 1_000;
@@ -43,12 +44,15 @@ class Fixture {
 	readonly events: VirtualTreeEvent<string>[] = [];
 	private readonly lists = new Map<string, readonly BenchItem[]>();
 
-	constructor(rootItems: readonly BenchItem[], expandedByDefault = false) {
+	/** Folders join compact rows when `compact` is set, as VS Code's Explorer compacts them. */
+	constructor(rootItems: readonly BenchItem[], expandedByDefault = false, compact = false) {
 		this.lists.set(ROOT.key, rootItems);
+		const isFolder = (item: BenchItem) => item.folder;
 		const source: VirtualTreeSource<string, BenchItem> = {
 			children: (item) => this.lists.get(item.key) ?? [],
-			hasChildren: (item) => item.folder,
+			hasChildren: isFolder,
 			key: (item) => item.key,
+			...(compact ? { compressible: isFolder } : {}),
 		};
 		this.model = new VirtualTreeModel({
 			input: ROOT,
@@ -93,6 +97,34 @@ function nestedFolders(fixture: Fixture): BenchItem[] {
 		fixture.setChildren(folder.key, files(FILES_PER_FOLDER, `${folder.key}/`));
 	}
 	return folders;
+}
+
+/** Registers 1,000 folders that each hold one folder of 100 files, and returns the outer folders. */
+function compactFolders(fixture: Fixture): BenchItem[] {
+	const folders: BenchItem[] = [];
+	for (let index = 0; index < FOLDERS; index += 1) {
+		const folder = { folder: true, key: `folder-${index}` };
+		const inner = { folder: true, key: `${folder.key}/inner` };
+		folders.push(folder);
+		fixture.setChildren(folder.key, [inner]);
+		fixture.setChildren(inner.key, files(FILES_PER_FOLDER, `${inner.key}/`));
+	}
+	return folders;
+}
+
+/**
+ * A loaded tree whose one top-level row is compact: `a`, `a/b` and `a/b/c` over 100,000 files,
+ * expanded or collapsed.
+ */
+function compactChain(expanded: boolean): Fixture {
+	const fixture = new Fixture([{ folder: true, key: 'a' }], true, true);
+	fixture.setChildren('a', [{ folder: true, key: 'a/b' }]);
+	fixture.setChildren('a/b', [{ folder: true, key: 'a/b/c' }]);
+	fixture.setChildren('a/b/c', files(N, 'a/b/c/'));
+	void fixture.model.refresh(null);
+	if (!expanded) fixture.model.collapse('a/b/c');
+	fixture.takeSplices();
+	return fixture;
 }
 
 /** Fails the case when an operation did not produce the rows and splices it promises. */
@@ -246,6 +278,70 @@ bench(
 		});
 		void fixture.model.refresh(null);
 		expectRows(fixture, N, [{ deleteCount: N, insertCount: N, start: 0 }]);
+	},
+	OPTIONS,
+);
+
+bench(
+	'expands a compact row of three folders over 100,000 children',
+	() => {
+		const fixture = untimed(() => compactChain(false));
+		void fixture.model.expand('a/b/c');
+		expectRows(fixture, N + 1, [{ deleteCount: 0, insertCount: N, start: 1 }]);
+	},
+	OPTIONS,
+);
+
+bench(
+	'refreshes 100,000 unchanged children of a compact row',
+	() => {
+		const fixture = untimed(() => compactChain(true));
+		void fixture.model.refresh('a/b/c');
+		untimed(() => {
+			if (fixture.events.length > 0) throw new Error('An unchanged refresh reported a change');
+		});
+		expectRows(fixture, N + 1, []);
+	},
+	OPTIONS,
+);
+
+// 1,000 compact rows of a folder and the one folder it holds, each over 100 files.
+const COMPACT_ROWS = FOLDERS * (FILES_PER_FOLDER + 1);
+const SPLIT_ROWS = FOLDERS * (FILES_PER_FOLDER + 2);
+
+bench(
+	'turns compact rows off across 1,000 folders that each hold one folder of 100 files',
+	() => {
+		const fixture = untimed(() => {
+			const created = new Fixture([], true, true);
+			created.setChildren(ROOT.key, compactFolders(created));
+			void created.model.refresh(null);
+			created.takeSplices();
+			return created;
+		});
+		fixture.model.setCompressed(false);
+		expectRows(fixture, SPLIT_ROWS, [
+			{ deleteCount: COMPACT_ROWS, insertCount: SPLIT_ROWS, start: 0 },
+		]);
+	},
+	OPTIONS,
+);
+
+bench(
+	'turns compact rows back on across them',
+	() => {
+		const fixture = untimed(() => {
+			const created = new Fixture([], true, true);
+			created.setChildren(ROOT.key, compactFolders(created));
+			void created.model.refresh(null);
+			created.model.setCompressed(false);
+			created.takeSplices();
+			return created;
+		});
+		fixture.model.setCompressed(true);
+		expectRows(fixture, COMPACT_ROWS, [
+			{ deleteCount: SPLIT_ROWS, insertCount: COMPACT_ROWS, start: 0 },
+		]);
 	},
 	OPTIONS,
 );

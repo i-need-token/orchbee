@@ -187,6 +187,14 @@ class World {
 	}
 }
 
+/**
+ * Whether an item may join its parent's row: two items in three, and an update can change it, so a
+ * refresh both forms and splits compact rows.
+ */
+function isCompressible(item: Item): boolean {
+	return (Number(item.key.slice(1)) + item.version) % 3 !== 0;
+}
+
 interface NaiveNode {
 	readonly key: string;
 	item: Item;
@@ -199,19 +207,23 @@ interface NaiveNode {
 
 /**
  * The same semantics written as plainly as possible: whole-tree searches, rows rebuilt from scratch,
- * no counts, no index caches, no splices.
+ * no counts, no index caches, no splices, and compact rows derived from the tree whenever asked.
  */
 class NaiveTree {
 	readonly root: NaiveNode;
 	focus: string | null = null;
 	anchor: string | null = null;
 	selection: string[] = [];
+	private compressed: boolean;
+	private focusAssigned = false;
+	private focusMergedAtRest = false;
 	private readonly world: World;
 	private readonly defaults: boolean;
 
-	constructor(world: World, defaults: boolean) {
+	constructor(world: World, defaults: boolean, compressed: boolean) {
 		this.world = world;
 		this.defaults = defaults;
+		this.compressed = compressed;
 		this.root = {
 			children: [],
 			collapsed: false,
@@ -235,11 +247,45 @@ class NaiveTree {
 		return result;
 	}
 
+	/** Whether a node shows in the row of its only child. */
+	merged(node: NaiveNode): boolean {
+		const only = node.children[0];
+		return (
+			this.compressed &&
+			node !== this.root &&
+			node.collapsible &&
+			!node.collapsed &&
+			node.children.length === 1 &&
+			only !== undefined &&
+			isCompressible(only.item)
+		);
+	}
+
+	/** The node whose row a node shows in. */
+	tail(node: NaiveNode): NaiveNode {
+		let tail = node;
+		while (this.merged(tail)) {
+			const only = tail.children[0];
+			if (only === undefined) break;
+			tail = only;
+		}
+		return tail;
+	}
+
+	/** The nodes a row shows, outermost first. */
+	segments(node: NaiveNode): NaiveNode[] {
+		const chain = [node];
+		for (let owner = node.parent; owner !== null && this.merged(owner); owner = owner.parent) {
+			chain.unshift(owner);
+		}
+		return chain;
+	}
+
 	rows(): NaiveNode[] {
 		const result: NaiveNode[] = [];
 		const visit = (node: NaiveNode): void => {
 			for (const child of node.children) {
-				result.push(child);
+				if (!this.merged(child)) result.push(child);
 				if (!child.collapsed) visit(child);
 			}
 		};
@@ -253,35 +299,34 @@ class NaiveTree {
 
 	refresh(key: string | null, recursive: boolean): void {
 		const node = key === null ? this.root : this.find(key);
-		if (node === null) return;
-		if (node !== this.root && node.collapsed) {
+		if (node !== null && node !== this.root && node.collapsed) {
 			node.collapsible = node.item.folder;
 			node.children = [];
 			node.stale = node.collapsible;
-		} else {
+		} else if (node !== null) {
 			this.refreshSubtree(node, recursive);
 		}
-		this.prune();
+		this.settle();
 	}
 
 	expand(key: string, recursive: boolean): void {
-		const node = this.find(key);
-		if (node === null || !node.collapsible) return;
-		if (node.stale) this.load(node, false);
-		if (recursive) this.expandBelow(node);
-		node.collapsed = false;
-		this.prune();
+		const found = this.find(key);
+		const node = found === null ? null : this.tail(found);
+		if (node?.collapsible === true) this.expandNode(node, recursive);
+		this.settle();
 	}
 
 	collapse(key: string, recursive: boolean): void {
-		const node = this.find(key);
-		if (node === null) return;
-		if (node.collapsible) node.collapsed = true;
-		if (recursive) this.collapseBelow(node);
+		const found = this.find(key);
+		const node = found === null ? null : this.tail(found);
+		if (node?.collapsible === true) node.collapsed = true;
+		if (node !== null && recursive) this.collapseBelow(node);
+		this.settle();
 	}
 
 	collapseAll(): void {
 		this.collapseBelow(this.root);
+		this.settle();
 	}
 
 	reveal(key: string): void {
@@ -293,22 +338,42 @@ class NaiveTree {
 		) {
 			owner.collapsed = false;
 		}
+		this.settle();
+	}
+
+	setCompressed(compressed: boolean): void {
+		this.compressed = compressed;
+		this.settle();
 	}
 
 	setFocus(key: string | null): void {
-		if (key === null || this.find(key) !== null) this.focus = key;
+		if ((key === null || this.find(key) !== null) && key !== this.focus) {
+			this.focus = key;
+			this.focusAssigned = true;
+		}
+		this.settle();
 	}
 
 	setAnchor(key: string | null): void {
-		if (key === null || this.find(key) !== null) this.anchor = key;
+		if (key === null) this.anchor = null;
+		const node = key === null ? null : this.find(key);
+		if (node !== null) this.anchor = this.tail(node).key;
+		this.settle();
 	}
 
 	setSelection(keys: readonly string[]): void {
-		this.selection = [...new Set(keys.filter((key) => this.find(key) !== null))];
+		const next: string[] = [];
+		for (const key of keys) {
+			const node = this.find(key);
+			if (node !== null) next.push(this.tail(node).key);
+		}
+		this.selection = [...new Set(next)];
+		this.settle();
 	}
 
 	selectAll(): void {
 		this.selection = this.rows().map((node) => node.key);
+		this.settle();
 	}
 
 	private refreshSubtree(node: NaiveNode, recursive: boolean): void {
@@ -322,15 +387,34 @@ class NaiveTree {
 			}
 			node.collapsible = true;
 		}
-		for (const child of this.load(node, recursive)) {
+		this.load(node, recursive);
+	}
+
+	/**
+	 * Takes the source's children, refreshes the expanded ones it kept, and expands an only child the
+	 * node comes to share its row with, fetching that child's children again when it had some.
+	 */
+	private load(node: NaiveNode, recursive: boolean): void {
+		const joined = this.merged(node) ? node.children[0] : undefined;
+		const toRefresh = this.merge(node, this.world.childrenOf(node.item), recursive);
+		node.stale = false;
+		for (const child of toRefresh) {
 			if (this.attached(child)) this.refreshSubtree(child, recursive);
+		}
+		const only = this.merged(node) ? node.children[0] : undefined;
+		if (only !== undefined && only !== joined && only.collapsible && only.collapsed) {
+			const stale = only.stale;
+			this.expandNode(only, false);
+			if (!stale) this.refreshSubtree(only, recursive);
 		}
 	}
 
-	private load(node: NaiveNode, recursive: boolean): NaiveNode[] {
-		const toRefresh = this.merge(node, this.world.childrenOf(node.item), recursive);
-		node.stale = false;
-		return toRefresh;
+	private expandNode(node: NaiveNode, recursive: boolean): void {
+		if (node.stale) this.load(node, false);
+		if (recursive) this.expandBelow(node);
+		node.collapsed = false;
+		const only = this.merged(node) ? node.children[0] : undefined;
+		if (only?.collapsible === true && only.collapsed) this.expandNode(only, false);
 	}
 
 	private merge(parent: NaiveNode, items: readonly Item[], recursive: boolean): NaiveNode[] {
@@ -405,9 +489,10 @@ class NaiveTree {
 		}
 	}
 
+	/** Collapses every row below; an item a compact row joins stays expanded. */
 	private collapseBelow(node: NaiveNode): void {
 		for (const child of node.children) {
-			if (child.collapsible) child.collapsed = true;
+			if (child.collapsible && !this.merged(child)) child.collapsed = true;
 			this.collapseBelow(child);
 		}
 	}
@@ -419,10 +504,28 @@ class NaiveTree {
 		return true;
 	}
 
-	private prune(): void {
-		if (this.focus !== null && this.find(this.focus) === null) this.focus = null;
-		if (this.anchor !== null && this.find(this.anchor) === null) this.anchor = null;
-		this.selection = this.selection.filter((key) => this.find(key) !== null);
+	/**
+	 * What the model does as an operation ends: traits on keys that left the tree go, selection and
+	 * anchor move to the row an item joined, and so does focus when the operation did not set it and
+	 * it did not rest on a joined item already.
+	 */
+	private settle(): void {
+		const selection: string[] = [];
+		for (const key of this.selection) {
+			const node = this.find(key);
+			if (node !== null) selection.push(this.tail(node).key);
+		}
+		this.selection = [...new Set(selection)];
+		const anchor = this.anchor === null ? null : this.find(this.anchor);
+		this.anchor = anchor === null ? null : this.tail(anchor).key;
+		const focus = this.focus === null ? null : this.find(this.focus);
+		if (focus === null) this.focus = null;
+		else if (this.merged(focus) && !this.focusAssigned && !this.focusMergedAtRest) {
+			this.focus = this.tail(focus).key;
+		}
+		this.focusAssigned = false;
+		const rested = this.focus === null ? null : this.find(this.focus);
+		this.focusMergedAtRest = rested !== null && this.merged(rested);
 	}
 }
 
@@ -431,14 +534,21 @@ type Command =
 	| { readonly kind: 'echo' }
 	| { readonly kind: 'refresh'; readonly pick: number; readonly recursive: boolean }
 	| { readonly kind: 'refreshTwice'; readonly pick: number }
-	| { readonly kind: 'expand'; readonly pick: number; readonly recursive: boolean }
+	| {
+			readonly kind: 'expand';
+			/** Focuses the item first, as a click on its twistie or a key on its row does. */
+			readonly focus: boolean;
+			readonly pick: number;
+			readonly recursive: boolean;
+	  }
 	| { readonly kind: 'collapse'; readonly pick: number; readonly recursive: boolean }
 	| { readonly kind: 'collapseAll' }
 	| { readonly kind: 'reveal'; readonly pick: number }
 	| { readonly kind: 'focus'; readonly pick: number }
 	| { readonly kind: 'anchor'; readonly pick: number }
 	| { readonly kind: 'select'; readonly picks: readonly number[] }
-	| { readonly kind: 'selectAll' };
+	| { readonly kind: 'selectAll' }
+	| { readonly kind: 'compress' };
 
 /** Shrinking long command sequences can take minutes; a failure reports the smallest case found by then. */
 const SHRINK_TIME_LIMIT_MS = 30_000;
@@ -496,6 +606,7 @@ const commandArbitrary: fc.Arbitrary<Command> = fc.oneof(
 	{ arbitrary: fc.record({ kind: fc.constant('refreshTwice'), pick: pickArbitrary }), weight: 2 },
 	{
 		arbitrary: fc.record({
+			focus: fc.boolean(),
 			kind: fc.constant('expand'),
 			pick: pickArbitrary,
 			recursive: fc.boolean(),
@@ -522,11 +633,13 @@ const commandArbitrary: fc.Arbitrary<Command> = fc.oneof(
 		weight: 1,
 	},
 	{ arbitrary: fc.record({ kind: fc.constant('selectAll') }), weight: 1 },
+	{ arbitrary: fc.record({ kind: fc.constant('compress') }), weight: 1 },
 );
 
 function createSource(world: World): VirtualTreeSource<string, Item> {
 	return {
 		children: (item) => world.childrenOf(item),
+		compressible: isCompressible,
 		hasChildren: (item) => item.folder,
 		key: (item) => item.key,
 	};
@@ -571,43 +684,52 @@ function expectSameTree(
 	expect(after).toEqual(rows.map((node) => node.key));
 	for (const [index, node] of rows.entries()) {
 		const row = model.rowAt(index);
-		const siblings = node.parent?.children ?? [];
+		const segments = naive.segments(node);
+		const head = segments[0] ?? node;
+		const siblings = head.parent?.children ?? [];
 		let depth = 0;
-		for (let owner = node.parent; owner !== null; owner = owner.parent) depth += 1;
+		let level = 0;
+		for (let owner = node.parent; owner !== null; owner = owner.parent) {
+			level += 1;
+			if (!naive.merged(owner)) depth += 1;
+		}
 		let below = 0;
 		if (!node.collapsed) {
 			const count = (current: NaiveNode): void => {
 				for (const child of current.children) {
-					below += 1;
+					if (!naive.merged(child)) below += 1;
 					if (!child.collapsed) count(child);
 				}
 			};
 			count(node);
 		}
 		expect(row.element).toBe(node.item);
+		expect(row.segments.map((segment) => segment.key)).toEqual(segments.map(({ key }) => key));
 		expect(row.depth).toBe(depth);
+		expect(row.level).toBe(level);
 		expect(row.collapsible).toBe(node.collapsible);
 		expect(row.collapsible && !row.collapsed).toBe(node.collapsible && !node.collapsed);
 		expect(row.parent?.key ?? null).toBe(
-			node.parent === naive.root ? null : (node.parent?.key ?? null),
+			head.parent === naive.root ? null : (head.parent?.key ?? null),
 		);
-		expect(row.positionInSet).toBe(siblings.indexOf(node) + 1);
+		expect(row.positionInSet).toBe(siblings.indexOf(head) + 1);
 		expect(row.setSize).toBe(siblings.length);
 		expect(row.visibleDescendantCount).toBe(below);
 	}
 	for (const node of naive.nodes()) {
-		expect(model.indexOf(node.key)).toBe(rows.indexOf(node));
+		expect(model.indexOf(node.key)).toBe(rows.indexOf(naive.tail(node)));
 	}
 	expect(model.indexOf('missing')).toBe(-1);
 	expect(model.focus).toBe(naive.focus);
 	expect(model.anchor).toBe(naive.anchor);
 	expect(sorted(model.selection)).toEqual(sorted(naive.selection));
+	// An expanded row names every item it shows, and a collapsed one names none.
 	expect(sorted(model.viewState().expanded)).toEqual(
 		sorted(
 			naive
 				.nodes()
-				.filter((node) => node.collapsible && !node.collapsed)
-				.map((node) => node.key),
+				.filter((node) => !naive.merged(node) && node.collapsible && !node.collapsed)
+				.flatMap((node) => naive.segments(node).map(({ key }) => key)),
 		),
 	);
 
@@ -669,6 +791,10 @@ function run(
 		}
 		case 'expand': {
 			const key = pickKey(naive, world, command.pick);
+			if (command.focus) {
+				model.setFocus(key);
+				naive.setFocus(key);
+			}
 			void model.expand(key, { recursive: command.recursive });
 			naive.expand(key, command.recursive);
 			return 0;
@@ -711,6 +837,10 @@ function run(
 			model.selectAll();
 			naive.selectAll();
 			return 0;
+		case 'compress':
+			model.setCompressed(!model.compressed);
+			naive.setCompressed(model.compressed);
+			return 0;
 	}
 }
 
@@ -725,6 +855,7 @@ function spliceLimit(command: Command, moved: number): number {
 		case 'collapse':
 		case 'collapseAll':
 		case 'reveal':
+		case 'compress':
 			return 1;
 		default:
 			return Number.POSITIVE_INFINITY;
@@ -757,7 +888,7 @@ function movedRows(
 function rowSnapshot(tree: VirtualTreeModel<string, Item>): unknown[] {
 	return Array.from({ length: tree.rowCount }, (_, index) => {
 		const row = tree.rowAt(index);
-		return [row.key, row.element, row.depth, row.collapsed];
+		return [row.key, row.element, row.depth, row.collapsed, row.segments.length];
 	});
 }
 
@@ -861,9 +992,10 @@ class AsyncRun {
 	private readonly operations: { settled: boolean }[] = [];
 	private poisoned = 0;
 
-	constructor(seed: readonly SeedItem[]) {
+	constructor(seed: readonly SeedItem[], compressed: boolean) {
 		this.world = new World(seed);
 		this.model = new VirtualTreeModel<string, Item>({
+			compressed,
 			input: this.world.input,
 			source: {
 				children: (item, signal) =>
@@ -877,6 +1009,7 @@ class AsyncRun {
 							snapshot: this.world.childrenOf(item),
 						});
 					}),
+				compressible: isCompressible,
 				hasChildren: (item) => item.folder,
 				key: (item) => item.key,
 			},
@@ -966,12 +1099,19 @@ function expectAsyncInvariants(state: AsyncRun, before: readonly string[]): void
 	const liveKeys = live.map((request) => request.item.key);
 	expect(new Set(liveKeys).size).toBe(liveKeys.length);
 	const now = Date.now();
+	// Items a compact row joins stay expanded while the row collapses, which then names none of them.
+	const joined = new Set<string>();
 	for (let index = 0; index < model.rowCount; index += 1) {
 		const row = model.rowAt(index);
 		expect(row.key.startsWith('poison')).toBe(false);
-		expect(model.indexOf(row.key)).toBe(index);
+		for (const segment of row.segments) {
+			expect(segment.key.startsWith('poison')).toBe(false);
+			expect(model.indexOf(segment.key)).toBe(index);
+			if (segment !== row) joined.add(segment.key);
+		}
 		const { parent } = row;
 		expect(row.depth).toBe(parent === null ? 1 : parent.depth + 1);
+		expect(row.level).toBe((parent === null ? 0 : parent.level) + row.segments.length);
 		expect(parent === null ? -1 : model.indexOf(parent.key)).toBeLessThan(index);
 		expect(parent?.collapsed ?? false).toBe(false);
 		// The rows the descendant count covers lie deeper than this one, and the next row does not.
@@ -986,9 +1126,17 @@ function expectAsyncInvariants(state: AsyncRun, before: readonly string[]): void
 		);
 		expect(row.loading).toBe(waited);
 	}
-	// Collapsing aborts and leaving the tree aborts, so only the input and expanded rows load.
+	// Collapsing aborts and leaving the tree aborts, so only the input and expanded rows load. The view
+	// state leaves out the items of collapsed compact rows, which a collapsed parent may hide too.
 	const expanded = new Set(model.viewState().expanded);
-	for (const key of liveKeys) expect(key === world.input.key || expanded.has(key)).toBe(true);
+	for (const key of liveKeys) {
+		const allowed =
+			key === world.input.key ||
+			expanded.has(key) ||
+			joined.has(key) ||
+			(model.compressed && model.indexOf(key) < 0);
+		expect(allowed).toBe(true);
+	}
 	expect(replayRows(before, state.events, model)).toEqual(rowKeys(model));
 }
 
@@ -1013,18 +1161,34 @@ function replayRows(
 	return replay;
 }
 
-/** The rows the world shows with the model's expanded rows expanded. */
+/**
+ * The rows the world shows with the model's expanded items expanded: every item a row shows when the
+ * row is expanded, and every one but the last when it is collapsed. With compact rows on, an expanded
+ * folder whose only child is compressible shows in that child's row.
+ */
 function worldRows(world: World, model: VirtualTreeModel<string, Item>): Item[] {
 	const expanded = new Set<string>();
 	for (let index = 0; index < model.rowCount; index += 1) {
 		const row = model.rowAt(index);
-		if (row.collapsible && !row.collapsed) expanded.add(row.key);
+		const { segments } = row;
+		for (const [position, segment] of segments.entries()) {
+			if (position < segments.length - 1 || (row.collapsible && !row.collapsed)) {
+				expanded.add(segment.key);
+			}
+		}
 	}
+	const childrenOf = (item: Item): Item[] => {
+		const seen = new Set<string>();
+		return world.childrenOf(item).filter((child) => !seen.has(child.key) && seen.add(child.key));
+	};
 	const rows: Item[] = [];
 	const visit = (item: Item): void => {
-		for (const child of world.childrenOf(item)) {
-			rows.push(child);
-			if (child.folder && expanded.has(child.key)) visit(child);
+		for (const child of childrenOf(item)) {
+			const open = child.folder && expanded.has(child.key);
+			const own = open ? childrenOf(child) : [];
+			const only = own.length === 1 ? own[0] : undefined;
+			if (!(model.compressed && only !== undefined && isCompressible(only))) rows.push(child);
+			if (open) visit(child);
 		}
 	};
 	visit(world.input);
@@ -1068,15 +1232,17 @@ describe('VirtualTreeModel', () => {
 				fc.property(
 					seedArbitrary,
 					fc.boolean(),
+					fc.boolean(),
 					fc.array(commandArbitrary, { maxLength: 40, size: 'max' }),
-					(seed, defaults, commands) => {
+					(seed, defaults, compressed, commands) => {
 						const world = new World(seed);
 						const model = new VirtualTreeModel<string, Item>({
+							compressed,
 							input: world.input,
 							source: createSource(world),
 							...(defaults ? { expandedByDefault: (item: Item) => item.expanded } : {}),
 						});
-						const naive = new NaiveTree(world, defaults);
+						const naive = new NaiveTree(world, defaults, compressed);
 						const events: VirtualTreeEvent<string>[] = [];
 						model.subscribe((event) => events.push(event));
 						void model.refresh(null);
@@ -1105,20 +1271,26 @@ describe('VirtualTreeModel', () => {
 			await fc.assert(
 				fc.asyncProperty(
 					seedArbitrary,
-					fc.array(commandArbitrary, { maxLength: 30, size: 'max' }),
+					// Compact rows stay off: an item that joins a row on restore expands without being saved.
+					fc.array(
+						commandArbitrary.filter((command) => command.kind !== 'compress'),
+						{ maxLength: 30, size: 'max' },
+					),
 					async (seed, commands) => {
 						const world = new World(seed);
 						const model = new VirtualTreeModel<string, Item>({
+							compressed: false,
 							input: world.input,
 							source: createSource(world),
 						});
-						const naive = new NaiveTree(world, false);
+						const naive = new NaiveTree(world, false, false);
 						await model.refresh(null);
 						naive.refresh(null, false);
 						for (const command of commands) run(command, world, model, naive);
 						await model.refresh(null, { recursive: true });
 
 						const restored = new VirtualTreeModel<string, Item>({
+							compressed: false,
 							input: world.input,
 							source: createSource(world),
 						});
@@ -1178,10 +1350,11 @@ describe('VirtualTreeModel', () => {
 					fc.array(asyncCommandArbitrary, { maxLength: 40, size: 'max' }),
 					fc.constantFrom('plain', 'recursive', 'recursive behind plain'),
 					fc.array(fc.nat(), { maxLength: 60 }),
-					async (seed, commands, last, picks) => {
+					fc.boolean(),
+					async (seed, commands, last, picks, compressed) => {
 						vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
 						try {
-							const state = new AsyncRun(seed);
+							const state = new AsyncRun(seed, compressed);
 							state.track(state.model.refresh(null));
 							await flush();
 							for (const command of commands) {

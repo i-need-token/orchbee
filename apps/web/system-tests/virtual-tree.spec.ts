@@ -86,6 +86,7 @@ const treeRequestsSchema = z.array(
 		offset: z.object({ x: z.number(), y: z.number() }).optional(),
 		pinned: z.boolean().optional(),
 		preserveFocus: z.boolean().optional(),
+		segment: z.string().nullable().optional(),
 		sideBySide: z.boolean().optional(),
 	}),
 );
@@ -215,7 +216,12 @@ test('virtual tree answers keys, clicks and the context menu as VS Code does', a
 	// Shift+F10 and the context menu key each ask once for the focused row's menu, at its corner.
 	await page.keyboard.press('Shift+F10');
 	await page.keyboard.press('ContextMenu');
-	const keyMenu = { key: 'README.md', kind: 'contextMenu', offset: { x: 0, y: 0 } };
+	const keyMenu = {
+		key: 'README.md',
+		kind: 'contextMenu',
+		offset: { x: 0, y: 0 },
+		segment: 'README.md',
+	};
 	expect(await requests()).toEqual([keyMenu, keyMenu]);
 
 	// A right click focuses its row before asking; on the empty space it clears focus.
@@ -408,6 +414,167 @@ test('virtual tree drags rows and takes drops as VS Code does', async ({ page })
 	expect(await requests()).toEqual([]);
 });
 
+test('virtual tree joins folders into compact rows and acts on their items as VS Code does', async ({
+	page,
+}) => {
+	await openFixture(page, 'compact');
+	const tree = page.getByRole('tree');
+	const label = page.locator('body > div[aria-hidden="true"]');
+	const state = async () =>
+		treeStateSchema.parse(
+			await page.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.state()),
+		);
+	const requests = async () =>
+		treeRequestsSchema.parse(
+			await page.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.takeRequests(),
+			),
+		);
+	const drops = async () =>
+		treeDropsSchema.parse(
+			await page.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.takeDrops(),
+			),
+		);
+	const compactRow = page.locator('[data-row-index="0"]');
+	const items = compactRow.locator('[data-tree-segment]');
+	const itemName = (index: number) => items.nth(index).locator('span').first();
+	const center = async (locator: ReturnType<Page['locator']>) => {
+		const box = await locator.boundingBox();
+		if (box === null) throw new Error('The element has no box.');
+		return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+	};
+	const rowId = (await compactRow.getAttribute('id')) ?? '';
+
+	// Folders that each hold one folder share a row. Each item is a tree item of its own, at its own
+	// level and announced with its parents in the row, while the rows below indent once for the row.
+	await expect.poll(async () => (await state()).rowCount).toBe(4);
+	await expect(items).toHaveText(['src/', 'app/', 'lib']);
+	expect(
+		await items.evaluateAll((elements) =>
+			elements.map((element) => ({
+				expanded: element.getAttribute('aria-expanded'),
+				id: element.id,
+				label: element.getAttribute('aria-label'),
+				level: element.getAttribute('aria-level'),
+				position: element.getAttribute('aria-posinset'),
+				role: element.getAttribute('role'),
+				size: element.getAttribute('aria-setsize'),
+			})),
+		),
+	).toEqual([
+		{
+			expanded: 'true',
+			id: `${rowId}-0`,
+			label: 'src',
+			level: '1',
+			position: '1',
+			role: 'treeitem',
+			size: '2',
+		},
+		{
+			expanded: 'true',
+			id: `${rowId}-1`,
+			label: 'app, compact, src',
+			level: '2',
+			position: '1',
+			role: 'treeitem',
+			size: '1',
+		},
+		{
+			expanded: 'true',
+			id: `${rowId}-2`,
+			label: 'lib, compact, app, src',
+			level: '3',
+			position: '1',
+			role: 'treeitem',
+			size: '1',
+		},
+	]);
+	// The row itself is named by its last item, as VS Code's Explorer names it.
+	await expect(compactRow).toHaveAccessibleName('lib, compact, app, src');
+	const firstFile = page.locator('[data-row-index="1"]');
+	await expect(firstFile).toHaveAttribute('aria-level', '4');
+	await expect(firstFile).toHaveCSS('--ob-comp-virtual-tree-row-depth', '2');
+
+	// A click on an item's name focuses that item, toggles, selects and previews the row, and the
+	// tree names the item as its active descendant.
+	await itemName(1).click();
+	await expect(tree).toBeFocused();
+	expect(await state()).toEqual({
+		anchor: 'src/app/lib',
+		focus: 'src/app',
+		rowCount: 2,
+		selection: ['src/app/lib'],
+	});
+	await expect(tree).toHaveAttribute('aria-activedescendant', `${rowId}-1`);
+	await expect(items.nth(1)).toHaveAttribute('data-active', '');
+	await expect(items.nth(0)).toHaveAttribute('aria-expanded', 'false');
+	expect(await requests()).toEqual([
+		{ key: 'src/app/lib', kind: 'open', pinned: false, preserveFocus: true, sideBySide: false },
+	]);
+
+	// Left, Right, Home and End move among the items first; on the first or the last item, they
+	// collapse, expand or move focus as on any row.
+	await page.keyboard.press('ArrowLeft');
+	expect(await state()).toMatchObject({ focus: 'src', rowCount: 2 });
+	await page.keyboard.press('ArrowRight');
+	expect(await state()).toMatchObject({ focus: 'src/app', rowCount: 2 });
+	await page.keyboard.press('End');
+	await page.keyboard.press('ArrowRight');
+	expect(await state()).toMatchObject({ focus: 'src/app/lib', rowCount: 4 });
+	await page.keyboard.press('Home');
+	await page.keyboard.press('ArrowLeft');
+	expect(await state()).toMatchObject({ focus: 'src', rowCount: 2 });
+	await expect(tree).toHaveAttribute('aria-activedescendant', `${rowId}-0`);
+	await page.keyboard.press('End');
+	await page.keyboard.press('End');
+	expect(await state()).toMatchObject({ focus: 'package.json' });
+	await page.keyboard.press('Home');
+	expect(await state()).toMatchObject({ focus: 'src/app/lib', selection: ['src/app/lib'] });
+	await expect(tree).toHaveAttribute('aria-activedescendant', `${rowId}-2`);
+
+	// The keyboard asks for the focused item's menu at its name; a right click asks for the item
+	// whose name it lands on, and elsewhere on the row for the row's own item.
+	await page.keyboard.press('ArrowLeft');
+	await page.keyboard.press('Shift+F10');
+	expect(await requests()).toEqual([
+		{ key: 'src/app/lib', kind: 'contextMenu', offset: { x: 0, y: 0 }, segment: 'src/app' },
+	]);
+	await itemName(0).click({ button: 'right' });
+	expect(await state()).toMatchObject({ focus: 'src' });
+	await compactRow.locator('[data-twistie]').click({ button: 'right' });
+	expect(await state()).toMatchObject({ focus: 'src/app/lib' });
+	expect((await requests()).map((request) => request.segment)).toEqual(['src', 'src/app/lib']);
+
+	// A drag over an item's name lights that item alone and drops on it, and resting there for
+	// 500 ms opens the row.
+	const packageJson = await center(page.locator('[data-row-index="1"]'));
+	await page.mouse.move(packageJson.x, packageJson.y);
+	await page.mouse.down();
+	await page.mouse.move(packageJson.x + 20, packageJson.y, { steps: 2 });
+	const app = await center(itemName(1));
+	await page.mouse.move(app.x, app.y, { steps: 2 });
+	await expect(items.nth(1)).toHaveAttribute('data-drop-target', '');
+	expect(await page.locator('[data-row-index][data-drop-target]').count()).toBe(0);
+	await expect.poll(async () => (await state()).rowCount).toBe(4);
+	await page.mouse.up();
+	expect(await drops()).toEqual([{ ctrlKey: false, keys: ['package.json'], target: 'src/app' }]);
+	await expect(items.nth(1)).not.toHaveAttribute('data-drop-target');
+
+	// A drag that takes the row alone carries the item whose name it started on.
+	const src = await center(itemName(0));
+	const box = await tree.boundingBox();
+	if (box === null) throw new Error('The tree has no box.');
+	await page.mouse.move(src.x, src.y);
+	await page.mouse.down();
+	await page.mouse.move(src.x, box.y + box.height / 2, { steps: 4 });
+	await expect(label).toHaveText('src');
+	await page.mouse.up();
+	expect(await drops()).toEqual([{ ctrlKey: false, keys: ['src'], target: null }]);
+	expect(await requests()).toEqual([]);
+});
+
 test('virtual tree render benchmark', async ({ browser, page }) => {
 	test.setTimeout(180_000);
 	await openFixture(page);
@@ -475,10 +642,11 @@ test('virtual tree render benchmark', async ({ browser, page }) => {
 	process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 });
 
-async function openFixture(page: Page): Promise<void> {
+/** Opens the fixture's page: the benchmark tree, or the tree of compact rows. */
+async function openFixture(page: Page, tree: 'compact' | null = null): Promise<void> {
 	if (fixtureUrl === undefined) throw new Error('The fixture server is unavailable.');
 	await page.setViewportSize({ height: 800, width: 800 });
-	await page.goto(fixtureUrl);
+	await page.goto(tree === null ? fixtureUrl : `${fixtureUrl}?tree=${tree}`);
 	await expect(page.getByRole('treeitem').first()).toBeVisible();
 }
 

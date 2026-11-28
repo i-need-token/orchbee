@@ -1,4 +1,4 @@
-import type { VirtualTreeRow } from '../model/virtual-tree-types';
+import type { VirtualTreeRow, VirtualTreeSegment } from '../model/virtual-tree-types';
 
 /**
  * A row to open, as VS Code's lists ask their view: on a click, a double click, a middle click, or
@@ -18,10 +18,16 @@ export interface VirtualTreeOpenEvent<K, T> {
 /**
  * The tree's context menu was asked for, by the pointer or by Shift+F10 or the context menu key. The
  * tree has focused the row by then; a view shows its menu from a `ContextMenu` trigger around the
- * tree, which opens at the event's position, beside the focused row for a key.
+ * tree, which opens at the event's position, beside the focused row, or the focused item of a compact
+ * row, for a key.
  */
 export interface VirtualTreeContextMenuEvent<K, T> {
 	/** The row the menu is for; null on the empty space below the rows. */
 	readonly row: VirtualTreeRow<K, T> | null;
+	/**
+	 * The item the menu is for, as VS Code's Explorer picks one of a compact folder: the item whose
+	 * name was right-clicked, the focused item for a key, and otherwise the row's own; null with `row`.
+	 */
+	readonly segment: VirtualTreeSegment<K, T> | null;
 	readonly browserEvent: MouseEvent;
 }

@@ -1,4 +1,5 @@
 import '@orchbee/ui/styles.css';
+import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -6,6 +7,7 @@ import { PointerDragKind } from '../pointer-drag';
 import {
 	VirtualTree,
 	VirtualTreeModel,
+	VirtualTreeSegments,
 	type VirtualTreeContextMenuEvent,
 	type VirtualTreeDragAndDrop,
 	type VirtualTreeOpenEvent,
@@ -20,12 +22,20 @@ import {
 // and a frame's rendering ends when a task posted from its animation frame callback runs. The page
 // also records the rows the tree asks to open, the context menus it asks for and the drops it takes,
 // which the interaction checks read. Its rows drag as the Explorer's do: a folder takes a drop and
-// expands under a resting drag, a file hands the drop to its folder, and no row takes itself.
+// expands under a resting drag, a file hands the drop to its folder, and no row takes itself. With
+// `?tree=compact`, the page shows a small tree whose folders join into compact rows, as VS Code's
+// Explorer shows compact folders, and starts with every folder expanded.
 
 interface FixtureItem {
 	readonly key: string;
 	readonly label: string;
 	readonly children: readonly FixtureItem[] | null;
+}
+
+const compact = new URLSearchParams(location.search).get('tree') === 'compact';
+
+function fixtureItem(key: string, children: readonly FixtureItem[] | null = null): FixtureItem {
+	return { children, key, label: key.slice(key.lastIndexOf('/') + 1) };
 }
 
 const LARGE_FOLDER = 'folder';
@@ -38,21 +48,36 @@ const files: FixtureItem[] = Array.from({ length: LARGE_FOLDER_SIZE }, (_, index
 	key: `${LARGE_FOLDER}/file-${index}.ts`,
 	label: `file-${index}.ts`,
 }));
-const input: FixtureItem = {
-	children: [
-		{ children: files, key: LARGE_FOLDER, label: LARGE_FOLDER },
-		{ children: null, key: 'package.json', label: 'package.json' },
-		{ children: null, key: 'README.md', label: 'README.md' },
-	],
-	key: '',
-	label: '',
-};
+const input = compact
+	? fixtureItem('', [
+			fixtureItem('src', [
+				fixtureItem('src/app', [
+					fixtureItem('src/app/lib', [
+						fixtureItem('src/app/lib/index.ts'),
+						fixtureItem('src/app/lib/util.ts'),
+					]),
+				]),
+			]),
+			fixtureItem('package.json'),
+		])
+	: fixtureItem('', [
+			fixtureItem(LARGE_FOLDER, files),
+			fixtureItem('package.json'),
+			fixtureItem('README.md'),
+		]);
+const isFolder = (item: FixtureItem) => item.children !== null;
 const source: VirtualTreeSource<string, FixtureItem> = {
 	children: (item) => item.children ?? [],
-	hasChildren: (item) => item.children !== null,
+	hasChildren: isFolder,
 	key: (item) => item.key,
+	// Folders join compact rows, as VS Code's Explorer keeps files out of them.
+	...(compact ? { compressible: isFolder } : {}),
 };
-const model = new VirtualTreeModel({ input, source });
+const model = new VirtualTreeModel({
+	input,
+	source,
+	...(compact ? { expandedByDefault: isFolder } : {}),
+});
 void model.refresh(null);
 
 const host = document.createElement('div');
@@ -66,10 +91,15 @@ interface TreeRequest {
 	readonly kind: 'contextMenu' | 'open';
 	/** The row's key; null for a context menu on the empty space. */
 	readonly key: string | null;
+	/** The key of the item a context menu is for, which a compact row picks among its items. */
+	readonly segment?: string | null;
 	readonly pinned?: boolean;
 	readonly preserveFocus?: boolean;
 	readonly sideBySide?: boolean;
-	/** Where a context menu would open, relative to the row's bottom-left corner. */
+	/**
+	 * Where a context menu would open, relative to the bottom-left corner of the row, or of the name
+	 * of the item it is for in a compact row.
+	 */
 	readonly offset?: { readonly x: number; readonly y: number };
 }
 
@@ -87,21 +117,28 @@ function recordOpen({
 function recordContextMenu({
 	browserEvent,
 	row,
+	segment,
 }: VirtualTreeContextMenuEvent<string, FixtureItem>): void {
 	const index = row === null ? -1 : model.indexOf(row.key);
-	const box =
-		index < 0
-			? undefined
-			: document.querySelector(`[data-row-index="${index}"]`)?.getBoundingClientRect();
+	const rowElement = index < 0 ? null : document.querySelector(`[data-row-index="${index}"]`);
+	const position = row === null || segment === null ? -1 : row.segments.indexOf(segment);
+	const anchor =
+		row !== null && row.segments.length > 1
+			? rowElement?.querySelector(`[data-tree-segment="${position}"]`)
+			: rowElement;
+	const box = anchor?.getBoundingClientRect();
 	requests.push({
 		key: row?.key ?? null,
 		kind: 'contextMenu',
+		segment: segment?.key ?? null,
 		...(box === undefined
 			? {}
 			: {
+					// Chromium truncates a constructed event's coordinates, so the fraction of a pixel by
+					// which an item's name starts rounds away; adding 0 drops the sign it leaves.
 					offset: {
-						x: Math.round(browserEvent.clientX - box.left),
-						y: Math.round(browserEvent.clientY - box.bottom),
+						x: Math.round(browserEvent.clientX - box.left) + 0,
+						y: Math.round(browserEvent.clientY - box.bottom) + 0,
 					},
 				}),
 	});
@@ -146,17 +183,31 @@ const dragAndDrop: VirtualTreeDragAndDrop<string, FixtureItem> = {
 	},
 };
 
+/** A row's items' names, outermost first: the row's own alone outside a compact row. */
+const namesOf = (row: VirtualTreeRow<string, FixtureItem>) =>
+	row.segments.map((segment) => segment.element.label);
+
 const props: VirtualTreeProps<string, FixtureItem> = {
 	dragAndDrop,
-	keyboardNavigationLabel: (row) => row.element.label,
+	// VS Code's Explorer joins a compact row's names for type navigation.
+	keyboardNavigationLabel: compact ? (row) => namesOf(row).join('/') : (row) => row.element.label,
 	label: 'Benchmark tree',
 	model,
 	onContextMenu: recordContextMenu,
 	onOpen: recordOpen,
 	platform: /^(?:Mac|iPhone|iPad|iPod)/u.test(navigator.platform) ? 'apple' : 'standard',
-	renderRow: (row: VirtualTreeRow<string, FixtureItem>) => row.element.label,
+	renderRow: compact
+		? (row, state) => createElement(VirtualTreeSegments, { names: namesOf(row), state })
+		: (row) => row.element.label,
 };
-createRoot(host).render(createElement(VirtualTree<string, FixtureItem>, props));
+// The application's English messages, as the product names a compact row's items with them.
+createRoot(host).render(
+	createElement(
+		OrchbeeI18nProvider,
+		{ locale: 'en-US' },
+		createElement(VirtualTree<string, FixtureItem>, props),
+	),
+);
 
 interface FrameTiming {
 	/** Main-thread time from the start of the frame's animation frame callbacks until it painted. */

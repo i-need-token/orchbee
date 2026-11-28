@@ -16,23 +16,39 @@ interface RowSlot<K, T> {
 	readonly revision: number;
 	readonly positionInSet: number;
 	readonly setSize: number;
+	/** The row's indentation, which changes when a compact row above it joins or splits. */
+	readonly depth: number;
 	/** The row's top edge in the content, in CSS pixels. */
 	readonly top: number;
 	readonly height: number;
 	readonly focused: boolean;
+	/** The index among the row's segments of the focused one while the row has focus; -1 otherwise. */
+	readonly focusedSegment: number;
 	readonly selected: boolean;
 	/** Whether a drag would drop into this row or the row it belongs to. */
 	readonly dropTarget: boolean;
+	/** The index of the joined item a drag would drop on, in a compact row; -1 otherwise. */
+	readonly dropSegment: number;
 }
 
-/** Where a drag would drop: into a row and the rows below it that belong to it, or the whole tree. */
+/**
+ * Where a drag would drop: into a row and the rows below it that belong to it, into an item a compact
+ * row joins, alone, or into the whole tree.
+ */
 export type TreeDropTarget<K> = { readonly key: K } | 'tree' | null;
 
-/** The indexes of the rows a drag would drop into, first and last; -1 for none. */
+/**
+ * The indexes of the rows a drag would drop into, first and last, -1 for none, or the row and the
+ * segment of a joined item it would drop on.
+ */
 interface DropRows {
 	readonly start: number;
 	readonly end: number;
+	readonly segmentRow: number;
+	readonly segment: number;
 }
+
+const NO_DROP_ROWS: DropRows = { end: -1, segment: -1, segmentRow: -1, start: -1 };
 
 /** The content's height and how far it is scrolled, in CSS pixels. */
 interface ContentGeometry {
@@ -44,6 +60,7 @@ interface ContentGeometry {
 interface StickyRow<K, T> {
 	readonly row: VirtualTreeRow<K, T>;
 	readonly revision: number;
+	readonly depth: number;
 	/** Its top edge in the view, in CSS pixels; negative while its last descendant pushes it out. */
 	readonly top: number;
 	readonly height: number;
@@ -91,6 +108,7 @@ export class TreeViewport<K, T> {
 	private readonly slots: (RowSlot<K, T> | null)[] = [];
 	private focusedSlot: RowSlot<K, T> | null = null;
 	private focusIndexValue = -1;
+	private focusedSegmentValue = -1;
 	private geometry: ContentGeometry = EMPTY_GEOMETRY;
 	private maxStickyRowsValue = DEFAULT_MAX_STICKY_ROWS;
 	private readonly stickyRows: StickyRow<K, T>[] = [];
@@ -115,6 +133,14 @@ export class TreeViewport<K, T> {
 	/** The focused row's index, or -1 when nothing is focused or a collapsed parent hides it. */
 	get focusIndex(): number {
 		return this.focusIndexValue;
+	}
+
+	/**
+	 * The index among the focused row's segments of the focused one while that row is compact; -1
+	 * while it shows one item or nothing is focused.
+	 */
+	get focusedSegment(): number {
+		return this.focusedSegmentValue;
 	}
 
 	get content(): ContentGeometry {
@@ -244,7 +270,8 @@ export class TreeViewport<K, T> {
 
 	/**
 	 * Shows where a drag would drop: into a row, with the rows below it that belong to it as they
-	 * expand or collapse, into the whole tree, or nowhere.
+	 * expand or collapse, into an item a compact row joins, which lights up alone, into the whole
+	 * tree, or nowhere.
 	 */
 	setDropTarget(target: TreeDropTarget<K>): void {
 		const current = this.dropTargetValue;
@@ -368,6 +395,13 @@ export class TreeViewport<K, T> {
 			this.focusIndexValue = focusIndex;
 			changed = true;
 		}
+		const focusRow = focusIndex < 0 ? null : model.rowAt(focusIndex);
+		const focusSegment = focusRow === null ? -1 : segmentOf(focusRow, focusKey);
+		const focusedSegment = focusRow !== null && focusRow.segments.length > 1 ? focusSegment : -1;
+		if (focusedSegment !== this.focusedSegmentValue) {
+			this.focusedSegmentValue = focusedSegment;
+			changed = true;
+		}
 		const selection = model.selection;
 		const drop = this.dropTargetValue;
 		const dropOnTree = drop === 'tree';
@@ -375,24 +409,22 @@ export class TreeViewport<K, T> {
 			this.dropOnTreeValue = dropOnTree;
 			changed = true;
 		}
-		const dropStart = drop === null || drop === 'tree' ? -1 : model.indexOf(drop.key);
-		const dropRows: DropRows = {
-			end: dropStart < 0 ? -1 : dropStart + model.rowAt(dropStart).visibleDescendantCount,
-			start: dropStart,
-		};
+		const dropRows = drop === null || drop === 'tree' ? NO_DROP_ROWS : this.dropRowsOf(drop.key);
 		const first = slotCount === 0 ? 0 : start % slotCount;
 		for (let slot = 0; slot < slotCount; slot += 1) {
 			const index = start + ((slot - first + slotCount) % slotCount);
 			const previous = this.slots[slot] ?? null;
 			const next =
-				index < end ? this.slotFor(index, previous, focusIndex, selection, dropRows) : null;
+				index < end
+					? this.slotFor(index, previous, focusIndex, focusSegment, selection, dropRows)
+					: null;
 			if (next === previous) continue;
 			this.slots[slot] = next;
 			changed = true;
 		}
 		const focusOutside = focusIndex >= 0 && (focusIndex < start || focusIndex >= end);
 		const focused = focusOutside
-			? this.slotFor(focusIndex, this.focusedSlot, focusIndex, selection, dropRows)
+			? this.slotFor(focusIndex, this.focusedSlot, focusIndex, focusSegment, selection, dropRows)
 			: null;
 		if (focused !== this.focusedSlot) {
 			this.focusedSlot = focused;
@@ -409,20 +441,36 @@ export class TreeViewport<K, T> {
 		}
 	}
 
+	/** Where a drop on the item with `key` shows. */
+	private dropRowsOf(key: K): DropRows {
+		const model = this.model;
+		const index = model.indexOf(key);
+		if (index < 0) return NO_DROP_ROWS;
+		const row = model.rowAt(index);
+		// An item a compact row joins takes the drop alone, as VS Code's Explorer shows it on its name.
+		if (row.key !== key) {
+			return { end: -1, segment: segmentOf(row, key), segmentRow: index, start: -1 };
+		}
+		return { end: index + row.visibleDescendantCount, segment: -1, segmentRow: -1, start: index };
+	}
+
 	private slotFor(
 		index: number,
 		previous: RowSlot<K, T> | null,
 		focusIndex: number,
+		focusSegment: number,
 		selection: ReadonlySet<K>,
 		dropRows: DropRows,
 	): RowSlot<K, T> {
 		const row = this.model.rowAt(index);
-		const { positionInSet, revision, setSize } = row;
+		const { depth, positionInSet, revision, setSize } = row;
 		const top = this.rowTop(index);
 		const height = this.heightAt(index);
 		const focused = index === focusIndex;
+		const focusedSegment = focused ? focusSegment : -1;
 		const selected = selection.has(row.key);
 		const dropTarget = dropRows.start >= 0 && index >= dropRows.start && index <= dropRows.end;
+		const dropSegment = index === dropRows.segmentRow ? dropRows.segment : -1;
 		if (
 			previous !== null &&
 			previous.index === index &&
@@ -430,17 +478,23 @@ export class TreeViewport<K, T> {
 			previous.revision === revision &&
 			previous.positionInSet === positionInSet &&
 			previous.setSize === setSize &&
+			previous.depth === depth &&
 			previous.top === top &&
 			previous.height === height &&
 			previous.focused === focused &&
+			previous.focusedSegment === focusedSegment &&
 			previous.selected === selected &&
-			previous.dropTarget === dropTarget
+			previous.dropTarget === dropTarget &&
+			previous.dropSegment === dropSegment
 		) {
 			return previous;
 		}
 		return {
+			depth,
+			dropSegment,
 			dropTarget,
 			focused,
+			focusedSegment,
 			height,
 			index,
 			positionInSet,
@@ -485,14 +539,16 @@ export class TreeViewport<K, T> {
 				stacked + height > lastBottom && stacked <= lastBottom ? lastBottom - height : stacked;
 			if (top + height > maxHeight) break;
 			const entry = sticky[depth];
+			const rowDepth = row.depth;
 			if (
 				entry === undefined ||
 				entry.row !== row ||
 				entry.revision !== row.revision ||
+				entry.depth !== rowDepth ||
 				entry.top !== top ||
 				entry.height !== height
 			) {
-				sticky[depth] = { height, revision: row.revision, row, top };
+				sticky[depth] = { depth: rowDepth, height, revision: row.revision, row, top };
 				changed = true;
 			}
 			depth += 1;
@@ -573,6 +629,15 @@ export class TreeViewport<K, T> {
 			heights.splice(splice.start, splice.deleteCount, inserted);
 		}
 	}
+}
+
+/** The index of the segment holding `key` among a row's segments; -1 when none does. */
+function segmentOf<K, T>(row: VirtualTreeRow<K, T>, key: K | null): number {
+	const { segments } = row;
+	for (let index = segments.length - 1; index >= 0; index -= 1) {
+		if (segments[index]?.key === key) return index;
+	}
+	return -1;
 }
 
 /**

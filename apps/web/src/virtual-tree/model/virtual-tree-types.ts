@@ -21,18 +21,48 @@ export interface VirtualTreeSource<K, T> {
 	 * the error is an `AbortError`, which counts as the source cancelling the read.
 	 */
 	readonly children: (item: T, signal: AbortSignal) => readonly T[] | Promise<readonly T[]>;
+	/**
+	 * Whether the item may join its parent's row while it is the parent's only child and the parent is
+	 * expanded, as VS Code's compact folders join a folder with its only subfolder; the joined row
+	 * expands and collapses with its last item. The model counts the children `children` returns, so
+	 * a source that hides items leaves them out there. Without it, every item keeps a row of its own.
+	 * An item that cannot expand joins too, so answer false for files, as VS Code's Explorer keeps
+	 * them out of compact folders. A view that makes rows compact draws their names with
+	 * `VirtualTreeSegments`, which renders the element the tree names while one of the items has
+	 * focus. It runs for every child on each refresh.
+	 */
+	readonly compressible?: ((item: T) => boolean) | undefined;
 }
 
-/** One visible row. A row object stays the same while its key stays in the tree. */
-export interface VirtualTreeRow<K, T> {
+/** One item a row shows: the row's own, or, in a compact row, one of the items joined into it. */
+export interface VirtualTreeSegment<K, T> {
 	readonly key: K;
 	/** The item the latest refresh supplied for this key. */
 	readonly element: T;
+	/** Whether the item can expand; an item joined into the row of its only child always can. */
+	readonly collapsible: boolean;
+}
+
+/**
+ * One visible row. A row object stays the same while its key stays in the tree. A compact row shows
+ * several items, its `segments`; the row itself is its last item's, whose key, element, expansion and
+ * loading state it carries.
+ */
+export interface VirtualTreeRow<K, T> extends VirtualTreeSegment<K, T> {
 	/** The row this one is nested under; null for a top-level row. */
 	readonly parent: VirtualTreeRow<K, T> | null;
-	/** One for a top-level row. */
+	/** How far the row indents: one for a top-level row, and one more for each row it is nested under. */
 	readonly depth: number;
-	readonly collapsible: boolean;
+	/**
+	 * The item's level, which assistive technology announces: one for a top-level item, and one more
+	 * for each item above it, counting the items compact rows join. It equals `depth` without them.
+	 */
+	readonly level: number;
+	/**
+	 * The items the row shows, outermost first: the items joined into it and then its own, or just its
+	 * own. The array stays the same until the items change.
+	 */
+	readonly segments: readonly VirtualTreeSegment<K, T>[];
 	readonly collapsed: boolean;
 	/** One-based position among the visible siblings. */
 	readonly positionInSet: number;
@@ -47,8 +77,8 @@ export interface VirtualTreeRow<K, T> {
 	readonly loading: boolean;
 	/**
 	 * Changes whenever the row's element, collapsibility, expansion or loading state changes in place,
-	 * so a renderer can skip a row whose revision it has drawn. Position, set size, depth and the
-	 * descendant count are read directly.
+	 * or an item joins or leaves the row or changes its element, so a renderer can skip a row whose
+	 * revision it has drawn. Position, set size, depth and the descendant count are read directly.
 	 */
 	readonly revision: number;
 }
@@ -99,7 +129,11 @@ export interface VirtualTreeRevealOptions {
 
 /** Everything needed to bring a tree back after it is recreated, keyed by item identity. */
 export interface VirtualTreeViewState<K> {
-	/** Every loaded row that is expanded, including rows inside collapsed parents. */
+	/**
+	 * Every loaded row that is expanded, including rows inside collapsed parents. A compact row names
+	 * all its items while it is expanded and none while it is collapsed, as VS Code's compressed tree
+	 * records it.
+	 */
 	readonly expanded: readonly K[];
 	readonly focus: K | null;
 	readonly anchor: K | null;
@@ -117,4 +151,9 @@ export interface VirtualTreeModelOptions<K, T> {
 	readonly input: T;
 	/** Whether a newly loaded item starts expanded; the model loads its children right away. */
 	readonly expandedByDefault?: (item: T) => boolean;
+	/**
+	 * Whether items the source calls compressible join their parent's row, true unless set; VS Code's
+	 * Explorer turns its compact folders off for screen readers. `setCompressed` changes it later.
+	 */
+	readonly compressed?: boolean;
 }

@@ -50,12 +50,27 @@ function StickySlot<K, T>({ index, renderRow, viewport }: StickySlotProps<K, T>)
 	const sticky = React.useSyncExternalStore(viewport.subscribe, () => viewport.stickyRow(index));
 	if (sticky === null) return null;
 	const { row } = sticky;
+	const expanded = row.collapsible && !row.collapsed;
+	// A sticky compact row draws its items, which a press reaches, without the semantics of its row's.
+	const compact =
+		row.segments.length > 1
+			? {
+					drop: -1,
+					expanded: row.collapsible ? expanded : undefined,
+					focused: -1,
+					id: null,
+					level: row.level,
+					positionInSet: row.positionInSet,
+					selected: false,
+					setSize: row.setSize,
+				}
+			: null;
 	return (
 		<VirtualTreeRowView
 			collapsible={row.collapsible}
-			depth={row.depth}
+			depth={sticky.depth}
 			dropTarget={false}
-			expanded={row.collapsible && !row.collapsed}
+			expanded={expanded}
 			focused={false}
 			height={sticky.height}
 			loading={row.loading}
@@ -63,7 +78,7 @@ function StickySlot<K, T>({ index, renderRow, viewport }: StickySlotProps<K, T>)
 			selected={false}
 			top={sticky.top}
 		>
-			{renderRow(row, { focused: false, selected: false })}
+			{renderRow(row, { compact, focused: false, selected: false })}
 		</VirtualTreeRowView>
 	);
 }

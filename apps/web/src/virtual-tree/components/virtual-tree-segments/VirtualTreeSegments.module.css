@@ -1,0 +1,33 @@
+/* The names keep their spaces and clip at the content's edge, as VS Code's labels do. */
+.segments {
+	min-width: 0;
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+}
+
+/* VS Code rounds a compact folder's names so the drop background reads as one name's. */
+.name {
+	border-radius: var(--ob-ref-radius-sm);
+}
+
+/* The names read as links: the one under the pointer, and the focused row's focused item, are
+   underlined, as VS Code marks which item of a compact folder a click or a key acts on. */
+.segment:hover > .name {
+	text-decoration: var(--ob-sys-text-decoration-link-hover);
+}
+
+.segment[data-active] > .name {
+	text-decoration: var(--ob-sys-text-decoration-link-focus);
+}
+
+/* The item a drag would drop on lights up alone, where VS Code paints its drop background. */
+.segment[data-drop-target] > .name {
+	background: var(--ob-sys-color-surface-hovered);
+}
+
+/* VS Code dims the separator and keeps 2 px on each side. */
+.separator {
+	margin-inline: var(--ob-ref-space-0-5);
+	color: var(--ob-sys-color-text-muted);
+}

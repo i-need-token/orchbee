@@ -2,6 +2,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
 import {
+	focusedSegment,
 	selectRange,
 	toggleCollapsed,
 	toggleRow,
@@ -10,7 +11,12 @@ import {
 import type { TreeViewport } from '../layout/TreeViewport';
 import type { VirtualTreeRow } from '../model/virtual-tree-types';
 import type { VirtualTreeContextMenuEvent } from '../types/virtual-tree-events';
-import { hitTreeRow, TREE_ROW_CONTROLS, treePointerTarget } from '../utils/tree-row-hit';
+import {
+	hitTreeRow,
+	TREE_ROW_CONTROLS,
+	treePointerTarget,
+	type TreeRowHit,
+} from '../utils/tree-row-hit';
 
 /** Text fields inside a row keep their own context menu. */
 const TEXT_FIELDS = 'input, select, textarea, [contenteditable]';
@@ -24,6 +30,10 @@ const TEXT_FIELDS = 'input, select, textarea, [contenteditable]';
  * focused row and opens it for good, moving focus to it. A click on a sticky row scrolls its row
  * below its ancestors' sticky rows first and toggles the row only from the twistie. A right click,
  * or the keyboard's request, focuses its row before the view's menu opens.
+ *
+ * In a compact row, as in VS Code's compact folders, a press on an item's name focuses that item and
+ * acts on the row; a click elsewhere on the row keeps the focused item of a focused row and focuses
+ * the row's own item otherwise, and a right click elsewhere focuses the row's own item.
  */
 export function useTreePointer<K, T>(
 	frameReference: React.RefObject<HTMLElement | null>,
@@ -43,8 +53,14 @@ export function useTreePointer<K, T>(
 			treePointerTarget(frame, scrollbarReference.current, event.target, TREE_ROW_CONTROLS);
 		const hitRow = (target: Element) => hitTreeRow(frame, viewport, target);
 		const addsOne = (event: MouseEvent) => (platform === 'apple' ? event.metaKey : event.ctrlKey);
-		const selectOnly = (row: VirtualTreeRow<K, T>) => {
-			model.setFocus(row.key);
+		/** The item a click focuses: the one pressed, else the focused one of a focused row. */
+		const focusOf = (hit: TreeRowHit<K, T>): K => {
+			if (hit.segment !== null) return hit.segment.key;
+			const focus = model.focus;
+			return focus !== null && viewport.focusIndex === hit.index ? focus : hit.row.key;
+		};
+		const selectOnly = (row: VirtualTreeRow<K, T>, focus: K) => {
+			model.setFocus(focus);
 			model.setAnchor(row.key);
 			model.setSelection([row.key]);
 		};
@@ -58,27 +74,29 @@ export function useTreePointer<K, T>(
 				model.setAnchor(null);
 				return;
 			}
+			const focus = focusOf(hit);
 			if (event.shiftKey) {
 				selectRange(viewport, hit.index);
+				model.setFocus(focus);
 				return;
 			}
 			if (addsOne(event)) {
-				toggleRow(model, hit.row.key);
+				toggleRow(model, hit.row.key, focus);
 				return;
 			}
 			const { row } = hit;
 			if (hit.sticky) {
 				viewport.scrollBelowStickyRows(row.key);
-				selectOnly(row);
+				selectOnly(row, focus);
 				if (hit.twistie && row.collapsible) toggleCollapsed(model, row, event.altKey);
 				return;
 			}
 			if (row.collapsible) {
-				model.setFocus(row.key);
+				model.setFocus(focus);
 				toggleCollapsed(model, row, event.altKey);
 				if (hit.twistie) return;
 			}
-			selectOnly(row);
+			selectOnly(row, focus);
 			// The second click of a double click leaves opening to the double click.
 			if (event.detail === 2) return;
 			open({
@@ -116,19 +134,22 @@ export function useTreePointer<K, T>(
 			if (field !== null && frame.contains(field)) return;
 			const hit = hitRow(target);
 			if (hit !== null) {
-				model.setFocus(hit.row.key);
-				showContextMenu({ browserEvent: event, row: hit.row });
+				// The keyboard's request lands on the focused item's name, so it keeps that item.
+				const segment = hit.segment ?? hit.row;
+				model.setFocus(segment.key);
+				showContextMenu({ browserEvent: event, row: hit.row, segment });
 				return;
 			}
 			// A request without a pointer, such as assistive technology's, has no button and lands on
 			// the tree itself: it is for the focused row.
 			if (event.button < 0) {
 				const focus = viewport.focusIndex;
-				showContextMenu({ browserEvent: event, row: focus < 0 ? null : model.rowAt(focus) });
+				const row = focus < 0 ? null : model.rowAt(focus);
+				showContextMenu({ browserEvent: event, row, segment: focusedSegment(viewport) });
 				return;
 			}
 			model.setFocus(null);
-			showContextMenu({ browserEvent: event, row: null });
+			showContextMenu({ browserEvent: event, row: null, segment: null });
 		};
 		frame.addEventListener('click', onClick);
 		frame.addEventListener('auxclick', onAuxClick);

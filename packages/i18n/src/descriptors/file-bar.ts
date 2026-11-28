@@ -19,6 +19,10 @@ export const fileBarMessages = defineMessages({
 		'fileBar.badge.thousands',
 		'Text of a count badge at a whole number of thousands, as VS Code shows 2,000 changes as 2K.',
 	),
+	compactItem: message(
+		'fileBar.tree.compactItem',
+		'Accessible name of one folder in a compact row of a File Bar tree, which joins folders that each hold a single folder, as VS Code’s compact folders do. `name` is the folder’s name and `parents` lists the folders before it in the row, nearest first.',
+	),
 	explorer: message(
 		'fileBar.views.explorer',
 		'Name of the File Bar view that browses the active Workspace’s files, as VS Code names its Explorer.',

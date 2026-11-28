@@ -9,6 +9,7 @@ export const enUSFileBarMessages = {
 	'fileBar.badge.thousands': '{count}K',
 	'fileBar.label': 'File Bar',
 	'fileBar.loadFailed': 'Couldn’t load the File Bar.',
+	'fileBar.tree.compactItem': '{name}, compact, {parents}',
 	'fileBar.views.explorer': 'Explorer',
 	'fileBar.views.sourceControl': 'Source Control',
 	'fileBar.viewSwitcher': 'Active View Switcher',

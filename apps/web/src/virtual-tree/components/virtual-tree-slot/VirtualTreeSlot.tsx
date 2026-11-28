@@ -2,7 +2,7 @@ import * as React from 'react';
 
 import type { TreeViewport } from '../../layout/TreeViewport';
 import type { VirtualTreeRowRenderer } from '../../types/virtual-tree-row-renderer';
-import { rowElementId } from '../../utils/rowElementId';
+import { rowElementId, segmentElementId } from '../../utils/tree-element-ids';
 import { VirtualTreeRowView } from '../virtual-tree-row-view/VirtualTreeRowView';
 
 interface VirtualTreeSlotProps<K, T> {
@@ -28,26 +28,43 @@ export function VirtualTreeSlot<K, T>({
 	);
 	if (shown === null) return null;
 	const { focused, row, selected } = shown;
+	const id = rowElementId(treeId, shown.index);
+	const expanded = row.collapsible && !row.collapsed;
+	const compact =
+		row.segments.length > 1
+			? {
+					drop: shown.dropSegment,
+					expanded: row.collapsible ? expanded : undefined,
+					focused: shown.focusedSegment,
+					id,
+					level: row.level,
+					positionInSet: shown.positionInSet,
+					selected,
+					setSize: shown.setSize,
+				}
+			: null;
 	return (
 		<VirtualTreeRowView
 			collapsible={row.collapsible}
-			depth={row.depth}
+			depth={shown.depth}
 			dropTarget={shown.dropTarget}
-			expanded={row.collapsible && !row.collapsed}
+			expanded={expanded}
 			focused={focused}
 			height={shown.height}
 			loading={row.loading}
 			place={{
-				id: rowElementId(treeId, shown.index),
+				id,
 				index: shown.index,
 				kind: 'item',
+				labelledBy: compact === null ? undefined : segmentElementId(id, row.segments.length - 1),
+				level: row.level,
 				positionInSet: shown.positionInSet,
 				setSize: shown.setSize,
 			}}
 			selected={selected}
 			top={shown.top}
 		>
-			{renderRow(row, { focused, selected })}
+			{renderRow(row, { compact, focused, selected })}
 		</VirtualTreeRowView>
 	);
 }

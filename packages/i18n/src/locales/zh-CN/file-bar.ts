@@ -11,6 +11,7 @@ export const zhCNFileBarMessages = {
 	'fileBar.badge.thousands': '{count}K',
 	'fileBar.label': '文件栏',
 	'fileBar.loadFailed': '没能加载文件栏。',
+	'fileBar.tree.compactItem': '{name}，紧凑，{parents}',
 	'fileBar.views.explorer': '资源管理器',
 	'fileBar.views.sourceControl': '源代码管理',
 	'fileBar.viewSwitcher': '活动视图切换器',
