@@ -12,6 +12,7 @@ import * as React from 'react';
 
 import {
 	dispatchFileOverlayEvent,
+	FILE_OVERLAY_ACTION_IDS,
 	FileOverlayRegistry,
 	loadFileOverlay,
 	readFileOverlayPipPosition,
@@ -23,6 +24,7 @@ import {
 	type FileOverlayFocus,
 	type FileOverlayMenuEntry,
 	type FileOverlayModule,
+	type FileOverlayOpenFile,
 	type FileOverlayPipPosition,
 	type FileOverlayPipStorage,
 	type FileOverlayRegionElements,
@@ -140,6 +142,8 @@ interface WorkbenchFileOverlayView {
 	readonly activeFile: FileResource | null;
 	/** Present while the shown Workspace's overlay is not closed and its chunk has loaded. */
 	readonly host: WorkbenchFileOverlayHost | null;
+	/** Opens a file in the shown Workspace's overlay, for the File Bar's views and terminal links. */
+	readonly openFile: FileOverlayOpenFile;
 	/** The Sidebar's panel, whose box left-expand covers. */
 	readonly sidebarReference: React.RefObject<HTMLDivElement | null>;
 	/** The terminal area, whose box the default tier covers. */
@@ -302,6 +306,9 @@ export function useWorkbenchFileOverlay({
 				dispatch({ type: 'terminal-replaced' }),
 			) ?? null,
 		[dispatch, resolveCurrentTerminal, terminalPathDrops],
+	);
+	const openFile: FileOverlayOpenFile = useMemoizedFn((input, invocation) =>
+		typedRuntime.execute(FILE_OVERLAY_ACTION_IDS.openFile, input, invocation),
 	);
 	const invokeCloseOverlay = useMemoizedFn(() => {
 		reportActionOutcome('button', () =>
@@ -560,5 +567,5 @@ export function useWorkbenchFileOverlay({
 					shortcutLabels,
 					store,
 				};
-	return { activeFile, host, sidebarReference, terminalAreaReference, uncoverFileBar };
+	return { activeFile, host, openFile, sidebarReference, terminalAreaReference, uncoverFileBar };
 }

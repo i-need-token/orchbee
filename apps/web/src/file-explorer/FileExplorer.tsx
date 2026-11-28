@@ -4,6 +4,7 @@ import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 
+import type { FileOverlayOpenFile } from '../file-overlay';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow, type VirtualTreeRowState } from '../virtual-tree';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
@@ -34,6 +35,8 @@ export interface FileExplorerProps {
 	readonly activeFile: FileResource | null;
 	/** Where a folder that could not be listed is reported. */
 	readonly notifications: FileExplorerNotifications;
+	/** Opens a file in the file overlay, where the tree opens its files. */
+	readonly openFile: FileOverlayOpenFile;
 	/** Which platform's keys the tree answers to. */
 	readonly platform: KeyboardShortcutPlatform;
 	/** Receives what moves focus into the Explorer. */
@@ -76,6 +79,7 @@ export function FileExplorer({
 	actionScope,
 	activeFile,
 	notifications,
+	openFile,
 	platform,
 	ref,
 	session,
@@ -102,7 +106,7 @@ export function FileExplorer({
 		tree,
 	});
 	const open = useExplorerOpen(
-		actionRuntime,
+		openFile,
 		commands.scope,
 		session,
 		state.kind === 'tree' ? state.rules : null,

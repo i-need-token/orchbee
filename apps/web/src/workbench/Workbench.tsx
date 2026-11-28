@@ -293,9 +293,9 @@ export function Workbench({
 		workspaces: view.projectWorkspaceState.workspaces,
 	});
 	const openTerminalFile = useWorkbenchTerminalFileLinks({
-		actionRuntime,
 		actionScope: view.actionScope,
 		offered: fileBarOffered,
+		openFile: fileOverlay.openFile,
 		sessions: fileSessions,
 		workspaceId: activeWorkspaceId,
 	});
@@ -622,6 +622,7 @@ export function Workbench({
 							leadingPlace={fileBarHoldsSidebarTogglePlace ? sidebarTogglePlace : null}
 							notifications={notificationQueue}
 							onSelectView={fileBarColumn.onSelectView}
+							openFile={fileOverlay.openFile}
 							platform={shortcutPlatform}
 							position={fileBar.position}
 							quickInput={quickInputSessions}

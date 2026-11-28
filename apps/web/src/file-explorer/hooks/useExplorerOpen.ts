@@ -1,8 +1,7 @@
-import { createTypedActionRuntime, type ActionRuntime, type ActionScope } from '@orchbee/actions';
+import type { ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import * as React from 'react';
 
-import { FILE_OVERLAY_ACTION_IDS, type FileOverlayActionCatalog } from '../../file-overlay';
+import type { FileOverlayOpenFile } from '../../file-overlay';
 import { filePathKey, type FilePathRules, type FileWorkspaceSession } from '../../file-session';
 import type { VirtualTreeOpenEvent } from '../../virtual-tree';
 import type { ExplorerItem } from '../model/explorer-item';
@@ -15,22 +14,17 @@ import type { ExplorerItem } from '../model/explorer-item';
  * link to one, or whose name no request can carry, opens nothing.
  */
 export function useExplorerOpen(
-	runtime: ActionRuntime,
+	openFile: FileOverlayOpenFile,
 	scope: ActionScope,
 	session: FileWorkspaceSession | null,
 	rules: FilePathRules | null,
 ): (event: VirtualTreeOpenEvent<string, ExplorerItem>) => void {
-	const typedRuntime = React.useMemo(
-		() => createTypedActionRuntime<FileOverlayActionCatalog>(runtime),
-		[runtime],
-	);
 	return useMemoizedFn((event: VirtualTreeOpenEvent<string, ExplorerItem>) => {
 		const { entry, path } = event.row.element;
 		if (session === null || rules === null || entry?.type !== 'file' || entry.unrepresentable) {
 			return;
 		}
-		typedRuntime.execute(
-			FILE_OVERLAY_ACTION_IDS.openFile,
+		openFile(
 			{
 				focus: event.sideBySide || !event.preserveFocus,
 				preview: !event.sideBySide && !event.pinned,

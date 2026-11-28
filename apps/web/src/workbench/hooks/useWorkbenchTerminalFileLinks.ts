@@ -1,8 +1,7 @@
-import { createTypedActionRuntime, type ActionRuntime, type ActionScope } from '@orchbee/actions';
+import type { ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import * as React from 'react';
 
-import { FILE_OVERLAY_ACTION_IDS, type FileOverlayActionCatalog } from '../../file-overlay';
+import type { FileOverlayOpenFile } from '../../file-overlay';
 import {
 	filePathKey,
 	type FilePathRules,
@@ -16,11 +15,12 @@ import type {
 } from '../types/workbench-terminal-surface';
 
 interface UseWorkbenchTerminalFileLinksOptions {
-	readonly actionRuntime: ActionRuntime;
 	/** The Workbench's own scope, where the file overlay's open Action resolves. */
 	readonly actionScope: ActionScope;
 	/** Whether this window offers the File Bar; without the offer nothing opens terminal file links. */
 	readonly offered: boolean;
+	/** Opens a file in the shown Workspace's overlay. */
+	readonly openFile: FileOverlayOpenFile;
 	/** The Client's file sessions, which state a link's path; without them no link opens a file. */
 	readonly sessions: FileSessionRegistry | null;
 	/** The active Workspace, whose terminals the terminal area shows; null outside a Workspace. */
@@ -77,16 +77,12 @@ function readRules(
  * and column go unused.
  */
 export function useWorkbenchTerminalFileLinks({
-	actionRuntime,
 	actionScope,
 	offered,
+	openFile,
 	sessions,
 	workspaceId,
 }: UseWorkbenchTerminalFileLinksOptions): WorkbenchTerminalFileOpener | undefined {
-	const typedRuntime = React.useMemo(
-		() => createTypedActionRuntime<FileOverlayActionCatalog>(actionRuntime),
-		[actionRuntime],
-	);
 	const open = useMemoizedFn(
 		async (
 			target: WorkbenchTerminalFileTarget,
@@ -108,8 +104,7 @@ export function useWorkbenchTerminalFileLinks({
 				const rules = await readRules(hold.session, signal);
 				if (signal.aborted) return CANCELLED;
 				if (rules === null) return failed('timeout');
-				const result = await typedRuntime.execute(
-					FILE_OVERLAY_ACTION_IDS.openFile,
+				const result = await openFile(
 					{
 						focus: true,
 						preview: false,

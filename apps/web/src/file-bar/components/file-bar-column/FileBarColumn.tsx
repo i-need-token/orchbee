@@ -38,6 +38,7 @@ export function FileBarColumn({
 	leadingPlace,
 	notifications,
 	onSelectView,
+	openFile,
 	platform,
 	position,
 	quickInput,
@@ -129,6 +130,7 @@ export function FileBarColumn({
 							actionScope={actionScope}
 							activeFile={activeFile}
 							notifications={notifications}
+							openFile={openFile}
 							platform={platform}
 							ref={explorerReference}
 							session={session}

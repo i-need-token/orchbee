@@ -50,6 +50,8 @@ export interface FileBarColumnProps {
 	readonly notifications: FileExplorerProps['notifications'] & SourceControlNotifications;
 	/** Selecting a view's toggle: the active view takes focus, another one shows. */
 	readonly onSelectView: (view: FileBarViewId) => void;
+	/** Opens a file in the shown Workspace's overlay, where the views open their files. */
+	readonly openFile: FileExplorerProps['openFile'];
 	/** Which platform's keys the views answer to, as VS Code's lists do on it. */
 	readonly platform: KeyboardShortcutPlatform;
 	/**

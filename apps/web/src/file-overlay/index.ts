@@ -1,5 +1,5 @@
 export { FILE_OVERLAY_ACTION_IDS, fileOverlayOpenInput } from './file-overlay-actions';
-export type { FileOverlayActionCatalog } from './file-overlay-actions';
+export type { FileOverlayActionCatalog, FileOverlayOpenFile } from './file-overlay-actions';
 export { readFileOverlayPipPosition, splitFileTabPath, writeFileOverlayPipPosition } from './model';
 export type {
 	FileOverlayEvent,

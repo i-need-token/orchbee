@@ -1,4 +1,9 @@
-import type { ActionInputValidation, ActionSignature } from '@orchbee/actions';
+import type {
+	ActionExecution,
+	ActionInputValidation,
+	ActionInvocation,
+	ActionSignature,
+} from '@orchbee/actions';
 
 import type { FileResource } from '../file-session';
 
@@ -35,6 +40,16 @@ interface FileOverlayOpenInput {
 export interface FileOverlayActionCatalog {
 	readonly [FILE_OVERLAY_ACTION_IDS.openFile]: ActionSignature<FileOverlayOpenInput>;
 }
+
+/**
+ * Runs the open Action through the adapter that registered it. The actions runtime refuses a
+ * catalog's Action to any other adapter, one a caller makes for this catalog too, so the Workbench,
+ * which registers it, hands this to each feature that opens files.
+ */
+export type FileOverlayOpenFile = (
+	input: FileOverlayOpenInput,
+	invocation: ActionInvocation,
+) => ActionExecution<void>;
 
 function isRecord(input: unknown): input is Readonly<Record<string, unknown>> {
 	return typeof input === 'object' && input !== null && !Array.isArray(input);
