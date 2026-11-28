@@ -68,9 +68,6 @@ struct State {
     exchange: Option<Exchange>,
     /// `exit` requesters that have not yet written their reply.
     exit_replies: usize,
-    /// Whether a stop signal arrived; it stays set until the process ends.
-    #[cfg(any(unix, test))]
-    signalled: bool,
     /// Whether the lifecycle owner should look at its Worker before its next tick.
     woken: bool,
 }
@@ -397,20 +394,6 @@ impl SessionShutdown {
         true
     }
 
-    /// Admits a stop signal: it begins the lifecycle owner's own stop under `own` when no stop is
-    /// recorded, and otherwise queues the next attempt of the recorded stop once its attempt
-    /// failed, whoever recorded it, since a signal outranks the Client that began it. The signal
-    /// stays recorded, so the owner can tell that the process must end.
-    #[cfg(any(unix, test))]
-    pub(crate) fn signal(&self, own: StopId) {
-        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
-        state.signalled = true;
-        match state.entry.as_mut() {
-            None => self.record_own(&mut state, own),
-            Some(entry) => self.requeue(entry),
-        }
-    }
-
     /// Queues the next attempt of a failed stop; a queued or running attempt stays as it is.
     fn requeue(&self, entry: &mut Entry) {
         if matches!(entry.progress, Progress::Failed { .. })
@@ -420,15 +403,6 @@ impl SessionShutdown {
             entry.progress = Progress::Queued;
             self.changed.notify_all();
         }
-    }
-
-    /// Whether a stop signal arrived.
-    #[cfg(any(unix, test))]
-    pub(crate) fn signalled(&self) -> bool {
-        self.state
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .signalled
     }
 
     /// Admits the idle move's stop under `id` only while nothing is admitted at this moment: no

@@ -253,8 +253,11 @@ select themselves. This policy never replays a prior command.
 Before launch IPC, the coordinator prepares all fresh shell reservations and Workbench bindings. Failure before dispatch leaves no Host/terminal; it terminates the creation-owned Worker and confirms exit. Each prepared request dispatches and settles once; failure/unknown outcomes remain explicit and are never retried automatically. Restored directories precede Workspace/home defaults; a target whose selected directory is missing or inaccessible is held, not launched. Geometry starts at 80x24 with 8x16 cells until resized. Primary and child members restore without an extra Tab. Undispatched requests settle unavailable at the deadline. Later boot failure stops maintenance, requests owned Host/terminal shutdown, confirms Worker/transport exit and stops observation. Unconfirmed cleanup retains recovery state; Worker termination alone does not prove Host cleanup.
 
 Clean stop saves after request/background quiescence and before Worker disposal. Encoding or
-publication failure prevents disposal and remains a failed stop; preceding valid snapshots remain,
-and any displaced invalid original remains in its raw archive. Clean stop first joins the Agent
+publication failure prevents disposal and fails the attempt; preceding valid snapshots remain,
+and any displaced invalid original remains in its raw archive. A failed Windows stop then waits for
+its retry; a failed macOS or Linux attempt ends the Session's processes by force and takes no other
+capture ([POSIX startup](../README.md#managed-linux-and-macos-session-startup)), so the next start
+restores the newest valid snapshot before the failed one. Clean stop first joins the Agent
 resume driver, which starts after restoration settles and the process observer starts, so a
 reference not yet attempted stays pending for the final capture
 ([Agent session resume](agent-session-resume.md#delivery)). It then drains the single
@@ -272,7 +275,9 @@ output and Agent session references ride on a macOS checkpoint as on Windows
 `local_terminal_service/checkpoint/riders/resume.rs`), and its restore resumes each Agent in
 managed zsh or bash ([Agent session resume](agent-session-resume.md)). A macOS stop, an `exit`
 included, disposes every terminal and stops the Host, so its next start relaunches them from the
-final capture, each showing its kept output first while the preference is on. A Session that ended
+final capture, each showing its kept output first while the preference is on. A stop whose attempt
+failed ends them by force and still completes; its next start relaunches them from the newest valid
+save, the final capture only when the attempt failed after publishing it. A Session that ended
 without its stop has no final capture: once activation has recovered it, which waits until every
 recorded process is gone and refuses while its Host holds its lock, startup restores the newest
 background save and the output that save named, at most one save period old. No restore therefore
@@ -297,8 +302,9 @@ Capture takes the existing Session gate only to build a bounded configuration va
 it. Filesystem validation, preservation, flush and replacement happen outside the gate, on the single
 writer. Revision changes during I/O remain dirty and schedule another capture. A failed save keeps
 the previous valid copies and a bounded error state; it does not terminate a terminal or authorize a
-fresh Session. The saver must settle before final clean-stop capture. Failure to join it prevents stop
-completion rather than allowing two storage writers.
+fresh Session. The saver must settle before final clean-stop capture. Failure to join it fails the
+attempt rather than allowing two storage writers; a macOS or Linux stop then completes after its
+forced end, which takes no capture, so the saver stays the only writer until the process ends.
 
 ## Binding record
 

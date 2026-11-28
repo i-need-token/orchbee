@@ -4,6 +4,7 @@ use super::{
     platform::exchange_before, render,
 };
 use crate::cli::console_interrupt::{ArmedSignals, Finish};
+use crate::cli_text::CliText;
 use orchbee_connection_handshake::RejectionReason as Refusal;
 use orchbee_local_client_protocol::{
     ConnectClientError, ExitReply, SessionStopRequest, SessionStopStatus, StopAction,
@@ -13,7 +14,8 @@ use orchbee_local_runtime::{
     SessionLifetimeObservation, SessionScope,
 };
 use std::{
-    io, thread,
+    io::{self, Write},
+    thread,
     time::{Duration, Instant},
 };
 
@@ -37,7 +39,8 @@ pub(super) fn run(
             return render(answer, format, locale);
         }
     };
-    observe(command, &mut answer, &mut signals);
+    let waiting = CliText::new(locale).cli_server_stop_waiting(&super::id_text(id));
+    observe(command, &mut answer, &mut signals, &waiting);
     let finalization = match signals.finish() {
         Ok(Finish::Clear) => None,
         Ok(Finish::Cancelled { finalization, .. }) => {
@@ -61,7 +64,12 @@ pub(super) fn run(
     output
 }
 
-fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut ArmedSignals) {
+fn observe(
+    command: &ServerStopCommand,
+    answer: &mut Answer,
+    signals: &mut ArmedSignals,
+    waiting: &str,
+) {
     let (action, detached, timeout) = match command {
         ServerStopCommand::Stop {
             retry,
@@ -96,11 +104,21 @@ fn observe(command: &ServerStopCommand, answer: &mut Answer, signals: &mut Armed
         }
         Err(_) => return,
     };
-    observe_session(&session, action, detached, deadline, answer, signals);
+    observe_session(
+        &session,
+        action,
+        detached,
+        deadline,
+        answer,
+        signals,
+        Some(waiting),
+    );
 }
 
 /// The stop or status exchange with one resolved Session and, for a stop, the bounded wait for its
-/// end.
+/// end. The wait begins by writing `waiting`, when given, on standard error: an interruption on
+/// macOS and Linux ends the invocation with no document, and the line keeps the request identity
+/// that stays the accepted stop's handle.
 pub(super) fn observe_session(
     session: &Rendezvous,
     action: StopAction,
@@ -108,6 +126,7 @@ pub(super) fn observe_session(
     deadline: Instant,
     answer: &mut Answer,
     signals: &mut ArmedSignals,
+    waiting: Option<&str>,
 ) {
     match completed(session, answer.id) {
         Ok(true) => {
@@ -207,12 +226,7 @@ pub(super) fn observe_session(
     if answer.query {
         return;
     }
-    if Instant::now() >= deadline
-        && matches!(
-            answer.observation,
-            Observation::Server(SessionStopStatus::Pending { .. }) | Observation::Unknown(_)
-        )
-    {
+    if Instant::now() >= deadline && unsettled(&answer.observation) {
         answer.wait = Some("timed-out");
         return;
     }
@@ -225,14 +239,19 @@ pub(super) fn observe_session(
         }
         return;
     }
+    if unsettled(&answer.observation)
+        && let Some(line) = waiting
+    {
+        let mut stderr = io::stderr().lock();
+        let _ = stderr
+            .write_all(line.as_bytes())
+            .and_then(|()| stderr.flush());
+    }
     let request = SessionStopRequest {
         action: StopAction::Status,
         ..request
     };
-    while matches!(
-        answer.observation,
-        Observation::Server(SessionStopStatus::Pending { .. }) | Observation::Unknown(_)
-    ) {
+    while unsettled(&answer.observation) {
         if signals.take().is_ok_and(|signal| signal.is_some()) {
             answer.wait = Some("cancelled");
             return;
@@ -349,6 +368,14 @@ fn end_by_exit(
                 .min(Duration::from_millis(25)),
         );
     }
+}
+
+/// Whether the stop may still end, so a wait goes on.
+fn unsettled(observation: &Observation) -> bool {
+    matches!(
+        observation,
+        Observation::Server(SessionStopStatus::Pending { .. }) | Observation::Unknown(_)
+    )
 }
 
 fn completed(session: &Rendezvous, id: StopId) -> io::Result<bool> {

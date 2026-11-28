@@ -1,7 +1,8 @@
 //! The managed Session's idle move: each tick of the stop loop looks at the
 //! Session, and a completed countdown begins the ordinary stop under an identity of the Server's
-//! own. A failed idle stop is tried again, as a recorded stop refuses every Client until it ends.
-//! The stop's record names the version the Session moved to, so a connected Client starts it.
+//! own. On Windows a failed idle stop is tried again, as a recorded stop refuses every Client until
+//! it ends; a failed POSIX attempt ends the Session's processes by force instead. The stop's record
+//! names the version the Session moved to, so a connected Client starts it.
 use super::Owners;
 use crate::{
     automatic_updates::AutomaticUpdates,

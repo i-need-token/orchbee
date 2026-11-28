@@ -28,6 +28,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+#[cfg(unix)]
+mod forced_end;
 mod handover;
 mod idle;
 mod worker_loss;
@@ -128,7 +130,6 @@ pub(super) fn run(
         Arc::clone(&owners.terminals),
         Arc::clone(&owners.update_job),
     );
-    let mut worker_completed = false;
     #[cfg(windows)]
     let mut idle = idle::IdleMove::default();
     let mut loss = worker_loss::WorkerLoss::default();
@@ -140,24 +141,61 @@ pub(super) fn run(
     let mut idle = idle::IdleMove::under(own);
     #[cfg(unix)]
     let mut restart = handover::Restart::under(own);
-    loop {
+    // A failed Windows attempt waits for its retry, and becomes an `exit` once none comes.
+    #[cfg(windows)]
+    let (attempt, deadline, activation) = {
+        let mut worker_completed = false;
+        loop {
+            let watch = Watch {
+                loss: &mut loss,
+                supervision: &mut supervision,
+            };
+            // The Session record names this Server's successor, which holds the Session from now
+            // on.
+            let Some(work) = next_work(
+                &mut owners,
+                &shutdown,
+                &clients,
+                &mut idle,
+                watch,
+                &mut restart,
+            ) else {
+                return handover::leave(owners, clients, &shutdown);
+            };
+            let attempt = match work {
+                Work::Stop(attempt) => attempt,
+                Work::Exit => return exit(owners, clients, &shutdown),
+            };
+            let deadline = Instant::now() + STOP_ATTEMPT_BUDGET;
+            let result = settle(
+                &mut owners,
+                &shutdown,
+                attempt,
+                deadline,
+                &mut worker_completed,
+            );
+            if let Err(error) = result {
+                shutdown.fail(attempt, error.phase, error.failure, error.disposed);
+                continue;
+            }
+            match activation_lock(&owners, deadline) {
+                Ok(activation) => break (attempt, deadline, activation),
+                Err(error) => {
+                    let error = failure(StopPhase::Completion, error);
+                    shutdown.fail(attempt, error.phase, error.failure, 0);
+                }
+            }
+        }
+    };
+    // A POSIX Session takes one stop: an attempt that fails ends the Session's processes by force,
+    // on a budget of its own, and only a stop that can neither end them nor complete leaves.
+    #[cfg(unix)]
+    let (attempt, deadline, activation) = {
         let watch = Watch {
             loss: &mut loss,
             supervision: &mut supervision,
         };
         // The Session record names this Server's successor, which holds the Session from now on.
-        #[cfg(windows)]
-        let Some(work) = next_work(
-            &mut owners,
-            &shutdown,
-            &clients,
-            &mut idle,
-            watch,
-            &mut restart,
-        ) else {
-            return handover::leave(owners, clients, &shutdown);
-        };
-        #[cfg(unix)]
         let Some(work) = next_work(
             &mut owners,
             &shutdown,
@@ -173,6 +211,8 @@ pub(super) fn run(
             Work::Stop(attempt) => attempt,
             Work::Exit => return exit(owners, clients, &shutdown),
         };
+        // No earlier attempt can have completed the Worker's shutdown.
+        let mut worker_completed = false;
         let deadline = Instant::now() + STOP_ATTEMPT_BUDGET;
         let result = settle(
             &mut owners,
@@ -181,75 +221,62 @@ pub(super) fn run(
             deadline,
             &mut worker_completed,
         );
-        if let Err(error) = result {
-            shutdown.fail(attempt, error.phase, error.failure, error.disposed);
-            #[cfg(unix)]
-            if shutdown.signalled() && matches!(owners.worker.try_wait(), Ok(Some(_))) {
-                return leave(clients, &shutdown, error);
-            }
-            continue;
-        }
-        // Hold activation through listener closure, receipt publication and lifetime release.
-        let activation = loop {
-            match owners
-                .session
-                .try_acquire_activation_lock()
-                .map_err(io::Error::other)
-            {
-                Ok(LockAttempt::Acquired(lock)) => break Ok(lock),
-                Ok(LockAttempt::Contended) if Instant::now() < deadline => {
-                    thread::sleep(Duration::from_millis(10))
+        let deadline = match result {
+            Ok(()) => deadline,
+            Err(failed) => match forced_end::end(&mut owners, &shutdown, attempt, &failed) {
+                Ok(deadline) => deadline,
+                Err(error) => {
+                    shutdown.fail(attempt, error.phase, error.failure, error.disposed);
+                    return forced_end::leave(clients, &shutdown, error);
                 }
-                Ok(LockAttempt::Contended) => break Err(io::ErrorKind::TimedOut.into()),
-                Err(error) => break Err(error),
-            }
+            },
         };
-        let activation = match activation {
-            Ok(lock) => lock,
+        match activation_lock(&owners, deadline) {
+            Ok(activation) => (attempt, deadline, activation),
             Err(error) => {
                 let error = failure(StopPhase::Completion, error);
                 shutdown.fail(attempt, error.phase, error.failure, 0);
-                continue;
+                return forced_end::leave(clients, &shutdown, error);
             }
-        };
-        owners
-            .carrier
-            .join()
-            .map_err(|_| io::Error::other("Worker carrier panicked"))?;
-        shutdown.phase(attempt, StopPhase::Clients);
-        // The process ends from here on, so a waiting `exit` requester replies first.
-        shutdown.end(deadline);
-        // After control-listener closure, only a valid durable record can prove success. A failure
-        // exits with the active/invalid record intact; it never silently authorizes restart.
-        clients.stop_before(deadline)?;
-        // A POSIX socket file outlives its listener, so the stop removes its own before the
-        // receipt; whatever a failed removal leaves, the next owner of the lifetime lock removes.
-        #[cfg(unix)]
-        owners.session.remove_endpoints(&owners.lifetime)?;
-        // A Server a restart started also removes the Worker endpoint its ticket names.
-        #[cfg(unix)]
-        if let Some(ticket) = owners.worker_ticket {
-            owners
-                .session
-                .remove_successor_worker_endpoint(&owners.lifetime, *ticket.as_bytes())?;
         }
-        shutdown.phase(attempt, StopPhase::Completion);
-        if Instant::now() >= deadline {
-            return Err(io::ErrorKind::TimedOut.into());
-        }
-        // A stop the idle move began names the version the Session moved to, so a Client that
-        // lost this Server starts that version.
-        let moved_to = idle.moved_to(attempt.id);
+    };
+    owners
+        .carrier
+        .join()
+        .map_err(|_| io::Error::other("Worker carrier panicked"))?;
+    shutdown.phase(attempt, StopPhase::Clients);
+    // The process ends from here on, so a waiting `exit` requester replies first.
+    shutdown.end(deadline);
+    // After control-listener closure, only a valid durable record can prove success. A failure
+    // exits with the active/invalid record intact; it never silently authorizes restart.
+    clients.stop_before(deadline)?;
+    // A POSIX socket file outlives its listener, so the stop removes its own before the receipt;
+    // whatever a failed removal leaves, the next owner of the lifetime lock removes.
+    #[cfg(unix)]
+    owners.session.remove_endpoints(&owners.lifetime)?;
+    // A Server a restart started also removes the Worker endpoint its ticket names.
+    #[cfg(unix)]
+    if let Some(ticket) = owners.worker_ticket {
         owners
-            .session_record
-            .complete_moving(attempt.id.bytes(), moved_to)?;
-        owners.record.complete(attempt.id.bytes())?;
-        drop(owners.lifetime);
-        #[cfg(unix)]
-        drop(owners.socket_root);
-        drop(activation);
-        return Ok(());
+            .session
+            .remove_successor_worker_endpoint(&owners.lifetime, *ticket.as_bytes())?;
     }
+    shutdown.phase(attempt, StopPhase::Completion);
+    if Instant::now() >= deadline {
+        return Err(io::ErrorKind::TimedOut.into());
+    }
+    // A stop the idle move began names the version the Session moved to, so a Client that lost
+    // this Server starts that version.
+    let moved_to = idle.moved_to(attempt.id);
+    owners
+        .session_record
+        .complete_moving(attempt.id.bytes(), moved_to)?;
+    owners.record.complete(attempt.id.bytes())?;
+    drop(owners.lifetime);
+    #[cfg(unix)]
+    drop(owners.socket_root);
+    drop(activation);
+    Ok(())
 }
 
 /// Restores the checkpoint's terminals and starts every job before the Client listener opens. A
@@ -550,9 +577,9 @@ fn next_work(
     }
 }
 
-/// [`next_work`] as on Windows, except that a failed stop this Server began after losing its Worker
-/// and Host is tried again once that Worker and Host are gone, rather than becoming an `exit`.
-/// Every stop this Server begins uses `own`, the identity its signal handler uses too.
+/// [`next_work`] as on Windows, except that no failed stop waits here, since a POSIX Session takes
+/// one stop (see [`run`]). Every stop this Server begins uses `own`, the identity its signal
+/// handler uses too.
 #[cfg(unix)]
 fn next_work(
     owners: &mut Owners,
@@ -591,21 +618,9 @@ fn next_work(
         }
         restart.look(owners);
         if watch.look(owners, shutdown) {
-            begin_own(shutdown, own);
+            shutdown.begin(own);
         }
         idle.tick(owners, shutdown);
-    }
-}
-
-/// Begins the stop this Server owns under `own`, or queues its next attempt once one failed. A
-/// stop a Client recorded stays that Client's to retry; only a signal retries it.
-#[cfg(unix)]
-fn begin_own(shutdown: &SessionShutdown, own: StopId) {
-    if !shutdown.begin(own) {
-        shutdown.request(&orchbee_local_client_protocol::SessionStopRequest {
-            id: own,
-            action: orchbee_local_client_protocol::StopAction::Retry,
-        });
     }
 }
 
@@ -643,7 +658,6 @@ fn settle_without_worker(
     end_orphaned_host(owners, deadline).map_err(|error| failure(StopPhase::HostExit, error))?;
     // A Keeper may hold the last handles of a program whose Host ended, so the stop ends it once
     // the Host is gone, checked by its recorded identity; stopping still ends every program.
-    #[cfg(windows)]
     orchbee_local_runtime::end_recorded_keeper(&owners.session_record, deadline)
         .map_err(|error| failure(StopPhase::HostExit, error))?;
     Ok(())
@@ -719,39 +733,30 @@ fn end_orphaned_host(owners: &Owners, deadline: Instant) -> io::Result<()> {
     }
 }
 
-/// After a stop signal, a failed attempt with no Worker left ends the process, so a signal always
-/// ends the Server within one attempt's budget: nothing here can still change a terminal, and a
-/// logout or a shutdown would end the process anyway. No receipt is published, so the next start
-/// recovers the Session as after a crash once the Host's lock is free, and refuses while a Host
-/// that could not be ended still runs.
-#[cfg(unix)]
-fn leave(
-    mut clients: local_client_service::ManagedClients,
-    shutdown: &SessionShutdown,
-    failed: Failure,
-) -> io::Result<()> {
-    eprintln!(
-        "orchbee-server diagnostic component=lifecycle operation=stop stage=leave phase={:?} failure={:?}",
-        failed.phase, failed.failure
-    );
-    let deadline = Instant::now() + LEAVE_BUDGET;
-    shutdown.end(deadline);
-    clients.stop_before(deadline)?;
-    Err(io::Error::other(
-        "Session stop failed after its Worker exited",
-    ))
-}
-
-/// How long [`leave`] gives the Client listeners to close.
-#[cfg(unix)]
-const LEAVE_BUDGET: Duration = Duration::from_secs(5);
-
 /// Stops the Agent observation endpoint where the Session bound one.
 fn stop_ingress(owners: &mut Owners, deadline: Instant) -> io::Result<()> {
     owners
         .ingress
         .as_mut()
         .map_or(Ok(()), |ingress| ingress.stop_before(deadline))
+}
+
+/// Takes the activation lock, which a stop holds through listener closure, receipt publication and
+/// lifetime release, waiting for it until `deadline`.
+fn activation_lock(owners: &Owners, deadline: Instant) -> io::Result<ModeCheckedSessionLock> {
+    loop {
+        match owners
+            .session
+            .try_acquire_activation_lock()
+            .map_err(io::Error::other)?
+        {
+            LockAttempt::Acquired(lock) => return Ok(lock),
+            LockAttempt::Contended if Instant::now() < deadline => {
+                thread::sleep(Duration::from_millis(10));
+            }
+            LockAttempt::Contended => return Err(io::ErrorKind::TimedOut.into()),
+        }
+    }
 }
 
 /// Stops every Server background job that could start new work through the Worker. Hooks submit

@@ -23,7 +23,8 @@ only when a person is present. A declared
 to standard error before reading the typed name. A command that waits on a person elsewhere or on
 a long transfer may write one localized line on standard error when the wait starts, naming what it
 waits for, in every format and at most once per invocation; it never repeats the line or shows
-progress.
+progress. A wait on an accepted operation that an interruption leaves running may write such a line
+too, naming the request identity that remains its handle.
 
 ## Formats
 

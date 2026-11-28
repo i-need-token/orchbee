@@ -57,14 +57,22 @@ impl super::CliText {
         }
         .to_owned()
     }
-    /// The text of a resume refused before submission; a Session stop names its own retry.
+    /// The text of a resume refused before submission; a Session stop names its own retry on
+    /// Windows. A failed macOS or Linux attempt ends the Session's processes by force and waits
+    /// for no retry, so there the stop is named for a status read.
     pub(crate) fn operation_resume_unsupported(self, stop: Option<&str>) -> String {
         match (self.locale, stop) {
-            (Locale::EnUs, Some(id)) => format!(
+            (Locale::EnUs, Some(id)) if cfg!(windows) => format!(
                 "This request ID names a Session stop, which operation resume does not continue; nothing was submitted. Retry it with: orchbee server stop --retry --request-id {id}\n"
             ),
-            (Locale::ZhCn, Some(id)) => format!(
+            (Locale::ZhCn, Some(id)) if cfg!(windows) => format!(
                 "此请求 ID 对应会话停止，operation resume 不继续该操作；未提交任何请求。请用以下命令重试：orchbee server stop --retry --request-id {id}\n"
+            ),
+            (Locale::EnUs, Some(id)) => format!(
+                "This request ID names a Session stop, which operation resume does not continue; nothing was submitted. Read it with: orchbee operation status {id}\n"
+            ),
+            (Locale::ZhCn, Some(id)) => format!(
+                "此请求 ID 对应会话停止，operation resume 不继续该操作；未提交任何请求。请用以下命令查看：orchbee operation status {id}\n"
             ),
             (Locale::EnUs, None) => {
                 "This operation cannot be resumed; nothing was submitted.\n".to_owned()

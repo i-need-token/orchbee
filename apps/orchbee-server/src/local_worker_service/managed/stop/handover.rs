@@ -365,7 +365,7 @@ impl Restart {
             }
             #[cfg(unix)]
             if let Some(own) = self.own {
-                super::begin_own(shutdown, own);
+                shutdown.begin(own);
             }
         }
         Next::Serve

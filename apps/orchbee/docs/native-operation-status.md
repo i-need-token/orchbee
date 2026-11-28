@@ -69,7 +69,9 @@ above 64 before anything is submitted.
 A Session stop, a Client control or an Agent detection rule operation cannot be resumed: the
 command refuses before any submission with kind `rejected`, details
 `{stage:"operation-resume", reason:"resume-unsupported"}` and exit 3. For a stop the text names
-`orchbee server stop --retry --request-id <id>`, the stop's own explicit retry. Cancellation
+`orchbee server stop --retry --request-id <id>`, the stop's own explicit retry, on Windows, and
+`orchbee operation status <id>` on macOS and Linux, where a failed attempt ends the Session's
+processes by force instead of waiting for a retry. Cancellation
 preserves obtained facts and stops local waiting. The CLI never retries on its own, resumes an
 unsupported operation or replays one.
 

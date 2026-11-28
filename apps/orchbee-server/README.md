@@ -40,6 +40,7 @@ error's text.
 | `worker-lost`             | The managed Server lost its Worker and decided what follows, once per lost generation                                                                                                                                                                                                         | `generation`, `cause` (`exited`, or `disconnected` when the Server ended a process still running), `exitCode` or `exitSignal` when known, `attempts` in the cap's window, `action` (`replace`, `stop`, `give-up`), and for the last two `reason` (`stop-admitted`, `worker-not-gone`, `host-gone`, `host-spawning`, `host-unverified`, `cap-reached`)               |
 | `worker-replaced`         | One replacement attempt adopted the Host or failed                                                                                                                                                                                                                                            | `generation` once admitted, `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `stage` (`create`, `admit`, `adopt`), the `failure` (an `AdoptHost` failure, `timed-out`, `declined`, `exited`, `protocol`, `unavailable`, or an I/O error kind) and `next` (`retry`, `stop`, `give-up`); `elapsedMs` |
 | `host-adopted`            | A Server started for a generation that kept its predecessor's running Host adopted that Host or failed to, once per start                                                                                                                                                                     | `outcome` (`adopted`, `failed`); when adopted the `imported`, `quarantined` and `missing` counts; when failed the `failure` (`host`, `record`, an `AdoptHost` failure, `timed-out`, `declined`, `protocol`, `unavailable`); `elapsedMs`                                                                                                                             |
+| `session-stop-forced`     | A macOS or Linux Session stop attempt failed and the Server ended the Session's processes by force                                                                                                                                                                                            | `phase` and `failure`, the failed attempt's tokens as the `server stop` document names them; `outcome` (`ended`, or `failed` when the Server could not prove each of them gone in time and leaves without the Stopped record)                                                                                                                                       |
 | `panicked`                | Any Server thread panics; the panic still ends only that thread                                                                                                                                                                                                                               | `thread` (the program's own thread names, else `other` or `unnamed`), `file` stem, `line`, `suppressed`                                                                                                                                                                                                                                                             |
 | `state-poisoned`          | The Session coordinator lock is first observed poisoned                                                                                                                                                                                                                                       | `lock` (`coordinator`)                                                                                                                                                                                                                                                                                                                                              |
 | `agent-change-refused`    | The Agent state refused a change as `invalid-event`, keeping its previous state                                                                                                                                                                                                               | `transition` (the refused change's kind), `suppressed`                                                                                                                                                                                                                                                                                                              |
@@ -62,8 +63,10 @@ counts the records left out since the last one. The Agent state writes `agent-ch
 `suppressed` counts the refusals or rebuilds left out; the
 [fault recovery rule](docs/agent-canonical-model.md#fault-recovery) says what is kept. `worker-lost` is `error`, and `worker-replaced` is
 `info` when adopted and `error` otherwise; neither is rate-limited, since the cap bounds them.
-`host-adopted` follows the same levels and comes at most once per start. `file-bar-start-failed`
-is `warning` and `file-bar-unavailable` is `error`; the File Bar's restart delays bound both.
+`host-adopted` follows the same levels and comes at most once per start. `session-stop-forced` is
+`warning` when every process ended and `error` otherwise, and comes at most once per Server.
+`file-bar-start-failed` is `warning` and `file-bar-unavailable` is `error`; the File Bar's restart
+delays bound both.
 `worker-connection-ended` is
 `info` when the Server ended the connection or the Worker left after answering a shutdown, and
 `error` otherwise. Only a Windows Session holds its Worker's handle after admission; there the
@@ -232,9 +235,12 @@ a minute.
 The stop is the ordinary Session stop under a fresh identity of the Server's own. Nothing runs, so
 it asks nothing and disposes nothing, and its final capture keeps the layout for the next start,
 which runs the active version. Its Stopped record carries `moved_to`, the active version the check
-found, which `status server` reports as `movedTo`; a person's stop or a crash leaves none. A failed attempt is retried at each tick, since a recorded stop
-refuses every Client until it ends; on Windows, ten seconds after its first failure the Server ends
-as for an [`exit`](#managed-windows-session-shutdown) instead. A plugin hook job started in the moment between the Worker's
+found, which `status server` reports as `movedTo`; a person's stop or a crash leaves none. On
+Windows a failed attempt is retried at each tick, since a recorded stop refuses every Client until
+it ends, and ten seconds after its first failure the Server ends as for an
+[`exit`](#managed-windows-session-shutdown) instead; on macOS and Linux a failed attempt ends the
+Session's processes by force, as [their startup](#managed-linux-and-macos-session-startup)
+describes. A plugin hook job started in the moment between the Worker's
 answer and the stop goes unseen and ends with the Worker. The countdown rule names no platform type.
 
 ## Managed Windows Session shutdown
@@ -282,22 +288,22 @@ remain queryable while the control listener survives; after listener closure, th
 record remains a positive receipt. A recorded stop refuses every Client, so on Windows a stop whose
 first attempt failed at least ten seconds ago, with no retry pending or running, becomes an `exit`:
 every terminal keeps running, the failed status stays readable until the process ends, and the
-next Client's Server adopts the Host. macOS runs this owner with the checkpoint saver and final
-capture, and Linux without them; [their startup](#managed-linux-and-macos-session-startup)
-describes what differs.
+next Client's Server adopts the Host. On macOS and Linux a failed attempt instead ends the
+Session's processes by force and completes the stop;
+[their startup](#managed-linux-and-macos-session-startup) describes that and what else differs.
 
 A Worker that already exited can neither sample a directory nor stop its Host, and the final
 capture keeps each terminal's last cached directory. The stop then ends that Worker's Host itself,
 on Windows exactly as on Linux and macOS: after the final capture it sends the Host's `exit`
 control request, which ends every terminal the Worker would have disposed, and continues once the
 retained record observes the Host's registered identity gone, within 45 seconds. A failed or
-unanswered request fails the attempt in its host-exit phase; the Host is never ended by force. On
-Windows the stop then ends each Keeper the record names, checked by its recorded process ID and
+unanswered request fails the attempt in its host-exit phase; this step never ends the Host by
+force. The stop then ends each Keeper the record names, checked by its recorded process ID and
 creation time, since a Keeper may hold the last handles of a program whose Host ended; a Keeper gone
 or never started counts as ended, and one not ended by the deadline fails the attempt in the same
 phase. A
 stop is therefore never refused only because its Worker is gone.
-A Server whose Worker was lost with no replacement serving, whose Host is gone and, on Windows, whose
+A Server whose Worker was lost with no replacement serving, whose Host is gone and whose
 Keeper is gone or never started, with no stop admitted, begins its own stop under a fresh identity,
 checking once a second;
 [Managed Worker replacement](#managed-worker-replacement) says when a loss comes to that. It
@@ -669,16 +675,29 @@ then relaunches every terminal from the final capture in its saved directory, sh
 `terminal.restore_after_restart` is on, and resumes each retained Agent conversation in its managed zsh or bash under the
 [Agent session resume contract](docs/agent-session-resume.md).
 Every stop the Server begins itself, on a signal or once its Worker exited and its Host is gone,
-uses one identity, and a later loss check retries that identity once its attempt failed. A later
-signal retries the recorded stop once its attempt failed, a Client's stop included. After its
-Worker exited, a stop, like an `exit`, publishes the final capture and then ends that Worker's Host
-with the Host's `exit` control request, which ends every terminal the Worker would have disposed,
-and continues once the Host's lock is free, within 45 seconds. A stop attempt that fails after a
-signal, with no Worker left, ends the process without the Stopped record, so a signal always ends
-the Server within one attempt; the next start then recovers the Session as after a crash. An
+uses one identity. After its Worker exited, a stop, like an `exit`, publishes the final capture and
+then ends that Worker's Host with the Host's `exit` control request, which ends every terminal the
+Worker would have disposed, and continues once the Host's lock is free, within 45 seconds. An
 `exit` request also disposes the terminals: no later Linux or macOS Server can adopt a Host that
 keeps them, and that Host's lock would refuse every recovery while it runs. Its final capture
 relaunches them at the next start.
+
+A macOS or Linux Session takes one stop attempt. A recorded stop refuses every Client until the
+process ends, and the person who asked for it meant the terminals to end, so an attempt that fails,
+whoever began it and in whichever phase, waits for no retry. The Server ends the Worker through
+the handle it started it with, then every running Host and the Keeper by its recorded process ID
+and creation time, each with `SIGKILL`; the Worker goes first, since it would replace a Keeper that
+ended. With the last of them every terminal's PTY closes, and the kernel hangs up each program
+still in a terminal, one that no Host may signal included. The forced end and the completion after
+it share a budget of their own, 5 seconds; the stop publishes the Stopped record, so `server stop`
+and Quit All read `stopped`, and records `session-stop-forced` in the
+[diagnostic log](#diagnostic-log). The forced end takes no capture of its own: the next start
+reopens the final capture when the attempt failed after publishing it, and otherwise the newest
+background save, so a failed final save leaves the one before it
+([clean stop](docs/workbench-checkpoint.md#managed-startup-and-clean-stop)). Only a stop that
+cannot prove each of those processes gone, or cannot complete, ends the Server without the Stopped
+record, within 5 seconds more; the next start then recovers the Session as after a crash once each
+is gone, and refuses while one that could not be ended still runs.
 
 A Server ended by `SIGKILL` or a crash leaves an Active record and stale socket files. The next
 activation recovers that record to Crashed under the activation and lifetime locks once the Host's

@@ -106,6 +106,7 @@ pub(in crate::cli) fn stop_session(
         deadline,
         &mut answer,
         signals,
+        None,
     );
     match (answer.observation, answer.wait) {
         (_, Some(wait)) => SessionEnd::Failed(wait),
@@ -141,6 +142,7 @@ fn emit(
             result["outcome"].as_str().expect("outcome"),
             result["reason"].as_str(),
             &id_text(id),
+            result["activeRequestId"].as_str(),
             wait,
             elevated_session,
         )),

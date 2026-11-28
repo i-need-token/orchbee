@@ -30,13 +30,13 @@ pub(super) const HELP_SERVER_CONNECT_ZH: crate::cli_text::HelpDetails =
 pub(super) const HELP_SERVER_STOP_EN: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
-        "Stop the existing managed session and its terminals. This ends running\nprocesses after a fresh final save of Workbench configuration, sampled\nper-terminal cwd. Save failure keeps preceding\nvalid snapshots, retained invalid originals and running terminals; resolve it\nand explicitly retry. Live Agent state, terminal history and screen contents\nare not saved. Development and test builds require --confirm. Release builds\nrefuse it and run only in an interactive console after\nthe person types the Session name; every request is logged. There is no session\nactivation. --detach returns the admitted attempt immediately. Otherwise\nwait up to 65000 ms by default (1–3600000 ms). Cancellation/timeout stops\nwaiting, not the accepted shutdown.\n\nA nonzero 32-character lowercase hexadecimal request ID is generated if omitted.\nDuplicate starts observe the existing attempt; --retry requires --request-id\nand explicitly retries only that failed stop. Use operation status <id> to\nrecover a result. Completion requires the matching stopped record and a free\nlifetime lock; pipe disappearance alone is insufficient. A later server start\nconsumes the receipt.\n\nWith --machine <name-or-id>, the stop is confirmed here as above, and the\nbackground machine hub then stops that saved machine's remote Session and\nevery terminal in it. --request-id, --retry, --detach and --timeout are\nrefused there; '--format json' emits orchbee.machine.server-stop.",
+        "Stop the existing managed session and its terminals. This ends running\nprocesses after a fresh final save of Workbench configuration, sampled\nper-terminal cwd. Live Agent state, terminal history and screen contents\nare not saved. On Windows a failed stop, a failed save included, keeps the\npreceding valid snapshots, retained invalid originals and running terminals;\nresolve it and explicitly retry. On macOS and Linux a failed stop still ends\nthe session's processes: programs left in its terminals are hung up, and the\nnext start reopens the last saved layout. Development and test builds require\n--confirm. Release builds refuse it and run only in an interactive console\nafter the person types the Session name; every request is logged. There is\nno session activation. --detach returns the admitted attempt immediately.\nOtherwise wait up to 65000 ms by default (1–3600000 ms), naming the request ID\non stderr as the wait begins. Cancellation/timeout stops waiting, not the\naccepted shutdown.\n\nA nonzero 32-character lowercase hexadecimal request ID is generated if omitted.\nDuplicate starts observe the existing attempt; a start under another ID while\na stop is recorded reports busy with the active ID. --retry requires\n--request-id and explicitly retries only that failed Windows stop. Use\noperation status <id> to recover a result. Completion requires the matching stopped record and a free\nlifetime lock; pipe disappearance alone is insufficient. A later server start\nconsumes the receipt.\n\nWith --machine <name-or-id>, the stop is confirmed here as above, and the\nbackground machine hub then stops that saved machine's remote Session and\nevery terminal in it. --request-id, --retry, --detach and --timeout are\nrefused there; '--format json' emits orchbee.machine.server-stop.",
     );
 
 pub(super) const HELP_SERVER_STOP_ZH: crate::cli_text::HelpDetails =
     crate::cli_text::HelpDetails::new(
         "orchbee server stop --confirm [--request-id <id>] [--retry] [--detach] [--timeout <ms>] [--format text|json]",
-        "停止现有托管会话及其终端；先对 Workbench 配置、采样所得的逐终端 cwd 执行最新 final 保存，再结束进程。保存失败会保留此前的有效存档、无效原件及运行中的终端；解决故障后显式重试。不保存存活智能体状态、终端历史或屏幕内容。开发版和测试版必须提供 --confirm；正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行，每次请求都会记录。不激活会话。--detach 立即返回已准入尝试；否则默认等待 65000 毫秒（范围 1–3600000）。取消或超时只停止等待，不取消已接受的停止。\n\n省略请求标识时自动生成非零 32 位小写十六进制标识。重复开始只观察现有尝试；\n--retry 必须搭配 --request-id，显式重试该失败停止。使用 operation status <id>\n恢复结果。仅准确匹配的已停止记录加空闲生命周期锁能证明完成，管道消失不够。后续 server start 会消费回执。\n\n使用 --machine <name-or-id> 时，先按上述规则在本机确认，再由后台连接进程停止该已保存机器的远端会话及其中的所有终端。此时拒绝 --request-id、--retry、--detach 和 --timeout；'--format json' 输出 orchbee.machine.server-stop 封套。",
+        "停止现有托管会话及其终端；先对 Workbench 配置、采样所得的逐终端 cwd 执行最新 final 保存，再结束进程。不保存存活智能体状态、终端历史或屏幕内容。在 Windows 上，停止失败（包括保存失败）会保留此前的有效存档、无效原件及运行中的终端；解决故障后显式重试。在 macOS 和 Linux 上，停止失败仍会结束会话的进程：终端中剩下的程序会被挂断，下次启动按最后保存的布局重开。开发版和测试版必须提供 --confirm；正式版拒绝该选项，只在交互式控制台中由人输入会话名称后执行，每次请求都会记录。不激活会话。--detach 立即返回已准入尝试；否则默认等待 65000 毫秒（范围 1–3600000），开始等待时在 stderr 写出请求标识。取消或超时只停止等待，不取消已接受的停止。\n\n省略请求标识时自动生成非零 32 位小写十六进制标识。重复开始只观察现有尝试；已记录停止时，以其他标识开始会得到 busy，并给出进行中的标识。\n--retry 必须搭配 --request-id，显式重试该失败的 Windows 停止。使用 operation status <id>\n恢复结果。仅准确匹配的已停止记录加空闲生命周期锁能证明完成，管道消失不够。后续 server start 会消费回执。\n\n使用 --machine <name-or-id> 时，先按上述规则在本机确认，再由后台连接进程停止该已保存机器的远端会话及其中的所有终端。此时拒绝 --request-id、--retry、--detach 和 --timeout；'--format json' 输出 orchbee.machine.server-stop 封套。",
     );
 
 pub(super) const HELP_SERVER_RESTART_EN: crate::cli_text::HelpDetails =
@@ -101,14 +101,25 @@ impl super::CliText {
         }
     }
 
+    /// The one line a waiting `server stop` writes on standard error as its wait begins, naming the
+    /// request identity that stays its handle when the wait is interrupted.
+    pub(crate) fn cli_server_stop_waiting(self, id: &str) -> String {
+        match self.locale {
+            Locale::EnUs => format!("Waiting for the Session to stop (request {id})…\n"),
+            Locale::ZhCn => format!("正在等待会话停止（请求 {id}）…\n"),
+        }
+    }
+
     // ---- help topics ---------------------------------------------------------
-    /// Localizes a closed stop outcome and prints its identity for later status recovery. A Session
-    /// started as administrator that refused this standard Client is named with the one way out.
+    /// Localizes a closed stop outcome and prints its identity for later status recovery; a busy
+    /// Session names the `active` stop, which status reads instead. A Session started as
+    /// administrator that refused this standard Client is named with the one way out.
     pub(crate) fn cli_server_stop_result(
         self,
         outcome: &str,
         reason: Option<&str>,
         id: &str,
+        active: Option<&str>,
         wait: Option<&str>,
         elevated_session: bool,
     ) -> String {
@@ -157,12 +168,17 @@ impl super::CliText {
                 Locale::ZhCn => format!("会话停止：{state}{waiting}\n{action}\n"),
             };
         }
+        let (active, inspect) = match (self.locale, active) {
+            (Locale::EnUs, Some(active)) => (format!("Active request: {active}\n"), active),
+            (Locale::ZhCn, Some(active)) => (format!("进行中的请求：{active}\n"), active),
+            (_, None) => (String::new(), id),
+        };
         match self.locale {
             Locale::EnUs => format!(
-                "Session stop: {state}{waiting}\nRequest: {id}\nInspect: orchbee operation status {id} --format json\n"
+                "Session stop: {state}{waiting}\nRequest: {id}\n{active}Inspect: orchbee operation status {inspect} --format json\n"
             ),
             Locale::ZhCn => format!(
-                "会话停止：{state}{waiting}\n请求：{id}\n检查：orchbee operation status {id} --format json\n"
+                "会话停止：{state}{waiting}\n请求：{id}\n{active}检查：orchbee operation status {inspect} --format json\n"
             ),
         }
     }
