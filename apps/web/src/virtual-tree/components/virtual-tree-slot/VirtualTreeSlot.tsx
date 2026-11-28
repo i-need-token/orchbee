@@ -27,10 +27,15 @@ export function VirtualTreeSlot<K, T>({
 		slot === 'focused' ? viewport.focusedRow : viewport.slot(slot),
 	);
 	if (shown === null) return null;
+	const { focused, row, selected } = shown;
 	return (
 		<VirtualTreeRowView
-			focused={shown.focused}
+			collapsible={row.collapsible}
+			depth={row.depth}
+			expanded={row.collapsible && !row.collapsed}
+			focused={focused}
 			height={shown.height}
+			loading={row.loading}
 			place={{
 				id: rowElementId(treeId, shown.index),
 				index: shown.index,
@@ -38,10 +43,10 @@ export function VirtualTreeSlot<K, T>({
 				positionInSet: shown.positionInSet,
 				setSize: shown.setSize,
 			}}
-			renderRow={renderRow}
-			row={shown.row}
-			selected={shown.selected}
+			selected={selected}
 			top={shown.top}
-		/>
+		>
+			{renderRow(row, { focused, selected })}
+		</VirtualTreeRowView>
 	);
 }

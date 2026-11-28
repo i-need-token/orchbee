@@ -125,6 +125,10 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   remainder `s`, so a row that scrolls in takes the element of the row that scrolled out, and a
   frame of scrolling renders only the rows it brings in. Keep `renderRow` cheap: a fast scroll calls
   it for every row in sight.
+- Hand a component the row's `element` and the state it draws, never the row. A row links to its
+  parent's children, and React's development build diffs a component's changed props a few levels
+  deep on every render, so a row prop walks a large folder's children whenever the component draws
+  another row; the tree's own row element takes plain values for that reason.
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
   scenarios and the height index; run it before and after a change to the model or the index.
   `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist and how keys,

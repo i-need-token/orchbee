@@ -49,15 +49,20 @@ interface StickySlotProps<K, T> {
 function StickySlot<K, T>({ index, renderRow, viewport }: StickySlotProps<K, T>): React.ReactNode {
 	const sticky = React.useSyncExternalStore(viewport.subscribe, () => viewport.stickyRow(index));
 	if (sticky === null) return null;
+	const { row } = sticky;
 	return (
 		<VirtualTreeRowView
+			collapsible={row.collapsible}
+			depth={row.depth}
+			expanded={row.collapsible && !row.collapsed}
 			focused={false}
 			height={sticky.height}
+			loading={row.loading}
 			place={{ index, kind: 'sticky' }}
-			renderRow={renderRow}
-			row={sticky.row}
 			selected={false}
 			top={sticky.top}
-		/>
+		>
+			{renderRow(row, { focused: false, selected: false })}
+		</VirtualTreeRowView>
 	);
 }

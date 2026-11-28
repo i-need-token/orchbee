@@ -1,8 +1,6 @@
 import { ProductIcon } from '@orchbee/ui/components';
 import type * as React from 'react';
 
-import type { VirtualTreeRow } from '../../model/virtual-tree-types';
-import type { VirtualTreeRowRenderer } from '../../types/virtual-tree-row-renderer';
 import styles from './VirtualTreeRowView.module.css';
 
 /** What a row element stands for: an item of the tree, or a sticky row repeating one. */
@@ -21,15 +19,27 @@ type RowPlace =
 			readonly index: number;
 	  };
 
-interface VirtualTreeRowViewProps<K, T> {
-	readonly row: VirtualTreeRow<K, T>;
+/**
+ * The row's state as plain values, never the row itself: a row links to its parent's children, and
+ * React's development build diffs a component's changed props a few levels deep on every render, so
+ * a row prop would walk a large folder's children whenever a slot shows another row.
+ */
+interface VirtualTreeRowViewProps {
 	readonly place: RowPlace;
+	/** One for a top-level row; it sets the indentation. */
+	readonly depth: number;
+	readonly collapsible: boolean;
+	/** Whether the row is expanded; false for a row that cannot be. */
+	readonly expanded: boolean;
+	/** Whether the row shows that its children are loading. */
+	readonly loading: boolean;
 	/** The row's top edge in its layer, in CSS pixels. */
 	readonly top: number;
 	readonly height: number;
 	readonly focused: boolean;
 	readonly selected: boolean;
-	readonly renderRow: VirtualTreeRowRenderer<K, T>;
+	/** The view's content for the row. */
+	readonly children: React.ReactNode;
 }
 
 /**
@@ -37,22 +47,23 @@ interface VirtualTreeRowViewProps<K, T> {
  * row shows that its children are loading, and the view's content. An item row carries the tree
  * item's semantics; a sticky row repeats a row the tree already names, so it carries none.
  */
-export function VirtualTreeRowView<K, T>({
+export function VirtualTreeRowView({
+	children,
+	collapsible,
+	depth,
+	expanded,
 	focused,
 	height,
+	loading,
 	place,
-	renderRow,
-	row,
 	selected,
 	top,
-}: VirtualTreeRowViewProps<K, T>): React.ReactNode {
-	const open = row.collapsible && !row.collapsed;
-	const { loading } = row;
+}: VirtualTreeRowViewProps): React.ReactNode {
 	const item = place.kind === 'item' ? place : null;
 	return (
 		<div
-			aria-expanded={item !== null && row.collapsible ? open : undefined}
-			aria-level={item === null ? undefined : row.depth}
+			aria-expanded={item !== null && collapsible ? expanded : undefined}
+			aria-level={item === null ? undefined : depth}
 			aria-posinset={item?.positionInSet}
 			aria-selected={item === null ? undefined : selected}
 			aria-setsize={item?.setSize}
@@ -63,7 +74,7 @@ export function VirtualTreeRowView<K, T>({
 			id={item?.id}
 			role={item === null ? undefined : 'treeitem'}
 			style={{
-				'--ob-comp-virtual-tree-row-depth': row.depth,
+				'--ob-comp-virtual-tree-row-depth': depth,
 				'--ob-comp-virtual-tree-row-height': `${height}px`,
 				'--ob-comp-virtual-tree-row-start': `${top}px`,
 			}}
@@ -71,14 +82,14 @@ export function VirtualTreeRowView<K, T>({
 			<span
 				className={styles['twistie']}
 				data-loading={loading ? '' : undefined}
-				data-open={open && !loading ? '' : undefined}
+				data-open={expanded && !loading ? '' : undefined}
 				data-twistie=''
 			>
-				{row.collapsible ? (
+				{collapsible ? (
 					<ProductIcon name={loading ? 'loading' : 'chevron-right'} size='disclosure' />
 				) : null}
 			</span>
-			<div className={styles['content']}>{renderRow(row, { focused, selected })}</div>
+			<div className={styles['content']}>{children}</div>
 		</div>
 	);
 }
