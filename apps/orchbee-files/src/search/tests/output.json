@@ -1,0 +1,4856 @@
+{
+	"notes": "Generated outside the repository with VS Code ef5ca45's own RipgrepParser (src/vs/workbench/services/search/node/ripgrepTextSearchEngine.ts, with TextSearchMatch's previews from search.ts), bundled from source, fed each stream whole and flushed. input is the base64 of rg's output; each run has its maxResults and [matchLines, charsPerLine], then the results in order: a match's path, its [source, preview] ranges and preview text, or a context line's path, 1-based line and text; hitLimit is whether the parser emitted hitLimit, and malformed whether it threw.",
+	"streams": [
+		{
+			"name": "one match",
+			"input": "eyJ0eXBlIjoiYmVnaW4iLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImEudHh0In19fQp7InR5cGUiOiJtYXRjaCIsImRhdGEiOnsicGF0aCI6eyJ0ZXh0IjoiYS50eHQifSwibGluZXMiOnsidGV4dCI6InRoZSBmb28gaGVyZVxuIn0sImxpbmVfbnVtYmVyIjozLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjQsImVuZCI6N31dfX0KeyJ0eXBlIjoiZW5kIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJhLnR4dCJ9LCJiaW5hcnlfb2Zmc2V0IjpudWxsLCJzdGF0cyI6e319fQp7InR5cGUiOiJzdW1tYXJ5IiwiZGF0YSI6eyJlbGFwc2VkX3RvdGFsIjp7Imh1bWFuIjoiMHMifSwic3RhdHMiOnt9fX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo h"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[2, 4, 2, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo here\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "several submatches",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImEudHh0In0sImxpbmVzIjp7InRleHQiOiJmb28gZm9vIGJhciBmb29cbiJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6NCwiZW5kIjo3fSx7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjEyLCJlbmQiOjE1fV19fQp7InR5cGUiOiJtYXRjaCIsImRhdGEiOnsicGF0aCI6eyJ0ZXh0IjoiYi9jLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoieGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxMCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoxLCJlbmQiOjR9XX19Cg==",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo"
+						},
+						{
+							"match": "b/c.txt",
+							"ranges": [
+								[
+									[9, 1, 9, 4],
+									[0, 1, 0, 4]
+								]
+							],
+							"preview": "xfoo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo foo bar foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo"
+						},
+						{
+							"match": "b/c.txt",
+							"ranges": [
+								[
+									[9, 1, 9, 4],
+									[0, 1, 0, 4]
+								]
+							],
+							"preview": "xfoo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo\n"
+						},
+						{
+							"match": "b/c.txt",
+							"ranges": [
+								[
+									[9, 1, 9, 4],
+									[0, 1, 0, 4]
+								]
+							],
+							"preview": "xfoo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo"
+						},
+						{
+							"match": "b/c.txt",
+							"ranges": [
+								[
+									[9, 1, 9, 4],
+									[0, 1, 0, 4]
+								]
+							],
+							"preview": "xfoo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "a.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								],
+								[
+									[0, 12, 0, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo foo bar foo\n"
+						},
+						{
+							"match": "b/c.txt",
+							"ranges": [
+								[
+									[9, 1, 9, 4],
+									[0, 1, 0, 4]
+								]
+							],
+							"preview": "xfoo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "utf-16 columns",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6InUudHh0In0sImxpbmVzIjp7InRleHQiOiLDvG7DryDml6XmnKwg8J+YgCBmb28g8J+YgGZvb1xuIn0sImxpbmVfbnVtYmVyIjoyLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjE4LCJlbmQiOjIxfSx7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjI2LCJlbmQiOjI5fV19fQp7InR5cGUiOiJtYXRjaCIsImRhdGEiOnsicGF0aCI6eyJ0ZXh0IjoidS50eHQifSwibGluZXMiOnsidGV4dCI6IvCfmIDwn5iA8J+YgFxuIn0sImxpbmVfbnVtYmVyIjozLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiLwn5iAIn0sInN0YXJ0IjowLCJlbmQiOjR9LHsibWF0Y2giOnsidGV4dCI6IvCfmIAifSwic3RhcnQiOjQsImVuZCI6OH0seyJtYXRjaCI6eyJ0ZXh0Ijoi8J+YgCJ9LCJzdGFydCI6OCwiZW5kIjoxMn1dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								],
+								[
+									[2, 2, 2, 4],
+									[0, 2, 0, 4]
+								],
+								[
+									[2, 4, 2, 6],
+									[0, 4, 0, 6]
+								]
+							],
+							"preview": "😀😀😀"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								]
+							],
+							"preview": "😀😀😀"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								],
+								[
+									[2, 2, 2, 4],
+									[0, 2, 0, 4]
+								],
+								[
+									[2, 4, 2, 6],
+									[0, 4, 0, 6]
+								]
+							],
+							"preview": "😀😀😀"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo\n"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								],
+								[
+									[2, 2, 2, 4],
+									[0, 2, 0, 4]
+								],
+								[
+									[2, 4, 2, 6],
+									[0, 4, 0, 6]
+								]
+							],
+							"preview": "😀😀😀\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								],
+								[
+									[2, 2, 2, 4],
+									[0, 2, 0, 4]
+								],
+								[
+									[2, 4, 2, 6],
+									[0, 4, 0, 6]
+								]
+							],
+							"preview": "😀😀😀"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[1, 10, 1, 13],
+									[0, 10, 0, 13]
+								],
+								[
+									[1, 16, 1, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "ünï 日本 😀 foo 😀foo\n"
+						},
+						{
+							"match": "u.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 2],
+									[0, 0, 0, 2]
+								],
+								[
+									[2, 2, 2, 4],
+									[0, 2, 0, 4]
+								],
+								[
+									[2, 4, 2, 6],
+									[0, 4, 0, 6]
+								]
+							],
+							"preview": "😀😀😀\n"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "crlf line",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6IncudHh0In0sImxpbmVzIjp7InRleHQiOiJmb28gYmFyXHJcbiJ9LCJsaW5lX251bWJlciI6NSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiYmFyIn0sInN0YXJ0Ijo0LCJlbmQiOjd9XX19Cg==",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar\r\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "w.txt",
+							"ranges": [
+								[
+									[4, 4, 4, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo bar\r\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "multiline match",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6Im0udHh0In0sImxpbmVzIjp7InRleHQiOiJmaXJzdCBmb29cbnNlY29uZFxudGhpcmQgYmFyXG4ifSwibGluZV9udW1iZXIiOjcsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvb1xuc2Vjb25kXG50aGlyZCBiYXIifSwic3RhcnQiOjYsImVuZCI6Mjd9XX19Cg==",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[6, 6, 8, 9],
+									[0, 6, 2, 9]
+								]
+							],
+							"preview": "first foo\nsecond\nthird bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "multiline two submatches",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6Im0udHh0In0sImxpbmVzIjp7InRleHQiOiJhXG5iY1xuZFxuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJhXG5iIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6IlxuZFxuIn0sInN0YXJ0Ijo0LCJlbmQiOjd9XX19Cg==",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "m.txt",
+							"ranges": [
+								[
+									[0, 0, 1, 1],
+									[0, 0, 1, 1]
+								],
+								[
+									[1, 2, 3, 0],
+									[1, 2, 3, 0]
+								]
+							],
+							"preview": "a\nbc\nd\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "no submatches",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImUudHh0In0sImxpbmVzIjp7InRleHQiOiJoZWxsb1xuIn0sImxpbmVfbnVtYmVyIjo0LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOltdfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImUudHh0In0sImxpbmVzIjp7InRleHQiOiIifSwibGluZV9udW1iZXIiOjUsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W119fQp7InR5cGUiOiJtYXRjaCIsImRhdGEiOnsicGF0aCI6eyJ0ZXh0IjoiZS50eHQifSwibGluZXMiOnsidGV4dCI6IvCfmIB4XG4ifSwibGluZV9udW1iZXIiOjYsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W119fQo=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello\n"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "hello\n"
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 0],
+									[0, 0, 0, 0]
+								]
+							],
+							"preview": ""
+						},
+						{
+							"match": "e.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 1],
+									[0, 0, 0, 1]
+								]
+							],
+							"preview": "😀x\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "bytes lines",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsiYnl0ZXMiOiJjQzUwZUhRPSJ9LCJsaW5lcyI6eyJieXRlcyI6IlptOXYveUJpWVhJSyJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImJhciJ9LCJzdGFydCI6NSwiZW5kIjo4fV19fQo=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo� bar"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo� bar\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "bytes path invalid",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsiYnl0ZXMiOiJZY01vTG5RPSJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vXG4ifSwibGluZV9udW1iZXIiOjIsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MCwiZW5kIjozfV19fQo=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "a�(.t",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "context",
+			"input": "eyJ0eXBlIjoiY29udGV4dCIsImRhdGEiOnsicGF0aCI6eyJ0ZXh0IjoiYy50eHQifSwibGluZXMiOnsidGV4dCI6ImJlZm9yZVxuIn0sImxpbmVfbnVtYmVyIjo5LCJzdWJtYXRjaGVzIjpbXX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJjLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoidGhlIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxMCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo0LCJlbmQiOjd9XX19CnsidHlwZSI6ImNvbnRleHQiLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImMudHh0In0sImxpbmVzIjp7InRleHQiOiJhZnRlciBvbmVcclxuIn0sImxpbmVfbnVtYmVyIjoxMSwic3VibWF0Y2hlcyI6W119fQp7InR5cGUiOiJjb250ZXh0IiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJjLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiYVxuYlxuIn0sImxpbmVfbnVtYmVyIjoxMiwic3VibWF0Y2hlcyI6W119fQp7InR5cGUiOiJjb250ZXh0IiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJjLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiIn0sImxpbmVfbnVtYmVyIjoxNCwic3VibWF0Y2hlcyI6W119fQp7InR5cGUiOiJjb250ZXh0IiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJjLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0Ijoibm8gbmV3bGluZSJ9LCJsaW5lX251bWJlciI6MTUsInN1Ym1hdGNoZXMiOltdfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo\n"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"context": "c.txt",
+							"line": 9,
+							"text": "before"
+						},
+						{
+							"match": "c.txt",
+							"ranges": [
+								[
+									[9, 4, 9, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "the foo\n"
+						},
+						{
+							"context": "c.txt",
+							"line": 11,
+							"text": "after one"
+						},
+						{
+							"context": "c.txt",
+							"line": 12,
+							"text": "a"
+						},
+						{
+							"context": "c.txt",
+							"line": 13,
+							"text": "b"
+						},
+						{
+							"context": "c.txt",
+							"line": 14,
+							"text": ""
+						},
+						{
+							"context": "c.txt",
+							"line": 15,
+							"text": "no newline"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "long line",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImwudHh0In0sImxpbmVzIjp7InRleHQiOiJ4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHhuZWVkbGV5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXlcbiJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoibmVlZGxlIn0sInN0YXJ0IjozMDAsImVuZCI6MzA2fV19fQo=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 30, 0, 36]
+								]
+							],
+							"preview": "⟪ 296 characters skipped ⟫xxxxneedleyyyyyyyyyyyyyy"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 27, 0, 33]
+								]
+							],
+							"preview": "⟪ 299 characters skipped ⟫xneedl"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "long line two matches",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImwudHh0In0sImxpbmVzIjp7InRleHQiOiJ4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHhuZWVkbGV5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXl5eXluZWVkbGVcbiJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoibmVlZGxlIn0sInN0YXJ0IjozMDAsImVuZCI6MzA2fSx7Im1hdGNoIjp7InRleHQiOiJuZWVkbGUifSwic3RhcnQiOjYwNiwiZW5kIjo2MTJ9XX19Cg==",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 606, 0, 612]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyneedle"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 606, 0, 612]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyneedle"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyneedle"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 30, 0, 36]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 80, 0, 86]
+								]
+							],
+							"preview": "⟪ 296 characters skipped ⟫xxxxneedleyyyyyyyyyyyyyy⟪ 282 characters skipped ⟫yyyyneedle"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 606, 0, 612]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyneedle\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 27, 0, 33]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 59, 0, 65]
+								]
+							],
+							"preview": "⟪ 299 characters skipped ⟫xneedl⟪ 300 characters skipped ⟫yneedl"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "l.txt",
+							"ranges": [
+								[
+									[0, 300, 0, 306],
+									[0, 300, 0, 306]
+								],
+								[
+									[0, 606, 0, 612],
+									[0, 606, 0, 612]
+								]
+							],
+							"preview": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxneedleyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyneedle\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "whitespace and blank lines",
+			"input": "CiAgIAoJeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6InMudHh0In0sImxpbmVzIjp7InRleHQiOiIgIGZvbyAgXG4ifSwibGluZV9udW1iZXIiOjEsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MiwiZW5kIjo1fV19fSAgCg0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  "
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  "
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  "
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  "
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  \n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  "
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "s.txt",
+							"ranges": [
+								[
+									[0, 2, 0, 5],
+									[0, 2, 0, 5]
+								]
+							],
+							"preview": "  foo  \n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "other messages",
+			"input": "eyJ0eXBlIjoiYmVnaW4iLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6IngifX19CnsidHlwZSI6InVua25vd24iLCJkYXRhIjp7fX0Ke30KW10KNDIKInRleHQiCm51bGwKeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6IngifSwibGluZXMiOnsidGV4dCI6ImZvb1xuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M31dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [],
+					"hitLimit": false,
+					"malformed": true
+				}
+			]
+		},
+		{
+			"name": "malformed",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImEifSwibGluZXMiOnsidGV4dCI6ImZvb1xuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M31dfX0Kbm90IGpzb24KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImEifSwibGluZXMiOnsidGV4dCI6ImZvb1xuIn0sImxpbmVfbnVtYmVyIjoyLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M31dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "a",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": true
+				}
+			]
+		},
+		{
+			"name": "raw invalid utf-8",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6InLigi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvb1xuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M31dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "r�.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "many lines",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo0LCJlbmQiOjd9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjIsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MCwiZW5kIjozfSx7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjgsImVuZCI6MTF9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjozLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoxMiwiZW5kIjoxNX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjo0LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoxNiwiZW5kIjoxOX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYxLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBmb29cbiJ9LCJsaW5lX251bWJlciI6NSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MjAsImVuZCI6MjN9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjo2LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoyNCwiZW5kIjoyN31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjo3LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoyOCwiZW5kIjozMX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYxLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBmb29cbiJ9LCJsaW5lX251bWJlciI6OCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MzIsImVuZCI6MzV9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjo5LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjozNiwiZW5kIjozOX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxMCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6NDAsImVuZCI6NDN9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjExLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo0NCwiZW5kIjo0N31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYyLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjEyLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo0OCwiZW5kIjo1MX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxMywiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6NTIsImVuZCI6NTV9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjE0LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo1NiwiZW5kIjo1OX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYyLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjE1LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo2MCwiZW5kIjo2M31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxNiwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6NjQsImVuZCI6Njd9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjE3LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo2OCwiZW5kIjo3MX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYyLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjE4LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo3MiwiZW5kIjo3NX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoxOSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6NzYsImVuZCI6Nzl9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjIwLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo4MCwiZW5kIjo4M31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYyLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjIxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo4NCwiZW5kIjo4N31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoyMiwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6ODgsImVuZCI6OTF9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMS50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjIzLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo5MiwiZW5kIjo5NX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYyLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgZm9vXG4ifSwibGluZV9udW1iZXIiOjI0LCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M30seyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0Ijo5NiwiZW5kIjo5OX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoyNSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MTAwLCJlbmQiOjEwM31dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYxLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBmb29cbiJ9LCJsaW5lX251bWJlciI6MjYsImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MCwiZW5kIjozfSx7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjEwNCwiZW5kIjoxMDd9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoyNywiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MTA4LCJlbmQiOjExMX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjoyOCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MTEyLCJlbmQiOjExNX1dfX0KeyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImYxLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiZm9vIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBmb29cbiJ9LCJsaW5lX251bWJlciI6MjksImFic29sdXRlX29mZnNldCI6MCwic3VibWF0Y2hlcyI6W3sibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MCwiZW5kIjozfSx7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjExNiwiZW5kIjoxMTl9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJmMi50eHQifSwibGluZXMiOnsidGV4dCI6ImZvbyBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGJhciBiYXIgYmFyIGZvb1xuIn0sImxpbmVfbnVtYmVyIjozMCwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjowLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6ImZvbyJ9LCJzdGFydCI6MTIwLCJlbmQiOjEyM31dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[1, 8, 1, 11],
+									[0, 8, 0, 11]
+								]
+							],
+							"preview": "foo bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[2, 12, 2, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[3, 16, 3, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "foo bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[4, 20, 4, 23],
+									[0, 20, 0, 23]
+								]
+							],
+							"preview": "foo bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[5, 24, 5, 27],
+									[0, 24, 0, 27]
+								]
+							],
+							"preview": "foo bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[6, 0, 6, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[6, 28, 6, 31],
+									[0, 28, 0, 31]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[7, 0, 7, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[7, 32, 7, 35],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[8, 0, 8, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[8, 36, 8, 39],
+									[0, 36, 0, 39]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[9, 0, 9, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[9, 40, 9, 43],
+									[0, 40, 0, 43]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[10, 0, 10, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[10, 44, 10, 47],
+									[0, 44, 0, 47]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[11, 0, 11, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[11, 48, 11, 51],
+									[0, 48, 0, 51]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[12, 0, 12, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[12, 52, 12, 55],
+									[0, 52, 0, 55]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[13, 0, 13, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[13, 56, 13, 59],
+									[0, 56, 0, 59]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[14, 0, 14, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[14, 60, 14, 63],
+									[0, 60, 0, 63]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[15, 0, 15, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[15, 64, 15, 67],
+									[0, 64, 0, 67]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[16, 0, 16, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[16, 68, 16, 71],
+									[0, 68, 0, 71]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[17, 0, 17, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[17, 72, 17, 75],
+									[0, 72, 0, 75]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[18, 0, 18, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[18, 76, 18, 79],
+									[0, 76, 0, 79]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[19, 0, 19, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[19, 80, 19, 83],
+									[0, 80, 0, 83]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[20, 0, 20, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[20, 84, 20, 87],
+									[0, 84, 0, 87]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[21, 0, 21, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[21, 88, 21, 91],
+									[0, 88, 0, 91]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[22, 0, 22, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[22, 92, 22, 95],
+									[0, 92, 0, 95]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[23, 0, 23, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[23, 96, 23, 99],
+									[0, 96, 0, 99]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[24, 0, 24, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[24, 100, 24, 103],
+									[0, 100, 0, 103]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[25, 0, 25, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[25, 104, 25, 107],
+									[0, 104, 0, 107]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[26, 0, 26, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[26, 108, 26, 111],
+									[0, 108, 0, 111]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[27, 0, 27, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[27, 112, 27, 115],
+									[0, 112, 0, 115]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[28, 0, 28, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[28, 116, 28, 119],
+									[0, 116, 0, 119]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[29, 0, 29, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[29, 120, 29, 123],
+									[0, 120, 0, 123]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo bar foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo foo"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[1, 8, 1, 11],
+									[0, 8, 0, 11]
+								]
+							],
+							"preview": "foo bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[2, 12, 2, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[3, 16, 3, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "foo bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[4, 20, 4, 23],
+									[0, 20, 0, 23]
+								]
+							],
+							"preview": "foo bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[5, 24, 5, 27],
+									[0, 24, 0, 27]
+								]
+							],
+							"preview": "foo bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[6, 0, 6, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[6, 28, 6, 31],
+									[0, 28, 0, 31]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[7, 0, 7, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[7, 32, 7, 35],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[8, 0, 8, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[8, 36, 8, 39],
+									[0, 36, 0, 39]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[9, 0, 9, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[9, 40, 9, 43],
+									[0, 40, 0, 43]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[10, 0, 10, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[10, 44, 10, 47],
+									[0, 44, 0, 47]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[11, 0, 11, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[11, 48, 11, 51],
+									[0, 48, 0, 51]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[12, 0, 12, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[12, 52, 12, 55],
+									[0, 52, 0, 55]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[13, 0, 13, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[13, 56, 13, 59],
+									[0, 56, 0, 59]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[14, 0, 14, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[14, 60, 14, 63],
+									[0, 60, 0, 63]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[15, 0, 15, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[15, 64, 15, 67],
+									[0, 64, 0, 67]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[16, 0, 16, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[16, 68, 16, 71],
+									[0, 68, 0, 71]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[17, 0, 17, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[17, 72, 17, 75],
+									[0, 72, 0, 75]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[18, 0, 18, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[18, 76, 18, 79],
+									[0, 76, 0, 79]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[19, 0, 19, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[19, 80, 19, 83],
+									[0, 80, 0, 83]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[20, 0, 20, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[20, 84, 20, 87],
+									[0, 84, 0, 87]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[21, 0, 21, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[21, 88, 21, 91],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 64 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[22, 0, 22, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[22, 92, 22, 95],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 68 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[23, 0, 23, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[23, 96, 23, 99],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 72 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[24, 0, 24, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[24, 100, 24, 103],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 76 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[25, 0, 25, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[25, 104, 25, 107],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 80 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[26, 0, 26, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[26, 108, 26, 111],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 84 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[27, 0, 27, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[27, 112, 27, 115],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 88 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[28, 0, 28, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[28, 116, 28, 119],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 92 characters skipped ⟫bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[29, 0, 29, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[29, 120, 29, 123],
+									[0, 49, 0, 52]
+								]
+							],
+							"preview": "foo bar bar bar bar ⟪ 96 characters skipped ⟫bar foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[1, 8, 1, 11],
+									[0, 8, 0, 11]
+								]
+							],
+							"preview": "foo bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[2, 12, 2, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[3, 16, 3, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "foo bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[4, 20, 4, 23],
+									[0, 20, 0, 23]
+								]
+							],
+							"preview": "foo bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[5, 24, 5, 27],
+									[0, 24, 0, 27]
+								]
+							],
+							"preview": "foo bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[6, 0, 6, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[6, 28, 6, 31],
+									[0, 28, 0, 31]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[7, 0, 7, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[7, 32, 7, 35],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[8, 0, 8, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[8, 36, 8, 39],
+									[0, 36, 0, 39]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[9, 0, 9, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[9, 40, 9, 43],
+									[0, 40, 0, 43]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[10, 0, 10, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[10, 44, 10, 47],
+									[0, 44, 0, 47]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[11, 0, 11, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[11, 48, 11, 51],
+									[0, 48, 0, 51]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[12, 0, 12, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[12, 52, 12, 55],
+									[0, 52, 0, 55]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[13, 0, 13, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[13, 56, 13, 59],
+									[0, 56, 0, 59]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[14, 0, 14, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[14, 60, 14, 63],
+									[0, 60, 0, 63]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[15, 0, 15, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[15, 64, 15, 67],
+									[0, 64, 0, 67]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[16, 0, 16, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[16, 68, 16, 71],
+									[0, 68, 0, 71]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[17, 0, 17, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[17, 72, 17, 75],
+									[0, 72, 0, 75]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[18, 0, 18, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[18, 76, 18, 79],
+									[0, 76, 0, 79]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[19, 0, 19, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[19, 80, 19, 83],
+									[0, 80, 0, 83]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[20, 0, 20, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[20, 84, 20, 87],
+									[0, 84, 0, 87]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[21, 0, 21, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[21, 88, 21, 91],
+									[0, 88, 0, 91]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[22, 0, 22, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[22, 92, 22, 95],
+									[0, 92, 0, 95]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[23, 0, 23, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[23, 96, 23, 99],
+									[0, 96, 0, 99]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[24, 0, 24, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[24, 100, 24, 103],
+									[0, 100, 0, 103]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[25, 0, 25, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[25, 104, 25, 107],
+									[0, 104, 0, 107]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[26, 0, 26, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[26, 108, 26, 111],
+									[0, 108, 0, 111]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[27, 0, 27, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[27, 112, 27, 115],
+									[0, 112, 0, 115]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[28, 0, 28, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[28, 116, 28, 119],
+									[0, 116, 0, 119]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[29, 0, 29, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[29, 120, 29, 123],
+									[0, 120, 0, 123]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[1, 8, 1, 11],
+									[0, 8, 0, 11]
+								]
+							],
+							"preview": "foo bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[2, 12, 2, 15],
+									[0, 12, 0, 15]
+								]
+							],
+							"preview": "foo bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[3, 0, 3, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[3, 16, 3, 19],
+									[0, 16, 0, 19]
+								]
+							],
+							"preview": "foo bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[4, 0, 4, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[4, 20, 4, 23],
+									[0, 20, 0, 23]
+								]
+							],
+							"preview": "foo bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[5, 0, 5, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[5, 24, 5, 27],
+									[0, 24, 0, 27]
+								]
+							],
+							"preview": "foo bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[6, 0, 6, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[6, 28, 6, 31],
+									[0, 28, 0, 31]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[7, 0, 7, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[7, 32, 7, 35],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[8, 0, 8, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[8, 36, 8, 39],
+									[0, 36, 0, 39]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[9, 0, 9, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[9, 40, 9, 43],
+									[0, 40, 0, 43]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[10, 0, 10, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[10, 44, 10, 47],
+									[0, 44, 0, 47]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[11, 0, 11, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[11, 48, 11, 51],
+									[0, 48, 0, 51]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[12, 0, 12, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[12, 52, 12, 55],
+									[0, 52, 0, 55]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[13, 0, 13, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[13, 56, 13, 59],
+									[0, 56, 0, 59]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[14, 0, 14, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[14, 60, 14, 63],
+									[0, 60, 0, 63]
+								]
+							],
+							"preview": "foo bar bar bar bar bar bar bar bar bar bar bar bar bar bar foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[15, 0, 15, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[15, 64, 15, 67],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 58 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[16, 0, 16, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[16, 68, 16, 71],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 62 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[17, 0, 17, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[17, 72, 17, 75],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 66 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[18, 0, 18, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[18, 76, 18, 79],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 70 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[19, 0, 19, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[19, 80, 19, 83],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 74 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[20, 0, 20, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[20, 84, 20, 87],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 78 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[21, 0, 21, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[21, 88, 21, 91],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 82 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[22, 0, 22, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[22, 92, 22, 95],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 86 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[23, 0, 23, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[23, 96, 23, 99],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 90 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[24, 0, 24, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[24, 100, 24, 103],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 94 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[25, 0, 25, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[25, 104, 25, 107],
+									[0, 31, 0, 34]
+								]
+							],
+							"preview": "foo b⟪ 98 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[26, 0, 26, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[26, 108, 26, 111],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo b⟪ 102 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[27, 0, 27, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[27, 112, 27, 115],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo b⟪ 106 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[28, 0, 28, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[28, 116, 28, 119],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo b⟪ 110 characters skipped ⟫ foo"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[29, 0, 29, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[29, 120, 29, 123],
+									[0, 32, 0, 35]
+								]
+							],
+							"preview": "foo b⟪ 114 characters skipped ⟫ foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "f0.txt",
+							"ranges": [
+								[
+									[0, 0, 0, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[0, 4, 0, 7],
+									[0, 4, 0, 7]
+								]
+							],
+							"preview": "foo foo\n"
+						},
+						{
+							"match": "f1.txt",
+							"ranges": [
+								[
+									[1, 0, 1, 3],
+									[0, 0, 0, 3]
+								],
+								[
+									[1, 8, 1, 11],
+									[0, 8, 0, 11]
+								]
+							],
+							"preview": "foo bar foo\n"
+						},
+						{
+							"match": "f2.txt",
+							"ranges": [
+								[
+									[2, 0, 2, 3],
+									[0, 0, 0, 3]
+								]
+							],
+							"preview": "foo bar bar foo\n"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "preview leading text",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6InAudHh0In0sImxpbmVzIjp7InRleHQiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIHdvcmQgaGVyZSBhbmQgc29tZSBtb3JlIHRleHQgYWZ0ZXIgaXRcbiJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0Ijoid29yZCJ9LCJzdGFydCI6NDEsImVuZCI6NDV9XX19CnsidHlwZSI6Im1hdGNoIiwiZGF0YSI6eyJwYXRoIjp7InRleHQiOiJwLnR4dCJ9LCJsaW5lcyI6eyJ0ZXh0IjoiXHRcdCAgICBpbmRlbnRlZCBmb29cbiJ9LCJsaW5lX251bWJlciI6MiwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiZm9vIn0sInN0YXJ0IjoxNSwiZW5kIjoxOH1dfX0K",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some more text after it"
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some more text after it"
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some more text after it"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some m"
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some more text after it\n"
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word "
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[0, 41, 0, 45],
+									[0, 41, 0, 45]
+								]
+							],
+							"preview": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa word here and some more text after it\n"
+						},
+						{
+							"match": "p.txt",
+							"ranges": [
+								[
+									[1, 15, 1, 18],
+									[0, 15, 0, 18]
+								]
+							],
+							"preview": "\t\t    indented foo\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "match at end and empty match",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6InoudHh0In0sImxpbmVzIjp7InRleHQiOiJhYmNcbiJ9LCJsaW5lX251bWJlciI6MSwiYWJzb2x1dGVfb2Zmc2V0IjowLCJzdWJtYXRjaGVzIjpbeyJtYXRjaCI6eyJ0ZXh0IjoiIn0sInN0YXJ0IjozLCJlbmQiOjN9LHsibWF0Y2giOnsidGV4dCI6IiJ9LCJzdGFydCI6MCwiZW5kIjowfV19fQo=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc"
+						}
+					],
+					"hitLimit": true,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [
+						{
+							"match": "z.txt",
+							"ranges": [
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								],
+								[
+									[0, 3, 0, 3],
+									[0, 3, 0, 3]
+								]
+							],
+							"preview": "abc\n"
+						}
+					],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		},
+		{
+			"name": "unterminated last line",
+			"input": "eyJ0eXBlIjoibWF0Y2giLCJkYXRhIjp7InBhdGgiOnsidGV4dCI6ImEifSwibGluZXMiOnsidGV4dCI6ImZvb1xuIn0sImxpbmVfbnVtYmVyIjoxLCJhYnNvbHV0ZV9vZmZzZXQiOjAsInN1Ym1hdGNoZXMiOlt7Im1hdGNoIjp7InRleHQiOiJmb28ifSwic3RhcnQiOjAsImVuZCI6M31dfX0=",
+			"runs": [
+				{
+					"maxResults": 10000,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 3,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 1,
+					"preview": [1, 1000],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 20],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [2, 10],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 10000,
+					"preview": [1, 5],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				},
+				{
+					"maxResults": 5,
+					"preview": [3, 50],
+					"events": [],
+					"hitLimit": false,
+					"malformed": false
+				}
+			]
+		}
+	]
+}

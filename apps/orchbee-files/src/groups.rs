@@ -1,6 +1,6 @@
-//! The report, on standard output, of each process group this process runs Git in, which the Worker
-//! that started it reads to end the groups this process leaves running when it is killed. Every
-//! other end settles the groups first; a killed process cannot.
+//! The report, on standard output, of each process group this process runs Git or rg in, which the
+//! Worker that started it reads to end the groups this process leaves running when it is killed.
+//! Every other end settles the groups first; a killed process cannot.
 
 use std::{
     io,

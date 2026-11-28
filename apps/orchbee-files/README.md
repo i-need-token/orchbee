@@ -1,8 +1,8 @@
 # Orchbee Files
 
-`orchbee-files` serves the File Bar for one Worker generation: it lists, reads and watches files and
-runs Git for every Workspace of its Session on its machine. The Worker starts it when the Server
-asks, and it then talks only to that Server, over the private OBFL link that
+`orchbee-files` serves the File Bar for one Worker generation: it lists, reads, watches and searches
+files and runs Git for every Workspace of its Session on its machine. The Worker starts it when the
+Server asks, and it then talks only to that Server, over the private OBFL link that
 [`orchbee-files-protocol`](../../crates/files-protocol/README.md) defines. It accepts no Client
 connection, reads no Orchbee setting and runs no command a Client names. Scope and containment are
 checked here, against the Workspace roots only the Server sends; the Server relays File Bar records
@@ -17,7 +17,7 @@ contract between programs rather than a command.
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Invocation      | `--local-endpoint <endpoint>`: the absolute address of the one-shot endpoint the Server bound for this start                                         |
 | Standard input  | The start's token, 64 lowercase hexadecimal digits and a line feed. It never appears among the arguments, which other processes of the user can read |
-| Standard output | `ready` and a line feed once the Server admitted the hello; then, on macOS and Linux, each Git command's group as it starts and once it settled      |
+| Standard output | `ready` and a line feed once the Server admitted the hello; then, on macOS and Linux, each Git or rg group as it starts and once it settled          |
 | Exit            | 0 after the Server's drain; `128 + signal` after `SIGTERM` or `SIGINT` on macOS and Linux; 1 for every other end, which the Server counts as a crash |
 
 The service names this executable as `GIT_ASKPASS`, `SSH_ASKPASS` and, with `--git-editor <file>`,
@@ -60,10 +60,11 @@ These rules are the contract a Client builds on; no single declaration holds the
   other. Grants outlive their Workspace's close and end with their connection.
 - Grants live in this process. After it restarts, which ends every subscription, a Client grants
   its open files again.
-- Quick Open reaches past the root only through what the person typed or picked, and only under
-  `files-search`: `fs.stat` with source `quick-open` states the one path typed there wherever it
-  lies and admits nothing more, and `fs.grant` from a Quick Open pick may name any path, as a
-  terminal link may.
+- Search reaches past the root only through what the person typed or picked, and only under
+  `files-search`: a text search reads a folder outside the root that the person typed as an
+  include, for that search alone; `fs.stat` with source `quick-open` states the one path typed in
+  Quick Open wherever it lies and admits nothing more; and `fs.grant` from a Quick Open pick may
+  name any path, as a terminal link may.
 
 ## Windows Recycle Bin
 
@@ -129,6 +130,29 @@ regenerates the notices from that ripgrep's `Cargo.lock`, taking each crate it l
 platform and the license files that crate ships, and changes the ripgrep entry of
 [`THIRD_PARTY_NOTICES.md`](../../THIRD_PARTY_NOTICES.md#ripgrep) with them.
 
+The service runs only the file beside its executable, never an rg on `PATH`, and only while its
+SHA-256 equals the pin for its platform; otherwise every search answers
+`unavailable{search-binary}`. Staging and the service therefore read the same pin, and a cohort
+whose rg is not those bytes has no search.
+
+## Search
+
+Text search runs rg with the arguments VS Code ef5ca45 builds for it. rg owns traversal, ignore
+files and matching, as it does in VS Code; an in-process walker such as the `ignore` or `grep-*`
+crates was rejected because it would find files VS Code does not.
+
+- Parent ignore files are the one departure from those arguments. With `useIgnoreFiles` and
+  without `useParentIgnoreFiles`, a folder below the top of its Git working tree drops
+  `--no-ignore-parent` and `--no-require-git`, so the `.gitignore` files between the folder and the
+  top apply, as Git applies them there, and none above the top does; VS Code applies none of them.
+  Dropping only `--no-ignore-parent` was rejected: rg would then read every ancestor's
+  `.gitignore` up to the filesystem root, a home directory's one for dotfiles included. The top is
+  the nearest directory holding `.git`, a directory or a linked worktree's file, found when each rg
+  starts.
+- rg's globs match more than VS Code's (`**.js` matches at any depth), so every file rg reports is
+  matched again against the request's includes and excludes with VS Code's glob semantics, as VS
+  Code's `TextSearchManager` does.
+
 ## Adding a service
 
 A service joins in `src/operations.rs`: its state as a field of `Services`, its operations as arms of
@@ -144,6 +168,8 @@ with role `files`: `started` once the Server admitted it; `filesystem-timeout` w
 whose filesystem call passed its deadline; `git-timeout` with the `kind` of Git command that passed
 its deadline; `git-spawn-failed` with that `kind` and the I/O `error` kind when Git could not start;
 `git-relay-unavailable` once when the prompt relay could not start, after which Git operations run
-without prompts; and one `exited` with `outcome` (`drained` with its `reason`, `idle` or `session`;
-`signalled` with its `signal`; or `failed` with the `stage` it stopped at and the I/O `error` kind
-that caused it, when one did).
+without prompts; `rg-refused` once for each state of the rg beside the executable that is not the
+pinned program, with the I/O `error` kind when it could not be read; `rg-spawn-failed` with the I/O
+`error` kind when the verified rg could not start; and one `exited` with `outcome` (`drained` with
+its `reason`, `idle` or `session`; `signalled` with its `signal`; or `failed` with the `stage` it
+stopped at and the I/O `error` kind that caused it, when one did).

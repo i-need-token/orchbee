@@ -5,13 +5,14 @@
 //! or as its real location, or inside a member the Git engine establishes: the working tree of a
 //! repository consented to in that Workspace, or the file an open editor prompt names. It is also
 //! readable when it is a file the requesting connection opened in that Workspace. Links inside are
-//! followed, as VS Code follows them. One act of the person reaches past these for one request:
-//! `fs.stat` states the one path typed in Quick Open. A mutation's path passes [`View::mutable`]
-//! when its execution starts: the real location it changes must also lie inside a member's real
-//! location, so a link or junction inside cannot carry the change outside. An operation keeps the
-//! view it started under, so a later root change never moves it. Opened files outlive their
-//! Workspace's close and end with `fs.ungrant` or their connection; each successful `fs.grant` of
-//! a file adds one grant of it, and the file stays opened while one remains.
+//! followed, as VS Code follows them. Two acts of the person reach past these for one request:
+//! `fs.stat` states the one path typed in Quick Open, and a text search reads a folder typed as an
+//! include, for that search only. A mutation's path passes [`View::mutable`] when its execution
+//! starts: the real location it changes must also lie inside a member's real location, so a link
+//! or junction inside cannot carry the change outside. An operation keeps the view it started
+//! under, so a later root change never moves it. Opened files outlive their Workspace's close and
+//! end with `fs.ungrant` or their connection; each successful `fs.grant` of a file adds one grant
+//! of it, and the file stays opened while one remains.
 
 pub(crate) mod path;
 
@@ -422,6 +423,16 @@ impl View {
         match source {
             StatSource::QuickOpen => NativePath::parse(path.as_str()),
         }
+    }
+
+    /// Admits `path` as a folder of a text search: anywhere, since a folder outside the root is
+    /// one the person typed as an include, which rg reads for that search only.
+    ///
+    /// # Errors
+    ///
+    /// The error of a form this machine does not admit.
+    pub(crate) fn searchable(&self, path: &FilePath) -> Result<NativePath, FilesError> {
+        NativePath::parse(path.as_str())
     }
 
     /// Admits `path` for a mutation that changes it as `change` says, checked each time a

@@ -33,6 +33,7 @@ use crate::{
     git::{self, ports::Trash},
     grants, roots,
     scope::{Scopes, View, path::NativePath},
+    search,
     subscriptions::{Leaving, Subscriptions},
 };
 
@@ -49,6 +50,8 @@ pub(crate) struct Services {
     git: git::Service,
     /// File edits: writes and the other `files-edit` operations.
     edit: edit::Service,
+    /// Text search.
+    search: search::Service,
 }
 
 impl Services {
@@ -70,6 +73,7 @@ impl Services {
             roots,
             git,
             edit,
+            search: search::Service::new(),
         })
     }
 
@@ -101,6 +105,7 @@ impl Services {
         self.roots.leave(Leaving::Lane(connection, lane));
         self.files.lane_closed(connection, lane);
         self.files.interest_changed(None);
+        self.search.lane_closed(connection, lane);
     }
 
     /// The Client connection ended, with everything it held.
@@ -111,6 +116,7 @@ impl Services {
         self.files.connection_lost(connection);
         self.git.connection_lost(connection);
         self.edit.connection_lost(connection);
+        self.search.connection_lost(connection);
     }
 
     /// An Agent in `workspace` settled.
@@ -128,6 +134,7 @@ impl Services {
         self.git.scope(&statement);
         if changed {
             self.files.interest_changed(Some(workspace));
+            self.search.scope_changed(workspace);
         }
         if changed && self.roots.any_in(workspace) {
             let services = Arc::clone(self);
@@ -152,6 +159,7 @@ impl Services {
         self.calls.drain();
         self.roots.leave(Leaving::All);
         self.files.drain();
+        self.search.drain();
     }
 
     fn start(
@@ -387,10 +395,15 @@ impl Services {
             FilesRequest::FsExportEntries(request) => self.detach(call, move |services, call| {
                 services.edit.export_entries(call, &request);
             }),
-            FilesRequest::SearchText(_)
-            | FilesRequest::SearchNext(_)
-            | FilesRequest::SearchFindFiles(_)
-            | FilesRequest::SearchCloseCache(_) => call.close(CallClose::Unsupported),
+            FilesRequest::SearchText(request) => self.search.text(call, &view, &request),
+            FilesRequest::SearchNext(request) => {
+                self.detach(call, move |services, call| {
+                    services.search.next(call, &request)
+                });
+            }
+            FilesRequest::SearchFindFiles(_) | FilesRequest::SearchCloseCache(_) => {
+                call.close(CallClose::Unsupported);
+            }
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);

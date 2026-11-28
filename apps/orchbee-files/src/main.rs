@@ -30,6 +30,7 @@ mod recycle_bin_native;
 mod requests;
 mod roots;
 mod scope;
+mod search;
 #[cfg(test)]
 mod seeded;
 #[cfg(unix)]
