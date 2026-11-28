@@ -21,7 +21,7 @@ use super::{
     guessing::guess_file,
     listing::{CursorId, Listings},
     timer::Timer,
-    transfers::{Opening, ReadFacts, ReadRequest, Transfers, Unopened},
+    transfers::{Opening, ReadFacts, ReadRequest, Streaming, Transfers, Unopened},
     watch::{Timing, Watching},
     wire,
 };
@@ -306,7 +306,24 @@ impl Engine {
         self.transfers.upload(call, transfer, size, commit);
     }
 
-    /// One Put of an upload, answered on its own call.
+    /// Opens stream `transfer` of `connection` on `lane` for the `size` bytes an operation
+    /// receives as Puts, handed on as they arrive.
+    ///
+    /// # Errors
+    ///
+    /// [`Unopened::Capacity`] when the connection holds as many transfers as it may, or
+    /// `invalid-request` when the transfer's name is taken.
+    pub(crate) fn stream(
+        &self,
+        connection: ConnectionId,
+        lane: LaneId,
+        transfer: TransferId,
+        size: u64,
+    ) -> Result<Streaming, Unopened> {
+        self.transfers.stream(connection, lane, transfer, size)
+    }
+
+    /// One Put of an upload or a stream, answered on its own call.
     pub(crate) fn put(&self, call: Call, put: Put) {
         self.transfers.put(call, put);
     }

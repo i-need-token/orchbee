@@ -35,6 +35,7 @@ use super::{
 use crate::{
     git::ports,
     scope::{RootFact, path::NativePath},
+    staging,
 };
 
 /// How long the service waits before checking and restarting.
@@ -535,7 +536,9 @@ impl Core {
         }
     }
 
-    fn changes(&mut self, changes: Vec<Change>, now: Instant) {
+    fn changes(&mut self, mut changes: Vec<Change>, now: Instant) {
+        // A file an import is still staging never shows; publishing it reports the file.
+        changes.retain(|change| !staging::is_staging(change.path.name()));
         let mut replan = false;
         let mut unwatch = Vec::new();
         for change in &changes {

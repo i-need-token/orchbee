@@ -29,7 +29,7 @@ use crate::{
     blocking::Helpers,
     calls::{Call, Calls, DuplicateCall},
     edit,
-    fs::{Engine, MachineTrash},
+    fs::{Engine, MachineTrash, Unopened},
     git::{self, ports::Trash},
     grants, roots,
     scope::{Scopes, View, path::NativePath},
@@ -345,10 +345,38 @@ impl Services {
                 Err(refused) => call.reply(&FilesReply::Error(refused)),
             },
             FilesRequest::PickerClose(request) => self.edit.close_picker(call, &request),
-            FilesRequest::FsImportBegin(_)
-            | FilesRequest::FsImportItems(_)
-            | FilesRequest::FsImportFile(_)
-            | FilesRequest::FsImportEnd(_) => call.close(CallClose::Unsupported),
+            // An import's session, declarations and files open on this thread in arrival order,
+            // so its next requests and Puts may follow before it answers.
+            FilesRequest::FsImportBegin(request) => {
+                match self.edit.open_import(&call, &view, &request) {
+                    Ok(declared) => self.detach(call, move |services, call| {
+                        services.edit.import_begin(call, view, &request, declared);
+                    }),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                }
+            }
+            FilesRequest::FsImportItems(request) => {
+                match self.edit.declare_import(&call, &request) {
+                    Ok(declared) => self.detach(call, move |services, call| {
+                        services.edit.import_items(call, view, declared);
+                    }),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                }
+            }
+            FilesRequest::FsImportFile(request) => {
+                let (connection, lane) = (call.connection(), call.lane());
+                let opened = self.edit.open_import_file(&call, &request, |size| {
+                    self.files.stream(connection, lane, request.transfer, size)
+                });
+                match opened {
+                    Ok(bringing) => self.detach(call, move |services, call| {
+                        services.edit.import_file(call, view, bringing);
+                    }),
+                    Err(Unopened::Capacity) => call.close(CallClose::Capacity),
+                    Err(Unopened::Failed(refused)) => call.reply(&FilesReply::Error(refused)),
+                }
+            }
+            FilesRequest::FsImportEnd(request) => self.edit.end_import(call, &request),
             FilesRequest::FsExportBegin(request) => self.edit.export_begin(call, view, &request),
             FilesRequest::FsExportEntries(request) => self.detach(call, move |services, call| {
                 services.edit.export_entries(call, &request);

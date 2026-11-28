@@ -14,11 +14,14 @@
 //!   `fs.clipboard` ([`clipboard`]) keeps what a paste may take from beyond the root.
 //! - `fs.export-begin` and `fs.export-entries` ([`exports`]) number what a download takes, whose
 //!   files `fs.read` then reads.
+//! - `fs.import-begin`, `fs.import-items`, `fs.import-file` and `fs.import-end` ([`import`])
+//!   bring the Client's own files in, each staged beside its target and published whole.
 
 mod clipboard;
 mod delete;
 mod entries;
 mod exports;
+mod import;
 mod names;
 mod observer;
 mod outcomes;
@@ -31,7 +34,8 @@ use std::sync::Arc;
 use orchbee_files_protocol::{
     ConnectionId, ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsClipboard, FsCreate,
     FsDelete, FsDeleteResult, FsEntryResult, FsExists, FsExistsResult, FsExportBegin,
-    FsExportEntries, FsRename, FsRestore, FsTransfer, FsTransferResult, FsWrite, List,
+    FsExportEntries, FsImportBegin, FsImportEnd, FsImportFile, FsImportFileResult, FsImportItems,
+    FsImportResult, FsRename, FsRestore, FsTransfer, FsTransferResult, FsWrite, List,
     MutationReply, Operation, PathItemsResult, PickerList, PickerRequest, RequestOutcome,
     SessionId, WorkspaceId,
 };
@@ -40,6 +44,7 @@ use self::{
     clipboard::Clipboards,
     delete::{Deleting, Stashes},
     exports::Exports,
+    import::{Bringing, Declaration, Imports},
     outcomes::{Outcomes, finish},
     pickers::Pickers,
     write::{System, Write, Writing},
@@ -51,7 +56,7 @@ pub(crate) use self::{
 use crate::{
     blocking::Helpers,
     calls::Call,
-    fs::Target,
+    fs::{Streaming, Target, Unopened},
     git::ports::Trash,
     scope::{Change, View, path::NativePath},
 };
@@ -66,6 +71,7 @@ pub(crate) struct Service {
     pickers: Pickers,
     clipboard: Clipboards,
     exports: Exports,
+    imports: Imports,
     observer: Arc<dyn Observer>,
 }
 
@@ -86,6 +92,7 @@ impl Service {
             pickers: Pickers::new(),
             clipboard: Clipboards::new(),
             exports: Exports::new(),
+            imports: Imports::new(),
             observer,
         }
     }
@@ -442,11 +449,133 @@ impl Service {
             .file(call.connection(), workspace, export, index)
     }
 
-    /// Releases what `connection` held: its pickers, clipboard sources and exports.
+    /// Opens `fs.import-begin`'s import under `view` and declares its first items at once, so the
+    /// import's later requests may follow before it answers. The target folder must lie in the
+    /// boundary as a read admits it; each item passes the mutation check as it is created.
+    ///
+    /// # Errors
+    ///
+    /// The target's refusal, and as the import's opening.
+    pub(crate) fn open_import(
+        &self,
+        call: &Call,
+        view: &View,
+        request: &FsImportBegin,
+    ) -> Result<Declaration, FilesError> {
+        let target = view.read(&request.target_directory)?;
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        let items = request.items.as_slice();
+        self.imports
+            .open(connection, request.import, workspace, target, items)
+    }
+
+    /// `fs.import-begin` under `view`, once [`Self::open_import`] opened it: under its request
+    /// identity, it checks that the target is a folder and creates the declared directory items.
+    /// An identity that already ran answers its outcome and closes the import it opened.
+    pub(crate) fn import_begin(
+        &self,
+        call: Call,
+        view: View,
+        request: &FsImportBegin,
+        declared: Declaration,
+    ) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let view = Arc::new(view);
+        self.outcomes.run(workspace, identity, call, move |_| {
+            if let Err(error) = declared.target_folder(&self.helpers) {
+                return failed(error);
+            }
+            let operation = Operation::FsImportBegin;
+            let admit = |target: &NativePath| self.admit_entry(operation, &view, target);
+            let items = declared.settle(&self.helpers, operation, &admit);
+            List::new(items).map_or_else(
+                |_| failed(FilesError::new(ErrorCode::Failed)),
+                |items| MutationReply::FsImport(FsImportResult { items }),
+            )
+        });
+    }
+
+    /// Declares `fs.import-items`' items at once, so the import's later requests may follow
+    /// before it answers.
+    ///
+    /// # Errors
+    ///
+    /// `invalid-request` for an import the call's connection does not hold open in the
+    /// Workspace, and as the import's declaration.
+    pub(crate) fn declare_import(
+        &self,
+        call: &Call,
+        request: &FsImportItems,
+    ) -> Result<Declaration, FilesError> {
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        let import = self.imports.find(connection, workspace, request.import);
+        let import = import.ok_or_else(|| FilesError::new(ErrorCode::InvalidRequest))?;
+        import.declare(request.items.as_slice())
+    }
+
+    /// `fs.import-items` under `view`, once [`Self::declare_import`] declared them: creates the
+    /// declared directory items.
+    pub(crate) fn import_items(&self, call: Call, view: View, declared: Declaration) {
+        let (view, operation) = (Arc::new(view), Operation::FsImportItems);
+        let admit = |target: &NativePath| self.admit_entry(operation, &view, target);
+        let items = declared.settle(&self.helpers, operation, &admit);
+        let reply = List::new(items).map_or_else(
+            |_| FilesReply::Error(FilesError::new(ErrorCode::Failed)),
+            |items| FilesReply::FsImport(FsImportResult { items }),
+        );
+        finish(call, &reply);
+    }
+
+    /// Opens `fs.import-file`'s file item at once, with the stream `stream` opens for its size, so
+    /// its Puts may follow before it answers.
+    ///
+    /// # Errors
+    ///
+    /// `invalid-request` for an import the call's connection does not hold open in the Workspace,
+    /// and as the import's file opening.
+    pub(crate) fn open_import_file(
+        &self,
+        call: &Call,
+        request: &FsImportFile,
+        stream: impl FnOnce(u64) -> Result<Streaming, Unopened>,
+    ) -> Result<Bringing, Unopened> {
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        let import = self.imports.find(connection, workspace, request.import);
+        let refused = || Unopened::Failed(FilesError::new(ErrorCode::InvalidRequest));
+        import
+            .ok_or_else(refused)?
+            .open_file(request.index.get(), stream)
+    }
+
+    /// `fs.import-file` under `view`, once [`Self::open_import_file`] opened it: brings the file's
+    /// bytes in. A call its Client cancelled closes as cancelled; what was published stays.
+    pub(crate) fn import_file(&self, call: Call, view: View, bringing: Bringing) {
+        let (view, operation) = (Arc::new(view), Operation::FsImportFile);
+        let admit = |target: &NativePath| self.admit_entry(operation, &view, target);
+        let brought = bringing.bring(&self.helpers, &admit);
+        if call.cancelled() {
+            // Dropping a cancelled call closes it as cancelled.
+            return drop(call);
+        }
+        let reply = brought.map_or_else(FilesReply::Error, |path| {
+            FilesReply::FsImportFile(FsImportFileResult { path })
+        });
+        finish(call, &reply);
+    }
+
+    /// `fs.import-end`, which closes the import; the files it is bringing go on.
+    pub(crate) fn end_import(&self, call: Call, request: &FsImportEnd) {
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        self.imports.close(connection, workspace, request.import);
+        finish(call, &FilesReply::Empty);
+    }
+
+    /// Releases what `connection` held: its pickers, clipboard sources, exports and imports.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.pickers.connection_lost(connection);
         self.clipboard.connection_lost(connection);
         self.exports.connection_lost(connection);
+        self.imports.connection_lost(connection);
     }
 
     /// `fs.exists` under `view`, whose names are read as any read is.
@@ -504,6 +633,18 @@ impl Service {
         let (view, path) = (Arc::clone(view), path.clone());
         self.helpers
             .run(operation, move || view.mutable(&path, change))?
+    }
+
+    /// Admits `target`, where a new entry goes, by the scope's check for [`Change::Entry`].
+    fn admit_entry(
+        &self,
+        operation: Operation,
+        view: &Arc<View>,
+        target: &NativePath,
+    ) -> Result<(), FilesError> {
+        let named =
+            FilePath::new(target.as_str()).map_err(|_| FilesError::new(ErrorCode::InvalidName))?;
+        self.admit(operation, view, &named, Change::Entry).map(drop)
     }
 }
 

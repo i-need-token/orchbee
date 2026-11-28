@@ -15,14 +15,15 @@ use orchbee_files_protocol::{
     CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, DeleteMode, EncodingName,
     EntryKind, ErrorCode, ExportKind, FileName, FilePath, FilesNotice, FilesRecord, FilesReply,
     FilesRequest, FrameKind, FsClipboard, FsCreate, FsDelete, FsExists, FsExistsResult,
-    FsExportBegin, FsExportEntries, FsGrant, FsGrantResult, FsList, FsRead, FsRename, FsRestore,
-    FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
+    FsExportBegin, FsExportEntries, FsGrant, FsGrantResult, FsImportBegin, FsImportEnd,
+    FsImportFile, FsImportItems, FsList, FsRead, FsRename, FsRestore, FsSnapshot, FsTransfer,
+    FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, ImportItem, ImportKind, LaneId, LinkFrame,
     LinkMessage, LinkRequest, LinkSide, List, MutationReply, MutationState, NoticeKind, Operation,
     PathsRequest, PickerList, PickerRequest, Put, PutEnd, ReadMode, ReadSource, RecordPlace,
-    RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate, SessionId,
-    TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, WritePrecondition,
-    decode_files_record, decode_link_message, encode_files_record, encode_request, parse_notice,
-    parse_reply,
+    RelativePath, RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate,
+    SessionId, TransferId, TransferRequest, WatchState, WorkspaceId, WorkspaceRequest,
+    WorkspaceScope, WritePrecondition, decode_files_record, decode_link_message,
+    encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
 use super::Services;
@@ -176,10 +177,15 @@ impl Link {
             .collect()
     }
 
-    /// The reply to `request`, a mutation, sent on call `id` with the lifecycle grant it needs.
-    fn mutate(&self, id: u64, request: &FilesRequest) -> FilesReply {
+    /// Sends `request`, a mutation, on call `id` with the lifecycle grant it needs.
+    fn start(&self, id: u64, request: &FilesRequest) {
         let record = encode_files_record(&FilesRecord::Request(encode_request(request))).unwrap();
         self.send(id, GrantClass::Lifecycle, request.workspace(), record);
+    }
+
+    /// The reply to `request`, a mutation, sent on call `id` with the lifecycle grant it needs.
+    fn mutate(&self, id: u64, request: &FilesRequest) -> FilesReply {
+        self.start(id, request);
         self.reply(id, request.operation())
     }
 
@@ -920,4 +926,201 @@ fn symbolic_links(folder: &Path, file: &Path, target: &Path) -> std::io::Result<
         std::os::unix::fs::symlink(file, folder.join("out-link"))?;
         std::os::unix::fs::symlink(target, folder.join("dir-link"))
     }
+}
+
+#[test]
+fn an_import_publishes_whole_files_and_a_cut_one_leaves_nothing_behind() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let root = fixture.0.join("root");
+    fs::create_dir(root.join("kept")).unwrap();
+    fs::write(root.join("kept").join("old.txt"), b"old").unwrap();
+    fs::write(root.join("taken"), b"taken").unwrap();
+    let import = SessionId::new(1).unwrap();
+    let item = |path: &str, kind: ImportKind, conflict: Conflict| ImportItem {
+        path: RelativePath::new(path).unwrap(),
+        kind,
+        conflict,
+    };
+    let folder = ImportKind::Directory;
+    let file = |size: u64| ImportKind::File(SafeInteger::new(size).unwrap());
+    let begin = FilesRequest::FsImportBegin(FsImportBegin {
+        workspace_id: workspace(),
+        request_id: RequestId::from_bytes([1; 16]).unwrap(),
+        import,
+        target_directory: fixture.file("root"),
+        items: List::new(vec![
+            item("photos", folder, Conflict::Fail),
+            item("photos/a.txt", file(5), Conflict::Fail),
+            item("inside.txt", file(3), Conflict::Increment),
+            item("kept", folder, Conflict::Merge),
+            item("kept/old.txt", file(3), Conflict::Replace),
+        ])
+        .unwrap(),
+    });
+    let items = |items: Vec<ImportItem>| {
+        FilesRequest::FsImportItems(FsImportItems {
+            workspace_id: workspace(),
+            import,
+            items: List::new(items).unwrap(),
+        })
+    };
+    let more = items(vec![
+        item("taken", folder, Conflict::Fail),
+        item("taken/lost.txt", file(1), Conflict::Fail),
+        item("photos/b.txt", file(4), Conflict::Fail),
+        item("photos/c.txt", file(4), Conflict::Fail),
+    ]);
+    let bring = |index: u64, transfer: u64| {
+        FilesRequest::FsImportFile(FsImportFile {
+            workspace_id: workspace(),
+            import,
+            index: SafeInteger::new(index).unwrap(),
+            transfer: TransferId::new(transfer).unwrap(),
+        })
+    };
+    let put = |transfer: u64, end: PutEnd, bytes: &[u8]| Put {
+        transfer: TransferId::new(transfer).unwrap(),
+        offset: 0,
+        end,
+        bytes: bytes.to_vec(),
+    };
+    let outcomes = |reply: &FilesReply| {
+        let FilesReply::FsImport(declared) = reply else {
+            panic!("expected the directory items' outcomes, got {reply:?}");
+        };
+        let outcomes = declared.items.as_slice().iter().map(|item| {
+            let outcome = item.outcome.as_ref().map_err(|error| error.code);
+            (
+                item.index.get(),
+                outcome.map(|path| path.as_str().to_owned()),
+            )
+        });
+        outcomes.collect::<Vec<_>>()
+    };
+    let imported = |reply: &FilesReply| match reply {
+        FilesReply::FsImportFile(imported) => imported.path.as_str().to_owned(),
+        other => panic!("expected the file's final path, got {other:?}"),
+    };
+
+    // An import's later requests, and a file's Puts, may follow before it answers.
+    link.start(1, &begin);
+    link.start(2, &more);
+    link.start(3, &bring(1, 3));
+    link.put(4, put(3, PutEnd::Commit, b"hello"));
+    let replies = link.replies(&[
+        (1, Operation::FsImportBegin),
+        (2, Operation::FsImportItems),
+        (3, Operation::FsImportFile),
+        (4, Operation::TransferClose),
+    ]);
+    let made = |path: &str| Ok(path.to_owned());
+    assert_eq!(
+        outcomes(&replies[0]),
+        [(0, made("photos")), (3, made("kept"))]
+    );
+    assert_eq!(outcomes(&replies[1]), [(5, Err(ErrorCode::Exists))]);
+    assert_eq!(imported(&replies[2]), "photos/a.txt");
+    assert_eq!(
+        fs::read(root.join("photos").join("a.txt")).unwrap(),
+        b"hello"
+    );
+
+    // Each file meets an existing item by its own rule, and one in a failed folder fails as it did.
+    for (id, index, bytes, path) in [
+        (5, 2, b"new", "inside copy.txt"),
+        (7, 4, b"NEW", "kept/old.txt"),
+    ] {
+        link.start(id, &bring(index, id));
+        link.put(id + 1, put(id, PutEnd::Commit, bytes));
+        let expected = [
+            (id, Operation::FsImportFile),
+            (id + 1, Operation::TransferClose),
+        ];
+        assert_eq!(imported(&link.replies(&expected)[0]), path);
+    }
+    assert_eq!(fs::read(root.join("inside.txt")).unwrap(), b"inside");
+    assert_eq!(fs::read(root.join("inside copy.txt")).unwrap(), b"new");
+    assert_eq!(fs::read(root.join("kept").join("old.txt")).unwrap(), b"NEW");
+    link.start(9, &bring(6, 9));
+    assert_eq!(
+        error(link.reply(9, Operation::FsImportFile)),
+        ErrorCode::Exists
+    );
+
+    // A file cut short by `transfer.close`, or by its lane's end, leaves nothing behind, and a
+    // listing never shows it while it is staged.
+    let photos = root.join("photos");
+    let names = || {
+        let names = fs::read_dir(&photos).unwrap();
+        let mut names: Vec<String> = names
+            .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+            .collect();
+        names.sort();
+        names
+    };
+    link.start(11, &bring(7, 11));
+    link.put(12, put(11, PutEnd::Continues, b"ab"));
+    assert_eq!(
+        link.replies(&[(12, Operation::TransferClose)]),
+        [FilesReply::Empty]
+    );
+    let staged = names();
+    assert!(
+        staged.len() == 2 && staged[0].starts_with(".b.txt.orchbee-"),
+        "{staged:?}"
+    );
+    let list = FilesRequest::FsList(FsList {
+        workspace_id: workspace(),
+        path: fixture.file(&format!("root{}photos", std::path::MAIN_SEPARATOR)),
+        cursor: None,
+        single_child: false,
+    });
+    link.request(13, &list);
+    let FilesReply::FsList(page) = link.reply(13, Operation::FsList) else {
+        panic!("expected the folder's entries");
+    };
+    let listed: Vec<_> = page
+        .entries
+        .as_slice()
+        .iter()
+        .map(|entry| entry.name.as_str())
+        .collect();
+    assert_eq!(listed, ["a.txt"]);
+    let close = FilesRequest::TransferClose(TransferRequest {
+        workspace_id: workspace(),
+        transfer: TransferId::new(11).unwrap(),
+    });
+    link.start(14, &close);
+    let mut replies = link.replies(&[
+        (14, Operation::TransferClose),
+        (11, Operation::FsImportFile),
+    ]);
+    assert_eq!(error(replies.remove(1)), ErrorCode::Cancelled);
+    assert_eq!(names(), ["a.txt"]);
+    link.start(15, &bring(8, 15));
+    link.put(16, put(15, PutEnd::Continues, b"cd"));
+    assert_eq!(
+        link.replies(&[(16, Operation::TransferClose)]),
+        [FilesReply::Empty]
+    );
+    let connection = ConnectionId::new(1).unwrap();
+    link.services
+        .lane_closed(connection, LaneId::new(15).unwrap());
+    assert_eq!(link.closed(15), CallClose::Cancelled);
+    assert_eq!(names(), ["a.txt"]);
+
+    // The import's end refuses what follows it.
+    let end = FilesRequest::FsImportEnd(FsImportEnd {
+        workspace_id: workspace(),
+        import,
+    });
+    link.start(17, &end);
+    assert_eq!(link.reply(17, Operation::FsImportEnd), FilesReply::Empty);
+    link.start(18, &items(vec![item("late.txt", file(1), Conflict::Fail)]));
+    assert_eq!(
+        error(link.reply(18, Operation::FsImportItems)),
+        ErrorCode::InvalidRequest
+    );
 }

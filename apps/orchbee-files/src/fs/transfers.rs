@@ -1,10 +1,11 @@
-//! Transfers: the reads `fs.read` and `git.show` open, whose chunks `fs.read-chunk` pulls, and the
-//! uploads whose Puts bring an operation its data. The Client names each transfer, and a name is
-//! unique in its connection whatever the transfer's kind; a connection holds at most 64, since a
-//! Client may keep a transfer open after the streams that carried it closed. `transfer.close`, the
-//! end of the transfer's lane or connection, or the drain ends a transfer: a read answers the chunk
-//! requests that wait on it as cancelled and closes its file, and an upload drops its data with its
-//! operation's call, which `transfer.close` answers as cancelled.
+//! Transfers: the reads `fs.read` and `git.show` open, whose chunks `fs.read-chunk` pulls, the
+//! uploads whose Puts bring an operation its data, and the streams that hand an operation its data
+//! as it arrives. The Client names each transfer, and a name is unique in its connection whatever
+//! the transfer's kind; a connection holds at most 64, since a Client may keep a transfer open
+//! after the streams that carried it closed. `transfer.close`, the end of the transfer's lane or
+//! connection, or the drain ends a transfer: a read answers the chunk requests that wait on it as
+//! cancelled and closes its file, an upload drops its data with its operation's call, which
+//! `transfer.close` answers as cancelled, and a stream tells its consumer.
 
 use std::{
     collections::HashMap,
@@ -15,9 +16,11 @@ use std::{
 use orchbee_files_protocol::{ConnectionId, ErrorCode, FilesError, LaneId, TransferId};
 
 mod reading;
+mod streams;
 mod uploads;
 
 pub(crate) use reading::{Opening, ReadFacts, ReadRequest};
+pub(crate) use streams::{Delivery, Streaming};
 
 use super::timer::Timer;
 use crate::blocking::Helpers;
@@ -65,6 +68,7 @@ struct Transfer {
 enum Kind {
     Read(reading::Stage),
     Upload(uploads::Upload),
+    Stream(streams::Stream),
 }
 
 impl Table {
@@ -138,6 +142,7 @@ impl Transfers {
         match removed.kind {
             Kind::Read(stage) => reading::discard(&self.helpers, vec![stage]),
             Kind::Upload(upload) => upload.cancel(),
+            Kind::Stream(stream) => stream.end(ErrorCode::Cancelled),
         }
         Ok(())
     }
@@ -158,7 +163,7 @@ impl Transfers {
     }
 
     /// Drops the transfers `matches` picks; an upload's call closes as the event that ended it
-    /// left it.
+    /// left it, and a stream's deliveries end.
     fn remove_where(&self, matches: impl Fn(&Key, &Transfer) -> bool) {
         let removed: Vec<Transfer> = {
             let mut table = lock(&self.shared);
@@ -175,6 +180,7 @@ impl Transfers {
             match transfer.kind {
                 Kind::Read(stage) => reads.push(stage),
                 Kind::Upload(upload) => drop(upload),
+                Kind::Stream(stream) => drop(stream),
             }
         }
         reading::discard(&self.helpers, reads);

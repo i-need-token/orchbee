@@ -22,7 +22,7 @@ use std::{
 use orchbee_files_protocol::{ConnectionId, Entry, EntryKind, ErrorCode, FilesError};
 
 use super::timer::Timer;
-use crate::{entry, error};
+use crate::{entry, error, staging};
 
 /// Entries in one page, or in one descendant's listing.
 const MAXIMUM_PAGE_ENTRIES: usize = 2_000;
@@ -334,9 +334,12 @@ fn next(remaining: &mut Remaining) -> Result<Option<Entry>, FilesError> {
 }
 
 /// The entry of a child the directory read returned, from the metadata that read already holds
-/// where the system provides it; `None` when the child's own metadata cannot be read or its name
-/// is longer than an entry carries.
+/// where the system provides it; `None` when the child's own metadata cannot be read, its name is
+/// longer than an entry carries, or it is a file an import is still staging.
 fn describe(child: &fs::DirEntry) -> Option<Entry> {
+    if child.file_name().to_str().is_some_and(staging::is_staging) {
+        return None;
+    }
     let own = child.metadata().ok()?;
     entry::describe(&child.file_name(), &own, || fs::metadata(child.path())).ok()
 }

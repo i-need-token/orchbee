@@ -34,6 +34,7 @@ mod scope;
 mod seeded;
 #[cfg(unix)]
 mod signals;
+mod staging;
 mod subscriptions;
 
 use std::{ffi::OsString, process::ExitCode, sync::mpsc};

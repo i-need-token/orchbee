@@ -89,10 +89,19 @@ impl Transfers {
         self.expire_after(key, instance, touched);
     }
 
-    /// Stages `put` in its upload and answers `call`, the Put's own call.
+    /// Stages `put` in its upload and answers `call`, the Put's own call, or hands both on to the
+    /// stream the Put belongs to.
     pub(crate) fn put(&self, call: Call, put: Put) {
         let key = (call.connection(), put.transfer);
         let mut table = lock(&self.shared);
+        if let Some(Transfer {
+            kind: Kind::Stream(_),
+            ..
+        }) = table.open.get(&key)
+        {
+            drop(table);
+            return self.stream_put(call, put);
+        }
         let Some(Transfer {
             instance,
             kind: Kind::Upload(upload),
