@@ -2064,7 +2064,7 @@
 					"$ref": "#/$defs/safeInteger"
 				},
 				"replaced": {
-					"description": "The characters the encoding cannot represent, each written as `?`.",
+					"description": "The characters the encoding cannot represent, each written as `?`, or as `??` beyond the Basic Multilingual Plane in a single-byte encoding, as VS Code writes them.",
 					"$ref": "#/$defs/safeInteger"
 				},
 				"sha256": {

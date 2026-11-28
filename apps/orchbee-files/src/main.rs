@@ -8,6 +8,7 @@
 mod admission;
 mod blocking;
 mod calls;
+mod edit;
 mod entry;
 mod error;
 mod exit;

@@ -1,4 +1,4 @@
-//! Fixtures the file engine's suites share.
+//! Fixtures the file engine's suites share, and the file edits' suites with them.
 
 use std::{
     fs,
@@ -7,10 +7,10 @@ use std::{
 };
 
 /// A private directory for one test, removed when the test ends.
-pub(super) struct Scratch(PathBuf);
+pub(crate) struct Scratch(PathBuf);
 
 impl Scratch {
-    pub(super) fn new(purpose: &str) -> Self {
+    pub(crate) fn new(purpose: &str) -> Self {
         static NEXT: AtomicU64 = AtomicU64::new(0);
         // macOS reaches its temporary folder through a link, which FSEvents resolves in the
         // paths it reports.
@@ -27,7 +27,7 @@ impl Scratch {
         Self(path)
     }
 
-    pub(super) fn path(&self) -> &Path {
+    pub(crate) fn path(&self) -> &Path {
         &self.0
     }
 }

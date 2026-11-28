@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs,
     path::PathBuf,
     sync::{
@@ -11,13 +12,14 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ChangeKind, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice,
-    FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsGrantResult, FsList, FsSnapshot,
-    FsUpdate, GitPath, GrantClass, GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest,
-    LinkSide, List, NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root,
-    ScopeUpdate, TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope,
-    decode_files_record, decode_link_message, encode_files_record, encode_request, parse_notice,
-    parse_reply,
+    CallClose, CallId, ChangeKind, ConnectionId, EncodingName, EntryKind, ErrorCode, FilePath,
+    FilesNotice, FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsGrantResult, FsList,
+    FsSnapshot, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
+    LinkMessage, LinkRequest, LinkSide, List, MutationReply, MutationState, NoticeKind, Operation,
+    PathsRequest, Put, PutEnd, RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, Root,
+    SafeInteger, ScopeUpdate, TransferId, WatchState, WorkspaceId, WorkspaceRequest,
+    WorkspaceScope, WritePrecondition, decode_files_record, decode_link_message,
+    encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
 use super::Services;
@@ -138,6 +140,74 @@ impl Link {
     /// The next notice of subscription call `id`.
     fn notice(&self, id: u64, kind: NoticeKind) -> FilesNotice {
         notice_of(self.next(), id, kind)
+    }
+
+    /// The Results of request calls that complete in either order, as `expected` names them.
+    fn replies(&self, expected: &[(u64, Operation)]) -> Vec<FilesReply> {
+        let (mut results, mut closed) = (HashMap::new(), 0);
+        while results.len() < expected.len() || closed < expected.len() {
+            match self.next() {
+                LinkMessage::Frame(LinkFrame {
+                    call: answered,
+                    kind: FrameKind::Result,
+                    record,
+                }) => {
+                    let id = answered.get();
+                    let (_, operation) = expected.iter().find(|(call, _)| *call == id).unwrap();
+                    let record = decode_files_record(&record, RecordPlace::ResultFrame);
+                    let Ok(FilesRecord::Result(json)) = record else {
+                        panic!("expected a Result record");
+                    };
+                    results.insert(id, parse_reply(*operation, &json).unwrap());
+                }
+                LinkMessage::Close { reason, .. } => {
+                    assert_eq!(reason, CallClose::Complete);
+                    closed += 1;
+                }
+                other => panic!("expected a Result or a close, got {other:?}"),
+            }
+        }
+        expected
+            .iter()
+            .map(|(id, _)| results.remove(id).unwrap())
+            .collect()
+    }
+
+    /// `fs.write` of `text` under `request`, on call `id`, with its one Put on call `id + 1`.
+    fn write(&self, id: u64, request: u8, path: &FilePath, text: &str) -> FilesReply {
+        let transfer = TransferId::new(id).unwrap();
+        let write = FsWrite {
+            workspace_id: workspace(),
+            request_id: RequestId::from_bytes([request; 16]).unwrap(),
+            transfer,
+            path: path.clone(),
+            size: SafeInteger::new(text.len() as u64).unwrap(),
+            encoding: EncodingName::new("utf8").unwrap(),
+            bom: false,
+            precondition: WritePrecondition::None,
+            unlock: false,
+            history: None,
+        };
+        let record = FilesRecord::Request(encode_request(&FilesRequest::FsWrite(write)));
+        let record = encode_files_record(&record).unwrap();
+        // A mutation needs the lifecycle grant.
+        self.send(id, GrantClass::Lifecycle, workspace(), record);
+        let put = Put {
+            transfer,
+            offset: 0,
+            end: PutEnd::Commit,
+            bytes: text.as_bytes().to_vec(),
+        };
+        self.put(id + 1, put);
+        // A Put's answer is the empty Result `transfer.close` also answers.
+        let expected = [(id, Operation::FsWrite), (id + 1, Operation::TransferClose)];
+        let mut replies = self.replies(&expected);
+        assert_eq!(
+            replies.pop(),
+            Some(FilesReply::Empty),
+            "the Put's own answer"
+        );
+        replies.pop().unwrap()
     }
 }
 
@@ -439,4 +509,46 @@ fn a_listed_folder_reports_the_files_created_in_it() {
             break;
         }
     }
+}
+
+#[test]
+fn a_write_runs_once_under_its_identity_and_only_in_scope() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let inside = fixture.file(&format!("root{}inside.txt", std::path::MAIN_SEPARATOR));
+    let FilesReply::FsWrite(written) = link.write(1, 1, &inside, "saved") else {
+        panic!("expected the written file");
+    };
+    assert_eq!((written.size.get(), written.replaced.get()), (5, 0));
+    assert_eq!(
+        fs::read(fixture.0.join("root").join("inside.txt")).unwrap(),
+        b"saved"
+    );
+
+    // A repeat of the identity answers what it recorded, and writes nothing.
+    let repeated = link.write(3, 1, &inside, "other");
+    assert_eq!(repeated, FilesReply::FsWrite(written.clone()));
+    assert_eq!(
+        fs::read(fixture.0.join("root").join("inside.txt")).unwrap(),
+        b"saved"
+    );
+    let outcome = FilesRequest::RequestOutcome(RequestOutcome {
+        workspace_id: workspace(),
+        request_id: RequestId::from_bytes([1; 16]).unwrap(),
+    });
+    link.request(5, &outcome);
+    assert_eq!(
+        link.reply(5, Operation::RequestOutcome),
+        FilesReply::RequestOutcome(RequestOutcomeResult {
+            state: MutationState::Completed(MutationReply::FsWrite(written)),
+        })
+    );
+
+    let outside = fixture.file("outside.txt");
+    assert_eq!(
+        error(link.write(6, 2, &outside, "x")),
+        ErrorCode::OutsideScope
+    );
+    assert_eq!(fs::read(fixture.0.join("outside.txt")).unwrap(), b"outside");
 }

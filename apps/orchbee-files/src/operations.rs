@@ -28,6 +28,7 @@ use orchbee_local_runtime::DataRoot;
 use crate::{
     blocking::Helpers,
     calls::{Call, Calls, DuplicateCall},
+    edit,
     fs::{Engine, MachineTrash},
     git, grants, roots,
     scope::{Scopes, View},
@@ -45,6 +46,8 @@ pub(crate) struct Services {
     roots: Arc<Subscriptions>,
     /// Source control: discovery, status, Git operations and the prompt relay.
     git: git::Service,
+    /// File edits: writes and the other `files-edit` operations.
+    edit: edit::Service,
 }
 
 impl Services {
@@ -56,6 +59,7 @@ impl Services {
         let files = Engine::new(helpers.clone(), Arc::clone(&scopes), Arc::clone(&roots));
         let watches = files.repository_watches();
         let git = git::Service::start(root, Arc::clone(&scopes), watches, Arc::new(MachineTrash));
+        let edit = edit::Service::new(helpers.clone(), Arc::new(edit::Unobserved));
         Arc::new(Self {
             calls,
             files,
@@ -63,6 +67,7 @@ impl Services {
             helpers,
             roots,
             git,
+            edit,
         })
     }
 
@@ -265,15 +270,31 @@ impl Services {
             }
             FilesRequest::RelayAnswer(request) => self.git.answer(call, &request),
             FilesRequest::ClientFocus(request) => self.git.focus(call, &request),
-            FilesRequest::RequestOutcome(request) => self.git.outcome(call, &request),
+            FilesRequest::RequestOutcome(request) => {
+                if let Some(call) = self.edit.outcome(call, &request) {
+                    self.git.outcome(call, &request);
+                }
+            }
             FilesRequest::GitShow(request) => self.git.show(call, &request, |call| {
                 let (mode, limit) = (request.mode, request.limit.get());
                 let encoding = request.encoding.as_ref();
                 self.files
                     .show_read(call, request.transfer, mode, encoding, limit)
             }),
-            FilesRequest::FsWrite(_)
-            | FilesRequest::FsCreate(_)
+            FilesRequest::FsWrite(request) => {
+                // An open upload holds the services weakly, so it never keeps them alive.
+                let services = Arc::downgrade(self);
+                let (transfer, size) = (request.transfer, request.size.get());
+                self.files
+                    .upload(call, transfer, size, move |call, content| {
+                        if let Some(services) = services.upgrade() {
+                            services.detach(call, move |services, call| {
+                                services.edit.write(call, view, &request, content);
+                            });
+                        }
+                    });
+            }
+            FilesRequest::FsCreate(_)
             | FilesRequest::FsRename(_)
             | FilesRequest::FsMove(_)
             | FilesRequest::FsCopy(_)

@@ -6,7 +6,7 @@
 
 use std::{
     ffi::OsStr,
-    fs::{self, Metadata},
+    fs::{self, Metadata, Permissions},
     io,
     path::Path,
     time::{SystemTime, UNIX_EPOCH},
@@ -59,7 +59,7 @@ pub(crate) fn describe(
         symlink,
         size: SafeInteger::new(facts.len().min(MAXIMUM_SAFE_INTEGER)).unwrap_or_default(),
         mtime_ms: milliseconds(facts.modified()),
-        readonly: readonly(facts),
+        readonly: readonly(&facts.permissions()),
         unrepresentable,
     })
 }
@@ -74,13 +74,15 @@ pub(crate) fn milliseconds(time: io::Result<SystemTime>) -> Signed {
     Signed::new(milliseconds).unwrap_or_default()
 }
 
+/// Whether an item with `permissions` is read-only: its owner write bit is clear on macOS and
+/// Linux, and its read-only attribute set on Windows.
 #[cfg(unix)]
-fn readonly(metadata: &Metadata) -> bool {
+pub(crate) fn readonly(permissions: &Permissions) -> bool {
     use std::os::unix::fs::PermissionsExt as _;
-    metadata.permissions().mode() & 0o200 == 0
+    permissions.mode() & 0o200 == 0
 }
 
 #[cfg(windows)]
-fn readonly(metadata: &Metadata) -> bool {
-    metadata.permissions().readonly()
+pub(crate) fn readonly(permissions: &Permissions) -> bool {
+    permissions.readonly()
 }

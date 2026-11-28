@@ -1,0 +1,282 @@
+{
+	"notes": "Generated outside the repository with @vscode/iconv-lite-umd 0.7.1, which VS Code ef5ca45 encodes a save with: \"characters\" hold, per encoding, iconv.encode of each character of \"text\", one space-separated group of \"bytes\" per character; \"texts\" hold iconv.encode of a whole \"text\", with a byte order mark for utf8bom, utf16le and utf16be, as VS Code adds one.",
+	"characters": [
+		{
+			"encoding": "windows1252",
+			"text": "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿGre őĀ中文日本한국😀�‾nd",
+			"bytes": "80 82 83 84 85 86 87 88 89 8a 8b 8c 8e 91 92 93 94 95 96 97 98 99 9a 9b 9c 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 9d 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88591",
+			"text": " ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿGre €‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88593",
+			"text": " Ħ˘£¤Ĥ§¨İŞĞĴ­Ż°ħ²³´µĥ·¸ışğĵ½żÀÁÂÄĊĈÇÈÉÊËÌÍÎÏÑÒÓÔĠÖ×ĜÙÚÛÜŬŜßàáâäċĉçèéêëìíîïñòóôġö÷ĝùúûüŭŝ˙Gre €‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd bf c0 c1 c2 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f f0 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso885915",
+			"text": " ¡¢£€¥Š§š©ª«¬­®¯°±²³Žµ¶·ž¹º»ŒœŸ¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖ×ØÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõö÷øùúûüýþÿGre ¤‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "macroman",
+			"text": "ÄÅÇÉÑÖÜáàâäãåçéèêëíìîïñóòôöõúùûü†°¢£§•¶ß®©™´¨≠ÆØ∞±≤≥¥µ∂∑∏π∫ªºΩæø¿¡¬√ƒ≈∆«»… ÀÃÕŒœ–—“”‘’÷◊ÿŸ⁄¤‹›ﬁﬂ‡·‚„‰ÂÊÁËÈÍÎÏÌÓÔÒÚÛÙıˆ˜¯˘˙˚¸˝˛ˇGre €őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f f0 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp437",
+			"text": "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ Gre €¤‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1256",
+			"text": "€پ‚ƒ„…†‡ˆ‰ٹ‹Œچژڈگ‘’“”•–—ک™ڑ›œ‌‍ں ،¢£¤¥¦§¨©ھ«¬­®¯°±²³´µ¶·¸¹؛»¼½¾؟ہءآأؤإئابةتثجحخدذرزسشصض×طظعغـفقكàلâمنهوçèéêëىيîïًٌٍَôُِ÷ّùْûü‎‏ےGrße őÿĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88596",
+			"text": " ¤،­؛؟ءآأؤإئابةتثجحخدذرزسشصضطظعغـفقكلمنهوىيًٌٍَُِّْGrüße €‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a4 ac ad bb bf c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1257",
+			"text": "€‚„…†‡‰‹¨ˇ¸‘’“”•–—™›¯˛ ¢£¤¦§Ø©Ŗ«¬­®Æ°±²³´µ¶·ø¹ŗ»¼½¾æĄĮĀĆÄÅĘĒČÉŹĖĢĶĪĻŠŃŅÓŌÕÖ×ŲŁŚŪÜŻŽßąįāćäåęēčéźėģķīļšńņóōõö÷ųłśūüżž˙Gre őÿ中文日本한국😀�‾¥nd",
+			"bytes": "80 82 84 85 86 87 89 8b 8d 8e 8f 91 92 93 94 95 96 97 99 9b 9d 9e a0 a2 a3 a4 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f3f a5 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88594",
+			"text": " ĄĸŖ¤ĨĻ§¨ŠĒĢŦ­Ž¯°ą˛ŗ´ĩļˇ¸šēģŧŊžŋĀÁÂÃÄÅÆĮČÉĘËĖÍÎĪĐŅŌĶÔÕÖ×ØŲÚÛÜŨŪßāáâãäåæįčéęëėíîīđņōķôõö÷øųúûüũū˙Gre €‰őÿ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso885914",
+			"text": " Ḃḃ£ĊċḊ§Ẁ©ẂḋỲ­®ŸḞḟĠġṀṁ¶ṖẁṗẃṠỳẄẅṡÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏŴÑÒÓÔÕÖṪØÙÚÛÜÝŶßàáâãäåæçèéêëìíîïŵñòóôõöṫøùúûüýŷÿGre €¤‰őĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1250",
+			"text": "€‚„…†‡‰Š‹ŚŤŽŹ‘’“”•–—™š›śťžź ˇ˘Ł¤Ą¦§¨©Ş«¬­®Ż°±˛ł´µ¶·¸ąş»Ľ˝ľżŔÁÂĂÄĹĆÇČÉĘËĚÍÎĎĐŃŇÓÔŐÖ×ŘŮÚŰÜÝŢßŕáâăäĺćçčéęëěíîďđńňóôőö÷řůúűüýţ˙Gre ÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 82 84 85 86 87 89 8a 8b 8c 8d 8e 8f 91 92 93 94 95 96 97 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 98 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88592",
+			"text": " Ą˘Ł¤ĽŚ§¨ŠŞŤŹ­ŽŻ°ą˛ł´ľśˇ¸šşťź˝žżŔÁÂĂÄĹĆÇČÉĘËĚÍÎĎĐŃŇÓÔŐÖ×ŘŮÚŰÜÝŢßŕáâăäĺćçčéęëěíîďđńňóôőö÷řůúűüýţ˙Gre €‰ÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp852",
+			"text": "ÇüéâäůćçłëŐőîŹÄĆÉĹĺôöĽľŚśÖÜŤťŁ×čáíóúĄąŽžĘę¬źČş«»░▒▓│┤ÁÂĚŞ╣║╗╝Żż┐└┴┬├─┼Ăă╚╔╩╦╠═╬¤đĐĎËďŇÍÎě┘┌█▄ŢŮ▀ÓßÔŃńňŠšŔÚŕŰýÝţ´­˝˛ˇ˘§÷¸°¨˙űŘř■ Gre €‰ÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1251",
+			"text": "ЂЃ‚ѓ„…†‡€‰Љ‹ЊЌЋЏђ‘’“”•–—™љ›њќћџ ЎўЈ¤Ґ¦§Ё©Є«¬­®Ї°±Ііґµ¶·ё№є»јЅѕїАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюяGrüße őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 98 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp866",
+			"text": "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмноп░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀рстуфхцчшщъыьэюяЁёЄєЇїЎў°∙·√№¤■ Grüße €‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp1125",
+			"text": "АБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмноп░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀рстуфхцчшщъыьэюяЁёҐґЄєІіЇї·√№¤■ Grüße €‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88595",
+			"text": " ЁЂЃЄЅІЇЈЉЊЋЌ­ЎЏАБВГДЕЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдежзийклмнопрстуфхцчшщъыьэюя№ёђѓєѕіїјљњћќ§ўџGrüße €¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "koi8r",
+			"text": "─│┌┐└┘├┤┬┴┼▀▄█▌▐░▒▓⌠■∙√≈≤≥ ⌡°²·÷═║╒ё╓╔╕╖╗╘╙╚╛╜╝╞╟╠╡Ё╢╣╤╥╦╧╨╩╪╫╬©юабцдефгхийклмнопярстужвьызшэщчъЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪGrüße €¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "koi8u",
+			"text": "─│┌┐└┘├┤┬┴┼▀▄█▌▐░▒▓⌠■∙√≈≤≥ ⌡°²·÷═║╒ёє╔ії╗╘╙╚╛ґ╝╞╟╠╡ЁЄ╣ІЇ╦╧╨╩╪Ґ╬©юабцдефгхийклмнопярстужвьызшэщчъЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪGrüße €¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso885913",
+			"text": " ”¢£¤„¦§Ø©Ŗ«¬­®Æ°±²³“µ¶·ø¹ŗ»¼½¾æĄĮĀĆÄÅĘĒČÉŹĖĢĶĪĻŠŃŅÓŌÕÖ×ŲŁŚŪÜŻŽßąįāćäåęēčéźėģķīļšńņóōõö÷ųłśūüżž’Gre €‰őÿ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1253",
+			"text": "€‚ƒ„…†‡‰‹‘’“”•–—™› ΅Ά£¤¥¦§¨©«¬­®―°±²³΄µ¶·ΈΉΊ»Ό½ΎΏΐΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϊϋόύώGrüße őÿĀ中文日本한국😀�‾nd",
+			"bytes": "80 82 83 84 85 86 87 89 8b 91 92 93 94 95 96 97 99 9b a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88597",
+			"text": " ‘’£€₯¦§¨©ͺ«¬­―°±²³΄΅Ά·ΈΉΊ»Ό½ΎΏΐΑΒΓΔΕΖΗΘΙΚΛΜΝΞΟΠΡΣΤΥΦΧΨΩΪΫάέήίΰαβγδεζηθικλμνξοπρςστυφχψωϊϋόύώGrüße ¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1255",
+			"text": "€‚ƒ„…†‡ˆ‰‹‘’“”•–—˜™› ¡¢£₪¥¦§¨©×«¬­®¯°±²³´µ¶·¸¹÷»¼½¾¿ְֱֲֳִֵֶַָֹֺֻּֽ־ֿ׀ׁׂ׃װױײ׳״אבגדהוזחטיךכלםמןנסעףפץצקרשת‎‏Grüße ¤őÿĀ中文日本한국😀�‾nd",
+			"bytes": "80 82 83 84 85 86 87 88 89 8b 91 92 93 94 95 96 97 98 99 9b a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fd fe 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88598",
+			"text": " ¢£¤¥¦§¨©×«¬­®¯°±²³´µ¶·¸¹÷»¼½¾‗אבגדהוזחטיךכלםמןנסעףפץצקרשת‎‏Grüße €‰őÿĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fd fe 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 6e 64"
+		},
+		{
+			"encoding": "iso885910",
+			"text": " ĄĒĢĪĨĶ§ĻĐŠŦŽ­ŪŊ°ąēģīĩķ·ļđšŧž―ūŋĀÁÂÃÄÅÆĮČÉĘËĖÍÎÏÐŅŌÓÔÕÖŨØŲÚÛÜÝÞßāáâãäåæįčéęëėíîïðņōóôõöũøųúûüýþĸGre €¤‰őÿ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso885916",
+			"text": " ĄąŁ€„Š§š©Ș«Ź­źŻ°±ČłŽ”¶·žčș»ŒœŸżÀÁÂĂÄĆÆÇÈÉÊËÌÍÎÏĐŃÒÓÔŐÖŚŰÙÚÛÜĘȚßàáâăäćæçèéêëìíîïđńòóôőöśűùúûüęțÿGre ¤‰Ā中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1254",
+			"text": "€‚ƒ„…†‡ˆ‰Š‹Œ‘’“”•–—˜™š›œŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖ×ØÙÚÛÜİŞßàáâãäåæçèéêëìíîïğñòóôõö÷øùúûüışÿGre őĀ中文日本한국😀�‾nd",
+			"bytes": "80 82 83 84 85 86 87 88 89 8a 8b 8c 91 92 93 94 95 96 97 98 99 9a 9b 9c 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 9e 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso88599",
+			"text": " ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏĞÑÒÓÔÕÖ×ØÙÚÛÜİŞßàáâãäåæçèéêëìíîïğñòóôõö÷øùúûüışÿGre €‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp857",
+			"text": "ÇüéâäàåçêëèïîıÄÅÉæÆôöòûùİÖÜø£ØŞşáíóúñÑĞğ¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ºªÊËÈÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµ×ÚÛÙìÿ¯´­±¾¶§÷¸°¨·¹³²■ Gre €‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e8 e9 ea eb ec ed ee ef f0 f1 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f f2 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows1258",
+			"text": "€‚ƒ„…†‡ˆ‰‹Œ‘’“”•–—˜™›œŸ ¡¢£¤¥¦§¨©ª«¬­®¯°±²³´µ¶·¸¹º»¼½¾¿ÀÁÂĂÄÅÆÇÈÉÊË̀ÍÎÏĐÑ̉ÓÔƠÖ×ØÙÚÛÜỮßàáâăäåæçèéêë́íîïđṇ̃óôơö÷øùúûüư₫ÿGre őĀ中文日本한국😀�‾nd",
+			"bytes": "80 82 83 84 85 86 87 88 89 8b 8c 91 92 93 94 95 96 97 98 99 9b 9c 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 9e 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "windows874",
+			"text": "€…‘’“”•–— กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลฦวศษสหฬอฮฯะัาำิีึืฺุู฿เแโใไๅๆ็่้๊๋์ํ๎๏๐๑๒๓๔๕๖๗๘๙๚๛Grüße ¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 85 91 92 93 94 95 96 97 a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "iso885911",
+			"text": " กขฃคฅฆงจฉชซฌญฎฏฐฑฒณดตถทธนบปผฝพฟภมยรฤลฦวศษสหฬอฮฯะัาำิีึืฺุู฿เแโใไๅๆ็่้๊๋์ํ๎๏๐๑๒๓๔๕๖๗๘๙๚๛Grüße €¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f ff 3f 3f 6e 64"
+		},
+		{
+			"encoding": "koi8ru",
+			"text": "─│┌┐└┘├┤┬┴┼▀▄█▌▐░▒▓⌠■∙√≈≤≥ ⌡°²·÷═║╒ёє╔ії╗╘╙╚╛ґў╞╟╠╡ЁЄ╣ІЇ╦╧╨╩╪ҐЎ©юабцдефгхийклмнопярстужвьызшэщчъЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪGrüße €¤‰őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "koi8t",
+			"text": "қғ‚Ғ„…†‡‰ҳ‹ҲҷҶҚ‘’“”•–—™›ӯӮё¤ӣ¦§«¬­®°±²ЁӢ¶·№»©юабцдефгхийклмнопярстужвьызшэщчъЮАБЦДЕФГХИЙКЛМНОПЯРСТУЖВЬЫЗШЭЩЧЪGrüße €őÿĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 89 8a 8b 8c 8d 8e 90 91 92 93 94 95 96 97 99 9b a1 a2 a3 a4 a5 a6 a7 ab ac ad ae b0 b1 b2 b3 b5 b6 b7 b9 bb bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 3f 3f 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f be 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp865",
+			"text": "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø₧ƒáíóúñÑªº¿⌐¬½¼¡«¤░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■ Gre €‰őĀ中文日本한국😀�‾¥nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp850",
+			"text": "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜø£Ø×ƒáíóúñÑªº¿®¬½¼¡«»░▒▓│┤ÁÂÀ©╣║╗╝¢¥┐└┴┬├─┼ãÃ╚╔╩╦╠═╬¤ðÐÊËÈıÍÎÏ┘┌█▄¦Ì▀ÓßÔÒõÕµþÞÚÛÙýÝ¯´­±‗¾¶§÷¸°¨·¹³²■ Gre €‰őĀ中文日本한국😀�‾nd",
+			"bytes": "80 81 82 83 84 85 86 87 88 89 8a 8b 8c 8d 8e 8f 90 91 92 93 94 95 96 97 98 99 9a 9b 9c 9d 9e 9f a0 a1 a2 a3 a4 a5 a6 a7 a8 a9 aa ab ac ad ae af b0 b1 b2 b3 b4 b5 b6 b7 b8 b9 ba bb bc bd be bf c0 c1 c2 c3 c4 c5 c6 c7 c8 c9 ca cb cc cd ce cf d0 d1 d2 d3 d4 d5 d6 d7 d8 d9 da db dc dd de df e0 e1 e2 e3 e4 e5 e6 e7 e8 e9 ea eb ec ed ee ef f0 f1 f2 f3 f4 f5 f6 f7 f8 f9 fa fb fc fd fe ff 47 72 65 20 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "gbk",
+			"text": "中文编码：简体字，标点。ＡＢＣ１２３ßä¥āёḿ‐€№　︐￿𐀀😀􏿿Grüe ¤‰őÿĀ日本한국�‾nd",
+			"bytes": "d6d0 cec4 b1e0 c2eb a3ba bcf2 cce5 d7d6 a3ac b1ea b5e3 a1a3 a3c1 a3c2 a3c3 a3b1 a3b2 a3b3 3f 3f 3f 3f a8a1 a7d7 a8bc a95c 80 a1ed a1a1 aaa1 3f 8135f4 3f 3f 3f 3f 3f 47 72 a8b9 65 20 a1e8 a1eb 3f 3f 3f c8d5 b1be 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "gb18030",
+			"text": "中文编码：简体字，标点。ＡＢＣ１２３ßä¥āёḿ‐€№　︐￿𐀀😀􏿿Grüe ¤‰őÿĀ日本한국�‾nd",
+			"bytes": "d6d0 cec4 b1e0 c2eb a3ba bcf2 cce5 d7d6 a3ac b1ea b5e3 a1a3 a3c1 a3c2 a3c3 a3b1 a3b2 a3b3 81308938 81308a31 81308130 81308436 a8a1 a7d7 a8bc a95c a2e3 a1ed a1a1 aaa1 8339b136 8135f437 84318236 8431a439 90308130 9439fc36 e3329a35 47 72 a8b9 65 20 a1e8 a1eb 81309332 81308b37 81308b38 c8d5 b1be 83368433 8237f430 8431a437 8136a832 81308131 81308431 6e 64"
+		},
+		{
+			"encoding": "gb2312",
+			"text": "中文编码：简体字，标点。ßä¥āёḿ‐€№　︐￿𐀀😀􏿿Grüe ¤‰őÿĀ日本한국�‾nd",
+			"bytes": "d6d0 cec4 b1e0 c2eb a3ba bcf2 cce5 d7d6 a3ac b1ea b5e3 a1a3 3f 3f 3f 3f a8a1 a7d7 3f a95c 80 a1ed a1a1 3f 3f 3f 3f 3f 3f 3f 3f 47 72 a8b9 65 20 a1e8 a1eb 3f 3f 3f c8d5 b1be 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "cp950",
+			"text": "繁體中文：臺灣，標點。ＡＢＣ€╔╗╚╝䏰䰲䘃䖦䕸𧉧䵷䖳𧲱䳢𧳅㮕䜶䝄䱇䱀㇀㇁㇂㇃㇄𠄌㇅𠃑𠃍㇆㇇𠃋𡿨㇈𠃊㇉𪎩𡅅攊丽滝鵎釟𧜵撑会伨𣻗垾𦻓焾𥟠㙎榢𨯩孴穉𥣡𩓙穥穽𥦬窻𨩚鼦泎蟖痃𪊲硓咢贌狢獱謭猂瓱賫𤪻讖艷贛釀鑪靂靈靄韆顰驟鬢魘鱟鷹鷺鑂爕夑鑃爤鍁𥘅爮牀𤥴梽牕牗㹕𣁄栍Grüße ¤‰őÿĀ日本한국😀�‾¥nd",
+			"bytes": "c163 c5e9 a4a4 a4e5 a147 bb4f c657 a141 bcd0 c249 a143 a2cf a2d0 a2d1 a3e1 f9dd f9df f9e3 f9e5 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f c640 c641 c642 c643 c644 c645 c646 c647 c648 c649 c64a c64b c64c c64d c64e c64f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 3f 47 72 3f 3f 65 20 3f 3f 3f 3f 3f a4e9 a5bb 3f 3f 3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "big5hkscs",
+			"text": "繁體中文：臺灣，標點。€╔╗╚╝䏰䰲䘃䖦䕸𧉧䵷䖳𧲱䳢𧳅㮕䜶䝄䱇䱀㇀㇁㇂㇃㇄𠄌㇅𠃑𠃍㇆㇇𠃋𡿨㇈𠃊㇉𪎩𡅅攊丽滝鵎釟𧜵撑会伨𣻗垾𦻓焾𥟠㙎榢𨯩孴穉𥣡𩓙穥穽𥦬窻𨩚鼦泎蟖痃𪊲硓咢贌狢獱謭猂瓱賫𤪻讖艷贛釀鑪靂靈靄韆顰驟鬢魘鱟鷹鷺鑂爕夑鑃爤鍁𥘅爮牀𤥴梽牕牗㹕𣁄栍Grüße ¤‰őÿĀ日本한국😀�‾¥nd",
+			"bytes": "c163 c5e9 a4a4 a4e5 a147 bb4f c657 a141 bcd0 c249 a143 a3e1 f9dd f9df f9e3 f9e5 8740 8741 8742 8743 8744 8745 8746 8747 8748 8749 874a 874b 874c 874d 874e 874f 8840 8841 8842 8843 8844 8845 8846 8847 8848 8849 884a 884b 884c 884d 884e 884f 8940 8941 8943 8946 8947 8948 8949 894c 894d 894e 894f 8e40 8e41 8e42 8e43 8e44 8e45 8e46 8e47 8e48 8e49 8e4a 8e4b 8e4c 8e4d 8e4e 8e4f a040 a041 a042 a043 a044 a045 a046 a047 a048 a049 a04a a04b a04c a04d a04e a04f c640 c641 c642 c643 c644 c645 c646 c647 c648 c649 c64a c64b c64c c64d c64e c64f fe40 fe41 fe42 fe43 fe44 fe45 fe46 fe47 fe48 fe49 fe4a fe4b fe4c fe4d fe4e fe4f 47 72 88a2 3f 65 20 3f 3f 3f 3f 8856 a4e9 a5bb 3f 3f 3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "shiftjis",
+			"text": "日本語のテキスト：ひらがな、カタナ。ｱｲｳ①ⅰ¥‾\\~Grüße €¤‰őÿĀ中文한국😀�nd",
+			"bytes": "93fa 967b 8cea 82cc 8365 834c 8358 8367 8146 82d0 82e7 82aa 82c8 8141 834a 835e 8369 8142 b1 b2 b3 8740 fa40 5c 7e 5c 7e 3f 3f 3f 47 72 3f 3f 65 20 3f 3f 81f1 3f 3f 3f 9286 95b6 3f 3f 3f 3f 80 3f 3f 6e 64"
+		},
+		{
+			"encoding": "eucjp",
+			"text": "日本語のテキスト：ひらがな、カタナ。ｱ¥‾丂丄˘～龥Grüße €¤‰őÿĀ中文한국😀�nd",
+			"bytes": "c6fc cbdc b8ec a4ce a5c6 a5ad a5b9 a5c8 a1a7 a4d2 a4e9 a4ac a4ca a1a2 a5ab a5bf a5ca a1a3 8eb1 5c 7e 8fb0a1 8fb0a2 8fa2af 8fa2b7 8fede3 47 72 8fabe4 8fa9ce 65 20 3f 8fa2f0 a2f3 8fabd6 8fabf3 8faaa7 c3e6 cab8 3f 3f 3f 3f 3f 3f 3f 6e 64"
+		},
+		{
+			"encoding": "euckr",
+			"text": "한국어 텍스트:안녕하세요.漢字똠햏Grüße€¤‰őÿĀ中文日本😀�‾¥nd",
+			"bytes": "c7d1 b1b9 beee 20 c5d8 bdba c6ae 3a bec8 b3e7 c7cf bcbc bfe4 2e f9d3 edae 8c63 c164 47 72 3f a9ac 65 a2e6 a2b4 a2b6 3f 3f 3f f1e9 d9fe eced dce2 3f 3f 3f 3f 3f 3f 3f 6e 64"
+		}
+	],
+	"texts": [
+		{
+			"encoding": "utf8",
+			"text": "Grüße € ¤ ‰ ő ÿ Ā 中文 日本 한국 😀 � ‾ ¥  end",
+			"bytes": "4772c3bcc39f6520e282ac20c2a420e280b020c59120c3bf20c48020e4b8ade6968720e697a5e69cac20ed959ceab5ad20f09f988020efbfbd20e280be20c2a520c280c281c29f20656e64"
+		},
+		{
+			"encoding": "utf8bom",
+			"text": "Grüße € ¤ ‰ ő ÿ Ā 中文 日本 한국 😀 � ‾ ¥  end",
+			"bytes": "efbbbf4772c3bcc39f6520e282ac20c2a420e280b020c59120c3bf20c48020e4b8ade6968720e697a5e69cac20ed959ceab5ad20f09f988020efbfbd20e280be20c2a520c280c281c29f20656e64"
+		},
+		{
+			"encoding": "utf16le",
+			"text": "Grüße € ¤ ‰ ő ÿ Ā 中文 日本 한국 😀 � ‾ ¥  end",
+			"bytes": "fffe47007200fc00df0065002000ac202000a40020003020200051012000ff002000000120002d4e87652000e5652c6720005cd56dad20003dd800de2000fdff20003e202000a5002000800081009f00200065006e006400"
+		},
+		{
+			"encoding": "utf16be",
+			"text": "Grüße € ¤ ‰ ő ÿ Ā 中文 日本 한국 😀 � ‾ ¥  end",
+			"bytes": "feff0047007200fc00df0065002020ac002000a40020203000200151002000ff0020010000204e2d6587002065e5672c0020d55cad6d0020d83dde000020fffd0020203e002000a5002000800081009f00200065006e0064"
+		},
+		{
+			"encoding": "gbk",
+			"text": "中文编码：简体字，标点。ＡＢＣ１２３ end",
+			"bytes": "d6d0cec4b1e0c2eba3babcf2cce5d7d6a3acb1eab5e3a1a3a3c1a3c2a3c3a3b1a3b2a3b320656e64"
+		},
+		{
+			"encoding": "cp950",
+			"text": "繁體中文：臺灣，標點。ＡＢＣ end",
+			"bytes": "c163c5e9a4a4a4e5a147bb4fc657a141bcd0c249a143a2cfa2d0a2d120656e64"
+		},
+		{
+			"encoding": "big5hkscs",
+			"text": "Ê̄Ê̌ê̄ê̌ Ê ê Ề end",
+			"bytes": "8862886488a388a52088662088a72088663f20656e64"
+		},
+		{
+			"encoding": "shiftjis",
+			"text": "日本語のテキスト：ひらがな、カタカナ。ｱｲｳ end",
+			"bytes": "93fa967b8cea82cc8365834c83588367814682d082e782aa82c88141834a835e834a83698142b1b2b320656e64"
+		},
+		{
+			"encoding": "eucjp",
+			"text": "日本語のテキスト：ひらがな、カタカナ。 end",
+			"bytes": "c6fccbdcb8eca4cea5c6a5ada5b9a5c8a1a7a4d2a4e9a4aca4caa1a2a5aba5bfa5aba5caa1a320656e64"
+		},
+		{
+			"encoding": "euckr",
+			"text": "한국어 텍스트: 안녕하세요. 漢字 end",
+			"bytes": "c7d1b1b9beee20c5d8bdbac6ae3a20bec8b3e7c7cfbcbcbfe42e20f9d3edae20656e64"
+		}
+	]
+}

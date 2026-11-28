@@ -1,9 +1,9 @@
-//! The encodings a read decodes, under VS Code's encoding identifiers. encoding_rs decodes the
-//! encodings the WHATWG Encoding Standard defines; `cp950` and `big5hkscs` decode as Big5 and
-//! `gb2312` as GBK. In-house tables decode the single-byte encodings WHATWG maps to another
-//! encoding or lacks, as VS Code's iconv-lite does. Malformed input decodes to U+FFFD. A read that
-//! names an identifier this table lacks decodes UTF-8 and reports `utf8`, as VS Code falls back
-//! for an encoding it cannot load.
+//! The encodings a read decodes and a write encodes, under VS Code's encoding identifiers.
+//! encoding_rs decodes the encodings the WHATWG Encoding Standard defines; `cp950` and `big5hkscs`
+//! decode as Big5 and `gb2312` as GBK. In-house tables decode the single-byte encodings WHATWG maps
+//! to another encoding or lacks, as VS Code's iconv-lite does. Malformed input decodes to U+FFFD. A
+//! read that names an identifier this table lacks decodes UTF-8 and reports `utf8`, as VS Code
+//! falls back for an encoding it cannot load. [`Encoder`] states how a write encodes.
 //!
 //! Where WHATWG and iconv-lite differ for an encoding decoded through encoding_rs, WHATWG holds: a
 //! byte iconv-lite leaves undefined decodes to WHATWG's character, such as a C1 control in
@@ -13,7 +13,10 @@
 
 use encoding_rs::CoderResult;
 
+mod encoder;
 mod tables;
+
+pub(crate) use encoder::{Encoder, Target};
 
 /// One encoding a read can decode.
 #[derive(Debug, Eq, PartialEq)]

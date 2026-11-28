@@ -19,7 +19,8 @@ pub struct FsWriteResult {
     pub mtime_ms: Signed,
     /// Its size in bytes.
     pub size: SafeInteger,
-    /// The characters the encoding cannot represent, each written as `?`.
+    /// The characters the encoding cannot represent, each written as `?`, or as `??` beyond the
+    /// Basic Multilingual Plane in a single-byte encoding, as VS Code writes them.
     pub replaced: SafeInteger,
     /// The SHA-256 digest of its bytes, the precondition of the next save.
     pub sha256: Sha256Digest,
