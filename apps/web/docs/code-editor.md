@@ -43,8 +43,8 @@ own.
 `loadCodeEditor` resolves to the documents and views together with Monaco, so they load with the
 editor rather than in the main bundle.
 
-A document holds one file's content, and every tab that shows the file shares it through
-`CodeEditorModelRegistry`; the last tab to let go disposes of it.
+A document holds one file's content, and every tab that shows the file in the same editor shares it
+through its Workspace's `CodeEditorFileDocuments`; the last tab to let go disposes of it.
 
 A view keeps one editor for as long as it is mounted and moves it between documents, so switching
 tabs creates no editor. Each file's scroll and selection outlive its tab, up to VS Code's 100 files.

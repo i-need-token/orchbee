@@ -16,7 +16,6 @@ followCodeEditorTheme(window, { editor });
 followCodeEditorFontZoom(codeEditorFontZoom, { editor });
 
 export { editor, languages };
-export { CodeEditorModelRegistry } from './CodeEditorModelRegistry';
 export { CodeEditorTextDocument } from './CodeEditorTextDocument';
 export { CodeEditorViewStates } from './CodeEditorViewStates';
 export { createCodeEditorFileDocuments } from './createCodeEditorFileDocuments';
