@@ -142,7 +142,7 @@ impl LocalTerminalService {
             return;
         };
         if !handle.is_active()
-            || super::placement(workers.request_handle().as_ref()) != Some(target.worker)
+            || !workers.serves(target.worker.worker_id, target.worker.generation)
             || super::placement(Some(handle)) != Some(target.worker)
         {
             return;
@@ -179,7 +179,7 @@ impl LocalTerminalService {
             return;
         };
         if !handle.is_active()
-            || super::placement(workers.request_handle().as_ref()) != Some(target.worker)
+            || !workers.serves(target.worker.worker_id, target.worker.generation)
             || super::placement(Some(handle)) != Some(target.worker)
         {
             return;

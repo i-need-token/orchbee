@@ -25,7 +25,7 @@ impl SessionCoordinator {
         &mut self,
         target: BindingViewerTarget,
         request_id: impl FnOnce() -> Option<WorkbenchRequestId>,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
     ) -> bool {
@@ -75,7 +75,7 @@ impl SessionCoordinator {
                 panel_id,
             },
         };
-        self.execute_terminal_tab_close(command, worker, owner_available, now)
+        self.execute_terminal_tab_close(command, serving, owner_available, now)
             .is_some_and(|result| {
                 matches!(
                     result.outcome,

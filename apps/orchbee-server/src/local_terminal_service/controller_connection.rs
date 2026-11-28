@@ -300,9 +300,7 @@ pub(super) fn execute<'service>(
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
-        if !controller.handle.is_active()
-            || placement(workers.request_handle().as_ref()) != placement(Some(&controller.handle))
-        {
+        if !workers.is_current(&controller.handle) {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
         let Ok(mut coordinator) = service.coordinator.lock() else {
@@ -466,9 +464,7 @@ fn acquire_candidate<'service>(
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
-        if !viewer.handle.is_active()
-            || placement(workers.request_handle().as_ref()) != placement(Some(&viewer.handle))
-        {
+        if !workers.is_current(&viewer.handle) {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
         let Ok(mut coordinator) = service.coordinator.lock() else {
@@ -709,9 +705,7 @@ fn install_controller<'service>(
     let Ok(workers) = service.workers.lock() else {
         return unavailable(Unavailable::ServerBusy);
     };
-    if !viewer.handle.is_active()
-        || placement(workers.request_handle().as_ref()) != placement(Some(&viewer.handle))
-    {
+    if !workers.is_current(&viewer.handle) {
         return unavailable(Unavailable::TerminalRuntimeUnavailable);
     }
     let Ok(coordinator) = service.coordinator.lock() else {

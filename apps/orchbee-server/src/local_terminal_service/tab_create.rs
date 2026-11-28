@@ -2,7 +2,7 @@
 //! settlement while keeping I/O outside canonical locks. It does not allocate a second
 //! membership plan or retry unknown launch delivery.
 
-use super::{LocalTerminalService, lease_expiry, placement};
+use super::{LocalTerminalService, creation_handle, current_placement, lease_expiry, placement};
 use crate::session_coordinator::{PostcommitCoordinationError, PreparedTerminalTabCreate};
 use crate::terminal_coordinator::{CreateInputs, LaunchCapture};
 use orchbee_capability_node_protocol::LeaseExpiresAtUnixMilliseconds;
@@ -41,14 +41,14 @@ impl LocalTerminalService {
                     WorkbenchCommandUnavailableReason::ServerBusy,
                 ));
             };
-            let handle = workers.request_handle();
-            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return Ok(unavailable(
                     &command,
                     WorkbenchCommandUnavailableReason::ServerBusy,
                 ));
             };
+            let handle = creation_handle(&workers, &coordinator, &command);
+            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
             let prepared = coordinator.prepare_terminal_tab_create(command, inputs);
             (prepared, handle)
         };
@@ -65,6 +65,7 @@ impl LocalTerminalService {
             PreparedTerminalTabCreate::Ready(result) => return Ok(result),
             PreparedTerminalTabCreate::Dispatch(pending) => pending,
         };
+        let dispatched = placement(handle.as_ref());
         let completion = handle.map_or(super::Completion::Unavailable, |handle| {
             self.submit(&handle, pending.command())
         });
@@ -74,7 +75,7 @@ impl LocalTerminalService {
             .workers
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
-        let current = placement(workers.request_handle().as_ref());
+        let current = current_placement(&workers, dispatched);
         let mut coordinator = self
             .coordinator
             .lock()

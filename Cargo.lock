@@ -1784,6 +1784,7 @@ dependencies = [
  "orchbee-local-peer-credentials",
  "orchbee-local-runtime",
  "orchbee-local-worker-protocol",
+ "orchbee-machine-protocol",
  "orchbee-terminal-protocol",
  "orchbee-workbench-protocol",
  "process-wrap",

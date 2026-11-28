@@ -334,7 +334,7 @@ fn final_admission_counts_evidence_only_for_the_runtime_and_revision_it_was_read
         ..command
     };
     let mut session = service.coordinator.lock().unwrap();
-    let Some(Ok(members)) = session.prepare_terminal_tab_idle_close(command.clone(), Some(worker))
+    let Some(Ok(members)) = session.prepare_terminal_tab_idle_close(command.clone(), &[worker])
     else {
         panic!("prepared")
     };
@@ -360,7 +360,7 @@ fn final_admission_counts_evidence_only_for_the_runtime_and_revision_it_was_read
     let result = session
         .execute_terminal_tab_close_with_idle_proof(
             command,
-            Some(worker),
+            &[worker],
             true,
             Instant::now(),
             &[quiet(restarted)],

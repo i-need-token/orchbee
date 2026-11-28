@@ -3,10 +3,12 @@
 //! through the process observer within one budget, says whether it runs anything beyond an idle
 //! shell. Final admission then re-enters with that proof. No Session/registry lock spans IPC; no
 //! inspection claims Worker Close ownership.
-use super::super::{LocalTerminalService, lease_expiry, placement};
+use super::super::{LocalTerminalService, lease_expiry, serving_placements, target_handle};
 use super::evidence::CloseFacts;
 use crate::session_coordinator::{IdleCloseMember, ProcessObservationTarget};
+use crate::terminal_coordinator::WorkerPlacement;
 use crate::worker_obcn_carrier::WorkerRequestHandle;
+use crate::worker_registry::WorkerRegistry;
 use orchbee_capability_node_protocol::{
     LifecycleTargetObservation, LifecycleTerminalPhase, TerminalLifecycleOutcome,
 };
@@ -49,42 +51,37 @@ impl LocalTerminalService {
             LEAF_EVIDENCE_BUDGET
         };
         let deadline = Instant::now().checked_add(budget)?;
-        let (members, handle) = {
+        let (members, handles) = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let handles = workers
+                .as_deref()
+                .map(WorkerRegistry::serving_handles)
+                .unwrap_or_default();
+            let serving: Vec<_> = handles.iter().filter_map(WorkerPlacement::of).collect();
             let mut coordinator = self.coordinator.lock().ok()?;
-            let worker = placement(handle.as_ref());
             let prepared = if workspace {
-                coordinator.prepare_workspace_idle_close(command.clone(), worker)
+                coordinator.prepare_workspace_idle_close(command.clone(), &serving)
             } else {
-                coordinator.prepare_terminal_tab_idle_close(command.clone(), worker)
+                coordinator.prepare_terminal_tab_idle_close(command.clone(), &serving)
             }?;
             match prepared {
-                Ok(members) => (members, handle),
+                Ok(members) => (members, handles),
                 Err(result) => return Some(result),
             }
         };
-        let proof = self.idle_proof(
-            &command.request_id,
-            members,
-            handle.as_ref(),
-            deadline,
-            read,
-        );
+        let proof = self.idle_proof(&command.request_id, members, &handles, deadline, read);
         let result = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let mut coordinator = self.coordinator.lock().ok()?;
-            let worker = placement(handle.as_ref());
             let available = self.close_maintenance.available();
             if workspace {
                 coordinator.execute_workspace_close_with_idle_proof(
                     command,
-                    worker,
+                    &serving,
                     available,
                     Instant::now(),
                     &proof,
@@ -92,7 +89,7 @@ impl LocalTerminalService {
             } else {
                 coordinator.execute_terminal_tab_close_with_idle_proof(
                     command,
-                    worker,
+                    &serving,
                     available,
                     Instant::now(),
                     &proof,
@@ -105,12 +102,13 @@ impl LocalTerminalService {
 
     /// One proof entry per member. A runtime stays unproven, and the close asks, unless the
     /// inventory shows it ended or its read shows nothing beyond an idle shell. `close_id` names
-    /// the Close, or the Tab set, whose read-only inventory walks these are.
+    /// the Close, or the Tab set, whose read-only inventory walks these are. Each runtime's
+    /// inventory is walked through its own Worker's carrier in `serving`.
     pub(in crate::local_terminal_service) fn idle_proof(
         &self,
         close_id: &WorkbenchRequestId,
         members: Vec<IdleCloseMember>,
-        handle: Option<&WorkerRequestHandle>,
+        serving: &[WorkerRequestHandle],
         deadline: Instant,
         read: impl FnOnce(Vec<ProcessObservationTarget>, Instant) -> Vec<CloseFacts>,
     ) -> Vec<WorkbenchTabCloseMemberRuntime> {
@@ -124,7 +122,11 @@ impl LocalTerminalService {
                 continue;
             };
             let Some(phase) = inspected
-                .then(|| self.inspect_close_target(handle?, close_id, target, deadline))
+                .then(|| {
+                    let handle =
+                        target_handle(serving, target.worker_id(), target.worker_generation())?;
+                    self.inspect_close_target(handle, close_id, target, deadline)
+                })
                 .flatten()
                 .map(|observed| observed.phase)
             else {

@@ -188,7 +188,7 @@ impl Fixture {
             .unwrap()
             .execute_terminal_tab_close(
                 command,
-                Some(placement_value()),
+                &[placement_value()],
                 true,
                 std::time::Instant::now(),
             )

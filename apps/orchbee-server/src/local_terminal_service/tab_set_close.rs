@@ -1,7 +1,7 @@
 //! Tab set Close transport and its retained submitter. An if-idle Start reads every member's
 //! terminals once, outside the gates; reads never start the submitter.
 use super::{
-    LocalTerminalService, placement,
+    LocalTerminalService, serving_placements,
     tab_close::{evidence::CloseFacts, idle::WORKSPACE_EVIDENCE_BUDGET},
     worker_identity,
 };
@@ -55,29 +55,37 @@ impl LocalTerminalService {
         let Some(deadline) = Instant::now().checked_add(WORKSPACE_EVIDENCE_BUDGET) else {
             return unavailable(&request);
         };
-        let (members, handle) = {
+        let (members, handles) = {
             let workers = self.workers.lock().ok();
             let handle = workers
                 .as_ref()
                 .and_then(|workers| workers.request_handle());
+            let handles = workers
+                .as_deref()
+                .map(crate::worker_registry::WorkerRegistry::serving_handles)
+                .unwrap_or_default();
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return unavailable(&request);
             };
             match coordinator.start_tab_set_close(
                 request.clone(),
-                placement(handle.as_ref()),
+                &serving,
                 worker_identity(handle.as_ref()),
                 owner_available,
             ) {
                 Some(TabSetCloseStart::Answered(result)) => return result,
-                Some(TabSetCloseStart::Read(members)) => (members, handle),
+                Some(TabSetCloseStart::Read(members)) => (members, handles),
                 None => return unavailable(&request),
             }
         };
         let proof = self.idle_proof(
             request.action.operation_id(),
             members,
-            handle.as_ref(),
+            &handles,
             deadline,
             read,
         );
@@ -85,13 +93,17 @@ impl LocalTerminalService {
         let handle = workers
             .as_ref()
             .and_then(|workers| workers.request_handle());
+        let serving = workers
+            .as_deref()
+            .map(serving_placements)
+            .unwrap_or_default();
         let Ok(mut coordinator) = self.coordinator.lock() else {
             return unavailable(&request);
         };
         coordinator
             .finish_tab_set_close_if_idle(
                 request.clone(),
-                placement(handle.as_ref()),
+                &serving,
                 worker_identity(handle.as_ref()),
                 owner_available,
                 &proof,

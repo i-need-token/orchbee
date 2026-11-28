@@ -108,15 +108,23 @@ impl TerminalCoordinator {
         self.worker_retirements.push_back(retirement);
     }
 
-    /// The next queued Worker retirement for `worker`, as a fresh lifecycle request. Retirements
-    /// for another Worker generation are dropped: that Worker and its Disposed records are gone.
+    /// The next queued retirement for a Worker generation in `serving`, as a fresh lifecycle
+    /// request addressed to that generation. Retirements for a generation that serves no more are
+    /// dropped: that Worker and its Disposed records are gone. While no Worker serves, the queue
+    /// waits unchanged.
     pub(crate) fn next_worker_retirement(
         &mut self,
-        worker: WorkerPlacement,
+        serving: &[WorkerPlacement],
         expiry: LeaseExpiresAtUnixMilliseconds,
     ) -> Option<TerminalLifecycleRequest> {
+        if serving.is_empty() {
+            return None;
+        }
         while let Some(retirement) = self.worker_retirements.pop_front() {
-            if !matches_placement(retirement.authorization, worker) {
+            if !serving
+                .iter()
+                .any(|worker| matches_placement(retirement.authorization, *worker))
+            {
                 continue;
             }
             let request = self.worker_retirement_request(retirement, expiry);

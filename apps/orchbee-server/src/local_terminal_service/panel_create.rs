@@ -54,14 +54,14 @@ impl LocalTerminalService {
                     WorkbenchCommandUnavailableReason::ServerBusy,
                 ));
             };
-            let handle = workers.request_handle();
-            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return Ok(unavailable(
                     &command,
                     WorkbenchCommandUnavailableReason::ServerBusy,
                 ));
             };
+            let handle = super::creation_handle(&workers, &coordinator, &command);
+            let inputs = CreateInputs::admitted_by(candidate, expiry, handle.as_ref(), capture);
             let prepared = coordinator.prepare_terminal_panel_create(command, inputs);
             (prepared, handle)
         };
@@ -69,6 +69,7 @@ impl LocalTerminalService {
             PreparedTerminalPanelCreate::Ready(result) => return Ok(result),
             PreparedTerminalPanelCreate::Dispatch(pending) => pending,
         };
+        let dispatched = placement(handle.as_ref());
         let completion = handle.map_or(super::Completion::Unavailable, |handle| {
             self.submit(&handle, pending.command())
         });
@@ -78,7 +79,7 @@ impl LocalTerminalService {
             .workers
             .lock()
             .map_err(|_poison| PostcommitCoordinationError)?;
-        let current = placement(workers.request_handle().as_ref());
+        let current = super::current_placement(&workers, dispatched);
         let mut coordinator = self
             .coordinator
             .lock()

@@ -82,7 +82,7 @@ fn exit_normally(
     coordinator.close_after_normal_exit(
         target,
         || WorkbenchRequestId::parse(&format!("{request:032x}")).ok(),
-        Some(worker(1)),
+        &[worker(1)],
         true,
         Instant::now(),
     )

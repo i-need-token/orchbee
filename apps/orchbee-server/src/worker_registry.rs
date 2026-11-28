@@ -1,8 +1,10 @@
-//! Owns Worker admission generations, the active registered carrier, and exact-generation
-//! retirement with Agent Drain identity minting. It does not authenticate transport peers or
-//! let a stale registration retire a replacement Worker.
+//! Owns Worker admission generations, the registered carrier of the local Worker and of each remote
+//! node, the lookup of a Worker's carrier by its id, and exact-generation retirement with Agent
+//! Drain identity minting. It does not authenticate transport peers or let a stale registration
+//! retire a replacement Worker.
 
 use std::{
+    collections::BTreeMap,
     num::NonZeroU64,
     sync::{
         Arc, Mutex, Weak,
@@ -16,6 +18,7 @@ use std::io::{Read, Write};
 
 use orchbee_capability_node_protocol::{WorkerGeneration, WorkerId as CapabilityWorkerId};
 use orchbee_local_worker_protocol::WorkerId;
+use orchbee_machine_protocol::MachineId;
 use orchbee_workbench_protocol::PresentationLaunchProgram;
 
 use crate::agent::native_observation::CarrierIdentity;
@@ -145,7 +148,12 @@ impl Drop for WorkerGenerationRegistration {
 
 #[derive(Debug)]
 pub(crate) struct WorkerRegistry {
+    /// The local Worker.
     active: Option<ActiveWorker>,
+    /// The Worker each borrowed machine runs for the Session, at most one per machine. Their
+    /// generations come from the local Worker's counter, so a generation names one Worker of the
+    /// Session, and no two Workers share an id.
+    nodes: BTreeMap<MachineId, ActiveWorker>,
     next_generation: Option<NonZeroU64>,
     viewer_ready: Arc<ViewerReadyRoutes>,
     titles: Arc<TerminalTitles>,
@@ -159,6 +167,7 @@ impl WorkerRegistry {
     pub(crate) fn new() -> Self {
         Self {
             active: None,
+            nodes: BTreeMap::new(),
             next_generation: Some(NonZeroU64::MIN),
             viewer_ready: Arc::default(),
             titles: Arc::default(),
@@ -186,28 +195,83 @@ impl WorkerRegistry {
         Arc::clone(&self.catalog)
     }
 
+    /// Admits the local Worker.
     pub(crate) fn admit(
         &mut self,
         worker_id: WorkerId,
         system_shell: Option<PresentationLaunchProgram>,
     ) -> WorkerAdmission {
         if let Some(active) = self.active.as_ref() {
-            return WorkerAdmission::Duplicate {
-                active_generation: active.generation,
-                active_worker_id: active.worker_id,
-            };
+            return duplicate(active);
         }
-        let Some(generation) = self.next_generation else {
+        if let Some(node) = self.nodes.values().find(|node| node.worker_id == worker_id) {
+            return duplicate(node);
+        }
+        let Some(worker) = self.next_worker(worker_id, system_shell) else {
             return WorkerAdmission::GenerationExhausted;
         };
-        self.active = Some(ActiveWorker {
+        let generation = worker.generation;
+        self.active = Some(worker);
+        WorkerAdmission::Accepted { generation }
+    }
+
+    /// Admits the Worker of `machine`'s remote node, one per machine. Its id names it among the
+    /// Session's Workers, so an id another Worker holds is a duplicate.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "a remote node joins only through the machine link, which carries no Worker yet"
+        )
+    )]
+    pub(crate) fn admit_node(
+        &mut self,
+        machine: MachineId,
+        worker_id: WorkerId,
+        system_shell: Option<PresentationLaunchProgram>,
+    ) -> WorkerAdmission {
+        if let Some(node) = self.nodes.get(&machine) {
+            return duplicate(node);
+        }
+        if let Some(other) = self.workers().find(|other| other.worker_id == worker_id) {
+            return duplicate(other);
+        }
+        let Some(worker) = self.next_worker(worker_id, system_shell) else {
+            return WorkerAdmission::GenerationExhausted;
+        };
+        let generation = worker.generation;
+        self.nodes.insert(machine, worker);
+        WorkerAdmission::Accepted { generation }
+    }
+
+    fn next_worker(
+        &mut self,
+        worker_id: WorkerId,
+        system_shell: Option<PresentationLaunchProgram>,
+    ) -> Option<ActiveWorker> {
+        let generation = self.next_generation?;
+        self.next_generation = generation.get().checked_add(1).and_then(NonZeroU64::new);
+        Some(ActiveWorker {
             carrier: None,
             generation,
             worker_id,
             system_shell,
-        });
-        self.next_generation = generation.get().checked_add(1).and_then(NonZeroU64::new);
-        WorkerAdmission::Accepted { generation }
+        })
+    }
+
+    /// Every admitted Worker: the local one first, then each remote node in machine order.
+    fn workers(&self) -> impl Iterator<Item = &ActiveWorker> {
+        self.active.iter().chain(self.nodes.values())
+    }
+
+    fn worker_mut(&mut self, generation: NonZeroU64) -> Option<&mut ActiveWorker> {
+        match self.active.as_mut() {
+            Some(active) if active.generation == generation => Some(active),
+            _ => self
+                .nodes
+                .values_mut()
+                .find(|node| node.generation == generation),
+        }
     }
 
     pub(crate) fn register_carrier(
@@ -246,6 +310,25 @@ impl WorkerRegistry {
         Self::register_carrier_impl(registry, generation, carrier, Some(agents), false)
     }
 
+    /// Registers the carrier of a remote node's Worker. A replacement serves no job until
+    /// [`Self::serve_adopted`]. Titles, the Agent catalog and the Agent leaf follow the local
+    /// Worker only.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "a remote node joins only through the machine link, which carries no Worker yet"
+        )
+    )]
+    pub(crate) fn register_node_carrier(
+        registry: &Arc<Mutex<Self>>,
+        generation: NonZeroU64,
+        carrier: WorkerCarrier,
+        serving: bool,
+    ) -> Option<RegisteredWorkerWireOwner> {
+        Self::register_carrier_impl(registry, generation, carrier, None, serving)
+    }
+
     fn register_carrier_impl(
         registry: &Arc<Mutex<Self>>,
         generation: NonZeroU64,
@@ -257,7 +340,15 @@ impl WorkerRegistry {
         let viewer_ready = registry_guard.viewer_ready_routes();
         let titles = registry_guard.terminal_titles();
         let catalog = registry_guard.agent_catalog();
-        let active = registry_guard.active.as_mut()?;
+        let local = registry_guard
+            .active
+            .as_ref()
+            .is_some_and(|active| active.generation == generation);
+        // The Agent leaf admits one carrier, the local Worker's.
+        if agents.is_some() && !local {
+            return None;
+        }
+        let active = registry_guard.worker_mut(generation)?;
         if active.generation != generation
             || carrier.generation() != generation
             || carrier.worker_id() != active.worker_id
@@ -270,7 +361,9 @@ impl WorkerRegistry {
         // between the fold and the record install below can panic.
         let drain_mint = Arc::new(AgentDrainMint::new());
         // A Worker the title wire cannot name keeps no titles; registration is unaffected.
-        let title_worker = CapabilityWorkerId::from_bytes(active.worker_id.as_bytes()).ok();
+        let title_worker = CapabilityWorkerId::from_bytes(active.worker_id.as_bytes())
+            .ok()
+            .filter(|_| local);
         let leaf = match agents {
             Some(agents) => {
                 // The identity is derived under the guard from the SAME
@@ -298,9 +391,12 @@ impl WorkerRegistry {
             None => None,
         };
         let (request_handle, shutdown, wire_owner) = carrier.into_parts();
-        let wire_owner = wire_owner
-            .with_viewer_ready(viewer_ready)
-            .with_titles(Arc::clone(&titles), generation);
+        let wire_owner = wire_owner.with_viewer_ready(viewer_ready);
+        let wire_owner = if local {
+            wire_owner.with_titles(Arc::clone(&titles), generation)
+        } else {
+            wire_owner
+        };
         // The carrier matched this admitted generation above, so its handle carries this
         // generation's reported shell and no other.
         let request_handle = request_handle.with_system_shell(active.system_shell.take());
@@ -326,7 +422,7 @@ impl WorkerRegistry {
         })
     }
 
-    /// The serving Worker's live carrier; none while a restart holds it.
+    /// The serving local Worker's live carrier; none while a restart holds it.
     pub(crate) fn request_handle(&self) -> Option<WorkerRequestHandle> {
         if self.held {
             return None;
@@ -334,17 +430,71 @@ impl WorkerRegistry {
         self.capture_handle()
     }
 
+    /// The live carrier of the serving Worker `worker_id` names, local or remote; none while a
+    /// restart holds the Session's Workers.
+    pub(crate) fn handle_for_worker(
+        &self,
+        worker_id: CapabilityWorkerId,
+    ) -> Option<WorkerRequestHandle> {
+        if self.held {
+            return None;
+        }
+        self.workers()
+            .find(|worker| worker.worker_id.as_bytes() == worker_id.as_bytes())
+            .and_then(serving_handle)
+    }
+
+    /// The serving carriers of all the Session's Workers, the local Worker's first; none while a
+    /// restart holds the Session's Workers.
+    pub(crate) fn serving_handles(&self) -> Vec<WorkerRequestHandle> {
+        if self.held {
+            return Vec::new();
+        }
+        self.workers().filter_map(serving_handle).collect()
+    }
+
+    /// The serving carrier of the Worker `handle` addresses, whichever generation serves it now.
+    pub(crate) fn current_for(&self, handle: &WorkerRequestHandle) -> Option<WorkerRequestHandle> {
+        if self.held {
+            return None;
+        }
+        self.workers()
+            .find(|worker| worker.worker_id == handle.worker_id())
+            .and_then(serving_handle)
+    }
+
+    /// Whether `handle` is the live carrier its Worker serves through now.
+    pub(crate) fn is_current(&self, handle: &WorkerRequestHandle) -> bool {
+        handle.is_active()
+            && self
+                .current_for(handle)
+                .is_some_and(|current| current.generation() == handle.generation())
+    }
+
+    /// [`Self::handle_for_worker`] for exactly that Worker's `generation`.
+    pub(crate) fn handle_at(
+        &self,
+        worker_id: CapabilityWorkerId,
+        generation: WorkerGeneration,
+    ) -> Option<WorkerRequestHandle> {
+        self.handle_for_worker(worker_id)
+            .filter(|handle| handle.generation().get() == generation.get())
+    }
+
+    /// Whether the Worker `worker_id` names serves now through exactly `generation`.
+    pub(crate) fn serves(
+        &self,
+        worker_id: CapabilityWorkerId,
+        generation: WorkerGeneration,
+    ) -> bool {
+        self.handle_at(worker_id, generation).is_some()
+    }
+
     /// The serving Worker's live carrier, also while a restart holds it: only the exact capture and
     /// the observation it and the background-program count make use it then, and they change
     /// nothing in the Session.
     pub(crate) fn capture_handle(&self) -> Option<WorkerRequestHandle> {
-        self.active
-            .as_ref()
-            .and_then(|active| active.carrier.as_ref())
-            .filter(|carrier| carrier.serving)
-            .map(|carrier| &carrier.request_handle)
-            .filter(|request_handle| request_handle.is_active())
-            .cloned()
+        self.active.as_ref().and_then(serving_handle)
     }
 
     /// The live carrier of a replacement Worker that has not adopted its Host yet.
@@ -362,12 +512,11 @@ impl WorkerRegistry {
     /// Host. Returns whether that carrier is still the registered one; a carrier that ended since
     /// still serves no job, since [`Self::request_handle`] skips an ended carrier.
     pub(crate) fn serve_adopted(&mut self, generation: NonZeroU64) -> bool {
-        match self.active.as_mut() {
+        match self.worker_mut(generation) {
             Some(ActiveWorker {
                 carrier: Some(carrier),
-                generation: active,
                 ..
-            }) if *active == generation => {
+            }) => {
                 carrier.serving = true;
                 true
             }
@@ -376,28 +525,48 @@ impl WorkerRegistry {
     }
 
     pub(crate) fn cancel_pending_admission(&mut self, generation: NonZeroU64) -> bool {
-        if self
-            .active
-            .as_ref()
-            .is_none_or(|active| active.generation != generation || active.carrier.is_some())
-        {
-            return false;
-        }
-        self.active = None;
-        true
+        self.remove_worker(generation, false)
     }
 
     fn retire_carrier(&mut self, generation: NonZeroU64) -> bool {
-        if self
-            .active
-            .as_ref()
-            .is_none_or(|active| active.generation != generation || active.carrier.is_none())
-        {
-            return false;
-        }
-        self.active = None;
-        true
+        self.remove_worker(generation, true)
     }
+
+    /// Removes the Worker of `generation` when its carrier is registered exactly as `registered`
+    /// says.
+    fn remove_worker(&mut self, generation: NonZeroU64, registered: bool) -> bool {
+        let matches = |worker: &ActiveWorker| {
+            worker.generation == generation && worker.carrier.is_some() == registered
+        };
+        if self.active.as_ref().is_some_and(matches) {
+            self.active = None;
+            return true;
+        }
+        let machine = self
+            .nodes
+            .iter()
+            .find(|(_, node)| matches(node))
+            .map(|(machine, _)| machine.clone());
+        machine.is_some_and(|machine| self.nodes.remove(&machine).is_some())
+    }
+}
+
+fn duplicate(worker: &ActiveWorker) -> WorkerAdmission {
+    WorkerAdmission::Duplicate {
+        active_generation: worker.generation,
+        active_worker_id: worker.worker_id,
+    }
+}
+
+/// The live carrier of `worker` once it serves the Session's jobs.
+fn serving_handle(worker: &ActiveWorker) -> Option<WorkerRequestHandle> {
+    worker
+        .carrier
+        .as_ref()
+        .filter(|carrier| carrier.serving)
+        .map(|carrier| &carrier.request_handle)
+        .filter(|request_handle| request_handle.is_active())
+        .cloned()
 }
 
 /// Per-carrier AgentDrain token mint. Drain tokens are carrier-scoped

@@ -44,7 +44,7 @@ impl SessionCoordinator {
     pub(crate) fn prepare_workspace_idle_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Option<Result<Vec<IdleCloseMember>, WorkbenchCommandResult>> {
         let Self {
             terminals,
@@ -65,7 +65,9 @@ impl SessionCoordinator {
         let members = admission
             .members()
             .iter()
-            .map(|member| Self::idle_close_member(terminals, &session_id, member.binding(), worker))
+            .map(|member| {
+                Self::idle_close_member(terminals, &session_id, member.binding(), serving)
+            })
             .collect::<Result<Vec<_>, _>>();
         Some(match members {
             Ok(members) => Ok(members),
@@ -80,7 +82,7 @@ impl SessionCoordinator {
     pub(crate) fn prepare_terminal_tab_idle_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Option<Result<Vec<IdleCloseMember>, WorkbenchCommandResult>> {
         let Self {
             terminals,
@@ -101,7 +103,9 @@ impl SessionCoordinator {
         let members = admission
             .members()
             .iter()
-            .map(|member| Self::idle_close_member(terminals, &session_id, member.binding(), worker))
+            .map(|member| {
+                Self::idle_close_member(terminals, &session_id, member.binding(), serving)
+            })
             .collect::<Result<Vec<_>, _>>();
         Some(match members {
             Ok(members) => Ok(members),
@@ -115,9 +119,9 @@ impl SessionCoordinator {
         terminals: &TerminalCoordinator,
         session_id: &orchbee_workbench_protocol::SessionId,
         binding: &orchbee_workbench_protocol::PresentationBinding,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Result<IdleCloseMember, WorkbenchTabCloseRuntimeUnavailableReason> {
-        let runtime = Self::terminal_tab_close_runtime(terminals, binding, worker)?;
+        let runtime = Self::terminal_tab_close_runtime(terminals, binding, serving)?;
         let observation = match &runtime {
             WorkbenchTabCloseMemberRuntime::Runtime { target, .. } => {
                 Some(ProcessObservationTarget {
@@ -175,7 +179,7 @@ impl SessionCoordinator {
     pub(crate) fn execute_project_dissolve_if_idle(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Option<WorkbenchCommandResult> {
         let Self {
             terminals,
@@ -191,7 +195,7 @@ impl SessionCoordinator {
         let runtimes = admission
             .members()
             .iter()
-            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), serving))
             .collect::<Result<Vec<_>, _>>();
         Some(match runtimes {
             Ok(runtimes) => admission.finish_resolved_members(runtimes),
@@ -202,13 +206,13 @@ impl SessionCoordinator {
     pub(crate) fn execute_terminal_tab_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
         self.execute_terminal_tab_close_with_proof(
             command,
-            worker,
+            serving,
             owner_available,
             now,
             None,
@@ -222,7 +226,7 @@ impl SessionCoordinator {
     pub(crate) fn execute_tab_set_member_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         token: (&WorkbenchRequestId, usize),
@@ -230,7 +234,7 @@ impl SessionCoordinator {
     ) -> Option<WorkbenchCommandResult> {
         self.execute_terminal_tab_close_with_proof(
             command,
-            worker,
+            serving,
             owner_available,
             now,
             proof,
@@ -243,14 +247,14 @@ impl SessionCoordinator {
     pub(crate) fn execute_terminal_tab_close_with_idle_proof(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         proof: &[WorkbenchTabCloseMemberRuntime],
     ) -> Option<WorkbenchCommandResult> {
         self.execute_terminal_tab_close_with_proof(
             command,
-            worker,
+            serving,
             owner_available,
             now,
             Some(proof),
@@ -261,7 +265,7 @@ impl SessionCoordinator {
     fn execute_terminal_tab_close_with_proof(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         idle_proof: Option<&[WorkbenchTabCloseMemberRuntime]>,
@@ -308,7 +312,7 @@ impl SessionCoordinator {
         let runtimes = admission
             .members()
             .iter()
-            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), serving))
             .collect::<Result<Vec<_>, _>>();
         let mut runtimes = match runtimes {
             Ok(runtimes) => runtimes,
@@ -331,24 +335,24 @@ impl SessionCoordinator {
     pub(crate) fn execute_workspace_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
     ) -> Option<WorkbenchCommandResult> {
-        self.execute_workspace_close_with_group(command, worker, owner_available, now, None, None)
+        self.execute_workspace_close_with_group(command, serving, owner_available, now, None, None)
     }
 
     pub(crate) fn execute_workspace_close_with_idle_proof(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         proof: &[WorkbenchTabCloseMemberRuntime],
     ) -> Option<WorkbenchCommandResult> {
         self.execute_workspace_close_with_group(
             command,
-            worker,
+            serving,
             owner_available,
             now,
             None,
@@ -359,14 +363,14 @@ impl SessionCoordinator {
     pub(crate) fn execute_workspace_group_member_close(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         token: (&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize),
     ) -> Option<WorkbenchCommandResult> {
         self.execute_workspace_close_with_group(
             command,
-            worker,
+            serving,
             owner_available,
             now,
             Some(token),
@@ -377,7 +381,7 @@ impl SessionCoordinator {
     fn execute_workspace_close_with_group(
         &mut self,
         command: WorkbenchCommand,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         now: Instant,
         group: Option<(&orchbee_workbench_protocol::WorkbenchRequestId, u32, usize)>,
@@ -427,7 +431,7 @@ impl SessionCoordinator {
         let runtimes = admission
             .members()
             .iter()
-            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), serving))
             .collect::<Result<Vec<_>, _>>();
         let mut runtimes = match runtimes {
             Ok(runtimes) => runtimes,
@@ -462,7 +466,7 @@ impl SessionCoordinator {
     pub(crate) fn resume_workspace_close(
         &mut self,
         request: WorkbenchWorkspaceCloseResume,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         local_cleanup_available: bool,
         now: Instant,
@@ -491,7 +495,7 @@ impl SessionCoordinator {
                 terminals,
                 target.member().binding(),
                 target.runtime(),
-                worker,
+                serving,
             )
         }) {
             return Some(admission.runtime_unavailable());
@@ -514,7 +518,7 @@ impl SessionCoordinator {
     pub(crate) fn resume_terminal_tab_close(
         &mut self,
         request: WorkbenchTabCloseResume,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         owner_available: bool,
         local_cleanup_available: bool,
         now: Instant,
@@ -543,7 +547,7 @@ impl SessionCoordinator {
                 terminals,
                 target.member().binding(),
                 target.runtime(),
-                worker,
+                serving,
             )
         }) {
             return Some(admission.runtime_unavailable());
@@ -564,7 +568,7 @@ impl SessionCoordinator {
         &self,
         close_id: &WorkbenchRequestId,
         binding: &orchbee_workbench_protocol::PresentationBinding,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> bool {
         self.workbench
             .as_ref()
@@ -576,7 +580,7 @@ impl SessionCoordinator {
                     &self.terminals,
                     target.member().binding(),
                     target.runtime(),
-                    worker,
+                    serving,
                 )
             })
     }

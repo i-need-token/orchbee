@@ -1,6 +1,6 @@
 //! Ordered group submission: Close owns physical disposal, this owner preserves child observations.
 use super::{LocalTerminalService, worker_identity};
-use crate::{local_terminal_service::placement, session_coordinator::SessionCoordinator};
+use crate::{local_terminal_service::serving_placements, session_coordinator::SessionCoordinator};
 use orchbee_server::WorkspaceGroupClosePlan;
 use orchbee_workbench_protocol::{
     ProtocolVersion, SessionId, WorkbenchAction, WorkbenchCommand, WorkbenchCommandOutcome,
@@ -145,7 +145,7 @@ impl Driver<'_> {
             let result = coordinator
                 .execute_workspace_group_member_close(
                     command,
-                    placement(handle.as_ref()),
+                    &serving_placements(&workers),
                     service.close_maintenance.available(),
                     Instant::now(),
                     (&self.plan.operation_id, self.plan.attempt, index),
@@ -280,7 +280,7 @@ impl Driver<'_> {
                         close_request_id,
                         expected_attempt_generation: observation.attempt_generation,
                     },
-                    placement(handle.as_ref()),
+                    &serving_placements(&workers),
                     self.service.close_maintenance.available(),
                     cleanup_available,
                     Instant::now(),

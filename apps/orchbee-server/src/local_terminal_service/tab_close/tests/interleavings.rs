@@ -121,7 +121,7 @@ fn successful_enqueue_is_confirmed_after_expiry_under_the_real_session_gate() {
             .coordinator
             .lock()
             .unwrap()
-            .execute_terminal_tab_close(close.clone(), Some(worker), true, accepted_at)
+            .execute_terminal_tab_close(close.clone(), &[worker], true, accepted_at)
             .unwrap();
         assert!(matches!(
             accepted.outcome,

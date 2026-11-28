@@ -171,12 +171,7 @@ fn restart_rebinds_children_and_grouped_pinned_tabs_before_open_reuses_first_ter
             },
         };
         let result = coordinator
-            .execute_terminal_tab_close(
-                close.clone(),
-                Some(worker),
-                true,
-                std::time::Instant::now(),
-            )
+            .execute_terminal_tab_close(close.clone(), &[worker], true, std::time::Instant::now())
             .unwrap();
         assert!(matches!(
             result.outcome,

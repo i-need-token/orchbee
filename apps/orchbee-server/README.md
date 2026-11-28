@@ -924,7 +924,7 @@ terminal binding state, bounded submission and correlated semantic results. Bare
 | Inputs       | An untrusted private argument vector, an absolute endpoint path supplied by the development owner, kernel peer credentials, and one bounded framed Worker handshake. Absence, malformed bytes, timeout, wrong message, wrong user, version mismatch, cohort mismatch, duplicate Worker, and disconnect are explicit.                                                                 |
 | Data         | Server phase, optional active Worker identity plus nonzero process-local generation, next generation, and one candidate connection. Server is the sole writer. No value survives process exit.                                                                                                                                                                                       |
 | Outputs      | Successful bind emits one `ready\n` marker. Worker admission returns its generation; an authenticated protocol-level rejection returns a typed bounded reason when the stream permits it. Peer-authentication and transport-setup failures close silently. Process setup or listener failure exits status `1` without a human diagnostic.                                            |
-| Invariants   | One endpoint has at most one listener; one Server has at most one active Worker; active generations are nonzero and strictly increase; rejection cannot replace active authority; generation-scoped cleanup cannot remove a replacement; Worker disconnect does not stop Server; Server loss closes the Worker connection.                                                           |
+| Invariants   | One endpoint has at most one listener; one Server has at most one active local Worker; active generations are nonzero and strictly increase; rejection cannot replace active authority; generation-scoped cleanup cannot remove a replacement; Worker disconnect does not stop Server; Server loss closes the Worker connection.                                                     |
 | Decisions    | Invocation validity, peer-user equality, frame validity, protocol and cohort equality, expected Worker message kind, active-Worker absence, and matching cleanup generation completely determine the result. No current directory, Project, Environment, Worktree, Agent, or Terminal fact participates.                                                                             |
 | Model        | A deterministic Worker registry owns admission and generation-scoped disconnect. A thin synchronous Unix-socket workflow authenticates, decodes, admits or rejects, acknowledges, and monitors the accepted connection.                                                                                                                                                              |
 | Transitions  | `absent -> listening`; candidate `none -> pending -> admitted/rejected/timed-out`; Worker `none -> active(generation) -> none`; Server `listening -> stopped`. A second bind is rejected, and stale cleanup is an idempotent no-op against another generation.                                                                                                                       |
@@ -1126,8 +1126,8 @@ detach reaches the Client as unconfirmed cleanup with its confirmed prefix.
 
 Each send submits one OBCN request whose identity correlates exactly one request and response; no
 persistent dedupe ledger is added, and a manually retried send is a new request that may deliver
-input twice. Sends serialize on the single Worker carrier alongside controller exchanges, so input
-order equals arrival order. The existing twenty-second Worker response budget, two-second write
+input twice. Sends serialize on their terminal's Worker carrier alongside its controller exchanges,
+so input order equals arrival order. The existing twenty-second Worker response budget, two-second write
 bounds, and fifty-second Client submission window all hold; the three Host exchanges share the
 Worker's fifteen-second request bound, which fits inside them without enlargement.
 
@@ -1293,8 +1293,11 @@ its Session grant composition, and the service's lock-free Worker observation fo
 `terminal_tab_move` owns Move admission and prepared permutation; Session checks composition before
 target/no-op evaluation. Both share command preflight; Move reuses the authority's prepared
 settled-command publication.
-LocalTerminalService's parent owns shared entropy acquisition; its `tab_create` child pins Worker
-placement under registry-then-Session locks, dispatches outside both, and settles both owners before returning the retained command result. Shared helpers are defined in parents; children do not import siblings.
+LocalTerminalService's parent owns shared entropy acquisition; its `tab_create` child pins the
+Worker of the Workspace's primary Directory under registry-then-Session locks, dispatches outside
+both, and settles both owners before returning the retained command result. The registry holds the
+local Worker and at most one Worker per remote node; every later operation on a terminal addresses
+that terminal's own Worker. Shared helpers are defined in parents; children do not import siblings.
 The service's `viewer_connection` owns attachment lifetime; `controller_connection` owns terminal
 reservation, Connection grants, effect sequences and exact release; `projection` owns routing and
 feedback. Client `record_stream` owns post-admission I/O deadlines. Reverse and other lateral imports

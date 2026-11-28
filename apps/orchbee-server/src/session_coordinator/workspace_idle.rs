@@ -19,7 +19,7 @@ impl SessionCoordinator {
     pub(crate) fn capture_workspace_idle(
         &self,
         workspace_id: &WorkbenchWorkspaceId,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Result<Vec<IdleCheckMember>, WorkspaceIdleFailure> {
         let workbench = self
             .workbench
@@ -43,7 +43,7 @@ impl SessionCoordinator {
                     &self.terminals,
                     session_id,
                     tab.binding(),
-                    worker,
+                    serving,
                 )
                 .ok(),
             })

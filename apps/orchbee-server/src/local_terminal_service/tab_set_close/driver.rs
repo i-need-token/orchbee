@@ -2,7 +2,9 @@
 //! this owner submits one member after another and keeps what it observed of each.
 use super::{CloseFactsRead, LocalTerminalService};
 use crate::{
-    local_terminal_service::{placement, tab_close::idle::LEAF_EVIDENCE_BUDGET, worker_identity},
+    local_terminal_service::{
+        serving_placements, tab_close::idle::LEAF_EVIDENCE_BUDGET, worker_identity,
+    },
     session_coordinator::SessionCoordinator,
     worker_obcn_carrier::WorkerRequestHandle,
 };
@@ -123,10 +125,10 @@ impl Driver<'_> {
         let proof = match self.plan.condition {
             Condition::Confirmed => None,
             Condition::IfIdle => {
-                let (members, handle) = {
+                let (members, handles) = {
                     let workers = service.workers.lock().map_err(|_| Failure::Internal)?;
-                    let handle = workers.request_handle();
-                    self.check_worker(handle.as_ref())?;
+                    self.check_worker(workers.request_handle().as_ref())?;
+                    let handles = workers.serving_handles();
                     let mut coordinator =
                         service.coordinator.lock().map_err(|_| Failure::Internal)?;
                     self.check()?;
@@ -138,17 +140,17 @@ impl Driver<'_> {
                     let members = coordinator
                         .tab_set_member_idle_close(
                             &self.plan.members[index].presentations,
-                            placement(handle.as_ref()),
+                            &serving_placements(&workers),
                         )
                         .ok();
-                    (members, handle)
+                    (members, handles)
                 };
                 // The member's terminals may have started something since the set was admitted.
                 members.map(|members| {
                     service.idle_proof(
                         &request_id,
                         members,
-                        handle.as_ref(),
+                        &handles,
                         Instant::now() + LEAF_EVIDENCE_BUDGET,
                         read,
                     )
@@ -157,8 +159,7 @@ impl Driver<'_> {
         };
         {
             let workers = service.workers.lock().map_err(|_| Failure::Internal)?;
-            let handle = workers.request_handle();
-            self.check_worker(handle.as_ref())?;
+            self.check_worker(workers.request_handle().as_ref())?;
             let mut coordinator = service.coordinator.lock().map_err(|_| Failure::Internal)?;
             self.check()?;
             if !self.unchanged(&mut coordinator, index)? {
@@ -192,7 +193,7 @@ impl Driver<'_> {
             let result = coordinator
                 .execute_tab_set_member_close(
                     command,
-                    placement(handle.as_ref()),
+                    &serving_placements(&workers),
                     service.close_maintenance.available(),
                     Instant::now(),
                     (&self.plan.operation_id, index),

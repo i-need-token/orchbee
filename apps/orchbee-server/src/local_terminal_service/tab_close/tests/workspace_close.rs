@@ -211,7 +211,7 @@ fn accept(service: &LocalTerminalService, close: &WorkbenchCommand) -> Workbench
         .coordinator
         .lock()
         .unwrap()
-        .execute_workspace_close(close.clone(), Some(worker()), true, Instant::now())
+        .execute_workspace_close(close.clone(), &[worker()], true, Instant::now())
         .unwrap();
     assert!(matches!(
         result.outcome,
@@ -397,7 +397,7 @@ fn empty_workspace_close_publishes_without_lifecycle_and_preserves_project_and_d
             .coordinator
             .lock()
             .unwrap()
-            .execute_workspace_close(stale, Some(worker()), true, Instant::now())
+            .execute_workspace_close(stale, &[worker()], true, Instant::now())
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::Rejected {

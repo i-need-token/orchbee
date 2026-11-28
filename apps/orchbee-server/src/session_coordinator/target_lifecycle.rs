@@ -13,6 +13,7 @@ use orchbee_workbench_protocol::{
 use super::{SessionCoordinator, terminal_retirement::physical_ids};
 use crate::terminal_coordinator::{
     BindingViewerTarget, RetainedRuntimeTargetError, TerminalCoordinator, WorkerPlacement,
+    serving_placement,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -74,10 +75,12 @@ impl SessionCoordinator {
         })
     }
 
+    /// The runtime of `binding`'s terminal, read against the placement `serving` holds for that
+    /// terminal's own Worker.
     pub(crate) fn terminal_tab_close_runtime(
         terminals: &TerminalCoordinator,
         binding: &PresentationBinding,
-        current_worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Result<WorkbenchTabCloseMemberRuntime, WorkbenchTabCloseRuntimeUnavailableReason> {
         let unavailable = WorkbenchTabCloseRuntimeUnavailableReason::TerminalRuntimeUnavailable;
         let (terminal, worker) = physical_ids(binding).ok_or(unavailable)?;
@@ -87,7 +90,7 @@ impl SessionCoordinator {
             });
         }
         let (target, fence) = terminals
-            .retained_runtime_target(terminal, worker, current_worker)
+            .retained_runtime_target(terminal, worker, serving_placement(serving, worker))
             .map_err(|error| match error {
                 RetainedRuntimeTargetError::Busy => {
                     WorkbenchTabCloseRuntimeUnavailableReason::TerminalBusy
@@ -111,9 +114,9 @@ impl SessionCoordinator {
         terminals: &TerminalCoordinator,
         binding: &PresentationBinding,
         expected: Option<WorkbenchTabCloseRuntimeTarget>,
-        current_worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> bool {
-        Self::terminal_tab_close_runtime(terminals, binding, current_worker)
+        Self::terminal_tab_close_runtime(terminals, binding, serving)
             .is_ok_and(|evidence| matches!(evidence, WorkbenchTabCloseMemberRuntime::Runtime { target, .. } if Some(target) == expected))
     }
 }

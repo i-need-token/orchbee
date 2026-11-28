@@ -280,7 +280,7 @@ fn child_only_restore_registers_and_opens_while_unbound_tab_close_preserves_refe
     };
     let now = std::time::Instant::now();
     let result = coordinator
-        .execute_terminal_tab_close(close.clone(), None, false, now)
+        .execute_terminal_tab_close(close.clone(), &[], false, now)
         .unwrap();
     assert!(matches!(
         result.outcome,
@@ -325,7 +325,7 @@ fn entirely_unbound_tabs_close_without_a_worker() {
         };
         let now = std::time::Instant::now();
         let result = coordinator
-            .execute_terminal_tab_close(close.clone(), None, false, now)
+            .execute_terminal_tab_close(close.clone(), &[], false, now)
             .unwrap();
         assert!(matches!(
             result.outcome,

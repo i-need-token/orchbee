@@ -334,6 +334,7 @@ fn admits_the_last_nonzero_generation_before_exhaustion() {
     let maximum_generation = NonZeroU64::MAX;
     let mut registry = WorkerRegistry {
         active: None,
+        nodes: std::collections::BTreeMap::new(),
         next_generation: Some(maximum_generation),
         viewer_ready: Arc::default(),
         titles: Arc::default(),

@@ -28,7 +28,7 @@ impl SessionCoordinator {
     pub(crate) fn start_tab_set_close(
         &mut self,
         request: WorkbenchTabSetCloseRequest,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         incarnation: Option<(WorkerId, NonZeroU64)>,
         owner_available: bool,
     ) -> Option<TabSetCloseStart> {
@@ -54,7 +54,9 @@ impl SessionCoordinator {
         }
         let members = admission
             .presentations()
-            .map(|member| Self::idle_close_member(terminals, &session_id, member.binding(), worker))
+            .map(|member| {
+                Self::idle_close_member(terminals, &session_id, member.binding(), serving)
+            })
             .collect::<Result<Vec<_>, _>>();
         Some(match members {
             Ok(members) => TabSetCloseStart::Read(members),
@@ -67,7 +69,7 @@ impl SessionCoordinator {
     pub(crate) fn finish_tab_set_close_if_idle(
         &mut self,
         request: WorkbenchTabSetCloseRequest,
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
         incarnation: Option<(WorkerId, NonZeroU64)>,
         owner_available: bool,
         proof: &[WorkbenchTabCloseMemberRuntime],
@@ -91,7 +93,7 @@ impl SessionCoordinator {
         };
         let runtimes = admission
             .presentations()
-            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), worker))
+            .map(|member| Self::terminal_tab_close_runtime(terminals, member.binding(), serving))
             .collect::<Result<Vec<_>, _>>();
         let Ok(mut runtimes) = runtimes else {
             return Some(admission.confirmation_required());
@@ -117,7 +119,7 @@ impl SessionCoordinator {
     pub(crate) fn tab_set_member_idle_close(
         &self,
         presentations: &[WorkbenchTerminalTab],
-        worker: Option<WorkerPlacement>,
+        serving: &[WorkerPlacement],
     ) -> Result<Vec<IdleCloseMember>, WorkbenchTabCloseRuntimeUnavailableReason> {
         let session_id = self
             .workbench
@@ -128,7 +130,7 @@ impl SessionCoordinator {
         presentations
             .iter()
             .map(|member| {
-                Self::idle_close_member(&self.terminals, &session_id, member.binding(), worker)
+                Self::idle_close_member(&self.terminals, &session_id, member.binding(), serving)
             })
             .collect()
     }

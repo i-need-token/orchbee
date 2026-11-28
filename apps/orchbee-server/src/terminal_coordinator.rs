@@ -55,6 +55,18 @@ impl WorkerPlacement {
     }
 }
 
+/// The placement `serving` holds for `worker_id`, where `serving` lists each Worker serving the
+/// Session now once, local or remote.
+pub(crate) fn serving_placement(
+    serving: &[WorkerPlacement],
+    worker_id: WorkerId,
+) -> Option<WorkerPlacement> {
+    serving
+        .iter()
+        .copied()
+        .find(|worker| worker.worker_id == worker_id)
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct BindingViewerTarget {
     pub(crate) terminal_id: TerminalId,

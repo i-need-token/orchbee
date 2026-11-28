@@ -241,9 +241,7 @@ impl<'service> LocalTerminalConnection<'service> {
         let Some(viewer) = candidate.as_ref() else {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         };
-        if !viewer.handle.is_active()
-            || placement(workers.request_handle().as_ref()) != placement(Some(&viewer.handle))
-        {
+        if !workers.is_current(&viewer.handle) {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }
         let Ok(coordinator) = service.coordinator.lock() else {
@@ -292,8 +290,7 @@ impl LocalTerminalService {
         let Ok(workers) = self.workers.lock() else {
             return false;
         };
-        handle.is_active()
-            && placement(workers.request_handle().as_ref()) == placement(Some(handle))
+        workers.is_current(handle)
     }
 
     /// Whether a later generation of `handle`'s Worker serves now.
@@ -301,9 +298,9 @@ impl LocalTerminalService {
         let Ok(workers) = self.workers.lock() else {
             return false;
         };
-        workers.request_handle().is_some_and(|current| {
-            current.worker_id() == handle.worker_id() && current.generation() > handle.generation()
-        })
+        workers
+            .current_for(handle)
+            .is_some_and(|current| current.generation() > handle.generation())
     }
 
     fn issue_viewer(&self, reference: &RequestId) -> Result<IssuedViewer<'_>, Outcome> {
@@ -311,15 +308,20 @@ impl LocalTerminalService {
             .workers
             .lock()
             .map_err(|_| unavailable(Unavailable::ServerBusy))?;
-        let handle = workers
-            .request_handle()
-            .ok_or_else(|| unavailable(Unavailable::TerminalRuntimeUnavailable))?;
-        let worker = placement(Some(&handle))
-            .ok_or_else(|| unavailable(Unavailable::TerminalRuntimeUnavailable))?;
         let mut coordinator = self
             .coordinator
             .lock()
             .map_err(|_| unavailable(Unavailable::ServerBusy))?;
+        // The terminal's own Worker serves its viewer, on whichever node it runs.
+        let handle = coordinator
+            .reference_worker(reference)
+            .map_or_else(
+                || workers.request_handle(),
+                |worker| workers.handle_for_worker(worker),
+            )
+            .ok_or_else(|| unavailable(Unavailable::TerminalRuntimeUnavailable))?;
+        let worker = placement(Some(&handle))
+            .ok_or_else(|| unavailable(Unavailable::TerminalRuntimeUnavailable))?;
         let target = coordinator
             .viewer_target(reference, worker)
             .ok_or_else(|| rejected(Rejected::TerminalUnavailable))?;
@@ -359,8 +361,10 @@ impl LocalTerminalService {
             .coordinator
             .lock()
             .map_err(|_| unavailable(Unavailable::ServerBusy))?;
-        // Resolve samples the carrier only after both admission locks are held.
-        let handle = workers.request_handle();
+        // Resolve samples the carrier of the named Worker only after both admission locks are
+        // held.
+        let handle = super::worker_named(worker_id.as_str())
+            .and_then(|worker| workers.handle_for_worker(worker));
         let prepared = coordinator
             .prepare_binding_viewer(
                 session_id,

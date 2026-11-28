@@ -3,7 +3,7 @@
 //! decide physical terminal cleanup from layout state alone.
 
 use super::{Driver, identity};
-use crate::local_terminal_service::{create_reference, lease_expiry, placement};
+use crate::local_terminal_service::{create_reference, lease_expiry};
 use crate::terminal_coordinator::CreateInputs;
 use orchbee_server::{
     WorkbenchAuthority, WorkbenchGrant, WorkbenchReadOrNavigationRequest, WorktreeOperationPlan,
@@ -349,7 +349,7 @@ impl Driver<'_> {
             let result = coordinator
                 .execute_workspace_close(
                     command,
-                    placement(Some(&handle)),
+                    &crate::local_terminal_service::serving_placements(&workers),
                     self.service.close_maintenance.available(),
                     Instant::now(),
                 )

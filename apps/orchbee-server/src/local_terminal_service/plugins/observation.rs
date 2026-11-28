@@ -3,7 +3,9 @@ use super::{
     Failure, LocalTerminalService, Outcome, PluginRequest, WorkerOperationRequest,
     WorkerOperationResult, node,
 };
-use crate::{local_terminal_service::placement, session_coordinator::ProcessObservationTarget};
+use crate::{
+    local_terminal_service::current_placement_of, session_coordinator::ProcessObservationTarget,
+};
 use orchbee_workbench_protocol::PluginPaneInfo;
 use std::sync::atomic::AtomicBool;
 
@@ -36,7 +38,7 @@ impl LocalTerminalService {
                         pane.binding.terminal_id.as_str(),
                     )
                     .map_err(|_| Failure::InvalidIntent)?,
-                    placement(workers.request_handle().as_ref()),
+                    current_placement_of(&workers, pane.binding.worker_id.as_str()),
                 )
                 .map_err(|_| Failure::Unavailable)?;
             ProcessObservationTarget {
@@ -47,7 +49,10 @@ impl LocalTerminalService {
         };
         let settled = self.observe_plugin_runtime(&target, None)?;
         let workers = self.workers.lock().map_err(|_| Failure::Unavailable)?;
-        if placement(workers.request_handle().as_ref()) != Some(target.target.worker) {
+        if !workers.serves(
+            target.target.worker.worker_id,
+            target.target.worker.generation,
+        ) {
             return Err(Failure::WorkerChanged);
         }
         let mut coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
@@ -70,7 +75,7 @@ impl LocalTerminalService {
                             pane.binding.terminal_id.as_str(),
                         )
                         .map_err(|_| Failure::InvalidIntent)?,
-                        placement(workers.request_handle().as_ref()),
+                        current_placement_of(&workers, pane.binding.worker_id.as_str()),
                     )
                     .map_err(|_| Failure::Unavailable)?;
                 if fresh.target != target.target {

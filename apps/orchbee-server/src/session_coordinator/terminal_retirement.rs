@@ -59,10 +59,10 @@ impl SessionCoordinator {
     /// The next retired binding whose Disposed record the current Worker still holds.
     pub(crate) fn next_worker_retirement(
         &mut self,
-        worker: WorkerPlacement,
+        serving: &[WorkerPlacement],
         expiry: LeaseExpiresAtUnixMilliseconds,
     ) -> Option<TerminalLifecycleRequest> {
-        self.terminals.next_worker_retirement(worker, expiry)
+        self.terminals.next_worker_retirement(serving, expiry)
     }
 }
 

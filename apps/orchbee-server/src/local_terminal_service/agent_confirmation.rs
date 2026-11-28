@@ -377,7 +377,7 @@ impl LocalTerminalService {
                 return;
             };
             if !handle.is_active()
-                || placement(workers.request_handle().as_ref()) != Some(target.worker)
+                || !workers.serves(target.worker.worker_id, target.worker.generation)
                 || placement(Some(handle)) != Some(target.worker)
             {
                 return;
@@ -541,16 +541,22 @@ impl LocalTerminalService {
         if owed.is_empty() {
             return;
         }
-        let handle = self
-            .workers
-            .lock()
-            .ok()
-            .and_then(|workers| workers.request_handle());
+        // Each hold goes to the Worker generation its terminal was read on.
+        let owed: Vec<_> = {
+            let Ok(workers) = self.workers.lock() else {
+                return;
+            };
+            owed.into_iter()
+                .filter_map(|(target, agent)| {
+                    let handle =
+                        workers.handle_at(target.worker.worker_id, target.worker.generation)?;
+                    Some((handle, target, agent))
+                })
+                .collect()
+        };
         let mut changed = false;
-        if let Some(handle) = handle {
-            for (target, agent) in owed {
-                changed |= self.hold_confirmation(&handle, target, agent);
-            }
+        for (handle, target, agent) in owed {
+            changed |= self.hold_confirmation(&handle, target, agent);
         }
         if changed {
             self.agent_confirmations

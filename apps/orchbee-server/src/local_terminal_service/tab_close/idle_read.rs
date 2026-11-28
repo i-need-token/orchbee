@@ -4,10 +4,12 @@
 //! reserved or retained, and each inventory walk is the read-only inspection a conditional Close
 //! makes. Unlike that Close, the check reads every member within the budget, so it can name them
 //! all. A Close admitted later reads its own evidence again.
-use super::super::{LocalTerminalService, placement};
+use super::super::{LocalTerminalService, target_handle};
 use super::evidence::CloseFacts;
 use super::idle::WORKSPACE_EVIDENCE_BUDGET;
 use crate::session_coordinator::ProcessObservationTarget;
+use crate::terminal_coordinator::WorkerPlacement;
+use crate::worker_registry::WorkerRegistry;
 use orchbee_capability_node_protocol::LifecycleTerminalPhase;
 use orchbee_server::WorkbenchTabCloseMemberRuntime;
 use orchbee_workbench_protocol::{
@@ -55,15 +57,16 @@ impl LocalTerminalService {
         let deadline = Instant::now()
             .checked_add(WORKSPACE_EVIDENCE_BUDGET)
             .ok_or(Failure::Unavailable)?;
-        let (members, handle) = {
+        let (members, handles) = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let handles = workers
+                .as_deref()
+                .map(WorkerRegistry::serving_handles)
+                .unwrap_or_default();
+            let serving: Vec<_> = handles.iter().filter_map(WorkerPlacement::of).collect();
             let coordinator = self.coordinator.lock().map_err(|_| Failure::Unavailable)?;
-            let members = coordinator
-                .capture_workspace_idle(&request.workspace_id, placement(handle.as_ref()))?;
-            (members, handle)
+            let members = coordinator.capture_workspace_idle(&request.workspace_id, &serving)?;
+            (members, handles)
         };
         // One verdict per member, `None` once it is proven idle: ended, never started, or showing
         // nothing beyond an idle shell. A runtime this owner cannot resolve stays unknown.
@@ -78,17 +81,17 @@ impl LocalTerminalService {
                     _,
                 )) => None,
                 Some((WorkbenchTabCloseMemberRuntime::Runtime { target, .. }, observation)) => {
-                    let phase = handle
-                        .as_ref()
-                        .and_then(|handle| {
-                            self.inspect_close_target(
-                                handle,
-                                &request.request_id,
-                                *target,
-                                deadline,
-                            )
-                        })
-                        .map(|observed| observed.phase);
+                    let phase =
+                        target_handle(&handles, target.worker_id(), target.worker_generation())
+                            .and_then(|handle| {
+                                self.inspect_close_target(
+                                    handle,
+                                    &request.request_id,
+                                    *target,
+                                    deadline,
+                                )
+                            })
+                            .map(|observed| observed.phase);
                     match (phase, observation) {
                         (
                             Some(

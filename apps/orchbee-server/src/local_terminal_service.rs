@@ -303,9 +303,26 @@ impl LocalTerminalService {
             let Ok(workers) = self.workers.lock() else {
                 return busy;
             };
-            let handle = workers.request_handle();
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return busy;
+            };
+            // A creation an exact constraint names, and the start of a deferred terminal, go to
+            // that terminal's Worker; any other creation goes to the local Worker.
+            let addressed = match &request {
+                ClientMessage::TerminalCreate(create) => match create.worker_constraint() {
+                    Some(orchbee_client_server_protocol::WorkerConstraint::Exact { worker_id }) => {
+                        Some(worker_named(worker_id.as_str()))
+                    }
+                    _ => None,
+                },
+                ClientMessage::TerminalStart(start) => coordinator
+                    .reference_worker(start.terminal_create_request_id())
+                    .map(Some),
+                _ => None,
+            };
+            let handle = match addressed {
+                Some(worker) => worker.and_then(|worker| workers.handle_for_worker(worker)),
+                None => workers.request_handle(),
             };
             (
                 coordinator.prepare(
@@ -321,6 +338,7 @@ impl LocalTerminalService {
             PreparedOperation::Ready(result) => return result,
             PreparedOperation::Dispatch(pending) => pending,
         };
+        let dispatched = placement(handle.as_ref());
         let completion = handle.map_or(Completion::Unavailable, |handle| {
             self.submit(&handle, pending.command())
         });
@@ -331,11 +349,7 @@ impl LocalTerminalService {
         let Ok(mut coordinator) = self.coordinator.lock() else {
             return unknown_result(&busy);
         };
-        match coordinator.complete(
-            pending,
-            completion,
-            placement(workers.request_handle().as_ref()),
-        ) {
+        match coordinator.complete(pending, completion, current_placement(&workers, dispatched)) {
             Ok(result) => result,
             Err(_mismatch) => unknown_result(&busy),
         }
@@ -455,6 +469,90 @@ fn submit_request(handle: &WorkerRequestHandle, request: WorkerOperationRequest)
 }
 fn placement(handle: Option<&WorkerRequestHandle>) -> Option<WorkerPlacement> {
     handle.and_then(WorkerPlacement::of)
+}
+/// The carrier a new terminal of a Tab or Panel command is created on: that of the Worker of its
+/// Workspace's primary Directory, on whichever node it runs. A Workspace without one names the
+/// local Worker, which admission then refuses.
+fn creation_handle(
+    workers: &WorkerRegistry,
+    coordinator: &crate::session_coordinator::SessionCoordinator,
+    command: &orchbee_workbench_protocol::WorkbenchCommand,
+) -> Option<WorkerRequestHandle> {
+    use orchbee_workbench_protocol::WorkbenchAction;
+    let context = match &command.action {
+        WorkbenchAction::TabCreate {
+            terminal_context_id,
+            ..
+        }
+        | WorkbenchAction::PanelSplit {
+            terminal_context_id,
+            ..
+        }
+        | WorkbenchAction::PanelCreateTerminal {
+            terminal_context_id,
+            ..
+        }
+        | WorkbenchAction::PanelRestoreTerminal {
+            terminal_context_id,
+            ..
+        } => Some(terminal_context_id),
+        // A Workspace launch validates its new Directory on the Worker that will hold it.
+        _ => None,
+    };
+    match context.and_then(|context| coordinator.context_worker(context)) {
+        Some(worker) => workers.handle_for_worker(worker),
+        None => workers.request_handle(),
+    }
+}
+/// The placement of the generation that serves `worker`'s Worker now, on whichever node it runs,
+/// against which a completion of an operation dispatched to `worker` settles.
+fn current_placement(
+    workers: &WorkerRegistry,
+    worker: Option<WorkerPlacement>,
+) -> Option<WorkerPlacement> {
+    placement(workers.handle_for_worker(worker?.worker_id).as_ref())
+}
+/// The serving placement of the Worker a wire id names, on whichever node it runs.
+fn current_placement_of(workers: &WorkerRegistry, worker_id: &str) -> Option<WorkerPlacement> {
+    placement(
+        worker_named(worker_id)
+            .and_then(|worker| workers.handle_for_worker(worker))
+            .as_ref(),
+    )
+}
+/// The placement of each Worker serving the Session now, local or remote, once per Worker.
+fn serving_placements(workers: &WorkerRegistry) -> Vec<WorkerPlacement> {
+    workers
+        .serving_handles()
+        .iter()
+        .filter_map(WorkerPlacement::of)
+        .collect()
+}
+/// The carrier among `serving` through which `worker_id`'s Worker serves as exactly `generation`.
+fn target_handle(
+    serving: &[WorkerRequestHandle],
+    worker_id: orchbee_capability_node_protocol::WorkerId,
+    generation: orchbee_capability_node_protocol::WorkerGeneration,
+) -> Option<&WorkerRequestHandle> {
+    let target = WorkerPlacement {
+        worker_id,
+        generation,
+    };
+    serving
+        .iter()
+        .find(|handle| WorkerPlacement::of(handle) == Some(target))
+}
+/// The Worker a wire id names: 32 lowercase hexadecimal digits, not all zero.
+fn worker_named(text: &str) -> Option<orchbee_capability_node_protocol::WorkerId> {
+    if text.len() != 32
+        || !text
+            .bytes()
+            .all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+    {
+        return None;
+    }
+    let value = u128::from_str_radix(text, 16).ok()?;
+    orchbee_capability_node_protocol::WorkerId::from_bytes(value.to_be_bytes()).ok()
 }
 /// The Worker incarnation a retained operation was admitted under, in Workbench terms.
 fn worker_identity(

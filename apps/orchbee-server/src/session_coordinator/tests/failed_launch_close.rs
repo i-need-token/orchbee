@@ -77,7 +77,7 @@ fn failed_tab_closes_without_worker_and_replays_original_acknowledgment() {
         },
     );
     let accepted = coordinator
-        .execute_terminal_tab_close(close.clone(), None, true, Instant::now())
+        .execute_terminal_tab_close(close.clone(), &[], true, Instant::now())
         .unwrap();
     assert!(matches!(
         accepted.outcome,
@@ -104,7 +104,7 @@ fn failed_tab_closes_without_worker_and_replays_original_acknowledgment() {
     );
     assert_eq!(
         coordinator
-            .execute_terminal_tab_close(close, None, false, Instant::now())
+            .execute_terminal_tab_close(close, &[], false, Instant::now())
             .unwrap(),
         accepted
     );
@@ -138,7 +138,7 @@ fn unknown_launch_and_stopped_maintenance_cannot_remove_the_tab() {
         );
         let before = snapshot(&mut coordinator);
         let result = coordinator
-            .execute_terminal_tab_close(close.clone(), None, unknown, Instant::now())
+            .execute_terminal_tab_close(close.clone(), &[], unknown, Instant::now())
             .unwrap();
         assert!(
             matches!(result.outcome, WorkbenchCommandOutcome::Unavailable { reason } if reason == if unknown { WorkbenchCommandUnavailableReason::TerminalRuntimeUnavailable } else { WorkbenchCommandUnavailableReason::ServerBusy })
@@ -201,7 +201,7 @@ fn failed_split_panel_closes_without_disposing_its_running_sibling() {
     );
     assert!(matches!(
         coordinator
-            .execute_terminal_tab_close(close.clone(), None, true, Instant::now())
+            .execute_terminal_tab_close(close.clone(), &[], true, Instant::now())
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::PanelCloseAccepted { .. }
@@ -239,7 +239,7 @@ fn workspace_close_keeps_failed_members_and_requires_live_members_before_admissi
             },
         );
         let result = coordinator
-            .execute_workspace_close(close.clone(), None, true, Instant::now())
+            .execute_workspace_close(close.clone(), &[], true, Instant::now())
             .unwrap();
         if mixed {
             assert!(matches!(
@@ -258,7 +258,7 @@ fn workspace_close_keeps_failed_members_and_requires_live_members_before_admissi
             );
             assert!(matches!(
                 coordinator
-                    .execute_workspace_close(close.clone(), Some(worker(1)), true, Instant::now())
+                    .execute_workspace_close(close.clone(), &[worker(1)], true, Instant::now())
                     .unwrap()
                     .outcome,
                 WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }

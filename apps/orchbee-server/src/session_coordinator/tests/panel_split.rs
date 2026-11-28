@@ -114,7 +114,7 @@ pub(super) fn close_leaf(
         },
     };
     let accepted = coordinator
-        .execute_terminal_tab_close(close.clone(), Some(worker(1)), true, Instant::now())
+        .execute_terminal_tab_close(close.clone(), &[worker(1)], true, Instant::now())
         .unwrap();
     assert!(matches!(
         accepted.outcome,

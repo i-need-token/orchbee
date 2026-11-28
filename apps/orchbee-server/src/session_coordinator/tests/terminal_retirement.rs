@@ -56,7 +56,7 @@ fn closing_terminals_keeps_creates_admitted_past_the_binding_bound() {
     assert!(!coordinator.terminals.at_binding_limit());
     // Each retired binding left the Worker one retirement to send, bounded like the bindings.
     let mut retirements = 0;
-    while let Some(request) = coordinator.next_worker_retirement(worker(1), expiry()) {
+    while let Some(request) = coordinator.next_worker_retirement(&[worker(1)], expiry()) {
         assert_eq!(request.action, TerminalLifecycleAction::Retire);
         retirements += 1;
     }
@@ -88,17 +88,17 @@ fn a_retired_binding_reads_as_unknown_and_its_worker_retirement_is_generation_bo
     }
     assert_eq!(coordinator.viewer_target(&id(retired), worker(1)), None);
     let request = coordinator
-        .next_worker_retirement(worker(1), expiry())
+        .next_worker_retirement(&[worker(1)], expiry())
         .expect("the Worker that disposed the terminal is told to forget it");
     assert_eq!(request.action, TerminalLifecycleAction::Retire);
     assert_eq!(
-        coordinator.next_worker_retirement(worker(1), expiry()),
+        coordinator.next_worker_retirement(&[worker(1)], expiry()),
         None
     );
     create_and_close(&mut coordinator, 0x20_0010);
     // A new Worker generation never held that Disposed record, so nothing is sent to it.
     assert_eq!(
-        coordinator.next_worker_retirement(worker(2), expiry()),
+        coordinator.next_worker_retirement(&[worker(2)], expiry()),
         None
     );
 }

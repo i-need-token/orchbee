@@ -18,7 +18,7 @@ pub(super) fn execute(
         let Ok(workers) = service.workers.lock() else {
             return unavailable(Unavailable::ServerBusy);
         };
-        let current = placement(workers.request_handle().as_ref());
+        let current = placement(workers.current_for(&viewer.handle).as_ref());
         if !viewer.handle.is_active() || current != placement(Some(&viewer.handle)) {
             return unavailable(Unavailable::TerminalRuntimeUnavailable);
         }

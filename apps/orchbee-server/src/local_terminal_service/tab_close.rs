@@ -13,10 +13,12 @@ use orchbee_workbench_protocol::{
     WorkbenchWorkspaceCloseResumeResult,
 };
 
-use super::{LocalTerminalService, lease_expiry, placement};
+use super::{LocalTerminalService, lease_expiry, placement, serving_placements, target_handle};
 use crate::{
     session_coordinator::PostcommitCoordinationError,
+    terminal_coordinator::WorkerPlacement,
     worker_obcn_carrier::{WorkerOperationRequest, WorkerRequestError, WorkerResponseFailure},
+    worker_registry::WorkerRegistry,
 };
 
 // Inert candidate failure yields at this cadence; it never renews the retained attempt.
@@ -34,13 +36,14 @@ impl LocalTerminalService {
         command: WorkbenchCommand,
     ) -> Option<WorkbenchCommandResult> {
         let workers = self.workers.lock().ok();
-        let handle = workers
-            .as_ref()
-            .and_then(|workers| workers.request_handle());
+        let serving = workers
+            .as_deref()
+            .map(serving_placements)
+            .unwrap_or_default();
         self.coordinator
             .lock()
             .ok()?
-            .execute_project_dissolve_if_idle(command, placement(handle.as_ref()))
+            .execute_project_dissolve_if_idle(command, &serving)
     }
 
     pub(crate) fn execute_terminal_tab_close(
@@ -56,13 +59,14 @@ impl LocalTerminalService {
         }
         let result = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let mut coordinator = self.coordinator.lock().ok()?;
             coordinator.execute_terminal_tab_close(
                 command,
-                placement(handle.as_ref()),
+                &serving,
                 self.close_maintenance.available(),
                 Instant::now(),
             )
@@ -84,20 +88,20 @@ impl LocalTerminalService {
             let Ok(workers) = self.workers.lock() else {
                 return;
             };
-            let current = placement(workers.request_handle().as_ref());
             if !handle.is_active()
-                || current != Some(target.worker)
+                || !workers.serves(target.worker.worker_id, target.worker.generation)
                 || placement(Some(handle)) != Some(target.worker)
             {
                 return;
             }
+            let serving = serving_placements(&workers);
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return;
             };
             coordinator.close_after_normal_exit(
                 target,
                 close_request_id,
-                current,
+                &serving,
                 self.close_maintenance.available(),
                 Instant::now(),
             )
@@ -119,13 +123,14 @@ impl LocalTerminalService {
         }
         let result = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let mut coordinator = self.coordinator.lock().ok()?;
             coordinator.execute_workspace_close(
                 command,
-                placement(handle.as_ref()),
+                &serving,
                 self.close_maintenance.available(),
                 Instant::now(),
             )
@@ -155,14 +160,15 @@ impl LocalTerminalService {
     ) -> Option<WorkbenchWorkspaceCloseResumeResult> {
         let result = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let mut coordinator = self.coordinator.lock().ok()?;
             let local_cleanup_available = self.controllers.lock().is_ok();
             coordinator.resume_workspace_close(
                 request,
-                placement(handle.as_ref()),
+                &serving,
                 self.close_maintenance.available(),
                 local_cleanup_available,
                 Instant::now(),
@@ -188,14 +194,15 @@ impl LocalTerminalService {
     ) -> Option<WorkbenchTabCloseResumeResult> {
         let result = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
+            let serving = workers
+                .as_deref()
+                .map(serving_placements)
+                .unwrap_or_default();
             let mut coordinator = self.coordinator.lock().ok()?;
             let local_cleanup_available = self.controllers.lock().is_ok();
             coordinator.resume_terminal_tab_close(
                 request,
-                placement(handle.as_ref()),
+                &serving,
                 self.close_maintenance.available(),
                 local_cleanup_available,
                 Instant::now(),
@@ -212,10 +219,11 @@ impl LocalTerminalService {
         let expiry = lease_expiry();
         let (close_id, token, handle, dependencies_match) = {
             let workers = self.workers.lock().ok();
-            let handle = workers
-                .as_ref()
-                .and_then(|workers| workers.request_handle());
-            let worker = placement(handle.as_ref());
+            let handles = workers
+                .as_deref()
+                .map(WorkerRegistry::serving_handles)
+                .unwrap_or_default();
+            let serving: Vec<_> = handles.iter().filter_map(WorkerPlacement::of).collect();
             let mut coordinator = self
                 .coordinator
                 .lock()
@@ -255,16 +263,19 @@ impl LocalTerminalService {
             let Some((id, step, next, now)) = selected else {
                 // Idle: retire what Closes ended, then let the Worker forget one Disposed record.
                 coordinator.retire_released_terminals();
-                let retirement =
-                    worker
-                        .filter(|_| handle.is_some())
-                        .zip(expiry)
-                        .and_then(|(worker, expiry)| {
-                            coordinator.next_worker_retirement(worker, expiry)
-                        });
+                let retirement = expiry
+                    .and_then(|expiry| coordinator.next_worker_retirement(&serving, expiry))
+                    .and_then(|request| {
+                        let worker = request.authorization.worker_id;
+                        let generation = request.authorization.worker_generation;
+                        Some((
+                            target_handle(&handles, worker, generation)?.clone(),
+                            request,
+                        ))
+                    });
                 drop(coordinator);
                 drop(workers);
-                return Ok(match handle.zip(retirement) {
+                return Ok(match retirement {
                     Some((handle, request)) => {
                         // Every answer ends it: Retired, or a refusal that leaves the Worker a
                         // record it no longer counts.
@@ -316,7 +327,7 @@ impl LocalTerminalService {
                     let matches = coordinator.close_runtime_matches_for_member(
                         &id,
                         target.member().binding(),
-                        worker,
+                        &serving,
                     );
                     let Some(token) = coordinator.reserve_close_lifecycle_step_for_target(
                         &id,
@@ -329,6 +340,14 @@ impl LocalTerminalService {
                     else {
                         return Ok(now.checked_add(CANDIDATE_RETRY));
                     };
+                    // The step goes to the Worker generation its request authorizes.
+                    let authorization = token.request().authorization;
+                    let handle = target_handle(
+                        &handles,
+                        authorization.worker_id,
+                        authorization.worker_generation,
+                    )
+                    .cloned();
                     (id, token, handle, matches)
                 }
                 _ => return Err(PostcommitCoordinationError),

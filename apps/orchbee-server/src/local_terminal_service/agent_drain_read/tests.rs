@@ -621,10 +621,10 @@ fn accepted_terminate_removes_the_closing_agent_from_list_and_get() {
     let accepted = coordinator
         .execute_terminal_tab_close(
             close.clone(),
-            Some(WorkerPlacement {
+            &[WorkerPlacement {
                 worker_id: cnp_worker(),
                 generation: WorkerGeneration::new(generation),
-            }),
+            }],
             true,
             Instant::now(),
         )

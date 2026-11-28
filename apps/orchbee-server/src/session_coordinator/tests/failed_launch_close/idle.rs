@@ -37,11 +37,12 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
             let command = close_command(&mut coordinator, 102, action);
             let current_worker = (kind != 5).then(|| worker(1));
             let result = if project {
-                coordinator.execute_project_dissolve_if_idle(command.clone(), current_worker)
+                coordinator
+                    .execute_project_dissolve_if_idle(command.clone(), current_worker.as_slice())
             } else {
                 coordinator.execute_workspace_close(
                     command.clone(),
-                    current_worker,
+                    current_worker.as_slice(),
                     true,
                     Instant::now(),
                 )
@@ -115,7 +116,7 @@ fn conditional_delete_distinguishes_never_created_from_live_unknown_pending_and_
                     coordinator
                         .execute_workspace_close(
                             command.clone(),
-                            Some(worker(1)),
+                            &[worker(1)],
                             true,
                             Instant::now(),
                         )
@@ -160,7 +161,7 @@ fn busy_project_keeps_preflight_classification_even_when_runtime_authority_becom
         );
         assert!(matches!(
             coordinator
-                .execute_workspace_close(close, Some(worker(1)), true, Instant::now())
+                .execute_workspace_close(close, &[worker(1)], true, Instant::now())
                 .unwrap()
                 .outcome,
             WorkbenchCommandOutcome::WorkspaceCloseAccepted { .. }
@@ -173,7 +174,10 @@ fn busy_project_keeps_preflight_classification_even_when_runtime_authority_becom
             },
         );
         let result = coordinator
-            .execute_project_dissolve_if_idle(request.clone(), has_worker.then(|| worker(1)))
+            .execute_project_dissolve_if_idle(
+                request.clone(),
+                has_worker.then(|| worker(1)).as_slice(),
+            )
             .unwrap();
         assert!(matches!(
             result.outcome,
@@ -184,7 +188,7 @@ fn busy_project_keeps_preflight_classification_even_when_runtime_authority_becom
         assert_eq!(snapshot(&mut coordinator), before);
         assert_eq!(
             coordinator
-                .execute_project_dissolve_if_idle(request, None)
+                .execute_project_dissolve_if_idle(request, &[])
                 .unwrap(),
             result
         );

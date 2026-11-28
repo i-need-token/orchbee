@@ -30,6 +30,7 @@ mod admitted_control;
 mod disposed_reuse;
 mod idle_capacity;
 mod leaf_idle;
+mod remote_node;
 mod tab_set;
 mod target_fences;
 mod workspace;
@@ -393,7 +394,7 @@ fn late_dispose_is_retained_and_publishes_without_a_live_worker() {
         let accepted = session
             .execute_terminal_tab_close(
                 close.clone(),
-                Some(worker),
+                &[worker],
                 true,
                 Instant::now() - Duration::from_millis(29_800),
             )

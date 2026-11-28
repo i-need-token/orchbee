@@ -39,7 +39,7 @@ impl LocalTerminalService {
     ) -> Option<Result<WorkerOperationResult, WorkerRequestError>> {
         let identities = {
             let workers = self.workers.lock().ok()?;
-            let current = placement(workers.request_handle().as_ref());
+            let current = placement(workers.current_for(handle).as_ref());
             if !handle.is_active()
                 || current != Some(target.worker)
                 || placement(Some(handle)) != current
@@ -97,7 +97,9 @@ impl LocalTerminalService {
                     unavailable(Unavailable::ServerBusy, Cleanup::NotNeeded),
                 );
             };
-            let handle = workers.request_handle();
+            // The send goes to the Worker the request names, on whichever node it runs.
+            let handle = super::worker_named(request.worker_id().as_str())
+                .and_then(|worker| workers.handle_for_worker(worker));
             let Ok(mut coordinator) = self.coordinator.lock() else {
                 return send_result(
                     &request_id,

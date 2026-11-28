@@ -563,7 +563,7 @@ fn pending_creates_settle_out_of_order_after_another_tab_closes() {
     let (_ctx, tab_a, _panel_a) = workspace_leaf(&mut coordinator);
     let close = tab_close_command(&mut coordinator, 9706, context.clone(), tab_a);
     let accepted = coordinator
-        .execute_terminal_tab_close(close.clone(), Some(worker(1)), true, Instant::now())
+        .execute_terminal_tab_close(close.clone(), &[worker(1)], true, Instant::now())
         .unwrap();
     assert!(matches!(
         accepted.outcome,
@@ -630,7 +630,7 @@ fn a_pending_member_cannot_be_removed_by_close() {
             action,
         };
         let result = coordinator
-            .execute_terminal_tab_close(close, Some(worker(1)), true, Instant::now())
+            .execute_terminal_tab_close(close, &[worker(1)], true, Instant::now())
             .unwrap();
         assert!(matches!(
             result.outcome,
@@ -719,7 +719,7 @@ fn an_open_aggregate_close_fences_the_same_tab_split_but_not_a_new_create() {
         .clone();
     let close = tab_close_command(&mut coordinator, 9984, context.clone(), tab.tab_id.clone());
     let accepted = coordinator
-        .execute_terminal_tab_close(close.clone(), Some(worker(1)), true, Instant::now())
+        .execute_terminal_tab_close(close.clone(), &[worker(1)], true, Instant::now())
         .unwrap();
     assert!(matches!(
         accepted.outcome,

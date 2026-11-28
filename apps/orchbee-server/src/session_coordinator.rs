@@ -436,6 +436,32 @@ impl SessionCoordinator {
         Ok(result)
     }
 
+    /// The Worker that holds the terminal `reference` created, on whichever node it runs.
+    pub(crate) fn reference_worker(
+        &self,
+        reference: &RequestId,
+    ) -> Option<orchbee_capability_node_protocol::WorkerId> {
+        self.terminals
+            .retained_authorization(reference)
+            .map(|authorization| authorization.worker_id())
+    }
+
+    /// The Worker of the primary Directory of the Workspace that holds `context`: every terminal
+    /// created in that Workspace runs on it.
+    pub(crate) fn context_worker(
+        &self,
+        context: &orchbee_workbench_protocol::WorkbenchTerminalContextId,
+    ) -> Option<orchbee_capability_node_protocol::WorkerId> {
+        let navigation = &self.workbench.as_ref()?.snapshot().navigation;
+        let workspace = navigation
+            .workspaces
+            .iter()
+            .find(|workspace| &workspace.terminal_context_id == context)?;
+        let directory = navigation.directory(workspace.primary_directory_id.as_ref()?)?;
+        let value = u128::from_str_radix(directory.worker_id.as_str(), 16).ok()?;
+        orchbee_capability_node_protocol::WorkerId::from_bytes(value.to_be_bytes()).ok()
+    }
+
     pub(crate) fn viewer_target(
         &self,
         reference: &RequestId,

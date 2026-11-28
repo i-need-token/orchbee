@@ -207,7 +207,7 @@ impl Fixture {
             .map_err(|_| "poisoned")?
             .execute_terminal_tab_close(
                 close.clone(),
-                Some(placement_value()),
+                &[placement_value()],
                 true,
                 std::time::Instant::now(),
             )

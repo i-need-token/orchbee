@@ -205,7 +205,7 @@ fn accept(service: &LocalTerminalService, close: &WorkbenchCommand) -> Workbench
         .coordinator
         .lock()
         .unwrap()
-        .execute_terminal_tab_close(close.clone(), Some(worker()), true, Instant::now())
+        .execute_terminal_tab_close(close.clone(), &[worker()], true, Instant::now())
         .unwrap();
     assert!(matches!(
         result.outcome,
@@ -400,7 +400,7 @@ fn moved_pending_workspace_create_settles_after_close_at_its_original_revision_a
             .coordinator
             .lock()
             .unwrap()
-            .execute_terminal_tab_close(close, Some(worker()), true, Instant::now())
+            .execute_terminal_tab_close(close, &[worker()], true, Instant::now())
             .unwrap()
             .outcome,
         WorkbenchCommandOutcome::Rejected {

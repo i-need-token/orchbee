@@ -145,7 +145,7 @@ fn accept_target_close(
     } = SessionCoordinator::terminal_tab_close_runtime(
         &coordinator.terminals,
         member.binding(),
-        Some(worker(1)),
+        &[worker(1)],
     )
     .unwrap()
     else {
