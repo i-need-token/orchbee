@@ -2,8 +2,7 @@ import {
 	DESKTOP_FILE_DROP_WINDOW_MESSAGE,
 	DesktopFileDropWindowMessageSchema,
 } from '@orchbee/desktop-client-protocol';
-
-import { formatDroppedPaths } from './formatDroppedPaths';
+import { formatDroppedPaths } from '@orchbee/terminal/dropped-paths';
 
 interface DesktopFileDropWindow {
 	addEventListener(
@@ -36,7 +35,7 @@ export function installDesktopFileDropBridge(
 			const paths = Array.from(files, pathOf).filter((path) => path !== '');
 			if (paths.length === 0) return;
 			const message = DesktopFileDropWindowMessageSchema.safeParse({
-				text: formatDroppedPaths(paths, platform),
+				text: formatDroppedPaths(paths, platform === 'win32' ? 'windows' : 'posix'),
 				type: DESKTOP_FILE_DROP_WINDOW_MESSAGE,
 			});
 			if (!message.success) return;

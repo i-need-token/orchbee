@@ -875,6 +875,14 @@ that moment. `linkOpenRequestIsCurrent(...)` reparses those canonical values, re
 revision tuple to remain current, resolves the same cached cell again, and compares the exact URL
 before an application may admit an effect. It does not open links or own an Action runtime.
 
+## Dropped paths
+
+`@orchbee/terminal/dropped-paths` exports `formatDroppedPaths(paths, platform)`: the text a terminal
+receives for a drop of files, as the platform's own terminal pastes one. `platform` is the family of
+the machine whose shell reads the text, `windows` or `posix`, which need not be the machine that
+draws the terminal. The entry's runtime closure holds no React, DOM, or renderer module, so a
+preload script can import it alone. It only formats: pasting the text stays with the caller.
+
 ## Development
 
 Run from the repository root:

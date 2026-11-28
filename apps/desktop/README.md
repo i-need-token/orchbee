@@ -279,10 +279,9 @@ the restart, again.
 - Files and folders dropped on a terminal paste their paths into it as ordinary paste, the terminal
   under the pointer taking focus first. Only the preload can read a dropped file's path
   (`webUtils.getPathForFile`), so it listens for the drop before the page does and posts the text to
-  its own window, which the terminal that took the drop pastes. The text follows the platform's own
-  terminal: on Windows, as Windows Terminal does, a path holding a space is double-quoted and paths
-  are joined with spaces; elsewhere, as Terminal.app does, each shell-special character is escaped
-  with a backslash and every path ends with a space. A served Web Client takes no file drops.
+  its own window, which the terminal that took the drop pastes. The preload formats the text for its
+  own platform with `@orchbee/terminal/dropped-paths`, as the platform's own terminal pastes a drop.
+  A served Web Client takes no file drops.
 - The window's place, restored and recorded as [Window lifecycle](docs/window-lifecycle.md)
   describes.
 - On Windows, the notification-area icon, from start until quit. Its image is the Orchbee mark

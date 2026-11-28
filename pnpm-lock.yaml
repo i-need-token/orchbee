@@ -152,6 +152,9 @@ importers:
       '@orchbee/i18n':
         specifier: workspace:^
         version: link:../../packages/i18n
+      '@orchbee/terminal':
+        specifier: workspace:^
+        version: link:../../packages/terminal
       electron:
         specifier: 42.8.0
         version: 42.8.0

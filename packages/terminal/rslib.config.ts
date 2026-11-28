@@ -20,6 +20,7 @@ export default defineConfig({
 	source: {
 		entry: {
 			index: './src/index.ts',
+			'dropped-paths/index': './src/dropped-paths/index.ts',
 			'projected-search-worker': './src/search/projected-search-worker.ts',
 		},
 		tsconfigPath: './tsconfig.build.json',

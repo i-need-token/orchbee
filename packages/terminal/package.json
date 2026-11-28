@@ -26,6 +26,12 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js",
 			"require": "./dist/index.cjs"
+		},
+		"./dropped-paths": {
+			"@orchbee/source": "./src/dropped-paths/index.ts",
+			"types": "./dist/dropped-paths/index.d.ts",
+			"import": "./dist/dropped-paths/index.js",
+			"require": "./dist/dropped-paths/index.cjs"
 		}
 	},
 	"publishConfig": {

@@ -1,3 +1,6 @@
+/** The family of the machine whose shell receives the paths: Windows, or any POSIX system. */
+export type DroppedPathPlatform = 'posix' | 'windows';
+
 /** Characters a POSIX shell reads specially, which Terminal.app escapes with a backslash. */
 const POSIX_SPECIAL = /[\s"'\\$`!&;|<>()[\]{}*?#~^]/gu;
 
@@ -20,8 +23,11 @@ function posixPath(path: string): string {
  * a space and joins them with spaces; Terminal.app escapes each special character and ends every
  * path with a space.
  */
-export function formatDroppedPaths(paths: readonly string[], platform: NodeJS.Platform): string {
-	if (platform === 'win32') {
+export function formatDroppedPaths(
+	paths: readonly string[],
+	platform: DroppedPathPlatform,
+): string {
+	if (platform === 'windows') {
 		return paths.map((path) => (path.includes(' ') ? `"${path}"` : path)).join(' ');
 	}
 	return paths.map((path) => `${posixPath(path)} `).join('');
