@@ -251,6 +251,11 @@ interface WorkbenchView {
 	/** Shift-free ← and → on the focused divider change the width in 10 px steps. */
 	readonly onSidebarDividerKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 	readonly leftPanelReference: React.RefObject<ResizablePanelHandle | null>;
+	/**
+	 * The docked sidebar's width as the window started, its panel's default. It stays the same from
+	 * render to render: a new default registers the panel again, and its group then restores the
+	 * shares it last saw, which after a window resize no longer keep the sidebar's width.
+	 */
 	readonly leftPanelSize: string;
 	readonly newTab: ((request: TabStripNewTabRequest) => ActionExecution) | undefined;
 	readonly newTabSections: readonly TabStripNewTabSection[] | undefined;
@@ -1247,7 +1252,7 @@ export function useWorkbench({
 			setLeftPanelWidth(leftPanelWidth.current + (event.key === 'ArrowLeft' ? -10 : 10));
 		},
 		leftPanelReference,
-		leftPanelSize: `${leftPanelWidth.current}px`,
+		leftPanelSize: `${defaultLeftPanelWidth}px`,
 		newTab,
 		newTabSections,
 		onCloseTabs: closeTabs,
