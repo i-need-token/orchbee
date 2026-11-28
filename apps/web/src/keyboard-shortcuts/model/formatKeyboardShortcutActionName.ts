@@ -18,8 +18,14 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileBarMessages.toggle);
 		case 'toggle-file-overlay-full':
 			return intl.formatMessage(fileOverlayMessages.toggleFull);
+		case 'close-all-editors':
+			return intl.formatMessage(fileOverlayMessages.closeAllEditors);
 		case 'close-editor':
 			return intl.formatMessage(fileOverlayMessages.closeEditor);
+		case 'close-other-editors':
+			return intl.formatMessage(fileOverlayMessages.closeOtherEditors);
+		case 'close-saved-editors':
+			return intl.formatMessage(fileOverlayMessages.closeSavedEditors);
 		case 'keep-editor':
 			return intl.formatMessage(fileOverlayMessages.keepEditor);
 		case 'last-editor':

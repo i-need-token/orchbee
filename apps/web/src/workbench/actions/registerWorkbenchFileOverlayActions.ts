@@ -96,6 +96,7 @@ const VIEW_CATEGORY = {
 };
 
 const ENABLED: ActionAvailability = { kind: 'enabled' };
+const DISABLED: ActionAvailability = { kind: 'disabled' };
 const HIDDEN: ActionAvailability = { kind: 'hidden' };
 /** The tab is gone, or the overlay that showed it is no longer shown. */
 const SCOPE_CHANGED: ActionResult<void> = { code: 'scope-changed', kind: 'blocked' };
@@ -105,7 +106,8 @@ const SCOPE_CHANGED: ActionResult<void> = { code: 'scope-changed', kind: 'blocke
  * Workspace's overlay. A tab Action names its tab with the Workspace that shows it, or without input
  * takes the active tab, as VS Code's editor commands take the active editor. Each is offered only
  * while it has a tab to act on, so that its keys otherwise keep the meaning they have outside the
- * File Bar.
+ * File Bar; one that VS Code shows greyed in a tab's menu is disabled where VS Code's precondition
+ * fails, which passes its keys on as well.
  */
 export function registerWorkbenchFileOverlayActions({
 	dispatch,
@@ -132,6 +134,18 @@ export function registerWorkbenchFileOverlayActions({
 	};
 	const tabConcurrencyKey = (input: WorkbenchFileOverlayTabInput): string =>
 		input === undefined ? `${workspaceId}:active` : `${input.workspaceId}:${input.tabId}`;
+	const tabExecution = {
+		concurrency: 'parallel',
+		concurrencyKey: tabConcurrencyKey,
+		mode: 'foreground',
+	} as const;
+	const rowExecution = {
+		concurrency: 'parallel',
+		concurrencyKey: () => `${workspaceId}:row`,
+		mode: 'foreground',
+	} as const;
+	const rowAvailability = (): ActionAvailability =>
+		getState().tabs.tabs.length === 0 ? HIDDEN : ENABLED;
 	const selectionExecution = {
 		concurrency: 'parallel',
 		concurrencyKey: () => `${workspaceId}:selection`,
@@ -232,11 +246,7 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: tabConcurrencyKey,
-					mode: 'foreground',
-				},
+				execution: tabExecution,
 				getAvailability: (_context, input) => (namedTab(input) === null ? HIDDEN : ENABLED),
 				handler: {
 					execute: (context, input) => {
@@ -256,11 +266,7 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: tabConcurrencyKey,
-					mode: 'foreground',
-				},
+				execution: tabExecution,
 				getAvailability: (_context, input) => (namedTab(input) === null ? HIDDEN : ENABLED),
 				handler: {
 					execute: (context, input) => {
@@ -284,13 +290,105 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: tabConcurrencyKey,
-					mode: 'foreground',
+				execution: tabExecution,
+				// VS Code's precondition: another tab to close.
+				getAvailability: (_context, input) => {
+					if (namedTab(input) === null) return HIDDEN;
+					return getState().tabs.tabs.length === 1 ? DISABLED : ENABLED;
 				},
-				getAvailability: (_context, input) =>
-					namedTab(input)?.preview === true ? ENABLED : HIDDEN,
+				handler: {
+					execute: (context, input) => {
+						const tab = namedTab(input);
+						if (tab === null) return SCOPE_CHANGED;
+						context.markCommitted();
+						return apply({
+							target: { keepIds: [tab.id], kind: 'others' },
+							type: 'close-requested',
+						});
+					},
+				},
+				// VS Code parity: workbench.action.closeOtherEditors.
+				id: WORKBENCH_ACTION_IDS.closeOtherFileOverlayTabs,
+				input: workbenchFileOverlayTabInput,
+				title: fileOverlayMessages.closeOtherEditors,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: tabExecution,
+				// VS Code's precondition: a tab to the right.
+				getAvailability: (_context, input) => {
+					const tab = namedTab(input);
+					if (tab === null) return HIDDEN;
+					return getState().tabs.tabs.at(-1)?.id === tab.id ? DISABLED : ENABLED;
+				},
+				handler: {
+					execute: (context, input) => {
+						const tab = namedTab(input);
+						if (tab === null) return SCOPE_CHANGED;
+						context.markCommitted();
+						return apply({ target: { id: tab.id, kind: 'right' }, type: 'close-requested' });
+					},
+				},
+				// VS Code parity: workbench.action.closeEditorsToTheRight.
+				id: WORKBENCH_ACTION_IDS.closeFileOverlayTabsToTheRight,
+				input: workbenchFileOverlayTabInput,
+				title: fileOverlayMessages.closeEditorsToTheRight,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: rowExecution,
+				getAvailability: rowAvailability,
+				handler: {
+					execute: (context) => {
+						if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
+						context.markCommitted();
+						return apply({ target: { kind: 'saved' }, type: 'close-requested' });
+					},
+				},
+				// VS Code parity: workbench.action.closeUnmodifiedEditors.
+				id: WORKBENCH_ACTION_IDS.closeSavedFileOverlayTabs,
+				input: noActionInput,
+				title: fileOverlayMessages.closeSavedEditors,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: rowExecution,
+				getAvailability: rowAvailability,
+				handler: {
+					execute: (context) => {
+						if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
+						context.markCommitted();
+						// Sticky tabs stay, as VS Code's Close All keeps them.
+						return apply({ target: { kind: 'all' }, type: 'close-requested' });
+					},
+				},
+				// VS Code parity: workbench.action.closeEditorsInGroup, and closeAllEditors with its one
+				// editor group.
+				id: WORKBENCH_ACTION_IDS.closeAllFileOverlayTabs,
+				input: noActionInput,
+				title: fileOverlayMessages.closeAllEditors,
+			}),
+		),
+		typedRuntime.register(
+			scope,
+			defineAction({
+				category: VIEW_CATEGORY,
+				execution: tabExecution,
+				// VS Code's Keep Open is greyed for a tab that is not in preview.
+				getAvailability: (_context, input) => {
+					const tab = namedTab(input);
+					if (tab === null) return HIDDEN;
+					return tab.preview ? ENABLED : DISABLED;
+				},
 				handler: {
 					execute: (context, input) => {
 						const tab = namedTab(input);
@@ -309,11 +407,7 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: tabConcurrencyKey,
-					mode: 'foreground',
-				},
+				execution: tabExecution,
 				getAvailability: (_context, input) => (namedTab(input)?.sticky === true ? ENABLED : HIDDEN),
 				handler: {
 					execute: (context, input) => {
@@ -333,11 +427,7 @@ export function registerWorkbenchFileOverlayActions({
 			scope,
 			defineAction({
 				category: VIEW_CATEGORY,
-				execution: {
-					concurrency: 'parallel',
-					concurrencyKey: tabConcurrencyKey,
-					mode: 'foreground',
-				},
+				execution: tabExecution,
 				// Never offered together with Unpin Editor, so the two share their keys.
 				getAvailability: (_context, input) =>
 					namedTab(input)?.sticky === false ? ENABLED : HIDDEN,

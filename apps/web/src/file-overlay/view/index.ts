@@ -5,4 +5,5 @@ export type {
 	FileOverlayModule,
 	FileOverlayRegionElements,
 	FileOverlayShortcutLabels,
+	FileTabMenuEntry,
 } from './file-overlay-contract';

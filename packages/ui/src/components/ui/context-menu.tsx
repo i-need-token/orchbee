@@ -26,13 +26,16 @@ function ContextMenuContent({
 	alignOffset = 4,
 	side = 'right',
 	sideOffset = 0,
+	positionerClassName,
 	...props
 }: ContextMenuPrimitive.Popup.Props &
-	Pick<ContextMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'>) {
+	Pick<ContextMenuPrimitive.Positioner.Props, 'align' | 'alignOffset' | 'side' | 'sideOffset'> & {
+		positionerClassName?: string | undefined;
+	}) {
 	return (
 		<ContextMenuPrimitive.Portal>
 			<ContextMenuPrimitive.Positioner
-				className='isolate z-50 outline-none'
+				className={cn('isolate outline-none', positionerClassName ?? 'z-50')}
 				align={align}
 				alignOffset={alignOffset}
 				side={side}

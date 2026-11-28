@@ -13,6 +13,7 @@ import {
 	type FileOverlayRegionElements,
 	type FileOverlayShortcutLabels,
 	type FileOverlayStore,
+	type FileTabMenuEntry,
 } from '../../file-overlay';
 import type { WorkbenchWorkspace } from '../../project-workspace';
 import { registerWorkbenchFileOverlayActions } from '../actions/registerWorkbenchFileOverlayActions';
@@ -20,6 +21,7 @@ import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/wo
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
+import { buildFileTabMenuEntries } from '../utils/buildFileTabMenuEntries';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 type FileOverlayLoad =
@@ -169,6 +171,21 @@ export function useWorkbenchFileOverlay({
 			);
 		},
 	);
+	const tabMenu = useMemoizedFn((tabId: string): readonly FileTabMenuEntry[] =>
+		workspaceId === null
+			? []
+			: buildFileTabMenuEntries({
+					formatMessage: (descriptor) => intl.formatMessage(descriptor),
+					report: (start) => {
+						reportActionOutcome('context-menu', start);
+					},
+					scope: actionScope,
+					shortcutLabelForAction,
+					tabId,
+					typedRuntime,
+					workspaceId,
+				}),
+	);
 	const commands = React.useMemo<FileOverlayCommands>(
 		() => ({
 			closeTab: (tabId, source) =>
@@ -177,11 +194,12 @@ export function useWorkbenchFileOverlay({
 				invokeTabAction(WORKBENCH_ACTION_IDS.keepFileOverlayTab, tabId, source),
 			selectTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.selectFileOverlayTab, tabId, source),
+			tabMenu,
 			toggleFull: invokeToggleFull,
 			unpinTab: (tabId, source) =>
 				invokeTabAction(WORKBENCH_ACTION_IDS.unpinFileOverlayTab, tabId, source),
 		}),
-		[invokeTabAction, invokeToggleFull],
+		[invokeTabAction, invokeToggleFull, tabMenu],
 	);
 	React.useEffect(() => {
 		registry?.showTerminal(

@@ -125,8 +125,9 @@ describe('KeyboardShortcutSettings', () => {
 		await act(async () => inFileBar.click());
 		await pressKey(inFileBar, { code: 'KeyK', key: 'k', metaKey: true });
 		expect(inFileBar.textContent).toBe('⌘K, then a key');
-		await pressKey(inFileBar, { code: 'KeyW', key: 'w' });
-		expect(inFileBar.textContent).toBe('⌘K W');
+		// ⌘K G, a sequence VS Code leaves free, so that no File Bar default takes it.
+		await pressKey(inFileBar, { code: 'KeyG', key: 'g' });
+		expect(inFileBar.textContent).toBe('⌘K G');
 		expect(harness.setItem.mock.calls.map(([key]) => key)).toEqual([
 			'orchbee:web:keyboard-shortcut-overrides:v2',
 			'orchbee:web:keyboard-shortcut-overrides:v1',

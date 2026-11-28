@@ -570,6 +570,41 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'file-bar',
 		shortcutId: 'file-overlay.tab.close.function-key',
 	},
+	// VS Code binds Close Other Editors on a Mac only.
+	fileTabCloseOthers: {
+		actionId: WORKBENCH_ACTION_IDS.closeOtherFileOverlayTabs,
+		defaults: { apple: [chord('KeyT', ['alt', 'mod'])] },
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close-others',
+	},
+	fileTabCloseSaved: {
+		actionId: WORKBENCH_ACTION_IDS.closeSavedFileOverlayTabs,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('KeyU', [])],
+			standard: [chord('KeyK', ['mod']), chord('KeyU', [])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close-saved',
+	},
+	fileTabCloseAll: {
+		actionId: WORKBENCH_ACTION_IDS.closeAllFileOverlayTabs,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('KeyW', [])],
+			standard: [chord('KeyK', ['mod']), chord('KeyW', [])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close-all',
+	},
+	// VS Code's Close All Editors keys; with one editor group it closes what Close All does.
+	fileTabCloseAllHeldModifier: {
+		actionId: WORKBENCH_ACTION_IDS.closeAllFileOverlayTabs,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('KeyW', ['mod'])],
+			standard: [chord('KeyK', ['mod']), chord('KeyW', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close-all.held-modifier',
+	},
 	fileTabReopen: {
 		actionId: WORKBENCH_ACTION_IDS.reopenFileOverlayTab,
 		defaults: {

@@ -1,5 +1,6 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileOverlayMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import { useMemo, useRef, type KeyboardEvent, type ReactNode } from 'react';
 
 import { fileTabLabels } from '../../../../../../../model';
@@ -9,7 +10,9 @@ import {
 } from '../../../../contexts/file-overlay-host-store';
 import { fileTabDomId } from '../../utils/fileTabDomId';
 import { FileTab } from './components/file-tab/FileTab';
+import { FileTabMenu } from './components/file-tab-menu/FileTabMenu';
 import { useFileTabFocusHandoff } from './hooks/useFileTabFocusHandoff';
+import { useFileTabMenu } from './hooks/useFileTabMenu';
 import { useFileTabReveal } from './hooks/useFileTabReveal';
 import { useFileTabRowWheel } from './hooks/useFileTabRowWheel';
 import styles from './FileTabRow.module.css';
@@ -44,7 +47,7 @@ function tabIndexForKey(key: string, index: number, count: number): number | nul
  * each tab as wide as its label, the row scrolling sideways when they do not fit. Its scrollbar is
  * hidden, so the row stays the height of the Tab bar; the wheel, a sideways swipe and the keys still
  * scroll it, and the active tab always scrolls into view. The keys move along the row and show each
- * tab they reach, and Enter or Space shows the focused one.
+ * tab they reach, and Enter or Space shows the focused one. Each tab has VS Code's tab menu.
  */
 export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	const intl = useOrchbeeIntl();
@@ -59,6 +62,7 @@ export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	useFileTabRowWheel(rowReference);
 	useFileTabReveal(rowReference, listReference, tabs.activeId, tabs.tabs.length);
 	const handOffFocus = useFileTabFocusHandoff(rowReference, tabs.activeId);
+	const menu = useFileTabMenu(rowReference, listReference, tabs.tabs);
 	const onKeyDown = useMemoizedFn((event: KeyboardEvent<HTMLDivElement>) => {
 		const list = listReference.current;
 		if (list === null || event.nativeEvent.isComposing) return;
@@ -82,30 +86,33 @@ export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	});
 	return (
 		<div className={styles['root']} data-slot='file-tab-row' ref={rowReference}>
-			<div
-				aria-label={intl.formatMessage(fileOverlayMessages.tabsLabel)}
-				className={styles['list']}
-				ref={listReference}
-				role='tablist'
-				onKeyDown={onKeyDown}
-			>
-				{tabs.tabs.map((tab, index) => (
-					<FileTab
-						active={tab.id === tabs.activeId}
-						description={labels[index]?.description ?? ''}
-						domId={fileTabDomId(idPrefix, index)}
-						key={tab.id}
-						name={labels[index]?.name ?? tab.input.resource.path}
-						panelId={panelId}
-						path={tab.input.resource.path}
-						preview={tab.id === tabs.previewId}
-						sticky={index < tabs.stickyCount}
-						tabId={tab.id}
-						unsaved={tab.unsaved}
-						onLeaveWithFocus={handOffFocus}
-					/>
-				))}
-			</div>
+			<ContextMenu open={menu.open} onOpenChange={menu.onOpenChange}>
+				<ContextMenuTrigger
+					aria-label={intl.formatMessage(fileOverlayMessages.tabsLabel)}
+					className={styles['list']}
+					ref={listReference}
+					role='tablist'
+					onKeyDown={onKeyDown}
+				>
+					{tabs.tabs.map((tab, index) => (
+						<FileTab
+							active={tab.id === tabs.activeId}
+							description={labels[index]?.description ?? ''}
+							domId={fileTabDomId(idPrefix, index)}
+							key={tab.id}
+							name={labels[index]?.name ?? tab.input.resource.path}
+							panelId={panelId}
+							path={tab.input.resource.path}
+							preview={tab.id === tabs.previewId}
+							sticky={index < tabs.stickyCount}
+							tabId={tab.id}
+							unsaved={tab.unsaved}
+							onLeaveWithFocus={handOffFocus}
+						/>
+					))}
+				</ContextMenuTrigger>
+				<FileTabMenu entries={menu.entries} finalFocus={menu.finalFocus} onChoose={menu.choose} />
+			</ContextMenu>
 		</div>
 	);
 }

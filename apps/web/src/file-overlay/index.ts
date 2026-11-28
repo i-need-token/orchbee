@@ -6,6 +6,7 @@ export type {
 	FileOverlayModule,
 	FileOverlayRegionElements,
 	FileOverlayShortcutLabels,
+	FileTabMenuEntry,
 } from './view';
 export { FileOverlayRegistry } from './workspace-stores';
 export type { FileOverlayStore } from './workspace-stores';

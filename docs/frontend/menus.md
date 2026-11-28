@@ -56,14 +56,18 @@ not implement parallel mutations for those invocation paths.
   keyboard and scrolls the rows at `--ob-ref-size-menu-list`.
 - Use the shared overlay surface, radius, shadow, padding, and collision behavior from
   `@orchbee/ui`; feature styles do not redraw the menu container.
-- A portaled menu opened from a modal participates in `--ob-ref-layer-modal` through the shared
-  positioner-layer override. The feature passes a CSS Module class to the primitive; it does not
-  assign a one-off `z-index` to the popup.
+- A portaled menu opened from a modal, or from a surface on `--ob-ref-layer-overlay`, participates
+  in `--ob-ref-layer-modal` through the shared positioner-layer override. The feature passes a CSS
+  Module class to the primitive; it does not assign a one-off `z-index` to the popup.
 - Every actionable command has a leading semantic `ProductIcon`. A checkbox or radio selection
   indicator may replace it only when the command has no separate action metaphor.
 - Group labels and separators are structural and do not receive decorative action icons.
 - A context menu holds only the frequent Actions of its target; lower-frequency Actions stay
   discoverable in Action search.
+- A File Bar or file overlay menu instead follows its VS Code counterpart: the items VS Code shows
+  there, in VS Code's groups and order, with a leading icon only where VS Code shows one. A parity
+  test holds the menu to VS Code at a pinned commit and names each VS Code item the menu leaves out,
+  with the reason. The other rules here still apply.
 - When one action model has a dropdown trigger and a context-menu trigger, both menus show the same
   entries in the same order, and a destructive entry asks for the same confirmation by pointer and
   by keyboard.

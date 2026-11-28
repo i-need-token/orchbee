@@ -1,8 +1,10 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { useLayoutEffect, useRef, type RefObject } from 'react';
 
+import { activeFileTab } from '../utils/activeFileTab';
+
 function focusActiveTab(row: HTMLElement): void {
-	row.querySelector<HTMLElement>('[role="tab"][data-active]')?.focus({ preventScroll: true });
+	activeFileTab(row)?.focus({ preventScroll: true });
 }
 
 /**

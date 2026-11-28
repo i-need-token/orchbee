@@ -1,0 +1,5 @@
+/* The overlay sits on its own layer, which a menu at the primitive's default layer would show
+   beneath. */
+.layer {
+	z-index: var(--ob-ref-layer-modal);
+}

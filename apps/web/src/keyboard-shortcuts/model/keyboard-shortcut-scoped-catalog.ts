@@ -26,7 +26,10 @@ import {
 } from './keyboard-shortcut-catalog';
 
 type KeyboardShortcutScopedName =
+	| 'close-all-editors'
 	| 'close-editor'
+	| 'close-other-editors'
+	| 'close-saved-editors'
 	| 'keep-editor'
 	| 'last-editor'
 	| 'next-editor'
@@ -78,6 +81,10 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 	'file-overlay.tier.toggle-full': 'toggle-file-overlay-full',
 	'file-overlay.tab.close': 'close-editor',
 	'file-overlay.tab.close.function-key': 'close-editor',
+	'file-overlay.tab.close-others': 'close-other-editors',
+	'file-overlay.tab.close-saved': 'close-saved-editors',
+	'file-overlay.tab.close-all': 'close-all-editors',
+	'file-overlay.tab.close-all.held-modifier': 'close-all-editors',
 	'file-overlay.tab.reopen': 'reopen-closed-editor',
 	'file-overlay.tab.select-next': 'next-editor',
 	'file-overlay.tab.select-next.bracket': 'next-editor',

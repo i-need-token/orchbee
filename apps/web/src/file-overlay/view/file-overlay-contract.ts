@@ -17,6 +17,23 @@ export interface FileOverlayRegionElements {
 /** What invoked one of the overlay's controls, as its Action reports the outcome. */
 export type FileOverlayCommandSource = 'button' | 'keyboard' | 'pointer';
 
+/** An item of a file tab's menu. */
+export interface FileTabMenuCommand {
+	readonly disabled: boolean;
+	readonly id: string;
+	readonly kind: 'command';
+	readonly label: string;
+	/** Runs the item's Action as chosen from the menu. */
+	readonly run: () => void;
+	/** The keys that run the item's Action now, absent while nothing binds it. */
+	readonly shortcut: string | undefined;
+}
+
+/** One row of a file tab's menu: an item, or the line between two of VS Code's groups. */
+export type FileTabMenuEntry =
+	| FileTabMenuCommand
+	| { readonly id: string; readonly kind: 'separator' };
+
 /** The Actions the overlay's controls run; each runs as a press of its control. */
 export interface FileOverlayCommands {
 	/** Close Editor for one tab: its close button or a middle click. */
@@ -25,6 +42,8 @@ export interface FileOverlayCommands {
 	readonly keepTab: (tabId: string, source: FileOverlayCommandSource) => void;
 	/** Shows one tab: a press on it, or a key that moves along the row. */
 	readonly selectTab: (tabId: string, source: FileOverlayCommandSource) => void;
+	/** One tab's menu as it opens: the items VS Code's tab menu shows for that tab, in its groups. */
+	readonly tabMenu: (tabId: string) => readonly FileTabMenuEntry[];
 	/** Expand, or Restore while the tier is full: the Action that `Mod+K Mod+M` runs. */
 	readonly toggleFull: () => void;
 	/** Unpin Editor for one sticky tab: its pin button. */

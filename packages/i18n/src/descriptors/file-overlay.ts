@@ -11,9 +11,25 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.close',
 		'Accessible name of the button at the end of a file tab in the file overlay that closes that tab.',
 	),
+	closeAllEditors: message(
+		'fileOverlay.actions.closeAllEditors',
+		'Action that closes every file tab in the file overlay except the pinned ones. VS Code calls a file open in a tab an editor.',
+	),
 	closeEditor: message(
 		'fileOverlay.actions.closeEditor',
 		'Action that closes a file tab in the file overlay, the active one unless a tab is named. VS Code calls a file open in a tab an editor.',
+	),
+	closeEditorsToTheRight: message(
+		'fileOverlay.actions.closeEditorsToTheRight',
+		'Action that closes the file tabs after a file tab in the file overlay’s tab row, except the pinned ones; the tab is the active one unless a tab is named. VS Code calls a file open in a tab an editor.',
+	),
+	closeOtherEditors: message(
+		'fileOverlay.actions.closeOtherEditors',
+		'Action that closes every file tab in the file overlay but one, except the pinned ones; the one kept is the active tab unless a tab is named. VS Code calls a file open in a tab an editor.',
+	),
+	closeSavedEditors: message(
+		'fileOverlay.actions.closeSavedEditors',
+		'Action that closes every file tab in the file overlay without unsaved edits, except the pinned ones. VS Code calls a file open in a tab an editor.',
 	),
 	expand: message(
 		'fileOverlay.actions.expand',
@@ -82,6 +98,38 @@ export const fileOverlayMessages = defineMessages({
 	showEditor: message(
 		'fileOverlay.actions.showEditor',
 		'Action that shows the file of one tab in the file overlay. VS Code calls a file open in a tab an editor.',
+	),
+	tabMenuClose: message(
+		'fileOverlay.tabs.menu.close',
+		'Item in a file tab’s context menu in the file overlay that closes that tab.',
+	),
+	tabMenuCloseAll: message(
+		'fileOverlay.tabs.menu.closeAll',
+		'Item in a file tab’s context menu in the file overlay that closes every tab except the pinned ones.',
+	),
+	tabMenuCloseOthers: message(
+		'fileOverlay.tabs.menu.closeOthers',
+		'Item in a file tab’s context menu in the file overlay that closes every tab but that one, except the pinned ones.',
+	),
+	tabMenuCloseRight: message(
+		'fileOverlay.tabs.menu.closeRight',
+		'Item in a file tab’s context menu in the file overlay that closes the tabs after that one in the row, except the pinned ones.',
+	),
+	tabMenuCloseSaved: message(
+		'fileOverlay.tabs.menu.closeSaved',
+		'Item in a file tab’s context menu in the file overlay that closes every tab without unsaved edits, except the pinned ones.',
+	),
+	tabMenuKeepOpen: message(
+		'fileOverlay.tabs.menu.keepOpen',
+		'Item in a file tab’s context menu in the file overlay that keeps that tab in preview open, so the next file opened in preview does not replace it. It is greyed for a tab not in preview.',
+	),
+	tabMenuPin: message(
+		'fileOverlay.tabs.menu.pin',
+		'Item in a file tab’s context menu in the file overlay that pins that tab to the start of the row.',
+	),
+	tabMenuUnpin: message(
+		'fileOverlay.tabs.menu.unpin',
+		'Item in a pinned file tab’s context menu in the file overlay that unpins that tab.',
 	),
 	tabsLabel: message(
 		'fileOverlay.tabs.label',
