@@ -146,6 +146,11 @@ interface UseWorkbenchFileBarOptions {
 	/** Where the File Bar keeps its layout on this device. */
 	readonly storage: FileBarLayoutStorage | undefined;
 	/**
+	 * Called as a control in the File Bar's row acts, a toggle, the File Bar's button or an item of the
+	 * row's menu, to take away what covers the File Bar's views: the file overlay's full tier.
+	 */
+	readonly uncoverViews: () => void;
+	/**
 	 * The user's settings, which name the File Bar's side and take the moves; without them it stays
 	 * after the terminal area and offers no move.
 	 */
@@ -188,6 +193,7 @@ export function useWorkbenchFileBar({
 	shortcutPlatform,
 	storage,
 	supplyFocusRegion,
+	uncoverViews,
 	userSettings,
 	workspaceId,
 }: UseWorkbenchFileBarOptions): WorkbenchFileBarView {
@@ -298,6 +304,7 @@ export function useWorkbenchFileBar({
 	// The toggles row selects as VS Code's activity bar does at the top of its Side Bar: the active
 	// view's toggle focuses the view, another one shows its view.
 	const selectView = useMemoizedFn((view: FileBarViewId) => {
+		uncoverViews();
 		if (view === layoutReference.current.activeView) {
 			setViewFocusRequest((request) => request + 1);
 			return;
@@ -339,10 +346,23 @@ export function useWorkbenchFileBar({
 			setToggleShown,
 			shortcutLabelForAction,
 			typedRuntime,
-		}),
+		}).map((entry) =>
+			entry.kind === 'separator'
+				? entry
+				: {
+						...entry,
+						run: () => {
+							uncoverViews();
+							entry.run();
+						},
+					},
+		),
 	);
 	const toggles = React.useMemo(() => shownFileBarToggles(layout), [layout]);
+	// The button also uncovers a hidden File Bar's place, so the File Bar it shows is not beneath the
+	// full tier.
 	const invokeToggle = useMemoizedFn(() => {
+		uncoverViews();
 		reportActionOutcome('button', () =>
 			typedRuntime.execute(WORKBENCH_ACTION_IDS.toggleFileBar, undefined, {
 				scope: actionScope,

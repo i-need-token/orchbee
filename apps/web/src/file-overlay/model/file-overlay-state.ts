@@ -56,6 +56,7 @@ export function transitionFileOverlay(
 ): FileOverlayTransition {
 	switch (event.type) {
 		case 'dismissed':
+		case 'file-bar-control-activated':
 		case 'full-toggled':
 		case 'layout-changed':
 		case 'pip-restored':

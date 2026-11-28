@@ -27,6 +27,11 @@ export interface FileOverlayMode {
 export type FileOverlayModeEvent =
 	/** The scrim was clicked, or an Esc reached the overlay with nothing else consuming it. */
 	| { readonly type: 'dismissed' }
+	/**
+	 * A File Bar control in the 36px row was activated, a toggle or the File Bar's button, or an item
+	 * of the toggles row's menu.
+	 */
+	| { readonly type: 'file-bar-control-activated' }
 	/** Expand or Restore at the end of the tab row, or `Mod+K Mod+M`. */
 	| { readonly type: 'full-toggled' }
 	| { readonly leftExpandOffered: boolean; readonly type: 'layout-changed' }
@@ -57,8 +62,9 @@ export function closeFileOverlayMode(mode: FileOverlayMode): FileOverlayMode {
 /**
  * Dismissing the overlay or replacing the terminal behind it shrinks it to picture-in-picture, and
  * restoring that shows it again at its tier. Tier changes apply only to the open overlay, whose row
- * shows Expand and Restore and whose frame has the left edge. A tier that stops being offered falls
- * back to default, so Restore then returns to default.
+ * shows Expand and Restore and whose frame has the left edge. A File Bar control in the 36px row
+ * restores the pre-full tier before it acts, so the File Bar it acts on shows. A tier that stops
+ * being offered falls back to default, so Restore then returns to default.
  */
 export function transitionFileOverlayMode(
 	mode: FileOverlayMode,
@@ -70,6 +76,10 @@ export function transitionFileOverlayMode(
 			return mode.kind === 'open' ? { ...mode, kind: 'pip' } : mode;
 		case 'pip-restored':
 			return mode.kind === 'pip' ? { ...mode, kind: 'open' } : mode;
+		case 'file-bar-control-activated':
+			return mode.kind === 'open' && mode.tier === 'full'
+				? { ...mode, tier: mode.restoreTier }
+				: mode;
 		case 'full-toggled':
 			if (mode.kind !== 'open') return mode;
 			return mode.tier === 'full'

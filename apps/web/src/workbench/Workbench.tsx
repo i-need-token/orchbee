@@ -241,6 +241,9 @@ export function Workbench({
 		view.projectWorkspaceState.activeLocation.kind === 'workspace'
 			? view.projectWorkspaceState.activeLocation.workspaceId
 			: null;
+	// The File Bar's row controls first take the full tier of the overlay below off the File Bar; the
+	// overlay needs the File Bar's side, so it is built after the File Bar.
+	const uncoverFileBarViews = useMemoizedFn(() => fileOverlay.uncoverFileBar());
 	const fileBar = useWorkbenchFileBar({
 		actionRuntime,
 		actionScope: view.actionScope,
@@ -253,6 +256,7 @@ export function Workbench({
 		shortcutPlatform,
 		storage: layoutStorage,
 		supplyFocusRegion: view.supplyFocusRegion,
+		uncoverViews: uncoverFileBarViews,
 		userSettings,
 		workspaceId: activeWorkspaceId,
 	});

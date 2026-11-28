@@ -63,6 +63,9 @@ class ReferenceOverlay {
 			case 'pip-restored':
 				if (this.kind === 'pip') this.kind = 'open';
 				return [];
+			case 'file-bar-control-activated':
+				if (this.kind === 'open' && this.tier === 'full') this.tier = this.restoreTier;
+				return [];
 			case 'full-toggled':
 				if (this.kind !== 'open') return [];
 				if (this.tier === 'full') {
@@ -375,6 +378,7 @@ class ReferenceOverlay {
 
 type ModeEventType =
 	| 'dismissed'
+	| 'file-bar-control-activated'
 	| 'full-toggled'
 	| 'layout-changed'
 	| 'pip-restored'
@@ -522,6 +526,7 @@ const eventArbitrary: fc.Arbitrary<FileOverlayEvent> = fc.oneof(
 	{
 		arbitrary: fc.constantFrom<FileOverlayEvent>(
 			{ type: 'dismissed' },
+			{ type: 'file-bar-control-activated' },
 			{ type: 'full-toggled' },
 			{ type: 'pip-restored' },
 			{ type: 'terminal-replaced' },

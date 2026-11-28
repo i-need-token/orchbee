@@ -32,7 +32,7 @@ import {
 	type FileOverlayTitleActions,
 	type FileTabContentPort,
 } from '../../file-overlay';
-import type { FileBarPosition } from '../../file-bar';
+import { isInFileBarTogglesRow, type FileBarPosition } from '../../file-bar';
 import type { FileResource } from '../../file-session';
 import type { PointerDropTarget } from '../../pointer-drag';
 import type { WorkbenchWorkspace } from '../../project-workspace';
@@ -144,6 +144,11 @@ interface WorkbenchFileOverlayView {
 	readonly sidebarReference: React.RefObject<HTMLDivElement | null>;
 	/** The terminal area, whose box the default tier covers. */
 	readonly terminalAreaReference: React.RefObject<HTMLDivElement | null>;
+	/**
+	 * Called as a File Bar control in the 36px row acts: the shown overlay leaves the full tier for the
+	 * tier it had before, so the File Bar it acts on shows.
+	 */
+	readonly uncoverFileBar: () => void;
 }
 
 /**
@@ -285,6 +290,7 @@ export function useWorkbenchFileOverlay({
 			dispatchFileOverlayEvent(store, event, { content: tabContent, focusTerminal });
 		}
 	});
+	const uncoverFileBar = useMemoizedFn(() => dispatch({ type: 'file-bar-control-activated' }));
 	// The overlay keeps one function across renders, whichever the Workbench passes.
 	const returnToTerminal = useMemoizedFn(() => focusTerminal());
 	const returnFocus = useWorkbenchFileOverlayReturnFocus(store, returnToTerminal);
@@ -455,12 +461,13 @@ export function useWorkbenchFileOverlay({
 	}, [focusOverlay, shown, supplyFocusRegion]);
 	// Focus moving into a region the open overlay covers replaces what it covered, as region cycling
 	// into the terminal does: the overlay shrinks out of the way and the keys stay where they went.
+	// The File Bar's toggles row stays above every tier, so the keys reaching it replace nothing.
 	React.useEffect(() => {
 		const root = rootReference.current;
 		if (store === null || root === null) return undefined;
 		const onFocusIn = (event: FocusEvent): void => {
 			const { mode } = store.state.getState();
-			if (mode.kind !== 'open') return;
+			if (mode.kind !== 'open' || isInFileBarTogglesRow(event.target)) return;
 			const region = resolveWorkbenchFocusRegionFromTarget(event.target);
 			if (region !== null && coversFocusRegion(mode.tier, region, sidebarDocked)) {
 				dispatch({ type: 'terminal-replaced' });
@@ -553,5 +560,5 @@ export function useWorkbenchFileOverlay({
 					shortcutLabels,
 					store,
 				};
-	return { activeFile, host, sidebarReference, terminalAreaReference };
+	return { activeFile, host, sidebarReference, terminalAreaReference, uncoverFileBar };
 }
