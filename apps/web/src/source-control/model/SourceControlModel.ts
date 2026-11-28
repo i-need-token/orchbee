@@ -16,7 +16,8 @@ import {
 	type ScmTreeSource,
 } from './scm-tree';
 import type { ScmViewMode, ScmViewSortKey, ScmViewState } from './scm-view-state';
-import { ScmWorkspace, type ScmRepositoryState, type ScmWorkspaceState } from './ScmWorkspace';
+import type { ScmRepositoryState, ScmWorkspace, ScmWorkspaceState } from './ScmWorkspace';
+import { scmWorkspaceOf } from './scmWorkspaceOf';
 import {
 	readSourceControlViewState,
 	writeSourceControlViewState,
@@ -103,7 +104,7 @@ export class SourceControlModel {
 		this.#session = options.session;
 		this.statusText = options.statusText;
 		this.#storage = options.storage;
-		this.#workspace = new ScmWorkspace(options.session.git);
+		this.#workspace = scmWorkspaceOf(options.session.git);
 		this.#state = {
 			closed: this.#memory.closed.size,
 			remotes: new Map(),

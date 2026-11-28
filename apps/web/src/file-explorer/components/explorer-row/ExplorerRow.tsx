@@ -1,53 +1,75 @@
-import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
-import { FileIcon, Tooltip, TooltipContent, TooltipTrigger } from '@orchbee/ui/components';
+import {
+	FileIcon,
+	ProductIcon,
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from '@orchbee/ui/components';
 import type { ReactNode } from 'react';
 
+import type { ExplorerGitDecorations } from '../../model/ExplorerGitDecorations';
 import type { ExplorerItem } from '../../model/explorer-item';
+import {
+	useExplorerRowDecoration,
+	type ExplorerRowDecoration,
+} from './hooks/useExplorerRowDecoration';
 import styles from './ExplorerRow.module.css';
 
 interface ExplorerRowProps {
+	/** The session's Git decorations; null while there are none to draw. */
+	readonly decorations: ExplorerGitDecorations | null;
 	readonly item: ExplorerItem;
 }
 
 interface ExplorerRowMarkProps {
+	readonly badge: NonNullable<ExplorerRowDecoration['badge']>;
+	readonly color: ExplorerRowDecoration['color'];
 	/** What the mark means, as its name and tooltip say it. */
-	readonly label: string;
-	readonly letter: string;
+	readonly tooltip: string;
 }
 
-function ExplorerRowMark({ label, letter }: ExplorerRowMarkProps): ReactNode {
+function ExplorerRowMark({ badge, color, tooltip }: ExplorerRowMarkProps): ReactNode {
 	return (
 		<Tooltip>
-			<TooltipTrigger render={<span aria-label={label} className={styles['mark']} role='img' />}>
-				{letter}
+			<TooltipTrigger
+				render={
+					<span
+						aria-label={tooltip}
+						className={styles['mark']}
+						data-descendants={badge.kind === 'descendants' ? '' : undefined}
+						data-git-color={color ?? undefined}
+						role='img'
+					/>
+				}
+			>
+				{badge.kind === 'letters' ? badge.text : <ProductIcon name='contains-emphasized' />}
 			</TooltipTrigger>
-			<TooltipContent side='bottom'>{label}</TooltipContent>
+			<TooltipContent side='bottom'>{tooltip}</TooltipContent>
 		</Tooltip>
 	);
 }
 
 /**
  * One Explorer row's label: a file's Seti icon, since Seti has no folder icons, the entry's name,
- * and VS Code's mark at the far end, where a link's ⤷ wins over the ? of an entry that is neither a
- * file nor a folder.
+ * and VS Code's decorations. Git's color tints the name and the mark at the far end, which shows
+ * the row's letters, Git's ahead of the Explorer's own ⤷ for a link or ? for an entry that is
+ * neither a file nor a folder; a folder with changes below it shows a dot in their color instead.
  */
-export function ExplorerRow({ item }: ExplorerRowProps): ReactNode {
-	const intl = useOrchbeeIntl();
-	let mark: ReactNode = null;
-	if (item.entry?.symlink === true) {
-		mark = (
-			<ExplorerRowMark label={intl.formatMessage(fileExplorerMessages.symbolicLink)} letter='⤷' />
-		);
-	} else if (item.entry?.type === 'unknown') {
-		mark = (
-			<ExplorerRowMark label={intl.formatMessage(fileExplorerMessages.unknownType)} letter='?' />
-		);
-	}
+export function ExplorerRow({ decorations, item }: ExplorerRowProps): ReactNode {
+	const decoration = useExplorerRowDecoration(decorations, item);
 	return (
 		<span className={styles['root']}>
 			{item.directory ? null : <FileIcon name={item.name} path={item.path} />}
-			<span className={styles['name']}>{item.name}</span>
-			{mark}
+			<span className={styles['name']} data-git-color={decoration?.color ?? undefined}>
+				{item.name}
+			</span>
+			{decoration !== null && decoration.badge !== null ? (
+				<ExplorerRowMark
+					badge={decoration.badge}
+					color={decoration.color}
+					tooltip={decoration.tooltip}
+				/>
+			) : null}
 		</span>
 	);
 }

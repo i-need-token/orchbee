@@ -43,7 +43,7 @@ export interface ScmResource {
 export type ScmResourceGroups = Readonly<Record<ScmGroupId, readonly ScmResource[]>>;
 
 /** The theme color of a status: VS Code's `gitDecoration.*ResourceForeground` roles. */
-type ScmStatusColor =
+export type ScmStatusColor =
 	| 'added'
 	| 'conflicting'
 	| 'deleted'

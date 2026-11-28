@@ -67,6 +67,10 @@
 	composes: codicon-symbol-color from global;
 }
 
+.containsEmphasized {
+	composes: codicon-circle-filled from global;
+}
+
 .copy {
 	composes: codicon-copy from global;
 }

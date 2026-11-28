@@ -11,6 +11,10 @@ export const fileExplorerMessages = defineMessages({
 		'fileExplorer.actions.collapse',
 		'Action and Explorer header button that collapses every expanded folder in the Explorer tree, as VS Code names it.',
 	),
+	containsEmphasizedItems: message(
+		'fileExplorer.decorations.containsEmphasizedItems',
+		'Accessible name and tooltip of the dot at the end of an Explorer folder row when decorations below it, such as changed files, color the folder, as VS Code words it.',
+	),
 	folderUnreadable: message(
 		'fileExplorer.folder.unreadable',
 		'Error notification when a folder in the Explorer tree could not be listed, so it shows empty, as VS Code reports it; {name} is the folder name and {reason} one of the read failure reasons, in lowercase.',

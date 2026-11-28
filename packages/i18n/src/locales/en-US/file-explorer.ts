@@ -1,6 +1,7 @@
 export const enUSFileExplorerMessages = {
 	'fileExplorer.actions.collapse': 'Collapse Folders in Explorer',
 	'fileExplorer.actions.refresh': 'Refresh Explorer',
+	'fileExplorer.decorations.containsEmphasizedItems': 'Contains emphasized items',
 	'fileExplorer.decorations.symbolicLink': 'Symbolic Link',
 	'fileExplorer.decorations.unknownType': 'Unknown File Type',
 	'fileExplorer.empty.noDirectory': 'No directory configured.',

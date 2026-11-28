@@ -1,8 +1,9 @@
 import { useMemoizedFn } from '@orchbee/foundation/react';
-import { resolveOrchbeeLocale, sourceControlMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import { resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
 import * as React from 'react';
 
 import type { FileWorkspaceSession } from '../../file-session';
+import { SCM_STATUS_MESSAGES } from '../constants/scm-status-messages';
 import type { ScmResourceStatus } from '../model/scm-resource';
 import {
 	SourceControlModel,
@@ -13,28 +14,6 @@ import type { SourceControlViewStateStorage } from '../model/source-control-view
 
 /** Workspaces whose Source Control memory stays while the view shows, least recently shown going. */
 const REMEMBERED_WORKSPACES = 50;
-
-const STATUS_MESSAGES = {
-	'added-by-them': sourceControlMessages.statusAddedByThem,
-	'added-by-us': sourceControlMessages.statusAddedByUs,
-	'both-added': sourceControlMessages.statusBothAdded,
-	'both-deleted': sourceControlMessages.statusBothDeleted,
-	'both-modified': sourceControlMessages.statusBothModified,
-	deleted: sourceControlMessages.statusDeleted,
-	'deleted-by-them': sourceControlMessages.statusDeletedByThem,
-	'deleted-by-us': sourceControlMessages.statusDeletedByUs,
-	ignored: sourceControlMessages.statusIgnored,
-	'index-added': sourceControlMessages.statusIndexAdded,
-	'index-copied': sourceControlMessages.statusIndexCopied,
-	'index-deleted': sourceControlMessages.statusIndexDeleted,
-	'index-modified': sourceControlMessages.statusIndexModified,
-	'index-renamed': sourceControlMessages.statusIndexRenamed,
-	'intent-to-add': sourceControlMessages.statusIntentToAdd,
-	'intent-to-rename': sourceControlMessages.statusIntentToRename,
-	modified: sourceControlMessages.statusModified,
-	'type-changed': sourceControlMessages.statusTypeChanged,
-	untracked: sourceControlMessages.statusUntracked,
-} as const satisfies Record<ScmResourceStatus, unknown>;
 
 function subscribeToNothing(): () => void {
 	return () => undefined;
@@ -66,7 +45,7 @@ export function useSourceControlModel({
 	const [memories] = React.useState(() => new Map<string, ScmViewMemory>());
 	const [model, setModel] = React.useState<SourceControlModel | null>(null);
 	const statusText = useMemoizedFn((status: ScmResourceStatus) =>
-		intl.formatMessage(STATUS_MESSAGES[status]),
+		intl.formatMessage(SCM_STATUS_MESSAGES[status]),
 	);
 	React.useEffect(() => {
 		if (session === null) return undefined;

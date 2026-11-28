@@ -21,6 +21,7 @@ export type ProductIconName =
 	| 'cloud-upload'
 	| 'collapse-all'
 	| 'color'
+	| 'contains-emphasized'
 	| 'copy'
 	| 'discard'
 	| 'edit'
@@ -95,6 +96,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'cloud-upload' && styles['cloudUpload'],
 				name === 'collapse-all' && styles['collapseAll'],
 				name === 'color' && styles['color'],
+				name === 'contains-emphasized' && styles['containsEmphasized'],
 				name === 'copy' && styles['copy'],
 				name === 'discard' && styles['discard'],
 				name === 'edit' && styles['edit'],

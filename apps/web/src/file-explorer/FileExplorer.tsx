@@ -1,7 +1,7 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
-import { useRef, type ReactNode, type Ref } from 'react';
+import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 
 import type { FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
@@ -12,6 +12,7 @@ import { ExplorerUnresolvedRow } from './components/explorer-unresolved-row/Expl
 import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
 import { useExplorerDrag } from './hooks/useExplorerDrag';
 import { useExplorerFocus } from './hooks/useExplorerFocus';
+import { useExplorerGitDecorations } from './hooks/useExplorerGitDecorations';
 import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
@@ -43,10 +44,6 @@ export interface FileExplorerProps {
  */
 const EXPLORER_WIDGET = 'explorer';
 
-function renderRow(row: VirtualTreeRow<string, ExplorerItem>): ReactNode {
-	return <ExplorerRow item={row.element} />;
-}
-
 // Typing moves to the next entry whose name starts with what was typed, as in VS Code's Explorer.
 function navigationLabel(row: VirtualTreeRow<string, ExplorerItem>): string {
 	return row.element.name;
@@ -55,8 +52,9 @@ function navigationLabel(row: VirtualTreeRow<string, ExplorerItem>): string {
 /**
  * The File Bar's Explorer: VS Code's Folders view over the active Workspace's current directory,
  * with its title Actions, and the one sentence VS Code's welcome view becomes when there is no
- * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, and its
- * rows drag as the File Bar's files and folders.
+ * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, its rows
+ * carry VS Code's Git decorations from the status Source Control reads, and they drag as the File
+ * Bar's files and folders.
  */
 export function FileExplorer({
 	actionRuntime,
@@ -71,6 +69,15 @@ export function FileExplorer({
 	const rootReference = useRef<HTMLDivElement>(null);
 	const treeReference = useRef<HTMLDivElement>(null);
 	const { progress, state, tree } = useExplorerTree({ notifications, session, storage });
+	const decorations = useExplorerGitDecorations(session);
+	// Rows follow the decorations themselves, so the renderer changes only when they do.
+	const renderRow = useMemo(
+		() =>
+			(row: VirtualTreeRow<string, ExplorerItem>): ReactNode => (
+				<ExplorerRow decorations={decorations} item={row.element} />
+			),
+		[decorations],
+	);
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
 	const dragAndDrop = useExplorerDrag(state.kind === 'tree' ? state.rules : null);
 	const commands = useFileExplorerActions({

@@ -15,11 +15,64 @@
 }
 
 /* VS Code sets the mark at the row's far end, 5px after the name and 16px before the edge, quieter
-   than the name. */
+   than the name unless a decoration colors it, with its letters or dot on the row's middle. */
 .mark {
+	display: flex;
 	flex: none;
+	align-items: center;
 	margin-inline: auto var(--ob-ref-space-4);
 	padding-inline-start: var(--ob-ref-space-1);
 	color: var(--ob-sys-color-text-secondary);
 	font: var(--ob-sys-typography-label-sm);
+}
+
+/* The dot for changes below a folder, which VS Code draws faint. */
+.mark[data-descendants] {
+	opacity: var(--ob-sys-opacity-muted);
+}
+
+/* A Git decoration colors the name and the mark, as VS Code's gitDecoration colors do. */
+.name[data-git-color='added'],
+.mark[data-git-color='added'] {
+	color: var(--ob-sys-color-git-added);
+}
+
+.name[data-git-color='conflicting'],
+.mark[data-git-color='conflicting'] {
+	color: var(--ob-sys-color-git-conflicting);
+}
+
+.name[data-git-color='deleted'],
+.mark[data-git-color='deleted'] {
+	color: var(--ob-sys-color-git-deleted);
+}
+
+.name[data-git-color='ignored'],
+.mark[data-git-color='ignored'] {
+	color: var(--ob-sys-color-git-ignored);
+}
+
+.name[data-git-color='modified'],
+.mark[data-git-color='modified'] {
+	color: var(--ob-sys-color-git-modified);
+}
+
+.name[data-git-color='renamed'],
+.mark[data-git-color='renamed'] {
+	color: var(--ob-sys-color-git-renamed);
+}
+
+.name[data-git-color='stage-deleted'],
+.mark[data-git-color='stage-deleted'] {
+	color: var(--ob-sys-color-git-stage-deleted);
+}
+
+.name[data-git-color='stage-modified'],
+.mark[data-git-color='stage-modified'] {
+	color: var(--ob-sys-color-git-stage-modified);
+}
+
+.name[data-git-color='untracked'],
+.mark[data-git-color='untracked'] {
+	color: var(--ob-sys-color-git-untracked);
 }
