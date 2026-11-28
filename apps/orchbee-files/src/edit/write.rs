@@ -13,10 +13,12 @@
 //! 3. A read-only file is `read-only`, unless `unlock` clears its read-only attribute or owner
 //!    write bit first, which a failure before the commit point sets again. A save leaves it
 //!    writable, as VS Code does.
-//! 4. The commit point: an existing file opens for writing without truncation, is rewritten from
-//!    its start and set to its new length, so its hidden attribute, alternate data streams,
-//!    ownership, hard links and link target survive, as in VS Code. A missing file is created
-//!    exclusively, and the folders missing above it first, as VS Code creates them. No fsync.
+//! 4. The commit point: an existing file opens for writing without truncation, then is cut to
+//!    nothing through that handle and rewritten from its start, so its hidden attribute,
+//!    alternate data streams, ownership, hard links and link target survive, as in VS Code. Its
+//!    length is never set after the content, which would fill with zeros a file another writer
+//!    cut during the save. A missing file is created exclusively, and the folders missing above
+//!    it first, as VS Code creates them. No fsync.
 //!
 //! Each filesystem call runs on a helper under its deadline, reading or writing at most one piece.
 //! Writes to one path run one at a time in this process, so two Clients saving one file meet the
@@ -95,9 +97,10 @@ pub(super) trait Disk: Clone + Send + Sync + 'static {
     fn set_permissions(&self, path: &Path, permissions: Permissions) -> io::Result<()>;
     fn create_folders(&self, path: &Path) -> io::Result<()>;
     fn open_write(&self, path: &Path, open: Open) -> io::Result<Self::File>;
+    /// Cuts the file to nothing.
+    fn truncate(&self, file: &mut Self::File) -> io::Result<()>;
     fn write(&self, file: &mut Self::File, bytes: &[u8]) -> io::Result<()>;
-    /// Sets the file's length, then closes it.
-    fn finish(&self, file: Self::File, length: u64) -> io::Result<()>;
+    fn close(&self, file: Self::File) -> io::Result<()>;
     /// The file's size and modification time once it closed.
     fn written(&self, path: &Path) -> io::Result<(u64, Signed)>;
 }
@@ -172,12 +175,17 @@ impl Disk for System {
         options.open(path)
     }
 
+    fn truncate(&self, file: &mut File) -> io::Result<()> {
+        file.set_len(0)
+    }
+
     fn write(&self, file: &mut File, bytes: &[u8]) -> io::Result<()> {
         file.write_all(bytes)
     }
 
-    fn finish(&self, file: File, length: u64) -> io::Result<()> {
-        file.set_len(length)
+    fn close(&self, file: File) -> io::Result<()> {
+        drop(file);
+        Ok(())
     }
 
     fn written(&self, path: &Path) -> io::Result<(u64, Signed)> {
@@ -265,7 +273,7 @@ pub(super) fn run<D: Disk>(
             });
         }
     })?;
-    rewrite(helpers, disk, write, file, measured.size).map_err(incomplete)?;
+    rewrite(helpers, disk, write, file, open).map_err(incomplete)?;
     // The content is written; a file that cannot be read back now is reported as written.
     let (size, mtime_ms) =
         call(helpers, disk, path, D::written).unwrap_or((measured.size, Signed::default()));
@@ -402,14 +410,25 @@ fn commit<D: Disk>(
     }
 }
 
-/// Writes the new content over `file` from its start and sets its length.
+/// Cuts `file` to nothing unless the write created it, writes the new content from its start and
+/// closes it.
 fn rewrite<D: Disk>(
     helpers: &Helpers,
     disk: &D,
     write: &Write,
     mut file: D::File,
-    size: u64,
+    open: Open,
 ) -> Result<(), FilesError> {
+    if open != Open::New {
+        let disk = disk.clone();
+        let (returned, cut) = helpers.run(Operation::FsWrite, move || {
+            let mut file = file;
+            let cut = disk.truncate(&mut file);
+            (file, cut)
+        })?;
+        cut.map_err(|failure| error::from_io(&failure))?;
+        file = returned;
+    }
     let mut encoder = Encoder::new(write.target, &write.text);
     let mut piece = Vec::new();
     let mut pending = Vec::new();
@@ -434,7 +453,7 @@ fn rewrite<D: Disk>(
     }
     let disk = disk.clone();
     helpers
-        .run(Operation::FsWrite, move || disk.finish(file, size))?
+        .run(Operation::FsWrite, move || disk.close(file))?
         .map_err(|failure| error::from_io(&failure))
 }
 

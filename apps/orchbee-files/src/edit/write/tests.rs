@@ -1,14 +1,16 @@
-//! The commit boundary under a fault injected at each filesystem call, the precondition's rule, and
-//! the in-place rewrite.
+//! The commit boundary under a fault injected at each filesystem call, the precondition's rule,
+//! the in-place rewrite, and a save that another writer cuts.
 
 use super::*;
 use crate::fs::tests::Scratch;
 
-/// This machine's filesystem, failing the call numbered `fail_at` and recording every call.
+/// This machine's filesystem, failing the call numbered `fail_at` and recording every call; with
+/// `cut`, another writer cuts that file after each piece the save writes.
 #[derive(Clone)]
 struct Faulty {
     fail_at: usize,
     calls: Arc<Mutex<Vec<&'static str>>>,
+    cut: Option<PathBuf>,
 }
 
 impl Faulty {
@@ -16,6 +18,7 @@ impl Faulty {
         Self {
             fail_at,
             calls: Arc::default(),
+            cut: None,
         }
     }
 
@@ -67,14 +70,23 @@ impl Disk for Faulty {
         System.open_write(path, open)
     }
 
-    fn write(&self, file: &mut File, bytes: &[u8]) -> io::Result<()> {
-        self.step("write")?;
-        System.write(file, bytes)
+    fn truncate(&self, file: &mut File) -> io::Result<()> {
+        self.step("truncate")?;
+        System.truncate(file)
     }
 
-    fn finish(&self, file: File, length: u64) -> io::Result<()> {
-        self.step("finish")?;
-        System.finish(file, length)
+    fn write(&self, file: &mut File, bytes: &[u8]) -> io::Result<()> {
+        self.step("write")?;
+        System.write(file, bytes)?;
+        match &self.cut {
+            Some(path) => OpenOptions::new().write(true).open(path)?.set_len(0),
+            None => Ok(()),
+        }
+    }
+
+    fn close(&self, file: File) -> io::Result<()> {
+        self.step("close")?;
+        System.close(file)
     }
 
     fn written(&self, path: &Path) -> io::Result<(u64, Signed)> {
@@ -129,7 +141,7 @@ fn a_failure_before_the_commit_point_leaves_the_file_as_it_was() {
     let mut expected = vec![0xFF, 0xFE];
     expected.extend(text.encode_utf16().flat_map(u16::to_le_bytes));
     let helpers = Helpers::new();
-    let mut failed = Vec::new();
+    let (mut unchanged, mut incomplete) = (0, 0);
     for fail_at in 0.. {
         if path.exists() {
             set_readonly(&path, false);
@@ -145,42 +157,33 @@ fn a_failure_before_the_commit_point_leaves_the_file_as_it_was() {
         let result = run(&helpers, &disk, &write, &|| false);
         let bytes = fs::read(&path).unwrap();
         let step = disk.failed();
-        match (step, result) {
-            (None, Ok(written)) => {
-                assert_eq!(bytes, expected);
-                assert_eq!(written.size.get(), expected.len() as u64);
-                assert_eq!(written.sha256, digest(&expected));
+        match result {
+            // No fault, or one after the content was written, which reports it written.
+            Ok(written) => {
+                assert_eq!(bytes, expected, "{step:?}");
+                assert_eq!(written.sha256, digest(&expected), "{step:?}");
                 assert!(!is_readonly(&path), "a save leaves the file writable");
-                break;
+                if step.is_none() {
+                    assert_eq!(written.size.get(), expected.len() as u64);
+                    break;
+                }
             }
-            (Some(step @ ("write" | "finish")), Err(error)) => {
-                assert_eq!(error.code, ErrorCode::WriteIncomplete, "{step}");
+            Err(error) => {
+                let step = step.expect("only an injected fault fails the write");
+                if error.code == ErrorCode::WriteIncomplete {
+                    incomplete += 1;
+                } else {
+                    // Any other failure changed nothing, and locks an unlocked file again.
+                    assert_eq!(bytes, original, "{step}");
+                    assert!(is_readonly(&path), "{step} relocks");
+                    unchanged += 1;
+                }
             }
-            (Some("written"), Ok(written)) => {
-                assert_eq!(bytes, expected);
-                assert_eq!(written.sha256, digest(&expected));
-            }
-            (Some(step), Err(error)) => {
-                assert_ne!(error.code, ErrorCode::WriteIncomplete, "{step}");
-                assert_eq!(bytes, original, "{step}");
-                assert!(is_readonly(&path), "{step} relocks");
-            }
-            (step, result) => panic!("{step:?}: {result:?}"),
         }
-        failed.extend(step);
     }
     set_readonly(&path, false);
-    let every = [
-        "inspect",
-        "open_read",
-        "read",
-        "set_permissions",
-        "open_write",
-        "write",
-        "finish",
-        "written",
-    ];
-    assert_eq!(failed, every);
+    // The faults fell on both sides of the commit point.
+    assert!(unchanged > 0 && incomplete > 0, "{unchanged} {incomplete}");
 }
 
 #[test]
@@ -296,4 +299,19 @@ fn a_save_rewrites_the_file_in_place() {
     let written = run(&Helpers::new(), &System, &write, &|| false).unwrap();
     assert_eq!(written.replaced.get(), 1);
     assert_eq!(fs::read(&link).unwrap(), b"caf\xE9 ?");
+}
+
+#[test]
+fn a_save_never_fills_with_zeros_what_another_writer_cut() {
+    let scratch = Scratch::new("write-cut");
+    let path = scratch.path().join("file.txt");
+    fs::write(&path, "the original").unwrap();
+    let disk = Faulty {
+        cut: Some(path.clone()),
+        ..Faulty::new(usize::MAX)
+    };
+    let save = utf8(&path, "the save", version(b"the original"));
+    run(&Helpers::new(), &disk, &save, &|| false).unwrap();
+    // The other writer cut the file last, and the save leaves it as that writer did.
+    assert_eq!(fs::read(&path).unwrap(), b"");
 }
