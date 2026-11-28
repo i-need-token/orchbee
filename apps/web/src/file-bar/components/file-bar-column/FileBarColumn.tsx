@@ -38,6 +38,7 @@ export function FileBarColumn({
 	atWindowEnd,
 	leadingPlace,
 	notifications,
+	onRowPointerDown,
 	onSelectView,
 	openFile,
 	platform,
@@ -89,6 +90,7 @@ export function FileBarColumn({
 					className={styles['togglesRow']}
 					data-leading-place={leadingPlace === null ? undefined : ''}
 					data-slot='file-bar-toggles-row'
+					onPointerDown={onRowPointerDown ?? undefined}
 					ref={rowReference}
 				>
 					{leadingPlace}

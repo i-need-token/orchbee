@@ -1,6 +1,6 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
-import type { ComponentType, ReactElement } from 'react';
+import type { ComponentType, PointerEvent, ReactElement } from 'react';
 
 import type { FileExplorerProps } from '../file-explorer';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
@@ -59,6 +59,11 @@ export interface FileBarColumnProps {
 	readonly notifications: FileExplorerProps['notifications'] & SourceControlNotifications;
 	/** Selecting a view's toggle: the active view takes focus, another one shows. */
 	readonly onSelectView: (view: FileBarViewId) => void;
+	/**
+	 * A press on the toggles row, which a drag past the Tab Strip's threshold turns into moving the
+	 * File Bar to the other side of the terminal area; null while the File Bar cannot move that way.
+	 */
+	readonly onRowPointerDown: ((event: PointerEvent<HTMLElement>) => void) | null;
 	/** Opens a file in the shown Workspace's overlay, where the views open their files. */
 	readonly openFile: FileExplorerProps['openFile'];
 	/** Which platform's keys the views answer to, as VS Code's lists do on it. */

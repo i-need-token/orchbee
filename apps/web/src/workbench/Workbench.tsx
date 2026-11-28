@@ -646,6 +646,7 @@ export function Workbench({
 								: null
 						}
 						notifications={notificationQueue}
+						onRowPointerDown={fileBar.column?.onRowPointerDown ?? null}
 						onSelectView={fileBarContent.onSelectView}
 						openFile={fileOverlay.openFile}
 						platform={shortcutPlatform}
@@ -691,6 +692,7 @@ export function Workbench({
 			</ResizablePanel>
 		);
 	const fileBarOverlay = fileBar.overlay;
+	const fileBarMoveCatcher = fileBar.moveCatcher;
 	// Without room to dock, the File Bar opens over the terminal area from its side, past a scrim that
 	// takes the press closing it; in the mobile layout it fills the window, as the sidebar list does.
 	let fileBarSurface: React.ReactNode = null;
@@ -1007,6 +1009,29 @@ export function Workbench({
 						side={fileBar.position}
 						touch={view.touchSizes}
 					/>
+				</div>
+			)}
+			{/* A drag of the docked File Bar's toggles row: the layer over everything that catches it, and
+			    the place the File Bar would take while a release there would move it. */}
+			{fileBarMoveCatcher === null ? null : (
+				<div
+					aria-hidden='true'
+					className={styles['fileBarMoveCatcher']}
+					data-slot='workbench-file-bar-move-catcher'
+					ref={fileBarMoveCatcher.reference}
+				>
+					{fileBarMoveCatcher.zone === null ? null : (
+						<div
+							className={styles['fileBarMoveZone']}
+							data-slot='workbench-file-bar-move-zone'
+							style={
+								{
+									'--ob-comp-workbench-file-bar-move-zone-inline-size': `${fileBarMoveCatcher.zone.inlineSize}px`,
+									'--ob-comp-workbench-file-bar-move-zone-inline-start': `${fileBarMoveCatcher.zone.inlineStart}px`,
+								} satisfies CSSProperties
+							}
+						/>
+					)}
 				</div>
 			)}
 			{/* The shown Workspace's file overlay lies over the layout, after the File Bar in the focus

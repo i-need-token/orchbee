@@ -53,11 +53,14 @@ function modifiersOf(event: KeyboardEvent | PointerEvent): PointerDragModifiers 
  * `elementFromPoint`, hears the drag on every frame. Every key belongs to the drag: the modifiers
  * reach the target, and Esc cancels, as the window losing focus or the browser taking the pointer
  * does. A release drops on a target that accepts, and the click the press would end in never arrives.
+ * `end`, when given, runs once a drag that `start` began is over, after its target heard the drop or
+ * the leave, so a source can take down what it showed for the drag.
  */
 export function startPointerDrag(
 	press: PointerEvent,
 	holder: Element,
 	start: () => PointerDragCargo | null,
+	end?: () => void,
 ): void {
 	const ownerDocument = holder.ownerDocument;
 	const view = ownerDocument.defaultView;
@@ -166,9 +169,11 @@ export function startPointerDrag(
 		target = null;
 		stop();
 		swallowClick();
-		if (landed === null) return;
-		if (point === null) landed.leave(active);
-		else landed.drop(active, point);
+		if (landed !== null) {
+			if (point === null) landed.leave(active);
+			else landed.drop(active, point);
+		}
+		end?.();
 	};
 	const onKey = (event: KeyboardEvent) => {
 		const active = drag;
@@ -234,6 +239,7 @@ export function startPointerDrag(
 		if (active === null) return;
 		left?.leave(active);
 		if (pressed) awaitRelease();
+		end?.();
 	};
 	const stop = () => {
 		view.removeEventListener('pointermove', onPointerMove, true);

@@ -948,6 +948,10 @@
 	   the terminal area starts, which it opens from on the left and never passes on either side. */
 	--ob-comp-workbench-file-bar-overlay-inline-size: 18.75rem;
 	--ob-comp-workbench-file-bar-overlay-inline-start: 0px;
+	/* Where a drag of the File Bar's toggles row would move it: its width, and where that place
+	   starts in the Workbench, against the terminal area's far edge. */
+	--ob-comp-workbench-file-bar-move-zone-inline-size: 18.75rem;
+	--ob-comp-workbench-file-bar-move-zone-inline-start: 0px;
 	/* A machine's color where its name is written: a --ob-sys-color-machine-* token, or the custom
 	   color as chosen, set on the element that writes it. */
 	--ob-comp-machine-color: currentcolor;

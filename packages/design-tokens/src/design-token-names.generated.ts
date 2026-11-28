@@ -140,6 +140,8 @@ export const designTokenNames = [
 	'--ob-comp-website-terminal-selection-background',
 	'--ob-comp-website-terminal-selection-foreground',
 	'--ob-comp-workbench-child-terminal-strip-height',
+	'--ob-comp-workbench-file-bar-move-zone-inline-size',
+	'--ob-comp-workbench-file-bar-move-zone-inline-start',
 	'--ob-comp-workbench-file-bar-overlay-inline-size',
 	'--ob-comp-workbench-file-bar-overlay-inline-start',
 	'--ob-comp-workbench-horizontal-chrome-height',

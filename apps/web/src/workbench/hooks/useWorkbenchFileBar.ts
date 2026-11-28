@@ -35,6 +35,10 @@ import { buildFileBarRowMenu, showFileBarViewActionId } from '../utils/file-bar-
 import { isUnclaimedEscape } from '../utils/isUnclaimedEscape';
 import { resolveWorkbenchFocusRegionFromTarget } from '../utils/workbench-focus-dom';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
+import {
+	useWorkbenchFileBarMoveDrag,
+	type WorkbenchFileBarMoveCatcher,
+} from './useWorkbenchFileBarMoveDrag';
 
 /** The File Bar's panel in the Workbench's resizable group. */
 const FILE_BAR_PANEL_ID = 'file-bar';
@@ -112,6 +116,11 @@ interface WorkbenchFileBarColumn extends WorkbenchFileBarContent {
 	/** Modifier-free ← and → on the focused divider change the width in 10px steps. */
 	readonly onDividerKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
 	readonly onResize: (size: ResizablePanelSize) => void;
+	/**
+	 * A press on the toggles row, which a drag turns into moving the File Bar to the other side of the
+	 * terminal area; null where the window has no settings to keep its side in.
+	 */
+	readonly onRowPointerDown: ((event: React.PointerEvent<HTMLElement>) => void) | null;
 	readonly panelReference: React.RefObject<ResizablePanelHandle | null>;
 	/**
 	 * The terminal area's minimum beside the File Bar, which the File Bar gives way to: as the room
@@ -172,6 +181,8 @@ export interface WorkbenchFileBarView {
 	 * held the keys, which the file's tab then takes.
 	 */
 	readonly fileOpened: () => boolean;
+	/** Present while a drag of the docked File Bar's toggles row runs. */
+	readonly moveCatcher: WorkbenchFileBarMoveCatcher | null;
 	/** Follows the panel group the File Bar shares with the terminal area. */
 	readonly onLayoutChanged: (
 		layout: Readonly<Record<string, number>>,
@@ -730,6 +741,26 @@ export function useWorkbenchFileBar({
 			current = false;
 		};
 	}, [shown, load.kind]);
+	// Dropping the toggles row on the other side of the terminal area moves the File Bar there.
+	const moveByDrag = useMemoizedFn((target: FileBarPosition) => {
+		reportActionOutcome('pointer', () =>
+			typedRuntime.execute(
+				target === 'left'
+					? WORKBENCH_ACTION_IDS.moveFileBarLeft
+					: WORKBENCH_ACTION_IDS.moveFileBarRight,
+				undefined,
+				{ scope: actionScope, source: 'pointer' },
+			),
+		);
+	});
+	const moveDrag = useWorkbenchFileBarMoveDrag({
+		areaReference,
+		elementReference,
+		label: intl.formatMessage(fileBarMessages.label),
+		move: moveByDrag,
+		position,
+		rootReference,
+	});
 	const toggleView = offered
 		? {
 				badge:
@@ -743,7 +774,14 @@ export function useWorkbenchFileBar({
 				shown,
 			}
 		: null;
-	const base = { areaReference, fileOpened, onLayoutChanged, position, toggle: toggleView };
+	const base = {
+		areaReference,
+		fileOpened,
+		moveCatcher: moveDrag.catcher,
+		onLayoutChanged,
+		position,
+		toggle: toggleView,
+	};
 	const content = (): WorkbenchFileBarContent => ({
 		activeView: layout.activeView,
 		attachElement,
@@ -768,6 +806,7 @@ export function useWorkbenchFileBar({
 				onDividerDoubleClick,
 				onDividerKeyDown,
 				onResize,
+				onRowPointerDown: move === undefined ? null : moveDrag.onRowPointerDown,
 				panelReference,
 				terminalAreaMinSize: `${TERMINAL_AREA_MINIMUM_WIDTH}px`,
 			},

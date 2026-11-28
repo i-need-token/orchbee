@@ -188,6 +188,13 @@ Electron folds app regions in document order and its no-drag region must come af
 row's drag region. Where Windows and Linux draw their caption buttons over the row, the button
 stands left of them and the File Bar's minimum width grows so that its toggles still fit.
 
+Dragging the docked File Bar's toggles row past the Tab Strip's threshold and past the middle of the
+terminal area lights up the place the File Bar would take on the area's other side, and a release
+there moves it through Move File Bar Left or Right; a release elsewhere or Escape leaves it. While
+the drag runs, a layer over the Workbench catches it, so the terminals and the file overlay beneath
+take no part. In Desktop the row's empty space is the window's drag region and moves the window, so
+the drag starts from the row's toggles.
+
 Once the File Bar has shown the active Workspace in this run, the Workbench holds that Workspace's
 file session from its `fileSessionPort` input through a `FileSessionRegistry`, which opens a
 Workspace's session on its first hold and closes it on the last release; the hold stays while the

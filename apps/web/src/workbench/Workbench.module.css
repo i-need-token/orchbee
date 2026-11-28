@@ -176,6 +176,23 @@ button.statusNoticeText {
 	border-inline-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
 }
 
+/* A drag of the docked File Bar's toggles row: a layer over the whole Workbench, the file overlay
+   included, catches it, and past the terminal area's middle lights up the place the File Bar would
+   take at its width, as a drag of files lights up the terminal it would drop on. */
+.fileBarMoveCatcher {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-modal);
+}
+
+.fileBarMoveZone {
+	position: absolute;
+	inset-block: 0;
+	inset-inline-start: var(--ob-comp-workbench-file-bar-move-zone-inline-start);
+	width: var(--ob-comp-workbench-file-bar-move-zone-inline-size);
+	background: var(--ob-sys-color-surface-hovered);
+}
+
 .fileBarOverlay > .fileBarPanel,
 .fileBarFill > .fileBarPanel {
 	flex: 1;
