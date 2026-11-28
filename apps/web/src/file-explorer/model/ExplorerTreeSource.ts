@@ -17,9 +17,10 @@ const NO_ITEMS: readonly ExplorerItem[] = Object.freeze([]);
 
 /**
  * One root's tree as the virtual tree reads it, keyed by each path's comparison key so a root moved
- * to another spelling of a folder still finds its rows, and with VS Code's compact folders. A folder whose listing is kept draws at once;
- * one the Server stopped keeping draws too, and waits to be listed again, as does one that went out
- * of date while this tree first listed its folder.
+ * to another spelling of a folder still finds its rows, and with VS Code's compact folders, whose
+ * folders list in one request. A folder whose listing is kept draws at once; one the Server stopped
+ * keeping draws too, and waits to be listed again, as does one that went out of date while this
+ * tree first listed its folder.
  *
  * A folder below the root that cannot be listed shows empty, as in VS Code, which reports why. One
  * that is gone usually has its deletion on the way, so it only has its parent list again; the parent
@@ -47,9 +48,11 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 			return kept.listing.items;
 		}
 		const read = this.#read.has(key);
-		return this.#listings.list(item.path, signal).then(
-			(listing) => {
+		// The root's only child does not join it, so only a folder below the root lists its chain.
+		return this.#listings.list(item.path, signal, item.entry !== null).then(
+			({ chain, listing }) => {
 				this.#read.add(key);
+				for (const folder of chain) this.#read.add(folder);
 				this.#gone.delete(key);
 				// Gathered changes list again only folders the tree had read, so a listing that a change
 				// or a rescan overtook before then lists again at once.
@@ -76,7 +79,10 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 	readonly #listings: ExplorerListings;
 	readonly #onGone: (folder: ExplorerItem) => void;
 	readonly #onUnreadable: (folder: ExplorerItem, error: FileError) => void;
-	/** Folders this tree has read, which the Server keeps loaded while it shows. */
+	/**
+	 * Folders this tree has read, and the chains that listed with them, which the Server keeps loaded
+	 * while it shows.
+	 */
 	readonly #read = new Set<string>();
 	readonly #rules: FilePathRules;
 	/**

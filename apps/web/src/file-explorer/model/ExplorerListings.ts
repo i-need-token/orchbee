@@ -2,6 +2,7 @@ import type { OrchbeeLocale } from '@orchbee/i18n';
 
 import {
 	type FileEntry,
+	type FileListPage,
 	type FilePathRules,
 	type FileTreePort,
 	filePathChild,
@@ -23,6 +24,19 @@ export interface ExplorerListing {
 	readonly items: readonly ExplorerItem[];
 }
 
+/** A folder's listing and the folders below it that listed with it. */
+export interface ExplorerListed {
+	/**
+	 * The keys of the folder's single-child chain: each folder below it that is the one item its
+	 * parent shows, which the Server now keeps loaded too.
+	 */
+	readonly chain: readonly string[];
+	readonly listing: ExplorerListing;
+}
+
+/** The single-child chain a listing brings, outermost folder first. */
+type ListedChain = FileListPage['descendants'];
+
 interface KeptListing extends ExplorerListing {
 	/** A change made the listing out of date, so the folder lists again before it shows. */
 	dirty: boolean;
@@ -31,6 +45,15 @@ interface KeptListing extends ExplorerListing {
 	 * have missed changes, so it shows only until the folder has listed again.
 	 */
 	held: boolean;
+}
+
+/** A listing running now, which hears the changes it may have read its folders before. */
+interface RunningListing {
+	readonly key: string;
+	/** An entry of the folder was added or deleted. */
+	changed: boolean;
+	/** A change or a rescan reached a folder below it, where its single-child chain lies. */
+	changedBelow: boolean;
 }
 
 interface ExplorerListingsOptions {
@@ -65,20 +88,18 @@ function sameEntry(entry: FileEntry | null, other: FileEntry): boolean {
  * draws at once. Each listing gathers every page of its folder, hides what `files.exclude` hides and
  * sorts as VS Code's Explorer does; an entry that did not change keeps its item, so its row draws
  * nothing again, and a later page's entry replaces an earlier one of the same name, since a folder
- * that changes between pages may repeat entries.
+ * that changes between pages may repeat entries. A folder may list with its single-child chain, as
+ * VS Code's Explorer resolves a folder with its single-child descendants.
  */
 export class ExplorerListings {
 	/** Least recently used first. */
 	readonly #kept = new Map<string, KeptListing>();
 	readonly #compare: (one: ExplorerItem, other: ExplorerItem) => number;
-	/** Listings running now. */
-	#running = 0;
-	/** The folders listing now, by key, with how many of their listings run. */
-	readonly #listing = new Map<string, number>();
 	/** How often each folder was made out of date, so a listing that overlapped a change stays so. */
 	readonly #invalidations = new Map<string, number>();
 	readonly #onBusy: (busy: boolean) => void;
 	readonly #rules: FilePathRules;
+	readonly #runs = new Set<RunningListing>();
 	readonly #tree: FileTreePort;
 
 	constructor(options: ExplorerListingsOptions) {
@@ -104,29 +125,40 @@ export class ExplorerListings {
 		return name === undefined || listing.byName.has(name);
 	}
 
-	/** Lists a folder; the Server then keeps it loaded and reports its changes until it is released. */
-	async list(folder: string, signal: AbortSignal): Promise<ExplorerListing> {
-		const key = filePathKey(folder, this.#rules);
-		this.#running += 1;
-		this.#listing.set(key, (this.#listing.get(key) ?? 0) + 1);
-		if (this.#running === 1) this.#onBusy(true);
+	/**
+	 * Lists a folder; the Server then keeps it loaded and reports its changes until it is released.
+	 * With `singleChild`, each folder below it that is its parent's only child lists with it, so the
+	 * compact row they make draws from one request.
+	 */
+	async list(folder: string, signal: AbortSignal, singleChild: boolean): Promise<ExplorerListed> {
+		const run: RunningListing = {
+			changed: false,
+			changedBelow: false,
+			key: filePathKey(folder, this.#rules),
+		};
+		this.#runs.add(run);
+		if (this.#runs.size === 1) this.#onBusy(true);
 		try {
-			return await this.#list(folder, key, signal);
+			return await this.#list(folder, run, signal, singleChild);
 		} finally {
-			this.#running -= 1;
-			const running = (this.#listing.get(key) ?? 1) - 1;
-			if (running === 0) this.#listing.delete(key);
-			else this.#listing.set(key, running);
-			if (this.#running === 0) this.#onBusy(false);
+			this.#runs.delete(run);
+			if (this.#runs.size === 0) this.#onBusy(false);
 		}
 	}
 
-	async #list(folder: string, key: string, signal: AbortSignal): Promise<ExplorerListing> {
+	async #list(
+		folder: string,
+		run: RunningListing,
+		signal: AbortSignal,
+		singleChild: boolean,
+	): Promise<ExplorerListed> {
+		const { key } = run;
 		const invalidations = this.#invalidations.get(key) ?? 0;
 		const entries = new Map<string, FileEntry>();
+		let chain: ListedChain = [];
 		let cursor: string | undefined;
 		do {
-			const page = await this.#tree.list({ cursor, path: folder }, signal);
+			const page = await this.#tree.list({ cursor, path: folder, singleChild }, signal);
 			if (page.kind === 'error') {
 				if (page.error.code === 'cancelled') {
 					throw new DOMException('Listing cancelled.', 'AbortError');
@@ -134,11 +166,22 @@ export class ExplorerListings {
 				throw new ExplorerListError(folder, page.error);
 			}
 			for (const entry of page.value.entries) entries.set(entry.name, entry);
+			// The chain comes only with a first page that holds every entry.
+			if (cursor === undefined) chain = page.value.descendants;
 			cursor = page.value.cursor ?? undefined;
 		} while (cursor !== undefined);
+		const changed = run.changed || (this.#invalidations.get(key) ?? 0) !== invalidations;
+		const listing = this.#keep(folder, key, entries.values(), changed);
+		const kept = this.#keepChain(listing, chain, run.changedBelow);
+		this.#evict();
+		return { chain: kept, listing };
+	}
+
+	/** Keeps a folder's listing, with the items of the entries that did not change since the last. */
+	#keep(folder: string, key: string, entries: Iterable<FileEntry>, dirty: boolean): KeptListing {
 		const previous = this.#kept.get(key);
 		const byName = new Map<string, ExplorerItem>();
-		for (const entry of entries.values()) {
+		for (const entry of entries) {
 			if (isExcludedByDefault(entry.name)) continue;
 			const known = previous?.byName.get(entry.name);
 			byName.set(
@@ -155,15 +198,55 @@ export class ExplorerListings {
 		}
 		const listing: KeptListing = {
 			byName,
-			dirty: (this.#invalidations.get(key) ?? 0) !== invalidations,
+			dirty,
 			folder,
 			held: true,
 			items: [...byName.values()].sort(this.#compare),
 		};
 		this.#kept.delete(key);
 		this.#kept.set(key, listing);
-		this.#evict();
 		return listing;
+	}
+
+	/**
+	 * Keeps the listings of a folder's single-child chain while each folder is the one item its parent
+	 * shows, which is when the tree joins and expands it, and returns their keys. The Server loaded
+	 * the whole chain, so the rest goes back at once, such as a lone `.git` the Explorer hides.
+	 */
+	#keepChain(listing: KeptListing, chain: ListedChain, dirty: boolean): readonly string[] {
+		const keys: string[] = [];
+		let parent = listing;
+		for (const [index, descendant] of chain.entries()) {
+			const key = filePathKey(descendant.path, this.#rules);
+			const only = parent.items.length === 1 ? parent.items[0] : undefined;
+			if (only === undefined || !only.directory || filePathKey(only.path, this.#rules) !== key) {
+				this.#giveBack(chain.slice(index));
+				break;
+			}
+			parent = this.#keep(descendant.path, key, descendant.entries, dirty);
+			keys.push(key);
+		}
+		return keys;
+	}
+
+	/** Releases the folders of a chain that no kept listing holds. */
+	#giveBack(chain: ListedChain): void {
+		const folders: string[] = [];
+		for (const { path } of chain) {
+			if (this.#kept.get(filePathKey(path, this.#rules))?.held !== true) folders.push(path);
+		}
+		if (folders.length > 0) this.#tree.release(folders);
+	}
+
+	/**
+	 * Notes for the listings running now that an entry of a folder was added or deleted: a listing of
+	 * the folder may have read it before, and so may the chain of a listing above it.
+	 */
+	noteChange(key: string): void {
+		for (const run of this.#runs) {
+			if (run.key === key) run.changed = true;
+			else if (isFilePathWithin(key, run.key, this.#rules)) run.changedBelow = true;
+		}
 	}
 
 	/** Marks a folder's listing out of date after a change reached it. */
@@ -174,17 +257,20 @@ export class ExplorerListings {
 	}
 
 	/**
-	 * Marks out of date every listing at or below `folder` that the Server keeps or is listing, as
-	 * after the root stream dropped changes there, and returns their keys. A listing it no longer keeps
-	 * lists again before it counts anyway.
+	 * Marks out of date every listing at or below `folder` that the Server keeps or is listing, and
+	 * any chain listing with a folder above it, as after the root stream dropped changes there, and
+	 * returns the keys of those listings. A listing it no longer keeps lists again before it counts
+	 * anyway.
 	 */
 	invalidateWithin(folder: string): readonly string[] {
 		const keys = new Set<string>();
 		for (const [key, listing] of this.#kept) {
 			if (listing.held && isFilePathWithin(key, folder, this.#rules)) keys.add(key);
 		}
-		for (const key of this.#listing.keys()) {
-			if (isFilePathWithin(key, folder, this.#rules)) keys.add(key);
+		for (const run of this.#runs) {
+			const within = isFilePathWithin(run.key, folder, this.#rules);
+			if (within) keys.add(run.key);
+			if (within || isFilePathWithin(folder, run.key, this.#rules)) run.changedBelow = true;
 		}
 		for (const key of keys) this.invalidate(key);
 		return [...keys];

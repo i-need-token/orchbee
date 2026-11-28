@@ -434,6 +434,8 @@ export class ExplorerTree {
 		const parent = filePathParent(change.path, rules);
 		if (parent === null) return;
 		const key = filePathKey(parent, rules);
+		// A listing on its way may have read the folder before the change, whatever it shows now.
+		listings.noteChange(key);
 		if (!listings.shows(key)) return;
 		const name = filePathName(change.path, rules);
 		const shown = listings.shows(key, name);

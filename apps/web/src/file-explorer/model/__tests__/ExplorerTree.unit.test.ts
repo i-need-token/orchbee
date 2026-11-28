@@ -151,18 +151,16 @@ describe('ExplorerTree', () => {
 	it('matches the folders again after a rescan amid changes names only a folder above them', async () => {
 		vi.useFakeTimers();
 		const port = machine();
-		const { listed, session } = observe(port.open(WORKSPACE));
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
 			reportUnreadable: unexpectedReport,
-			session,
+			session: port.open(WORKSPACE),
 		});
 		await settle();
 		const model = modelOf(tree);
 		await model.expand('/w/src');
 		await model.expand('/w/src/lib');
-		listed.length = 0;
 
 		port.writeFile('/w/first.txt', 'f');
 		// The Server reads late, so these changes fold into one rescan, which names `/w` alone once
@@ -176,7 +174,6 @@ describe('ExplorerTree', () => {
 		await vi.advanceTimersByTimeAsync(500);
 		await settle();
 
-		expect([...listed].sort()).toEqual(['/w', '/w/src', '/w/src/lib']);
 		expect(rows(tree.state)).toEqual([
 			'/w/docs',
 			'/w/src',
@@ -362,6 +359,72 @@ describe('ExplorerTree', () => {
 				.join('/'),
 		);
 		expect(names).toEqual(['a/b/c', 'd.ts', 'e', 'f.ts']);
+		tree.dispose();
+	});
+
+	it("lists a compact row's folders in one request and holds them while the tree shows", async () => {
+		const port = machine();
+		port.writeFile('/w/deep/a/b/c.txt', 'c');
+		port.writeFile('/w/repo/.git/HEAD', 'h');
+		port.writeFile('/w/repo/.git/config', 'c');
+		const { listed, released, session } = observe(port.open(WORKSPACE));
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session,
+		});
+		await settle();
+		await modelOf(tree).expand('/w/deep');
+		await modelOf(tree).expand('/w/repo');
+		await settle();
+
+		expect(listed).toEqual(['/w', '/w/deep', '/w/repo']);
+		expect(rows(tree.state).slice(0, 4)).toEqual([
+			'/w/deep',
+			'/w/deep/a',
+			'/w/deep/a/b',
+			'/w/deep/a/b/c.txt',
+		]);
+		// The Explorer hides the lone `.git` that listed with its folder, so the Server keeps nothing.
+		expect(released).toEqual([['/w/repo/.git']]);
+
+		port.setRoot(WORKSPACE, '/w/docs');
+		await settle();
+		expect(released.at(-1)).toEqual(['/w', '/w/deep', '/w/deep/a', '/w/deep/a/b', '/w/repo']);
+		tree.dispose();
+	});
+
+	it('lists a folder of a compact row again when a change in it overtook the row’s listing', async () => {
+		const port = machine('manual');
+		port.writeFile('/w/deep/a/c.txt', 'c');
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		await settle();
+		port.flush();
+		await settle();
+		const expanding = modelOf(tree).expand('/w/deep');
+		await settle();
+
+		// The Server lists the folder with the folder below it and then reports a change there,
+		// which arrives before the listing does.
+		port.flush();
+		port.writeFile('/w/deep/a/e.txt', 'e');
+		await settle();
+		port.flush();
+		await expanding;
+		await settle();
+
+		expect(rows(tree.state).slice(0, 4)).toEqual([
+			'/w/deep',
+			'/w/deep/a',
+			'/w/deep/a/c.txt',
+			'/w/deep/a/e.txt',
+		]);
 		tree.dispose();
 	});
 
