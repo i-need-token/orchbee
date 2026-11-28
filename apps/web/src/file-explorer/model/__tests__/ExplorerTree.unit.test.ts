@@ -529,4 +529,71 @@ describe('ExplorerTree', () => {
 		expect(rows(tree.state)).toEqual(['/w/src', '/w/src/b.ts']);
 		tree.dispose();
 	});
+
+	it('shows what files.exclude hides only on the way to the active file', async () => {
+		const port = machine();
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		await settle();
+		// The folder comes after the root listed, while nothing on its way is open.
+		port.writeFile('/w/.git/HEAD', 'h');
+		port.writeFile('/w/.git/config', 'c');
+		await settle();
+		expect(rows(tree.state)).toEqual(['/w/docs', '/w/src', '/w/a.txt']);
+
+		tree.setActiveFile('/w/.git/config');
+		await settle();
+		await modelOf(tree).expand('/w/.git');
+		expect(rows(tree.state)).toEqual([
+			'/w/.git',
+			'/w/.git/config',
+			'/w/docs',
+			'/w/src',
+			'/w/a.txt',
+		]);
+		expect(modelOf(tree).rowAt(1).element.excluded).toBe(true);
+
+		tree.setActiveFile('/w/a.txt');
+		await settle();
+		expect(rows(tree.state)).toEqual(['/w/docs', '/w/src', '/w/a.txt']);
+		tree.dispose();
+	});
+
+	it('reveals a file once a tree shows, but none below a folder autoRevealExclude names', async () => {
+		const port = machine();
+		port.writeFile('/w/node_modules/m/index.js', 'm');
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
+			session: port.open(WORKSPACE),
+		});
+		const { signal } = new AbortController();
+		tree.revealFile('/w/src/lib/c.ts', signal);
+		await settle();
+		await settle();
+		const model = modelOf(tree);
+		expect(rows(tree.state)).toEqual([
+			'/w/docs',
+			'/w/node_modules',
+			'/w/src',
+			'/w/src/lib',
+			'/w/src/lib/c.ts',
+			'/w/src/b.ts',
+			'/w/a.txt',
+		]);
+		expect(model.focus).toBe('/w/src/lib/c.ts');
+		expect([...model.selection]).toEqual(['/w/src/lib/c.ts']);
+
+		tree.revealFile('/w/node_modules/m/index.js', signal);
+		await settle();
+		await settle();
+		expect(model.indexOf('/w/node_modules/m')).toBe(-1);
+		expect(model.focus).toBe('/w/src/lib/c.ts');
+		tree.dispose();
+	});
 });

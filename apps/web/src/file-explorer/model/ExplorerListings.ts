@@ -18,9 +18,11 @@ import { isExcludedByDefault } from './isExcludedByDefault';
 export interface ExplorerListing {
 	/** The children by name, which a later listing reuses for entries that did not change. */
 	readonly byName: ReadonlyMap<string, ExplorerItem>;
+	/** The children `files.exclude` hides by their names, which show only on the way to a file. */
+	readonly excluded: readonly ExplorerItem[];
 	/** The path the folder was listed by, which releases it. */
 	readonly folder: string;
-	/** The children as the Explorer sorts them. */
+	/** The children it shows, as the Explorer sorts them. */
 	readonly items: readonly ExplorerItem[];
 }
 
@@ -85,16 +87,17 @@ function sameEntry(entry: FileEntry | null, other: FileEntry): boolean {
 
 /**
  * One file session's folder listings, by folder key, kept across root moves so a folder shown again
- * draws at once. Each listing gathers every page of its folder, hides what `files.exclude` hides and
- * sorts as VS Code's Explorer does; an entry that did not change keeps its item, so its row draws
- * nothing again, and a later page's entry replaces an earlier one of the same name, since a folder
- * that changes between pages may repeat entries. A folder may list with its single-child chain, as
- * VS Code's Explorer resolves a folder with its single-child descendants.
+ * draws at once. Each listing gathers every page of its folder, sets apart what `files.exclude`
+ * hides and sorts the rest as VS Code's Explorer does; an entry that did not change keeps its item,
+ * so its row draws nothing again, and a later page's entry replaces an earlier one of the same name,
+ * since a folder that changes between pages may repeat entries. A folder may list with its
+ * single-child chain, as VS Code's Explorer resolves a folder with its single-child descendants.
  */
 export class ExplorerListings {
+	/** The Explorer's order, which a listing's shown children keep. */
+	readonly compare: (one: ExplorerItem, other: ExplorerItem) => number;
 	/** Least recently used first. */
 	readonly #kept = new Map<string, KeptListing>();
-	readonly #compare: (one: ExplorerItem, other: ExplorerItem) => number;
 	/** How often each folder was made out of date, so a listing that overlapped a change stays so. */
 	readonly #invalidations = new Map<string, number>();
 	readonly #onBusy: (busy: boolean) => void;
@@ -103,7 +106,7 @@ export class ExplorerListings {
 	readonly #tree: FileTreePort;
 
 	constructor(options: ExplorerListingsOptions) {
-		this.#compare = explorerItemComparer(options.locale);
+		this.compare = explorerItemComparer(options.locale);
 		this.#onBusy = options.onBusy;
 		this.#rules = options.rules;
 		this.#tree = options.tree;
@@ -118,8 +121,11 @@ export class ExplorerListings {
 		return { held: listing.held, listing };
 	}
 
-	/** Whether a folder's listing is kept and, given a name, whether that listing shows the entry. */
-	shows(key: string, name?: string): boolean {
+	/**
+	 * Whether a folder's listing is kept and, given a name, whether that listing has the entry, which
+	 * `files.exclude` may hide.
+	 */
+	lists(key: string, name?: string): boolean {
 		const listing = this.#kept.get(key);
 		if (listing === undefined) return false;
 		return name === undefined || listing.byName.has(name);
@@ -182,7 +188,6 @@ export class ExplorerListings {
 		const previous = this.#kept.get(key);
 		const byName = new Map<string, ExplorerItem>();
 		for (const entry of entries) {
-			if (isExcludedByDefault(entry.name)) continue;
 			const known = previous?.byName.get(entry.name);
 			byName.set(
 				entry.name,
@@ -191,17 +196,22 @@ export class ExplorerListings {
 					: {
 							directory: entry.type === 'directory',
 							entry,
+							excluded: isExcludedByDefault(entry.name),
 							name: entry.name,
 							path: filePathChild(folder, entry.name, this.#rules),
 						},
 			);
 		}
+		const items: ExplorerItem[] = [];
+		const excluded: ExplorerItem[] = [];
+		for (const item of byName.values()) (item.excluded ? excluded : items).push(item);
 		const listing: KeptListing = {
 			byName,
 			dirty,
+			excluded,
 			folder,
 			held: true,
-			items: [...byName.values()].sort(this.#compare),
+			items: items.sort(this.compare),
 		};
 		this.#kept.delete(key);
 		this.#kept.set(key, listing);
@@ -309,7 +319,7 @@ export class ExplorerListings {
 		for (const listing of this.#kept.values()) {
 			if (listing.held) continue;
 			folders += 1;
-			items += listing.items.length;
+			items += listing.byName.size;
 		}
 		for (const [key, listing] of this.#kept) {
 			if (folders <= KEPT_FOLDERS && items <= KEPT_ITEMS) return;
@@ -317,7 +327,7 @@ export class ExplorerListings {
 			this.#kept.delete(key);
 			this.#invalidations.delete(key);
 			folders -= 1;
-			items -= listing.items.length;
+			items -= listing.byName.size;
 		}
 	}
 }

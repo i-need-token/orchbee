@@ -1,10 +1,17 @@
-import { type FileError, type FilePathRules, filePathKey } from '../../file-session';
+import {
+	type FileError,
+	type FilePathRules,
+	filePathKey,
+	isFilePathWithin,
+} from '../../file-session';
 import type { VirtualTreeSource } from '../../virtual-tree';
 import { ExplorerListError } from './ExplorerListError';
 import type { ExplorerItem } from './explorer-item';
-import type { ExplorerListings } from './ExplorerListings';
+import type { ExplorerListing, ExplorerListings } from './ExplorerListings';
 
 interface ExplorerTreeSourceOptions {
+	/** The path of the file the overlay's active tab shows, read whenever a folder's children are. */
+	readonly activeFile: () => string | null;
 	readonly listings: ExplorerListings;
 	/** Hears a folder below the root that is gone, so its parent lists again and drops it. */
 	readonly onGone: (folder: ExplorerItem) => void;
@@ -25,6 +32,10 @@ const NO_ITEMS: readonly ExplorerItem[] = Object.freeze([]);
  * A folder below the root that cannot be listed shows empty, as in VS Code, which reports why. One
  * that is gone usually has its deletion on the way, so it only has its parent list again; the parent
  * that still lists it after that makes the next failure a report, and never a second listing.
+ *
+ * What `files.exclude` hides shows only on the way to the file the overlay's active tab shows, as VS
+ * Code's Explorer shows the files open in its visible editors and the folders that hold them. Below
+ * a folder that shows that way, everything else stays hidden too.
  */
 export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerItem> {
 	readonly key = (item: ExplorerItem): string => filePathKey(item.path, this.#rules);
@@ -47,7 +58,7 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 		if (kept !== null) {
 			this.#read.add(key);
 			if (!kept.held) this.#outdated.add(key);
-			return kept.listing.items;
+			return this.#shown(item, kept.listing);
 		}
 		const read = this.#read.has(key);
 		// The root's only child does not join it, so only a folder below the root lists its chain.
@@ -59,7 +70,7 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 				// Gathered changes list again only folders the tree had read, so a listing that a change
 				// or a rescan overtook before then lists again at once.
 				if (!read && this.#listings.peek(key) === null) this.#outdated.add(key);
-				return listing.items;
+				return this.#shown(item, listing);
 			},
 			(error: unknown) => {
 				// The root, which alone has no entry, shows its failure as the unresolved row instead.
@@ -76,6 +87,9 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 		);
 	};
 
+	readonly #activeFile: () => string | null;
+	/** The items excluded through a folder above them, by their listing's item, kept for each row. */
+	readonly #excludedThrough = new WeakMap<ExplorerItem, ExplorerItem>();
 	/** Folders found gone whose parents were asked to list again. */
 	readonly #gone = new Set<string>();
 	readonly #listings: ExplorerListings;
@@ -94,6 +108,7 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 	readonly #outdated = new Set<string>();
 
 	constructor(options: ExplorerTreeSourceOptions) {
+		this.#activeFile = options.activeFile;
 		this.#listings = options.listings;
 		this.#onGone = options.onGone;
 		this.#onUnreadable = options.onUnreadable;
@@ -114,5 +129,28 @@ export class ExplorerTreeSource implements VirtualTreeSource<string, ExplorerIte
 		const taken = [...this.#outdated];
 		this.#outdated.clear();
 		return taken;
+	}
+
+	/** A folder's children as the tree shows them, the listing's own while nothing excluded shows. */
+	#shown(folder: ExplorerItem, listing: ExplorerListing): readonly ExplorerItem[] {
+		const active = this.#activeFile();
+		if (active === null) return folder.excluded ? NO_ITEMS : listing.items;
+		const leads = (child: ExplorerItem): boolean =>
+			isFilePathWithin(active, child.path, this.#rules);
+		if (!folder.excluded) {
+			const shown = listing.excluded.filter(leads);
+			if (shown.length === 0) return listing.items;
+			return [...listing.items, ...shown].sort(this.#listings.compare);
+		}
+		// One child at most holds the active file, and below an excluded folder it is excluded too.
+		const child = listing.items.find(leads) ?? listing.excluded.find(leads);
+		if (child === undefined) return NO_ITEMS;
+		if (child.excluded) return [child];
+		let through = this.#excludedThrough.get(child);
+		if (through === undefined) {
+			through = { ...child, excluded: true };
+			this.#excludedThrough.set(child, through);
+		}
+		return [through];
 	}
 }

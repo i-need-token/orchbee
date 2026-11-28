@@ -81,6 +81,12 @@ const PROGRESS_DELAY_MILLISECONDS = 800;
 const RESTORE_PROGRESS_DELAY_MILLISECONDS = 1500;
 const LOADING: ExplorerTreeState = { kind: 'loading' };
 const NONE: ExplorerTreeState = { kind: 'none' };
+const RESOLVED: Promise<void> = Promise.resolve();
+/**
+ * The folder names of VS Code's default `explorer.autoRevealExclude`, whose globs match them at any
+ * depth: the active file is not revealed at or below a folder of these names.
+ */
+const AUTO_REVEAL_EXCLUDED: ReadonlySet<string> = new Set(['bower_components', 'node_modules']);
 
 function rootName(root: string, rules: FilePathRules): string {
 	return filePathName(root, rules) || root;
@@ -116,6 +122,47 @@ function outermost(keys: readonly string[], rules: FilePathRules): readonly stri
 	);
 }
 
+/** The folders between a root and a path below it, outermost first. */
+function foldersBetween(root: string, path: string, rules: FilePathRules): readonly string[] {
+	const rootKey = filePathKey(root, rules);
+	const folders: string[] = [];
+	for (
+		let folder = filePathParent(path, rules);
+		folder !== null && filePathKey(folder, rules) !== rootKey;
+		folder = filePathParent(folder, rules)
+	) {
+		folders.push(folder);
+	}
+	return folders.reverse();
+}
+
+/** Whether a path lies below a root, which alone gives it a row. */
+function isBelow(root: string, path: string, rules: FilePathRules): boolean {
+	return (
+		filePathKey(path, rules) !== filePathKey(root, rules) && isFilePathWithin(path, root, rules)
+	);
+}
+
+/**
+ * The entries `files.exclude` hides by name on the way from a root to a path below it, with the
+ * folder that lists each, outermost first.
+ */
+function excludedOnWay(
+	root: string,
+	path: string,
+	rules: FilePathRules,
+): readonly { readonly entry: string; readonly folder: string }[] {
+	if (!isBelow(root, path, rules)) return [];
+	const folders = foldersBetween(root, path, rules);
+	const entries = [...folders, path];
+	return [root, ...folders].flatMap((folder, index) => {
+		const entry = entries[index];
+		return entry !== undefined && isExcludedByDefault(filePathName(entry, rules))
+			? [{ entry, folder }]
+			: [];
+	});
+}
+
 /**
  * The Explorer's tree over one Workspace's file session. It follows the root stream: a new root
  * gets a new tree, which replaces the shown one once it has loaded, so the view never flashes empty.
@@ -125,8 +172,15 @@ function outermost(keys: readonly string[], rules: FilePathRules): readonly stri
  * only the loaded folders they affect, as VS Code's Explorer does; a rescan, which stands for the
  * changes the backend dropped below its folders, lists again every loaded folder there; and after
  * records were lost every loaded folder lists again.
+ *
+ * It follows the file the overlay's active tab shows, as VS Code's Explorer follows the active
+ * editor: what `files.exclude` hides shows on the way to that file, and the file can be revealed.
  */
 export class ExplorerTree {
+	/** The file the overlay's active tab shows; null without tabs. */
+	#activeFile: string | null = null;
+	/** The refreshes that drew the entries on the way to the active file, which a reveal waits for. */
+	#activeRefresh: Promise<void> = RESOLVED;
 	#current: RootTree | null = null;
 	#disposed = false;
 	/** Loaded folders that changes touched, listed again when the delay ends. */
@@ -140,6 +194,8 @@ export class ExplorerTree {
 	readonly #memory: ExplorerViewMemory;
 	/** A new root's tree while it loads. */
 	#pending: RootTree | null = null;
+	/** A reveal asked while no tree showed, made once one does unless it was called off first. */
+	#pendingReveal: { readonly path: string; readonly signal: AbortSignal } | null = null;
 	#progress = false;
 	#progressTimer: ReturnType<typeof setTimeout> | null = null;
 	readonly #reportUnreadable: (name: string, error: FileError) => void;
@@ -185,6 +241,58 @@ export class ExplorerTree {
 		if (current !== null && this.#state.kind !== 'opening') this.#reload(current);
 	}
 
+	/**
+	 * Follows the file the overlay's active tab shows. What `files.exclude` hides shows on the way to
+	 * it, as VS Code's Explorer shows the files open in its visible editors and the folders holding
+	 * them, so the outermost folder where that changes draws its children again. Listings follow such
+	 * entries only on that way, so a folder holding one the way newly passes through lists again.
+	 */
+	setActiveFile(path: string | null): void {
+		const previous = this.#activeFile;
+		this.#activeFile = path;
+		const listings = this.#listings;
+		const rules = this.#rules;
+		if (this.#disposed || listings === null || rules === null) return;
+		const key = path === null ? null : filePathKey(path, rules);
+		if (key === (previous === null ? null : filePathKey(previous, rules))) return;
+		const refreshes: Promise<void>[] = [];
+		for (const tree of [this.#current, this.#pending]) {
+			if (tree === null) continue;
+			const way = path === null ? [] : excludedOnWay(tree.root, path, rules);
+			for (const { entry, folder } of way) {
+				if (previous === null || !isFilePathWithin(previous, entry, rules)) {
+					listings.invalidate(filePathKey(folder, rules));
+				}
+			}
+			const folders = new Set<string>();
+			for (const each of [previous, path]) {
+				const outer = each === null ? undefined : excludedOnWay(tree.root, each, rules)[0];
+				if (outer !== undefined) folders.add(filePathKey(outer.folder, rules));
+			}
+			for (const folder of outermost([...folders], rules)) {
+				refreshes.push(
+					tree.model.refresh(folder === tree.key ? null : folder).catch(() => undefined),
+				);
+			}
+		}
+		this.#activeRefresh =
+			refreshes.length === 0 ? RESOLVED : Promise.all(refreshes).then(() => undefined);
+	}
+
+	/**
+	 * Reveals a file below the root, as VS Code's Explorer reveals the active editor's file: unless its
+	 * row holds the focus and the only selection already, the folders above it expand one after
+	 * another, the view scrolls the row to its middle unless it shows already, and the row takes the
+	 * focus and the selection. A file at or below a folder `explorer.autoRevealExclude` names stays as
+	 * it is. A reveal asked while no tree shows waits for one; another root ends it.
+	 */
+	revealFile(path: string, signal: AbortSignal): void {
+		this.#pendingReveal = null;
+		const current = this.#current;
+		if (current !== null && this.#state.kind === 'tree') void this.#reveal(current, path, signal);
+		else this.#pendingReveal = { path, signal };
+	}
+
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
@@ -196,6 +304,7 @@ export class ExplorerTree {
 		this.#progressTimer = null;
 		this.#due.clear();
 		this.#listeners.clear();
+		this.#pendingReveal = null;
 		const current = this.#current;
 		if (current !== null) this.#memory.rememberView(current.key, current.model.viewState());
 		for (const tree of [this.#current, this.#pending]) {
@@ -278,6 +387,7 @@ export class ExplorerTree {
 		this.#cancelPending();
 		const key = filePathKey(root, rules);
 		const source = new ExplorerTreeSource({
+			activeFile: () => this.#activeFile,
 			listings,
 			onGone: (folder) => {
 				// Its deletion is usually on the way; the parent listing again drops it either way.
@@ -290,7 +400,13 @@ export class ExplorerTree {
 			rules,
 		});
 		const model = new VirtualTreeModel<string, ExplorerItem>({
-			input: { directory: true, entry: null, name: rootName(root, rules), path: root },
+			input: {
+				directory: true,
+				entry: null,
+				excluded: false,
+				name: rootName(root, rules),
+				path: root,
+			},
 			source,
 		});
 		const current = this.#current;
@@ -436,16 +552,25 @@ export class ExplorerTree {
 		const key = filePathKey(parent, rules);
 		// A listing on its way may have read the folder before the change, whatever it shows now.
 		listings.noteChange(key);
-		if (!listings.shows(key)) return;
+		if (!listings.lists(key)) return;
 		const name = filePathName(change.path, rules);
-		const shown = listings.shows(key, name);
+		// What `files.exclude` hides by name shows only on the way to the active file, and the folder
+		// that holds it lists again once that way comes to pass through it.
+		if (isExcludedByDefault(name) && !this.#onActiveWay(change.path, rules)) return;
+		const listed = listings.lists(key, name);
 		// A new entry matters only where the listing lacks it, a deleted one only where it has it.
-		if (change.type === 'added' ? shown || isExcludedByDefault(name) : !shown) return;
+		if (change.type === 'added' ? listed : !listed) return;
 		this.#noteFolder(listings, key);
 	}
 
+	/** Whether a path is the active file or a folder holding it. */
+	#onActiveWay(path: string, rules: FilePathRules): boolean {
+		const active = this.#activeFile;
+		return active !== null && isFilePathWithin(active, path, rules);
+	}
+
 	#noteFolder(listings: ExplorerListings, key: string): void {
-		if (!listings.shows(key)) return;
+		if (!listings.lists(key)) return;
 		listings.invalidate(key);
 		this.#schedule(key);
 	}
@@ -506,5 +631,31 @@ export class ExplorerTree {
 		this.#state = state;
 		if (state.kind !== 'loading' && state.kind !== 'opening') this.#settled = true;
 		for (const listener of this.#listeners) listener();
+		const reveal = this.#pendingReveal;
+		const current = this.#current;
+		if (reveal === null || current === null || state.kind !== 'tree') return;
+		this.#pendingReveal = null;
+		void this.#reveal(current, reveal.path, reveal.signal);
+	}
+
+	async #reveal(tree: RootTree, path: string, signal: AbortSignal): Promise<void> {
+		const { model, root, rules } = tree;
+		const key = filePathKey(path, rules);
+		if (signal.aborted || !isBelow(root, path, rules)) return;
+		if (model.focus === key && model.selection.size === 1 && model.selection.has(key)) return;
+		const folders = foldersBetween(root, path, rules);
+		if ([...folders, path].some((each) => AUTO_REVEAL_EXCLUDED.has(filePathName(each, rules)))) {
+			return;
+		}
+		// What `files.exclude` hides on the way shows once the tree has drawn it for this file.
+		await this.#activeRefresh;
+		for (const folder of folders) {
+			if (signal.aborted || this.#current !== tree) return;
+			await model.expand(filePathKey(folder, rules)).catch(() => undefined);
+		}
+		if (signal.aborted || this.#current !== tree || model.indexOf(key) < 0) return;
+		model.reveal(key, { onlyOutOfSight: true, relativeTop: 0.5 });
+		model.setFocus(key);
+		model.setSelection([key]);
 	}
 }

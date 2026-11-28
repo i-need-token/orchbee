@@ -1,4 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
+import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { useMemo, useRef, type ReactNode, type Ref } from 'react';
@@ -10,10 +11,12 @@ import { ExplorerProgress } from './components/explorer-progress/ExplorerProgres
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
 import { ExplorerUnresolvedRow } from './components/explorer-unresolved-row/ExplorerUnresolvedRow';
 import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
+import { useExplorerActiveFile } from './hooks/useExplorerActiveFile';
 import { useExplorerDrag } from './hooks/useExplorerDrag';
 import { useExplorerFocus } from './hooks/useExplorerFocus';
 import { useExplorerGitDecorations } from './hooks/useExplorerGitDecorations';
 import { useExplorerOpen } from './hooks/useExplorerOpen';
+import { useExplorerShown } from './hooks/useExplorerShown';
 import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
@@ -64,13 +67,14 @@ function hasFileIcon(row: VirtualTreeRow<string, ExplorerItem>): boolean {
 /**
  * The File Bar's Explorer: VS Code's Folders view over the active Workspace's current directory,
  * with its title Actions, and the one sentence VS Code's welcome view becomes when there is no
- * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does and opens
- * files in the file overlay, its rows carry VS Code's Git decorations from the status Source Control
- * reads, and they drag as the File Bar's files and folders.
+ * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, opens
+ * files in the file overlay and follows the overlay's active tab, its rows carry VS Code's Git
+ * decorations from the status Source Control reads, and they drag as the File Bar's files and folders.
  */
 export function FileExplorer({
 	actionRuntime,
 	actionScope,
+	activeFile,
 	notifications,
 	platform,
 	ref,
@@ -103,7 +107,15 @@ export function FileExplorer({
 		session,
 		state.kind === 'tree' ? state.rules : null,
 	);
-	useExplorerFocus(ref, rootReference, treeReference, state.kind === 'tree');
+	const shown = useExplorerShown(rootReference);
+	useExplorerActiveFile(tree, activeFile, shown);
+	// VS Code's Explorer brings its focused row to the middle when the view takes focus.
+	const revealFocus = useMemoizedFn(() => {
+		if (state.kind !== 'tree') return;
+		const { model } = state;
+		if (model.focus !== null) model.reveal(model.focus, { relativeTop: 0.5 });
+	});
+	useExplorerFocus(ref, rootReference, treeReference, state.kind === 'tree', revealFocus);
 	return (
 		<div className={styles['root']} data-slot='file-explorer' ref={rootReference} tabIndex={-1}>
 			{state.kind === 'loading' && progress ? <ExplorerProgress /> : null}

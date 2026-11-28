@@ -63,7 +63,9 @@ function ExplorerRowMark({ badge, color, tooltip }: ExplorerRowMarkProps): React
  * the row's letters, Git's ahead of the Explorer's own ⤷ for a link or ? for an entry that is
  * neither a file nor a folder; a folder with changes below it shows a dot in their color instead.
  * A compact row names each of its folders, as VS Code's compact folders do, and carries the
- * decorations of the last. The characters the tree's find matched are highlighted in the names.
+ * decorations of the last. An entry `files.exclude` hides, which shows only on the way to the
+ * overlay's active file, is deemphasized as VS Code's Explorer draws it, unless Git colors it. The
+ * characters the tree's find matched are highlighted in the names.
  */
 export function ExplorerRow({ decorations, row, state }: ExplorerRowProps): ReactNode {
 	const item = row.element;
@@ -71,7 +73,11 @@ export function ExplorerRow({ decorations, row, state }: ExplorerRowProps): Reac
 	return (
 		<span className={styles['root']}>
 			{item.directory ? null : <FileIcon name={item.name} path={item.path} />}
-			<span className={styles['name']} data-git-color={decoration?.color ?? undefined}>
+			<span
+				className={styles['name']}
+				data-excluded={item.excluded ? '' : undefined}
+				data-git-color={decoration?.color ?? undefined}
+			>
 				{state.compact === null ? (
 					<VirtualTreeLabel highlights={state.highlights} text={item.name} />
 				) : (

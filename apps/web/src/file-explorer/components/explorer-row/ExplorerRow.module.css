@@ -31,6 +31,12 @@
 	opacity: var(--ob-sys-opacity-muted);
 }
 
+/* VS Code's list.deemphasizedForeground for an entry files.exclude hides, which a Git color below
+   takes over. */
+.name[data-excluded] {
+	color: var(--ob-sys-color-text-muted);
+}
+
 /* A Git decoration colors the name and the mark, as VS Code's gitDecoration colors do. */
 .name[data-git-color='added'],
 .mark[data-git-color='added'] {
