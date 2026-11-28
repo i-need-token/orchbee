@@ -28,6 +28,7 @@ import type { ExplorerItem } from './model/explorer-item';
 import type { ExplorerExpansionStorage } from './model/explorer-expansion-storage';
 import type { ExplorerMenuTarget } from './model/explorer-menus';
 import type { FileExplorerReportActionOutcome } from './types/explorer-menu';
+import type { ExplorerTerminals } from './types/explorer-terminals';
 import type { FileExplorerFocus } from './types/file-explorer-focus';
 import type { FileExplorerNotifications } from './types/file-explorer-notifications';
 import { buildExplorerMenu } from './utils/buildExplorerMenu';
@@ -57,6 +58,8 @@ export interface FileExplorerProps {
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	/** Where each Workspace's expanded folders are saved between runs; without it they are not. */
 	readonly storage?: ExplorerExpansionStorage | undefined;
+	/** Where the context menu's terminal commands open Tabs and type paths. */
+	readonly terminals: ExplorerTerminals;
 }
 
 /**
@@ -101,6 +104,7 @@ export function FileExplorer({
 	session,
 	shortcutLabelForAction,
 	storage,
+	terminals,
 }: FileExplorerProps): ReactNode {
 	const intl = useOrchbeeIntl();
 	const rootReference = useRef<HTMLDivElement>(null);
@@ -122,6 +126,7 @@ export function FileExplorer({
 		parentScope: actionScope,
 		runtime: actionRuntime,
 		session,
+		terminals,
 		tree,
 	});
 	const buildMenu = useMemoizedFn((target: ExplorerMenuTarget) =>

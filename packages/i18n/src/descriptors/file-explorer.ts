@@ -27,9 +27,17 @@ export const fileExplorerMessages = defineMessages({
 		'fileExplorer.folder.unreadable',
 		'Error notification when a folder in the Explorer tree could not be listed, so it shows empty, as VS Code reports it; {name} is the folder name and {reason} one of the read failure reasons, in lowercase.',
 	),
+	insertPaths: message(
+		'fileExplorer.actions.insertPaths',
+		'Explorer context menu command, an Orchbee addition, that types the paths of the selected files and folders into the current terminal as dropping them there does.',
+	),
 	noDirectory: message(
 		'fileExplorer.empty.noDirectory',
 		'Shown in place of the Explorer tree when the active Workspace has no directory to browse; worded as the Workbench says it in place of terminals.',
+	),
+	openInTerminal: message(
+		'fileExplorer.actions.openInTerminal',
+		'Explorer context menu command that opens a new terminal tab in the selected folder, or in the folder of the selected file, as VS Code names it.',
 	),
 	openToSide: message(
 		'fileExplorer.actions.openToSide',

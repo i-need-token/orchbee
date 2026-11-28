@@ -16,6 +16,7 @@ import type { FileWorkspaceSession } from '../../file-session';
 import { registerFileExplorerActions } from '../actions/registerFileExplorerActions';
 import type { ExplorerTree } from '../model/ExplorerTree';
 import type { ExplorerClipboard } from '../types/explorer-clipboard';
+import type { ExplorerTerminals } from '../types/explorer-terminals';
 
 interface UseFileExplorerActionsOptions {
 	/** Opens a file in the file overlay. */
@@ -25,6 +26,8 @@ interface UseFileExplorerActionsOptions {
 	readonly runtime: ActionRuntime;
 	/** The Workspace whose overlay the Explorer's files open in; null while there is none. */
 	readonly session: FileWorkspaceSession | null;
+	/** Where the terminal commands act. */
+	readonly terminals: ExplorerTerminals;
 	/** The tree the Actions act on; null while there is none. */
 	readonly tree: ExplorerTree | null;
 }
@@ -59,6 +62,7 @@ export function useFileExplorerActions({
 	parentScope,
 	runtime,
 	session,
+	terminals,
 	tree,
 }: UseFileExplorerActionsOptions): FileExplorerCommands {
 	const scope = React.useMemo(
@@ -75,13 +79,14 @@ export function useFileExplorerActions({
 			openFile,
 			scope,
 			session,
+			terminals,
 			tree,
 			typedRuntime,
 		});
 		return () => {
 			for (const registration of registrations) registration.dispose();
 		};
-	}, [openFile, scope, session, tree, typedRuntime]);
+	}, [openFile, scope, session, terminals, tree, typedRuntime]);
 	return React.useMemo(() => {
 		// The handlers cannot fail, and an unavailable Action is a disabled button, so no outcome shows.
 		const press = (actionId: ActionCatalogId<FileExplorerActionCatalog>): void => {

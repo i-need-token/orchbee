@@ -49,6 +49,7 @@ export function FileBarColumn({
 	settings,
 	shortcutLabelForAction,
 	storage,
+	terminals,
 	toggles,
 	viewFocusRequest,
 }: FileBarColumnProps): ReactNode {
@@ -141,6 +142,7 @@ export function FileBarColumn({
 							session={session}
 							shortcutLabelForAction={shortcutLabelForAction}
 							storage={storage}
+							terminals={terminals}
 						/>
 					</div>
 				) : null}

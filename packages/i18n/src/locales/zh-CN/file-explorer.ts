@@ -4,6 +4,8 @@ export const zhCNFileExplorerMessages = {
 	'fileExplorer.actions.collapse': '在资源管理器中折叠文件夹',
 	'fileExplorer.actions.copyPath': '复制路径',
 	'fileExplorer.actions.copyRelativePath': '复制相对路径',
+	'fileExplorer.actions.insertPaths': '将路径插入终端',
+	'fileExplorer.actions.openInTerminal': '在集成终端中打开',
 	'fileExplorer.actions.openToSide': '在侧边打开',
 	'fileExplorer.actions.refresh': '刷新资源管理器',
 	'fileExplorer.decorations.containsEmphasizedItems': '包含强调项',

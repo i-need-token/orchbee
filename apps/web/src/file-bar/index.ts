@@ -11,4 +11,4 @@ export type { FileBarLayout, FileBarPosition, FileBarViewId } from './file-bar-l
 export { readFileBarLayout, writeFileBarLayout } from './file-bar-layout-storage';
 export type { FileBarLayoutStorage } from './file-bar-layout-storage';
 export { isInFileBarTogglesRow } from './isInFileBarTogglesRow';
-export type { FileBarModule, FileBarRowMenuEntry } from './file-bar-contract';
+export type { FileBarModule, FileBarRowMenuEntry, FileBarTerminals } from './file-bar-contract';

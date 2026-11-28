@@ -1,6 +1,8 @@
 import type {
+	ActionAvailability,
 	ActionExecution,
 	ActionInvocationSource,
+	ActionResult,
 	ActionRuntime,
 	ActionScope,
 } from '@orchbee/actions';
@@ -25,6 +27,9 @@ type ActionOutcomeReport = (
 	named: WorkbenchAuthorityNotice['descriptor'],
 ) => unknown;
 
+const HIDDEN: ActionAvailability = { kind: 'hidden' };
+const NO_CURRENT_TERMINAL: ActionResult<void> = { code: 'terminal-unavailable', kind: 'blocked' };
+
 /** What `over` last answered, for the drag and the terminal it answered for. */
 interface DropAnswer {
 	readonly accepted: boolean;
@@ -36,7 +41,8 @@ interface DropAnswer {
  * Drops of the File Bar's files and folders on terminals. A drop types their paths into a terminal
  * through its `terminal.paths.insert`, as a drop of files from the system types theirs, formatted for
  * the shell of the machine that holds them. Terminal viewports register while they show, so a drop
- * that goes to the current terminal, such as one on the overlay's scrim, finds that terminal too.
+ * that goes to the current terminal, such as one on the overlay's scrim, finds that terminal too, and
+ * so does the Explorer's Insert Path into Terminal, which types paths as a drop does.
  */
 export class WorkbenchTerminalPathDrops {
 	readonly #runtime: ActionRuntime;
@@ -83,13 +89,50 @@ export class WorkbenchTerminalPathDrops {
 		beforeDrop: () => void,
 	): PointerDropTarget {
 		return this.#target(
-			() => {
-				const presentationId = currentPresentationId();
-				return presentationId === null ? null : (this.#scopes.get(presentationId) ?? null);
-			},
+			() => this.#currentScope(currentPresentationId),
 			() => undefined,
 			beforeDrop,
 		);
+	}
+
+	/**
+	 * Whether the terminal `currentPresentationId` names takes `input`'s paths now, as its
+	 * `terminal.paths.insert` stands; hidden while no registered terminal is current.
+	 */
+	currentTerminalAvailability(
+		currentPresentationId: () => string | null,
+		input: WorkbenchTerminalPathsInput,
+	): ActionAvailability {
+		const scope = this.#currentScope(currentPresentationId);
+		if (scope === null) return HIDDEN;
+		return (
+			this.#runtime.resolveAction(TERMINAL_ACTION_IDS.insertPaths, input, {
+				scope,
+				source: 'context-menu',
+			})?.availability ?? HIDDEN
+		);
+	}
+
+	/** Types `input`'s paths into the terminal `currentPresentationId` names, as a drop on it does. */
+	async insertIntoCurrentTerminal(
+		currentPresentationId: () => string | null,
+		input: WorkbenchTerminalPathsInput,
+		source: ActionInvocationSource,
+	): Promise<ActionResult<void>> {
+		const scope = this.#currentScope(currentPresentationId);
+		if (scope === null) return NO_CURRENT_TERMINAL;
+		const result = await this.#runtime.execute(TERMINAL_ACTION_IDS.insertPaths, input, {
+			scope,
+			source,
+		}).completion;
+		return result.kind === 'completed' || result.kind === 'unchanged'
+			? { kind: result.kind }
+			: result;
+	}
+
+	#currentScope(currentPresentationId: () => string | null): ActionScope | null {
+		const presentationId = currentPresentationId();
+		return presentationId === null ? null : (this.#scopes.get(presentationId) ?? null);
 	}
 
 	#target(

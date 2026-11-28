@@ -3,6 +3,7 @@ import type {
 	ActionConfirmation,
 	ActionAvailability,
 	ActionExecution,
+	ActionExecutionContext,
 	ActionResult,
 	ActionRuntime,
 	ActionScope,
@@ -278,6 +279,14 @@ interface WorkbenchView {
 	readonly resetSidebarWidth: () => void;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly returnToTerminal: () => void;
+	/**
+	 * Opens a Tab in a Workspace at a directory as New Tab opens one, selected with the keys, for the
+	 * File Bar's Open in Integrated Terminal.
+	 */
+	readonly openTerminalTab: (
+		context: ActionExecutionContext,
+		tab: { readonly cwd: string; readonly workspaceId: string },
+	) => Promise<ActionResult<void>>;
 	readonly onRootBlurCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly onRootFocusCapture: (event: React.FocusEvent<HTMLDivElement>) => void;
 	readonly shortcutScopeReference: React.RefObject<HTMLDivElement | null>;
@@ -656,6 +665,23 @@ export function useWorkbench({
 			beginTerminalHandover: focusRouting.beginTerminalHandover,
 			runtime: projectWorkspaceRuntime,
 		}),
+	);
+	const openTerminalTab = useMemoizedFn(
+		(
+			context: ActionExecutionContext,
+			tab: { readonly cwd: string; readonly workspaceId: string },
+		) =>
+			createSharedTab(
+				context,
+				{ cwd: tab.cwd, placement: null },
+				{
+					authority: authorityNotice.authority,
+					beginTerminalHandover: focusRouting.beginTerminalHandover,
+					navigation,
+					runtime: projectWorkspaceRuntime,
+					workspaceId: tab.workspaceId,
+				},
+			),
 	);
 	const createPanelTerminal = useMemoizedFn<
 		void,
@@ -1279,6 +1305,7 @@ export function useWorkbench({
 		},
 		resetSidebarWidth: () => setLeftPanelWidth(DEFAULT_LEFT_PANEL_WIDTH),
 		returnToTerminal,
+		openTerminalTab,
 		onRootBlurCapture: focusRouting.onBlurCapture,
 		onRootFocusCapture: focusRouting.onFocusCapture,
 		shortcutScopeReference,

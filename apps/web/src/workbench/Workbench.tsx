@@ -18,6 +18,7 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import * as React from 'react';
 import type { CSSProperties } from 'react';
 
+import type { FileBarTerminals } from '../file-bar';
 import { FileSessionRegistry, type FileSessionPort } from '../file-session';
 import type { UserSettingsControl } from '../user-settings';
 import {
@@ -274,6 +275,21 @@ export function Workbench({
 	// The scrim covers the terminal a press on it gives the keys to, so files dropped there go to it.
 	const currentTerminal = useMemoizedFn(() =>
 		resolveActiveTerminalPresentationId(projectWorkspaceRuntime),
+	);
+	// The Explorer's terminal commands: Insert Path into Terminal types into the current terminal as a
+	// drop on the scrim does, and Open in Integrated Terminal opens a Tab as New Tab does.
+	const fileBarTerminals = React.useMemo<FileBarTerminals>(
+		() => ({
+			insertPaths: (context, paths) =>
+				terminalPathDrops?.insertIntoCurrentTerminal(currentTerminal, paths, context.source) ??
+				Promise.resolve({ code: 'terminal-unavailable', kind: 'blocked' }),
+			insertPathsAvailability: (paths) =>
+				terminalPathDrops?.currentTerminalAvailability(currentTerminal, paths) ?? {
+					kind: 'hidden',
+				},
+			openTab: view.openTerminalTab,
+		}),
+		[currentTerminal, terminalPathDrops, view.openTerminalTab],
 	);
 	const fileOverlay = useWorkbenchFileOverlay({
 		actionRuntime,
@@ -638,6 +654,7 @@ export function Workbench({
 						settings={userSettings}
 						shortcutLabelForAction={shortcutLabelForAction}
 						storage={layoutStorage}
+						terminals={fileBarTerminals}
 						toggles={fileBarContent.toggles}
 						viewFocusRequest={fileBarContent.viewFocusRequest}
 					/>

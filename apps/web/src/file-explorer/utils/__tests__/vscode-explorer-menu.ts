@@ -122,9 +122,12 @@ export const VSCODE_EXPLORER_CONTEXT: readonly VSCodeMenuItem[] = [
 	{
 		command: 'openInIntegratedTerminal',
 		group: 'navigation',
-		orchbee: { kind: 'pending', slice: 'E3' },
+		orchbee: { action: 'file-explorer.terminal.open', kind: 'offered' },
 		order: 30,
 		title: 'Open in Integrated Terminal',
+		// VS Code's condition, a `file` resource at the default `terminal.explorerKind` or a remote one,
+		// holds for each resource of the file system its Explorer shows.
+		when: { key: 'isFileSystemResource' },
 	},
 	{
 		command: 'openInTerminal',

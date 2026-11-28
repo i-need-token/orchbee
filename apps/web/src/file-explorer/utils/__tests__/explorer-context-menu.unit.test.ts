@@ -9,6 +9,7 @@ import { EXPLORER_MENU_COMMANDS, type ExplorerMenuTarget } from '../../model/exp
 import { ExplorerTree } from '../../model/ExplorerTree';
 import { ExplorerViewMemory } from '../../model/ExplorerViewMemory';
 import type { ExplorerMenuGroup } from '../../types/explorer-menu';
+import type { ExplorerTerminals } from '../../types/explorer-terminals';
 import { buildExplorerMenu } from '../buildExplorerMenu';
 import {
 	VSCODE_EXPLORER_CONTEXT,
@@ -27,6 +28,21 @@ const TARGETS: Readonly<Record<ExplorerMenuTarget, { readonly folder: boolean }>
 	folder: { folder: true },
 	root: { folder: true },
 };
+
+/**
+ * The items Orchbee adds to VS Code's menu, where they stand among VS Code's: in an existing group
+ * after VS Code's items there.
+ */
+const ORCHBEE_ADDITIONS: readonly VSCodeMenuItem[] = [
+	{
+		command: 'orchbee.insertPathsIntoTerminal',
+		group: 'navigation',
+		orchbee: { action: 'file-explorer.paths.insert', kind: 'offered' },
+		// After Open in Integrated Terminal and Open in External Terminal.
+		order: 32,
+		title: 'Insert Path into Terminal',
+	},
+];
 
 /** One item as the menu shows it: its Action, label and whether it is greyed. */
 interface ShownItem {
@@ -67,11 +83,16 @@ function holds(condition: VSCodeCondition | undefined, folder: boolean): boolean
 	}
 }
 
-/** The items Orchbee offers that VS Code's menu shows for a target, group by group. */
+/**
+ * The items Orchbee offers that VS Code's menu shows for a target, with Orchbee's additions, group by
+ * group.
+ */
 function expectedGroups(target: ExplorerMenuTarget): ShownItem[][] {
 	const { folder } = TARGETS[target];
 	const groups = new Map<string, ShownItem[]>();
-	for (const item of VSCODE_EXPLORER_CONTEXT) {
+	for (const item of [...VSCODE_EXPLORER_CONTEXT, ...ORCHBEE_ADDITIONS].sort(
+		compareVSCodeMenuItems,
+	)) {
 		if (item.orchbee.kind !== 'offered' || !holds(item.when, folder)) continue;
 		const shown = {
 			action: item.orchbee.action,
@@ -116,6 +137,7 @@ async function createHarness() {
 	const scope = runtime.createScope('file-explorer');
 	const typedRuntime = createTypedActionRuntime<FileExplorerActionCatalog>(runtime);
 	const copied: string[] = [];
+	const tabs: Parameters<ExplorerTerminals['openTab']>[1][] = [];
 	const openFile: FileOverlayOpenFile = () => {
 		throw new Error('The menu opened a file.');
 	};
@@ -130,6 +152,14 @@ async function createHarness() {
 		openFile,
 		scope,
 		session,
+		terminals: {
+			insertPaths: () => Promise.reject(new Error('The menu typed into a terminal.')),
+			insertPathsAvailability: () => ({ kind: 'enabled' }),
+			openTab: (_context, tab) => {
+				tabs.push(tab);
+				return Promise.resolve({ kind: 'completed' });
+			},
+		},
 		tree,
 		typedRuntime,
 	});
@@ -149,7 +179,7 @@ async function createHarness() {
 		});
 	const { state } = tree;
 	if (state.kind !== 'tree') throw new Error(`The Explorer shows ${state.kind}.`);
-	return { copied, menu, model: state.model, runs };
+	return { copied, menu, model: state.model, runs, tabs };
 }
 
 describe('Explorer context menu', () => {
@@ -193,7 +223,9 @@ describe('Explorer context menu', () => {
 			model.setSelection(selection);
 			model.setFocus(focus);
 			copied.length = 0;
-			for (const item of menu('folder').flat()) item.run();
+			for (const item of menu('folder').flat()) {
+				if (item.id === 'copy-path' || item.id === 'copy-relative-path') item.run();
+			}
 			await Promise.all(runs);
 			expect({ focus, selection, copied }).toEqual({
 				focus,
@@ -201,5 +233,23 @@ describe('Explorer context menu', () => {
 				copied: [paths, relative],
 			});
 		}
+	});
+
+	// VS Code's openInIntegratedTerminal.
+	it('opens a terminal at each folder and each file’s folder of what the commands act on, once', async () => {
+		const { menu, model, runs, tabs } = await createHarness();
+		await model.expand('/w/docs');
+		await settle();
+		model.setSelection(['/w/a.txt', '/w/docs', '/w/docs/d.md']);
+		model.setFocus('/w/a.txt');
+		for (const item of menu('file').flat()) {
+			if (item.id === 'open-in-terminal') item.run();
+		}
+		await Promise.all(runs);
+		// In row order: the folder docs, then a.txt's folder, the root.
+		expect(tabs).toEqual([
+			{ cwd: '/w/docs', workspaceId: WORKSPACE },
+			{ cwd: '/w', workspaceId: WORKSPACE },
+		]);
 	});
 });

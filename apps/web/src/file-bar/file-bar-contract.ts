@@ -32,6 +32,9 @@ export type FileBarRowMenuEntry =
 	  }
 	| { readonly id: string; readonly kind: 'separator' };
 
+/** The Workbench's terminals, where the Explorer's terminal commands act. */
+export type FileBarTerminals = FileExplorerProps['terminals'];
+
 /** What the Workbench tells the File Bar's column, which owns the views and their toggles. */
 export interface FileBarColumnProps {
 	readonly actionRuntime: ActionRuntime;
@@ -79,6 +82,8 @@ export interface FileBarColumnProps {
 	readonly shortcutLabelForAction: FileExplorerProps['shortcutLabelForAction'];
 	/** Device-local storage for what the views remember between runs; without it they remember nothing. */
 	readonly storage: FileBarLayoutStorage | undefined;
+	/** Where the Explorer's terminal commands open Tabs and type paths. */
+	readonly terminals: FileBarTerminals;
 	/** The view toggles the row shows, in its order. */
 	readonly toggles: readonly FileBarViewId[];
 	/** Each increase moves focus into the active view; zero asks for nothing. */
