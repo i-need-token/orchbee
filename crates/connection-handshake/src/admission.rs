@@ -4,9 +4,9 @@
 
 use crate::{
     AcceptorMessage, Answer, Build, BuildEnvironment, CapabilitySet, ConnectionKind, DrainResult,
-    EnvironmentName, ExitResult, Extensions, FILES, FILES_EDIT, FILES_SEARCH, GenerationRange,
-    HandoverResult, InitiatorMessage, Offer, ProcessState, ProductVersion, QueryResult, Rejection,
-    RejectionReason, RequestKind, STREAM_OUTCOME_UNKNOWN, Unsupported,
+    EnvironmentName, ExitResult, Extensions, FILES, FILES_EDIT, FILES_HISTORY, FILES_SEARCH,
+    GenerationRange, HandoverResult, InitiatorMessage, Offer, ProcessState, ProductVersion,
+    QueryResult, Rejection, RejectionReason, RequestKind, STREAM_OUTCOME_UNKNOWN, Unsupported,
 };
 
 /// What an acceptor knows about itself when it judges a frame.
@@ -154,7 +154,10 @@ impl AcceptorProfile {
             capabilities = capabilities.without(FILES);
         }
         if !capabilities.contains(FILES) {
-            capabilities = capabilities.without(FILES_EDIT).without(FILES_SEARCH);
+            capabilities = capabilities
+                .without(FILES_EDIT)
+                .without(FILES_HISTORY)
+                .without(FILES_SEARCH);
         }
         Decision::Accept(Answer {
             generation,

@@ -6,12 +6,18 @@
 use serde::{Deserialize, Serialize};
 
 mod edit;
+mod history;
 mod search;
 
 pub use edit::{
     ExportEntry, ExportFacts, ExportKind, FsDeleteResult, FsEntryResult, FsExistsResult,
     FsExportEntriesResult, FsImportFileResult, FsImportResult, FsTransferResult, FsWriteResult,
     ImportOutcome, PickerListResult, PickerOpenResult, TransferItem,
+};
+pub use history::{
+    BlameCommit, BlameRange, GitBlameResult, GitChange, GitChangeKind, GitChangesResult,
+    GitLogCommit, GitLogResult, GitMergeBaseResult, GitStash, GitStashesResult, GitStatistics,
+    HistoryEntry, HistoryListResult, HistorySource,
 };
 pub use search::{
     FoundFile, SearchContextLine, SearchFile, SearchFindFilesResult, SearchMatch, SearchNextResult,
@@ -791,6 +797,18 @@ pub enum FilesReply {
     SearchNext(SearchNextResult),
     /// `search.find-files`.
     SearchFindFiles(SearchFindFilesResult),
+    /// `git.log`.
+    GitLog(GitLogResult),
+    /// `git.blame`.
+    GitBlame(GitBlameResult),
+    /// `git.changes`.
+    GitChanges(GitChangesResult),
+    /// `git.merge-base`.
+    GitMergeBase(GitMergeBaseResult),
+    /// `git.stashes`.
+    GitStashes(GitStashesResult),
+    /// `history.list`.
+    HistoryList(HistoryListResult),
 }
 
 /// Reads the JSON body of the Result record that answers a request of `operation`: its error, or
@@ -829,7 +847,31 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         | Operation::FsExportBegin
         | Operation::PickerClose
         | Operation::SearchText
-        | Operation::SearchCloseCache => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
+        | Operation::SearchCloseCache
+        | Operation::GitCheckout
+        | Operation::GitBranchCreate
+        | Operation::GitBranchDelete
+        | Operation::GitBranchRename
+        | Operation::GitBranchUpstream
+        | Operation::GitBranchDeleteRemote
+        | Operation::GitMerge
+        | Operation::GitRebase
+        | Operation::GitCherryPick
+        | Operation::GitAbort
+        | Operation::GitUndoCommit
+        | Operation::GitStashPush
+        | Operation::GitStashApply
+        | Operation::GitStashPop
+        | Operation::GitStashDrop
+        | Operation::GitStashClear
+        | Operation::GitTagCreate
+        | Operation::GitTagDelete
+        | Operation::GitTagDeleteRemote
+        | Operation::GitRemoteAdd
+        | Operation::GitRemoteRemove
+        | Operation::HistoryRestore
+        | Operation::HistoryRename
+        | Operation::HistoryDelete => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
         Operation::FsList => FilesReply::FsList(read_object(json)?),
         Operation::FsStat => FilesReply::FsStat(read_object(json)?),
         Operation::FsGrant => FilesReply::FsGrant(read_object(json)?),
@@ -859,6 +901,12 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         Operation::PickerList => FilesReply::PickerList(read_object(json)?),
         Operation::SearchNext => FilesReply::SearchNext(read_object(json)?),
         Operation::SearchFindFiles => FilesReply::SearchFindFiles(read_object(json)?),
+        Operation::GitLog => FilesReply::GitLog(read_object(json)?),
+        Operation::GitBlame => FilesReply::GitBlame(read_object(json)?),
+        Operation::GitChanges => FilesReply::GitChanges(read_object(json)?),
+        Operation::GitMergeBase => FilesReply::GitMergeBase(read_object(json)?),
+        Operation::GitStashes => FilesReply::GitStashes(read_object(json)?),
+        Operation::HistoryList => FilesReply::HistoryList(read_object(json)?),
     })
 }
 
@@ -897,6 +945,12 @@ pub fn encode_reply(reply: &FilesReply) -> Vec<u8> {
         FilesReply::PickerList(result) => serde_json::to_vec(result),
         FilesReply::SearchNext(result) => serde_json::to_vec(result),
         FilesReply::SearchFindFiles(result) => serde_json::to_vec(result),
+        FilesReply::GitLog(result) => serde_json::to_vec(result),
+        FilesReply::GitBlame(result) => serde_json::to_vec(result),
+        FilesReply::GitChanges(result) => serde_json::to_vec(result),
+        FilesReply::GitMergeBase(result) => serde_json::to_vec(result),
+        FilesReply::GitStashes(result) => serde_json::to_vec(result),
+        FilesReply::HistoryList(result) => serde_json::to_vec(result),
     };
     encoded.expect("every reply value encodes as JSON")
 }

@@ -1,0 +1,2062 @@
+{
+	"contractVersion": 1,
+	"capability": "files-history",
+	"bounds": {
+		"requestBytes": 16384,
+		"replyBytes": 131072,
+		"dataBytes": 131072,
+		"pathBytes": 4096
+	},
+	"operations": [
+		{
+			"op": "git.log",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitLogResult"
+		},
+		{
+			"op": "git.blame",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitBlameResult"
+		},
+		{
+			"op": "git.changes",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitChangesResult"
+		},
+		{
+			"op": "git.merge-base",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitMergeBaseResult"
+		},
+		{
+			"op": "git.stashes",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "gitStashesResult"
+		},
+		{
+			"op": "git.checkout",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.branch-create",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.branch-delete",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.branch-rename",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.branch-upstream",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.branch-delete-remote",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.merge",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.rebase",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.cherry-pick",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.abort",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.undo-commit",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stash-push",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stash-apply",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stash-pop",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stash-drop",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.stash-clear",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.tag-create",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.tag-delete",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.tag-delete-remote",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.remote-add",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "git.remote-remove",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "history.list",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "historyListResult"
+		},
+		{
+			"op": "history.restore",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": true,
+			"result": "emptyResult"
+		},
+		{
+			"op": "history.rename",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": true,
+			"result": "emptyResult"
+		},
+		{
+			"op": "history.delete",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": true,
+			"result": "emptyResult"
+		}
+	],
+	"requests": {
+		"valid": [
+			{
+				"name": "git-log-graph",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 50
+				}
+			},
+			{
+				"name": "git-log-every-reference-filtered",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"all": true,
+					"author": "Ada",
+					"grep": "fix(es)?",
+					"statistics": true,
+					"limit": 1000,
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-log-file-history",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs",
+					"follow": true,
+					"limit": 20
+				}
+			},
+			{
+				"name": "git-blame-commit",
+				"json": {
+					"op": "git.blame",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs",
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"ignoreWhitespace": true,
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-blame-working-tree",
+				"json": {
+					"op": "git.blame",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "git-changes",
+				"json": {
+					"op": "git.changes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"from": "89e6c98d92887913cadf06b2adb97f26cde4849b",
+					"to": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-changes-root-commit",
+				"json": {
+					"op": "git.changes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"to": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-merge-base",
+				"json": {
+					"op": "git.merge-base",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"first": "main",
+					"second": "origin/main"
+				}
+			},
+			{
+				"name": "git-stashes",
+				"json": {
+					"op": "git.stashes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-checkout-detached",
+				"json": {
+					"op": "git.checkout",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"detached": true
+				}
+			},
+			{
+				"name": "git-checkout-tracking",
+				"json": {
+					"op": "git.checkout",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "origin/feature/parser",
+					"track": true
+				}
+			},
+			{
+				"name": "git-branch-create",
+				"json": {
+					"op": "git.branch-create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/parser",
+					"start": "origin/main",
+					"checkout": true
+				}
+			},
+			{
+				"name": "git-branch-delete-unmerged",
+				"json": {
+					"op": "git.branch-delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/parser",
+					"force": true
+				}
+			},
+			{
+				"name": "git-branch-rename",
+				"json": {
+					"op": "git.branch-rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/lexer"
+				}
+			},
+			{
+				"name": "git-branch-upstream",
+				"json": {
+					"op": "git.branch-upstream",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "main",
+					"upstream": "origin/main"
+				}
+			},
+			{
+				"name": "git-branch-delete-remote",
+				"json": {
+					"op": "git.branch-delete-remote",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "origin",
+					"name": "feature/parser"
+				}
+			},
+			{
+				"name": "git-merge",
+				"json": {
+					"op": "git.merge",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "feature/parser"
+				}
+			},
+			{
+				"name": "git-rebase",
+				"json": {
+					"op": "git.rebase",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "origin/main"
+				}
+			},
+			{
+				"name": "git-cherry-pick",
+				"json": {
+					"op": "git.cherry-pick",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-abort-cherry-pick",
+				"json": {
+					"op": "git.abort",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"operation": "cherry-pick"
+				}
+			},
+			{
+				"name": "git-undo-commit",
+				"json": {
+					"op": "git.undo-commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-stash-push-untracked",
+				"json": {
+					"op": "git.stash-push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "Before the 重构",
+					"untracked": true
+				}
+			},
+			{
+				"name": "git-stash-push-staged",
+				"json": {
+					"op": "git.stash-push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"staged": true
+				}
+			},
+			{
+				"name": "git-stash-apply-staged",
+				"json": {
+					"op": "git.stash-apply",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": 0,
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"staged": true
+				}
+			},
+			{
+				"name": "git-stash-pop",
+				"json": {
+					"op": "git.stash-pop",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": 2,
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-stash-drop",
+				"json": {
+					"op": "git.stash-drop",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": 1,
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-stash-clear",
+				"json": {
+					"op": "git.stash-clear",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-tag-create-annotated",
+				"json": {
+					"op": "git.tag-create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "v1.0.0",
+					"message": "Release 1.0.0",
+					"target": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-tag-create-lightweight",
+				"json": {
+					"op": "git.tag-create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "v1"
+				}
+			},
+			{
+				"name": "git-tag-delete",
+				"json": {
+					"op": "git.tag-delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "v1"
+				}
+			},
+			{
+				"name": "git-tag-delete-remote",
+				"json": {
+					"op": "git.tag-delete-remote",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"remote": "origin",
+					"name": "v1"
+				}
+			},
+			{
+				"name": "git-remote-add",
+				"json": {
+					"op": "git.remote-add",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "upstream",
+					"url": "https://example.com/project.git"
+				}
+			},
+			{
+				"name": "git-remote-remove",
+				"json": {
+					"op": "git.remote-remove",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "upstream"
+				}
+			},
+			{
+				"name": "history-list",
+				"json": {
+					"op": "history.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "history-restore",
+				"json": {
+					"op": "history.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "history-rename",
+				"json": {
+					"op": "history.rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "00112233445566778899aabbccddeeff",
+					"label": "Before the refactor"
+				}
+			},
+			{
+				"name": "history-delete-entries",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entries": ["00112233445566778899aabbccddeeff", "ffeeddccbbaa99887766554433221100"]
+				}
+			},
+			{
+				"name": "history-delete-entries-all-false",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entries": ["00112233445566778899aabbccddeeff", "ffeeddccbbaa99887766554433221100"],
+					"all": false
+				}
+			},
+			{
+				"name": "history-delete-all",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"all": true
+				}
+			},
+			{
+				"name": "fs-read-history",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "5",
+					"path": "/home/dev/project/src/main.rs",
+					"history": "00112233445566778899aabbccddeeff",
+					"mode": "text",
+					"limit": 1048576
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "git-log-without-limit",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"]
+				}
+			},
+			{
+				"name": "git-log-zero-limit",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 0
+				}
+			},
+			{
+				"name": "git-log-limit-past-bound",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 1001
+				}
+			},
+			{
+				"name": "git-log-empty-revisions",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": [],
+					"limit": 50
+				}
+			},
+			{
+				"name": "git-log-revision-option",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["--output=/tmp/log"],
+					"limit": 50
+				}
+			},
+			{
+				"name": "git-log-empty-author",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 50,
+					"author": ""
+				}
+			},
+			{
+				"name": "git-log-author-too-long-in-bytes",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 50,
+					"author": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "git-log-null-path",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 50,
+					"path": null
+				}
+			},
+			{
+				"name": "git-log-with-member",
+				"json": {
+					"op": "git.log",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revisions": ["refs/heads/main", "refs/remotes/origin/main"],
+					"limit": 50,
+					"reverse": true
+				}
+			},
+			{
+				"name": "git-blame-without-path",
+				"json": {
+					"op": "git.blame",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"ignoreWhitespace": true,
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-blame-short-commit",
+				"json": {
+					"op": "git.blame",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs",
+					"commit": "3f78685",
+					"ignoreWhitespace": true,
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-blame-uppercase-commit",
+				"json": {
+					"op": "git.blame",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"path": "/home/dev/project/src/main.rs",
+					"commit": "3F786850E387550FDAB836ED7E6DC881DE23001B",
+					"ignoreWhitespace": true,
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-changes-without-to",
+				"json": {
+					"op": "git.changes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"from": "89e6c98d92887913cadf06b2adb97f26cde4849b",
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-changes-symbolic-to",
+				"json": {
+					"op": "git.changes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"from": "89e6c98d92887913cadf06b2adb97f26cde4849b",
+					"to": "HEAD",
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-merge-base-without-second",
+				"json": {
+					"op": "git.merge-base",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"first": "main"
+				}
+			},
+			{
+				"name": "git-stashes-bad-cursor",
+				"json": {
+					"op": "git.stashes",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"cursor": "next"
+				}
+			},
+			{
+				"name": "git-checkout-without-request-id",
+				"json": {
+					"op": "git.checkout",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"repository": "/home/dev/project",
+					"revision": "main"
+				}
+			},
+			{
+				"name": "git-checkout-option-revision",
+				"json": {
+					"op": "git.checkout",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"revision": "-b"
+				}
+			},
+			{
+				"name": "git-branch-create-null-start",
+				"json": {
+					"op": "git.branch-create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/parser",
+					"start": null
+				}
+			},
+			{
+				"name": "git-branch-delete-force-text",
+				"json": {
+					"op": "git.branch-delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/parser",
+					"force": "yes"
+				}
+			},
+			{
+				"name": "git-branch-upstream-without-upstream",
+				"json": {
+					"op": "git.branch-upstream",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "main"
+				}
+			},
+			{
+				"name": "git-branch-delete-remote-without-remote",
+				"json": {
+					"op": "git.branch-delete-remote",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "feature/parser"
+				}
+			},
+			{
+				"name": "git-merge-without-revision",
+				"json": {
+					"op": "git.merge",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-abort-unknown-operation",
+				"json": {
+					"op": "git.abort",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"operation": "revert"
+				}
+			},
+			{
+				"name": "git-abort-camel-case",
+				"json": {
+					"op": "git.abort",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"operation": "cherryPick"
+				}
+			},
+			{
+				"name": "git-undo-commit-without-commit",
+				"json": {
+					"op": "git.undo-commit",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project"
+				}
+			},
+			{
+				"name": "git-stash-push-empty-message",
+				"json": {
+					"op": "git.stash-push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": ""
+				}
+			},
+			{
+				"name": "git-stash-push-message-too-long-in-bytes",
+				"json": {
+					"op": "git.stash-push",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "git-stash-apply-negative-index",
+				"json": {
+					"op": "git.stash-apply",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": -1,
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+					"staged": true
+				}
+			},
+			{
+				"name": "git-stash-apply-without-commit",
+				"json": {
+					"op": "git.stash-apply",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": 0,
+					"staged": true
+				}
+			},
+			{
+				"name": "git-stash-drop-fractional-index",
+				"json": {
+					"op": "git.stash-drop",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"index": 1.5,
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "git-stash-clear-with-name",
+				"json": {
+					"op": "git.stash-clear",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "stash@{0}"
+				}
+			},
+			{
+				"name": "git-tag-create-without-name",
+				"json": {
+					"op": "git.tag-create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"message": "Release"
+				}
+			},
+			{
+				"name": "git-remote-add-option-url",
+				"json": {
+					"op": "git.remote-add",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "upstream",
+					"url": "--upload-pack=touch"
+				}
+			},
+			{
+				"name": "git-remote-remove-nul-name",
+				"json": {
+					"op": "git.remote-remove",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"repository": "/home/dev/project",
+					"name": "up\u0000stream"
+				}
+			},
+			{
+				"name": "history-list-without-path",
+				"json": {
+					"op": "history.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "history-restore-zero-entry",
+				"json": {
+					"op": "history.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "00000000000000000000000000000000"
+				}
+			},
+			{
+				"name": "history-restore-short-entry",
+				"json": {
+					"op": "history.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "0011223344556677"
+				}
+			},
+			{
+				"name": "history-rename-empty-label",
+				"json": {
+					"op": "history.rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "00112233445566778899aabbccddeeff",
+					"label": ""
+				}
+			},
+			{
+				"name": "history-rename-label-too-long-in-bytes",
+				"json": {
+					"op": "history.rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entry": "00112233445566778899aabbccddeeff",
+					"label": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中"
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "history-delete-entries-and-all",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entries": ["00112233445566778899aabbccddeeff", "ffeeddccbbaa99887766554433221100"],
+					"all": true
+				}
+			},
+			{
+				"name": "history-delete-all-false",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"all": false
+				}
+			},
+			{
+				"name": "history-delete-path-without-entries",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "history-delete-entries-without-path",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"entries": ["00112233445566778899aabbccddeeff", "ffeeddccbbaa99887766554433221100"]
+				}
+			},
+			{
+				"name": "history-delete-nothing",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210"
+				}
+			},
+			{
+				"name": "history-delete-empty-entries",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entries": []
+				}
+			},
+			{
+				"name": "history-delete-past-bound",
+				"json": {
+					"op": "history.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"entries": [
+						"00000000000000000000000000000001",
+						"00000000000000000000000000000002",
+						"00000000000000000000000000000003",
+						"00000000000000000000000000000004",
+						"00000000000000000000000000000005",
+						"00000000000000000000000000000006",
+						"00000000000000000000000000000007",
+						"00000000000000000000000000000008",
+						"00000000000000000000000000000009",
+						"0000000000000000000000000000000a",
+						"0000000000000000000000000000000b",
+						"0000000000000000000000000000000c",
+						"0000000000000000000000000000000d",
+						"0000000000000000000000000000000e",
+						"0000000000000000000000000000000f",
+						"00000000000000000000000000000010",
+						"00000000000000000000000000000011",
+						"00000000000000000000000000000012",
+						"00000000000000000000000000000013",
+						"00000000000000000000000000000014",
+						"00000000000000000000000000000015",
+						"00000000000000000000000000000016",
+						"00000000000000000000000000000017",
+						"00000000000000000000000000000018",
+						"00000000000000000000000000000019",
+						"0000000000000000000000000000001a",
+						"0000000000000000000000000000001b",
+						"0000000000000000000000000000001c",
+						"0000000000000000000000000000001d",
+						"0000000000000000000000000000001e",
+						"0000000000000000000000000000001f",
+						"00000000000000000000000000000020",
+						"00000000000000000000000000000021",
+						"00000000000000000000000000000022",
+						"00000000000000000000000000000023",
+						"00000000000000000000000000000024",
+						"00000000000000000000000000000025",
+						"00000000000000000000000000000026",
+						"00000000000000000000000000000027",
+						"00000000000000000000000000000028",
+						"00000000000000000000000000000029",
+						"0000000000000000000000000000002a",
+						"0000000000000000000000000000002b",
+						"0000000000000000000000000000002c",
+						"0000000000000000000000000000002d",
+						"0000000000000000000000000000002e",
+						"0000000000000000000000000000002f",
+						"00000000000000000000000000000030",
+						"00000000000000000000000000000031",
+						"00000000000000000000000000000032",
+						"00000000000000000000000000000033"
+					]
+				}
+			},
+			{
+				"name": "fs-read-history-without-path",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "5",
+					"history": "00112233445566778899aabbccddeeff",
+					"mode": "text",
+					"limit": 1048576
+				}
+			},
+			{
+				"name": "fs-read-history-and-export",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "5",
+					"path": "/home/dev/project/src/main.rs",
+					"history": "00112233445566778899aabbccddeeff",
+					"mode": "text",
+					"limit": 1048576,
+					"export": "2",
+					"index": 4
+				}
+			},
+			{
+				"name": "fs-read-zero-history",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "5",
+					"path": "/home/dev/project/src/main.rs",
+					"history": "00000000000000000000000000000000",
+					"mode": "text",
+					"limit": 1048576
+				}
+			}
+		]
+	},
+	"replies": {
+		"valid": [
+			{
+				"name": "git-log",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					],
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-log-merge-with-statistics",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "2e65efe2a145dda7ee51d1741299f848e5bf752e",
+							"parents": [
+								"3f786850e387550fdab836ed7e6dc881de23001b",
+								"89e6c98d92887913cadf06b2adb97f26cde4849b"
+							],
+							"authorName": "林",
+							"authorEmail": "lin@example.com",
+							"authorTimeMs": -1000,
+							"commitTimeMs": 0,
+							"refs": [],
+							"message": "Merge branch feature/parser",
+							"messageCut": true,
+							"statistics": {
+								"files": 2,
+								"insertions": 30,
+								"deletions": 4
+							},
+							"path": "/home/dev/project/src/lib.rs"
+						},
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": [],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": [],
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-empty",
+				"op": "git.log",
+				"json": {
+					"commits": []
+				}
+			},
+			{
+				"name": "git-log-invalid-pattern",
+				"op": "git.log",
+				"json": {
+					"error": {
+						"code": "invalid-regex",
+						"detail": "fatal: command line, 'fix(': Unmatched ( or \\("
+					}
+				}
+			},
+			{
+				"name": "git-blame",
+				"op": "git.blame",
+				"json": {
+					"ranges": [
+						{
+							"start": 1,
+							"end": 3,
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+						},
+						{
+							"start": 4,
+							"end": 4,
+							"commit": "0000000000000000000000000000000000000000"
+						}
+					],
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"summary": "Fix the parser"
+						}
+					],
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-blame-empty-file",
+				"op": "git.blame",
+				"json": {
+					"ranges": [],
+					"commits": []
+				}
+			},
+			{
+				"name": "git-changes",
+				"op": "git.changes",
+				"json": {
+					"changes": [
+						{
+							"type": "renamed",
+							"path": "/home/dev/project/src/main.rs",
+							"original": "/home/dev/project/src/lib.rs",
+							"insertions": 3,
+							"deletions": 1
+						},
+						{
+							"type": "added",
+							"path": "/home/dev/project/README.md",
+							"insertions": 10,
+							"deletions": 0
+						},
+						{
+							"type": "modified",
+							"path": "/home/dev/project/logo.png"
+						},
+						{
+							"type": "deleted",
+							"path": "/home/dev/project/old.txt",
+							"insertions": 0,
+							"deletions": 7
+						}
+					],
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-merge-base",
+				"op": "git.merge-base",
+				"json": {
+					"commit": "89e6c98d92887913cadf06b2adb97f26cde4849b"
+				}
+			},
+			{
+				"name": "git-merge-base-unrelated",
+				"op": "git.merge-base",
+				"json": {}
+			},
+			{
+				"name": "git-stashes",
+				"op": "git.stashes",
+				"json": {
+					"stashes": [
+						{
+							"index": 0,
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": [
+								"89e6c98d92887913cadf06b2adb97f26cde4849b",
+								"2e65efe2a145dda7ee51d1741299f848e5bf752e"
+							],
+							"branch": "main",
+							"description": "WIP on main: 89e6c98 Fix the parser",
+							"wip": true,
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700000000
+						},
+						{
+							"index": 1,
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": [
+								"89e6c98d92887913cadf06b2adb97f26cde4849b",
+								"2e65efe2a145dda7ee51d1741299f848e5bf752e",
+								"3f786850e387550fdab836ed7e6dc881de23001b"
+							],
+							"branch": "main",
+							"description": "Before the 重构",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700000000
+						}
+					]
+				}
+			},
+			{
+				"name": "git-checkout",
+				"op": "git.checkout",
+				"json": {}
+			},
+			{
+				"name": "git-merge-conflict",
+				"op": "git.merge",
+				"json": {
+					"error": {
+						"code": "git-failed",
+						"gitErrorCode": "conflict",
+						"detail": "CONFLICT (content): Merge conflict in src/main.rs"
+					}
+				}
+			},
+			{
+				"name": "git-stash-push-nothing",
+				"op": "git.stash-push",
+				"json": {
+					"error": {
+						"code": "git-failed",
+						"gitErrorCode": "no-local-changes"
+					}
+				}
+			},
+			{
+				"name": "git-stash-drop-moved",
+				"op": "git.stash-drop",
+				"json": {
+					"error": {
+						"code": "stale-revision"
+					}
+				}
+			},
+			{
+				"name": "history-list",
+				"op": "history.list",
+				"json": {
+					"entries": [
+						{
+							"id": "00112233445566778899aabbccddeeff",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "ffeeddccbbaa99887766554433221100",
+							"source": "rename",
+							"label": "Before the 重构",
+							"timestamp": 1732700500000,
+							"size": 0
+						}
+					]
+				}
+			},
+			{
+				"name": "history-list-empty",
+				"op": "history.list",
+				"json": {
+					"entries": []
+				}
+			},
+			{
+				"name": "history-list-busy",
+				"op": "history.list",
+				"json": {
+					"error": {
+						"code": "busy"
+					}
+				}
+			},
+			{
+				"name": "history-restore",
+				"op": "history.restore",
+				"json": {}
+			},
+			{
+				"name": "history-restore-gone",
+				"op": "history.restore",
+				"json": {
+					"error": {
+						"code": "not-found"
+					}
+				}
+			},
+			{
+				"name": "history-delete",
+				"op": "history.delete",
+				"json": {}
+			}
+		],
+		"invalid": [
+			{
+				"name": "git-log-without-commits",
+				"op": "git.log",
+				"json": {}
+			},
+			{
+				"name": "git-log-commit-without-refs",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-short-parent",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-null-statistics",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token.",
+							"statistics": null
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-negative-insertions",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token.",
+							"statistics": {
+								"files": 1,
+								"insertions": -1,
+								"deletions": 0
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-time-past-safe-range",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "Ada Lovelace",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 9007199254740992,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					]
+				}
+			},
+			{
+				"name": "git-log-author-too-long-in-bytes",
+				"op": "git.log",
+				"json": {
+					"commits": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": ["89e6c98d92887913cadf06b2adb97f26cde4849b"],
+							"authorName": "中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中中",
+							"authorEmail": "ada@example.com",
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700100000,
+							"refs": ["HEAD -> refs/heads/main", "refs/remotes/origin/main", "tag: refs/tags/v1"],
+							"message": "Fix the parser\n\nThe lexer kept the last token."
+						}
+					]
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "git-blame-without-commits",
+				"op": "git.blame",
+				"json": {
+					"ranges": [
+						{
+							"start": 1,
+							"end": 3,
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+						},
+						{
+							"start": 4,
+							"end": 4,
+							"commit": "0000000000000000000000000000000000000000"
+						}
+					],
+					"cursor": "000102030405060708090a0b0c0d0e0f"
+				}
+			},
+			{
+				"name": "git-changes-copied",
+				"op": "git.changes",
+				"json": {
+					"changes": [
+						{
+							"type": "copied",
+							"path": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "git-changes-kind-member",
+				"op": "git.changes",
+				"json": {
+					"changes": [
+						{
+							"kind": "added",
+							"path": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "git-merge-base-null",
+				"op": "git.merge-base",
+				"json": {
+					"commit": null
+				}
+			},
+			{
+				"name": "git-stashes-without-index",
+				"op": "git.stashes",
+				"json": {
+					"stashes": [
+						{
+							"commit": "3f786850e387550fdab836ed7e6dc881de23001b",
+							"parents": [
+								"89e6c98d92887913cadf06b2adb97f26cde4849b",
+								"2e65efe2a145dda7ee51d1741299f848e5bf752e"
+							],
+							"branch": "main",
+							"description": "WIP on main: 89e6c98 Fix the parser",
+							"wip": true,
+							"authorTimeMs": 1732700000000,
+							"commitTimeMs": 1732700000000
+						}
+					]
+				}
+			},
+			{
+				"name": "git-checkout-with-member",
+				"op": "git.checkout",
+				"json": {
+					"commit": "3f786850e387550fdab836ed7e6dc881de23001b"
+				}
+			},
+			{
+				"name": "history-list-unknown-source",
+				"op": "history.list",
+				"json": {
+					"entries": [
+						{
+							"id": "00112233445566778899aabbccddeeff",
+							"source": "copy",
+							"timestamp": 1732700000000,
+							"size": 1024
+						}
+					]
+				}
+			},
+			{
+				"name": "history-list-empty-label",
+				"op": "history.list",
+				"json": {
+					"entries": [
+						{
+							"id": "00112233445566778899aabbccddeeff",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024,
+							"label": ""
+						}
+					]
+				}
+			},
+			{
+				"name": "history-list-zero-id",
+				"op": "history.list",
+				"json": {
+					"entries": [
+						{
+							"id": "00000000000000000000000000000000",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						}
+					]
+				}
+			},
+			{
+				"name": "history-list-past-bound",
+				"op": "history.list",
+				"json": {
+					"entries": [
+						{
+							"id": "00000000000000000000000000000001",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000002",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000003",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000004",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000005",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000006",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000007",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000008",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000009",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000a",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000b",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000c",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000d",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000e",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000000f",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000010",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000011",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000012",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000013",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000014",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000015",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000016",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000017",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000018",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000019",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001a",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001b",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001c",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001d",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001e",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000001f",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000020",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000021",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000022",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000023",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000024",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000025",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000026",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000027",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000028",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000029",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002a",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002b",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002c",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002d",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002e",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "0000000000000000000000000000002f",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000030",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000031",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000032",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						},
+						{
+							"id": "00000000000000000000000000000033",
+							"source": "save",
+							"timestamp": 1732700000000,
+							"size": 1024
+						}
+					]
+				}
+			},
+			{
+				"name": "history-restore-with-entry",
+				"op": "history.restore",
+				"json": {
+					"entry": "00112233445566778899aabbccddeeff"
+				}
+			}
+		]
+	}
+}

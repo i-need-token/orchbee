@@ -21,9 +21,9 @@ use std::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE,
     CONFIGURED_COMMAND_SOURCE_EXITED, CohortIdentity, ConnectionKind, Decision, DrainResult,
-    ExitResult, Extensions, FILES, FILES_EDIT, FILES_SEARCH, ProductVersion, RECONNECT, ReadError,
-    RequestKind, RequestName, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported,
-    encode_acceptor_frame, read_initiator_message,
+    ExitResult, Extensions, FILES, FILES_EDIT, FILES_HISTORY, FILES_SEARCH, ProductVersion,
+    RECONNECT, ReadError, RequestKind, RequestName, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED,
+    Unsupported, encode_acceptor_frame, read_initiator_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
@@ -117,13 +117,14 @@ impl ServerIdentity {
     }
 
     /// This identity for a Server that runs no File Bar, which therefore lists none of `files`,
-    /// `files-edit` and `files-search`.
+    /// `files-edit`, `files-history` and `files-search`.
     pub(crate) fn without_file_bar(mut self) -> Self {
         self.profile.capabilities = self
             .profile
             .capabilities
             .without(FILES)
             .without(FILES_EDIT)
+            .without(FILES_HISTORY)
             .without(FILES_SEARCH);
         self
     }

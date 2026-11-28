@@ -1,8 +1,9 @@
 //! The File Bar's wire contracts: OBFB, the records File Bar traffic carries inside the Client
-//! multiplex, with the strict JSON of every `files`, `files-edit` and `files-search` operation,
-//! and OBFL, the private link between a Server and the `orchbee-files` process it admitted. Values
-//! are validated at decoding, so a decoded value is valid wherever the protocol carries it.
-//! Callers own transport, deadlines, admission and scope; decoding a value grants no authority.
+//! multiplex, with the strict JSON of every `files`, `files-edit`, `files-history` and
+//! `files-search` operation, and OBFL, the private link between a Server and the `orchbee-files`
+//! process it admitted. Values are validated at decoding, so a decoded value is valid wherever the
+//! protocol carries it. Callers own transport, deadlines, admission and scope; decoding a value
+//! grants no authority.
 
 mod identity;
 mod json;
@@ -13,6 +14,7 @@ mod reply;
 mod request;
 mod value;
 
+pub use identity::HistoryEntryId;
 pub use identity::{
     CacheId, CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId,
     SearchId, SessionId, StashId, TransferId, WorkspaceId,
@@ -36,6 +38,11 @@ pub use record::{
     check_files_record, decode_files_record, encode_files_record, is_files_record,
 };
 pub use reply::{
+    BlameCommit, BlameRange, GitBlameResult, GitChange, GitChangeKind, GitChangesResult,
+    GitLogCommit, GitLogResult, GitMergeBaseResult, GitStash, GitStashesResult, GitStatistics,
+    HistoryEntry, HistoryListResult, HistorySource,
+};
+pub use reply::{
     Descendant, Empty, Entry, EntryKind, ErrorCode, ErrorReply, ExportEntry, ExportFacts,
     ExportKind, FilesError, FilesReply, FsDeleteResult, FsEntryResult, FsExistsResult,
     FsExportEntriesResult, FsGrantResult, FsImportFileResult, FsImportResult, FsListResult,
@@ -49,6 +56,13 @@ pub use reply::{
 pub use reply::{
     FoundFile, SearchContextLine, SearchFile, SearchFindFilesResult, SearchMatch, SearchNextResult,
     SearchRange, SearchSpan,
+};
+pub use request::{
+    AbortOperation, GitAbort, GitBlame, GitBranchCreate, GitBranchDelete, GitBranchUpstream,
+    GitChanges, GitCheckout, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
+    GitRemoteRef, GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
+    GitUndoCommit, HistoryDelete, HistoryLabel, HistoryRename, HistoryRestore, HistoryTarget,
+    LogLimit, LogPattern, RepositoryMutation,
 };
 pub use request::{
     ChunkLength, CleanMode, ClientFocus, CommitAll, CommitMessage, Conflict, CreateKind,

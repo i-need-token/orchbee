@@ -1,11 +1,12 @@
 # File Bar Protocol
 
 Rust wire contracts for the File Bar. `orchbee-server`, `orchbee-files` and the OBWP multiplex of
-`orchbee-workbench-protocol` are its consumers. It owns the Rust binding of the [File Bar contract](../../schemas/files/README.md), OBFB records and
-the JSON of every `files`, `files-edit` and `files-search` operation, and OBFL, the private link
-between a Server and the `orchbee-files` process that Server admitted. It never opens a
-connection, chooses an endpoint, compares peer credentials, runs a file operation, or decides
-scope; a decoded value grants no authority.
+`orchbee-workbench-protocol` are its consumers. It owns the Rust binding of the
+[File Bar contract](../../schemas/files/README.md), OBFB records and the JSON of every `files`,
+`files-edit`, `files-history` and `files-search` operation, and OBFL, the private link between a
+Server and the `orchbee-files` process that Server admitted. It never opens a connection, chooses
+an endpoint, compares peer credentials, runs a file operation, or decides scope; a decoded value
+grants no authority.
 
 ## Client records
 

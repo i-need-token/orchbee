@@ -415,7 +415,7 @@
 			"additionalProperties": false
 		},
 		"fsReadRequest": {
-			"description": "Reads `path`, or the file entry `index` of an open export.",
+			"description": "Reads `path`, the file entry `index` of an open export, or the Local History entry `history` of `path`.",
 			"type": "object",
 			"properties": {
 				"op": {
@@ -436,6 +436,10 @@
 				},
 				"index": {
 					"$ref": "#/$defs/safeInteger"
+				},
+				"history": {
+					"description": "The Local History entry of `path` whose content is read, under `files-history`.",
+					"$ref": "#/$defs/historyEntryId"
 				},
 				"mode": {
 					"$ref": "#/$defs/readMode"
@@ -463,7 +467,8 @@
 			],
 			"dependentRequired": {
 				"export": ["index"],
-				"index": ["export"]
+				"index": ["export"],
+				"history": ["path"]
 			},
 			"additionalProperties": false
 		},
@@ -1164,7 +1169,7 @@
 					"type": "boolean"
 				},
 				"history": {
-					"description": "Why the content is written, which Local History records once `files-history` serves it.",
+					"description": "Why the content is written, which Local History records.",
 					"enum": ["save", "restore"]
 				}
 			},
@@ -1772,6 +1777,703 @@
 			"required": ["op", "workspaceId", "cache"],
 			"additionalProperties": false
 		},
+		"historyEntryId": {
+			"title": "HistoryEntryId",
+			"description": "A Local History entry, which orchbee-files chooses when it records it.",
+			"$ref": "#/$defs/identity"
+		},
+		"historyLabel": {
+			"description": "A Local History entry's name: at most 1,024 UTF-8 bytes, no NUL.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"pattern": "^[^\\u0000]*$"
+		},
+		"logPattern": {
+			"description": "A pattern `git.log` matches: at most 1,024 UTF-8 bytes, no NUL.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"pattern": "^[^\\u0000]*$"
+		},
+		"gitMessage": {
+			"description": "A stash or tag message: at most 16 KiB of UTF-8, no NUL.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 16384,
+			"pattern": "^[^\\u0000]*$"
+		},
+		"gitLogRequest": {
+			"description": "One page of commits, in topological order when it walks named revisions or every reference, else in Git's default order.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.log"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"revisions": {
+					"description": "The revisions to walk from; absent walks HEAD unless `all` holds.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitName"
+					},
+					"minItems": 1,
+					"maxItems": 256
+				},
+				"all": {
+					"description": "Also walk every branch, remote branch and tag. Absent means false.",
+					"type": "boolean"
+				},
+				"path": {
+					"description": "List only the commits that change this file or folder of the repository; its toplevel lists every commit.",
+					"$ref": "#/$defs/path"
+				},
+				"follow": {
+					"description": "Follow the file at `path` through renames and report its path in each commit; orchbee-files refuses it without a file. Absent means false.",
+					"type": "boolean"
+				},
+				"author": {
+					"description": "List only the commits whose author matches.",
+					"$ref": "#/$defs/logPattern"
+				},
+				"grep": {
+					"description": "List only the commits whose message matches this extended regular expression, ignoring case.",
+					"$ref": "#/$defs/logPattern"
+				},
+				"statistics": {
+					"description": "Report how many files and lines each commit changed. Absent means false.",
+					"type": "boolean"
+				},
+				"limit": {
+					"description": "The most commits the page holds; fewer when they would pass the Result bound.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "limit"],
+			"additionalProperties": false
+		},
+		"gitBlameRequest": {
+			"description": "One page of the commits that last changed each line of `path`; each page blames afresh.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.blame"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"commit": {
+					"description": "The commit whose version is blamed; absent blames the working tree.",
+					"$ref": "#/$defs/commit"
+				},
+				"ignoreWhitespace": {
+					"description": "Ignore whitespace changes. Absent means false.",
+					"type": "boolean"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "path"],
+			"additionalProperties": false
+		},
+		"gitChangesRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.changes"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"from": {
+					"description": "The earlier commit, whose merge base with `to` the changes start from; absent lists everything `to` holds.",
+					"$ref": "#/$defs/commit"
+				},
+				"to": {
+					"$ref": "#/$defs/commit"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "to"],
+			"additionalProperties": false
+		},
+		"gitMergeBaseRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.merge-base"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"first": {
+					"$ref": "#/$defs/gitName"
+				},
+				"second": {
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "repository", "first", "second"],
+			"additionalProperties": false
+		},
+		"gitStashesRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.stashes"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "repository"],
+			"additionalProperties": false
+		},
+		"repositoryMutationRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.stash-clear"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository"],
+			"additionalProperties": false
+		},
+		"gitNamedRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.branch-rename", "git.tag-delete", "git.remote-remove"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"description": "The current branch's new name, the tag, or the remote.",
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name"],
+			"additionalProperties": false
+		},
+		"gitRevisionRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.merge", "git.rebase", "git.cherry-pick"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"revision": {
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "revision"],
+			"additionalProperties": false
+		},
+		"gitRemoteRefRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.branch-delete-remote", "git.tag-delete-remote"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"remote": {
+					"$ref": "#/$defs/gitName"
+				},
+				"name": {
+					"description": "The branch or tag without its `refs/heads/` or `refs/tags/` prefix.",
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "remote", "name"],
+			"additionalProperties": false
+		},
+		"gitCheckoutRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.checkout"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"revision": {
+					"description": "A branch, a remote branch or a commit.",
+					"$ref": "#/$defs/gitName"
+				},
+				"detached": {
+					"description": "Check out its commit with HEAD detached. Absent means false.",
+					"type": "boolean"
+				},
+				"track": {
+					"description": "Create a local branch that tracks the remote branch `revision` names. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "revision"],
+			"additionalProperties": false
+		},
+		"gitBranchCreateRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.branch-create"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"start": {
+					"description": "The revision the branch starts at; absent starts it at HEAD.",
+					"$ref": "#/$defs/gitName"
+				},
+				"checkout": {
+					"description": "Check the branch out. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name"],
+			"additionalProperties": false
+		},
+		"gitBranchDeleteRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.branch-delete"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"force": {
+					"description": "Delete the branch even when it is not merged. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name"],
+			"additionalProperties": false
+		},
+		"gitBranchUpstreamRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.branch-upstream"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"upstream": {
+					"description": "The remote branch it tracks from now on, such as `origin/main`.",
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name", "upstream"],
+			"additionalProperties": false
+		},
+		"gitAbortRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.abort"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"operation": {
+					"enum": ["merge", "rebase", "cherry-pick"]
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "operation"],
+			"additionalProperties": false
+		},
+		"gitUndoCommitRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.undo-commit"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"commit": {
+					"description": "The commit HEAD must still name; another is `stale-revision`.",
+					"$ref": "#/$defs/commit"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "commit"],
+			"additionalProperties": false
+		},
+		"gitStashPushRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.stash-push"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"message": {
+					"$ref": "#/$defs/gitMessage"
+				},
+				"untracked": {
+					"description": "Also stash untracked files. Absent means false.",
+					"type": "boolean"
+				},
+				"staged": {
+					"description": "Stash only the staged changes. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository"],
+			"additionalProperties": false
+		},
+		"gitStashApplyRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["git.stash-apply", "git.stash-pop"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"index": {
+					"description": "`n` of `stash@{n}`.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"commit": {
+					"description": "The commit the entry must still be; another is `stale-revision`.",
+					"$ref": "#/$defs/commit"
+				},
+				"staged": {
+					"description": "Restore the staged changes as staged. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "index", "commit"],
+			"additionalProperties": false
+		},
+		"gitStashDropRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.stash-drop"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"index": {
+					"description": "`n` of `stash@{n}`.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"commit": {
+					"description": "The commit the entry must still be; another is `stale-revision`.",
+					"$ref": "#/$defs/commit"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "index", "commit"],
+			"additionalProperties": false
+		},
+		"gitTagCreateRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.tag-create"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"message": {
+					"description": "The message of an annotated tag; absent creates a lightweight one.",
+					"$ref": "#/$defs/gitMessage"
+				},
+				"target": {
+					"description": "The revision the tag names; absent names HEAD.",
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name"],
+			"additionalProperties": false
+		},
+		"gitRemoteAddRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.remote-add"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"repository": {
+					"$ref": "#/$defs/path"
+				},
+				"name": {
+					"$ref": "#/$defs/gitName"
+				},
+				"url": {
+					"description": "The remote's URL, which never starts with `-`.",
+					"$ref": "#/$defs/gitName"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "repository", "name", "url"],
+			"additionalProperties": false
+		},
+		"historyListRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "history.list"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "path"],
+			"additionalProperties": false
+		},
+		"historyRestoreRequest": {
+			"description": "Copies the entry's content over `path`, then records the restore.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "history.restore"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"entry": {
+					"$ref": "#/$defs/historyEntryId"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "path", "entry"],
+			"additionalProperties": false
+		},
+		"historyRenameRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "history.rename"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"entry": {
+					"$ref": "#/$defs/historyEntryId"
+				},
+				"label": {
+					"$ref": "#/$defs/historyLabel"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "path", "entry", "label"],
+			"additionalProperties": false
+		},
+		"historyDeleteRequest": {
+			"description": "Deletes `entries` of `path`, or every entry with `all`.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "history.delete"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"entries": {
+					"description": "Entries of `path`; one already gone is skipped.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/historyEntryId"
+					},
+					"minItems": 1,
+					"maxItems": 50
+				},
+				"all": {
+					"description": "Delete every entry of every file. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId"],
+			"dependentRequired": {
+				"path": ["entries"],
+				"entries": ["path"]
+			},
+			"oneOf": [
+				{
+					"required": ["path"],
+					"properties": {
+						"all": {
+							"const": false
+						}
+					}
+				},
+				{
+					"required": ["all"],
+					"properties": {
+						"all": {
+							"const": true
+						}
+					},
+					"not": {
+						"required": ["path"]
+					}
+				}
+			],
+			"additionalProperties": false
+		},
 		"request": {
 			"description": "A File Bar Request record's JSON body.",
 			"oneOf": [
@@ -1921,6 +2623,78 @@
 				},
 				{
 					"$ref": "#/$defs/searchCloseCacheRequest"
+				},
+				{
+					"$ref": "#/$defs/gitLogRequest"
+				},
+				{
+					"$ref": "#/$defs/gitBlameRequest"
+				},
+				{
+					"$ref": "#/$defs/gitChangesRequest"
+				},
+				{
+					"$ref": "#/$defs/gitMergeBaseRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStashesRequest"
+				},
+				{
+					"$ref": "#/$defs/repositoryMutationRequest"
+				},
+				{
+					"$ref": "#/$defs/gitNamedRequest"
+				},
+				{
+					"$ref": "#/$defs/gitRevisionRequest"
+				},
+				{
+					"$ref": "#/$defs/gitRemoteRefRequest"
+				},
+				{
+					"$ref": "#/$defs/gitCheckoutRequest"
+				},
+				{
+					"$ref": "#/$defs/gitBranchCreateRequest"
+				},
+				{
+					"$ref": "#/$defs/gitBranchDeleteRequest"
+				},
+				{
+					"$ref": "#/$defs/gitBranchUpstreamRequest"
+				},
+				{
+					"$ref": "#/$defs/gitAbortRequest"
+				},
+				{
+					"$ref": "#/$defs/gitUndoCommitRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStashPushRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStashApplyRequest"
+				},
+				{
+					"$ref": "#/$defs/gitStashDropRequest"
+				},
+				{
+					"$ref": "#/$defs/gitTagCreateRequest"
+				},
+				{
+					"$ref": "#/$defs/gitRemoteAddRequest"
+				},
+				{
+					"$ref": "#/$defs/historyListRequest"
+				},
+				{
+					"$ref": "#/$defs/historyRestoreRequest"
+				},
+				{
+					"$ref": "#/$defs/historyRenameRequest"
+				},
+				{
+					"$ref": "#/$defs/historyDeleteRequest"
 				}
 			]
 		},
@@ -2768,6 +3542,361 @@
 				}
 			},
 			"required": ["results", "truncated", "limitHit"],
+			"additionalProperties": false
+		},
+		"timeMs": {
+			"description": "A time in whole milliseconds since the Unix epoch.",
+			"type": "integer",
+			"minimum": -9007199254740991,
+			"maximum": 9007199254740991
+		},
+		"gitStatistics": {
+			"type": "object",
+			"properties": {
+				"files": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"insertions": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"deletions": {
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["files", "insertions", "deletions"],
+			"additionalProperties": false
+		},
+		"gitLogCommit": {
+			"type": "object",
+			"properties": {
+				"commit": {
+					"$ref": "#/$defs/commit"
+				},
+				"parents": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/commit"
+					},
+					"minItems": 0,
+					"maxItems": 256
+				},
+				"authorName": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"authorEmail": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"authorTimeMs": {
+					"$ref": "#/$defs/timeMs"
+				},
+				"commitTimeMs": {
+					"$ref": "#/$defs/timeMs"
+				},
+				"refs": {
+					"description": "The references at the commit as Git decorates them in full, such as `HEAD -> refs/heads/main` and `tag: refs/tags/v1`.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 1024,
+						"pattern": "^[^\\u0000]*$"
+					},
+					"minItems": 0,
+					"maxItems": 256
+				},
+				"message": {
+					"description": "The raw message without its last line end.",
+					"type": "string",
+					"maxLength": 65536,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"messageCut": {
+					"description": "The message was longer and is cut. Absent means false.",
+					"type": "boolean"
+				},
+				"statistics": {
+					"description": "What the commit changed, when the request asked; a merge's are its first parent's diff.",
+					"$ref": "#/$defs/gitStatistics"
+				},
+				"path": {
+					"description": "The followed file's path in this commit.",
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": [
+				"commit",
+				"parents",
+				"authorName",
+				"authorEmail",
+				"authorTimeMs",
+				"commitTimeMs",
+				"refs",
+				"message"
+			],
+			"additionalProperties": false
+		},
+		"gitLogResult": {
+			"type": "object",
+			"properties": {
+				"commits": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitLogCommit"
+					},
+					"minItems": 0,
+					"maxItems": 1000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["commits"],
+			"additionalProperties": false
+		},
+		"blameRange": {
+			"type": "object",
+			"properties": {
+				"start": {
+					"description": "The first line, numbered from 1.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"end": {
+					"description": "The last line, included.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"commit": {
+					"description": "The commit; the all-zero name holds the lines no commit holds.",
+					"$ref": "#/$defs/commit"
+				}
+			},
+			"required": ["start", "end", "commit"],
+			"additionalProperties": false
+		},
+		"blameCommit": {
+			"type": "object",
+			"properties": {
+				"commit": {
+					"$ref": "#/$defs/commit"
+				},
+				"authorName": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"authorEmail": {
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"authorTimeMs": {
+					"$ref": "#/$defs/timeMs"
+				},
+				"summary": {
+					"description": "The first line of its message.",
+					"type": "string",
+					"maxLength": 65536,
+					"pattern": "^[^\\u0000]*$"
+				}
+			},
+			"required": ["commit", "authorName", "authorEmail", "authorTimeMs", "summary"],
+			"additionalProperties": false
+		},
+		"gitBlameResult": {
+			"type": "object",
+			"properties": {
+				"ranges": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/blameRange"
+					},
+					"minItems": 0,
+					"maxItems": 10000
+				},
+				"commits": {
+					"description": "Each commit the page's ranges name, once.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/blameCommit"
+					},
+					"minItems": 0,
+					"maxItems": 10000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["ranges", "commits"],
+			"additionalProperties": false
+		},
+		"gitChange": {
+			"type": "object",
+			"properties": {
+				"type": {
+					"enum": ["added", "modified", "deleted", "renamed"]
+				},
+				"path": {
+					"description": "The path in the later commit; a deleted path's in the earlier one.",
+					"$ref": "#/$defs/path"
+				},
+				"original": {
+					"description": "A renamed path's path in the earlier commit.",
+					"$ref": "#/$defs/path"
+				},
+				"insertions": {
+					"description": "Lines added; absent for a binary file.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"deletions": {
+					"description": "Lines removed; absent for a binary file.",
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["type", "path"],
+			"additionalProperties": false
+		},
+		"gitChangesResult": {
+			"type": "object",
+			"properties": {
+				"changes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitChange"
+					},
+					"minItems": 0,
+					"maxItems": 2000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["changes"],
+			"additionalProperties": false
+		},
+		"gitMergeBaseResult": {
+			"type": "object",
+			"properties": {
+				"commit": {
+					"description": "The merge base; absent when the histories never meet.",
+					"$ref": "#/$defs/commit"
+				}
+			},
+			"required": [],
+			"additionalProperties": false
+		},
+		"gitStash": {
+			"type": "object",
+			"properties": {
+				"index": {
+					"description": "`n` of `stash@{n}`.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"commit": {
+					"$ref": "#/$defs/commit"
+				},
+				"parents": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/commit"
+					},
+					"minItems": 0,
+					"maxItems": 256
+				},
+				"branch": {
+					"description": "The branch the stash was taken on.",
+					"type": "string",
+					"maxLength": 1024,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"description": {
+					"description": "Its message, or HEAD's commit and subject when it was taken without one.",
+					"type": "string",
+					"maxLength": 65536,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"wip": {
+					"description": "It was taken without a message. Absent means false.",
+					"type": "boolean"
+				},
+				"authorTimeMs": {
+					"$ref": "#/$defs/timeMs"
+				},
+				"commitTimeMs": {
+					"$ref": "#/$defs/timeMs"
+				}
+			},
+			"required": [
+				"index",
+				"commit",
+				"parents",
+				"branch",
+				"description",
+				"authorTimeMs",
+				"commitTimeMs"
+			],
+			"additionalProperties": false
+		},
+		"gitStashesResult": {
+			"type": "object",
+			"properties": {
+				"stashes": {
+					"description": "Newest first.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/gitStash"
+					},
+					"minItems": 0,
+					"maxItems": 1000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["stashes"],
+			"additionalProperties": false
+		},
+		"historyEntry": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"$ref": "#/$defs/historyEntryId"
+				},
+				"source": {
+					"description": "How the entry came to be: a save, a restore, a move to another folder, or a rename in its folder.",
+					"enum": ["save", "restore", "move", "rename"]
+				},
+				"label": {
+					"description": "The name `history.rename` gave it.",
+					"$ref": "#/$defs/historyLabel"
+				},
+				"timestamp": {
+					"description": "When the file had this content.",
+					"$ref": "#/$defs/timeMs"
+				},
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				}
+			},
+			"required": ["id", "source", "timestamp", "size"],
+			"additionalProperties": false
+		},
+		"historyListResult": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"description": "Oldest first.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/historyEntry"
+					},
+					"minItems": 0,
+					"maxItems": 50
+				}
+			},
+			"required": ["entries"],
 			"additionalProperties": false
 		},
 		"root": {

@@ -5,6 +5,7 @@
 //! `orchbee-files` when the operation starts.
 
 mod edit;
+mod history;
 mod search;
 
 pub use edit::{
@@ -13,7 +14,14 @@ pub use edit::{
     FsTransfer, FsWrite, ImportItem, ImportKind, PickerList, PickerRequest, WriteHistory,
     WritePrecondition,
 };
-use orchbee_connection_handshake::{FILES, FILES_EDIT, FILES_SEARCH};
+pub use history::{
+    AbortOperation, GitAbort, GitBlame, GitBranchCreate, GitBranchDelete, GitBranchUpstream,
+    GitChanges, GitCheckout, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
+    GitRemoteRef, GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
+    GitUndoCommit, HistoryDelete, HistoryLabel, HistoryRename, HistoryRestore, HistoryTarget,
+    LogLimit, LogPattern, RepositoryMutation,
+};
+use orchbee_connection_handshake::{FILES, FILES_EDIT, FILES_HISTORY, FILES_SEARCH};
 pub use search::{
     SearchCloseCache, SearchFindFiles, SearchFolder, SearchGlob, SearchPreview, SearchRequest,
     SearchText,
@@ -21,7 +29,7 @@ pub use search::{
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    identity::{PromptId, RequestId, SessionId, TransferId, WorkspaceId},
+    identity::{HistoryEntryId, PromptId, RequestId, SessionId, TransferId, WorkspaceId},
     json::{read_value, strict_object},
     link::GrantClass,
     value::{
@@ -42,6 +50,9 @@ pub enum FilesCapability {
     /// `files-search`, batch ③: text search, and Quick Open's file lists, typed paths and picked
     /// files.
     FilesSearch,
+    /// `files-history`, batch ④: Local History, and the Git history, blame, branch, merge,
+    /// rebase, cherry-pick, stash, tag and remote operations.
+    FilesHistory,
 }
 
 impl FilesCapability {
@@ -52,6 +63,7 @@ impl FilesCapability {
             Self::Files => FILES,
             Self::FilesEdit => FILES_EDIT,
             Self::FilesSearch => FILES_SEARCH,
+            Self::FilesHistory => FILES_HISTORY,
         }
     }
 }
@@ -116,8 +128,8 @@ macro_rules! operations {
                 Self::ALL.iter().copied().find(|operation| operation.name() == name)
             }
 
-            /// The capability that adds the operation; a request may need `files-edit` or
-            /// `files-search` beyond it, as [`FilesRequest::capability`] says.
+            /// The capability that adds the operation; a request may need `files-edit`,
+            /// `files-search` or `files-history` beyond it, as [`FilesRequest::capability`] says.
             #[must_use]
             pub const fn capability(self) -> FilesCapability {
                 match self {
@@ -182,7 +194,7 @@ macro_rules! operations {
 impl FilesRequest {
     /// The capability the request needs: its operation's, or the one that adds what a `files`
     /// operation names: `files-edit` for a Save As destination or an export, `files-search` for
-    /// a path typed or picked in Quick Open.
+    /// a path typed or picked in Quick Open, and `files-history` for a Local History entry.
     #[must_use]
     pub const fn capability(&self) -> FilesCapability {
         match self {
@@ -202,6 +214,10 @@ impl FilesRequest {
                 source: Some(StatSource::QuickOpen),
                 ..
             }) => FilesCapability::FilesSearch,
+            Self::FsRead(FsRead {
+                source: ReadSource::History { .. },
+                ..
+            }) => FilesCapability::FilesHistory,
             request => request.operation().capability(),
         }
     }
@@ -220,7 +236,7 @@ operations! {
     FsGrant(FsGrant) = "fs.grant", Files, Request, TerminalCreate, false;
     /// Withdraws opened-file grants.
     FsUngrant(PathsRequest) = "fs.ungrant", Files, Request, TerminalCreate, true;
-    /// Opens a read transfer of a file, or of one file of an export.
+    /// Opens a read transfer of a file, of one file of an export, or of a Local History entry.
     FsRead(FsRead) = "fs.read", Files, Request, TerminalCreate, true;
     /// One chunk of an open read transfer.
     FsReadChunk(FsReadChunk) = "fs.read-chunk", Files, Request, TerminalCreate, true;
@@ -316,6 +332,72 @@ operations! {
     PickerList(PickerList) = "picker.list", FilesEdit, Request, TerminalCreate, false;
     /// Ends a picker session.
     PickerClose(PickerRequest) = "picker.close", FilesEdit, Request, TerminalCreate, false;
+    /// One page of a repository's commits.
+    GitLog(GitLog) = "git.log", FilesHistory, Request, TerminalCreate, false;
+    /// One page of which commit last changed each line of a file.
+    GitBlame(GitBlame) = "git.blame", FilesHistory, Request, TerminalCreate, false;
+    /// One page of the paths that changed from one commit to another.
+    GitChanges(GitChanges) = "git.changes", FilesHistory, Request, TerminalCreate, false;
+    /// The best common ancestor of two revisions.
+    GitMergeBase(GitMergeBase) = "git.merge-base", FilesHistory, Request, TerminalCreate, false;
+    /// One page of the stash list.
+    GitStashes(GitStashes) = "git.stashes", FilesHistory, Request, TerminalCreate, false;
+    /// Checks out a branch, a remote branch to track, or a commit.
+    GitCheckout(GitCheckout) = "git.checkout", FilesHistory, Request, Lifecycle, false;
+    /// Creates a branch.
+    GitBranchCreate(GitBranchCreate) = "git.branch-create", FilesHistory, Request, Lifecycle,
+        false;
+    /// Deletes a branch.
+    GitBranchDelete(GitBranchDelete) = "git.branch-delete", FilesHistory, Request, Lifecycle,
+        false;
+    /// Renames the current branch.
+    GitBranchRename(GitNamed) = "git.branch-rename", FilesHistory, Request, Lifecycle, false;
+    /// Sets the remote branch a branch tracks.
+    GitBranchUpstream(GitBranchUpstream) = "git.branch-upstream", FilesHistory, Request,
+        Lifecycle, false;
+    /// Deletes a branch on a remote.
+    GitBranchDeleteRemote(GitRemoteRef) = "git.branch-delete-remote", FilesHistory, Request,
+        Lifecycle, false;
+    /// Merges a revision into the current branch.
+    GitMerge(GitRevision) = "git.merge", FilesHistory, Request, Lifecycle, false;
+    /// Rebases the current branch onto a revision.
+    GitRebase(GitRevision) = "git.rebase", FilesHistory, Request, Lifecycle, false;
+    /// Applies a commit to the current branch.
+    GitCherryPick(GitRevision) = "git.cherry-pick", FilesHistory, Request, Lifecycle, false;
+    /// Ends a merge, rebase or cherry-pick that stopped.
+    GitAbort(GitAbort) = "git.abort", FilesHistory, Request, Lifecycle, false;
+    /// Undoes the last commit, keeping its changes staged.
+    GitUndoCommit(GitUndoCommit) = "git.undo-commit", FilesHistory, Request, Lifecycle, false;
+    /// Stashes the working tree's changes.
+    GitStashPush(GitStashPush) = "git.stash-push", FilesHistory, Request, Lifecycle, false;
+    /// Applies a stash and keeps it.
+    GitStashApply(GitStashApply) = "git.stash-apply", FilesHistory, Request, Lifecycle, false;
+    /// Applies a stash and drops it.
+    GitStashPop(GitStashApply) = "git.stash-pop", FilesHistory, Request, Lifecycle, false;
+    /// Drops a stash.
+    GitStashDrop(GitStashDrop) = "git.stash-drop", FilesHistory, Request, Lifecycle, false;
+    /// Drops every stash.
+    GitStashClear(RepositoryMutation) = "git.stash-clear", FilesHistory, Request, Lifecycle,
+        false;
+    /// Creates a tag.
+    GitTagCreate(GitTagCreate) = "git.tag-create", FilesHistory, Request, Lifecycle, false;
+    /// Deletes a tag.
+    GitTagDelete(GitNamed) = "git.tag-delete", FilesHistory, Request, Lifecycle, false;
+    /// Deletes a tag on a remote.
+    GitTagDeleteRemote(GitRemoteRef) = "git.tag-delete-remote", FilesHistory, Request,
+        Lifecycle, false;
+    /// Adds a remote.
+    GitRemoteAdd(GitRemoteAdd) = "git.remote-add", FilesHistory, Request, Lifecycle, false;
+    /// Removes a remote.
+    GitRemoteRemove(GitNamed) = "git.remote-remove", FilesHistory, Request, Lifecycle, false;
+    /// A file's Local History entries.
+    HistoryList(PathRequest) = "history.list", FilesHistory, Request, TerminalCreate, true;
+    /// Copies a Local History entry's content over its file.
+    HistoryRestore(HistoryRestore) = "history.restore", FilesHistory, Request, Lifecycle, true;
+    /// Names a Local History entry.
+    HistoryRename(HistoryRename) = "history.rename", FilesHistory, Request, Lifecycle, true;
+    /// Deletes Local History entries of one file, or every entry.
+    HistoryDelete(HistoryDelete) = "history.delete", FilesHistory, Request, Lifecycle, true;
     /// Starts a text search, whose results `search.next` takes.
     SearchText(SearchText) = "search.text", FilesSearch, Request, TerminalCreate, false;
     /// The next batch of a text search's results.
@@ -534,6 +616,14 @@ pub enum ReadSource {
         /// The entry's number.
         index: SafeInteger,
     },
+    /// The content a Local History entry of the file at `path` keeps, which `files-history`
+    /// adds.
+    History {
+        /// The file.
+        path: FilePath,
+        /// The entry.
+        entry: HistoryEntryId,
+    },
 }
 
 /// `fs.read`.
@@ -579,6 +669,12 @@ struct WireFsRead {
         skip_serializing_if = "Option::is_none"
     )]
     index: Option<SafeInteger>,
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    history: Option<HistoryEntryId>,
     mode: ReadMode,
     #[serde(
         default,
@@ -595,9 +691,10 @@ impl TryFrom<WireFsRead> for FsRead {
     type Error = InvalidValue;
 
     fn try_from(wire: WireFsRead) -> Result<Self, InvalidValue> {
-        let source = match (wire.path, wire.export, wire.index) {
-            (Some(path), None, None) => ReadSource::Path(path),
-            (None, Some(export), Some(index)) => ReadSource::Export { export, index },
+        let source = match (wire.path, wire.export, wire.index, wire.history) {
+            (Some(path), None, None, None) => ReadSource::Path(path),
+            (None, Some(export), Some(index), None) => ReadSource::Export { export, index },
+            (Some(path), None, None, Some(entry)) => ReadSource::History { path, entry },
             _ => return Err(InvalidValue),
         };
         Ok(Self {
@@ -614,9 +711,10 @@ impl TryFrom<WireFsRead> for FsRead {
 
 impl From<FsRead> for WireFsRead {
     fn from(read: FsRead) -> Self {
-        let (path, export, index) = match read.source {
-            ReadSource::Path(path) => (Some(path), None, None),
-            ReadSource::Export { export, index } => (None, Some(export), Some(index)),
+        let (path, export, index, history) = match read.source {
+            ReadSource::Path(path) => (Some(path), None, None, None),
+            ReadSource::Export { export, index } => (None, Some(export), Some(index), None),
+            ReadSource::History { path, entry } => (Some(path), None, None, Some(entry)),
         };
         Self {
             workspace_id: read.workspace_id,
@@ -624,6 +722,7 @@ impl From<FsRead> for WireFsRead {
             path,
             export,
             index,
+            history,
             mode: read.mode,
             encoding: read.encoding,
             force_text: read.force_text,

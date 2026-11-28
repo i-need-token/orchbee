@@ -1504,8 +1504,8 @@ Server has the serving Worker start on the first File Bar call
 ([Worker](../orchbee-worker/README.md#orchbee-files-process)). `file_bar::FileBar`, owned by
 `LocalTerminalService`, starts with a managed Session before its Client listener opens and stops
 with its background jobs. The File Bar is unfinished: a build for the release environment neither
-offers nor lists the `files`, `files-edit` and `files-search` capabilities and never starts the
-process, and an unmanaged Server lists none of them.
+offers nor lists the `files`, `files-edit`, `files-history` and `files-search` capabilities and
+never starts the process, and an unmanaged Server lists none of them.
 
 Each start binds a one-shot endpoint in the runtime directory, a pipe on Windows and a `0600`
 socket on macOS and Linux, and draws a fresh 256-bit token that reaches the process only through
@@ -1537,16 +1537,16 @@ once; a turn that finishes while no process serves is not passed on.
 A connection whose handshake answer lists `files` admits OBFB records on its carrier and relays its
 File Bar streams; on any other connection such a record ends the connection. The Server reads a
 stream's request only for its operation, the capability it needs, its Workspace and its grant
-class, never parses a Put, and passes the record on unchanged. A request that needs a capability
-the connection's answer does not list, `files-edit` or `files-search`, closes as unsupported.
-Reads need the connection's terminal-create grant, and mutations, Puts and prompt answers its
-lifecycle grant as well; a call without them is answered `denied`. A connection holds at most 24
-File Bar streams, 16 of them carrying Puts or read chunks, and closes one more with `capacity`.
-Each open File Bar stream keeps its reservation in the connection's budget and counts toward its
-64 streams. Records the Client has not taken yet are held up to 8 MiB per connection; a call past
-that closes with `capacity`, or `outcome-unknown` for a mutation, and the process cancels it. The
-dispatcher writes a File Bar record only when no terminal or Workbench record waits, but at least
-one every 100 milliseconds, so those records go first and File Bar records still move.
+class, never parses a Put, and passes the record on unchanged. A request that needs a capability the
+connection's answer does not list, `files-edit`, `files-history` or `files-search`, closes as
+unsupported. Reads need the connection's terminal-create grant, and mutations, Puts and prompt
+answers its lifecycle grant as well; a call without them is answered `denied`. A connection holds at
+most 24 File Bar streams, 16 of them carrying Puts or read chunks, and closes one more with
+`capacity`. Each open File Bar stream keeps its reservation in the connection's budget and counts
+toward its 64 streams. Records the Client has not taken yet are held up to 8 MiB per connection; a
+call past that closes with `capacity`, or `outcome-unknown` for a mutation, and the process cancels
+it. The dispatcher writes a File Bar record only when no terminal or Workbench record waits, but at
+least one every 100 milliseconds, so those records go first and File Bar records still move.
 
 A malformed frame from the process, a frame for a call never sent, or a write the process does not
 take within 30 seconds ends the link. Its open streams then close as the process would have closed

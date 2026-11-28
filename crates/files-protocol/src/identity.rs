@@ -1,9 +1,9 @@
 //! The identities File Bar traffic names: the Workspace a request acts in, a mutation's request,
-//! a credential prompt, a delete's undo stash, a Client's transfer, its import, export and
-//! picker sessions, its text searches and Quick Open file lists, the Server's call, Client
-//! connection and lane numbers on the private link, and the one-time token that admits a
-//! started `orchbee-files` process. Each is validated at construction; none grants authority
-//! by itself.
+//! a credential prompt, a delete's undo stash, a Local History entry, a Client's transfer, its
+//! import, export and picker sessions, its text searches and Quick Open file lists, the Server's
+//! call, Client connection and lane numbers on the private link, and the one-time token that admits
+//! a started `orchbee-files` process. Each is validated at construction; none grants authority by
+//! itself.
 
 use std::{fmt, num::NonZeroU64};
 
@@ -98,6 +98,11 @@ wide_identity!(
     /// The undo stash a capturing `fs.delete` filled, which `orchbee-files` chooses and
     /// `fs.restore` names.
     StashId
+);
+wide_identity!(
+    /// One Local History entry, which `orchbee-files` chooses when it records the entry and the
+    /// `history.*` operations and `fs.read` name.
+    HistoryEntryId
 );
 
 macro_rules! link_number {

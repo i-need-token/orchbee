@@ -263,6 +263,8 @@ impl Services {
                         Err(refused) => call.reply(&FilesReply::Error(refused)),
                     }
                 }
+                // Local History is not served yet.
+                ReadSource::History { .. } => call.close(CallClose::Unsupported),
             },
             FilesRequest::FsReadChunk(request) => self.files.read_chunk(call, &request),
             FilesRequest::FsGuessEncoding(request) => match view.read(&request.path) {
@@ -422,6 +424,37 @@ impl Services {
                         }
                     });
             }
+            // The `files-history` operations this process does not serve yet.
+            FilesRequest::GitLog(_)
+            | FilesRequest::GitBlame(_)
+            | FilesRequest::GitChanges(_)
+            | FilesRequest::GitMergeBase(_)
+            | FilesRequest::GitStashes(_)
+            | FilesRequest::GitCheckout(_)
+            | FilesRequest::GitBranchCreate(_)
+            | FilesRequest::GitBranchDelete(_)
+            | FilesRequest::GitBranchRename(_)
+            | FilesRequest::GitBranchUpstream(_)
+            | FilesRequest::GitBranchDeleteRemote(_)
+            | FilesRequest::GitMerge(_)
+            | FilesRequest::GitRebase(_)
+            | FilesRequest::GitCherryPick(_)
+            | FilesRequest::GitAbort(_)
+            | FilesRequest::GitUndoCommit(_)
+            | FilesRequest::GitStashPush(_)
+            | FilesRequest::GitStashApply(_)
+            | FilesRequest::GitStashPop(_)
+            | FilesRequest::GitStashDrop(_)
+            | FilesRequest::GitStashClear(_)
+            | FilesRequest::GitTagCreate(_)
+            | FilesRequest::GitTagDelete(_)
+            | FilesRequest::GitTagDeleteRemote(_)
+            | FilesRequest::GitRemoteAdd(_)
+            | FilesRequest::GitRemoteRemove(_)
+            | FilesRequest::HistoryList(_)
+            | FilesRequest::HistoryRestore(_)
+            | FilesRequest::HistoryRename(_)
+            | FilesRequest::HistoryDelete(_) => call.close(CallClose::Unsupported),
         }
     }
 
