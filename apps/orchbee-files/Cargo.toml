@@ -19,17 +19,25 @@ orchbee-local-runtime = { path = "../../crates/local-runtime" }
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
-trash = { version = "5.4.0", default-features = false, features = [
-	"coinit_apartmentthreaded",
-	"freedesktop",
-	"jiff",
-] }
 
 [target.'cfg(unix)'.dependencies]
 signal-hook.workspace = true
+trash = { version = "5.4.0", default-features = false, features = ["freedesktop", "jiff"] }
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_System_Com", "Win32_UI_Shell"] }
+# The Recycle Bin adapter's progress sink uses `#[implement]`, whose expansion names `windows_core`.
+windows-core = { version = "0.62.2", default-features = false }
 
 [dev-dependencies]
 serde.workspace = true
 
-[lints]
-workspace = true
+# This application's one accepted operating-system boundary cannot inherit the workspace's
+# `forbid`, because its private `recycle_bin_native` module must locally admit reviewed shell
+# calls. The Rust runner pins this exact exception.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+wildcard_imports = "deny"

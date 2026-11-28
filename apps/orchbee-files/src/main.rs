@@ -3,6 +3,8 @@
 //! and ends at the Server's drain, at the link's end or at a termination signal. Scope,
 //! containment and every file or Git effect stay in this process; the Server only relays.
 
+#![deny(unsafe_code)]
+
 mod admission;
 mod blocking;
 mod calls;
@@ -18,6 +20,12 @@ mod invocation;
 mod link;
 mod operations;
 mod outbound;
+#[cfg(windows)]
+#[allow(
+    unsafe_code,
+    reason = "reviewed COM apartment, shell item and IFileOperation calls are isolated here"
+)]
+mod recycle_bin_native;
 mod requests;
 mod roots;
 mod scope;

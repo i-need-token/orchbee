@@ -1641,6 +1641,8 @@ dependencies = [
  "sha2 0.11.2",
  "signal-hook",
  "trash",
+ "windows",
+ "windows-core",
 ]
 
 [[package]]

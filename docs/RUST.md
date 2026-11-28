@@ -323,13 +323,14 @@ The accepted operating-system exceptions are limited to these private modules:
 | `orchbee-local-runtime` at `crates/local-runtime`               | `src/retained_spawn_native.rs`   | [macOS retained spawn with no inherited descriptors, and its exact child wait](../crates/local-runtime/README.md#macos-retained-spawn)                                                                                                     |
 | `orchbee-local-runtime` at `crates/local-runtime`               | `src/host_capacity_native.rs`    | [macOS host statistics and sysctl reads with checked counts and lengths](../crates/local-runtime/README.md#macos-host-capacity)                                                                                                            |
 | `orchbee-local-runtime` at `crates/local-runtime`               | `src/process_identity_native.rs` | [macOS process start time, program and children reads with checked lengths](../crates/local-runtime/README.md#process-identity-on-macos-and-linux)                                                                                         |
+| `orchbee-files` at `apps/orchbee-files`                         | `src/recycle_bin_native.rs`      | [Windows Recycle Bin moves: the per-move apartment, the parsed path, the operation flags, the refused permanent deletion, and the agile progress sink](../apps/orchbee-files/README.md#windows-recycle-bin)                                |
 
-These crates declare `unsafe_code = "deny"` instead of inheriting the workspace `forbid`;
+These packages declare `unsafe_code = "deny"` instead of inheriting the workspace `forbid`;
 only the listed private modules have a reasoned `allow`, each under the `cfg` of the one platform it
 adapts. The Rust runner pins each package,
 manifest, private module declaration, adjacent safe test attachment, and mirrored Clippy policy.
 It rejects another member, location, module, or broader lint escape, including unsafe code in
-tests or other children of the admitted module. All remaining sources and tests in these crates
+tests or other children of the admitted module. All remaining sources and tests in these packages
 stay denied; other members retain the workspace `forbid`. The linked package contracts own
 each adapter's safety invariants and native boundary evidence.
 

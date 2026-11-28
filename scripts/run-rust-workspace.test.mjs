@@ -21,14 +21,23 @@ const windowsBoundaries = [
 	{
 		name: 'orchbee-windows-console-host',
 		directory: 'crates/windows-console-host',
+		crateRoot: 'src/lib.rs',
 		module: 'sys',
 		reason: 'reviewed Win32 calls and tagged INPUT_RECORD union reads are isolated here',
 	},
 	{
 		name: 'orchbee-local-ipc',
 		directory: 'crates/local-ipc',
+		crateRoot: 'src/lib.rs',
 		module: 'windows_native',
 		reason: 'reviewed Win32 name queries, pipe counters, read watches and waits are isolated here',
+	},
+	{
+		name: 'orchbee-files',
+		directory: 'apps/orchbee-files',
+		crateRoot: 'src/main.rs',
+		module: 'recycle_bin_native',
+		reason: 'reviewed COM apartment, shell item and IFileOperation calls are isolated here',
 	},
 ];
 const validLibrary = `/// Returns the fixture value.
@@ -427,7 +436,7 @@ function admitWindowsException(root, boundary) {
 	});
 }
 
-function admitUnsafeBoundaries(root, { name, directory, modules }) {
+function admitUnsafeBoundaries(root, { name, directory, crateRoot = 'src/lib.rs', modules }) {
 	const rootManifest = join(root, 'Cargo.toml');
 	writeFileSync(
 		rootManifest,
@@ -463,13 +472,20 @@ mod ${module};
 pub fn copied_by_${module}(value: &u8) -> u8 { ${module}::copy_byte(value) }
 `,
 	);
+	// An application's root uses each boundary from main, so no item is dead code.
+	const entry =
+		crateRoot === 'src/main.rs'
+			? `fn main() {
+${modules.map(({ module, cfg }) => `    #[cfg(${cfg})]\n    assert_eq!(copied_by_${module}(&7), 7);\n`).join('')}}
+`
+			: `pub fn copied(value: &u8) -> u8 { *value }
+`;
 	writeFileSync(
-		join(root, directory, 'src/lib.rs'),
+		join(root, directory, crateRoot),
 		`#![deny(unsafe_code)]
 
 ${declarations.join('\n')}
-pub fn copied(value: &u8) -> u8 { *value }
-`,
+${entry}`,
 	);
 	for (const { module } of modules) {
 		mkdirSync(join(root, directory, 'src', module), { recursive: true });
@@ -578,7 +594,7 @@ pub const POLICY_TEXT: &str = r##"#[cfg_attr(windows, allow(unsafe_code))] unsaf
 	});
 });
 
-test('the Rust lint gate admits both canonical private Win32 unsafe boundaries together', () => {
+test('the Rust lint gate admits the canonical private Win32 unsafe boundaries of libraries and an application together', () => {
 	withFixture((root) => {
 		for (const boundary of windowsBoundaries) admitWindowsException(root, boundary);
 		const result = runTask(root, 'lint');
@@ -646,7 +662,7 @@ for (const [name, mutate, diagnostic] of [
 	[
 		'a public adapter module',
 		(root, boundary) => {
-			const path = join(root, boundary.directory, 'src/lib.rs');
+			const path = join(root, boundary.directory, boundary.crateRoot);
 			writeFileSync(
 				path,
 				readFileSync(path, 'utf8').replace(
@@ -660,7 +676,7 @@ for (const [name, mutate, diagnostic] of [
 	[
 		'a commented declaration paired with a conditional escape',
 		(root, boundary) => {
-			const path = join(root, boundary.directory, 'src/lib.rs');
+			const path = join(root, boundary.directory, boundary.crateRoot);
 			const declaration = `#[cfg(windows)]
 #[allow(
     unsafe_code,
@@ -683,7 +699,7 @@ mod ${boundary.module};`,
 	[
 		'a missing crate-wide deny',
 		(root, boundary) => {
-			const path = join(root, boundary.directory, 'src/lib.rs');
+			const path = join(root, boundary.directory, boundary.crateRoot);
 			writeFileSync(path, readFileSync(path, 'utf8').replace('#![deny(unsafe_code)]\n\n', ''));
 		},
 		/crate-wide deny\(unsafe_code\)/u,
@@ -691,7 +707,7 @@ mod ${boundary.module};`,
 	[
 		'an unsafe escape in a safe sibling',
 		(root, boundary) => {
-			const path = join(root, boundary.directory, 'src/lib.rs');
+			const path = join(root, boundary.directory, boundary.crateRoot);
 			writeFileSync(path, `${readFileSync(path, 'utf8')}\nmod sibling;\n`);
 			writeFileSync(
 				join(root, boundary.directory, 'src/sibling.rs'),
@@ -699,12 +715,12 @@ mod ${boundary.module};`,
 			);
 		},
 		(boundary) =>
-			`Only ${boundary.directory}/src/lib.rs may contain the canonical unsafe_code allow`,
+			`Only ${boundary.directory}/${boundary.crateRoot} may contain the canonical unsafe_code allow`,
 	],
 	[
 		'an unsafe Rust 2024 attribute in a safe sibling',
 		(root, boundary) => {
-			const path = join(root, boundary.directory, 'src/lib.rs');
+			const path = join(root, boundary.directory, boundary.crateRoot);
 			writeFileSync(path, `${readFileSync(path, 'utf8')}\nmod symbol;\n`);
 			writeFileSync(
 				join(root, boundary.directory, 'src/symbol.rs'),

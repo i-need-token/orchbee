@@ -56,6 +56,55 @@ These rules are the contract a Client builds on; no single declaration holds the
 - Grants live in this process. After it restarts, which ends every subscription, a Client grants
   its open files again.
 
+## Windows Recycle Bin
+
+On Windows the machine's trash is the Recycle Bin. This service moves an item there through the
+shell's `IFileOperation` with its own adapter, the private `src/recycle_bin_native.rs`, which is its
+one authored unsafe boundary, admitted by the
+[Rust policy](../../docs/RUST.md#lint-policy-and-enforcement). The `trash` crate serves macOS and
+Linux only: on Windows it asks the person whether to delete permanently an item the Recycle Bin
+cannot take. A move names the entry below its folder's real location, as scope checked it, and
+never resolves the entry itself, so a link or junction moves without what it names; a folder whose
+real location has no drive path keeps the path as named.
+
+- **Apartment.** Each move initializes COM on the calling thread as a single-threaded apartment
+  with OLE1 DDE off, as `IFileOperation` requires, and an owner that cannot leave that thread
+  uninitializes it once every COM object of the move is released, also after `S_FALSE`. A thread
+  already in the multithreaded apartment is left as it was, and the move fails.
+- **Path.** Only an absolute drive path below the root, without a `..` segment or a NUL, reaches
+  `SHCreateItemFromParsingName`, as a NUL-terminated UTF-16 copy that outlives the call: the shell
+  would parse a relative name against the Desktop, and a NUL would end the path at one of its
+  folders. The shell refuses the verbatim `\?\` form, so a path past `MAX_PATH` also goes in plain
+  form.
+- **Flags.** `FOF_NO_UI` shows no progress, confirmation, error or elevation window;
+  `FOFX_RECYCLEONDELETE` asks for recycling, as Windows 8 and later do; `FOF_NO_CONNECTED_ELEMENTS`
+  moves the named item alone, never the files Windows connects to it, such as `page_files` beside
+  `page.htm`; `FOFX_NOCOPYHOOKS` runs no shell extension copy hooks. `FOF_WANTNUKEWARNING` stays
+  off, since even under `FOF_NO_UI` it asks whether to delete permanently an item that cannot be
+  recycled. Electron's `shell.trashItem` also sets `FOFX_ADDUNDORECORD` and
+  `FOFX_SHOWELEVATIONPROMPT`; a background service leaves no undo in Explorer and raises no UAC
+  prompt, so an item that needs elevation fails.
+- **Refusal.** The progress sink answers `E_ABORT` to a `PreDeleteItem` whose flags lack
+  `TSF_DELETE_RECYCLE_IF_POSSIBLE`, the shell's announcement, before it begins, of a deletion it
+  would make permanent, as on a volume without a Recycle Bin. Nothing is deleted, and the move is
+  `trash-unavailable`, as Electron's `shell.trashItem` refuses it.
+- **Outcome.** Success needs `PerformOperations` to succeed with no aborted operation, no failed
+  `PostDeleteItem` and one that names the Recycle Bin's new item; a deletion without that item
+  counts as a failure. Anything else is `trash-failed`.
+- **Sink.** `#[implement]` makes the sink agile, so the shell may call it from any thread; its three
+  reports are atomics, and the operation holds its own reference to it until it is released.
+
+The adjacent safe tests run the real shell without moving anything into the Recycle Bin: its own
+permanent deletion of a file and of a folder, refused with both kept (`trash-unavailable`); a file
+another handle holds without delete sharing (`trash-failed`, kept); and a path with a NUL, which
+never reaches it. A move into the Recycle Bin has no automated test, since every run would leave
+items in the person's Recycle Bin. Native traces on Windows 11 moved a file, a folder, a junction
+and links to a file and a folder without their targets, `page.htm` without its `page_files`, an
+entry reached through a junction in its folder's path, five files from five threads at once, and a
+path past `MAX_PATH`, which the shell reached through 8.3 short names. No trace covers a volume
+without a Recycle Bin, which needs a removable or network volume, or a long path on a volume
+without 8.3 short names.
+
 ## ripgrep
 
 Development and test cohorts carry rg beside this executable, as `rg` (`rg.exe` on Windows), with

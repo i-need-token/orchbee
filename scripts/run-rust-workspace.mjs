@@ -18,7 +18,7 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-windows-console-host',
 		manifest: 'crates/windows-console-host/Cargo.toml',
-		library: 'crates/windows-console-host/src/lib.rs',
+		crateRoot: 'crates/windows-console-host/src/lib.rs',
 		cfg: 'windows',
 		module: 'sys',
 		system: 'crates/windows-console-host/src/sys.rs',
@@ -28,7 +28,7 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-local-ipc',
 		manifest: 'crates/local-ipc/Cargo.toml',
-		library: 'crates/local-ipc/src/lib.rs',
+		crateRoot: 'crates/local-ipc/src/lib.rs',
 		cfg: 'windows',
 		module: 'windows_native',
 		system: 'crates/local-ipc/src/windows_native.rs',
@@ -38,7 +38,7 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-local-runtime',
 		manifest: 'crates/local-runtime/Cargo.toml',
-		library: 'crates/local-runtime/src/lib.rs',
+		crateRoot: 'crates/local-runtime/src/lib.rs',
 		cfg: 'windows',
 		module: 'standard_rights_native',
 		system: 'crates/local-runtime/src/standard_rights_native.rs',
@@ -49,7 +49,7 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-local-runtime',
 		manifest: 'crates/local-runtime/Cargo.toml',
-		library: 'crates/local-runtime/src/lib.rs',
+		crateRoot: 'crates/local-runtime/src/lib.rs',
 		cfg: 'target_os = "macos"',
 		module: 'retained_spawn_native',
 		system: 'crates/local-runtime/src/retained_spawn_native.rs',
@@ -59,7 +59,7 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-local-runtime',
 		manifest: 'crates/local-runtime/Cargo.toml',
-		library: 'crates/local-runtime/src/lib.rs',
+		crateRoot: 'crates/local-runtime/src/lib.rs',
 		cfg: 'target_os = "macos"',
 		module: 'host_capacity_native',
 		system: 'crates/local-runtime/src/host_capacity_native.rs',
@@ -69,13 +69,23 @@ const unsafeBoundaries = Object.freeze([
 	{
 		name: 'orchbee-local-runtime',
 		manifest: 'crates/local-runtime/Cargo.toml',
-		library: 'crates/local-runtime/src/lib.rs',
+		crateRoot: 'crates/local-runtime/src/lib.rs',
 		cfg: 'target_os = "macos"',
 		module: 'process_identity_native',
 		system: 'crates/local-runtime/src/process_identity_native.rs',
 		systemTests: 'crates/local-runtime/src/process_identity_native/tests.rs',
 		reason:
 			"reviewed libproc reads of a process's start time, program and children are isolated here",
+	},
+	{
+		name: 'orchbee-files',
+		manifest: 'apps/orchbee-files/Cargo.toml',
+		crateRoot: 'apps/orchbee-files/src/main.rs',
+		cfg: 'windows',
+		module: 'recycle_bin_native',
+		system: 'apps/orchbee-files/src/recycle_bin_native.rs',
+		systemTests: 'apps/orchbee-files/src/recycle_bin_native/tests.rs',
+		reason: 'reviewed COM apartment, shell item and IFileOperation calls are isolated here',
 	},
 ]);
 const task = process.argv[2];
@@ -672,9 +682,9 @@ function enforceAuthoredUnsafePolicy(workspacePackages) {
 }
 
 function enforcePrivateUnsafeBoundaries(entry, boundaries) {
-	const [{ manifest: manifestPath, library: libraryFile }] = boundaries;
-	if (boundaries.some((boundary) => boundary.library !== libraryFile)) {
-		throw new Error(`${manifestPath} unsafe boundaries must share one library root`);
+	const [{ manifest: manifestPath, crateRoot: crateRootFile }] = boundaries;
+	if (boundaries.some((boundary) => boundary.crateRoot !== crateRootFile)) {
+		throw new Error(`${manifestPath} unsafe boundaries must share one crate root`);
 	}
 	const manifest = readFileSync(entry.manifest_path, 'utf8');
 	assertTomlEntries(
@@ -693,23 +703,23 @@ function enforcePrivateUnsafeBoundaries(entry, boundaries) {
 		throw new Error(`${manifestPath} must not inherit the workspace unsafe forbid`);
 	}
 
-	const libraryPath = resolve(repositoryRoot, libraryFile);
-	if (!existsSync(libraryPath))
-		throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(libraryPath)}`);
-	const library = readFileSync(libraryPath, 'utf8');
-	const libraryPolicy = rustPolicySource(library);
-	if (!/#!\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\]/u.test(libraryPolicy)) {
-		throw new Error(`${libraryFile} must keep crate-wide deny(unsafe_code)`);
+	const crateRootPath = resolve(repositoryRoot, crateRootFile);
+	if (!existsSync(crateRootPath))
+		throw new Error(`Missing canonical unsafe-boundary file: ${relativeSource(crateRootPath)}`);
+	const crateRoot = readFileSync(crateRootPath, 'utf8');
+	const crateRootPolicy = rustPolicySource(crateRoot);
+	if (!/#!\[\s*deny\s*\(\s*unsafe_code\s*\)\s*\]/u.test(crateRootPolicy)) {
+		throw new Error(`${crateRootFile} must keep crate-wide deny(unsafe_code)`);
 	}
 	// Each admitted module keeps its own canonical declaration; its cfg names the one platform
 	// whose operating-system boundary it adapts.
 	const declarationShapes = [
-		...libraryPolicy.matchAll(
+		...crateRootPolicy.matchAll(
 			/^[\t ]*#\[\s*cfg\s*\([^\]\r\n]*\)\s*\][\t ]*\r?\n[\t ]*#\[\s*allow\s*\(\s*unsafe_code\s*,\s*reason\s*=\s*\)\s*\][\t ]*\r?\n[\t ]*mod[\t ]+([a-z_][a-z\d_]*)[\t ]*;[\t ]*$/gmu,
 		),
 	];
 	for (const boundary of boundaries) {
-		enforcePrivateUnsafeModule(boundary, library, declarationShapes);
+		enforcePrivateUnsafeModule(boundary, crateRoot, declarationShapes);
 	}
 
 	const systemPaths = boundaries.map((boundary) => resolve(repositoryRoot, boundary.system));
@@ -719,9 +729,9 @@ function enforcePrivateUnsafeBoundaries(entry, boundaries) {
 	);
 	if (
 		escapes.length !== boundaries.length ||
-		escapes.some((source) => !samePath(source, libraryPath))
+		escapes.some((source) => !samePath(source, crateRootPath))
 	) {
-		throw new Error(`Only ${libraryFile} may contain the canonical unsafe_code allow`);
+		throw new Error(`Only ${crateRootFile} may contain the canonical unsafe_code allow`);
 	}
 	for (const source of sources) {
 		if (systemPaths.some((systemPath) => samePath(source, systemPath))) continue;
@@ -734,7 +744,7 @@ function enforcePrivateUnsafeBoundaries(entry, boundaries) {
 	}
 }
 
-function enforcePrivateUnsafeModule(boundary, library, declarationShapes) {
+function enforcePrivateUnsafeModule(boundary, crateRoot, declarationShapes) {
 	const systemPath = resolve(repositoryRoot, boundary.system);
 	const testsPath = resolve(repositoryRoot, boundary.systemTests);
 	for (const path of [systemPath, testsPath]) {
@@ -751,13 +761,13 @@ mod ${boundary.module};`;
 	const activeDeclaration =
 		declared === undefined
 			? undefined
-			: library.slice(declared.index, declared.index + declared[0].length);
+			: crateRoot.slice(declared.index, declared.index + declared[0].length);
 	if (
 		activeDeclaration === undefined ||
 		normalizedWhitespace(activeDeclaration) !== normalizedWhitespace(canonicalDeclaration)
 	) {
 		throw new Error(
-			`${boundary.library} must keep the reasoned unsafe_code allow on private mod ${boundary.module}`,
+			`${boundary.crateRoot} must keep the reasoned unsafe_code allow on private mod ${boundary.module}`,
 		);
 	}
 	const system = readFileSync(systemPath, 'utf8');

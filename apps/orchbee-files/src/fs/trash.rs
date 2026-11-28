@@ -1,29 +1,40 @@
-//! The trash of the machine this process runs on: the Recycle Bin through `IFileOperation`, the
-//! macOS Trash through `NSFileManager trashItemAtURL`, which needs no Finder automation permission
-//! and offers no Put Back, and the freedesktop Trash, home or per volume, also on headless Linux.
-//! A path the trash does not take stays where it is, and the error says whether the machine has no
-//! trash for it; the adapter never deletes permanently, which only the Client asks for after such
-//! an error.
+//! The trash of the machine this process runs on: the Recycle Bin through this process's own
+//! `IFileOperation` adapter, the macOS Trash through `NSFileManager trashItemAtURL`, which needs no
+//! Finder automation permission and offers no Put Back, and the freedesktop Trash, home or per
+//! volume, also on headless Linux. A path the trash does not take stays where it is, and the error
+//! says whether the machine has no trash for it; the adapter never deletes permanently, which only
+//! the Client asks for after such an error.
 
 use crate::git::ports::{Trash, TrashError};
+#[cfg(windows)]
+use crate::{
+    recycle_bin_native::{self, NotRecycled},
+    scope::path::{self, NativePath},
+};
 use std::path::Path;
+#[cfg(windows)]
+use std::path::PathBuf;
+#[cfg(unix)]
 use trash::TrashContext;
 #[cfg(target_os = "macos")]
 use trash::macos::{DeleteMethod, TrashContextExtMacos};
 
-/// `COPYENGINE_E_RECYCLE_FORCE_NUKE` (`sherrors.h`): the volume's Recycle Bin is turned off or
-/// absent, as on a network share, so the item could only be deleted permanently.
-#[cfg(windows)]
-const RECYCLE_FORCE_NUKE: u32 = 0x8027_0036;
-
-/// `COPYENGINE_E_RECYCLE_BIN_NOT_FOUND` (`sherrors.h`): the Recycle Bin could not be found or is
-/// unavailable.
-#[cfg(windows)]
-const RECYCLE_BIN_NOT_FOUND: u32 = 0x8027_003A;
-
 /// The machine's trash. Each move stands alone, so several threads may move paths at once.
 pub(crate) struct MachineTrash;
 
+/// The Recycle Bin refuses whatever the shell would delete permanently instead of recycling,
+/// such as an item on a volume without a Recycle Bin, and never shows a window.
+#[cfg(windows)]
+impl Trash for MachineTrash {
+    fn trash(&self, path: &Path) -> Result<(), TrashError> {
+        recycle_bin_native::recycle(&located(path)).map_err(|refused| match refused {
+            NotRecycled::Unavailable => TrashError::Unavailable,
+            NotRecycled::Failed => TrashError::Failed,
+        })
+    }
+}
+
+#[cfg(unix)]
 impl Trash for MachineTrash {
     fn trash(&self, path: &Path) -> Result<(), TrashError> {
         if loops(path) {
@@ -39,8 +50,23 @@ impl Trash for MachineTrash {
     }
 }
 
+/// The entry at `path`, an absolute native path scope admitted, named below its folder's real
+/// location, which scope checked: the entry itself stays unresolved, so a link or junction moves
+/// without what it names. A folder whose real location has no drive path, such as one on a mapped
+/// network drive, keeps `path` as it is.
+#[cfg(windows)]
+fn located(path: &Path) -> PathBuf {
+    path.to_str()
+        .and_then(|path| NativePath::parse(path).ok())
+        .and_then(|entry| {
+            let folder = path::real(&entry.parent()?).ok()?;
+            Some(folder.as_path().join(entry.name()))
+        })
+        .unwrap_or_else(|| path.to_path_buf())
+}
+
 /// The crate's trash on this platform.
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(unix, not(target_os = "macos")))]
 const fn context() -> TrashContext {
     TrashContext::new()
 }
@@ -52,17 +78,6 @@ fn context() -> TrashContext {
     let mut context = TrashContext::new();
     context.set_delete_method(DeleteMethod::NsFileManager);
     context
-}
-
-/// Whether the shell did not recycle because the volume has no Recycle Bin. The crate passes
-/// `FOF_WANTNUKEWARNING` under `FOF_NO_UI`, and the shell reports per item why it did not recycle.
-#[cfg(windows)]
-fn no_trash(error: &trash::Error) -> bool {
-    matches!(
-        error,
-        trash::Error::Os { code, .. }
-            if matches!(code.cast_unsigned(), RECYCLE_FORCE_NUKE | RECYCLE_BIN_NOT_FOUND)
-    )
 }
 
 /// Whether the freedesktop trash could not establish where the trash lives: neither `XDG_DATA_HOME`
@@ -91,8 +106,11 @@ fn loops(path: &Path) -> bool {
         && path.is_dir()
 }
 
-/// The Recycle Bin and the macOS Trash move a link itself.
-#[cfg(any(windows, target_os = "macos"))]
+/// The macOS Trash moves a link itself.
+#[cfg(target_os = "macos")]
 const fn loops(_: &Path) -> bool {
     false
 }
+
+#[cfg(all(test, windows))]
+mod tests;
