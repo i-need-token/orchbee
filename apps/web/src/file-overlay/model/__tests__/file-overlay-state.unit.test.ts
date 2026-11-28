@@ -86,12 +86,14 @@ class ReferenceOverlay {
 				return [];
 			default: {
 				const count = this.row.length;
+				const waiting = this.pending !== null;
 				const effects = this.applyToTabs(event);
 				if (this.row.length === 0) this.kind = 'closed';
 				else if (
 					event.type === 'file-opened' ||
 					(event.type === 'tab-activated' && this.tab(event.id) !== undefined) ||
-					(event.type === 'reopen-requested' && this.row.length > count)
+					(event.type === 'reopen-requested' && this.row.length > count) ||
+					(event.type === 'close-requested' && !waiting && this.pending !== null)
 				) {
 					this.kind = 'open';
 				}
@@ -169,8 +171,7 @@ class ReferenceOverlay {
 				this.reopen();
 				return [];
 			case 'close-requested':
-				if (this.pending === null) this.requestClose(event.target);
-				return [];
+				return this.pending === null ? this.requestClose(event.target) : [];
 			case 'close-decided': {
 				const pending = this.pending;
 				if (pending === null || pending.saving) return [];
@@ -186,15 +187,14 @@ class ReferenceOverlay {
 					return [{ kind: 'save', tabs: unsaved }];
 				}
 				this.pending = null;
-				this.close(pending.ids);
-				return unsaved.length > 0 ? [{ kind: 'revert', tabs: unsaved }] : [];
+				const closed = this.close(pending.ids);
+				return unsaved.length > 0 ? [{ kind: 'revert', tabs: unsaved }, ...closed] : closed;
 			}
 			case 'close-saved': {
 				const pending = this.pending;
 				if (pending?.saving !== true) return [];
 				this.pending = null;
-				this.close(pending.ids.filter((id) => !event.failedIds.includes(id)));
-				return [];
+				return this.close(pending.ids.filter((id) => !event.failedIds.includes(id)));
 			}
 		}
 	}
@@ -271,12 +271,18 @@ class ReferenceOverlay {
 		this.activate(id);
 	}
 
-	private close(ids: readonly string[]): void {
+	/** Closes the tabs, inactive ones first, and tells their content in closing order. */
+	private close(ids: readonly string[]): FileOverlayEffect[] {
 		const unique = [...new Set(ids)].filter((id) => this.tab(id) !== undefined);
 		const ordered = [
 			...unique.filter((id) => id !== this.active),
 			...unique.filter((id) => id === this.active),
 		];
+		const closed: {
+			readonly id: string;
+			readonly input: FileTabInput;
+			readonly unsaved: boolean;
+		}[] = [];
 		this.batches += 1;
 		for (const id of ordered) {
 			const index = this.row.findIndex((tab) => tab.id === id);
@@ -287,10 +293,12 @@ class ReferenceOverlay {
 			if (this.active === id) this.active = this.recent[0] ?? null;
 			this.closed.push({ batch: this.batches, id, index, input: tab.input, sticky: tab.sticky });
 			if (this.closed.length > 20) this.closed.shift();
+			closed.push({ id, input: tab.input, unsaved: tab.unsaved });
 		}
+		return closed.length === 0 ? [] : [{ kind: 'closed', tabs: closed }];
 	}
 
-	private requestClose(target: FileTabCloseTarget): void {
+	private requestClose(target: FileTabCloseTarget): FileOverlayEffect[] {
 		const nonSticky = this.row.filter((tab) => !tab.sticky).map((tab) => tab.id);
 		let ids: readonly string[];
 		switch (target.kind) {
@@ -299,11 +307,11 @@ class ReferenceOverlay {
 				break;
 			case 'active': {
 				const active = this.active === null ? undefined : this.tab(this.active);
-				if (active === undefined) return;
+				if (active === undefined) return [];
 				if (active.sticky) {
 					const next = this.recent.find((id) => this.tab(id)?.sticky === false);
 					if (next !== undefined) this.activate(next);
-					return;
+					return [];
 				}
 				ids = [active.id];
 				break;
@@ -322,7 +330,7 @@ class ReferenceOverlay {
 					if (active !== undefined) active.preview = false;
 				}
 				const index = this.row.findIndex((tab) => tab.id === target.id);
-				if (index < 0) return;
+				if (index < 0) return [];
 				ids = this.row
 					.filter((tab, at) => !tab.sticky && (target.kind === 'left' ? at < index : at > index))
 					.map((tab) => tab.id);
@@ -339,14 +347,12 @@ class ReferenceOverlay {
 				break;
 		}
 		const present = [...new Set(ids)].filter((id) => this.tab(id) !== undefined);
-		if (present.length === 0) return;
+		if (present.length === 0) return [];
 		const firstUnsaved = present.find((id) => this.tab(id)?.unsaved === true);
-		if (firstUnsaved === undefined) {
-			this.close(present);
-			return;
-		}
+		if (firstUnsaved === undefined) return this.close(present);
 		this.activate(firstUnsaved);
 		this.pending = { ids: present, saving: false };
+		return [];
 	}
 
 	/** Undoes the last close: its tabs come back last closed first, then the last closed activates. */

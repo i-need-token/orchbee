@@ -41,8 +41,9 @@ export function createFileOverlayState(leftExpandOffered: boolean): FileOverlayS
 
 /**
  * A file shown from any source, by opening, reopening or activating one, brings a closed or
- * picture-in-picture overlay up at its tier, and closing its last tab closes it. Dismissing the open
- * overlay hands the keyboard to the terminal; a replaced terminal has already taken it.
+ * picture-in-picture overlay up at its tier, as does a close that asks the save question about the
+ * tab it activates; closing its last tab closes it. Dismissing the open overlay hands the keyboard to
+ * the terminal; a replaced terminal has already taken it.
  */
 export function transitionFileOverlay(
 	state: FileOverlayState,
@@ -75,7 +76,7 @@ export function transitionFileOverlay(
 
 /**
  * Whether the event puts a file in front: any open, even of the tab already active, an activation of
- * an open tab, or a reopen that brought a tab back.
+ * an open tab, a reopen that brought a tab back, or a close that waits on the save question.
  */
 function shows(event: FileTabsEvent, before: FileTabs, after: FileTabs): boolean {
 	switch (event.type) {
@@ -85,7 +86,10 @@ function shows(event: FileTabsEvent, before: FileTabs, after: FileTabs): boolean
 			return after.tabs.some((tab) => tab.id === event.id);
 		case 'reopen-requested':
 			return after.tabs.length > before.tabs.length;
+		case 'close-requested':
+			return before.pendingClose === null && after.pendingClose !== null;
 		default:
 			return false;
 	}
 }
+

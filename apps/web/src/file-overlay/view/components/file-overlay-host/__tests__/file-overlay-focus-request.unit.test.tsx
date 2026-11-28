@@ -56,6 +56,7 @@ function renderOverlay(paths: readonly string[]) {
 				focusRequest={focusRequest}
 				focusTerminal={() => undefined}
 				platform='standard'
+				returnFocus={() => undefined}
 				shortcutLabels={{ closeOverlay: undefined, toggleFull: undefined }}
 				store={store}
 			>

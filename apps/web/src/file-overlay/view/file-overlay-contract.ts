@@ -94,7 +94,7 @@ export interface FileOverlayHostProps {
 	readonly commands: FileOverlayCommands;
 	/** Applies an event to the shown overlay and runs the effects it returns. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
-	/** Gives the keys to the current terminal, as when the overlay leaves with the focus inside. */
+	/** Gives the keys to the current terminal, as Esc in picture-in-picture does. */
 	readonly focusTerminal: () => void;
 	/** The platform whose pointer and key conventions the overlay follows. */
 	readonly platform: KeyboardShortcutPlatform;
@@ -105,6 +105,11 @@ export interface FileOverlayHostProps {
 	/** Receives how the Workbench gives the keys to the overlay. */
 	readonly ref?: Ref<FileOverlayFocus> | undefined;
 	readonly regions: FileOverlayRegionElements;
+	/**
+	 * Gives the keys back as the overlay closes with them: to the control that last brought it up, if
+	 * that control still shows, else to the current terminal.
+	 */
+	readonly returnFocus: () => void;
 	/**
 	 * Takes drops on the scrim, which covers the current terminal, as a drop on that terminal; null
 	 * where nothing drops there.

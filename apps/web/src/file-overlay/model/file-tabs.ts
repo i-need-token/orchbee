@@ -9,7 +9,7 @@ interface FileTabInput {
 	readonly resource: FileResource;
 }
 
-interface FileTab {
+export interface FileTab {
 	/** Its kind with its resources' keys, so a file has one text tab and a diff tab may join it. */
 	readonly id: string;
 	readonly input: FileTabInput;
@@ -101,8 +101,13 @@ export type FileTabsEvent =
 	/** The tab's content gained or lost unsaved edits; gaining them pins a preview tab. */
 	| { readonly id: string; readonly type: 'unsaved-changed'; readonly unsaved: boolean };
 
-/** What the save decision asks of the tabs' content; the outcome returns as a later event. */
+/** What closing tabs asks of their content; a save's outcome returns as a later event. */
 export type FileTabsEffect =
+	/**
+	 * These tabs closed, in closing order, once any save question about them settled. A preview that
+	 * a new preview replaces is not closed.
+	 */
+	| { readonly kind: 'closed'; readonly tabs: readonly FileTab[] }
 	/** Drop these tabs' edits, so content that another tab still shows matches the disk again. */
 	| { readonly kind: 'revert'; readonly tabs: readonly FileTab[] }
 	/** Save these tabs, then report `close-saved` with the ones that failed. */
@@ -330,24 +335,27 @@ function open(draft: FileTabsDraft, input: FileTabInput, options: OpenOptions): 
 
 /**
  * Closes tabs in the order given, inactive ones first and the active one last, so the most recent
- * remaining tab becomes active. They form one batch for Reopen Closed Editor.
+ * remaining tab becomes active. They form one batch for Reopen Closed Editor and one effect telling
+ * their content that they closed.
  */
-function close(draft: FileTabsDraft, ids: readonly string[]): void {
+function close(draft: FileTabsDraft, ids: readonly string[]): readonly FileTabsEffect[] {
 	const batch: ClosedFileTab[] = [];
+	const closed: FileTab[] = [];
+	const take = (id: string): void => {
+		const tab = draft.tabs[indexOfTab(draft, id)];
+		const entry = remove(draft, id, true);
+		if (tab === undefined || entry === null) return;
+		batch.push(entry);
+		closed.push(tab);
+	};
 	let closesActive = false;
 	for (const id of new Set(ids)) {
-		if (id === draft.activeId) {
-			closesActive = true;
-			continue;
-		}
-		const entry = remove(draft, id, true);
-		if (entry !== null) batch.push(entry);
+		if (id === draft.activeId) closesActive = true;
+		else take(id);
 	}
-	if (closesActive && draft.activeId !== null) {
-		const entry = remove(draft, draft.activeId, true);
-		if (entry !== null) batch.push(entry);
-	}
+	if (closesActive && draft.activeId !== null) take(draft.activeId);
 	remember(draft, batch);
+	return closed.length === 0 ? NO_EFFECTS : [{ kind: 'closed', tabs: closed }];
 }
 
 /**
@@ -406,17 +414,15 @@ function unsavedTabs(draft: FileTabsDraft, ids: readonly string[]): readonly Fil
  * keeps every tab, Don't Save closes them all after dropping the edits, and Save All closes the ones
  * that saved. One close waits at a time.
  */
-function requestClose(draft: FileTabsDraft, target: FileTabCloseTarget): void {
+function requestClose(draft: FileTabsDraft, target: FileTabCloseTarget): readonly FileTabsEffect[] {
 	const ids = [...new Set(chooseClosing(draft, target))].filter((id) => indexOfTab(draft, id) >= 0);
-	if (ids.length === 0) return;
+	if (ids.length === 0) return NO_EFFECTS;
 	const unsaved = unsavedTabs(draft, ids);
 	const first = ids.find((id) => unsaved.some((tab) => tab.id === id));
-	if (first === undefined) {
-		close(draft, ids);
-		return;
-	}
+	if (first === undefined) return close(draft, ids);
 	activate(draft, first);
 	draft.pendingClose = { ids, phase: 'deciding' };
+	return NO_EFFECTS;
 }
 
 /**
@@ -456,8 +462,8 @@ function decide(
 		return [{ kind: 'save', tabs: unsaved }];
 	}
 	draft.pendingClose = null;
-	close(draft, pending.ids);
-	return unsaved.length > 0 ? [{ kind: 'revert', tabs: unsaved }] : NO_EFFECTS;
+	const closed = close(draft, pending.ids);
+	return unsaved.length > 0 ? [{ kind: 'revert', tabs: unsaved }, ...closed] : closed;
 }
 
 /**
@@ -498,7 +504,7 @@ export function transitionFileTabs(tabs: FileTabs, event: FileTabsEvent): FileTa
 			break;
 		}
 		case 'close-requested':
-			if (draft.pendingClose === null) requestClose(draft, event.target);
+			if (draft.pendingClose === null) effects = requestClose(draft, event.target);
 			break;
 		case 'close-decided':
 			if (draft.pendingClose?.phase === 'deciding') {
@@ -510,7 +516,7 @@ export function transitionFileTabs(tabs: FileTabs, event: FileTabsEvent): FileTa
 			if (pending?.phase !== 'saving') break;
 			const failed = new Set(event.failedIds);
 			draft.pendingClose = null;
-			close(
+			effects = close(
 				draft,
 				pending.ids.filter((id) => !failed.has(id)),
 			);
@@ -519,3 +525,4 @@ export function transitionFileTabs(tabs: FileTabs, event: FileTabsEvent): FileTa
 	}
 	return { effects, tabs: settle(draft, tabs) };
 }
+

@@ -16,6 +16,7 @@ interface FileOverlayHostValue {
 	readonly focusRequest: FileOverlayFocusRequest;
 	readonly focusTerminal: () => void;
 	readonly platform: KeyboardShortcutPlatform;
+	readonly returnFocus: () => void;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	readonly store: FileOverlayStore;
 }
@@ -37,12 +38,22 @@ export function FileOverlayHostStoreProvider({
 	focusRequest,
 	focusTerminal,
 	platform,
+	returnFocus,
 	shortcutLabels,
 	store,
 }: FileOverlayHostStoreProviderProps): ReactNode {
 	const value = useMemo(
-		() => ({ commands, dispatch, focusRequest, focusTerminal, platform, shortcutLabels, store }),
-		[commands, dispatch, focusRequest, focusTerminal, platform, shortcutLabels, store],
+		() => ({
+			commands,
+			dispatch,
+			focusRequest,
+			focusTerminal,
+			platform,
+			returnFocus,
+			shortcutLabels,
+			store,
+		}),
+		[commands, dispatch, focusRequest, focusTerminal, platform, returnFocus, shortcutLabels, store],
 	);
 	return createElement(FileOverlayHostContext.Provider, { value }, children);
 }
@@ -58,6 +69,14 @@ export function useFileOverlayHostStore<Selected>(
 	selector: (state: FileOverlayState) => Selected,
 ): Selected {
 	return useStore(useFileOverlayHostValue().store.state, selector);
+}
+
+/**
+ * Reads the shown overlay's state as it is now, for a handler that runs after the render that set it
+ * up, as when the overlay goes away around it.
+ */
+export function useFileOverlayHostReadState(): () => FileOverlayState {
+	return useFileOverlayHostValue().store.state.getState;
 }
 
 /** Applies an event to the shown overlay and runs the effects it returns. */
@@ -83,6 +102,14 @@ export function useFileOverlayHostFocusTerminal(): () => void {
 /** The platform whose pointer and key conventions the overlay follows. */
 export function useFileOverlayHostPlatform(): KeyboardShortcutPlatform {
 	return useFileOverlayHostValue().platform;
+}
+
+/**
+ * Gives the keys back as the overlay closes with them: to the control that last brought it up while
+ * that control shows, else to the current terminal.
+ */
+export function useFileOverlayHostReturnFocus(): () => void {
+	return useFileOverlayHostValue().returnFocus;
 }
 
 /** The keys bound to the overlay's Actions, for the controls' tooltips. */

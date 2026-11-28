@@ -1,5 +1,6 @@
 export { createFileOverlayState, transitionFileOverlay } from './file-overlay-state';
 export type { FileOverlayEffect, FileOverlayEvent, FileOverlayState } from './file-overlay-state';
+export type { FileTab } from './file-tabs';
 export { fileOverlayCover } from './fileOverlayCover';
 export type { FileOverlayBox, FileOverlayRegions } from './fileOverlayCover';
 export { fileOverlayEdgeTier } from './fileOverlayEdgeTier';

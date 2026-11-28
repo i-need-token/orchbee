@@ -10,6 +10,7 @@ import {
 import type { PointerDropTarget } from '../../../../pointer-drag';
 import { fileOverlayCover, fileOverlayPipBox, type FileOverlayPipPosition } from '../../../model';
 import type { FileOverlayHostProps, FileOverlayRegionElements } from '../../file-overlay-contract';
+import { FileOverlayCloseDialog } from './components/file-overlay-close-dialog/FileOverlayCloseDialog';
 import { FileOverlayEdge } from './components/file-overlay-edge/FileOverlayEdge';
 import { FileOverlayFrame } from './components/file-overlay-frame/FileOverlayFrame';
 import {
@@ -25,7 +26,8 @@ import styles from './FileOverlayHost.module.css';
 
 /**
  * The shown Workspace's overlay: nothing while it is closed, the scrim and frame while it is open,
- * and the frame alone at picture-in-picture's box while it is shrunk.
+ * and the frame alone at picture-in-picture's box while it is shrunk; over all of them, the save
+ * question while a close waits on it.
  */
 export function FileOverlayHost({
 	commands,
@@ -36,6 +38,7 @@ export function FileOverlayHost({
 	platform,
 	ref,
 	regions,
+	returnFocus,
 	scrimDrop,
 	shortcutLabels,
 	sidebarDocked,
@@ -49,6 +52,7 @@ export function FileOverlayHost({
 			focusRequest={focusRequest}
 			focusTerminal={focusTerminal}
 			platform={platform}
+			returnFocus={returnFocus}
 			shortcutLabels={shortcutLabels}
 			store={store}
 		>
@@ -59,6 +63,7 @@ export function FileOverlayHost({
 				scrimDrop={scrimDrop}
 				sidebarDocked={sidebarDocked}
 			/>
+			<FileOverlayCloseDialog />
 		</FileOverlayHostStoreProvider>
 	);
 }

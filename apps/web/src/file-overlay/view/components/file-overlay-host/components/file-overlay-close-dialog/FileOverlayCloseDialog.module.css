@@ -1,0 +1,40 @@
+.content {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.title {
+	font: var(--ob-sys-typography-heading-xs);
+	overflow-wrap: anywhere;
+}
+
+.description {
+	font: var(--ob-sys-typography-body-sm);
+}
+
+.files,
+.file,
+.consequence {
+	display: block;
+	overflow-wrap: anywhere;
+}
+
+.file {
+	color: var(--ob-sys-color-text-primary);
+}
+
+/* VS Code leaves one blank line between the files and what not saving loses. */
+.files + .consequence {
+	margin-block-start: var(--ob-ref-space-2);
+}
+
+.footer :global([data-slot='alert-dialog-action']),
+.footer :global([data-slot='alert-dialog-cancel']) {
+	font: var(--ob-sys-typography-control-sm);
+}
+
+.shortcut {
+	color: currentColor;
+	background: transparent;
+	font: var(--ob-sys-typography-label-xs);
+	opacity: var(--ob-sys-opacity-muted);
+}

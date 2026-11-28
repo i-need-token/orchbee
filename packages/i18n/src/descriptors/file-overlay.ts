@@ -147,6 +147,34 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.retry',
 		'Button on the error card that tries loading the file overlay again.',
 	),
+	saveQuestion: message(
+		'fileOverlay.saveQuestion.title',
+		'Title of the question asked before closing file overlay tabs whose files have unsaved edits, VS Code’s save question. {count} is how many such tabs the close takes; {name} is the file name of the one such tab, shown when there is only one.',
+	),
+	saveQuestionCancel: message(
+		'fileOverlay.saveQuestion.cancel',
+		'Button of the save question asked before closing file overlay tabs with unsaved edits that keeps every tab open.',
+	),
+	saveQuestionDetail: message(
+		'fileOverlay.saveQuestion.detail',
+		'Text under the save question asked before closing file overlay tabs with unsaved edits, saying what closing without saving loses.',
+	),
+	saveQuestionDontSave: message(
+		'fileOverlay.saveQuestion.dontSave',
+		'Button of the save question asked before closing file overlay tabs with unsaved edits that closes the tabs and drops the edits.',
+	),
+	saveQuestionMoreFiles: message(
+		'fileOverlay.saveQuestion.moreFiles',
+		'Last line of the list of files in the save question asked before closing several file overlay tabs with unsaved edits, when the list shows only the first ten. {count} is how many files it leaves out.',
+	),
+	saveQuestionSave: message(
+		'fileOverlay.saveQuestion.save',
+		'Button of the save question about one file overlay tab with unsaved edits that saves its file, then closes the tab.',
+	),
+	saveQuestionSaveAll: message(
+		'fileOverlay.saveQuestion.saveAll',
+		'Button of the save question about several file overlay tabs with unsaved edits that saves their files, then closes the tabs.',
+	),
 	showEditor: message(
 		'fileOverlay.actions.showEditor',
 		'Action that shows the file of one tab in the file overlay. VS Code calls a file open in a tab an editor.',

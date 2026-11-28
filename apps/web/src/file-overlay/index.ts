@@ -20,5 +20,5 @@ export type {
 	FileOverlayTitleActions,
 	FileOverlayTitleButton,
 } from './view';
-export { FileOverlayRegistry } from './workspace-stores';
-export type { FileOverlayStore } from './workspace-stores';
+export { dispatchFileOverlayEvent, FileOverlayRegistry } from './workspace-stores';
+export type { FileOverlayStore, FileTabContentPort } from './workspace-stores';

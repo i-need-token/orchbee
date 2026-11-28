@@ -861,6 +861,7 @@ export function Workbench({
 						platform={fileOverlay.host.platform}
 						ref={fileOverlay.host.reference}
 						regions={fileOverlay.host.regions}
+						returnFocus={fileOverlay.host.returnFocus}
 						scrimDrop={fileOverlay.host.scrimDrop}
 						shortcutLabels={fileOverlay.host.shortcutLabels}
 						sidebarDocked={view.sidebarPresentation === 'docked'}

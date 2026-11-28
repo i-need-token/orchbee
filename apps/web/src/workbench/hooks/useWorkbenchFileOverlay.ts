@@ -11,6 +11,7 @@ import { keyboardShortcutChordModifiers } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
 import {
+	dispatchFileOverlayEvent,
 	FileOverlayRegistry,
 	loadFileOverlay,
 	readFileOverlayPipPosition,
@@ -29,6 +30,7 @@ import {
 	type FileOverlayState,
 	type FileOverlayStore,
 	type FileOverlayTitleActions,
+	type FileTabContentPort,
 } from '../../file-overlay';
 import type { FileResource } from '../../file-session';
 import type { PointerDropTarget } from '../../pointer-drag';
@@ -53,6 +55,7 @@ import { buildFileOverlayTitleActions, buildFileTabMenuEntries } from '../utils/
 import { resolveWorkbenchFocusRegionFromTarget } from '../utils/workbench-focus-dom';
 import type { WorkbenchScopedShortcutBinding } from '../utils/workbench-shortcuts';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
+import { useWorkbenchFileOverlayReturnFocus } from './useWorkbenchFileOverlayReturnFocus';
 
 type FileOverlayLoad =
 	| { readonly kind: 'failed' }
@@ -90,6 +93,11 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly storage: FileOverlayPipStorage | undefined;
 	/** Adds the shown overlay to the region cycle. */
 	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
+	/**
+	 * The content behind the tabs, which saves and reverts them for the save question and hears every
+	 * close; absent while no view shows their content, so no tab can have unsaved edits.
+	 */
+	readonly tabContent?: FileTabContentPort | undefined;
 	/** The active Workspace's terminals, which the terminal area shows; null outside a Workspace. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
 	/** Drops of files on terminals, which the scrim passes to the terminal it covers. */
@@ -112,6 +120,7 @@ interface WorkbenchFileOverlayHost {
 	/** Receives how the Workbench gives the overlay the keys. */
 	readonly reference: React.RefCallback<FileOverlayFocus>;
 	readonly regions: FileOverlayRegionElements;
+	readonly returnFocus: () => void;
 	readonly scrimDrop: PointerDropTarget | null;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	readonly store: FileOverlayStore;
@@ -151,6 +160,13 @@ function coversFocusRegion(
 	}
 }
 
+/** Without a view of the tabs' content no tab gains unsaved edits, so no save is ever asked of it. */
+const NO_TAB_CONTENT: FileTabContentPort = {
+	closed: () => undefined,
+	revert: () => undefined,
+	save: (tabs) => Promise.resolve(tabs.map((tab) => tab.id)),
+};
+
 const subscribeToNothing = (): (() => void) => () => undefined;
 const NO_TITLE_ACTIONS: FileOverlayTitleActions = { buttons: [], more: [] };
 const noActiveTab = (): null => null;
@@ -186,6 +202,7 @@ export function useWorkbenchFileOverlay({
 	sidebarDocked,
 	storage,
 	supplyFocusRegion,
+	tabContent = NO_TAB_CONTENT,
 	terminalContext,
 	terminalPathDrops,
 	workspaceId,
@@ -253,14 +270,13 @@ export function useWorkbenchFileOverlay({
 		readActiveFile,
 	);
 	const dispatch = useMemoizedFn((event: FileOverlayEvent) => {
-		if (store === null) return;
-		for (const effect of store.dispatch(event)) {
-			// Saving and reverting answer a close's save question, which no close asks yet.
-			if (effect.kind === 'focus-terminal') focusTerminal();
+		if (store !== null) {
+			dispatchFileOverlayEvent(store, event, { content: tabContent, focusTerminal });
 		}
 	});
 	// The overlay keeps one function across renders, whichever the Workbench passes.
 	const returnToTerminal = useMemoizedFn(() => focusTerminal());
+	const returnFocus = useWorkbenchFileOverlayReturnFocus(store, returnToTerminal);
 	const resolveCurrentTerminal = useMemoizedFn(() => currentTerminal());
 	// Typing into the terminal replaces what the overlay covered, so the overlay shrinks out of its way.
 	const scrimDrop = React.useMemo(
@@ -521,6 +537,7 @@ export function useWorkbenchFileOverlay({
 					platform: shortcutPlatform,
 					reference: attachOverlay,
 					regions,
+					returnFocus,
 					scrimDrop,
 					shortcutLabels,
 					store,

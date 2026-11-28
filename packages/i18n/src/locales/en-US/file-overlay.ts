@@ -37,6 +37,15 @@ export const enUSFileOverlayMessages = {
 	'fileOverlay.label': 'File Overlay',
 	'fileOverlay.loadFailed': 'Couldn’t load the file overlay.',
 	'fileOverlay.pip.restore': 'Restore File Overlay',
+	'fileOverlay.saveQuestion.cancel': 'Cancel',
+	'fileOverlay.saveQuestion.detail': 'Your changes will be lost if you don’t save them.',
+	'fileOverlay.saveQuestion.dontSave': 'Don’t Save',
+	'fileOverlay.saveQuestion.moreFiles':
+		'{count, plural, =1 {…1 additional file not shown} other {…# additional files not shown}}',
+	'fileOverlay.saveQuestion.save': 'Save',
+	'fileOverlay.saveQuestion.saveAll': 'Save All',
+	'fileOverlay.saveQuestion.title':
+		'{count, plural, =1 {Do you want to save the changes you made to {name}?} other {Do you want to save the changes to the following # files?}}',
 	'fileOverlay.tabs.label': 'Open Editors',
 	'fileOverlay.tabs.menu.close': 'Close',
 	'fileOverlay.tabs.menu.closeAll': 'Close All',
