@@ -43,6 +43,7 @@ export function FileBarColumn({
 	platform,
 	quickInput,
 	reportActionOutcome,
+	returnToTerminal,
 	rowMenu,
 	session,
 	settings,
@@ -136,6 +137,7 @@ export function FileBarColumn({
 							platform={platform}
 							ref={explorerReference}
 							reportActionOutcome={reportActionOutcome}
+							returnToTerminal={returnToTerminal}
 							session={session}
 							shortcutLabelForAction={shortcutLabelForAction}
 							storage={storage}

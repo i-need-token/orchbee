@@ -64,6 +64,8 @@ export interface FileBarColumnProps {
 	readonly quickInput: SourceControlQuickInput;
 	/** Runs an Action chosen from a view's context menu and says its refusal or failure. */
 	readonly reportActionOutcome: FileExplorerProps['reportActionOutcome'];
+	/** Gives the keys back to the current terminal, which Escape in the Explorer does. */
+	readonly returnToTerminal: FileExplorerProps['returnToTerminal'];
 	/**
 	 * The toggles row's menu as it opens, VS Code's activity bar menu with File Bar wording: a checkbox
 	 * for each view's toggle, then moving and hiding the File Bar.

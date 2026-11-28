@@ -3,7 +3,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
-import { useMemo, useRef, type ReactNode, type Ref } from 'react';
+import { useMemo, useRef, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 
 import type { FileOverlayOpenFile } from '../file-overlay';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
@@ -49,6 +49,8 @@ export interface FileExplorerProps {
 	readonly ref?: Ref<FileExplorerFocus> | undefined;
 	/** Runs a command chosen from the context menu and says its refusal or failure. */
 	readonly reportActionOutcome: FileExplorerReportActionOutcome;
+	/** Gives the keys back to the current terminal, as Escape does once the tree has nothing to clear. */
+	readonly returnToTerminal: () => void;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
 	/** The keys that run an Action now, which the context menu shows beside its command. */
@@ -83,7 +85,8 @@ function hasFileIcon(row: VirtualTreeRow<string, ExplorerItem>): boolean {
  * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, opens
  * files in the file overlay and follows the overlay's active tab, its rows carry VS Code's Git
  * decorations from the status Source Control reads, and they drag as the File Bar's files and folders.
- * Its context menu holds the commands of VS Code's that Orchbee offers.
+ * Its context menu holds the commands of VS Code's that Orchbee offers, and Escape returns the keys
+ * to the current terminal once VS Code's Escape has nothing left to do in the tree.
  */
 export function FileExplorer({
 	actionRuntime,
@@ -94,6 +97,7 @@ export function FileExplorer({
 	platform,
 	ref,
 	reportActionOutcome,
+	returnToTerminal,
 	session,
 	shortcutLabelForAction,
 	storage,
@@ -150,8 +154,33 @@ export function FileExplorer({
 		if (model.focus !== null) model.reveal(model.focus, { relativeTop: 0.5 });
 	});
 	useExplorerFocus(ref, rootReference, treeReference, state.kind === 'tree', revealFocus);
+	// VS Code's Escape closes the tree's find, then clears its selection and focus, and the tree takes
+	// the key while it does. Then the key reaches the view, which gives the keys back to the terminal,
+	// as the Sidebar does; a control or a menu inside the view keeps its own Escape.
+	const onKeyDown = useMemoizedFn((event: KeyboardEvent<HTMLDivElement>) => {
+		if (
+			event.key !== 'Escape' ||
+			event.defaultPrevented ||
+			event.nativeEvent.isComposing ||
+			event.altKey ||
+			event.ctrlKey ||
+			event.metaKey ||
+			event.shiftKey ||
+			(event.target !== treeReference.current && event.target !== event.currentTarget)
+		) {
+			return;
+		}
+		event.preventDefault();
+		returnToTerminal();
+	});
 	return (
-		<div className={styles['root']} data-slot='file-explorer' ref={rootReference} tabIndex={-1}>
+		<div
+			className={styles['root']}
+			data-slot='file-explorer'
+			onKeyDown={onKeyDown}
+			ref={rootReference}
+			tabIndex={-1}
+		>
 			{state.kind === 'loading' && progress ? <ExplorerProgress /> : null}
 			{state.kind === 'none' ? (
 				<p className={styles['empty']}>{intl.formatMessage(fileExplorerMessages.noDirectory)}</p>

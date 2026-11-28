@@ -632,6 +632,7 @@ export function Workbench({
 						platform={shortcutPlatform}
 						quickInput={quickInputSessions}
 						reportActionOutcome={view.reportActionOutcome}
+						returnToTerminal={view.returnToTerminal}
 						rowMenu={fileBarContent.rowMenu}
 						session={fileBarContent.session}
 						settings={userSettings}
