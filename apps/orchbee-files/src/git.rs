@@ -2,6 +2,7 @@
 //! operations and the credential and editor relay, each run through the Git command line.
 
 mod blame;
+mod branching;
 mod command;
 mod consents;
 mod discovery;

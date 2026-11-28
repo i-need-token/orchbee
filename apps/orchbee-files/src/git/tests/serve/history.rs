@@ -1,14 +1,17 @@
-//! The `files-history` Git reads as the dispatch reaches them: a log page's continuation starts
-//! the next page where it stopped, with times in milliseconds, and a blame describes each commit
-//! it names once, however many ranges name it.
+//! The `files-history` Git operations as the dispatch reaches them: a log page's continuation
+//! starts the next page where it stopped, with times in milliseconds; a blame describes each
+//! commit it names once, however many ranges name it; and a branching write answers under its
+//! identity.
 
-use super::{super::fixture::Fixture, Harness};
+use super::{super::fixture::Fixture, Harness, connection};
 use orchbee_files_protocol::{
-    FilePath, FilesReply, GitBlame, GitLog, LogLimit, Operation, WorkspaceId, WorkspaceScope,
+    Empty, FilePath, FilesReply, GitBlame, GitBranchCreate, GitLog, GitName, LogLimit,
+    MutationReply, MutationState, Operation, RequestId, RequestOutcome, WorkspaceId,
+    WorkspaceScope,
 };
 
 #[test]
-fn history_pages_continue_where_they_stopped() {
+fn history_pages_continue_where_they_stopped_and_a_branching_write_answers() {
     let fixture = Fixture::new();
     fixture.repository("repo");
     let mut commits = Vec::new();
@@ -70,7 +73,7 @@ fn history_pages_continue_where_they_stopped() {
 
     let blame = GitBlame {
         workspace_id: workspace,
-        repository,
+        repository: repository.clone(),
         path: FilePath::new(fixture.path("repo/a.txt")).unwrap(),
         commit: None,
         ignore_whitespace: false,
@@ -107,4 +110,38 @@ fn history_pages_continue_where_they_stopped() {
     expected.sort_unstable();
     assert_eq!(described, expected);
     assert_eq!(blamed.cursor, None);
+
+    let request_id = RequestId::from_bytes([6; 16]).unwrap();
+    let view = harness
+        .scopes
+        .view(workspace, connection(), Operation::GitBranchCreate)
+        .unwrap();
+    let create = GitBranchCreate {
+        workspace_id: workspace,
+        request_id,
+        repository,
+        name: GitName::new("topic").unwrap(),
+        start: Some(GitName::new(first).unwrap()),
+        checkout: false,
+    };
+    harness
+        .service()
+        .branch_create(harness.open(6), view, &create);
+    assert_eq!(
+        harness.reply(6, Operation::GitBranchCreate),
+        FilesReply::Empty
+    );
+    assert_eq!(fixture.commit_of("repo", "topic"), first);
+    let outcome = RequestOutcome {
+        workspace_id: workspace,
+        request_id,
+    };
+    harness.service().outcome(harness.open(7), &outcome);
+    let FilesReply::RequestOutcome(outcome) = harness.reply(7, Operation::RequestOutcome) else {
+        panic!("expected an outcome");
+    };
+    assert_eq!(
+        outcome.state,
+        MutationState::Completed(MutationReply::Empty(Empty {}))
+    );
 }

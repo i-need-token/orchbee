@@ -162,6 +162,27 @@ fn git_messages_classify_as_vs_code_classifies_them() {
             "fatal: unable to access 'h': Authentication failed\nfatal: Could not read from remote repository.",
             Some(C::RemoteConnectionError),
         ),
+        // Both spellings of a branch that exists, and of a missing stash.
+        (
+            K::Branch,
+            "",
+            "fatal: A branch named 'topic' already exists.",
+            Some(C::BranchAlreadyExists),
+        ),
+        (K::Stash, "", "No stash found.", Some(C::NoStashFound)),
+        // A pick's failure reads as a conflict, except another process's lock, which is retried.
+        (
+            K::CherryPick,
+            "",
+            "error: could not apply 1a2b3c4... topic",
+            Some(C::CherryPickConflict),
+        ),
+        (
+            K::CherryPick,
+            "",
+            "fatal: Unable to create '/r/.git/index.lock': File exists.\n\nAnother git process seems to be running in this repository",
+            Some(C::RepositoryIsLocked),
+        ),
     ];
     for (classifier, stdout, stderr, expected) in cases {
         assert_eq!(

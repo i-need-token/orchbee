@@ -106,6 +106,8 @@ pub(super) enum GitErrorCode {
     CantCreatePipe,
     CantLockRef,
     CantRebaseMultipleBranches,
+    CherryPickConflict,
+    CherryPickEmpty,
     Conflict,
     DirtyWorkTree,
     EmptyCommitMessage,
@@ -113,9 +115,12 @@ pub(super) enum GitErrorCode {
     ForcePushWithLeaseRejected,
     InvalidBranchName,
     IsInSubmodule,
+    LocalChangesOverwritten,
+    NoLocalChanges,
     NoPathFound,
     NoRemoteReference,
     NoRemoteRepositorySpecified,
+    NoStashFound,
     NoUpstreamBranch,
     NoUserEmailConfigured,
     NoUserNameConfigured,
@@ -128,6 +133,7 @@ pub(super) enum GitErrorCode {
     RemoteConnectionError,
     RepositoryIsLocked,
     RepositoryNotFound,
+    StashConflict,
     TagConflict,
     UnmergedChanges,
     WorktreeAlreadyExists,
@@ -148,6 +154,8 @@ impl GitErrorCode {
             Self::CantCreatePipe => "cant-create-pipe",
             Self::CantLockRef => "cant-lock-ref",
             Self::CantRebaseMultipleBranches => "cant-rebase-multiple-branches",
+            Self::CherryPickConflict => "cherry-pick-conflict",
+            Self::CherryPickEmpty => "cherry-pick-empty",
             Self::Conflict => "conflict",
             Self::DirtyWorkTree => "dirty-work-tree",
             Self::EmptyCommitMessage => "empty-commit-message",
@@ -157,9 +165,12 @@ impl GitErrorCode {
             Self::ForcePushWithLeaseRejected => "force-push-with-lease-rejected",
             Self::InvalidBranchName => "invalid-branch-name",
             Self::IsInSubmodule => "is-in-submodule",
+            Self::LocalChangesOverwritten => "local-changes-overwritten",
+            Self::NoLocalChanges => "no-local-changes",
             Self::NoPathFound => "no-path-found",
             Self::NoRemoteReference => "no-remote-reference",
             Self::NoRemoteRepositorySpecified => "no-remote-repository-specified",
+            Self::NoStashFound => "no-stash-found",
             Self::NoUpstreamBranch => "no-upstream-branch",
             Self::NoUserEmailConfigured => "no-user-email-configured",
             Self::NoUserNameConfigured => "no-user-name-configured",
@@ -171,6 +182,7 @@ impl GitErrorCode {
             Self::RemoteConnectionError => "remote-connection-error",
             Self::RepositoryIsLocked => "repository-is-locked",
             Self::RepositoryNotFound => "repository-not-found",
+            Self::StashConflict => "stash-conflict",
             Self::TagConflict => "tag-conflict",
             Self::UnmergedChanges => "unmerged-changes",
             Self::WorktreeAlreadyExists => "worktree-already-exists",
@@ -189,6 +201,12 @@ pub(super) enum Classifier {
     Fetch,
     Pull,
     Push(PushMode),
+    /// Creating or renaming a branch.
+    Branch,
+    Merge,
+    Rebase,
+    CherryPick,
+    Stash,
 }
 
 /// How a push overrides the remote, which decides how its rejection reads.
@@ -216,16 +234,7 @@ pub(super) fn classify(
 fn general(stderr: &str) -> Option<GitErrorCode> {
     use GitErrorCode as C;
     let rules: [(bool, GitErrorCode); 16] = [
-        (
-            any(
-                stderr,
-                &[
-                    "Another git process seems to be running in this repository",
-                    "If no other git process is currently running",
-                ],
-            ),
-            C::RepositoryIsLocked,
-        ),
+        (locked(stderr), C::RepositoryIsLocked),
         (
             folded(stderr, "authentication failed"),
             C::AuthenticationFailed,
@@ -336,16 +345,7 @@ fn specific(classifier: Classifier, stdout: &str, stderr: &str) -> Option<GitErr
             ),
         ],
         Classifier::Pull => vec![
-            (
-                stdout.lines().any(|line| {
-                    line.strip_prefix("CONFLICT (")
-                        .and_then(|rest| rest.split_once("): "))
-                        .is_some_and(|(kind, rest)| {
-                            !kind.is_empty() && !kind.contains(')') && starts_with_word(rest)
-                        })
-                }),
-                C::Conflict,
-            ),
+            (conflict(stdout), C::Conflict),
             (
                 stderr.contains("Please tell me who you are."),
                 C::NoUserNameConfigured,
@@ -420,10 +420,84 @@ fn specific(classifier: Classifier, stdout: &str, stderr: &str) -> Option<GitErr
                 ),
             ]
         }
+        // Newer Git begins the message in lowercase, which VS Code's pattern misses.
+        Classifier::Branch => vec![(
+            quoted_between(
+                &stderr.to_ascii_lowercase(),
+                "a branch named '",
+                "' already exists",
+            ),
+            C::BranchAlreadyExists,
+        )],
+        Classifier::Merge => vec![(
+            stdout.lines().any(|line| line.starts_with("CONFLICT ")),
+            C::Conflict,
+        )],
+        Classifier::Rebase => vec![
+            (conflict(stdout), C::Conflict),
+            (
+                folded(stderr, "cannot rebase onto multiple branches"),
+                C::CantRebaseMultipleBranches,
+            ),
+        ],
+        // VS Code reads every other failure of a pick as a conflict; another process's lock keeps
+        // its own reading here, so the pick is retried.
+        Classifier::CherryPick => vec![
+            (
+                stderr.contains(
+                    "The previous cherry-pick is now empty, possibly due to conflict resolution.",
+                ),
+                C::CherryPickEmpty,
+            ),
+            (!locked(stderr), C::CherryPickConflict),
+        ],
+        // Newer Git says `No stash entries found`, which VS Code's pattern misses.
+        Classifier::Stash => vec![
+            (
+                stderr.contains("No local changes to save"),
+                C::NoLocalChanges,
+            ),
+            (
+                any(stderr, &["No stash found", "No stash entries found"]),
+                C::NoStashFound,
+            ),
+            (
+                stderr.contains(
+                    "error: Your local changes to the following files would be overwritten",
+                ),
+                C::LocalChangesOverwritten,
+            ),
+            (
+                stdout.lines().any(|line| line.starts_with("CONFLICT")),
+                C::StashConflict,
+            ),
+        ],
     };
     rules
         .into_iter()
         .find_map(|(matched, code)| matched.then_some(code))
+}
+
+/// Another Git process holds one of the repository's locks.
+fn locked(stderr: &str) -> bool {
+    any(
+        stderr,
+        &[
+            "Another git process seems to be running in this repository",
+            "If no other git process is currently running",
+        ],
+    )
+}
+
+/// A `CONFLICT (<kind>): <word>` line, as VS Code reads a pull's or a rebase's conflict.
+fn conflict(stdout: &str) -> bool {
+    stdout.lines().any(|line| {
+        line.strip_prefix("CONFLICT (")
+            .and_then(|rest| rest.split_once("): "))
+            .is_some_and(|(kind, rest)| {
+                !kind.is_empty() && !kind.contains(')') && starts_with_word(rest)
+            })
+    })
 }
 
 fn any(text: &str, needles: &[&str]) -> bool {

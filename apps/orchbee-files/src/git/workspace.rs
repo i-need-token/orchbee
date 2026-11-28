@@ -381,9 +381,9 @@ impl Workspace {
     }
 
     /// The write queued first for `repository` started running.
-    pub(super) fn write_running(&mut self, repository: &str, busy: BusyOperation) {
+    pub(super) fn write_running(&mut self, repository: &str, busy: Option<BusyOperation>) {
         if let Some(index) = self.index(repository) {
-            self.repositories[index].busy = Some(busy);
+            self.repositories[index].busy = busy;
         }
     }
 

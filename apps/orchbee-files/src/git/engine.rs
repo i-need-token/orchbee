@@ -13,6 +13,7 @@
 
 use super::{
     blame::{self, Blame, BlameQuery},
+    branching::{self, Branching},
     command::{self, Access, RelayVariables},
     consents::Consents,
     discovery::{self, Discovered, Found, Probe},
@@ -119,11 +120,14 @@ pub(super) enum Mutation {
     Pull { rebase: bool },
     Sync { rebase: bool },
     Push(Push),
+    Branching(Branching),
 }
 
 impl Mutation {
-    const fn busy(&self) -> BusyOperation {
-        match self {
+    /// What the summary shows running; a branching write shows nothing, since the summary's
+    /// operations are the closed set Clients already read.
+    const fn busy(&self) -> Option<BusyOperation> {
+        Some(match self {
             Self::Stage(_) => BusyOperation::Stage,
             Self::Unstage(_) => BusyOperation::Unstage,
             Self::Discard(_) => BusyOperation::Discard,
@@ -134,19 +138,21 @@ impl Mutation {
             Self::Pull { .. } => BusyOperation::Pull,
             Self::Sync { .. } => BusyOperation::Sync,
             Self::Push(_) => BusyOperation::Push,
-        }
+            Self::Branching(_) => return None,
+        })
     }
 
     /// Whether its commands may ask for a credential or a message.
     const fn prompts(&self) -> bool {
-        matches!(
-            self,
+        match self {
             Self::Commit(_)
-                | Self::Fetch { .. }
-                | Self::Pull { .. }
-                | Self::Sync { .. }
-                | Self::Push(_)
-        )
+            | Self::Fetch { .. }
+            | Self::Pull { .. }
+            | Self::Sync { .. }
+            | Self::Push(_) => true,
+            Self::Branching(branching) => branching.prompts(),
+            _ => false,
+        }
     }
 
     /// The paths it names, which must be well formed.
@@ -173,6 +179,7 @@ impl Mutation {
             Self::Pull { .. } => ("pull", remote::DEADLINE, Some(remote::IDLE)),
             Self::Sync { .. } => ("sync", remote::DEADLINE, Some(remote::IDLE)),
             Self::Push(_) => ("push", remote::DEADLINE, Some(remote::IDLE)),
+            Self::Branching(branching) => branching.limits(),
         };
         Limits {
             kind,
@@ -571,7 +578,7 @@ impl Git {
     }
 
     /// A write to `repository`: stage, unstage, discard, content staging, clean, commit, fetch,
-    /// pull, sync or push.
+    /// pull, sync, push or a branching write.
     pub(super) fn mutate(
         &self,
         call: Call,
@@ -2193,6 +2200,9 @@ impl Mutation {
                 remote::sync(found, rebase, version, context).map(|()| Done::Empty)
             }
             Self::Push(push) => remote::push(found, &push, version, context).map(|()| Done::Empty),
+            Self::Branching(branching) => {
+                branching::execute(found, &branching, context).map(|()| Done::Empty)
+            }
         }
     }
 }

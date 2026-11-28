@@ -429,29 +429,35 @@ impl Services {
             FilesRequest::GitChanges(request) => self.git.changes(call, &request),
             FilesRequest::GitMergeBase(request) => self.git.merge_base(call, &request),
             FilesRequest::GitStashes(request) => self.git.stashes(call, &request),
-            // The `files-history` operations this process does not serve yet.
-            FilesRequest::GitCheckout(_)
-            | FilesRequest::GitBranchCreate(_)
-            | FilesRequest::GitBranchDelete(_)
-            | FilesRequest::GitBranchRename(_)
-            | FilesRequest::GitBranchUpstream(_)
-            | FilesRequest::GitBranchDeleteRemote(_)
-            | FilesRequest::GitMerge(_)
-            | FilesRequest::GitRebase(_)
-            | FilesRequest::GitCherryPick(_)
-            | FilesRequest::GitAbort(_)
-            | FilesRequest::GitUndoCommit(_)
-            | FilesRequest::GitStashPush(_)
-            | FilesRequest::GitStashApply(_)
-            | FilesRequest::GitStashPop(_)
-            | FilesRequest::GitStashDrop(_)
-            | FilesRequest::GitStashClear(_)
-            | FilesRequest::GitTagCreate(_)
-            | FilesRequest::GitTagDelete(_)
-            | FilesRequest::GitTagDeleteRemote(_)
-            | FilesRequest::GitRemoteAdd(_)
-            | FilesRequest::GitRemoteRemove(_)
-            | FilesRequest::HistoryList(_)
+            FilesRequest::GitCheckout(request) => self.git.checkout(call, view, &request),
+            FilesRequest::GitBranchCreate(request) => self.git.branch_create(call, view, &request),
+            FilesRequest::GitBranchDelete(request) => self.git.branch_delete(call, view, &request),
+            FilesRequest::GitBranchRename(request) => self.git.branch_rename(call, view, &request),
+            FilesRequest::GitBranchUpstream(request) => {
+                self.git.branch_upstream(call, view, &request);
+            }
+            FilesRequest::GitBranchDeleteRemote(request) => {
+                self.git.branch_delete_remote(call, view, &request);
+            }
+            FilesRequest::GitMerge(request) => self.git.merge(call, view, &request),
+            FilesRequest::GitRebase(request) => self.git.rebase(call, view, &request),
+            FilesRequest::GitCherryPick(request) => self.git.cherry_pick(call, view, &request),
+            FilesRequest::GitAbort(request) => self.git.abort(call, view, &request),
+            FilesRequest::GitUndoCommit(request) => self.git.undo_commit(call, view, &request),
+            FilesRequest::GitStashPush(request) => self.git.stash_push(call, view, &request),
+            FilesRequest::GitStashApply(request) => self.git.stash_apply(call, view, &request),
+            FilesRequest::GitStashPop(request) => self.git.stash_pop(call, view, &request),
+            FilesRequest::GitStashDrop(request) => self.git.stash_drop(call, view, &request),
+            FilesRequest::GitStashClear(request) => self.git.stash_clear(call, view, &request),
+            FilesRequest::GitTagCreate(request) => self.git.tag_create(call, view, &request),
+            FilesRequest::GitTagDelete(request) => self.git.tag_delete(call, view, &request),
+            FilesRequest::GitTagDeleteRemote(request) => {
+                self.git.tag_delete_remote(call, view, &request);
+            }
+            FilesRequest::GitRemoteAdd(request) => self.git.remote_add(call, view, &request),
+            FilesRequest::GitRemoteRemove(request) => self.git.remote_remove(call, view, &request),
+            // Local History is not served yet.
+            FilesRequest::HistoryList(_)
             | FilesRequest::HistoryRestore(_)
             | FilesRequest::HistoryRename(_)
             | FilesRequest::HistoryDelete(_) => call.close(CallClose::Unsupported),
