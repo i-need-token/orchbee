@@ -140,8 +140,14 @@ too, which the Server follows for the helper's progress. Otherwise neither platf
 process dies abruptly:
 `PR_SET_PDEATHSIG` would need `pre_exec`, which this crate's denial of unsafe code excludes, and is
 Linux-only and thread-scoped. Output pipes still close then, so a writer receives `SIGPIPE` or an
-error. Unix tests cover root exit, cancellation, ignored `SIGTERM`, dropped owners and missing
-programs with a real descendant in the group.
+error. On Unix an owner can report its groups to the launcher that started it instead:
+`GroupReport` writes a line to standard output when a group starts and another once it settled,
+and the launcher's `end_reported_groups` reads that pipe until the owner ended, then ends each
+group still reported, `SIGTERM` and then `SIGKILL` after two seconds, signalling only while the
+group's leader runs with its reported start. A group the owner had not reported yet, and a member
+that outlives a leader that ended on `SIGTERM`, stay out of its reach. Unix tests cover root exit,
+cancellation, ignored `SIGTERM`, dropped owners, missing programs and reported groups with a real
+descendant in the group.
 
 On macOS and Linux, `run_unix_command` runs one command to its end, the Unix counterpart of
 `run_windows_command`: standard input is null, both outputs are drained on their own threads to

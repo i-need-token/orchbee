@@ -34,11 +34,13 @@ use super::CommandSpawnFailure;
 
 mod capture;
 mod native;
+mod report;
 mod spawn;
 pub use capture::{
     run_unix_command, run_unix_command_exchange, run_unmasked_unix_command,
     run_unmasked_unix_command_following,
 };
+pub use report::{EndedGroups, GroupReport, ReportedGroup, end_reported_groups};
 pub use spawn::SpawnEnvironment;
 
 /// The cleanup budget the Windows Job owner also applies, counted from the first settle.

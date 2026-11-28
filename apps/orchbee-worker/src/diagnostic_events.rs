@@ -278,6 +278,32 @@ pub(crate) fn files_start_failed(stage: &'static str, error: &(dyn Error + 'stat
     log_event(LogLevel::Warning, "files-start-failed", &fields);
 }
 
+/// The process groups an ended `orchbee-files` left running, which the Worker then ended: how many
+/// it signalled and how many the report left out past the groups it keeps. Nothing when none ran.
+#[cfg(unix)]
+pub(crate) fn files_groups_ended(ended: orchbee_local_runtime::EndedGroups) {
+    if ended.signalled == 0 && ended.left_out == 0 {
+        return;
+    }
+    let count = |groups: usize| LogValue::Count(u64::try_from(groups).unwrap_or(u64::MAX));
+    let fields = [
+        ("signalled", count(ended.signalled)),
+        ("leftOut", count(ended.left_out)),
+    ];
+    log_event(LogLevel::Warning, "files-groups-ended", &fields);
+}
+
+/// Ending the process groups an ended `orchbee-files` left running failed: the closed I/O error
+/// kind and the operating-system error code it carries.
+#[cfg(unix)]
+pub(crate) fn files_groups_failed(error: &(dyn Error + 'static)) {
+    let mut fields = vec![error_kind(error)];
+    if let Some(code) = os_error(error) {
+        fields.push(("osError", LogValue::Count(u64::from(code))));
+    }
+    log_event(LogLevel::Warning, "files-groups-failed", &fields);
+}
+
 /// A Host's epoch could not be written into the Session record: the closed I/O error kind.
 pub(crate) fn host_epoch_unrecorded(error: &io::Error) {
     let fields = [error_kind(error)];

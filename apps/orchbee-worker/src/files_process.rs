@@ -4,7 +4,9 @@
 //! endpoint the Server bound, its token on standard input and the environment a terminal launch
 //! starts from: in a kill-on-close Job on Windows, as the leader of its own process group through
 //! the retained spawn on macOS and Linux. It answers as soon as the process exists; the process's
-//! admission, link, scope and effects are between it and the Server.
+//! admission, link, scope and effects are between it and the Server. On macOS and Linux the process
+//! reports each group it runs Git in on its standard output, which a thread of its own reads to end
+//! the groups the process leaves running once it ended, as when it was killed.
 
 use std::{
     cell::RefCell,
@@ -168,7 +170,8 @@ const fn launch_path(_system_shell: &SystemShell) -> Option<String> {
 }
 
 /// Starts `executable` with `--local-endpoint <endpoint>` and the token line on standard input,
-/// and reads its exact identity while the root is held unreaped.
+/// reads its exact identity while the root is held unreaped and, on macOS and Linux, starts reading
+/// its report of groups.
 fn spawn(
     executable: &Path,
     endpoint: &str,
@@ -194,23 +197,50 @@ fn spawn(
         CommandChild::spawn_contained(command)
     };
     #[cfg(unix)]
-    let child = {
+    let (child, reports) = {
         let null = std::fs::File::options().write(true).open("/dev/null")?;
-        CommandChild::spawn_with_streams(
+        let (reports, output) = io::pipe()?;
+        let child = CommandChild::spawn_with_streams(
             command,
             orchbee_local_runtime::SpawnEnvironment::Inherited,
-            [input.into(), null.try_clone()?.into(), null.into()],
-        )
+            [input.into(), output.into(), null.into()],
+        );
+        (child, reports)
     };
     let mut child = child.map_err(|failure| failure.error)?;
-    match child.exact_identity() {
-        Ok((process_id, start)) => Ok((child, FilesProcessIdentity { process_id, start })),
+    let identity = match child.exact_identity() {
+        Ok((process_id, start)) => FilesProcessIdentity { process_id, start },
         Err(error) => {
             // A process the Server cannot name, it cannot end, so it does not outlive the start.
             let _settled = child.settle();
-            Err(error.into())
+            return Err(error.into());
         }
+    };
+    #[cfg(unix)]
+    if let Err(error) = end_left_groups(reports, identity) {
+        // Nor does one whose groups nothing would end once it ended.
+        let _settled = child.settle();
+        return Err(error.into());
     }
+    Ok((child, identity))
+}
+
+/// Ends, on a thread of its own, the process groups `process` leaves running once it ended, which it
+/// reports on `reports`, its standard output: Git leads a group of its own, which a killed
+/// `orchbee-files` cannot settle. The thread lasts as long as the process and then the two seconds a
+/// group's end may take, and it leaves its outcome in the diagnostic log.
+#[cfg(unix)]
+fn end_left_groups(reports: io::PipeReader, process: FilesProcessIdentity) -> io::Result<()> {
+    std::thread::Builder::new()
+        .name("orchbee-files-groups".to_owned())
+        .spawn(move || {
+            let owner = (process.process_id, process.start);
+            match orchbee_local_runtime::end_reported_groups(reports, owner) {
+                Ok(ended) => crate::diagnostic_events::files_groups_ended(ended),
+                Err(error) => crate::diagnostic_events::files_groups_failed(&error),
+            }
+        })
+        .map(drop)
 }
 
 /// The token as `orchbee-files` reads it: 64 lowercase hexadecimal digits and a line feed.

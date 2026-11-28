@@ -68,6 +68,9 @@ pub trait Observer {
     fn stdout(&mut self, bytes: &[u8]) -> Result<(), Self::Stop>;
     /// Takes the next bytes of standard error, which may end anywhere.
     fn stderr(&mut self, bytes: &[u8]);
+    /// Sees the command's root once it started, before the run reads anything; `child` owns the
+    /// command's tree until the run returns.
+    fn started(&mut self, _child: &CommandChild) {}
 }
 
 /// Why [`Run::observe`] ended before the command did. Except after `Unsettled`, no process the run
@@ -169,6 +172,7 @@ impl Run {
                 ObserveError::Spawn(failure.error.kind())
             }
         })?;
+        observer.started(&child);
         let mut outputs = Outputs {
             out: Some(out),
             err: Some(err),

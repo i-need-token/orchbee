@@ -67,7 +67,10 @@ jobs whose stop the loop's end could not prove; it is written beside that end's 
 which keeps the loop's own cause. `files-start-failed` records an
 [`orchbee-files` start](#orchbee-files-process) that failed: `error`, `osError` and `stage`
 (`previous` when the process it held did not end first, `unverified` when the file did not match
-the cohort's digest, or `spawn`).
+the cohort's digest, or `spawn`). `files-groups-ended` records the groups an ended `orchbee-files`
+left running that the Worker then ended: `signalled`, and `leftOut`, those its report named past the
+1,024 it keeps; `files-groups-failed` records, with `error` and `osError`, a report the Worker could
+not read or a group it could not signal.
 `request-declined` records a whole Server request the Worker declined instead of ending, with its
 `kind` (`launch`, `start`, `viewer`, `control`, `lifecycle`, `cwd-validation`, `send`,
 `worktree-job`, `agent-drain`, `shutdown`, `worktree-mutation`, `titles`, `handoff`,
@@ -539,6 +542,14 @@ the Server, which names that identity to end a start whose link never became rea
 only the process of that identity, `SIGTERM` and then `SIGKILL` to its group on macOS and Linux or
 its Job's end on Windows, within the five-second settle budget, which the request loop waits out.
 The loops reap a process that ended on its own, as at its idle exit, between requests.
+
+Each Git command the process runs leads a process group of its own, outside the process's group,
+so a killed process would leave it running. On macOS and Linux the process's standard output is
+therefore a pipe that a thread of its own reads: the process reports there each group it starts,
+and once the process ended, killed or not, the thread ends each group still reported, as a
+[group report](../../crates/local-runtime/README.md#retained-commands) does. The thread ends with
+it, and its outcome reaches the diagnostic log; a Worker that exits first ends no group. On Windows
+the process's Job ends every child with it.
 
 ## Background job owners and exit
 

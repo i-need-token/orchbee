@@ -19,6 +19,8 @@ pub use unix::{
     CommandChild, SpawnEnvironment, run_unix_command, run_unix_command_exchange,
     run_unmasked_unix_command, run_unmasked_unix_command_following,
 };
+#[cfg(unix)]
+pub use unix::{EndedGroups, GroupReport, ReportedGroup, end_reported_groups};
 #[cfg(windows)]
 pub use windows::{
     CommandChild, resolve_windows_program, run_background_command_exchange,

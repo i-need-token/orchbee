@@ -267,6 +267,8 @@ mod command_child;
 pub use command_child::DetachedChild;
 pub use command_child::{CommandChild, CommandSpawnFailure};
 #[cfg(unix)]
+pub use command_child::{EndedGroups, GroupReport, ReportedGroup, end_reported_groups};
+#[cfg(unix)]
 pub use command_child::{
     SpawnEnvironment, run_unix_command, run_unix_command_exchange, run_unmasked_unix_command,
     run_unmasked_unix_command_following,

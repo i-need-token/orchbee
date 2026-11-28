@@ -126,6 +126,8 @@ pub(super) fn stream(
         last_output: started,
         consume,
         stderr: Vec::new(),
+        #[cfg(unix)]
+        reported: None,
     };
     let result = Run::new(command).input(input).observe(&mut watch);
     let stderr = watch.stderr;
@@ -216,6 +218,9 @@ struct Watch<'a, F> {
     last_output: Instant,
     consume: F,
     stderr: Vec<u8>,
+    /// The Worker hears of the command's group until the run settled it.
+    #[cfg(unix)]
+    reported: Option<orchbee_local_runtime::ReportedGroup<'static>>,
 }
 
 impl<F: FnMut(&[u8]) -> Flow> Observer for Watch<'_, F> {
@@ -260,5 +265,10 @@ impl<F: FnMut(&[u8]) -> Flow> Observer for Watch<'_, F> {
         self.stderr.extend_from_slice(bytes);
         let excess = self.stderr.len().saturating_sub(STDERR_TAIL);
         self.stderr.drain(..excess);
+    }
+
+    #[cfg(unix)]
+    fn started(&mut self, child: &orchbee_local_runtime::CommandChild) {
+        self.reported = crate::groups::report(child);
     }
 }

@@ -12,6 +12,8 @@ mod exit;
 mod fs;
 mod git;
 mod grants;
+#[cfg(unix)]
+mod groups;
 mod invocation;
 mod link;
 mod operations;
@@ -73,6 +75,9 @@ fn run(arguments: impl Iterator<Item = OsString>, root: Option<DataRoot>) -> Out
         return error.outcome();
     }
     admission::write_ready_marker(&mut std::io::stdout().lock());
+    // Before any child starts, so the Worker hears of every group this process could leave.
+    #[cfg(unix)]
+    groups::install();
     exit::started();
     let (ends, ended) = mpsc::channel();
     // Caught only once admitted: until then no child exists, so a signal's default action ends
