@@ -1,10 +1,19 @@
 export const enUSSourceControlMessages = {
 	'sourceControl.actions.category': 'Git',
+	'sourceControl.actions.closeOtherRepositories': 'Close Other Repositories',
+	'sourceControl.actions.closeRepository': 'Close Repository',
 	'sourceControl.actions.collapseAll': 'Collapse All',
+	'sourceControl.actions.deletePermanently': 'Delete Permanently',
+	'sourceControl.actions.discard': 'Discard Changes',
+	'sourceControl.actions.discardAll': 'Discard All Changes',
 	'sourceControl.actions.more': 'More Actions…',
 	'sourceControl.actions.sortByName': 'Sort Changes by Name',
 	'sourceControl.actions.sortByPath': 'Sort Changes by Path',
 	'sourceControl.actions.sortByStatus': 'Sort Changes by Status',
+	'sourceControl.actions.stage': 'Stage Changes',
+	'sourceControl.actions.stageAll': 'Stage All Changes',
+	'sourceControl.actions.unstage': 'Unstage Changes',
+	'sourceControl.actions.unstageAll': 'Unstage All Changes',
 	'sourceControl.actions.viewAndSort': 'View & Sort',
 	'sourceControl.actions.viewAsList': 'View as List',
 	'sourceControl.actions.viewAsTree': 'View as Tree',
@@ -15,6 +24,31 @@ export const enUSSourceControlMessages = {
 	'sourceControl.checkout.syncing': '{head}, Synchronizing Changes…',
 	'sourceControl.closedRepositories.placeholder': 'Pick a repository to reopen',
 	'sourceControl.closedRepositories.title': 'Reopen Closed Repositories',
+	'sourceControl.discard.mixed.description':
+		'{os, select, windows {{untracked, plural, =1 {You can restore this file from the Recycle Bin.} other {You can restore these files from the Recycle Bin.}}} other {{untracked, plural, =1 {You can restore this file from the Trash.} other {You can restore these files from the Trash.}}}} {tracked, plural, =1 {Are you sure you want to discard changes in “{name}”?} other {Are you sure you want to discard ALL changes in # files?}} This is IRREVERSIBLE! Your current working set will be FOREVER LOST if you proceed.',
+	'sourceControl.discard.permanent.confirm':
+		'{count, plural, =1 {Delete File} other {Delete All # Files}}',
+	'sourceControl.discard.permanent.description': 'This action is irreversible!',
+	'sourceControl.discard.permanent.title':
+		'{os, select, windows {Failed to delete using the Recycle Bin. Do you want to permanently delete instead?} other {Failed to delete using the Trash. Do you want to permanently delete instead?}}',
+	'sourceControl.discard.restore.confirm':
+		'{count, plural, =1 {Restore File} other {Restore All # Files}}',
+	'sourceControl.discard.restore.description':
+		'{count, plural, =1 {The file comes back with its last staged or committed content.} other {The files come back with their last staged or committed content.}}',
+	'sourceControl.discard.restore.title':
+		'{count, plural, =1 {Are you sure you want to restore “{name}”?} other {Are you sure you want to restore ALL # files?}}',
+	'sourceControl.discard.tracked.confirm':
+		'{count, plural, =1 {Discard File} other {Discard All # Files}}',
+	'sourceControl.discard.tracked.description':
+		'{count, plural, =1 {This action is irreversible!} other {This is IRREVERSIBLE! Your current working set will be FOREVER LOST if you proceed.}}',
+	'sourceControl.discard.tracked.title':
+		'{count, plural, =1 {Are you sure you want to discard changes in “{name}”?} other {Are you sure you want to discard ALL changes in # files?}}',
+	'sourceControl.discard.untracked.confirm':
+		'{os, select, windows {Move to Recycle Bin} other {Move to Trash}}',
+	'sourceControl.discard.untracked.description':
+		'{os, select, windows {{count, plural, =1 {You can restore this file from the Recycle Bin.} other {You can restore these files from the Recycle Bin.}}} other {{count, plural, =1 {You can restore this file from the Trash.} other {You can restore these files from the Trash.}}}}',
+	'sourceControl.discard.untracked.title':
+		'{count, plural, =1 {Are you sure you want to DELETE the following untracked file: “{name}”?} other {Are you sure you want to DELETE the # untracked files?}}',
 	'sourceControl.error.disconnected': 'The machine is disconnected.',
 	'sourceControl.error.generic': 'Git error',
 	'sourceControl.error.git': 'Git: {hint}',

@@ -22,6 +22,7 @@ export type ProductIconName =
 	| 'collapse-all'
 	| 'color'
 	| 'copy'
+	| 'discard'
 	| 'edit'
 	| 'ellipsis'
 	| 'file'
@@ -95,6 +96,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'collapse-all' && styles['collapseAll'],
 				name === 'color' && styles['color'],
 				name === 'copy' && styles['copy'],
+				name === 'discard' && styles['discard'],
 				name === 'edit' && styles['edit'],
 				name === 'ellipsis' && styles['ellipsis'],
 				name === 'file' && styles['file'],

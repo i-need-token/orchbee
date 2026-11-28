@@ -16,7 +16,7 @@ import {
 } from '@orchbee/ui/components';
 import * as React from 'react';
 
-import type { SourceControlMenuCommand } from '../../hooks/useSourceControlActions';
+import type { SourceControlMenuCommand } from '../../types/source-control-menu';
 import styles from './ScmChangesMenu.module.css';
 
 interface ScmChangesMenuProps {

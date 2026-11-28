@@ -1,5 +1,5 @@
-/* VS Code's resource label: the name, its quieter folder 6px after it, and the status letter at the
-   far end, 16px before the edge as the Explorer's marks. */
+/* VS Code's resource label: the name, its quieter folder 6px after it, the inline buttons, and the
+   status letter at the far end, 16px before the edge as the Explorer's marks. */
 .root {
 	display: flex;
 	min-width: 0;
@@ -31,9 +31,25 @@
 	white-space: nowrap;
 }
 
+/* The buttons fill the room up to the count or letter, at its far side, and show only while the row
+   is hovered or focused: hidden, they leave the text all the room, as VS Code's do. */
+.actions {
+	display: flex;
+	flex: 1 0 auto;
+	justify-content: flex-end;
+}
+
+.actions:last-child {
+	margin-inline-end: var(--ob-ref-space-2);
+}
+
+.root:not(:hover, [data-focused]) .actions > * {
+	display: none;
+}
+
 .letter {
 	flex: none;
-	margin-inline: auto var(--ob-ref-space-4);
+	margin-inline-end: var(--ob-ref-space-4);
 	padding-inline-start: var(--ob-ref-space-1);
 	font: var(--ob-sys-typography-label-sm);
 }
@@ -79,7 +95,7 @@
 	box-sizing: border-box;
 	min-width: var(--ob-ref-size-control-2xs);
 	flex: none;
-	margin-inline: auto var(--ob-ref-space-2);
+	margin-inline-end: var(--ob-ref-space-2);
 	padding-inline: var(--ob-ref-space-1);
 	border-radius: var(--ob-ref-radius-full);
 	background: var(--ob-sys-color-surface-selected);

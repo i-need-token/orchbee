@@ -2,11 +2,20 @@ import type { SourceControlMessageId } from '../en-US';
 
 export const zhCNSourceControlMessages = {
 	'sourceControl.actions.category': 'Git',
+	'sourceControl.actions.closeOtherRepositories': '关闭其他仓库',
+	'sourceControl.actions.closeRepository': '关闭仓库',
 	'sourceControl.actions.collapseAll': '全部折叠',
+	'sourceControl.actions.deletePermanently': '永久删除',
+	'sourceControl.actions.discard': '放弃更改',
+	'sourceControl.actions.discardAll': '放弃所有更改',
 	'sourceControl.actions.more': '更多操作…',
 	'sourceControl.actions.sortByName': '按名称对更改进行排序',
 	'sourceControl.actions.sortByPath': '按路径对更改进行排序',
 	'sourceControl.actions.sortByStatus': '按状态对更改进行排序',
+	'sourceControl.actions.stage': '暂存更改',
+	'sourceControl.actions.stageAll': '暂存所有更改',
+	'sourceControl.actions.unstage': '取消暂存更改',
+	'sourceControl.actions.unstageAll': '取消暂存所有更改',
 	'sourceControl.actions.viewAndSort': '查看和排序',
 	'sourceControl.actions.viewAsList': '以列表形式查看',
 	'sourceControl.actions.viewAsTree': '以树形式查看',
@@ -17,6 +26,31 @@ export const zhCNSourceControlMessages = {
 	'sourceControl.checkout.syncing': '{head}，正在同步更改…',
 	'sourceControl.closedRepositories.placeholder': '选择要重新打开的仓库',
 	'sourceControl.closedRepositories.title': '重新打开已关闭的仓库',
+	'sourceControl.discard.mixed.description':
+		'{os, select, macos {{untracked, plural, =1 {你可以从废纸篓还原此文件。} other {你可以从废纸篓还原这些文件。}}} other {{untracked, plural, =1 {你可以从回收站还原此文件。} other {你可以从回收站还原这些文件。}}}}{tracked, plural, =1 {是否确实要放弃“{name}”中的更改？} other {是否确实要放弃 # 个文件中的全部更改？}}此操作不可撤销！如果继续操作，你当前的工作集将永久丢失。',
+	'sourceControl.discard.permanent.confirm':
+		'{count, plural, =1 {删除文件} other {删除所有 # 个文件}}',
+	'sourceControl.discard.permanent.description': '此操作不可逆！',
+	'sourceControl.discard.permanent.title':
+		'{os, select, macos {无法删除到废纸篓。是否永久删除？} other {无法删除到回收站。是否永久删除？}}',
+	'sourceControl.discard.restore.confirm':
+		'{count, plural, =1 {还原文件} other {还原所有 # 个文件}}',
+	'sourceControl.discard.restore.description':
+		'{count, plural, =1 {该文件将以最近暂存或提交的内容恢复。} other {这些文件将以最近暂存或提交的内容恢复。}}',
+	'sourceControl.discard.restore.title':
+		'{count, plural, =1 {是否确实要还原“{name}”？} other {是否确实要还原全部 # 个文件？}}',
+	'sourceControl.discard.tracked.confirm':
+		'{count, plural, =1 {放弃文件} other {放弃所有 # 个文件}}',
+	'sourceControl.discard.tracked.description':
+		'{count, plural, =1 {此操作不可逆！} other {此操作不可撤销！如果继续操作，你当前的工作集将永久丢失。}}',
+	'sourceControl.discard.tracked.title':
+		'{count, plural, =1 {是否确实要放弃“{name}”中的更改？} other {是否确实要放弃 # 个文件中的全部更改？}}',
+	'sourceControl.discard.untracked.confirm':
+		'{os, select, macos {移动到废纸篓} other {移动到回收站}}',
+	'sourceControl.discard.untracked.description':
+		'{os, select, macos {{count, plural, =1 {你可以从废纸篓还原此文件。} other {你可以从废纸篓还原这些文件。}}} other {{count, plural, =1 {你可以从回收站还原此文件。} other {你可以从回收站还原这些文件。}}}}',
+	'sourceControl.discard.untracked.title':
+		'{count, plural, =1 {是否确实要删除以下未跟踪的文件：“{name}”？} other {是否确实要删除 # 个未跟踪的文件？}}',
 	'sourceControl.error.disconnected': '与这台机器的连接已断开。',
 	'sourceControl.error.generic': 'Git 错误',
 	'sourceControl.error.git': 'Git: {hint}',

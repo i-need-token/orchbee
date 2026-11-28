@@ -228,6 +228,11 @@ function groupItems(repository: ScmTreeRepository, single: boolean): ScmTreeItem
 	);
 }
 
+/** The Changes tree's source, whose children are always at hand. */
+export interface ScmTreeSource extends VirtualTreeSource<string, ScmTreeItem> {
+	readonly children: (item: ScmTreeItem) => readonly ScmTreeItem[];
+}
+
 /**
  * The Changes tree's source over whatever `snapshot` returns when the model asks, so the view
  * refreshes the model after changing it. One visible repository puts its groups at the top, as
@@ -235,9 +240,7 @@ function groupItems(repository: ScmTreeRepository, single: boolean): ScmTreeItem
  * list or a compact folder tree. Every answer is at hand, so the rows change in the task that
  * refreshes them.
  */
-export function scmTreeSource(
-	snapshot: () => ScmTreeSnapshot,
-): VirtualTreeSource<string, ScmTreeItem> {
+export function scmTreeSource(snapshot: () => ScmTreeSnapshot): ScmTreeSource {
 	const children = (item: ScmTreeItem): readonly ScmTreeItem[] => {
 		const { options, repositories } = snapshot();
 		switch (item.kind) {

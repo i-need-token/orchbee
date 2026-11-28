@@ -7,8 +7,14 @@ import type {
 	GitRepositorySummary,
 } from '../../file-session';
 import { VirtualTreeModel } from '../../virtual-tree';
-import type { ScmResourceGroups, ScmResourceStatus } from './scm-resource';
-import { SCM_TREE_INPUT, scmTreeSource, type ScmTreeItem, type ScmTreeSnapshot } from './scm-tree';
+import type { ScmGroupId, ScmResourceGroups, ScmResourceStatus } from './scm-resource';
+import {
+	SCM_TREE_INPUT,
+	scmTreeSource,
+	type ScmTreeItem,
+	type ScmTreeSnapshot,
+	type ScmTreeSource,
+} from './scm-tree';
 import type { ScmViewMode, ScmViewSortKey, ScmViewState } from './scm-view-state';
 import { ScmWorkspace, type ScmRepositoryState, type ScmWorkspaceState } from './ScmWorkspace';
 import {
@@ -80,6 +86,7 @@ export class SourceControlModel {
 		{ readonly abort: AbortController; readonly key: string }
 	>();
 	readonly #session: FileWorkspaceSession;
+	readonly #source: ScmTreeSource;
 	readonly #storage: SourceControlViewStateStorage | undefined;
 	readonly #workspace: ScmWorkspace;
 	#disposed = false;
@@ -106,10 +113,11 @@ export class SourceControlModel {
 			view: readSourceControlViewState(options.storage, options.session.workspaceId),
 			workspace: this.#workspace.state,
 		};
+		this.#source = scmTreeSource(() => this.#snapshot());
 		this.changes = new VirtualTreeModel({
 			expandedByDefault: () => true,
 			input: SCM_TREE_INPUT,
-			source: scmTreeSource(() => this.#snapshot()),
+			source: this.#source,
 		});
 		this.repositories = new VirtualTreeModel({
 			input: REPOSITORIES_INPUT,
@@ -157,6 +165,18 @@ export class SourceControlModel {
 	reopen(repositories: readonly string[]): void {
 		for (const repository of repositories) this.#memory.closed.delete(repository);
 		this.#onWorkspace();
+	}
+
+	/** VS Code's Collapse All on a group: each row below it collapses with everything under it. */
+	collapseGroup(repository: string, group: ScmGroupId): void {
+		const groups = this.#state.repositories.find(
+			({ summary }) => summary.repository === repository,
+		)?.groups;
+		if (groups === null || groups === undefined) return;
+		const item: ScmTreeItem = { group, kind: 'group', repository, resources: groups[group] };
+		for (const child of this.#source.children(item)) {
+			this.changes.collapse(this.#source.key(child), { recursive: true });
+		}
 	}
 
 	/** View as List or View as Tree, which the Workspace remembers. */

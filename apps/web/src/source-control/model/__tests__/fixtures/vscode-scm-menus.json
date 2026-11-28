@@ -1,0 +1,470 @@
+{
+	"source": "microsoft/vscode at ef5ca45a6e545e4767e0117905ee9d6120b86e11: extensions/git/package.json contributes.menus and command titles, and src/vs/workbench/contrib/scm/browser/scmViewPane.ts CollapseAllAction",
+	"titles": {
+		"git.clean": "Discard Changes",
+		"git.cleanAll": "Discard All Changes",
+		"git.cleanAllTracked": "Discard All Tracked Changes",
+		"git.cleanAllUntracked": "Discard All Untracked Changes",
+		"git.close": "Close Repository",
+		"git.closeOtherRepositories": "Close Other Repositories",
+		"git.compareWithWorkspace": "Compare with Workspace",
+		"git.deleteWorktree2": "Delete Worktree",
+		"git.ignore": "Add to .gitignore",
+		"git.openChange": "Open Changes",
+		"git.openFile": "Open File",
+		"git.openFile2": "Open File",
+		"git.openHEADFile": "Open File (HEAD)",
+		"git.openWorktree": "Open Worktree in Current Window",
+		"git.openWorktreeInNewWindow": "Open Worktree in New Window",
+		"git.revealFileInOS.linux": "Open Containing Folder",
+		"git.revealFileInOS.mac": "Reveal in Finder",
+		"git.revealFileInOS.windows": "Reveal in File Explorer",
+		"git.revealInExplorer": "Reveal in Explorer View",
+		"git.stage": "Stage Changes",
+		"git.stageAll": "Stage All Changes",
+		"git.stageAllMerge": "Stage All Merge Changes",
+		"git.stageAllTracked": "Stage All Tracked Changes",
+		"git.stageAllUntracked": "Stage All Untracked Changes",
+		"git.unstage": "Unstage Changes",
+		"git.unstageAll": "Unstage All Changes",
+		"git.viewChanges": "Open Changes",
+		"git.viewStagedChanges": "Open Staged Changes",
+		"git.viewUntrackedChanges": "Open Untracked Changes",
+		"workbench.scm.action.collapseAll": "Collapse All"
+	},
+	"menus": {
+		"scm/resourceState/context": [
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.openFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.revealFileInOS.linux",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isLinux"
+			},
+			{
+				"command": "git.revealFileInOS.mac",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isMac"
+			},
+			{
+				"command": "git.revealFileInOS.windows",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == merge && remoteName == '' && isWindows"
+			},
+			{
+				"command": "git.revealInExplorer",
+				"group": "2_view@2",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.openFile2",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == merge && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.openFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.openHEADFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.unstage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.unstage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.revealFileInOS.linux",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isLinux"
+			},
+			{
+				"command": "git.revealFileInOS.mac",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isMac"
+			},
+			{
+				"command": "git.revealFileInOS.windows",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == index && remoteName == '' && isWindows"
+			},
+			{
+				"command": "git.revealInExplorer",
+				"group": "2_view@2",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.compareWithWorkspace",
+				"group": "worktree_diff",
+				"when": "scmProvider == git && scmResourceGroup == index && scmResourceState == worktree"
+			},
+			{
+				"command": "git.openFile2",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == index && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.openHEADFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.openFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.clean",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.clean",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.compareWithWorkspace",
+				"group": "worktree_diff",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && scmResourceState == worktree"
+			},
+			{
+				"command": "git.openFile2",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.ignore",
+				"group": "1_modification@3",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.revealFileInOS.linux",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isLinux"
+			},
+			{
+				"command": "git.revealFileInOS.mac",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isMac"
+			},
+			{
+				"command": "git.revealFileInOS.windows",
+				"group": "2_view@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && remoteName == '' && isWindows"
+			},
+			{
+				"command": "git.revealInExplorer",
+				"group": "2_view@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.openChange",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.openHEADFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.openFile",
+				"group": "navigation",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.clean",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository"
+			},
+			{
+				"command": "git.clean",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked && !gitFreshRepository"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.openFile2",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.openChange",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == untracked && config.git.showInlineOpenFileAction && !config.git.openDiffOnClick"
+			},
+			{
+				"command": "git.ignore",
+				"group": "1_modification@3",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			}
+		],
+		"scm/resourceFolder/context": [
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.unstage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.unstage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.clean",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.clean",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.ignore",
+				"group": "1_modification@3",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.stage",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.stage",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.clean",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.clean",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.ignore",
+				"group": "1_modification@3",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			}
+		],
+		"scm/resourceGroup/context": [
+			{
+				"command": "git.stageAllMerge",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.stageAllMerge",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == merge"
+			},
+			{
+				"command": "git.unstageAll",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.unstageAll",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.viewStagedChanges",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == index"
+			},
+			{
+				"command": "git.viewChanges",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == workingTree"
+			},
+			{
+				"command": "git.cleanAll",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed"
+			},
+			{
+				"command": "git.stageAll",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed"
+			},
+			{
+				"command": "git.cleanAll",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed"
+			},
+			{
+				"command": "git.stageAll",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges == mixed"
+			},
+			{
+				"command": "git.cleanAllTracked",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed"
+			},
+			{
+				"command": "git.stageAllTracked",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed"
+			},
+			{
+				"command": "git.cleanAllTracked",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed"
+			},
+			{
+				"command": "git.stageAllTracked",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == workingTree && config.git.untrackedChanges != mixed"
+			},
+			{
+				"command": "git.cleanAllUntracked",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.stageAllUntracked",
+				"group": "1_modification",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.viewUntrackedChanges",
+				"group": "inline@1",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.cleanAllUntracked",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "git.stageAllUntracked",
+				"group": "inline@2",
+				"when": "scmProvider == git && scmResourceGroup == untracked"
+			},
+			{
+				"command": "workbench.scm.action.collapseAll",
+				"group": "9_collapse",
+				"when": "scmViewMode == tree"
+			}
+		],
+		"scm/sourceControl": [
+			{
+				"command": "git.close",
+				"group": "navigation@1",
+				"when": "scmProvider == git"
+			},
+			{
+				"command": "git.closeOtherRepositories",
+				"group": "navigation@2",
+				"when": "scmProvider == git && gitOpenRepositoryCount > 1"
+			},
+			{
+				"command": "git.openWorktree",
+				"group": "1_worktree@1",
+				"when": "scmProvider == git && scmProviderContext == worktree"
+			},
+			{
+				"command": "git.openWorktreeInNewWindow",
+				"group": "1_worktree@2",
+				"when": "scmProvider == git && scmProviderContext == worktree"
+			},
+			{
+				"command": "git.deleteWorktree2",
+				"group": "2_worktree@1",
+				"when": "scmProvider == git && scmProviderContext == worktree"
+			}
+		]
+	}
+}

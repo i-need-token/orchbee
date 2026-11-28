@@ -1,11 +1,13 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { sourceControlMessages, useOrchbeeIntl } from '@orchbee/i18n';
+import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
+import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import * as React from 'react';
 
 import type { FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow } from '../virtual-tree';
-import { ScmChangeRow } from './components/scm-change-row/ScmChangeRow';
 import { ScmChangesMenu } from './components/scm-changes-menu/ScmChangesMenu';
+import { ScmContextMenuContent } from './components/scm-context-menu-content/ScmContextMenuContent';
 import { ScmProgress } from './components/scm-progress/ScmProgress';
 import { ScmRepositoryRow } from './components/scm-repository-row/ScmRepositoryRow';
 import { ScmSash } from './components/scm-sash/ScmSash';
@@ -13,11 +15,14 @@ import { ScmSectionHeader } from './components/scm-section-header/ScmSectionHead
 import { ScmWelcome } from './components/scm-welcome/ScmWelcome';
 import { SCM_ROW_HEIGHT, SCM_VISIBLE_REPOSITORIES } from './constants/scm-rows';
 import { useGitClientFocus } from './hooks/useGitClientFocus';
+import { useScmChangeRowRenderer } from './hooks/useScmChangeRowRenderer';
+import { useScmMenuGroups } from './hooks/useScmMenuGroups';
+import { useScmRowActions } from './hooks/useScmRowActions';
 import { useScmSections } from './hooks/useScmSections';
+import { useScmTreeMenu } from './hooks/useScmTreeMenu';
 import { useSourceControlActions } from './hooks/useSourceControlActions';
 import { useSourceControlModel } from './hooks/useSourceControlModel';
 import { scmCheckoutItem, scmRepositoryNames, scmSyncItem } from './model/scm-repository-row';
-import type { ScmTreeItem } from './model/scm-tree';
 import type { SourceControlState } from './model/SourceControlModel';
 import type { SourceControlViewStateStorage } from './model/source-control-view-state-storage';
 import { scmWelcomeItems } from './model/scmWelcomeItems';
@@ -33,6 +38,8 @@ interface SourceControlProps {
 	readonly actionScope: ActionScope;
 	/** Where Git failures and VS Code's other Git messages are told. */
 	readonly notifications: SourceControlNotifications;
+	/** Which platform's keys and clicks the trees answer to. */
+	readonly platform: KeyboardShortcutPlatform;
 	/** Where VS Code's Git pickers ask, such as which parent repository to open. */
 	readonly quickInput: SourceControlQuickInput;
 	/** The active Workspace's file session; null while there is none to show. */
@@ -85,23 +92,40 @@ export function SourceControl({
 	actionRuntime,
 	actionScope,
 	notifications,
+	platform,
 	quickInput,
 	session,
 	storage,
 }: SourceControlProps): React.ReactNode {
 	const intl = useOrchbeeIntl();
 	const rootReference = React.useRef<HTMLDivElement>(null);
+	const repositoriesTree = React.useRef<HTMLDivElement>(null);
+	const changesTree = React.useRef<HTMLDivElement>(null);
 	const dragOrigin = React.useRef(0);
 	const { model, state } = useSourceControlModel({ session, storage });
 	useGitClientFocus(session?.git ?? null);
+	const scope = React.useMemo(
+		() => actionRuntime.createScope('source-control', actionScope),
+		[actionRuntime, actionScope],
+	);
 	const commands = useSourceControlActions({
 		model,
 		notifications,
-		parentScope: actionScope,
 		quickInput,
 		runtime: actionRuntime,
+		scope,
 		session,
 	});
+	const rowCommands = useScmRowActions({
+		model,
+		notifications,
+		runtime: actionRuntime,
+		scope,
+		session,
+	});
+	const menus = useScmMenuGroups({ commands, model, rowCommands });
+	const repositoriesMenu = useScmTreeMenu();
+	const changesMenu = useScmTreeMenu();
 	const { drag, dragging, sections, toggleChanges, toggleRepositories } = useScmSections(storage);
 	const renderRepository = useRepositoryRenderer(state);
 	const renderRepositoryRow = React.useMemo(
@@ -110,26 +134,7 @@ export function SourceControl({
 				renderRepository(row.element),
 		[renderRepository],
 	);
-	const mode = state?.view.mode ?? 'list';
-	const separator = state?.rules?.separator ?? '/';
-	const statusText = model?.statusText;
-	const renderChangeRow = React.useMemo(
-		() =>
-			(row: VirtualTreeRow<string, ScmTreeItem>): React.ReactNode => {
-				const item = row.element;
-				switch (item.kind) {
-					case 'repository':
-						return renderRepository(item.repository);
-					case 'workspace':
-						return null;
-					default:
-						return statusText === undefined ? null : (
-							<ScmChangeRow item={item} mode={mode} separator={separator} statusText={statusText} />
-						);
-				}
-			},
-		[mode, renderRepository, separator, statusText],
-	);
+	const renderChangeRow = useScmChangeRowRenderer({ model, renderRepository, rowCommands, state });
 	if (model === null || state === null) {
 		return <div className={styles['root']} data-slot='source-control' />;
 	}
@@ -175,18 +180,30 @@ export function SourceControl({
 					onToggle={toggleRepositories}
 				/>
 				{sections.repositoriesCollapsed ? null : (
-					<div
-						className={styles['body']}
-						style={{ '--ob-comp-source-control-repositories-height': `${repositoriesHeight}px` }}
-					>
-						<VirtualTree
-							label={intl.formatMessage(sourceControlMessages.repositories)}
-							maxStickyRows={0}
-							model={model.repositories}
-							renderRow={renderRepositoryRow}
-							rowHeight={SCM_ROW_HEIGHT}
-						/>
-					</div>
+					<ContextMenu>
+						<ContextMenuTrigger
+							className={styles['body']}
+							style={{ '--ob-comp-source-control-repositories-height': `${repositoriesHeight}px` }}
+							onContextMenu={repositoriesMenu.onTriggerContextMenu}
+						>
+							<VirtualTree
+								label={intl.formatMessage(sourceControlMessages.repositories)}
+								maxStickyRows={0}
+								model={model.repositories}
+								platform={platform}
+								renderRow={renderRepositoryRow}
+								rowHeight={SCM_ROW_HEIGHT}
+								treeReference={repositoriesTree}
+								onContextMenu={({ row }) => repositoriesMenu.show(menus.repositories(row))}
+							/>
+						</ContextMenuTrigger>
+						{repositoriesMenu.groups.length === 0 ? null : (
+							<ScmContextMenuContent
+								finalFocus={repositoriesTree}
+								groups={repositoriesMenu.groups}
+							/>
+						)}
+					</ContextMenu>
 				)}
 			</section>
 			{bothExpanded ? (
@@ -216,14 +233,25 @@ export function SourceControl({
 					<ScmChangesMenu viewAndSort={commands.viewAndSort} />
 				</ScmSectionHeader>
 				{sections.changesCollapsed ? null : (
-					<div className={styles['body']}>
-						<VirtualTree
-							label={intl.formatMessage(sourceControlMessages.tree)}
-							model={model.changes}
-							renderRow={renderChangeRow}
-							rowHeight={SCM_ROW_HEIGHT}
-						/>
-					</div>
+					<ContextMenu>
+						<ContextMenuTrigger
+							className={styles['body']}
+							onContextMenu={changesMenu.onTriggerContextMenu}
+						>
+							<VirtualTree
+								label={intl.formatMessage(sourceControlMessages.tree)}
+								model={model.changes}
+								platform={platform}
+								renderRow={renderChangeRow}
+								rowHeight={SCM_ROW_HEIGHT}
+								treeReference={changesTree}
+								onContextMenu={({ row }) => changesMenu.show(menus.changes(row))}
+							/>
+						</ContextMenuTrigger>
+						{changesMenu.groups.length === 0 ? null : (
+							<ScmContextMenuContent finalFocus={changesTree} groups={changesMenu.groups} />
+						)}
+					</ContextMenu>
 				)}
 			</section>
 		</div>

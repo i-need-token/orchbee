@@ -31,6 +31,14 @@ export const sourceControlMessages = defineMessages({
 		'sourceControl.checkout.syncing',
 		'Hover text of a repository’s branch while a sync runs. {head} is the branch with its marks.',
 	),
+	closeOtherRepositories: message(
+		'sourceControl.actions.closeOtherRepositories',
+		'Action in a repository’s context menu that closes every other shown repository, as VS Code’s Close Other Repositories.',
+	),
+	closeRepository: message(
+		'sourceControl.actions.closeRepository',
+		'Action in a repository’s context menu that stops showing it until it is reopened, as VS Code’s Close Repository.',
+	),
 	closedRepositoriesPlaceholder: message(
 		'sourceControl.closedRepositories.placeholder',
 		'Placeholder of the quick pick that lists the repositories the person closed.',
@@ -42,6 +50,46 @@ export const sourceControlMessages = defineMessages({
 	collapseAll: message(
 		'sourceControl.actions.collapseAll',
 		'Group menu Action that collapses every folder of the group in tree view.',
+	),
+	deletePermanently: message(
+		'sourceControl.actions.deletePermanently',
+		'Action and confirmation button that delete untracked files the trash could not take, as VS Code’s Delete Permanently.',
+	),
+	deleteUntrackedConfirm: message(
+		'sourceControl.discard.untracked.confirm',
+		'Button that moves the untracked files the question names to the trash. {os} is the operating system of the machine holding them.',
+	),
+	deleteUntrackedDescription: message(
+		'sourceControl.discard.untracked.description',
+		'Explanation under the question before moving untracked files to the trash. {os} is the operating system of the machine holding them; {count} is how many files.',
+	),
+	deleteUntrackedTitle: message(
+		'sourceControl.discard.untracked.title',
+		'Question before moving untracked files to the trash. {count} is how many files; {name} is the file’s name when there is one.',
+	),
+	discard: message(
+		'sourceControl.actions.discard',
+		'Action and row button that discard the chosen files’ changes, as VS Code’s Discard Changes.',
+	),
+	discardAll: message(
+		'sourceControl.actions.discardAll',
+		'Action and button on the Changes group that discard every change in it, as VS Code’s Discard All Changes.',
+	),
+	discardMixedDescription: message(
+		'sourceControl.discard.mixed.description',
+		'Explanation under the question before discarding untracked and tracked files together. {os} is the machine’s operating system; {untracked} and {tracked} count each kind; {name} is the tracked file’s name when there is one.',
+	),
+	discardTrackedConfirm: message(
+		'sourceControl.discard.tracked.confirm',
+		'Button that discards the changes the question names. {count} is how many files.',
+	),
+	discardTrackedDescription: message(
+		'sourceControl.discard.tracked.description',
+		'Explanation under the question before discarding tracked files’ changes. {count} is how many files.',
+	),
+	discardTrackedTitle: message(
+		'sourceControl.discard.tracked.title',
+		'Question before discarding tracked files’ changes. {count} is how many files; {name} is the file’s name when there is one.',
 	),
 	errorDisconnected: message(
 		'sourceControl.error.disconnected',
@@ -82,6 +130,18 @@ export const sourceControlMessages = defineMessages({
 		'sourceControl.parentRepositories.title',
 		'Title of the quick pick that opens repositories found in parent folders.',
 	),
+	permanentConfirm: message(
+		'sourceControl.discard.permanent.confirm',
+		'Button that deletes permanently the untracked files the trash could not take. {count} is how many files.',
+	),
+	permanentDescription: message(
+		'sourceControl.discard.permanent.description',
+		'Explanation under the question to delete permanently the untracked files the trash could not take.',
+	),
+	permanentTitle: message(
+		'sourceControl.discard.permanent.title',
+		'Question when the trash could not take untracked files being discarded. {os} is the operating system of the machine holding them.',
+	),
 	progress: message(
 		'sourceControl.progress.label',
 		'Accessible name of the line at the top of Source Control that runs while Git works.',
@@ -102,6 +162,18 @@ export const sourceControlMessages = defineMessages({
 		'sourceControl.repository.title',
 		'Hover text of a repository row. {path} is the repository’s whole path.',
 	),
+	restoreConfirm: message(
+		'sourceControl.discard.restore.confirm',
+		'Button that restores the deleted files the question names. {count} is how many files.',
+	),
+	restoreDescription: message(
+		'sourceControl.discard.restore.description',
+		'Explanation under the question before restoring deleted files. {count} is how many files.',
+	),
+	restoreTitle: message(
+		'sourceControl.discard.restore.title',
+		'Question before restoring deleted tracked files from the index. {count} is how many files; {name} is the file’s name when there is one.',
+	),
 	section: message(
 		'sourceControl.section.label',
 		'Accessible name of a section header. {name} is the section title.',
@@ -117,6 +189,14 @@ export const sourceControlMessages = defineMessages({
 	sortByStatus: message(
 		'sourceControl.actions.sortByStatus',
 		'View & Sort menu item that lists changes by status.',
+	),
+	stage: message(
+		'sourceControl.actions.stage',
+		'Action and row button that stage the chosen files’ changes, as VS Code’s Stage Changes.',
+	),
+	stageAll: message(
+		'sourceControl.actions.stageAll',
+		'Action and button on the Changes group that stage every change in it, as VS Code’s Stage All Changes.',
 	),
 	statusAddedByThem: message('sourceControl.status.addedByThem', 'Hover text of a Git status.'),
 	statusAddedByUs: message('sourceControl.status.addedByUs', 'Hover text of a Git status.'),
@@ -184,6 +264,14 @@ export const sourceControlMessages = defineMessages({
 	unsafeRepositoriesTitle: message(
 		'sourceControl.unsafeRepositories.title',
 		'Title of the quick pick that marks unsafe repositories as safe and opens them.',
+	),
+	unstage: message(
+		'sourceControl.actions.unstage',
+		'Action and row button that unstage the chosen files’ changes, as VS Code’s Unstage Changes.',
+	),
+	unstageAll: message(
+		'sourceControl.actions.unstageAll',
+		'Action and button on the Staged Changes group that unstage every change in it, as VS Code’s Unstage All Changes.',
 	),
 	viewAndSort: message(
 		'sourceControl.actions.viewAndSort',

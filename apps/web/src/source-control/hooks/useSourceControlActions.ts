@@ -8,17 +8,14 @@ import {
 	type ActionScope,
 	type ActionSignature,
 } from '@orchbee/actions';
-import {
-	sourceControlMessages,
-	useOrchbeeIntl,
-	workbenchMessages,
-	type MessageDescriptor,
-} from '@orchbee/i18n';
+import { sourceControlMessages, useOrchbeeIntl, type MessageDescriptor } from '@orchbee/i18n';
 import * as React from 'react';
 
-import type { FileError, FileResult, FileWorkspaceSession } from '../../file-session';
+import type { FileResult, FileWorkspaceSession } from '../../file-session';
+import { SCM_GIT_CATEGORY, SCM_VIEW_CATEGORY } from '../actions/scm-action-categories';
 import type { SourceControlModel } from '../model/SourceControlModel';
 import type { ScmViewMode, ScmViewSortKey } from '../model/scm-view-state';
+import type { SourceControlMenuCommand } from '../types/source-control-menu';
 import type {
 	SourceControlNotifications,
 	SourceControlPickEntry,
@@ -43,9 +40,6 @@ type SourceControlActionId =
 	(typeof SOURCE_CONTROL_ACTION_IDS)[keyof typeof SOURCE_CONTROL_ACTION_IDS];
 
 type SourceControlActionCatalog = { readonly [Id in SourceControlActionId]: ActionSignature<void> };
-
-const GIT_CATEGORY = { id: 'git', title: sourceControlMessages.actionCategory };
-const VIEW_CATEGORY = { id: 'view', title: workbenchMessages.actionCategoryView };
 
 const VIEW_MODE_ACTIONS = [
 	{
@@ -86,22 +80,13 @@ const SORT_ACTIONS = [
 	readonly title: MessageDescriptor;
 }[];
 
-/** One menu row as the View & Sort submenu draws it. */
-export interface SourceControlMenuCommand {
-	readonly checked: boolean;
-	readonly disabled: boolean;
-	readonly id: string;
-	readonly label: string;
-	readonly onSelect: () => void;
-}
-
 interface UseSourceControlActionsOptions {
 	readonly model: SourceControlModel | null;
 	readonly notifications: SourceControlNotifications;
-	/** The scope Source Control's own scope nests in. */
-	readonly parentScope: ActionScope;
 	readonly quickInput: SourceControlQuickInput;
 	readonly runtime: ActionRuntime;
+	/** Source Control's own scope, which its Actions register in. */
+	readonly scope: ActionScope;
 	readonly session: FileWorkspaceSession | null;
 }
 
@@ -140,31 +125,28 @@ function lastSegment(path: string, separator: string): string {
 export function useSourceControlActions({
 	model,
 	notifications,
-	parentScope,
 	quickInput,
 	runtime,
+	scope,
 	session,
 }: UseSourceControlActionsOptions): SourceControlCommands {
 	const intl = useOrchbeeIntl();
-	const scope = React.useMemo(
-		() => runtime.createScope('source-control', parentScope),
-		[parentScope, runtime],
-	);
 	const typedRuntime = React.useMemo(
 		() => createTypedActionRuntime<SourceControlActionCatalog>(runtime),
 		[runtime],
 	);
 	React.useEffect(() => {
-		const report = (error: FileError): void => {
-			if (error.code === 'cancelled') return;
-			void notifications.notify({ message: gitFailureMessage(intl, error), severity: 'error' });
-		};
+		// Each Git call follows the Action's commit point, so a cancellation that stops one leaves what
+		// it did unknown: the Action fails rather than cancels, and nobody is told.
 		const settle = (result: FileResult<unknown>): ActionResult<void> => {
 			if (result.kind === 'ok') return { kind: 'completed' };
-			report(result.error);
-			return result.error.code === 'cancelled'
-				? { kind: 'cancelled' }
-				: { failure: { code: result.error.code }, kind: 'failed' };
+			if (result.error.code !== 'cancelled') {
+				void notifications.notify({
+					message: gitFailureMessage(intl, result.error),
+					severity: 'error',
+				});
+			}
+			return { failure: { code: result.error.code }, kind: 'failed' };
 		};
 		/**
 		 * VS Code's repository picker: each repository by name with its path, sorted, and All
@@ -208,7 +190,7 @@ export function useSourceControlActions({
 				typedRuntime.register(
 					scope,
 					defineAction({
-						category: VIEW_CATEGORY,
+						category: SCM_VIEW_CATEGORY,
 						execution: EXECUTION,
 						getAvailability: () => enabledWhen(model !== null, model?.state.view.mode === mode),
 						handler: {
@@ -230,7 +212,7 @@ export function useSourceControlActions({
 				typedRuntime.register(
 					scope,
 					defineAction({
-						category: VIEW_CATEGORY,
+						category: SCM_VIEW_CATEGORY,
 						execution: EXECUTION,
 						// A tree sorts by name, folders first, so the list's sorts wait for list view.
 						getAvailability: () =>
@@ -253,7 +235,7 @@ export function useSourceControlActions({
 			typedRuntime.register(
 				scope,
 				defineAction({
-					category: GIT_CATEGORY,
+					category: SCM_GIT_CATEGORY,
 					execution: EXECUTION,
 					getAvailability: () => enabledWhen(model?.state.root?.state === 'present'),
 					handler: {
@@ -280,7 +262,7 @@ export function useSourceControlActions({
 			typedRuntime.register(
 				scope,
 				defineAction({
-					category: GIT_CATEGORY,
+					category: SCM_GIT_CATEGORY,
 					execution: EXECUTION,
 					getAvailability: () =>
 						enabledWhen((model?.state.workspace.summary?.candidates.length ?? 0) > 0),
@@ -313,7 +295,7 @@ export function useSourceControlActions({
 			typedRuntime.register(
 				scope,
 				defineAction({
-					category: GIT_CATEGORY,
+					category: SCM_GIT_CATEGORY,
 					execution: EXECUTION,
 					getAvailability: () =>
 						enabledWhen((model?.state.workspace.summary?.unsafe.length ?? 0) > 0),
@@ -347,7 +329,7 @@ export function useSourceControlActions({
 			typedRuntime.register(
 				scope,
 				defineAction({
-					category: GIT_CATEGORY,
+					category: SCM_GIT_CATEGORY,
 					execution: EXECUTION,
 					getAvailability: () => enabledWhen((model?.state.closed ?? 0) > 0),
 					handler: {
