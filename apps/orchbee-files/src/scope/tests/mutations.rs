@@ -15,6 +15,8 @@ use std::{
 
 use orchbee_files_protocol::{ConnectionId, ErrorCode, FilePath, WorkspaceId};
 
+use crate::seeded::{self, SplitMix64};
+
 use super::super::{
     Change, Filesystem, View,
     path::{self, NativePath},
@@ -40,9 +42,9 @@ const SPELLED: &[&str] = &["a", "b", "A", "c"];
 
 #[test]
 fn a_mutation_is_admitted_exactly_when_the_location_it_changes_lies_in_a_member() {
-    let seed = seed();
+    let seed = seeded::seed("ORCHBEE_FILES_SCOPE_SEED", DEFAULT_SEED);
     for case in 0..CASES {
-        let mut random = SplitMix64(seed ^ case);
+        let mut random = SplitMix64::new(seed ^ case);
         let model = generated(&mut random);
         let members = (0..=random.below(2))
             .map(|_| spelled(&mut random, 2))
@@ -324,34 +326,4 @@ fn spelled(random: &mut SplitMix64, depth: usize) -> NativePath {
         segments.join(std::path::MAIN_SEPARATOR_STR)
     ))
     .unwrap()
-}
-
-fn seed() -> u64 {
-    std::env::var("ORCHBEE_FILES_SCOPE_SEED")
-        .ok()
-        .and_then(|value| {
-            let value = value.trim();
-            value.strip_prefix("0x").map_or_else(
-                || value.parse().ok(),
-                |hex| u64::from_str_radix(hex, 16).ok(),
-            )
-        })
-        .unwrap_or(DEFAULT_SEED)
-}
-
-/// Deterministic SplitMix64 stream; reproducibility needs no external generator.
-struct SplitMix64(u64);
-
-impl SplitMix64 {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut value = self.0;
-        value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        value ^ (value >> 31)
-    }
-
-    fn below(&mut self, bound: usize) -> usize {
-        (self.next() % bound.max(1) as u64) as usize
-    }
 }

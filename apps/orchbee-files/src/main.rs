@@ -19,6 +19,8 @@ mod outbound;
 mod requests;
 mod roots;
 mod scope;
+#[cfg(test)]
+mod seeded;
 #[cfg(unix)]
 mod signals;
 mod subscriptions;

@@ -3,15 +3,16 @@
 //! that it stops exactly past its limit. `ORCHBEE_GIT_STATUS_SEED` explores another seed; a failure
 //! prints its seed, case and cuts.
 use super::*;
+use crate::seeded::{self, SplitMix64};
 
 const DEFAULT_SEED: u64 = 0x5ca1_ab1e_0000_0215;
 const CASES: u64 = 1500;
 
 #[test]
 fn every_split_of_generated_output_reads_as_the_written_status() {
-    let seed = seed();
+    let seed = seeded::seed("ORCHBEE_GIT_STATUS_SEED", DEFAULT_SEED);
     for case in 0..CASES {
-        let mut random = SplitMix64(seed ^ case);
+        let mut random = SplitMix64::new(seed ^ case);
         let status = generated(&mut random);
         let bytes = written(&status);
         let limit = random.below(status.entries.len() + 3);
@@ -266,34 +267,4 @@ fn hex(random: &mut SplitMix64, length: usize) -> String {
 
 fn pick<'a, T>(random: &mut SplitMix64, values: &'a [T]) -> &'a T {
     &values[random.below(values.len())]
-}
-
-fn seed() -> u64 {
-    std::env::var("ORCHBEE_GIT_STATUS_SEED")
-        .ok()
-        .and_then(|value| {
-            let value = value.trim();
-            value.strip_prefix("0x").map_or_else(
-                || value.parse().ok(),
-                |hex| u64::from_str_radix(hex, 16).ok(),
-            )
-        })
-        .unwrap_or(DEFAULT_SEED)
-}
-
-/// Deterministic SplitMix64 stream; reproducibility needs no external generator.
-struct SplitMix64(u64);
-
-impl SplitMix64 {
-    fn next(&mut self) -> u64 {
-        self.0 = self.0.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        let mut value = self.0;
-        value = (value ^ (value >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        value = (value ^ (value >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        value ^ (value >> 31)
-    }
-
-    fn below(&mut self, bound: usize) -> usize {
-        (self.next() % bound.max(1) as u64) as usize
-    }
 }
