@@ -631,9 +631,11 @@ export function Workbench({
 						openFile={fileOverlay.openFile}
 						platform={shortcutPlatform}
 						quickInput={quickInputSessions}
+						reportActionOutcome={view.reportActionOutcome}
 						rowMenu={fileBarContent.rowMenu}
 						session={fileBarContent.session}
 						settings={userSettings}
+						shortcutLabelForAction={shortcutLabelForAction}
 						storage={layoutStorage}
 						toggles={fileBarContent.toggles}
 						viewFocusRequest={fileBarContent.viewFocusRequest}

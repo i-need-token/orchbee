@@ -20,6 +20,11 @@
 	flex: 1;
 }
 
+/* The context menu's trigger passes that size on to the tree it wraps. */
+.menuTrigger {
+	block-size: 100%;
+}
+
 /* What is left of VS Code's welcome view: one sentence where the tree would start. */
 .empty {
 	margin: 0;

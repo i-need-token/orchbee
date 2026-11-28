@@ -7,6 +7,7 @@ import {
 	type KeyboardShortcutSequence,
 } from '@orchbee/keyboard-shortcuts';
 
+import { FILE_EXPLORER_ACTION_IDS } from '../../file-explorer-actions';
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
 import type {
 	WorkbenchPanelPositionInput,
@@ -769,6 +770,35 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		},
 		scope: 'quick-input',
 		shortcutId: 'file-overlay.tab-picker.navigate-previous',
+	},
+	// The Explorer's keys while its tree has focus. VS Code's Linux keys differ from its Windows
+	// ones for Copy Path and Copy Relative Path; the standard platform takes the Windows ones.
+	explorerOpenToSide: {
+		actionId: FILE_EXPLORER_ACTION_IDS.openToSide,
+		defaults: {
+			apple: [chord('Enter', ['control'])],
+			standard: [chord('Enter', ['mod'])],
+		},
+		scope: 'widget:explorer',
+		shortcutId: FILE_EXPLORER_ACTION_IDS.openToSide,
+	},
+	explorerCopyPath: {
+		actionId: FILE_EXPLORER_ACTION_IDS.copyPath,
+		defaults: {
+			apple: [chord('KeyC', ['alt', 'mod'])],
+			standard: [chord('KeyC', ['alt', 'shift'])],
+		},
+		scope: 'widget:explorer',
+		shortcutId: FILE_EXPLORER_ACTION_IDS.copyPath,
+	},
+	explorerCopyRelativePath: {
+		actionId: FILE_EXPLORER_ACTION_IDS.copyRelativePath,
+		defaults: {
+			apple: [chord('KeyC', ['alt', 'mod', 'shift'])],
+			standard: [chord('KeyK', ['mod']), chord('KeyC', ['mod', 'shift'])],
+		},
+		scope: 'widget:explorer',
+		shortcutId: FILE_EXPLORER_ACTION_IDS.copyRelativePath,
 	},
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 

@@ -2,11 +2,13 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
+import { ContextMenu, ContextMenuTrigger } from '@orchbee/ui/components';
 import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 
 import type { FileOverlayOpenFile } from '../file-overlay';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow, type VirtualTreeRowState } from '../virtual-tree';
+import { ExplorerContextMenu } from './components/explorer-context-menu/ExplorerContextMenu';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
 import { ExplorerProgress } from './components/explorer-progress/ExplorerProgress';
 import { ExplorerRow } from './components/explorer-row/ExplorerRow';
@@ -16,6 +18,7 @@ import { useExplorerActiveFile } from './hooks/useExplorerActiveFile';
 import { useExplorerDrag } from './hooks/useExplorerDrag';
 import { useExplorerFocus } from './hooks/useExplorerFocus';
 import { useExplorerGitDecorations } from './hooks/useExplorerGitDecorations';
+import { useExplorerMenu } from './hooks/useExplorerMenu';
 import { useExplorerOpen } from './hooks/useExplorerOpen';
 import { useExplorerShown } from './hooks/useExplorerShown';
 import { useExplorerTree } from './hooks/useExplorerTree';
@@ -23,8 +26,11 @@ import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
 import type { ExplorerItem } from './model/explorer-item';
 import type { ExplorerExpansionStorage } from './model/explorer-expansion-storage';
+import type { ExplorerMenuTarget } from './model/explorer-menus';
+import type { FileExplorerReportActionOutcome } from './types/explorer-menu';
 import type { FileExplorerFocus } from './types/file-explorer-focus';
 import type { FileExplorerNotifications } from './types/file-explorer-notifications';
+import { buildExplorerMenu } from './utils/buildExplorerMenu';
 import styles from './FileExplorer.module.css';
 
 export interface FileExplorerProps {
@@ -41,8 +47,12 @@ export interface FileExplorerProps {
 	readonly platform: KeyboardShortcutPlatform;
 	/** Receives what moves focus into the Explorer. */
 	readonly ref?: Ref<FileExplorerFocus> | undefined;
+	/** Runs a command chosen from the context menu and says its refusal or failure. */
+	readonly reportActionOutcome: FileExplorerReportActionOutcome;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
+	/** The keys that run an Action now, which the context menu shows beside its command. */
+	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	/** Where each Workspace's expanded folders are saved between runs; without it they are not. */
 	readonly storage?: ExplorerExpansionStorage | undefined;
 }
@@ -73,6 +83,7 @@ function hasFileIcon(row: VirtualTreeRow<string, ExplorerItem>): boolean {
  * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, opens
  * files in the file overlay and follows the overlay's active tab, its rows carry VS Code's Git
  * decorations from the status Source Control reads, and they drag as the File Bar's files and folders.
+ * Its context menu holds the commands of VS Code's that Orchbee offers.
  */
 export function FileExplorer({
 	actionRuntime,
@@ -82,7 +93,9 @@ export function FileExplorer({
 	openFile,
 	platform,
 	ref,
+	reportActionOutcome,
 	session,
+	shortcutLabelForAction,
 	storage,
 }: FileExplorerProps): ReactNode {
 	const intl = useOrchbeeIntl();
@@ -101,10 +114,27 @@ export function FileExplorer({
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
 	const dragAndDrop = useExplorerDrag(state.kind === 'tree' ? state.rules : null);
 	const commands = useFileExplorerActions({
+		openFile,
 		parentScope: actionScope,
 		runtime: actionRuntime,
+		session,
 		tree,
 	});
+	const buildMenu = useMemoizedFn((target: ExplorerMenuTarget) =>
+		buildExplorerMenu({
+			formatMessage: (descriptor) => intl.formatMessage(descriptor),
+			report: reportActionOutcome,
+			scope: commands.scope,
+			shortcutLabelForAction,
+			target,
+			typedRuntime: commands.actions,
+		}),
+	);
+	const menu = useExplorerMenu(
+		state.kind === 'tree' ? state.model : null,
+		treeReference,
+		buildMenu,
+	);
 	const open = useExplorerOpen(
 		openFile,
 		commands.scope,
@@ -138,20 +168,35 @@ export function FileExplorer({
 					<div className={styles['content']}>
 						{progress ? <ExplorerProgress /> : null}
 						{state.kind === 'tree' ? (
-							<VirtualTree
-								alignIconWithTwistie={hasFileIcon}
-								dragAndDrop={dragAndDrop}
-								keyboardNavigationLabel={navigationLabel}
-								keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}
-								label={intl.formatMessage(fileExplorerMessages.tree)}
-								model={state.model}
-								onOpen={open}
-								paddingBottom={EXPLORER_ROW_HEIGHT}
-								platform={platform}
-								renderRow={renderRow}
-								rowHeight={EXPLORER_ROW_HEIGHT}
-								treeReference={treeReference}
-							/>
+							<ContextMenu>
+								<ContextMenuTrigger
+									className={styles['menuTrigger']}
+									onContextMenu={menu.onTriggerContextMenu}
+								>
+									<VirtualTree
+										alignIconWithTwistie={hasFileIcon}
+										dragAndDrop={dragAndDrop}
+										keyboardNavigationLabel={navigationLabel}
+										keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}
+										label={intl.formatMessage(fileExplorerMessages.tree)}
+										model={state.model}
+										onContextMenu={menu.onTreeContextMenu}
+										onOpen={open}
+										paddingBottom={EXPLORER_ROW_HEIGHT}
+										platform={platform}
+										renderRow={renderRow}
+										rowHeight={EXPLORER_ROW_HEIGHT}
+										treeReference={treeReference}
+									/>
+								</ContextMenuTrigger>
+								{menu.groups.length === 0 ? null : (
+									<ExplorerContextMenu
+										finalFocus={menu.finalFocus}
+										groups={menu.groups}
+										onChoose={menu.choose}
+									/>
+								)}
+							</ContextMenu>
 						) : null}
 						{state.kind === 'unresolved' ? (
 							<ExplorerUnresolvedRow error={state.error} name={state.name} />

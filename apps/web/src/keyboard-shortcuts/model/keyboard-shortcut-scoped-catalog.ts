@@ -31,6 +31,8 @@ type KeyboardShortcutScopedName =
 	| 'close-file-overlay'
 	| 'close-other-editors'
 	| 'close-saved-editors'
+	| 'copy-path'
+	| 'copy-relative-path'
 	| 'keep-editor'
 	| 'last-editor'
 	| 'move-editor-left'
@@ -38,6 +40,7 @@ type KeyboardShortcutScopedName =
 	| 'navigate-next-in-quick-open'
 	| 'navigate-previous-in-quick-open'
 	| 'next-editor'
+	| 'open-to-side'
 	| 'pin-editor'
 	| 'previous-editor'
 	| 'quick-open-least-recently-used-editor'
@@ -109,6 +112,9 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 	'file-overlay.tab.quick-open-least-recent': 'quick-open-least-recently-used-editor',
 	'file-overlay.tab-picker.navigate-next': 'navigate-next-in-quick-open',
 	'file-overlay.tab-picker.navigate-previous': 'navigate-previous-in-quick-open',
+	'file-explorer.file.open-to-side': 'open-to-side',
+	'file-explorer.path.copy': 'copy-path',
+	'file-explorer.relative-path.copy': 'copy-relative-path',
 });
 
 function scopedNaming(definition: ScopedShortcutEntry): KeyboardShortcutScopedNaming {

@@ -1,5 +1,6 @@
 import {
 	fileBarMessages,
+	fileExplorerMessages,
 	fileOverlayMessages,
 	keyboardShortcutMessages,
 	type IntlShape,
@@ -28,6 +29,10 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.closeOtherEditors);
 		case 'close-saved-editors':
 			return intl.formatMessage(fileOverlayMessages.closeSavedEditors);
+		case 'copy-path':
+			return intl.formatMessage(fileExplorerMessages.copyPath);
+		case 'copy-relative-path':
+			return intl.formatMessage(fileExplorerMessages.copyRelativePath);
 		case 'keep-editor':
 			return intl.formatMessage(fileOverlayMessages.keepEditor);
 		case 'last-editor':
@@ -42,6 +47,8 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.navigatePreviousInQuickOpen);
 		case 'next-editor':
 			return intl.formatMessage(fileOverlayMessages.nextEditor);
+		case 'open-to-side':
+			return intl.formatMessage(fileExplorerMessages.openToSide);
 		case 'pin-editor':
 			return intl.formatMessage(fileOverlayMessages.pinEditor);
 		case 'position-editor':

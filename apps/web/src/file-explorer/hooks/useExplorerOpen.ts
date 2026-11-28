@@ -4,6 +4,7 @@ import { useMemoizedFn } from '@orchbee/foundation/react';
 import type { FileOverlayOpenFile } from '../../file-overlay';
 import { filePathKey, type FilePathRules, type FileWorkspaceSession } from '../../file-session';
 import type { VirtualTreeOpenEvent } from '../../virtual-tree';
+import { canOpenExplorerItem } from '../model/canOpenExplorerItem';
 import type { ExplorerItem } from '../model/explorer-item';
 
 /**
@@ -20,10 +21,9 @@ export function useExplorerOpen(
 	rules: FilePathRules | null,
 ): (event: VirtualTreeOpenEvent<string, ExplorerItem>) => void {
 	return useMemoizedFn((event: VirtualTreeOpenEvent<string, ExplorerItem>) => {
-		const { entry, path } = event.row.element;
-		if (session === null || rules === null || entry?.type !== 'file' || entry.unrepresentable) {
-			return;
-		}
+		const item = event.row.element;
+		if (session === null || rules === null || !canOpenExplorerItem(item)) return;
+		const { path } = item;
 		openFile(
 			{
 				focus: event.sideBySide || !event.preserveFocus,

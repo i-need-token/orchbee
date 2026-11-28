@@ -64,6 +64,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.activeTerminal': '终端标签页处于活动状态时可用',
 	'keyboard.shortcuts.availability.codeEditor': '焦点在编辑器中时可用',
 	'keyboard.shortcuts.availability.directionalPanel': '对应方向存在相邻面板时可用',
+	'keyboard.shortcuts.availability.explorer': '焦点在资源管理器中时可用',
 	'keyboard.shortcuts.availability.fileBar': '焦点在文件栏或文件浮窗中时可用',
 	'keyboard.shortcuts.availability.fileOverlay': '焦点在文件浮窗中时可用',
 	'keyboard.shortcuts.availability.focusedTerminal': '终端获得焦点时可用',
@@ -95,6 +96,7 @@ export const zhCNKeyboardShortcutMessages = {
 	'keyboard.shortcuts.recordingSequence':
 		'请按下快捷键，或先按 {leader} 再按第二个键；按 Escape 或移开焦点可取消。',
 	'keyboard.shortcuts.scope.codeEditor': '编辑器',
+	'keyboard.shortcuts.scope.explorer': '资源管理器',
 	'keyboard.shortcuts.scope.fileBar': '文件栏',
 	'keyboard.shortcuts.scope.fileOverlay': '文件浮窗',
 	'keyboard.shortcuts.scope.quickInput': '选择器',

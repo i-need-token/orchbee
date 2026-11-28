@@ -1,0 +1,5 @@
+/* The menu opens over the file overlay, whose layer a menu at the primitive's default layer would
+   show beneath. */
+.layer {
+	z-index: var(--ob-ref-layer-modal);
+}

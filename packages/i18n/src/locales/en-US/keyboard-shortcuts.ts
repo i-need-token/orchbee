@@ -63,6 +63,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.availability.codeEditor': 'When focus is in the editor',
 	'keyboard.shortcuts.availability.directionalPanel':
 		'When an adjacent panel exists in that direction',
+	'keyboard.shortcuts.availability.explorer': 'When the Explorer has focus',
 	'keyboard.shortcuts.availability.fileBar': 'When focus is in the File Bar or the file overlay',
 	'keyboard.shortcuts.availability.fileOverlay': 'When focus is in the file overlay',
 	'keyboard.shortcuts.availability.focusedTerminal': 'When a terminal is focused',
@@ -97,6 +98,7 @@ export const enUSKeyboardShortcutMessages = {
 	'keyboard.shortcuts.recordingSequence':
 		'Press a shortcut, or {leader} and then a second key. Escape or moving focus away cancels.',
 	'keyboard.shortcuts.scope.codeEditor': 'Editor',
+	'keyboard.shortcuts.scope.explorer': 'Explorer',
 	'keyboard.shortcuts.scope.fileBar': 'File Bar',
 	'keyboard.shortcuts.scope.fileOverlay': 'File overlay',
 	'keyboard.shortcuts.scope.quickInput': 'Picker',

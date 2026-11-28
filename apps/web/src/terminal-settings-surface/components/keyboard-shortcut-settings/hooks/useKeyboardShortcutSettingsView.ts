@@ -150,6 +150,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.scopeCodeEditor);
 			case 'quick-input':
 				return intl.formatMessage(keyboardShortcutMessages.scopeQuickInput);
+			case 'widget:explorer':
+				return intl.formatMessage(keyboardShortcutMessages.scopeExplorer);
 			default:
 				return intl.formatMessage(keyboardShortcutMessages.scopeWidget);
 		}
@@ -196,6 +198,8 @@ export function useKeyboardShortcutSettingsView({
 				return intl.formatMessage(keyboardShortcutMessages.availabilityCodeEditor);
 			case 'quick-input':
 				return intl.formatMessage(keyboardShortcutMessages.availabilityQuickInput);
+			case 'widget:explorer':
+				return intl.formatMessage(keyboardShortcutMessages.availabilityExplorer);
 			default:
 				return intl.formatMessage(keyboardShortcutMessages.availabilityWidget);
 		}

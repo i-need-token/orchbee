@@ -1,54 +1,64 @@
 import {
 	createTypedActionRuntime,
-	defineAction,
-	noActionInput,
+	type ActionCatalogId,
 	type ActionRuntime,
 	type ActionScope,
-	type ActionSignature,
+	type TypedActionRuntime,
 } from '@orchbee/actions';
-import { fileExplorerMessages, workbenchMessages } from '@orchbee/i18n';
 import * as React from 'react';
 
+import {
+	FILE_EXPLORER_ACTION_IDS,
+	type FileExplorerActionCatalog,
+} from '../../file-explorer-actions';
+import type { FileOverlayOpenFile } from '../../file-overlay';
+import type { FileWorkspaceSession } from '../../file-session';
+import { registerFileExplorerActions } from '../actions/registerFileExplorerActions';
 import type { ExplorerTree } from '../model/ExplorerTree';
-import { hasExpandedFolder } from '../model/hasExpandedFolder';
-
-const FILE_EXPLORER_ACTION_IDS = {
-	collapseFolders: 'file-explorer.folders.collapse',
-	refresh: 'file-explorer.tree.refresh',
-} as const;
-
-interface FileExplorerActionCatalog {
-	readonly [FILE_EXPLORER_ACTION_IDS.collapseFolders]: ActionSignature<void>;
-	readonly [FILE_EXPLORER_ACTION_IDS.refresh]: ActionSignature<void>;
-}
-
-type FileExplorerActionId = keyof FileExplorerActionCatalog;
-
-const VIEW_CATEGORY = { id: 'view', title: workbenchMessages.actionCategoryView };
+import type { ExplorerClipboard } from '../types/explorer-clipboard';
 
 interface UseFileExplorerActionsOptions {
+	/** Opens a file in the file overlay. */
+	readonly openFile: FileOverlayOpenFile;
 	/** The scope the Explorer's own scope nests in. */
 	readonly parentScope: ActionScope;
 	readonly runtime: ActionRuntime;
-	/** The tree the Actions refresh and collapse; null while there is none. */
+	/** The Workspace whose overlay the Explorer's files open in; null while there is none. */
+	readonly session: FileWorkspaceSession | null;
+	/** The tree the Actions act on; null while there is none. */
 	readonly tree: ExplorerTree | null;
 }
 
 /** The Explorer's own Action scope, and the header's buttons, each running its Action as a press. */
 interface FileExplorerCommands {
+	/** The adapter the Explorer's Actions register through, which alone runs them. */
+	readonly actions: TypedActionRuntime<FileExplorerActionCatalog>;
 	readonly collapseFolders: () => void;
 	readonly refresh: () => void;
-	/** Where the Explorer's Actions register, which its tree's keys resolve in too. */
+	/** Where the Explorer's Actions register, which its tree's keys and menu resolve in too. */
 	readonly scope: ActionScope;
 }
 
 /**
- * The Explorer's title Actions, Refresh Explorer and Collapse Folders in Explorer. They register in
- * the Explorer's own scope while it shows, so Action search finds them only then.
+ * The window's clipboard. A browser offers none to a page served without a secure origin, which then
+ * fails the write as a refused one does.
+ */
+function windowClipboard(): ExplorerClipboard {
+	return {
+		lineBreak: navigator.platform.startsWith('Win') ? '\r\n' : '\n',
+		writeText: (text) => navigator.clipboard.writeText(text),
+	};
+}
+
+/**
+ * The Explorer's Actions, registered in the Explorer's own scope while it shows, so Action search
+ * finds its title Actions only then.
  */
 export function useFileExplorerActions({
+	openFile,
 	parentScope,
 	runtime,
+	session,
 	tree,
 }: UseFileExplorerActionsOptions): FileExplorerCommands {
 	const scope = React.useMemo(
@@ -60,75 +70,25 @@ export function useFileExplorerActions({
 		[runtime],
 	);
 	React.useEffect(() => {
-		const execution = {
-			concurrency: 'parallel',
-			concurrencyKey: () => 'file-explorer',
-			mode: 'foreground',
-		} as const;
-		const registrations = [
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category: VIEW_CATEGORY,
-					execution,
-					// A root that cannot be listed refreshes too, which retries it, and so does one whose
-					// first listing runs, as VS Code's Refresh stays enabled while the title shows.
-					getAvailability: () => ({
-						kind:
-							tree?.state.kind === 'opening' ||
-							tree?.state.kind === 'tree' ||
-							tree?.state.kind === 'unresolved'
-								? 'enabled'
-								: 'disabled',
-					}),
-					handler: {
-						execute: (context) => {
-							context.markCommitted();
-							tree?.refresh();
-							return { kind: 'completed' };
-						},
-					},
-					// VS Code parity: workbench.files.action.refreshFilesExplorer.
-					id: FILE_EXPLORER_ACTION_IDS.refresh,
-					input: noActionInput,
-					title: fileExplorerMessages.refresh,
-				}),
-			),
-			typedRuntime.register(
-				scope,
-				defineAction({
-					category: VIEW_CATEGORY,
-					execution,
-					getAvailability: () => ({
-						kind:
-							tree?.state.kind === 'tree' && hasExpandedFolder(tree.state.model)
-								? 'enabled'
-								: 'disabled',
-					}),
-					handler: {
-						execute: (context) => {
-							context.markCommitted();
-							if (tree?.state.kind === 'tree') tree.state.model.collapseAll();
-							return { kind: 'completed' };
-						},
-					},
-					// VS Code parity: workbench.files.action.collapseExplorerFolders.
-					id: FILE_EXPLORER_ACTION_IDS.collapseFolders,
-					input: noActionInput,
-					title: fileExplorerMessages.collapse,
-				}),
-			),
-		];
+		const registrations = registerFileExplorerActions({
+			clipboard: windowClipboard(),
+			openFile,
+			scope,
+			session,
+			tree,
+			typedRuntime,
+		});
 		return () => {
 			for (const registration of registrations) registration.dispose();
 		};
-	}, [scope, tree, typedRuntime]);
+	}, [openFile, scope, session, tree, typedRuntime]);
 	return React.useMemo(() => {
 		// The handlers cannot fail, and an unavailable Action is a disabled button, so no outcome shows.
-		const press = (actionId: FileExplorerActionId): void => {
+		const press = (actionId: ActionCatalogId<FileExplorerActionCatalog>): void => {
 			typedRuntime.execute(actionId, undefined, { scope, source: 'button' });
 		};
 		return {
+			actions: typedRuntime,
 			collapseFolders: () => press(FILE_EXPLORER_ACTION_IDS.collapseFolders),
 			refresh: () => press(FILE_EXPLORER_ACTION_IDS.refresh),
 			scope,

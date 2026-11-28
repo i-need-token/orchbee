@@ -8,6 +8,7 @@ const message = createMessageDescriptorFactory(enUSKeyboardShortcutMessages);
 export const keyboardShortcutMessages = defineMessages({
 	actionsSearch: message('keyboard.shortcuts.actions.actionsSearch'),
 	availabilityCodeEditor: message('keyboard.shortcuts.availability.codeEditor'),
+	availabilityExplorer: message('keyboard.shortcuts.availability.explorer'),
 	availabilityFileBar: message('keyboard.shortcuts.availability.fileBar'),
 	availabilityFileOverlay: message('keyboard.shortcuts.availability.fileOverlay'),
 	availabilityQuickInput: message('keyboard.shortcuts.availability.quickInput'),
@@ -59,6 +60,7 @@ export const keyboardShortcutMessages = defineMessages({
 		'Spoken instruction while a line that accepts two-key shortcuts records. leader is the first key of every two-key shortcut, such as Ctrl+K.',
 	),
 	scopeCodeEditor: message('keyboard.shortcuts.scope.codeEditor'),
+	scopeExplorer: message('keyboard.shortcuts.scope.explorer'),
 	scopeFileBar: message('keyboard.shortcuts.scope.fileBar'),
 	scopeFileOverlay: message('keyboard.shortcuts.scope.fileOverlay'),
 	scopeQuickInput: message('keyboard.shortcuts.scope.quickInput'),

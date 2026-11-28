@@ -1,5 +1,8 @@
 export const enUSFileExplorerMessages = {
 	'fileExplorer.actions.collapse': 'Collapse Folders in Explorer',
+	'fileExplorer.actions.copyPath': 'Copy Path',
+	'fileExplorer.actions.copyRelativePath': 'Copy Relative Path',
+	'fileExplorer.actions.openToSide': 'Open to the Side',
 	'fileExplorer.actions.refresh': 'Refresh Explorer',
 	'fileExplorer.decorations.containsEmphasizedItems': 'Contains emphasized items',
 	'fileExplorer.decorations.symbolicLink': 'Symbolic Link',

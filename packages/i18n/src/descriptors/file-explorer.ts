@@ -15,6 +15,14 @@ export const fileExplorerMessages = defineMessages({
 		'fileExplorer.decorations.containsEmphasizedItems',
 		'Accessible name and tooltip of the dot at the end of an Explorer folder row when decorations below it, such as changed files, color the folder, as VS Code words it.',
 	),
+	copyPath: message(
+		'fileExplorer.actions.copyPath',
+		'Explorer context menu command that copies the absolute paths of the selected files and folders to the clipboard, one per line, as VS Code names it.',
+	),
+	copyRelativePath: message(
+		'fileExplorer.actions.copyRelativePath',
+		'Explorer context menu command that copies the paths of the selected files and folders below the folder the Explorer shows to the clipboard, one per line, as VS Code names it.',
+	),
 	folderUnreadable: message(
 		'fileExplorer.folder.unreadable',
 		'Error notification when a folder in the Explorer tree could not be listed, so it shows empty, as VS Code reports it; {name} is the folder name and {reason} one of the read failure reasons, in lowercase.',
@@ -22,6 +30,10 @@ export const fileExplorerMessages = defineMessages({
 	noDirectory: message(
 		'fileExplorer.empty.noDirectory',
 		'Shown in place of the Explorer tree when the active Workspace has no directory to browse; worded as the Workbench says it in place of terminals.',
+	),
+	openToSide: message(
+		'fileExplorer.actions.openToSide',
+		'Explorer context menu command that opens the selected files in the file overlay as tabs that stay open and moves the keyboard there, as VS Code names the command that opens them beside the current editor.',
 	),
 	progress: message(
 		'fileExplorer.progress.label',

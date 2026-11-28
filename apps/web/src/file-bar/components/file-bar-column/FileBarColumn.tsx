@@ -42,9 +42,11 @@ export function FileBarColumn({
 	openFile,
 	platform,
 	quickInput,
+	reportActionOutcome,
 	rowMenu,
 	session,
 	settings,
+	shortcutLabelForAction,
 	storage,
 	toggles,
 	viewFocusRequest,
@@ -133,7 +135,9 @@ export function FileBarColumn({
 							openFile={openFile}
 							platform={platform}
 							ref={explorerReference}
+							reportActionOutcome={reportActionOutcome}
 							session={session}
+							shortcutLabelForAction={shortcutLabelForAction}
 							storage={storage}
 						/>
 					</div>

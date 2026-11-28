@@ -62,6 +62,8 @@ export interface FileBarColumnProps {
 	readonly platform: KeyboardShortcutPlatform;
 	/** The window's quick input, where the views ask what VS Code asks there. */
 	readonly quickInput: SourceControlQuickInput;
+	/** Runs an Action chosen from a view's context menu and says its refusal or failure. */
+	readonly reportActionOutcome: FileExplorerProps['reportActionOutcome'];
 	/**
 	 * The toggles row's menu as it opens, VS Code's activity bar menu with File Bar wording: a checkbox
 	 * for each view's toggle, then moving and hiding the File Bar.
@@ -71,6 +73,8 @@ export interface FileBarColumnProps {
 	readonly session: FileWorkspaceSession | null;
 	/** The user's settings, which Source Control reads and answers into; without them it keeps defaults. */
 	readonly settings: UserSettingsControl | undefined;
+	/** The keys that run an Action now, which the views' context menus show beside their commands. */
+	readonly shortcutLabelForAction: FileExplorerProps['shortcutLabelForAction'];
 	/** Device-local storage for what the views remember between runs; without it they remember nothing. */
 	readonly storage: FileBarLayoutStorage | undefined;
 	/** The view toggles the row shows, in its order. */
