@@ -161,13 +161,17 @@ export type VirtualTreeEvent<K> =
 	| { readonly kind: 'scroll' }
 	/** The find the rows show, or what it counted, changed; read `findStatus`. */
 	| { readonly kind: 'find' }
-	| {
-			readonly kind: 'reveal';
-			/** A row that shows now, for a view to scroll into sight. */
-			readonly key: K;
-			/** Where the row goes, from 0 at the top of the view to 1 at the bottom; null for nearest. */
-			readonly relativeTop: number | null;
-	  };
+	| ({ readonly kind: 'reveal' } & VirtualTreeRevealRequest<K>);
+
+/** A row the model asks its view to scroll into sight once the operation that asked is through. */
+export interface VirtualTreeRevealRequest<K> {
+	/** A row that shows now. */
+	readonly key: K;
+	/** Leaves the view where it is while the row shows whole. */
+	readonly onlyOutOfSight: boolean;
+	/** Where the row goes, from 0 at the top of the view to 1 at the bottom; null for nearest. */
+	readonly relativeTop: number | null;
+}
 
 export interface VirtualTreeRevealOptions {
 	/**
@@ -175,6 +179,12 @@ export interface VirtualTreeRevealOptions {
 	 * view scrolls as little as it takes to show the whole row.
 	 */
 	readonly relativeTop?: number;
+	/**
+	 * Leaves the view where it is while the row already shows whole, below the sticky rows, as VS
+	 * Code's Explorer reveals the active file only where its list cannot place it. It matters with
+	 * `relativeTop`, since scrolling as little as it takes never moves a row in sight.
+	 */
+	readonly onlyOutOfSight?: boolean;
 }
 
 /** Everything needed to bring a tree back after it is recreated, keyed by item identity. */

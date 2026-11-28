@@ -2,6 +2,7 @@ import { HeightIndex } from '../../list-scrolling';
 import type { VirtualTreeModel } from '../model/VirtualTreeModel';
 import type {
 	VirtualTreeEvent,
+	VirtualTreeRevealRequest,
 	VirtualTreeRow,
 	VirtualTreeSplice,
 } from '../model/virtual-tree-types';
@@ -119,7 +120,7 @@ export class TreeViewport<K, T> {
 	private readonly stickyRows: StickyRow<K, T>[] = [];
 	private stickyHeightValue = 0;
 	/** A reveal that arrived before the view had a height, for its first one. */
-	private pendingReveal: { readonly key: K; readonly relativeTop: number | null } | null = null;
+	private pendingReveal: VirtualTreeRevealRequest<K> | null = null;
 	private dropTargetValue: TreeDropTarget<K> = null;
 	private dropOnTreeValue = false;
 
@@ -221,7 +222,7 @@ export class TreeViewport<K, T> {
 		this.height = nextHeight;
 		this.update(true);
 		const reveal = this.pendingReveal;
-		if (reveal !== null && nextHeight > 0) this.reveal(reveal.key, reveal.relativeTop);
+		if (reveal !== null && nextHeight > 0) this.reveal(reveal);
 	}
 
 	/** Changes how tall rows are, VS Code's 22 px by default; a height function is read for every row. */
@@ -325,7 +326,7 @@ export class TreeViewport<K, T> {
 				if (this.heights !== null) this.spliceHeights(this.heights, event.splices);
 				break;
 			case 'reveal':
-				this.reveal(event.key, event.relativeTop);
+				this.reveal(event);
 				return;
 			case 'collapse':
 			case 'anchor':
@@ -340,16 +341,17 @@ export class TreeViewport<K, T> {
 
 	/**
 	 * VS Code's tree reveal: the row at `relativeTop` of the view, or scrolled just into sight, below
-	 * the sticky rows its ancestors would show.
+	 * the sticky rows its ancestors would show; with `onlyOutOfSight`, a row in sight stays put.
 	 */
-	private reveal(key: K, relativeTop: number | null): void {
+	private reveal(request: VirtualTreeRevealRequest<K>): void {
 		this.pendingReveal = null;
 		if (this.height === 0) {
-			this.pendingReveal = { key, relativeTop };
+			this.pendingReveal = request;
 			return;
 		}
+		const { key, onlyOutOfSight, relativeTop } = request;
 		const index = this.model.indexOf(key);
-		if (index < 0) return;
+		if (index < 0 || (onlyOutOfSight && this.inSight(key))) return;
 		const top = this.rowTop(index);
 		const height = this.heightAt(index);
 		const padding = this.stickyPadding(this.model.rowAt(index));

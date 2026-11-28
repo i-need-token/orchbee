@@ -11,6 +11,7 @@ import type {
 	VirtualTreeHighlight,
 	VirtualTreeModelOptions,
 	VirtualTreeRevealOptions,
+	VirtualTreeRevealRequest,
 	VirtualTreeRow,
 	VirtualTreeSource,
 	VirtualTreeSplice,
@@ -124,7 +125,7 @@ export class VirtualTreeModel<K, T> {
 	private anchorChanged = false;
 	private selectionChanged = false;
 	private scrollChanged = false;
-	private revealRequest: { readonly key: K; readonly relativeTop: number | null } | null = null;
+	private revealRequest: VirtualTreeRevealRequest<K> | null = null;
 	private removedKeys: K[] = [];
 	/** Nodes whose key a refresh gave to a new node elsewhere; they leave once the refresh ends. */
 	private displaced: TreeNode<K, T>[] = [];
@@ -294,7 +295,11 @@ export class VirtualTreeModel<K, T> {
 			for (let owner = node.owner; owner !== null && owner.owner !== null; owner = owner.owner) {
 				this.setCollapsed(owner, false, true);
 			}
-			this.revealRequest = { key, relativeTop: options?.relativeTop ?? null };
+			this.revealRequest = {
+				key,
+				onlyOutOfSight: options?.onlyOutOfSight === true,
+				relativeTop: options?.relativeTop ?? null,
+			};
 		});
 	}
 
