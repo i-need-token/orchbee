@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 
 import { ActionRuntime } from '@orchbee/actions';
-import type { KeyboardShortcutSequence } from '@orchbee/keyboard-shortcuts';
+import type {
+	KeyboardShortcutChord,
+	KeyboardShortcutPlatform,
+	KeyboardShortcutSequence,
+} from '@orchbee/keyboard-shortcuts';
 import { cleanup, render, screen } from '@testing-library/react';
 import { createElement, useRef, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { codeEditorKeyChords } from '../../../code-editor';
 import {
 	useWorkbenchKeyboardScope,
 	WorkbenchKeyboardScopeContext,
@@ -15,7 +20,9 @@ import {
 } from '../../../workbench-keyboard-scopes';
 import { useWorkbenchShortcuts, type WorkbenchShortcutScopes } from '../useWorkbenchShortcuts';
 import {
+	defaultWorkbenchScopedShortcutBindings,
 	defaultWorkbenchShortcutBindings,
+	WORKBENCH_SCOPED_SHORTCUTS,
 	type WorkbenchScopedShortcutBinding,
 	type WorkbenchScopedShortcutScope,
 	type WorkbenchShortcutBinding,
@@ -669,3 +676,145 @@ describe('useWorkbenchShortcuts keyboard scopes', () => {
 		);
 	});
 });
+
+/** The overlay's text editor: the scope of its own Actions, inside the overlay's keyboard scope. */
+const OVERLAY_EDITOR_ACTION_SCOPE = new ActionRuntime().createScope('code-editor');
+const OVERLAY_SCOPE: WorkbenchKeyboardScope = { kind: 'file-overlay' };
+
+/** Each operating system the editor's key table follows, by a user agent that names it. */
+const OPERATING_SYSTEMS = [
+	{
+		name: 'macOS',
+		platform: 'apple',
+		userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)',
+	},
+	{ name: 'Windows', platform: 'standard', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+	{ name: 'Linux', platform: 'standard', userAgent: 'Mozilla/5.0 (X11; Linux x86_64)' },
+] as const;
+
+function OverlayEditorHarness({
+	invokeShortcut,
+	platform,
+	scopes,
+	yields,
+}: {
+	readonly invokeShortcut: (binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean;
+	readonly platform: KeyboardShortcutPlatform;
+	readonly scopes: WorkbenchShortcutScopes;
+	readonly yields: readonly KeyboardShortcutChord[];
+}) {
+	const rootReference = useWorkbenchShortcuts(
+		true,
+		platform,
+		defaultWorkbenchShortcutBindings(platform),
+		invokeShortcut,
+		() => false,
+		scopes,
+	);
+	return createElement(
+		WorkbenchKeyboardScopeContext.Provider,
+		{ value: scopes.registry },
+		createElement(
+			'div',
+			{ ref: rootReference },
+			createElement(
+				ScopedRegion,
+				{ label: 'Overlay', scope: OVERLAY_SCOPE },
+				createElement(
+					ScopedRegion,
+					{
+						label: 'Editor',
+						scope: { actionScope: OVERLAY_EDITOR_ACTION_SCOPE, kind: 'code-editor', yields },
+					},
+					createElement('textarea', { 'aria-label': 'Editor input' }),
+				),
+			),
+		),
+	);
+}
+
+/** The overlay's editor with the Workbench's default bindings and the editor's key table. */
+function renderOverlayEditor(platform: KeyboardShortcutPlatform, userAgent: string) {
+	const invoke = vi.fn<WorkbenchShortcutScopes['invoke']>(() => true);
+	const invokeShortcut = vi.fn<(binding: WorkbenchShortcutBinding, source: 'keyboard') => boolean>(
+		() => true,
+	);
+	const bindings = defaultWorkbenchScopedShortcutBindings(platform);
+	const scopes: WorkbenchShortcutScopes = {
+		bindings,
+		invoke,
+		registry: new WorkbenchKeyboardScopeRegistry(),
+		reportSequence: () => undefined,
+	};
+	const table = codeEditorKeyChords(platform, userAgent);
+	render(createElement(OverlayEditorHarness, { invokeShortcut, platform, scopes, yields: table }));
+	return {
+		bindings,
+		editor: screen.getByRole('textbox', { name: 'Editor input' }),
+		invoke,
+		invokeShortcut,
+		table,
+	};
+}
+
+/** Presses `chord` on `target` as the platform's keyboard reports it. */
+function pressChord(
+	target: Element,
+	chord: KeyboardShortcutChord,
+	platform: KeyboardShortcutPlatform,
+): KeyboardEvent {
+	const holds = (modifier: KeyboardShortcutChord['modifiers'][number]) =>
+		chord.modifiers.includes(modifier);
+	return press(target, chord.code, {
+		altKey: holds('alt'),
+		ctrlKey: holds('control') || (platform === 'standard' && holds('mod')),
+		metaKey: holds('meta') || (platform === 'apple' && holds('mod')),
+		shiftKey: holds('shift'),
+	});
+}
+
+describe.each(OPERATING_SYSTEMS)(
+	'the overlay’s text editor on $name',
+	({ platform, userAgent }) => {
+		it('leaves every key the editor binds to the editor, past the overlay, File Bar and window', () => {
+			const { editor, invoke, invokeShortcut, table } = renderOverlayEditor(platform, userAgent);
+
+			const taken = table.filter((chord) => pressChord(editor, chord, platform).defaultPrevented);
+
+			expect(table.length).toBeGreaterThan(0);
+			expect(taken).toEqual([]);
+			expect(invoke).not.toHaveBeenCalled();
+			expect(invokeShortcut).not.toHaveBeenCalled();
+		});
+
+		it('runs the Workbench’s editor sequences in the editor’s Action scope', () => {
+			const { bindings, editor, invoke } = renderOverlayEditor(platform, userAgent);
+			const sequences = bindings.filter(({ definition }) => definition.scope === 'code-editor');
+
+			const missed = sequences.filter(({ definition, sequence }) => {
+				const taken = sequence.every((step) => pressChord(editor, step, platform).defaultPrevented);
+				const last = invoke.mock.lastCall;
+				return !taken || last?.[0] !== definition || last[1] !== OVERLAY_EDITOR_ACTION_SCOPE;
+			});
+
+			expect(sequences.length).toBeGreaterThan(0);
+			expect(missed.map(({ definition }) => definition.shortcutId)).toEqual([]);
+			expect(invoke).toHaveBeenCalledTimes(sequences.length);
+		});
+
+		it('gives F1 to Action search and the font size keys to the editor zoom, as the File Bar does', () => {
+			const { editor, invoke, invokeShortcut } = renderOverlayEditor(platform, userAgent);
+
+			for (const definition of [
+				WORKBENCH_SCOPED_SHORTCUTS.actionsSearchInFileBar,
+				WORKBENCH_SCOPED_SHORTCUTS.codeEditorFontZoomIn,
+				WORKBENCH_SCOPED_SHORTCUTS.codeEditorFontZoomOut,
+			]) {
+				const [step] = definition.defaults[platform];
+				expect(pressChord(editor, step, platform).defaultPrevented).toBe(true);
+				expect(invoke).toHaveBeenLastCalledWith(definition, undefined);
+			}
+			expect(invokeShortcut).not.toHaveBeenCalled();
+		});
+	},
+);

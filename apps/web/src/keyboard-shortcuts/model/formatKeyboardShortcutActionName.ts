@@ -1,4 +1,5 @@
 import {
+	codeEditorMessages,
 	fileBarMessages,
 	fileExplorerMessages,
 	fileOverlayMessages,
@@ -65,6 +66,64 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.reopenClosedEditor);
 		case 'unpin-editor':
 			return intl.formatMessage(fileOverlayMessages.unpinEditor);
+		case 'increase-editor-font-size':
+			return intl.formatMessage(codeEditorMessages.fontZoomIn);
+		case 'decrease-editor-font-size':
+			return intl.formatMessage(codeEditorMessages.fontZoomOut);
+		case 'add-line-comment':
+			return intl.formatMessage(codeEditorMessages.addLineComment);
+		case 'remove-line-comment':
+			return intl.formatMessage(codeEditorMessages.removeLineComment);
+		case 'move-selection-to-next-find-match':
+			return intl.formatMessage(codeEditorMessages.moveSelectionToNextFindMatch);
+		case 'set-selection-anchor':
+			return intl.formatMessage(codeEditorMessages.setSelectionAnchor);
+		case 'select-from-anchor-to-cursor':
+			return intl.formatMessage(codeEditorMessages.selectFromAnchorToCursor);
+		case 'show-hover':
+			return intl.formatMessage(codeEditorMessages.showHover);
+		case 'trim-trailing-whitespace':
+			return intl.formatMessage(codeEditorMessages.trimTrailingWhitespace);
+		case 'toggle-fold':
+			return intl.formatMessage(codeEditorMessages.toggleFold);
+		case 'toggle-fold-recursively':
+			return intl.formatMessage(codeEditorMessages.toggleFoldRecursively);
+		case 'fold-recursively':
+			return intl.formatMessage(codeEditorMessages.foldRecursively);
+		case 'unfold-recursively':
+			return intl.formatMessage(codeEditorMessages.unfoldRecursively);
+		case 'fold-all':
+			return intl.formatMessage(codeEditorMessages.foldAll);
+		case 'unfold-all':
+			return intl.formatMessage(codeEditorMessages.unfoldAll);
+		case 'fold-all-block-comments':
+			return intl.formatMessage(codeEditorMessages.foldAllBlockComments);
+		case 'fold-all-regions':
+			return intl.formatMessage(codeEditorMessages.foldAllRegions);
+		case 'unfold-all-regions':
+			return intl.formatMessage(codeEditorMessages.unfoldAllRegions);
+		case 'fold-all-except':
+			return intl.formatMessage(codeEditorMessages.foldAllExcept);
+		case 'unfold-all-except':
+			return intl.formatMessage(codeEditorMessages.unfoldAllExcept);
+		case 'fold-level-1':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 1 });
+		case 'fold-level-2':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 2 });
+		case 'fold-level-3':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 3 });
+		case 'fold-level-4':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 4 });
+		case 'fold-level-5':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 5 });
+		case 'fold-level-6':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 6 });
+		case 'fold-level-7':
+			return intl.formatMessage(codeEditorMessages.foldLevel, { level: 7 });
+		case 'create-folding-range-from-selection':
+			return intl.formatMessage(codeEditorMessages.createFoldingRangeFromSelection);
+		case 'remove-manual-folding-ranges':
+			return intl.formatMessage(codeEditorMessages.removeManualFoldingRanges);
 		case 'actions-search':
 			return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
 		case 'clear-terminal':

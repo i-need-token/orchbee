@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
@@ -11,7 +12,11 @@ import {
 	FileOverlayRegistry,
 	type FileTabContentPort,
 } from '../../../../workspace-stores';
-import type { FileOverlayCommands, FileOverlayFocus } from '../../../file-overlay-contract';
+import type {
+	FileOverlayCommands,
+	FileOverlayEditorHost,
+	FileOverlayFocus,
+} from '../../../file-overlay-contract';
 import { FileOverlayCloseDialog } from '../components/file-overlay-close-dialog/FileOverlayCloseDialog';
 import { FileOverlayFrame } from '../components/file-overlay-frame/FileOverlayFrame';
 import { FileOverlayHostStoreProvider } from '../contexts/file-overlay-host-store';
@@ -32,6 +37,15 @@ const NO_COMMANDS: FileOverlayCommands = {
 	titleActions: () => ({ buttons: [], more: [] }),
 	toggleFull: () => undefined,
 	unpinTab: () => undefined,
+};
+
+const actionRuntime = new ActionRuntime();
+const NO_EDITOR: FileOverlayEditorHost = {
+	actionRuntime,
+	actionScope: actionRuntime.createScope('workbench'),
+	inFocusRegion: () => false,
+	searchActions: () => undefined,
+	searchActionsShortcut: undefined,
 };
 
 /** The overlay with a tab for each path, those in `unsaved` with unsaved edits, and its save question. */
@@ -67,6 +81,7 @@ function renderOverlay(paths: readonly string[], unsaved: readonly string[]) {
 			<FileOverlayHostStoreProvider
 				commands={NO_COMMANDS}
 				contents={null}
+				editor={NO_EDITOR}
 				dispatch={(event) => {
 					dispatchFileOverlayEvent(store, event, ports);
 				}}

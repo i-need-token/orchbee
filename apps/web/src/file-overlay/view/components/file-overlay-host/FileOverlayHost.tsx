@@ -33,6 +33,7 @@ export function FileOverlayHost({
 	commands,
 	contents,
 	dispatch,
+	editor,
 	fileBarPosition,
 	focusTerminal,
 	movePip,
@@ -52,6 +53,7 @@ export function FileOverlayHost({
 			commands={commands}
 			contents={contents}
 			dispatch={dispatch}
+			editor={editor}
 			focusRequest={focusRequest}
 			focusTerminal={focusTerminal}
 			platform={platform}

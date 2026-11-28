@@ -56,6 +56,7 @@ import { useWorkbenchAgentPresentation } from './hooks/useWorkbenchAgentPresenta
 import { useWorkbenchActionShortcutLabel } from './hooks/useWorkbenchActionShortcutLabel';
 import { useWorkbenchFileBar } from './hooks/useWorkbenchFileBar';
 import { useWorkbenchFileOverlay } from './hooks/useWorkbenchFileOverlay';
+import { useWorkbenchCodeEditor } from './hooks/useWorkbenchCodeEditor';
 import { useWorkbenchFileTabContents } from './hooks/useWorkbenchFileTabContents';
 import { useWorkbenchTerminalFileLinks } from './hooks/useWorkbenchTerminalFileLinks';
 import type { WorkbenchConfiguredCommandKeysView } from './hooks/useWorkbenchConfiguredCommandKeys';
@@ -330,6 +331,15 @@ export function Workbench({
 		store: fileOverlay.host?.store ?? null,
 		workspaceId: activeWorkspaceId,
 		workspaces: view.projectWorkspaceState.workspaces,
+	});
+	const codeEditor = useWorkbenchCodeEditor({
+		actionRuntime,
+		actionScope: view.actionScope,
+		heldLabels: configuredCommandKeys.keys.heldLabels,
+		offered: fileBarOffered,
+		reportActionOutcome: view.reportActionOutcome,
+		shortcutBindings: effectiveShortcutBindings,
+		shortcutPlatform,
 	});
 	const fileBarContent = fileBar.column ?? fileBar.overlay;
 	const FileBarColumn = fileBarContent?.content ?? null;
@@ -1050,6 +1060,7 @@ export function Workbench({
 						commands={fileOverlay.host.commands}
 						contents={fileTabContents}
 						dispatch={fileOverlay.host.dispatch}
+						editor={codeEditor}
 						focusTerminal={fileOverlay.host.focusTerminal}
 						movePip={fileOverlay.host.movePip}
 						pipPosition={fileOverlay.host.pipPosition}

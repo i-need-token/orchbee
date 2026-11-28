@@ -52,6 +52,31 @@ A tab's owner may dispose of a document before the view unmounts, so a view save
 when its model is about to be disposed of. The diff editor treats a side disposed of while it still
 compares it as a bug, so the diff view lets go of both sides first.
 
+## Keys, Actions and menu
+
+Monaco's public API neither lists its key bindings nor evaluates their conditions. The editor's
+keyboard scope therefore yields the single keys that `codeEditorKeyChords.ts` holds for each
+operating system, as the pinned package's default keybinding registry declares them, so no wider
+scope takes a key Monaco would handle. `Mod+K` never reaches Monaco, so VS Code's `Mod+K` editor
+keys are Workbench sequences in the same scope, and each runs one of the editor's commands as an
+Action.
+
+The editor registers those Actions in a scope of its own from `getSupportedActions()`, which lists
+only the actions whose precondition holds, and reads the list again as it takes the keys and before
+each key or press reaches the Workbench. A key thus runs a command only where the editor offers it
+then, as a VS Code key binding's condition includes its action's precondition, and Action search
+lists the same Actions while the editor has or last had the keys, as VS Code's command palette lists
+the focused editor's actions. The composition leaves out Monaco's command palette and Go to Line, so
+Monaco binds neither F1 nor `Ctrl+G`; F1 opens Action search inside the File Bar and the overlay
+instead.
+
+Monaco keeps one font zoom for every editor on the page, so Increase, Decrease and Reset Editor Font
+Size are Workbench Actions that exist once, and Monaco's own zoom actions stay out of Action search.
+
+Monaco's context menu stays off, so the editor's menu looks and behaves as the product's other
+menus do. The overlay shows VS Code's editor context menu with the items the editor offers; a parity
+test holds it to VS Code's menu at the pinned commit and names each item it leaves out.
+
 ## Multi-diff
 
 `CodeEditorMultiDiffView` lists many files' diffs in one scrolling view, laid out as VS Code's
@@ -129,5 +154,11 @@ tree's, which the multi-diff's import of the tree's scrolling arithmetic brings 
    index that now carries that English.
 4. Confirm that each product icon's name keeps its code point in the package's
    `esm/vs/base/common/codiconsLibrary.js`.
-5. Run a production build, load the editor in a Desktop window and confirm that the console
+5. Read the default key bindings again. Bundle a page that imports the features `monaco-entry.ts`
+   imports and reads `KeybindingsRegistry.getDefaultKeybindings()` from the package's
+   `platform/keybinding/common/keybindingsRegistry`, and load it under a macOS, a Windows and a
+   Linux user agent, since Monaco takes the operating system from it. Update `codeEditorKeyChords.ts`
+   by the rules its comment states, and confirm that each `code-editor` row in
+   `WORKBENCH_SCOPED_SHORTCUTS` still names the command Monaco binds to its `Mod+K` key.
+6. Run a production build, load the editor in a Desktop window and confirm that the console
    reports no content security violation, then update the sizes above.

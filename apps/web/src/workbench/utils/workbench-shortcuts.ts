@@ -7,6 +7,7 @@ import {
 	type KeyboardShortcutSequence,
 } from '@orchbee/keyboard-shortcuts';
 
+import { CODE_EDITOR_ACTION_IDS, codeEditorCommandActionId } from '../../code-editor';
 import { FILE_EXPLORER_ACTION_IDS } from '../../file-explorer-actions';
 import { WORKBENCH_ACTION_IDS } from '../actions/workbench-action-ids';
 import type {
@@ -545,6 +546,38 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'file-bar',
 		shortcutId: 'workbench.file-bar.toggle.in-file-bar',
 	},
+	// VS Code's Show All Commands key, which opens Action search on Actions in place of Monaco's
+	// command palette.
+	actionsSearchInFileBar: {
+		actionId: WORKBENCH_ACTION_IDS.openSearch,
+		defaults: {
+			apple: [chord('F1', [])],
+			standard: [chord('F1', [])],
+		},
+		input: { filter: 'actions' },
+		scope: 'file-bar',
+		shortcutId: 'workbench.search.actions.open.in-file-bar',
+	},
+	// VS Code zooms the window with these keys; inside the File Bar or the file overlay they change the
+	// editors' font size, as Increase and Decrease Editor Font Size do, and the terminals keep theirs.
+	codeEditorFontZoomIn: {
+		actionId: CODE_EDITOR_ACTION_IDS.fontZoomIn,
+		defaults: {
+			apple: [chord('Equal', ['mod'])],
+			standard: [chord('Equal', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'code-editor.font-zoom-in',
+	},
+	codeEditorFontZoomOut: {
+		actionId: CODE_EDITOR_ACTION_IDS.fontZoomOut,
+		defaults: {
+			apple: [chord('Minus', ['mod'])],
+			standard: [chord('Minus', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'code-editor.font-zoom-out',
+	},
 	// VS Code's editor keys follow, inside the File Bar or the file overlay, as VS Code's work with
 	// focus in its side bar. Toggle Maximize Editor Group:
 	fileOverlayToggleFull: {
@@ -800,6 +833,116 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'widget:explorer',
 		shortcutId: FILE_EXPLORER_ACTION_IDS.copyRelativePath,
 	},
+	// The text editor's own `Mod+K` keys, which Monaco binds by default and the Workbench owns, since
+	// `Mod+K` never reaches Monaco: each runs Monaco's command of the same identity in the editor with
+	// the keys. VS Code's two that need a definition provider or a peek view are left out.
+	codeEditorAddLineComment: codeEditorSequence(
+		'code-editor.add-line-comment',
+		'editor.action.addCommentLine',
+		chord('KeyC', ['mod']),
+	),
+	codeEditorRemoveLineComment: codeEditorSequence(
+		'code-editor.remove-line-comment',
+		'editor.action.removeCommentLine',
+		chord('KeyU', ['mod']),
+	),
+	codeEditorMoveSelectionToNextFindMatch: codeEditorSequence(
+		'code-editor.move-selection-to-next-find-match',
+		'editor.action.moveSelectionToNextFindMatch',
+		chord('KeyD', ['mod']),
+	),
+	codeEditorSetSelectionAnchor: codeEditorSequence(
+		'code-editor.set-selection-anchor',
+		'editor.action.setSelectionAnchor',
+		chord('KeyB', ['mod']),
+	),
+	codeEditorSelectFromAnchorToCursor: codeEditorSequence(
+		'code-editor.select-from-anchor-to-cursor',
+		'editor.action.selectFromAnchorToCursor',
+		chord('KeyK', ['mod']),
+	),
+	codeEditorShowHover: codeEditorSequence(
+		'code-editor.show-hover',
+		'editor.action.showHover',
+		chord('KeyI', ['mod']),
+	),
+	codeEditorTrimTrailingWhitespace: codeEditorSequence(
+		'code-editor.trim-trailing-whitespace',
+		'editor.action.trimTrailingWhitespace',
+		chord('KeyX', ['mod']),
+	),
+	codeEditorToggleFold: codeEditorSequence(
+		'code-editor.toggle-fold',
+		'editor.toggleFold',
+		chord('KeyL', ['mod']),
+	),
+	codeEditorToggleFoldRecursively: codeEditorSequence(
+		'code-editor.toggle-fold-recursively',
+		'editor.toggleFoldRecursively',
+		chord('KeyL', ['mod', 'shift']),
+	),
+	codeEditorFoldRecursively: codeEditorSequence(
+		'code-editor.fold-recursively',
+		'editor.foldRecursively',
+		chord('BracketLeft', ['mod']),
+	),
+	codeEditorUnfoldRecursively: codeEditorSequence(
+		'code-editor.unfold-recursively',
+		'editor.unfoldRecursively',
+		chord('BracketRight', ['mod']),
+	),
+	codeEditorFoldAll: codeEditorSequence(
+		'code-editor.fold-all',
+		'editor.foldAll',
+		chord('Digit0', ['mod']),
+	),
+	codeEditorUnfoldAll: codeEditorSequence(
+		'code-editor.unfold-all',
+		'editor.unfoldAll',
+		chord('KeyJ', ['mod']),
+	),
+	codeEditorFoldAllBlockComments: codeEditorSequence(
+		'code-editor.fold-all-block-comments',
+		'editor.foldAllBlockComments',
+		chord('Slash', ['mod']),
+	),
+	codeEditorFoldAllRegions: codeEditorSequence(
+		'code-editor.fold-all-regions',
+		'editor.foldAllMarkerRegions',
+		chord('Digit8', ['mod']),
+	),
+	codeEditorUnfoldAllRegions: codeEditorSequence(
+		'code-editor.unfold-all-regions',
+		'editor.unfoldAllMarkerRegions',
+		chord('Digit9', ['mod']),
+	),
+	codeEditorFoldAllExcept: codeEditorSequence(
+		'code-editor.fold-all-except',
+		'editor.foldAllExcept',
+		chord('Minus', ['mod']),
+	),
+	codeEditorUnfoldAllExcept: codeEditorSequence(
+		'code-editor.unfold-all-except',
+		'editor.unfoldAllExcept',
+		chord('Equal', ['mod']),
+	),
+	codeEditorFoldLevel1: codeEditorFoldLevelSequence(1),
+	codeEditorFoldLevel2: codeEditorFoldLevelSequence(2),
+	codeEditorFoldLevel3: codeEditorFoldLevelSequence(3),
+	codeEditorFoldLevel4: codeEditorFoldLevelSequence(4),
+	codeEditorFoldLevel5: codeEditorFoldLevelSequence(5),
+	codeEditorFoldLevel6: codeEditorFoldLevelSequence(6),
+	codeEditorFoldLevel7: codeEditorFoldLevelSequence(7),
+	codeEditorCreateFoldingRange: codeEditorSequence(
+		'code-editor.create-folding-range-from-selection',
+		'editor.createFoldingRangeFromSelection',
+		chord('Comma', ['mod']),
+	),
+	codeEditorRemoveManualFoldingRanges: codeEditorSequence(
+		'code-editor.remove-manual-folding-ranges',
+		'editor.removeManualFoldingRanges',
+		chord('Period', ['mod']),
+	),
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 
 export type WorkbenchScopedShortcutId =
@@ -982,6 +1125,30 @@ function fileTabPositionShortcut<const Position extends WorkbenchTabPositionInpu
 		scope: 'file-bar',
 		shortcutId: `file-overlay.tab.select.${position}`,
 	} as const;
+}
+
+/** One of the text editor's keys: `Mod+K`, then `step`, running Monaco's command `monacoId`. */
+function codeEditorSequence<const ShortcutId extends string>(
+	shortcutId: ShortcutId,
+	monacoId: string,
+	step: KeyboardShortcutChord,
+) {
+	const sequence = [chord('KeyK', ['mod']), step] as const;
+	return {
+		actionId: codeEditorCommandActionId(monacoId),
+		defaults: { apple: sequence, standard: sequence },
+		scope: 'code-editor',
+		shortcutId,
+	} as const;
+}
+
+/** Fold Level 1 to 7: `Mod+K`, then the level's digit. */
+function codeEditorFoldLevelSequence<const Level extends 1 | 2 | 3 | 4 | 5 | 6 | 7>(level: Level) {
+	return codeEditorSequence(
+		`code-editor.fold-level.${level}`,
+		`editor.foldLevel${level}`,
+		chord(`Digit${level}`, ['mod']),
+	);
 }
 
 function positionalTabShortcut<const Position extends WorkbenchTabPositionInput['position']>(

@@ -2,6 +2,7 @@ export { loadFileOverlay } from './loadFileOverlay';
 export type {
 	FileOverlayCommandSource,
 	FileOverlayCommands,
+	FileOverlayEditorHost,
 	FileOverlayFocus,
 	FileOverlayMenuCommand,
 	FileOverlayMenuEntry,

@@ -11,6 +11,7 @@ export { loadFileOverlay } from './view';
 export type {
 	FileOverlayCommandSource,
 	FileOverlayCommands,
+	FileOverlayEditorHost,
 	FileOverlayFocus,
 	FileOverlayMenuCommand,
 	FileOverlayMenuEntry,

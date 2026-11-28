@@ -6,6 +6,7 @@ import type { FileOverlayEvent, FileOverlayState } from '../../../../model';
 import type { FileOverlayStore, FileTabContents } from '../../../../workspace-stores';
 import type {
 	FileOverlayCommands,
+	FileOverlayEditorHost,
 	FileOverlayShortcutLabels,
 } from '../../../file-overlay-contract';
 import type { FileOverlayFocusRequest } from '../hooks/useFileOverlayFocusRequest';
@@ -14,6 +15,7 @@ interface FileOverlayHostValue {
 	readonly commands: FileOverlayCommands;
 	readonly contents: FileTabContents | null;
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	readonly editor: FileOverlayEditorHost;
 	readonly focusRequest: FileOverlayFocusRequest;
 	readonly focusTerminal: () => void;
 	readonly platform: KeyboardShortcutPlatform;
@@ -37,6 +39,7 @@ export function FileOverlayHostStoreProvider({
 	commands,
 	contents,
 	dispatch,
+	editor,
 	focusRequest,
 	focusTerminal,
 	platform,
@@ -49,6 +52,7 @@ export function FileOverlayHostStoreProvider({
 			commands,
 			contents,
 			dispatch,
+			editor,
 			focusRequest,
 			focusTerminal,
 			platform,
@@ -60,6 +64,7 @@ export function FileOverlayHostStoreProvider({
 			commands,
 			contents,
 			dispatch,
+			editor,
 			focusRequest,
 			focusTerminal,
 			platform,
@@ -100,6 +105,11 @@ export function useFileOverlayHostDispatch(): (event: FileOverlayEvent) => void 
 /** The content behind the shown Workspace's tabs; null where no file session serves it. */
 export function useFileOverlayHostContents(): FileTabContents | null {
 	return useFileOverlayHostValue().contents;
+}
+
+/** What the text editor needs of the Workbench around the overlay. */
+export function useFileOverlayHostEditor(): FileOverlayEditorHost {
+	return useFileOverlayHostValue().editor;
 }
 
 /** The Actions the overlay's controls run, each as a press of that control. */

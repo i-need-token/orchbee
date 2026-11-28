@@ -26,6 +26,8 @@ import {
 } from './keyboard-shortcut-catalog';
 
 type KeyboardShortcutScopedName =
+	| 'actions-search'
+	| 'add-line-comment'
 	| 'close-all-editors'
 	| 'close-editor'
 	| 'close-file-overlay'
@@ -33,10 +35,20 @@ type KeyboardShortcutScopedName =
 	| 'close-saved-editors'
 	| 'copy-path'
 	| 'copy-relative-path'
+	| 'create-folding-range-from-selection'
+	| 'decrease-editor-font-size'
+	| 'fold-all'
+	| 'fold-all-block-comments'
+	| 'fold-all-except'
+	| 'fold-all-regions'
+	| `fold-level-${1 | 2 | 3 | 4 | 5 | 6 | 7}`
+	| 'fold-recursively'
+	| 'increase-editor-font-size'
 	| 'keep-editor'
 	| 'last-editor'
 	| 'move-editor-left'
 	| 'move-editor-right'
+	| 'move-selection-to-next-find-match'
 	| 'navigate-next-in-quick-open'
 	| 'navigate-previous-in-quick-open'
 	| 'next-editor'
@@ -45,9 +57,21 @@ type KeyboardShortcutScopedName =
 	| 'previous-editor'
 	| 'quick-open-least-recently-used-editor'
 	| 'quick-open-previous-recently-used-editor'
+	| 'remove-line-comment'
+	| 'remove-manual-folding-ranges'
 	| 'reopen-closed-editor'
+	| 'select-from-anchor-to-cursor'
+	| 'set-selection-anchor'
+	| 'show-hover'
 	| 'toggle-file-bar'
 	| 'toggle-file-overlay-full'
+	| 'toggle-fold'
+	| 'toggle-fold-recursively'
+	| 'trim-trailing-whitespace'
+	| 'unfold-all'
+	| 'unfold-all-except'
+	| 'unfold-all-regions'
+	| 'unfold-recursively'
 	| 'unpin-editor';
 
 /** The name Settings gives a scoped shortcut, and the tab it shows when it names one by its place. */
@@ -77,8 +101,11 @@ export type KeyboardShortcutAnyId = KeyboardShortcutId | WorkbenchScopedShortcut
 type ScopedShortcutEntry =
 	(typeof WORKBENCH_SCOPED_SHORTCUTS)[keyof typeof WORKBENCH_SCOPED_SHORTCUTS];
 
-/** The shortcuts with an input, which name the tab they show by its place. */
-type PositionalScopedShortcutEntry = Extract<ScopedShortcutEntry, { readonly input: unknown }>;
+/** The shortcuts that name the tab they show by its place. */
+type PositionalScopedShortcutEntry = Extract<
+	ScopedShortcutEntry,
+	{ readonly input: { readonly position: unknown } }
+>;
 
 const SCOPED_SHORTCUT_NAMES: Readonly<
 	Record<
@@ -88,6 +115,9 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 > = Object.freeze({
 	'workbench.file-bar.toggle': 'toggle-file-bar',
 	'workbench.file-bar.toggle.in-file-bar': 'toggle-file-bar',
+	'workbench.search.actions.open.in-file-bar': 'actions-search',
+	'code-editor.font-zoom-in': 'increase-editor-font-size',
+	'code-editor.font-zoom-out': 'decrease-editor-font-size',
 	'file-overlay.tier.toggle-full': 'toggle-file-overlay-full',
 	'file-overlay.overlay.close': 'close-file-overlay',
 	'file-overlay.tab.close': 'close-editor',
@@ -115,10 +145,41 @@ const SCOPED_SHORTCUT_NAMES: Readonly<
 	'file-explorer.file.open-to-side': 'open-to-side',
 	'file-explorer.path.copy': 'copy-path',
 	'file-explorer.relative-path.copy': 'copy-relative-path',
+	'code-editor.add-line-comment': 'add-line-comment',
+	'code-editor.remove-line-comment': 'remove-line-comment',
+	'code-editor.move-selection-to-next-find-match': 'move-selection-to-next-find-match',
+	'code-editor.set-selection-anchor': 'set-selection-anchor',
+	'code-editor.select-from-anchor-to-cursor': 'select-from-anchor-to-cursor',
+	'code-editor.show-hover': 'show-hover',
+	'code-editor.trim-trailing-whitespace': 'trim-trailing-whitespace',
+	'code-editor.toggle-fold': 'toggle-fold',
+	'code-editor.toggle-fold-recursively': 'toggle-fold-recursively',
+	'code-editor.fold-recursively': 'fold-recursively',
+	'code-editor.unfold-recursively': 'unfold-recursively',
+	'code-editor.fold-all': 'fold-all',
+	'code-editor.unfold-all': 'unfold-all',
+	'code-editor.fold-all-block-comments': 'fold-all-block-comments',
+	'code-editor.fold-all-regions': 'fold-all-regions',
+	'code-editor.unfold-all-regions': 'unfold-all-regions',
+	'code-editor.fold-all-except': 'fold-all-except',
+	'code-editor.unfold-all-except': 'unfold-all-except',
+	'code-editor.fold-level.1': 'fold-level-1',
+	'code-editor.fold-level.2': 'fold-level-2',
+	'code-editor.fold-level.3': 'fold-level-3',
+	'code-editor.fold-level.4': 'fold-level-4',
+	'code-editor.fold-level.5': 'fold-level-5',
+	'code-editor.fold-level.6': 'fold-level-6',
+	'code-editor.fold-level.7': 'fold-level-7',
+	'code-editor.create-folding-range-from-selection': 'create-folding-range-from-selection',
+	'code-editor.remove-manual-folding-ranges': 'remove-manual-folding-ranges',
 });
 
+function positional(definition: ScopedShortcutEntry): definition is PositionalScopedShortcutEntry {
+	return 'input' in definition && 'position' in definition.input;
+}
+
 function scopedNaming(definition: ScopedShortcutEntry): KeyboardShortcutScopedNaming {
-	if ('input' in definition)
+	if (positional(definition))
 		return { name: 'position-editor', position: definition.input.position };
 	return { name: SCOPED_SHORTCUT_NAMES[definition.shortcutId] };
 }

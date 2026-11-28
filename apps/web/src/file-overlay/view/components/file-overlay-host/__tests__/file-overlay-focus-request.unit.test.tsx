@@ -1,12 +1,17 @@
 // @vitest-environment jsdom
 
+import { ActionRuntime } from '@orchbee/actions';
 import { OrchbeeI18nProvider } from '@orchbee/i18n';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { createRef, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FileOverlayRegistry } from '../../../../workspace-stores';
-import type { FileOverlayCommands, FileOverlayFocus } from '../../../file-overlay-contract';
+import type {
+	FileOverlayCommands,
+	FileOverlayEditorHost,
+	FileOverlayFocus,
+} from '../../../file-overlay-contract';
 import { FileOverlayFrame } from '../components/file-overlay-frame/FileOverlayFrame';
 import { FileOverlayHostStoreProvider } from '../contexts/file-overlay-host-store';
 import { useFileOverlayFocusRequest } from '../hooks/useFileOverlayFocusRequest';
@@ -26,6 +31,15 @@ const NO_COMMANDS: FileOverlayCommands = {
 	titleActions: () => ({ buttons: [], more: [] }),
 	toggleFull: () => undefined,
 	unpinTab: () => undefined,
+};
+
+const actionRuntime = new ActionRuntime();
+const NO_EDITOR: FileOverlayEditorHost = {
+	actionRuntime,
+	actionScope: actionRuntime.createScope('workbench'),
+	inFocusRegion: () => false,
+	searchActions: () => undefined,
+	searchActionsShortcut: undefined,
 };
 
 /** The overlay's frame with a tab for each path, and the handle the Workbench asks for the keys by. */
@@ -51,6 +65,7 @@ function renderOverlay(paths: readonly string[]) {
 			<FileOverlayHostStoreProvider
 				commands={NO_COMMANDS}
 				contents={null}
+				editor={NO_EDITOR}
 				dispatch={(event) => {
 					store.dispatch(event);
 				}}

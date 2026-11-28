@@ -1,3 +1,4 @@
+import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ProductIconName } from '@orchbee/ui/components';
 import type { ComponentType, Ref, RefObject } from 'react';
@@ -83,6 +84,23 @@ export interface FileOverlayCommands {
 	readonly unpinTab: (tabId: string, source: FileOverlayCommandSource) => void;
 }
 
+/** What the text editor in the overlay needs of the Workbench around it. */
+export interface FileOverlayEditorHost {
+	/** The runtime where the editor's own commands join the Workbench's Actions. */
+	readonly actionRuntime: ActionRuntime;
+	/** The Workbench's scope, under which the editor's commands resolve. */
+	readonly actionScope: ActionScope;
+	/**
+	 * Whether `target` lies in one of the Workbench's focus regions, which takes the keys from the
+	 * editor. Focus outside them, as in Action search or a menu, leaves the editor its commands.
+	 */
+	readonly inFocusRegion: (target: EventTarget) => boolean;
+	/** Opens Action search on Actions: the editor menu's last item, where VS Code's is Command Palette. */
+	readonly searchActions: () => void;
+	/** The keys that open Action search on Actions, absent while a configured command holds them. */
+	readonly searchActionsShortcut: string | undefined;
+}
+
 /** The keys bound to the overlay's Actions, each absent while nothing binds it. */
 export interface FileOverlayShortcutLabels {
 	readonly closeOverlay: string | undefined;
@@ -96,6 +114,7 @@ export interface FileOverlayHostProps {
 	readonly contents: FileTabContents | null;
 	/** Applies an event to the shown overlay and runs the effects it returns. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	readonly editor: FileOverlayEditorHost;
 	/**
 	 * The File Bar's side of the terminal area. Moving it shifts the terminal area without resizing
 	 * it, so the overlay measures what it lies over again.

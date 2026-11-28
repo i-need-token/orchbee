@@ -58,6 +58,10 @@ class FakeEditor {
 		this.model = null;
 	}
 
+	public onContextMenu(): { dispose(): void } {
+		return { dispose: () => undefined };
+	}
+
 	public restoreViewState(state: { readonly line: number }): void {
 		this.line = state.line;
 	}
@@ -113,6 +117,7 @@ describe('CodeEditorTextView', () => {
 		const editors: FakeEditor[] = [];
 		const runtime = {
 			editor: {
+				MouseTargetType: {},
 				create: () => {
 					const created = new FakeEditor();
 					editors.push(created);

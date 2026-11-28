@@ -7,6 +7,7 @@ import {
 	useFileOverlayHostContents,
 	useFileOverlayHostPlatform,
 } from '../../../../contexts/file-overlay-host-store';
+import { FileTabTextEditor } from './components/file-tab-text-editor/FileTabTextEditor';
 import { useFileTabDocuments } from './hooks/useFileTabDocuments';
 import styles from './FileTabContent.module.css';
 
@@ -45,7 +46,7 @@ export function FileTabContent(): ReactNode {
 		);
 	}
 	return (
-		<runtime.CodeEditorTextView
+		<FileTabTextEditor
 			document={hold.document}
 			name={name}
 			runtime={runtime}
