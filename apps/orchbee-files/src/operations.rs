@@ -19,9 +19,9 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesError, FilesRecord, FilesReply,
-    FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError,
-    ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
+    CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesCapability, FilesError, FilesRecord,
+    FilesReply, FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace,
+    RequestError, ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -190,6 +190,11 @@ impl Services {
     }
 
     fn route(self: &Arc<Self>, call: Call, view: View, grant: GrantClass, request: FilesRequest) {
+        // No request that needs `files-search` is served yet.
+        if request.capability() == FilesCapability::FilesSearch {
+            call.close(CallClose::Unsupported);
+            return;
+        }
         match request {
             FilesRequest::FsSubscribe(request) => {
                 let workspace = request.workspace_id;
@@ -381,6 +386,10 @@ impl Services {
             FilesRequest::FsExportEntries(request) => self.detach(call, move |services, call| {
                 services.edit.export_entries(call, &request);
             }),
+            FilesRequest::SearchText(_)
+            | FilesRequest::SearchNext(_)
+            | FilesRequest::SearchFindFiles(_)
+            | FilesRequest::SearchCloseCache(_) => call.close(CallClose::Unsupported),
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);

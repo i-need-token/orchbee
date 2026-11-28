@@ -1,5 +1,6 @@
 use super::{MAXIMUM_DATA_STREAMS, MAXIMUM_STREAMS, PRIORITY_INTERVAL, Relay};
 use crate::file_bar::{FileBar, Host, Outbound};
+use orchbee_connection_handshake::{ConnectionKind, FILES_EDIT, FILES_SEARCH};
 use orchbee_files_protocol::{
     ConnectionId, ErrorCode, FilesRecord, FilesReply, GrantClass, Operation, Put, PutEnd,
     RecordPlace, TransferId, decode_files_record, encode_files_record, parse_reply,
@@ -26,7 +27,8 @@ fn file_bar() -> Arc<FileBar> {
 }
 
 fn relay(bar: &Arc<FileBar>, grant: Option<GrantClass>) -> Relay {
-    bar.relay(ConnectionId::new(1).unwrap(), grant, true)
+    let capabilities = ConnectionKind::ClientServer.capabilities();
+    bar.relay(ConnectionId::new(1).unwrap(), grant, capabilities)
 }
 
 fn stream(id: u64) -> MultiplexStreamId {
@@ -196,9 +198,10 @@ fn a_connection_without_files_edit_has_every_request_that_needs_it_closed_as_uns
         ),
     ];
     let bar = file_bar();
+    let all = ConnectionKind::ClientServer.capabilities();
     // Without a grant the relay answers what it admits itself, so no call reaches the File Bar.
-    let mut viewer = bar.relay(ConnectionId::new(1).unwrap(), None, false);
-    let mut editor = bar.relay(ConnectionId::new(2).unwrap(), None, true);
+    let mut viewer = bar.relay(ConnectionId::new(1).unwrap(), None, all.without(FILES_EDIT));
+    let mut editor = bar.relay(ConnectionId::new(2).unwrap(), None, all);
     for (id, json) in (1..).zip(&edits) {
         assert_eq!(
             open(&mut viewer, id, StreamMode::Request, request(json)),
@@ -217,5 +220,50 @@ fn a_connection_without_files_edit_has_every_request_that_needs_it_closed_as_uns
         Ok(())
     );
     drop((viewer, editor));
+    bar.stop_before(Instant::now() + Duration::from_secs(5));
+}
+
+#[test]
+fn a_connection_without_files_search_has_every_request_that_needs_it_closed_as_unsupported() {
+    const WORKSPACE: &str = r#""workspaceId":"0123456789abcdef0123456789abcdef""#;
+    let searches = [
+        format!(
+            r#"{{"op":"search.text",{WORKSPACE},"search":"1","pattern":"main","regex":false,"caseSensitive":false,"wholeWord":false,"multiline":false,"folders":[{{"path":"/home/dev/project"}}],"useIgnoreFiles":true,"useParentIgnoreFiles":false,"followSymlinks":true,"maxResults":20000,"preview":{{"matchLines":1,"charsPerLine":250}}}}"#
+        ),
+        format!(r#"{{"op":"search.next",{WORKSPACE},"search":"1"}}"#),
+        format!(
+            r#"{{"op":"search.find-files",{WORKSPACE},"cache":"1","query":"main","folders":["/home/dev/project"],"useIgnoreFiles":true,"useParentIgnoreFiles":false,"followSymlinks":true,"maxResults":512}}"#
+        ),
+        format!(r#"{{"op":"search.close-cache",{WORKSPACE},"cache":"1"}}"#),
+        format!(r#"{{"op":"fs.stat",{WORKSPACE},"paths":["/etc/hosts"],"source":"quick-open"}}"#),
+        format!(r#"{{"op":"fs.grant",{WORKSPACE},"path":"/etc/hosts","source":"quick-open"}}"#),
+    ];
+    let bar = file_bar();
+    let all = ConnectionKind::ClientServer.capabilities();
+    // Without a grant the relay answers what it admits itself, so no call reaches the File Bar.
+    let mut browser = bar.relay(
+        ConnectionId::new(1).unwrap(),
+        None,
+        all.without(FILES_SEARCH),
+    );
+    let mut searcher = bar.relay(ConnectionId::new(2).unwrap(), None, all);
+    for (id, json) in (1..).zip(&searches) {
+        assert_eq!(
+            open(&mut browser, id, StreamMode::Request, request(json)),
+            Err(StreamCloseReason::Unsupported),
+            "{json}"
+        );
+        assert_eq!(
+            open(&mut searcher, id, StreamMode::Request, request(json)),
+            Ok(()),
+            "{json}"
+        );
+    }
+    // What `files` alone serves still relays.
+    assert_eq!(
+        open(&mut browser, 9, StreamMode::Request, request(STAT)),
+        Ok(())
+    );
+    drop((browser, searcher));
     bar.stop_before(Instant::now() + Duration::from_secs(5));
 }

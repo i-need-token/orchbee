@@ -5,9 +5,9 @@
 
 use orchbee_connection_handshake::{
     AGENT_COMPLETION_ACKNOWLEDGE, AGENT_CONFIRMATION, AGENT_INPUT_AREA, COMPATIBILITY_WINDOW,
-    CONFIGURED_COMMAND_SOURCE_EXITED, CapabilitySet, FILES, FILES_EDIT, PROJECT_IDENTITY,
-    PROMPT_GATED_INPUT, RECONNECT, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED,
-    TERMINAL_RUNTIME, UPDATE_CHECK, UPDATE_PHASES, WORKSPACE_IDLE,
+    CONFIGURED_COMMAND_SOURCE_EXITED, CapabilitySet, FILES, FILES_EDIT, FILES_SEARCH,
+    PROJECT_IDENTITY, PROMPT_GATED_INPUT, RECONNECT, STREAM_OUTCOME_UNKNOWN,
+    TERMINAL_LIMIT_REACHED, TERMINAL_RUNTIME, UPDATE_CHECK, UPDATE_PHASES, WORKSPACE_IDLE,
 };
 
 /// A TUI action that only a Session listing a certain capability can serve.
@@ -44,6 +44,7 @@ const NEEDED_BY: &[(&str, &[SessionAction])] = &[
     // The TUI has no File Bar and opens no File Bar stream, with or without them.
     (FILES, &[]),
     (FILES_EDIT, &[]),
+    (FILES_SEARCH, &[]),
     // Only a random Project identity joins Projects of different Sessions, and a Session without
     // it allocates none; the TUI names no Project identity of its own.
     (PROJECT_IDENTITY, &[]),

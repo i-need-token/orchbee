@@ -397,7 +397,8 @@ impl View {
         source: GrantSource,
     ) -> Result<NativePath, FilesError> {
         match source {
-            GrantSource::Tree | GrantSource::Diff => self.read(path),
+            // A Quick Open pick needs `files-search`, which is not served yet.
+            GrantSource::Tree | GrantSource::Diff | GrantSource::QuickOpen => self.read(path),
             GrantSource::SaveAs
             | GrantSource::TerminalLink
             | GrantSource::Restored

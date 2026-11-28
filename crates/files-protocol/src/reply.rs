@@ -6,11 +6,16 @@
 use serde::{Deserialize, Serialize};
 
 mod edit;
+mod search;
 
 pub use edit::{
     ExportEntry, ExportFacts, ExportKind, FsDeleteResult, FsEntryResult, FsExistsResult,
     FsExportEntriesResult, FsImportFileResult, FsImportResult, FsTransferResult, FsWriteResult,
     ImportOutcome, PickerListResult, PickerOpenResult, TransferItem,
+};
+pub use search::{
+    FoundFile, SearchContextLine, SearchFile, SearchFindFilesResult, SearchMatch, SearchNextResult,
+    SearchRange, SearchSpan,
 };
 
 use crate::{
@@ -782,6 +787,10 @@ pub enum FilesReply {
     PickerOpen(PickerOpenResult),
     /// `picker.list`.
     PickerList(PickerListResult),
+    /// `search.next`.
+    SearchNext(SearchNextResult),
+    /// `search.find-files`.
+    SearchFindFiles(SearchFindFilesResult),
 }
 
 /// Reads the JSON body of the Result record that answers a request of `operation`: its error, or
@@ -818,7 +827,9 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         | Operation::FsClipboard
         | Operation::FsImportEnd
         | Operation::FsExportBegin
-        | Operation::PickerClose => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
+        | Operation::PickerClose
+        | Operation::SearchText
+        | Operation::SearchCloseCache => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
         Operation::FsList => FilesReply::FsList(read_object(json)?),
         Operation::FsStat => FilesReply::FsStat(read_object(json)?),
         Operation::FsGrant => FilesReply::FsGrant(read_object(json)?),
@@ -846,6 +857,8 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         Operation::FsExportEntries => FilesReply::FsExportEntries(read_object(json)?),
         Operation::PickerOpen => FilesReply::PickerOpen(read_object(json)?),
         Operation::PickerList => FilesReply::PickerList(read_object(json)?),
+        Operation::SearchNext => FilesReply::SearchNext(read_object(json)?),
+        Operation::SearchFindFiles => FilesReply::SearchFindFiles(read_object(json)?),
     })
 }
 
@@ -882,6 +895,8 @@ pub fn encode_reply(reply: &FilesReply) -> Vec<u8> {
         FilesReply::FsExportEntries(result) => serde_json::to_vec(result),
         FilesReply::PickerOpen(result) => serde_json::to_vec(result),
         FilesReply::PickerList(result) => serde_json::to_vec(result),
+        FilesReply::SearchNext(result) => serde_json::to_vec(result),
+        FilesReply::SearchFindFiles(result) => serde_json::to_vec(result),
     };
     encoded.expect("every reply value encodes as JSON")
 }

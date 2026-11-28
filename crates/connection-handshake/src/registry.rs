@@ -84,6 +84,13 @@ pub const FILES: &str = "files";
 /// environment neither offers nor lists it.
 pub const FILES_EDIT: &str = "files-edit";
 
+/// The `client-server` capability before a Client may send the File Bar's search operations, which
+/// `schemas/files` states beside the `files` ones: text search, Quick Open's file lists, and the
+/// typed paths and picked files of Quick Open. It requires `files`, so an answer without that name
+/// never lists it. The File Bar is unfinished, so a build for the release environment neither
+/// offers nor lists it.
+pub const FILES_SEARCH: &str = "files-search";
+
 /// The `client-server` capability before a Server may refuse a terminal create with
 /// `terminal-limit-reached`, when the Session already retains its bound of terminals. A Client
 /// without it reads `server-busy` for that refusal, as its own release did.
@@ -227,6 +234,7 @@ impl ConnectionKind {
                 CONFIGURED_COMMAND_SOURCE_EXITED,
                 FILES,
                 FILES_EDIT,
+                FILES_SEARCH,
                 PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
                 RECONNECT,
@@ -257,12 +265,15 @@ impl ConnectionKind {
     }
 
     /// The capability names this build offers and accepts in `environment`: [`Self::capabilities`]
-    /// less [`FILES`] and [`FILES_EDIT`] in the release environment.
+    /// less [`FILES`], [`FILES_EDIT`] and [`FILES_SEARCH`] in the release environment.
     #[must_use]
     pub fn capabilities_in(self, environment: &EnvironmentName) -> CapabilitySet {
         let capabilities = self.capabilities();
         if environment.is_release() {
-            capabilities.without(FILES).without(FILES_EDIT)
+            capabilities
+                .without(FILES)
+                .without(FILES_EDIT)
+                .without(FILES_SEARCH)
         } else {
             capabilities
         }
@@ -281,6 +292,7 @@ impl ConnectionKind {
                 CONFIGURED_COMMAND_SOURCE_EXITED,
                 FILES,
                 FILES_EDIT,
+                FILES_SEARCH,
                 PROJECT_IDENTITY,
                 PROMPT_GATED_INPUT,
                 RECONNECT,

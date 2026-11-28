@@ -5,6 +5,7 @@
 //! `orchbee-files` when the operation starts.
 
 mod edit;
+mod search;
 
 pub use edit::{
     Conflict, CreateKind, DeleteMode, FsClipboard, FsCreate, FsDelete, FsExists, FsExportBegin,
@@ -12,7 +13,11 @@ pub use edit::{
     FsTransfer, FsWrite, ImportItem, ImportKind, PickerList, PickerRequest, WriteHistory,
     WritePrecondition,
 };
-use orchbee_connection_handshake::{FILES, FILES_EDIT};
+use orchbee_connection_handshake::{FILES, FILES_EDIT, FILES_SEARCH};
+pub use search::{
+    SearchCloseCache, SearchFindFiles, SearchFolder, SearchGlob, SearchPreview, SearchRequest,
+    SearchText,
+};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
@@ -34,6 +39,9 @@ pub enum FilesCapability {
     /// `files-edit`, batch ②: writes, file operations, delete and undo, clipboard sources,
     /// import, export and the Save As picker.
     FilesEdit,
+    /// `files-search`, batch ③: text search, and Quick Open's file lists, typed paths and picked
+    /// files.
+    FilesSearch,
 }
 
 impl FilesCapability {
@@ -43,6 +51,7 @@ impl FilesCapability {
         match self {
             Self::Files => FILES,
             Self::FilesEdit => FILES_EDIT,
+            Self::FilesSearch => FILES_SEARCH,
         }
     }
 }
@@ -107,8 +116,8 @@ macro_rules! operations {
                 Self::ALL.iter().copied().find(|operation| operation.name() == name)
             }
 
-            /// The capability that adds the operation; a request may need `files-edit` beyond it,
-            /// as [`FilesRequest::capability`] says.
+            /// The capability that adds the operation; a request may need `files-edit` or
+            /// `files-search` beyond it, as [`FilesRequest::capability`] says.
             #[must_use]
             pub const fn capability(self) -> FilesCapability {
                 match self {
@@ -171,8 +180,9 @@ macro_rules! operations {
 }
 
 impl FilesRequest {
-    /// The capability the request needs: its operation's, or `files-edit` for a `files`
-    /// operation that names what only `files-edit` adds, a Save As destination or an export.
+    /// The capability the request needs: its operation's, or the one that adds what a `files`
+    /// operation names: `files-edit` for a Save As destination or an export, `files-search` for
+    /// a path typed or picked in Quick Open.
     #[must_use]
     pub const fn capability(&self) -> FilesCapability {
         match self {
@@ -184,6 +194,14 @@ impl FilesRequest {
                 source: ReadSource::Export { .. },
                 ..
             }) => FilesCapability::FilesEdit,
+            Self::FsGrant(FsGrant {
+                source: GrantSource::QuickOpen,
+                ..
+            })
+            | Self::FsStat(FsStat {
+                source: Some(StatSource::QuickOpen),
+                ..
+            }) => FilesCapability::FilesSearch,
             request => request.operation().capability(),
         }
     }
@@ -197,7 +215,7 @@ operations! {
     /// Unloads directories.
     FsRelease(PathsRequest) = "fs.release", Files, Request, TerminalCreate, false;
     /// The entries of paths, or why each has none.
-    FsStat(PathsRequest) = "fs.stat", Files, Request, TerminalCreate, true;
+    FsStat(FsStat) = "fs.stat", Files, Request, TerminalCreate, true;
     /// Grants the connection one opened file.
     FsGrant(FsGrant) = "fs.grant", Files, Request, TerminalCreate, false;
     /// Withdraws opened-file grants.
@@ -298,6 +316,16 @@ operations! {
     PickerList(PickerList) = "picker.list", FilesEdit, Request, TerminalCreate, false;
     /// Ends a picker session.
     PickerClose(PickerRequest) = "picker.close", FilesEdit, Request, TerminalCreate, false;
+    /// Starts a text search, whose results `search.next` takes.
+    SearchText(SearchText) = "search.text", FilesSearch, Request, TerminalCreate, false;
+    /// The next batch of a text search's results.
+    SearchNext(SearchRequest) = "search.next", FilesSearch, Request, TerminalCreate, false;
+    /// The best files of a Quick Open file list for a query, the list made first when not held.
+    SearchFindFiles(SearchFindFiles) = "search.find-files", FilesSearch, Request, TerminalCreate,
+        false;
+    /// Drops a Quick Open file list.
+    SearchCloseCache(SearchCloseCache) = "search.close-cache", FilesSearch, Request, TerminalCreate,
+        true;
 }
 
 /// Reads one Request record's JSON body.
@@ -340,6 +368,65 @@ pub struct PathsRequest {
     pub workspace_id: WorkspaceId,
     /// 1 to 256 paths.
     pub paths: List<FilePath, 1, 256>,
+}
+
+/// Why `fs.stat` names a path the scope may not hold.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StatSource {
+    /// A path the user typed in Quick Open, which `files-search` adds: exactly one path, which
+    /// may lie outside every member and is stated without being listed.
+    QuickOpen,
+}
+
+/// `fs.stat`.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(try_from = "WireFsStat", into = "WireFsStat")]
+pub struct FsStat {
+    /// The Workspace.
+    pub workspace_id: WorkspaceId,
+    /// 1 to 256 paths; exactly one with a source.
+    pub paths: List<FilePath, 1, 256>,
+    /// Why a path outside the scope is named; absent for paths the scope holds.
+    pub source: Option<StatSource>,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct WireFsStat {
+    workspace_id: WorkspaceId,
+    paths: List<FilePath, 1, 256>,
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    source: Option<StatSource>,
+}
+
+impl TryFrom<WireFsStat> for FsStat {
+    type Error = InvalidValue;
+
+    fn try_from(wire: WireFsStat) -> Result<Self, InvalidValue> {
+        if wire.source.is_some() && wire.paths.as_slice().len() != 1 {
+            return Err(InvalidValue);
+        }
+        Ok(Self {
+            workspace_id: wire.workspace_id,
+            paths: wire.paths,
+            source: wire.source,
+        })
+    }
+}
+
+impl From<FsStat> for WireFsStat {
+    fn from(stat: FsStat) -> Self {
+        Self {
+            workspace_id: stat.workspace_id,
+            paths: stat.paths,
+            source: stat.source,
+        }
+    }
 }
 
 /// A request about one path.
@@ -408,6 +495,9 @@ pub enum GrantSource {
     SaveAs,
     /// One side of a diff.
     Diff,
+    /// A file the user picked in Quick Open, typed or from its history, which `files-search`
+    /// adds; it may lie outside every member, as a terminal link's file may.
+    QuickOpen,
 }
 
 /// `fs.grant`.

@@ -4,7 +4,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 /// Each capability's corpus, in the order the registry lists the capabilities.
-const CORPORA: [(&str, &str); 2] = [
+const CORPORA: [(&str, &str); 3] = [
     (
         "files",
         include_str!("../../../../schemas/files/v1/files-conformance-v1.json"),
@@ -12,6 +12,10 @@ const CORPORA: [(&str, &str); 2] = [
     (
         "files-edit",
         include_str!("../../../../schemas/files/v1/files-edit-conformance-v1.json"),
+    ),
+    (
+        "files-search",
+        include_str!("../../../../schemas/files/v1/files-search-conformance-v1.json"),
     ),
 ];
 

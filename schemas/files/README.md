@@ -3,8 +3,8 @@
 ## Authority
 
 This directory is the language-neutral authority for the records a Client and a Server exchange
-for the File Bar under the `files` and `files-edit` capabilities: OBFB, the record OBWP stream
-frames carry, and the JSON of every operation they add.
+for the File Bar under the `files`, `files-edit` and `files-search` capabilities: OBFB, the record
+OBWP stream frames carry, and the JSON of every operation they add.
 
 | File                                                                                                             | Content                                                                |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
@@ -12,6 +12,7 @@ frames carry, and the JSON of every operation they add.
 | [`v1/files.schema.json`](v1/files.schema.json)                                                                   | JSON Schema 2020-12 of every request, result, error and notice         |
 | [`v1/files-conformance-v1.json`](v1/files-conformance-v1.json)                                                   | Operations, bounds, and valid and invalid records and documents        |
 | [`v1/files-edit-conformance-v1.json`](v1/files-edit-conformance-v1.json)                                         | The same for what `files-edit` adds                                    |
+| [`v1/files-search-conformance-v1.json`](v1/files-search-conformance-v1.json)                                     | The same for what `files-search` adds                                  |
 | [`workbench-multiplex-files-conformance-v1.json`](../workbench/v1/workbench-multiplex-files-conformance-v1.json) | OBWP stream messages that carry OBFB records, valid only under `files` |
 | [Backend proposal](../../proposals/platform/file-bar-backend.md)                                                 | The accepted design and its reserved decisions                         |
 
@@ -73,8 +74,10 @@ it may name a Workspace that has closed, and the definitions of its result and n
 
 - A Server closes a stream whose `op` it does not serve with StreamClose Unsupported, and one whose
   request breaks the operation's rules with StreamClose InvalidRequest. A request that needs a
-  capability the connection's handshake answer does not list closes as unsupported too: every
-  `files-edit` operation, `fs.grant` with source `save-as`, and `fs.read` of an export.
+  capability the connection's handshake answer does not list closes as unsupported too: without
+  `files-edit`, every `files-edit` operation, `fs.grant` with source `save-as` and `fs.read` of an
+  export; without `files-search`, every `files-search` operation and `fs.stat` and `fs.grant` with
+  source `quick-open`.
 - A Client treats an error code it does not know as `failed`, a `reason` or `gitErrorCode` it does
   not know as absent, and a notice it cannot read as absent. `remote-disconnected` is the Client's
   own code and never crosses the wire.

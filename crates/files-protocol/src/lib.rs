@@ -1,8 +1,8 @@
 //! The File Bar's wire contracts: OBFB, the records File Bar traffic carries inside the Client
-//! multiplex, with the strict JSON of every `files` and `files-edit` operation, and OBFL, the
-//! private link between a Server and the `orchbee-files` process it admitted. Values are validated
-//! at decoding, so a decoded value is valid wherever the protocol carries it. Callers own
-//! transport, deadlines, admission and scope; decoding a value grants no authority.
+//! multiplex, with the strict JSON of every `files`, `files-edit` and `files-search` operation,
+//! and OBFL, the private link between a Server and the `orchbee-files` process it admitted. Values
+//! are validated at decoding, so a decoded value is valid wherever the protocol carries it.
+//! Callers own transport, deadlines, admission and scope; decoding a value grants no authority.
 
 mod identity;
 mod json;
@@ -14,8 +14,8 @@ mod request;
 mod value;
 
 pub use identity::{
-    CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId, SessionId,
-    StashId, TransferId, WorkspaceId,
+    CacheId, CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId,
+    SearchId, SessionId, StashId, TransferId, WorkspaceId,
 };
 pub use link::{
     BuildIdentity, CallClose, DrainReason, FrameKind, GrantClass, LINK_MAGIC, LINK_VERSION,
@@ -46,6 +46,10 @@ pub use reply::{
     RefUpstream, RequestOutcomeResult, StatItem, StatusCode, StatusEntry, TransferItem,
     encode_reply, parse_reply,
 };
+pub use reply::{
+    FoundFile, SearchContextLine, SearchFile, SearchFindFilesResult, SearchMatch, SearchNextResult,
+    SearchRange, SearchSpan,
+};
 pub use request::{
     ChunkLength, CleanMode, ClientFocus, CommitAll, CommitMessage, Conflict, CreateKind,
     DeleteMode, FetchRemotes, FilesCapability, FilesRequest, FsClipboard, FsCreate, FsDelete,
@@ -57,6 +61,10 @@ pub use request::{
     PushForce, ReadMode, ReadSource, RelayAnswer, RepositoryRequest, RequestError, RequestOutcome,
     ShowRef, TransferRequest, WorkspaceRequest, WriteHistory, WritePrecondition, encode_request,
     parse_request,
+};
+pub use request::{
+    FsStat, SearchCloseCache, SearchFindFiles, SearchFolder, SearchGlob, SearchPreview,
+    SearchRequest, SearchText, StatSource,
 };
 pub use value::{
     CommitName, Counter, EncodingName, FileName, FilePath, GitName, Integer, InvalidValue, List,

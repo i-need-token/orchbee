@@ -1,8 +1,9 @@
 //! The identities File Bar traffic names: the Workspace a request acts in, a mutation's request,
-//! a credential prompt, a delete's undo stash, a Client's transfer and its import, export and
-//! picker sessions, the Server's call, Client connection and lane numbers on the private link, and
-//! the one-time token that admits a started `orchbee-files` process. Each is validated at
-//! construction; none grants authority by itself.
+//! a credential prompt, a delete's undo stash, a Client's transfer, its import, export and
+//! picker sessions, its text searches and Quick Open file lists, the Server's call, Client
+//! connection and lane numbers on the private link, and the one-time token that admits a
+//! started `orchbee-files` process. Each is validated at construction; none grants authority
+//! by itself.
 
 use std::{fmt, num::NonZeroU64};
 
@@ -149,6 +150,17 @@ link_number!(
     SessionId
 );
 
+link_number!(
+    /// One text search, which its Client numbers uniquely in its connection. JSON records spell
+    /// it in canonical decimal.
+    SearchId
+);
+link_number!(
+    /// One Quick Open file list, which its Client numbers uniquely in its connection, as VS Code's
+    /// `cacheKey` names one. JSON records spell it in canonical decimal.
+    CacheId
+);
+
 /// Implements serialization in canonical decimal for a nonzero number that JSON records carry.
 macro_rules! decimal_serde {
     ($name:ident) => {
@@ -171,6 +183,8 @@ macro_rules! decimal_serde {
 
 decimal_serde!(TransferId);
 decimal_serde!(SessionId);
+decimal_serde!(SearchId);
+decimal_serde!(CacheId);
 
 /// The 256-bit secret a Server hands one `orchbee-files` start, which the started process
 /// returns in its hello. Comparing two tokens takes the same time wherever they differ.

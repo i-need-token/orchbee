@@ -141,8 +141,8 @@ The acceptor runs these checks in order and rejects at the first failure.
 
 - An admitted offer gets an `answer` whose `generation` is the highest in both ranges and whose
   `capabilities` are the names both sides listed, less `files` when they do not include
-  `stream-outcome-unknown`, which it requires, and less `files-edit` when that leaves out `files`,
-  which it requires.
+  `stream-outcome-unknown`, which it requires, and less `files-edit` and `files-search` when that
+  leaves out `files`, which they require.
 - Equal fingerprints imply equal registries, so a development offer whose range shares no
   generation with the acceptor's is a fingerprint mismatch.
 - A control request is checked only for environment and then for a free control slot; it skips the

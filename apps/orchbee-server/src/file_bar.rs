@@ -19,6 +19,7 @@ use crate::worker_obcn_carrier::WorkerRequestHandle;
 use lifecycle::{Demand, Lifecycle, Refusal, StartFailure, Step};
 use link::{Event, Link, Route};
 use mailbox::Mailbox;
+use orchbee_connection_handshake::CapabilitySet;
 use orchbee_files_protocol::{
     CallId, ConnectionId, DrainReason, ErrorCode, FilesError, FilesRecord, FilesReply, GrantClass,
     LaneId, LinkMessage, LinkRequest, Token, WorkspaceId, WorkspaceScope, encode_files_record,
@@ -165,14 +166,14 @@ impl FileBar {
     }
 
     /// The File Bar streams of the Client connection `connection`, which holds `grant` and whose
-    /// handshake answer lists `files-edit` when `edit` holds.
+    /// handshake answer lists `capabilities`.
     pub(crate) fn relay(
         self: &Arc<Self>,
         connection: ConnectionId,
         grant: Option<GrantClass>,
-        edit: bool,
+        capabilities: CapabilitySet,
     ) -> Relay {
-        Relay::new(Arc::clone(self), connection, grant, edit)
+        Relay::new(Arc::clone(self), connection, grant, capabilities)
     }
 
     /// Stops for the Session's end: calls are refused from now on, and a running process is

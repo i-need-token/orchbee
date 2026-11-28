@@ -1,0 +1,1482 @@
+{
+	"contractVersion": 1,
+	"capability": "files-search",
+	"bounds": {
+		"requestBytes": 16384,
+		"replyBytes": 131072,
+		"dataBytes": 131072,
+		"pathBytes": 4096
+	},
+	"operations": [
+		{
+			"op": "search.text",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "search.next",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "searchNextResult"
+		},
+		{
+			"op": "search.find-files",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "searchFindFilesResult"
+		},
+		{
+			"op": "search.close-cache",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": true,
+			"result": "emptyResult"
+		}
+	],
+	"requests": {
+		"valid": [
+			{
+				"name": "search-text-literal",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-every-option",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "18446744073709551615",
+					"pattern": "\\bfn\\s+(\\w+)",
+					"regex": true,
+					"caseSensitive": true,
+					"wholeWord": true,
+					"multiline": true,
+					"folders": [
+						{
+							"path": "/home/dev/project",
+							"includes": ["src/**"]
+						},
+						{
+							"path": "/home/dev/notes"
+						}
+					],
+					"useIgnoreFiles": false,
+					"useParentIgnoreFiles": true,
+					"followSymlinks": false,
+					"maxResults": 1,
+					"preview": {
+						"matchLines": 100,
+						"charsPerLine": 10000
+					},
+					"includes": ["**/*.rs", "*.{md,txt}"],
+					"excludes": ["**/target/**", "!**/target/keep/**"],
+					"encoding": "utf16le",
+					"context": 100
+				}
+			},
+			{
+				"name": "search-text-windows-folder",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "C:\\Users\\dev\\project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"includes": ["src\\**"]
+				}
+			},
+			{
+				"name": "search-next",
+				"json": {
+					"op": "search.next",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1"
+				}
+			},
+			{
+				"name": "search-find-files",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"query": "mainrs",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 512,
+					"includes": ["src/**"],
+					"excludes": ["**/node_modules"]
+				}
+			},
+			{
+				"name": "search-find-files-list-only",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"query": "",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 1
+				}
+			},
+			{
+				"name": "search-close-cache",
+				"json": {
+					"op": "search.close-cache",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1"
+				}
+			},
+			{
+				"name": "fs-stat-quick-open",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/etc/hosts"],
+					"source": "quick-open"
+				}
+			},
+			{
+				"name": "fs-grant-quick-open",
+				"json": {
+					"op": "fs.grant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/etc/hosts",
+					"source": "quick-open"
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "search-text-empty-pattern",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-nul-pattern",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "a\u0000b",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-no-folders",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-65-folders",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project/0"
+						},
+						{
+							"path": "/home/dev/project/1"
+						},
+						{
+							"path": "/home/dev/project/2"
+						},
+						{
+							"path": "/home/dev/project/3"
+						},
+						{
+							"path": "/home/dev/project/4"
+						},
+						{
+							"path": "/home/dev/project/5"
+						},
+						{
+							"path": "/home/dev/project/6"
+						},
+						{
+							"path": "/home/dev/project/7"
+						},
+						{
+							"path": "/home/dev/project/8"
+						},
+						{
+							"path": "/home/dev/project/9"
+						},
+						{
+							"path": "/home/dev/project/10"
+						},
+						{
+							"path": "/home/dev/project/11"
+						},
+						{
+							"path": "/home/dev/project/12"
+						},
+						{
+							"path": "/home/dev/project/13"
+						},
+						{
+							"path": "/home/dev/project/14"
+						},
+						{
+							"path": "/home/dev/project/15"
+						},
+						{
+							"path": "/home/dev/project/16"
+						},
+						{
+							"path": "/home/dev/project/17"
+						},
+						{
+							"path": "/home/dev/project/18"
+						},
+						{
+							"path": "/home/dev/project/19"
+						},
+						{
+							"path": "/home/dev/project/20"
+						},
+						{
+							"path": "/home/dev/project/21"
+						},
+						{
+							"path": "/home/dev/project/22"
+						},
+						{
+							"path": "/home/dev/project/23"
+						},
+						{
+							"path": "/home/dev/project/24"
+						},
+						{
+							"path": "/home/dev/project/25"
+						},
+						{
+							"path": "/home/dev/project/26"
+						},
+						{
+							"path": "/home/dev/project/27"
+						},
+						{
+							"path": "/home/dev/project/28"
+						},
+						{
+							"path": "/home/dev/project/29"
+						},
+						{
+							"path": "/home/dev/project/30"
+						},
+						{
+							"path": "/home/dev/project/31"
+						},
+						{
+							"path": "/home/dev/project/32"
+						},
+						{
+							"path": "/home/dev/project/33"
+						},
+						{
+							"path": "/home/dev/project/34"
+						},
+						{
+							"path": "/home/dev/project/35"
+						},
+						{
+							"path": "/home/dev/project/36"
+						},
+						{
+							"path": "/home/dev/project/37"
+						},
+						{
+							"path": "/home/dev/project/38"
+						},
+						{
+							"path": "/home/dev/project/39"
+						},
+						{
+							"path": "/home/dev/project/40"
+						},
+						{
+							"path": "/home/dev/project/41"
+						},
+						{
+							"path": "/home/dev/project/42"
+						},
+						{
+							"path": "/home/dev/project/43"
+						},
+						{
+							"path": "/home/dev/project/44"
+						},
+						{
+							"path": "/home/dev/project/45"
+						},
+						{
+							"path": "/home/dev/project/46"
+						},
+						{
+							"path": "/home/dev/project/47"
+						},
+						{
+							"path": "/home/dev/project/48"
+						},
+						{
+							"path": "/home/dev/project/49"
+						},
+						{
+							"path": "/home/dev/project/50"
+						},
+						{
+							"path": "/home/dev/project/51"
+						},
+						{
+							"path": "/home/dev/project/52"
+						},
+						{
+							"path": "/home/dev/project/53"
+						},
+						{
+							"path": "/home/dev/project/54"
+						},
+						{
+							"path": "/home/dev/project/55"
+						},
+						{
+							"path": "/home/dev/project/56"
+						},
+						{
+							"path": "/home/dev/project/57"
+						},
+						{
+							"path": "/home/dev/project/58"
+						},
+						{
+							"path": "/home/dev/project/59"
+						},
+						{
+							"path": "/home/dev/project/60"
+						},
+						{
+							"path": "/home/dev/project/61"
+						},
+						{
+							"path": "/home/dev/project/62"
+						},
+						{
+							"path": "/home/dev/project/63"
+						},
+						{
+							"path": "/home/dev/project/64"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-folder-unknown-member",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project",
+							"depth": 1
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-folder-as-string",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-zero-results",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 0,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-too-many-results",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20001,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-fractional-results",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 1.5,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-zero-context",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"context": 0
+				}
+			},
+			{
+				"name": "search-text-null-context",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"context": null
+				}
+			},
+			{
+				"name": "search-text-null-encoding",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"encoding": null
+				}
+			},
+			{
+				"name": "search-text-missing-preview",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000
+				}
+			},
+			{
+				"name": "search-text-missing-regex",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-zero-preview-lines",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 0,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-wide-preview",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 10001
+					}
+				}
+			},
+			{
+				"name": "search-text-empty-glob",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"includes": [""]
+				}
+			},
+			{
+				"name": "search-text-null-excludes",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"excludes": null
+				}
+			},
+			{
+				"name": "search-text-glob-too-long-in-bytes",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"includes": [
+						"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+					]
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "search-text-unknown-member",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "1",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					},
+					"maxFileSize": 1
+				}
+			},
+			{
+				"name": "search-text-zero-search",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "0",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-noncanonical-search",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "01",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-numeric-search",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": 1,
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-text-search-beyond-u64",
+				"json": {
+					"op": "search.text",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"search": "18446744073709551616",
+					"pattern": "main",
+					"regex": false,
+					"caseSensitive": false,
+					"wholeWord": false,
+					"multiline": false,
+					"folders": [
+						{
+							"path": "/home/dev/project"
+						}
+					],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 20000,
+					"preview": {
+						"matchLines": 1,
+						"charsPerLine": 250
+					}
+				}
+			},
+			{
+				"name": "search-next-missing-search",
+				"json": {
+					"op": "search.next",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "search-next-duplicate-search",
+				"text": "{\"op\":\"search.next\",\"workspaceId\":\"0123456789abcdef0123456789abcdef\",\"search\":\"1\",\"search\":\"2\"}"
+			},
+			{
+				"name": "search-find-files-missing-query",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 512
+				}
+			},
+			{
+				"name": "search-find-files-query-too-long-in-bytes",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"query": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 512
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "search-find-files-no-folders",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"query": "mainrs",
+					"folders": [],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 512
+				}
+			},
+			{
+				"name": "search-find-files-too-many-results",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "1",
+					"query": "mainrs",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 513
+				}
+			},
+			{
+				"name": "search-find-files-zero-cache",
+				"json": {
+					"op": "search.find-files",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cache": "0",
+					"query": "mainrs",
+					"folders": ["/home/dev/project"],
+					"useIgnoreFiles": true,
+					"useParentIgnoreFiles": false,
+					"followSymlinks": true,
+					"maxResults": 512
+				}
+			},
+			{
+				"name": "search-close-cache-missing-cache",
+				"json": {
+					"op": "search.close-cache",
+					"workspaceId": "0123456789abcdef0123456789abcdef"
+				}
+			},
+			{
+				"name": "fs-stat-quick-open-two-paths",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/etc/hosts", "/etc/passwd"],
+					"source": "quick-open"
+				}
+			},
+			{
+				"name": "fs-stat-unknown-source",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/etc/hosts"],
+					"source": "tree"
+				}
+			},
+			{
+				"name": "fs-stat-null-source",
+				"json": {
+					"op": "fs.stat",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/etc/hosts"],
+					"source": null
+				}
+			}
+		]
+	},
+	"replies": {
+		"valid": [
+			{
+				"name": "search-text-started",
+				"op": "search.text",
+				"json": {}
+			},
+			{
+				"name": "search-text-invalid-regex",
+				"op": "search.text",
+				"json": {
+					"error": {
+						"code": "invalid-regex",
+						"detail": "Regex parse error"
+					}
+				}
+			},
+			{
+				"name": "search-text-without-search-binary",
+				"op": "search.text",
+				"json": {
+					"error": {
+						"code": "unavailable",
+						"reason": "search-binary"
+					}
+				}
+			},
+			{
+				"name": "search-next-batch",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/src/main.rs",
+							"matches": [
+								{
+									"ranges": [
+										{
+											"source": [3, 3, 3, 7],
+											"preview": [0, 3, 0, 7]
+										},
+										{
+											"source": [3, 12, 3, 16],
+											"preview": [0, 12, 0, 16]
+										}
+									],
+									"preview": "fn main() { main(); }"
+								}
+							],
+							"context": [
+								{
+									"line": 2,
+									"text": ""
+								},
+								{
+									"line": 4,
+									"text": "}"
+								}
+							]
+						},
+						{
+							"path": "/home/dev/project/README.md",
+							"matches": [
+								{
+									"ranges": [
+										{
+											"source": [0, 2, 0, 6],
+											"preview": [0, 2, 0, 6]
+										}
+									],
+									"preview": "# main"
+								}
+							]
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-multiline-match",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/src/lib.rs",
+							"matches": [
+								{
+									"ranges": [
+										{
+											"source": [9, 4, 10, 2],
+											"preview": [0, 4, 1, 2]
+										}
+									],
+									"preview": "let main =\n  1;"
+								}
+							]
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-last",
+				"op": "search.next",
+				"json": {
+					"files": [],
+					"done": true,
+					"limitHit": true,
+					"omittedLongLines": 3,
+					"symlinkLoops": ["/home/dev/project"]
+				}
+			},
+			{
+				"name": "search-next-windows",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "C:\\Users\\dev\\project\\src\\main.rs",
+							"matches": [
+								{
+									"ranges": [
+										{
+											"source": [0, 0, 0, 4],
+											"preview": [0, 0, 0, 4]
+										}
+									],
+									"preview": "main"
+								}
+							]
+						}
+					],
+					"done": true,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-cancelled",
+				"op": "search.next",
+				"json": {
+					"error": {
+						"code": "cancelled"
+					}
+				}
+			},
+			{
+				"name": "search-next-concurrent",
+				"op": "search.next",
+				"json": {
+					"error": {
+						"code": "invalid-request"
+					}
+				}
+			},
+			{
+				"name": "search-find-files-result",
+				"op": "search.find-files",
+				"json": {
+					"results": [
+						{
+							"path": "/home/dev/project/src/main.rs",
+							"score": 196625,
+							"labelMatches": [
+								[0, 4],
+								[5, 7]
+							]
+						},
+						{
+							"path": "/home/dev/project/src/main/mod.rs",
+							"score": 65544,
+							"labelMatches": [[4, 6]],
+							"descriptionMatches": [[4, 8]]
+						}
+					],
+					"truncated": false,
+					"limitHit": true
+				}
+			},
+			{
+				"name": "search-find-files-truncated-list",
+				"op": "search.find-files",
+				"json": {
+					"results": [],
+					"truncated": true,
+					"limitHit": false
+				}
+			},
+			{
+				"name": "search-close-cache-done",
+				"op": "search.close-cache",
+				"json": {}
+			}
+		],
+		"invalid": [
+			{
+				"name": "search-text-result-member",
+				"op": "search.text",
+				"json": {
+					"started": true
+				}
+			},
+			{
+				"name": "search-next-missing-done",
+				"op": "search.next",
+				"json": {
+					"files": [],
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-span-of-three",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"matches": [
+								{
+									"ranges": [
+										{
+											"source": [0, 0, 0],
+											"preview": [0, 0, 0, 1]
+										}
+									],
+									"preview": "a"
+								}
+							]
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-match-without-ranges",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"matches": [
+								{
+									"ranges": [],
+									"preview": "a"
+								}
+							]
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-negative-line",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"context": [
+								{
+									"line": -1,
+									"text": "a"
+								}
+							]
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-null-matches",
+				"op": "search.next",
+				"json": {
+					"files": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"matches": null
+						}
+					],
+					"done": false,
+					"limitHit": false,
+					"omittedLongLines": 0
+				}
+			},
+			{
+				"name": "search-next-null-symlink-loops",
+				"op": "search.next",
+				"json": {
+					"files": [],
+					"done": true,
+					"limitHit": false,
+					"omittedLongLines": 0,
+					"symlinkLoops": null
+				}
+			},
+			{
+				"name": "search-next-relative-loop",
+				"op": "search.next",
+				"json": {
+					"files": [],
+					"done": true,
+					"limitHit": false,
+					"omittedLongLines": 0,
+					"symlinkLoops": [""]
+				}
+			},
+			{
+				"name": "search-find-files-highlight-of-three",
+				"op": "search.find-files",
+				"json": {
+					"results": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"score": 1,
+							"labelMatches": [[0, 1, 2]]
+						}
+					],
+					"truncated": false,
+					"limitHit": false
+				}
+			},
+			{
+				"name": "search-find-files-negative-score",
+				"op": "search.find-files",
+				"json": {
+					"results": [
+						{
+							"path": "/home/dev/project/a.rs",
+							"score": -1
+						}
+					],
+					"truncated": false,
+					"limitHit": false
+				}
+			},
+			{
+				"name": "search-find-files-missing-truncated",
+				"op": "search.find-files",
+				"json": {
+					"results": [],
+					"limitHit": false
+				}
+			}
+		]
+	}
+}

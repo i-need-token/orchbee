@@ -103,6 +103,38 @@
 		"readMode": {
 			"enum": ["text", "bytes"]
 		},
+		"search": {
+			"title": "SearchId",
+			"description": "A Client-chosen text search identity under `files-search`, nonzero and unique in the connection.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^[1-9][0-9]{0,19}$",
+			"format": "orchbee-uint64"
+		},
+		"cache": {
+			"title": "CacheId",
+			"description": "A Client-chosen Quick Open file list identity under `files-search`, nonzero and unique in the connection, as VS Code's `cacheKey` names one.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^[1-9][0-9]{0,19}$",
+			"format": "orchbee-uint64"
+		},
+		"searchGlob": {
+			"description": "A glob relative to each searched folder; an exclude starting with `!` is an exception, whose files are searched even where an exclude or an ignore file hides them.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^[^\\u0000]*$"
+		},
+		"searchGlobs": {
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/searchGlob"
+			},
+			"maxItems": 256
+		},
 		"session": {
 			"title": "SessionId",
 			"description": "A Client-chosen import, export or picker session under `files-edit`, nonzero and unique in the connection.",
@@ -320,7 +352,7 @@
 			"type": "object",
 			"properties": {
 				"op": {
-					"enum": ["fs.release", "fs.stat", "fs.ungrant"]
+					"enum": ["fs.release", "fs.ungrant"]
 				},
 				"workspaceId": {
 					"$ref": "#/$defs/workspaceId"
@@ -331,6 +363,36 @@
 			},
 			"required": ["op", "workspaceId", "paths"],
 			"additionalProperties": false
+		},
+		"fsStatRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.stat"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				},
+				"source": {
+					"description": "`quick-open` states exactly one path the user typed in Quick Open, which may lie outside the scope; it needs `files-search`.",
+					"const": "quick-open"
+				}
+			},
+			"required": ["op", "workspaceId", "paths"],
+			"additionalProperties": false,
+			"if": {
+				"required": ["source"]
+			},
+			"then": {
+				"properties": {
+					"paths": {
+						"maxItems": 1
+					}
+				}
+			}
 		},
 		"fsGrantRequest": {
 			"description": "`save-as` needs `files-edit`: the destination a Save As picker or dialog chose, anywhere on the machine and possibly not yet existing, which then counts as an opened file.",
@@ -346,7 +408,7 @@
 					"$ref": "#/$defs/path"
 				},
 				"source": {
-					"enum": ["tree", "terminal-link", "restored", "os-open", "save-as", "diff"]
+					"enum": ["tree", "terminal-link", "restored", "os-open", "save-as", "diff", "quick-open"]
 				}
 			},
 			"required": ["op", "workspaceId", "path", "source"],
@@ -1492,6 +1554,224 @@
 			"required": ["op", "workspaceId", "picker", "path"],
 			"additionalProperties": false
 		},
+		"searchFolder": {
+			"description": "A folder a text search reads; it may lie outside the scope when the user typed it as an include.",
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"includes": {
+					"description": "Globs its files must match beside the search's own.",
+					"$ref": "#/$defs/searchGlobs"
+				}
+			},
+			"required": ["path"],
+			"additionalProperties": false
+		},
+		"searchPreview": {
+			"type": "object",
+			"properties": {
+				"matchLines": {
+					"description": "Lines of a match to preview; with 1, a preview is one line cut around its matches.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				},
+				"charsPerLine": {
+					"description": "UTF-16 code units a one-line preview keeps after each match's start.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 10000
+				}
+			},
+			"required": ["matchLines", "charsPerLine"],
+			"additionalProperties": false
+		},
+		"searchTextRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "search.text"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"search": {
+					"$ref": "#/$defs/search"
+				},
+				"pattern": {
+					"description": "What to find: literal text, or a JavaScript regular expression with `regex`.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 16384,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"regex": {
+					"type": "boolean"
+				},
+				"caseSensitive": {
+					"type": "boolean"
+				},
+				"wholeWord": {
+					"type": "boolean"
+				},
+				"multiline": {
+					"type": "boolean"
+				},
+				"folders": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/searchFolder"
+					},
+					"minItems": 1,
+					"maxItems": 64
+				},
+				"includes": {
+					"$ref": "#/$defs/searchGlobs"
+				},
+				"excludes": {
+					"$ref": "#/$defs/searchGlobs"
+				},
+				"useIgnoreFiles": {
+					"type": "boolean"
+				},
+				"useParentIgnoreFiles": {
+					"type": "boolean"
+				},
+				"followSymlinks": {
+					"type": "boolean"
+				},
+				"encoding": {
+					"description": "The encoding of the files to search; absent means UTF-8.",
+					"$ref": "#/$defs/encoding"
+				},
+				"maxResults": {
+					"description": "The most match ranges to report.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 20000
+				},
+				"preview": {
+					"$ref": "#/$defs/searchPreview"
+				},
+				"context": {
+					"description": "Lines of context before and after each match; absent means none.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 100
+				}
+			},
+			"required": [
+				"op",
+				"workspaceId",
+				"search",
+				"pattern",
+				"regex",
+				"caseSensitive",
+				"wholeWord",
+				"multiline",
+				"folders",
+				"useIgnoreFiles",
+				"useParentIgnoreFiles",
+				"followSymlinks",
+				"maxResults",
+				"preview"
+			],
+			"additionalProperties": false
+		},
+		"searchNextRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "search.next"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"search": {
+					"$ref": "#/$defs/search"
+				}
+			},
+			"required": ["op", "workspaceId", "search"],
+			"additionalProperties": false
+		},
+		"searchFindFilesRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "search.find-files"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"cache": {
+					"$ref": "#/$defs/cache"
+				},
+				"query": {
+					"description": "What the user typed; empty only makes the list.",
+					"type": "string",
+					"maxLength": 4096,
+					"pattern": "^[^\\u0000]*$"
+				},
+				"folders": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"minItems": 1,
+					"maxItems": 64
+				},
+				"includes": {
+					"$ref": "#/$defs/searchGlobs"
+				},
+				"excludes": {
+					"$ref": "#/$defs/searchGlobs"
+				},
+				"useIgnoreFiles": {
+					"type": "boolean"
+				},
+				"useParentIgnoreFiles": {
+					"type": "boolean"
+				},
+				"followSymlinks": {
+					"type": "boolean"
+				},
+				"maxResults": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 512
+				}
+			},
+			"required": [
+				"op",
+				"workspaceId",
+				"cache",
+				"query",
+				"folders",
+				"useIgnoreFiles",
+				"useParentIgnoreFiles",
+				"followSymlinks",
+				"maxResults"
+			],
+			"additionalProperties": false
+		},
+		"searchCloseCacheRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "search.close-cache"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"cache": {
+					"$ref": "#/$defs/cache"
+				}
+			},
+			"required": ["op", "workspaceId", "cache"],
+			"additionalProperties": false
+		},
 		"request": {
 			"description": "A File Bar Request record's JSON body.",
 			"oneOf": [
@@ -1503,6 +1783,9 @@
 				},
 				{
 					"$ref": "#/$defs/fsPathsRequest"
+				},
+				{
+					"$ref": "#/$defs/fsStatRequest"
 				},
 				{
 					"$ref": "#/$defs/fsGrantRequest"
@@ -1626,6 +1909,18 @@
 				},
 				{
 					"$ref": "#/$defs/pickerListRequest"
+				},
+				{
+					"$ref": "#/$defs/searchTextRequest"
+				},
+				{
+					"$ref": "#/$defs/searchNextRequest"
+				},
+				{
+					"$ref": "#/$defs/searchFindFilesRequest"
+				},
+				{
+					"$ref": "#/$defs/searchCloseCacheRequest"
 				}
 			]
 		},
@@ -2310,6 +2605,169 @@
 				}
 			},
 			"required": ["entries"],
+			"additionalProperties": false
+		},
+		"searchSpan": {
+			"description": "`[startLine, startColumn, endLine, endColumn]` from 0, columns in UTF-16 code units, the end exclusive.",
+			"type": "array",
+			"items": {
+				"$ref": "#/$defs/safeInteger"
+			},
+			"minItems": 4,
+			"maxItems": 4
+		},
+		"searchRange": {
+			"type": "object",
+			"properties": {
+				"source": {
+					"$ref": "#/$defs/searchSpan"
+				},
+				"preview": {
+					"$ref": "#/$defs/searchSpan"
+				}
+			},
+			"required": ["source", "preview"],
+			"additionalProperties": false
+		},
+		"searchMatch": {
+			"description": "A matched line, or the lines one match spans; a line's ranges may arrive in more than one match, each with the same preview.",
+			"type": "object",
+			"properties": {
+				"ranges": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/searchRange"
+					},
+					"minItems": 1,
+					"maxItems": 20000
+				},
+				"preview": {
+					"type": "string"
+				}
+			},
+			"required": ["ranges", "preview"],
+			"additionalProperties": false
+		},
+		"searchContextLine": {
+			"type": "object",
+			"properties": {
+				"line": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"text": {
+					"type": "string"
+				}
+			},
+			"required": ["line", "text"],
+			"additionalProperties": false
+		},
+		"searchFile": {
+			"description": "Results in one file; a file's results may span consecutive entries and batches, in order.",
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"matches": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/searchMatch"
+					}
+				},
+				"context": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/searchContextLine"
+					}
+				}
+			},
+			"required": ["path"],
+			"additionalProperties": false
+		},
+		"searchNextResult": {
+			"type": "object",
+			"properties": {
+				"files": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/searchFile"
+					}
+				},
+				"done": {
+					"description": "The search ended: this is its last batch.",
+					"type": "boolean"
+				},
+				"limitHit": {
+					"description": "The search stopped at `maxResults`.",
+					"type": "boolean"
+				},
+				"omittedLongLines": {
+					"description": "Matched and context lines left out so far because they are too long to carry.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"symlinkLoops": {
+					"description": "Folders searched again without following symbolic links, which form too many loops in them, each reported once.",
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					}
+				}
+			},
+			"required": ["files", "done", "limitHit", "omittedLongLines"],
+			"additionalProperties": false
+		},
+		"searchHighlights": {
+			"description": "Matched `[start, end]` ranges in UTF-16 code units, the end exclusive.",
+			"type": "array",
+			"items": {
+				"type": "array",
+				"items": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"minItems": 2,
+				"maxItems": 2
+			}
+		},
+		"foundFile": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"score": {
+					"description": "VS Code's fuzzy score of the path relative to its folder.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"labelMatches": {
+					"$ref": "#/$defs/searchHighlights"
+				},
+				"descriptionMatches": {
+					"$ref": "#/$defs/searchHighlights"
+				}
+			},
+			"required": ["path", "score"],
+			"additionalProperties": false
+		},
+		"searchFindFilesResult": {
+			"type": "object",
+			"properties": {
+				"results": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/foundFile"
+					},
+					"maxItems": 512
+				},
+				"truncated": {
+					"description": "The file list stopped at its bound, so some files are missing from it.",
+					"type": "boolean"
+				},
+				"limitHit": {
+					"description": "More files matched than `maxResults`, or than one result carries.",
+					"type": "boolean"
+				}
+			},
+			"required": ["results", "truncated", "limitHit"],
 			"additionalProperties": false
 		},
 		"root": {
