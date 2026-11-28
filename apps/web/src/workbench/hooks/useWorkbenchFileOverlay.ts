@@ -25,6 +25,7 @@ import {
 	type FileOverlayStore,
 	type FileOverlayTitleActions,
 } from '../../file-overlay';
+import type { FileResource } from '../../file-session';
 import type { PointerDropTarget } from '../../pointer-drag';
 import type { WorkbenchWorkspace } from '../../project-workspace';
 import {
@@ -103,6 +104,8 @@ interface WorkbenchFileOverlayHost {
 }
 
 interface WorkbenchFileOverlayView {
+	/** The file the shown overlay's active tab shows, as VS Code's active editor; null without tabs. */
+	readonly activeFile: FileResource | null;
 	/** Present while the shown Workspace's overlay is not closed and its chunk has loaded. */
 	readonly host: WorkbenchFileOverlayHost | null;
 	/** The Sidebar's panel, whose box left-expand covers. */
@@ -114,6 +117,7 @@ interface WorkbenchFileOverlayView {
 const subscribeToNothing = (): (() => void) => () => undefined;
 const NO_TITLE_ACTIONS: FileOverlayTitleActions = { buttons: [], more: [] };
 const noActiveTab = (): null => null;
+const noActiveFile = (): null => null;
 const neverShown = (): boolean => false;
 
 /** The overlay's Actions that name one tab. */
@@ -185,6 +189,21 @@ export function useWorkbenchFileOverlay({
 		store?.state.subscribe ?? subscribeToNothing,
 		isShown,
 		isShown,
+	);
+	const readActiveFile = React.useMemo(
+		() =>
+			store === null
+				? noActiveFile
+				: (): FileResource | null => {
+						const { tabs } = store.state.getState();
+						return tabs.tabs.find((tab) => tab.id === tabs.activeId)?.input.resource ?? null;
+					},
+		[store],
+	);
+	const activeFile = React.useSyncExternalStore(
+		store?.state.subscribe ?? subscribeToNothing,
+		readActiveFile,
+		readActiveFile,
 	);
 	const dispatch = useMemoizedFn((event: FileOverlayEvent) => {
 		if (store === null) return;
@@ -425,5 +444,5 @@ export function useWorkbenchFileOverlay({
 					shortcutLabels,
 					store,
 				};
-	return { host, sidebarReference, terminalAreaReference };
+	return { activeFile, host, sidebarReference, terminalAreaReference };
 }

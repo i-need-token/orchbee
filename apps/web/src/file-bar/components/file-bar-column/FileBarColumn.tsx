@@ -30,6 +30,7 @@ const FILE_BAR_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'file-bar' };
 export function FileBarColumn({
 	actionRuntime,
 	actionScope,
+	activeFile,
 	activeView,
 	notifications,
 	onSelectView,
@@ -98,6 +99,7 @@ export function FileBarColumn({
 						<FileExplorer
 							actionRuntime={actionRuntime}
 							actionScope={actionScope}
+							activeFile={activeFile}
 							notifications={notifications}
 							platform={platform}
 							ref={explorerReference}

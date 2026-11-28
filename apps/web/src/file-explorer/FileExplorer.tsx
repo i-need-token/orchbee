@@ -3,7 +3,7 @@ import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import { useMemo, useRef, type ReactNode, type Ref } from 'react';
 
-import type { FileWorkspaceSession } from '../file-session';
+import type { FileResource, FileWorkspaceSession } from '../file-session';
 import { VirtualTree, type VirtualTreeRow, type VirtualTreeRowState } from '../virtual-tree';
 import { ExplorerHeader } from './components/explorer-header/ExplorerHeader';
 import { ExplorerProgress } from './components/explorer-progress/ExplorerProgress';
@@ -26,6 +26,8 @@ export interface FileExplorerProps {
 	readonly actionRuntime: ActionRuntime;
 	/** The scope the Explorer's own Actions nest in while it shows. */
 	readonly actionScope: ActionScope;
+	/** The file the overlay's active tab shows, as VS Code's active editor; null without tabs. */
+	readonly activeFile: FileResource | null;
 	/** Where a folder that could not be listed is reported. */
 	readonly notifications: FileExplorerNotifications;
 	/** Which platform's keys the tree answers to. */

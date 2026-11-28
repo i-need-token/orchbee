@@ -3,7 +3,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ComponentType } from 'react';
 
 import type { FileExplorerProps } from '../file-explorer';
-import type { FileWorkspaceSession } from '../file-session';
+import type { FileResource, FileWorkspaceSession } from '../file-session';
 import type { SourceControlNotifications, SourceControlQuickInput } from '../source-control';
 import type { FileBarViewId } from './file-bar-layout';
 import type { FileBarLayoutStorage } from './file-bar-layout-storage';
@@ -13,6 +13,8 @@ export interface FileBarColumnProps {
 	readonly actionRuntime: ActionRuntime;
 	/** The scope the views' Actions nest in while the column shows. */
 	readonly actionScope: ActionScope;
+	/** The file the overlay's active tab shows, as VS Code's active editor; null without tabs. */
+	readonly activeFile: FileResource | null;
 	/** The view the column shows. */
 	readonly activeView: FileBarViewId;
 	/** Where the views report what VS Code would notify. */

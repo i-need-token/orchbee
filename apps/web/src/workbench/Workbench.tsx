@@ -798,6 +798,7 @@ export function Workbench({
 										<FileBarColumn
 											actionRuntime={actionRuntime}
 											actionScope={view.actionScope}
+											activeFile={fileOverlay.activeFile}
 											activeView={fileBar.column.activeView}
 											notifications={notificationQueue}
 											onSelectView={fileBar.column.onSelectView}
