@@ -30,7 +30,8 @@ use crate::{
     calls::{Call, Calls, DuplicateCall},
     edit,
     fs::{Engine, MachineTrash},
-    git, grants, roots,
+    git::{self, ports::Trash},
+    grants, roots,
     scope::{Scopes, View},
     subscriptions::{Leaving, Subscriptions},
 };
@@ -58,8 +59,9 @@ impl Services {
         let roots = Arc::new(Subscriptions::new());
         let files = Engine::new(helpers.clone(), Arc::clone(&scopes), Arc::clone(&roots));
         let watches = files.repository_watches();
-        let git = git::Service::start(root, Arc::clone(&scopes), watches, Arc::new(MachineTrash));
-        let edit = edit::Service::new(helpers.clone(), Arc::new(edit::Unobserved));
+        let trash: Arc<dyn Trash> = Arc::new(MachineTrash);
+        let git = git::Service::start(root, Arc::clone(&scopes), watches, Arc::clone(&trash));
+        let edit = edit::Service::new(helpers.clone(), trash, Arc::new(edit::Unobserved));
         Arc::new(Self {
             calls,
             files,
@@ -313,9 +315,13 @@ impl Services {
             FilesRequest::FsExists(request) => self.detach(call, move |services, call| {
                 services.edit.exists(call, &view, &request);
             }),
-            FilesRequest::FsDelete(_)
-            | FilesRequest::FsRestore(_)
-            | FilesRequest::FsClipboard(_)
+            FilesRequest::FsDelete(request) => self.detach(call, move |services, call| {
+                services.edit.delete(call, view, &request);
+            }),
+            FilesRequest::FsRestore(request) => self.detach(call, move |services, call| {
+                services.edit.restore(call, view, &request);
+            }),
+            FilesRequest::FsClipboard(_)
             | FilesRequest::FsImportBegin(_)
             | FilesRequest::FsImportItems(_)
             | FilesRequest::FsImportFile(_)

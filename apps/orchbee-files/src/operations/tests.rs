@@ -12,15 +12,15 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, EncodingName, EntryKind,
-    ErrorCode, FileName, FilePath, FilesNotice, FilesRecord, FilesReply, FilesRequest, FrameKind,
-    FsCreate, FsExists, FsExistsResult, FsGrant, FsGrantResult, FsList, FsRename, FsSnapshot,
-    FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
-    LinkMessage, LinkRequest, LinkSide, List, MutationReply, MutationState, NoticeKind, Operation,
-    PathsRequest, Put, PutEnd, RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, Root,
-    SafeInteger, ScopeUpdate, TransferId, WatchState, WorkspaceId, WorkspaceRequest,
-    WorkspaceScope, WritePrecondition, decode_files_record, decode_link_message,
-    encode_files_record, encode_request, parse_notice, parse_reply,
+    CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, DeleteMode, EncodingName,
+    EntryKind, ErrorCode, FileName, FilePath, FilesNotice, FilesRecord, FilesReply, FilesRequest,
+    FrameKind, FsCreate, FsDelete, FsExists, FsExistsResult, FsGrant, FsGrantResult, FsList,
+    FsRename, FsRestore, FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass,
+    GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, MutationReply,
+    MutationState, NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId,
+    RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate, TransferId, WatchState,
+    WorkspaceId, WorkspaceRequest, WorkspaceScope, WritePrecondition, decode_files_record,
+    decode_link_message, encode_files_record, encode_request, parse_notice, parse_reply,
 };
 
 use super::Services;
@@ -632,10 +632,48 @@ fn items_change_only_where_their_folder_is_in_scope() {
     );
     let root = fixture.file("root");
     assert_eq!(
-        error(link.mutate(7, &create(7, root))),
+        error(link.mutate(7, &create(7, root.clone()))),
         ErrorCode::OutsideScope
     );
     assert!(!fixture.0.join("folder").join("new").exists());
+
+    // A captured delete is restored once, and the root itself is never deleted.
+    let delete = |request: u8, path: FilePath| {
+        FilesRequest::FsDelete(FsDelete {
+            workspace_id: workspace(),
+            request_id: identity(request),
+            paths: List::new(vec![path]).unwrap(),
+            mode: DeleteMode::Permanent,
+            capture: true,
+        })
+    };
+    let FilesReply::FsDelete(deleted) = link.mutate(8, &delete(8, in_made("renamed.txt"))) else {
+        panic!("expected the deleted items");
+    };
+    assert_eq!(deleted.items.as_slice()[0].error, None);
+    let restore = |request: u8| {
+        FilesRequest::FsRestore(FsRestore {
+            workspace_id: workspace(),
+            request_id: identity(request),
+            stash: deleted.stash.unwrap(),
+        })
+    };
+    let FilesReply::FsRestore(restored) = link.mutate(9, &restore(9)) else {
+        panic!("expected the restored items");
+    };
+    assert_eq!(restored.items.as_slice()[0].error, None);
+    let renamed = fixture.0.join("root").join("made").join("renamed.txt");
+    assert_eq!(fs::read(renamed).unwrap(), b"inside");
+    assert_eq!(error(link.mutate(10, &restore(10))), ErrorCode::UndoExpired);
+    let FilesReply::FsDelete(refused) = link.mutate(11, &delete(11, root)) else {
+        panic!("expected the refused item");
+    };
+    let refusal = refused.items.as_slice()[0]
+        .error
+        .as_ref()
+        .map(|error| error.code);
+    assert_eq!(refusal, Some(ErrorCode::OutsideScope));
+    assert!(refused.stash.is_none());
 }
 
 /// The final path of the one item a transfer answered without an error.

@@ -8,7 +8,10 @@
 //! - `fs.create`, `fs.rename` and `fs.exists` ([`entries`]) handle one item, under the names this
 //!   machine holds ([`names`]).
 //! - `fs.move` and `fs.copy` ([`transfer`]) take each source into a folder.
+//! - `fs.delete` and `fs.restore` ([`delete`]) remove items, to the trash or permanently, and
+//!   recreate what a delete kept.
 
+mod delete;
 mod entries;
 mod names;
 mod observer;
@@ -19,23 +22,25 @@ mod write;
 use std::sync::Arc;
 
 use orchbee_files_protocol::{
-    ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsCreate, FsEntryResult, FsExists,
-    FsExistsResult, FsRename, FsTransfer, FsTransferResult, FsWrite, List, MutationReply,
-    Operation, RequestOutcome, WorkspaceId,
+    ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsCreate, FsDelete, FsDeleteResult,
+    FsEntryResult, FsExists, FsExistsResult, FsRename, FsRestore, FsTransfer, FsTransferResult,
+    FsWrite, List, MutationReply, Operation, PathItemsResult, RequestOutcome, WorkspaceId,
 };
 
+use self::{
+    delete::{Deleting, Stashes},
+    outcomes::{Outcomes, finish},
+    write::{System, Write, Writing},
+};
 pub(crate) use self::{
     observer::{Moved, Observer, Relocation, Saved, Unobserved},
     transfer::Transfer,
-};
-use self::{
-    outcomes::{Outcomes, finish},
-    write::{System, Write, Writing},
 };
 use crate::{
     blocking::Helpers,
     calls::Call,
     fs::Target,
+    git::ports::Trash,
     scope::{Change, View, path::NativePath},
 };
 
@@ -44,16 +49,25 @@ pub(crate) struct Service {
     helpers: Helpers,
     outcomes: Outcomes,
     writing: Writing,
+    stashes: Stashes,
+    trash: Arc<dyn Trash>,
     observer: Arc<dyn Observer>,
 }
 
 impl Service {
-    /// Edits whose filesystem calls run on `helpers` and which `observer` hears of.
-    pub(crate) fn new(helpers: Helpers, observer: Arc<dyn Observer>) -> Self {
+    /// Edits whose filesystem calls run on `helpers`, which delete to `trash`, and which
+    /// `observer` hears of.
+    pub(crate) fn new(
+        helpers: Helpers,
+        trash: Arc<dyn Trash>,
+        observer: Arc<dyn Observer>,
+    ) -> Self {
         Self {
             helpers,
             outcomes: Outcomes::new(),
             writing: Writing::default(),
+            stashes: Stashes::new(),
+            trash,
             observer,
         }
     }
@@ -203,6 +217,54 @@ impl Service {
                 self.moved(workspace, from, to, Relocation::Move);
             }
         }
+    }
+
+    /// `fs.delete` under `view`.
+    pub(crate) fn delete(&self, call: Call, view: View, request: &FsDelete) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let view = Arc::new(view);
+        self.outcomes.run(workspace, identity, call, |call| {
+            let admit =
+                |path: &FilePath| self.admit(Operation::FsDelete, &view, path, Change::Entry);
+            let cancelled = || call.cancelled();
+            let deleting = Deleting {
+                helpers: &self.helpers,
+                trash: self.trash.as_ref(),
+                mode: request.mode,
+                capture: request.capture,
+                cancelled: &cancelled,
+            };
+            let (items, kept) = deleting.run(request.paths.as_slice(), &admit);
+            let stash = self.stashes.keep(workspace, kept);
+            List::new(items).map_or_else(
+                |_| failed(FilesError::new(ErrorCode::Failed)),
+                |items| match stash {
+                    Some(stash) => MutationReply::FsDelete(FsDeleteResult {
+                        items,
+                        stash: Some(stash),
+                    }),
+                    None => MutationReply::PathItems(PathItemsResult { items }),
+                },
+            )
+        });
+    }
+
+    /// `fs.restore` under `view`: takes its stash and recreates what the delete kept.
+    pub(crate) fn restore(&self, call: Call, view: View, request: &FsRestore) {
+        let (workspace, identity) = (request.workspace_id, request.request_id);
+        let view = Arc::new(view);
+        self.outcomes.run(workspace, identity, call, |_| {
+            let Some(kept) = self.stashes.take(workspace, request.stash) else {
+                return failed(FilesError::new(ErrorCode::UndoExpired));
+            };
+            let admit =
+                |path: &FilePath| self.admit(Operation::FsRestore, &view, path, Change::Entry);
+            let items = delete::restore(&self.helpers, kept, &admit);
+            List::new(items).map_or_else(
+                |_| failed(FilesError::new(ErrorCode::Failed)),
+                |items| MutationReply::PathItems(PathItemsResult { items }),
+            )
+        });
     }
 
     /// `fs.exists` under `view`, whose names are read as any read is.

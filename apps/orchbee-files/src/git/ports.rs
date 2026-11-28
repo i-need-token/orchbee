@@ -88,8 +88,9 @@ pub(crate) enum TrashError {
 /// `git.clean` moves untracked paths of one repository, up to five at once from threads of its
 /// own; each path is absolute and native, lies in the repository's working tree, and may be a file,
 /// a link, which moves itself and never its target, or a folder, such as an untracked nested
-/// repository. The trash never falls back to permanent deletion: only the Client asks for that,
-/// after this answers an error.
+/// repository. `fs.delete` moves the paths a Client deletes in a Workspace's scope, one after
+/// another, of the same kinds. The trash never falls back to permanent deletion: only the Client
+/// asks for that, after this answers an error.
 pub(crate) trait Trash: Send + Sync {
     fn trash(&self, path: &Path) -> Result<(), TrashError>;
 }
