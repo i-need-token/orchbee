@@ -202,8 +202,10 @@ process.
 
 Each Workspace has one file overlay, which a `FileOverlayRegistry` keeps while the Workspace
 exists; only the active Workspace's shows. Its components load through `loadFileOverlay()` as
-their own chunk the first time an overlay is not closed, and a failed load says so on an error
-card whose Try Again loads it again. The open overlay lies over the Workbench root after the File
+their own chunk the first time an overlay is not closed, or earlier once the File Bar shows, since a
+file is likely to open from it and the File Bar over the content closes as one opens. A failed load
+that an overlay waits for says so on an error card whose Try Again loads it again; a failed early
+load stays silent and leaves the next try to the overlay. The open overlay lies over the Workbench root after the File
 Bar, outside the panel group, so the terminal area and its PTY never resize. Its scrim dims the
 part of the window its tier covers below the 36px row, and its frame, a region landmark rather
 than a dialog, stands 24px inside that.

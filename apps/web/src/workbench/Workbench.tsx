@@ -297,6 +297,7 @@ export function Workbench({
 		currentTerminal,
 		fileBarDocked: fileBar.column !== null,
 		fileBarPosition: fileBar.position,
+		fileBarShown: fileBar.toggle?.shown === true,
 		fileOpened: fileBar.fileOpened,
 		focusTerminal: view.returnToTerminal,
 		notifications: notificationQueue,

@@ -78,6 +78,8 @@ interface UseWorkbenchFileOverlayOptions {
 	 * opened over the terminal area, it lies under every tier.
 	 */
 	readonly fileBarDocked: boolean;
+	/** Whether the File Bar shows, docked or over the content, from which a file is likely to open. */
+	readonly fileBarShown: boolean;
 	/**
 	 * Called as a file opens: the File Bar open over the terminal area closes and answers whether it
 	 * held the keys, which the file's tab then takes.
@@ -214,7 +216,7 @@ type FileOverlayTabActionId =
  * Keeps one file overlay per Workspace for this Workbench and tells the overlays what the Workbench
  * changes beneath them: the terminal the active Workspace shows, whether left-expand is offered, and
  * which Workspaces still exist. The active Workspace's overlay shows from its own chunk, which loads
- * the first time an overlay is not closed.
+ * the first time an overlay is not closed, or earlier once the File Bar shows.
  */
 export function useWorkbenchFileOverlay({
 	actionRuntime,
@@ -222,6 +224,7 @@ export function useWorkbenchFileOverlay({
 	currentTerminal,
 	fileBarDocked,
 	fileBarPosition,
+	fileBarShown,
 	fileOpened,
 	focusTerminal,
 	notifications,
@@ -538,8 +541,14 @@ export function useWorkbenchFileOverlay({
 				if (outcome.kind === 'chosen') setLoad(IDLE_LOAD);
 			});
 	});
+	// The components load the first time an overlay shows, or earlier once the File Bar shows: a file
+	// is likely to open from it, and the File Bar over the content closes as one opens, which would
+	// otherwise leave the terminal beneath showing, and taking presses, until they load. Only a load an
+	// overlay waits for reports a failure; a failed early load leaves the next try to the overlay.
+	const [earlyLoadFailed, setEarlyLoadFailed] = React.useState(false);
+	const loadEarly = fileBarShown && !earlyLoadFailed;
 	React.useEffect(() => {
-		if (!shown || load.kind !== 'idle') return undefined;
+		if ((!shown && !loadEarly) || load.kind !== 'idle') return undefined;
 		let current = true;
 		void loadFileOverlay().then(
 			(module) => {
@@ -547,6 +556,10 @@ export function useWorkbenchFileOverlay({
 			},
 			() => {
 				if (!current) return;
+				if (!shown) {
+					setEarlyLoadFailed(true);
+					return;
+				}
 				// The keys stay where they are, so a later load cannot take them by surprise.
 				focusWaiting.current = false;
 				setLoad({ kind: 'failed' });
@@ -556,7 +569,7 @@ export function useWorkbenchFileOverlay({
 		return () => {
 			current = false;
 		};
-	}, [load.kind, reportLoadFailure, shown]);
+	}, [load.kind, loadEarly, reportLoadFailure, shown]);
 	const closeOverlayShortcutLabel = shortcutLabelForAction(WORKBENCH_ACTION_IDS.closeFileOverlay);
 	const toggleFullShortcutLabel = shortcutLabelForAction(
 		WORKBENCH_ACTION_IDS.toggleFileOverlayFull,
