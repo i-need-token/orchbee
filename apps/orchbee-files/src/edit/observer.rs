@@ -1,5 +1,5 @@
-//! What a successful edit tells whoever records Local History, which batch ④ serves: each save the
-//! Client asked to record, and each item a rename or move took to another path. The caller of
+//! What a successful edit tells whoever records Local History: each save the Client asked to
+//! record, and each item a rename or move took to another path. The caller of
 //! [`Service::new`](super::Service::new) injects the [`Observer`]; [`Unobserved`] hears nothing.
 //!
 //! An observer hears an edit on the edit's own thread once its reply went out, and a request
@@ -26,7 +26,7 @@ pub(crate) trait Observer: Send + Sync {
 /// One save to record.
 #[expect(
     dead_code,
-    reason = "Local History, batch ④, reads what a save reports"
+    reason = "Local History, not yet served, reads what a save reports"
 )]
 pub(crate) struct Saved<'a> {
     pub(crate) workspace: WorkspaceId,
@@ -44,7 +44,7 @@ impl Saved<'_> {
     /// another writer made since is not taken for the save.
     #[expect(
         dead_code,
-        reason = "Local History, batch ④, keeps a copy of each saved file"
+        reason = "Local History, not yet served, keeps a copy of each saved file"
     )]
     pub(crate) fn content(&self) -> Vec<u8> {
         let mut encoder = Encoder::new(self.write.target, &self.write.text);
@@ -68,7 +68,7 @@ pub(crate) enum Relocation {
 /// One item taken to another path.
 #[expect(
     dead_code,
-    reason = "Local History, batch ④, moves the entries of what moved"
+    reason = "Local History, not yet served, moves the entries of what moved"
 )]
 pub(crate) struct Moved<'a> {
     pub(crate) workspace: WorkspaceId,

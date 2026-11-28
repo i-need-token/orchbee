@@ -5,14 +5,14 @@
 //! 1. The new content is measured first: its size, its SHA-256 digest and the characters its
 //!    encoding replaces, encoded piece by piece and never held whole.
 //! 2. The precondition is checked as VS Code's `validateWriteFile` checks it, except that the
-//!    content's digest decides where VS Code compares times and sizes: a version precondition holds
-//!    while the file still has its digest, or already holds the new content, and `content-newer`
-//!    otherwise; a file the same size as neither is not read. `create` needs nothing at the path,
-//!    and `none` checks nothing. A directory is `is-directory`, and anything that is neither file nor
-//!    directory is refused, since opening it could block.
-//! 3. A read-only file is `read-only`, unless `unlock` clears its read-only attribute or owner write
-//!    bit first, which a failure before the commit point sets again. A save leaves it writable, as
-//!    VS Code does.
+//!    content's digest decides where VS Code compares times and sizes: a version precondition
+//!    holds while the file still has its digest, or already holds the new content, and
+//!    `content-newer` otherwise; a file the same size as neither is not read. `create` needs
+//!    nothing at the path, and `none` checks nothing. A directory is `is-directory`, and anything
+//!    that is neither file nor directory is refused, since opening it could block.
+//! 3. A read-only file is `read-only`, unless `unlock` clears its read-only attribute or owner
+//!    write bit first, which a failure before the commit point sets again. A save leaves it
+//!    writable, as VS Code does.
 //! 4. The commit point: an existing file opens for writing without truncation, is rewritten from
 //!    its start and set to its new length, so its hidden attribute, alternate data streams,
 //!    ownership, hard links and link target survive, as in VS Code. A missing file is created
