@@ -2,10 +2,13 @@ import type { FileBarMessageId } from '../en-US';
 
 export const zhCNFileBarMessages = {
 	'fileBar.actions.hide': '隐藏文件栏',
+	'fileBar.actions.moveLeft': '将文件栏向左移动',
+	'fileBar.actions.moveRight': '将文件栏向右移动',
 	'fileBar.actions.show': '显示文件栏',
 	'fileBar.actions.showExplorer': '显示资源管理器',
 	'fileBar.actions.showSourceControl': '显示源代码管理',
 	'fileBar.actions.toggle': '切换文件栏',
+	'fileBar.actions.togglePosition': '切换文件栏位置',
 	'fileBar.badge.labelled': '{label} - {badge}',
 	'fileBar.badge.overThousands': '{count}K+',
 	'fileBar.badge.thousands': '{count}K',

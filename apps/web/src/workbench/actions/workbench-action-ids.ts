@@ -81,6 +81,8 @@ export const WORKBENCH_ACTION_IDS = {
 	moveActivePanelLeft: 'workbench.panel.active.move-left',
 	moveActivePanelRight: 'workbench.panel.active.move-right',
 	moveActivePanelUp: 'workbench.panel.active.move-up',
+	moveFileBarLeft: 'workbench.file-bar.move-left',
+	moveFileBarRight: 'workbench.file-bar.move-right',
 	setTabTitle: 'workbench.tab.title.set',
 	renamePanel: 'workbench.panel.rename',
 	selectNextTab: 'workbench.tab.select-next',
@@ -96,6 +98,7 @@ export const WORKBENCH_ACTION_IDS = {
 	swapActivePanelVisible: 'workbench.panel.active.swap-visible',
 	toggleActivePanelMaximization: 'workbench.panel.active.maximization.toggle',
 	toggleFileBar: 'workbench.file-bar.toggle',
+	toggleFileBarPosition: 'workbench.file-bar.toggle-position',
 	toggleFileOverlayFull: 'file-overlay.tier.toggle-full',
 	closeFileOverlay: 'file-overlay.overlay.close',
 	closeAllFileOverlayTabs: 'file-overlay.tab.close-all',
@@ -382,6 +385,8 @@ export interface WorkbenchActionCatalog extends FileOverlayActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelLeft]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.moveActivePanelUp]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileBarLeft]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.moveFileBarRight]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.setTabTitle]: ActionSignature<WorkbenchTabTitleInput>;
 	readonly [WORKBENCH_ACTION_IDS.renamePanel]: ActionSignature<WorkbenchPanelNameInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectNextTab]: ActionSignature<void>;
@@ -397,6 +402,7 @@ export interface WorkbenchActionCatalog extends FileOverlayActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.swapActivePanelVisible]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleActivePanelMaximization]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileBar]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.toggleFileBarPosition]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.toggleFileOverlayFull]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeFileOverlay]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeAllFileOverlayTabs]: ActionSignature<void>;

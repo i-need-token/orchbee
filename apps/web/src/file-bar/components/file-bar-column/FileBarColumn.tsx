@@ -32,9 +32,11 @@ export function FileBarColumn({
 	actionScope,
 	activeFile,
 	activeView,
+	leadingPlace,
 	notifications,
 	onSelectView,
 	platform,
+	position,
 	quickInput,
 	session,
 	settings,
@@ -70,7 +72,12 @@ export function FileBarColumn({
 	const viewReference = useFileBarViewFocusRequest(viewFocusRequest, focusView);
 	return (
 		<div className={styles['root']} ref={rootReference}>
-			<div className={styles['togglesRow']} data-slot='file-bar-toggles-row'>
+			<div
+				className={styles['togglesRow']}
+				data-leading-place={leadingPlace === null ? undefined : ''}
+				data-slot='file-bar-toggles-row'
+			>
+				{leadingPlace}
 				<FileBarViewSwitcher
 					activeView={activeView}
 					changes={changes ?? 0}
@@ -79,11 +86,15 @@ export function FileBarColumn({
 					viewId={viewId}
 				/>
 				{/* The File Bar toggle floats over its place, and the window's caption buttons over theirs. */}
-				<span className={styles['fileBarTogglePlace']} data-file-bar-toggle-place='' />
-				<span
-					className={styles['windowControlsPlace']}
-					data-slot='file-bar-window-controls-place'
-				/>
+				{position === 'right' ? (
+					<>
+						<span className={styles['fileBarTogglePlace']} data-file-bar-toggle-place='' />
+						<span
+							className={styles['windowControlsPlace']}
+							data-slot='file-bar-window-controls-place'
+						/>
+					</>
+				) : null}
 			</div>
 			<div
 				aria-labelledby={tabIdOf(activeView)}

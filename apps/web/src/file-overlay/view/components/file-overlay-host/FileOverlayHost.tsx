@@ -32,6 +32,7 @@ import styles from './FileOverlayHost.module.css';
 export function FileOverlayHost({
 	commands,
 	dispatch,
+	fileBarPosition,
 	focusTerminal,
 	movePip,
 	pipPosition,
@@ -57,6 +58,7 @@ export function FileOverlayHost({
 			store={store}
 		>
 			<FileOverlayLayer
+				fileBarPosition={fileBarPosition}
 				movePip={movePip}
 				pipPosition={pipPosition}
 				regions={regions}
@@ -69,6 +71,7 @@ export function FileOverlayHost({
 }
 
 interface FileOverlayLayerProps {
+	readonly fileBarPosition: FileOverlayHostProps['fileBarPosition'];
 	readonly movePip: (position: FileOverlayPipPosition) => void;
 	readonly pipPosition: FileOverlayPipPosition | null;
 	readonly regions: FileOverlayRegionElements;
@@ -85,6 +88,7 @@ interface FileOverlayLayerProps {
  * stays mounted.
  */
 function FileOverlayLayer({
+	fileBarPosition,
 	movePip,
 	pipPosition,
 	regions,
@@ -97,7 +101,7 @@ function FileOverlayLayer({
 	const dispatch = useFileOverlayHostDispatch();
 	const focusRequest = useFileOverlayHostFocusRequest();
 	const shown = kind !== 'closed';
-	const measured = useFileOverlayRegions(regions, sidebarDocked, shown);
+	const measured = useFileOverlayRegions(regions, sidebarDocked, fileBarPosition, shown);
 	// An ask the overlay does not show for lapses, so that it cannot move the keys when it shows
 	// later. While the overlay shows, the frame's row or picture-in-picture takes the ask.
 	useLayoutEffect(() => {

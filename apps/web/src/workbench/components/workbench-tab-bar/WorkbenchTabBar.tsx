@@ -27,7 +27,7 @@ interface WorkbenchTabBarProps {
 	readonly actionRuntime: ActionRuntime;
 	/**
 	 * Whether the bar reaches the window's top end, where a desktop window's own controls may draw over
-	 * it. A docked File Bar takes that end instead.
+	 * it. A File Bar docked on the right takes that end instead.
 	 */
 	readonly atWindowEnd?: boolean | undefined;
 	readonly parentActionScope: ActionScope;
@@ -48,7 +48,10 @@ interface WorkbenchTabBarProps {
 	readonly onSelectTab?: TabStripSelectCallback | undefined;
 	readonly onSetTabTitle: (tabId: string) => void;
 	readonly onTabsChange: TabStripChangeCallback | undefined;
-	/** Keeps a place at the end for the File Bar button, which floats over it while the File Bar hides. */
+	/**
+	 * Keeps a place at the end for the File Bar button, which floats over it while the File Bar hides
+	 * or docks on the left.
+	 */
 	readonly reserveFileBarToggleSpace?: boolean | undefined;
 	readonly reserveSidebarToggleSpace: boolean;
 	readonly tabIdentityIcons?: ReadonlyMap<string, ReactNode> | undefined;

@@ -17,12 +17,15 @@ function sameRegions(left: FileOverlayRegions, right: FileOverlayRegions): boole
 
 /**
  * Measures what the overlay lies over before it paints, and again whenever the window or the
- * terminal area changes size, while `active`. Moving or resizing any column resizes the terminal
- * area, so observing it with the root sees every layout change. Null until the elements exist.
+ * terminal area changes size, while `active`. Showing, hiding or resizing any column resizes the
+ * terminal area, so observing it with the root sees those changes; moving the File Bar to the other
+ * side shifts the terminal area at the same size, so a move measures again, and the new observer's
+ * first report measures once more after the panels settle. Null until the elements exist.
  */
 export function useFileOverlayRegions(
 	elements: FileOverlayRegionElements,
 	sidebarDocked: boolean,
+	fileBarPosition: 'left' | 'right',
 	active: boolean,
 ): FileOverlayRegions | null {
 	const [regions, setRegions] = React.useState<FileOverlayRegions | null>(null);
@@ -59,6 +62,6 @@ export function useFileOverlayRegions(
 		observer.observe(root);
 		observer.observe(terminalArea);
 		return () => observer.disconnect();
-	}, [active, elements, sidebarDocked]);
+	}, [active, elements, fileBarPosition, sidebarDocked]);
 	return regions;
 }

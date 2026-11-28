@@ -223,6 +223,10 @@
 	composes: codicon-layout-sidebar-left from global;
 }
 
+.sidebarLeftOff {
+	composes: codicon-layout-sidebar-left-off from global;
+}
+
 .sidebarRight {
 	composes: codicon-layout-sidebar-right from global;
 }

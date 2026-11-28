@@ -60,6 +60,7 @@ export type ProductIconName =
 	| 'select-all'
 	| 'settings'
 	| 'sidebar-left'
+	| 'sidebar-left-off'
 	| 'sidebar-right'
 	| 'sidebar-right-off'
 	| 'source-control'
@@ -138,6 +139,7 @@ export function ProductIcon({ name, size }: ProductIconProps): React.ReactNode {
 				name === 'select-all' && styles['selectAll'],
 				name === 'settings' && styles['settings'],
 				name === 'sidebar-left' && styles['sidebarLeft'],
+				name === 'sidebar-left-off' && styles['sidebarLeftOff'],
 				name === 'sidebar-right' && styles['sidebarRight'],
 				name === 'sidebar-right-off' && styles['sidebarRightOff'],
 				name === 'source-control' && styles['sourceControl'],

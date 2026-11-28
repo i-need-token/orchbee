@@ -1,12 +1,12 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactElement } from 'react';
 
 import type { FileExplorerProps } from '../file-explorer';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
 import type { SourceControlNotifications, SourceControlQuickInput } from '../source-control';
 import type { UserSettingsControl } from '../user-settings';
-import type { FileBarViewId } from './file-bar-layout';
+import type { FileBarPosition, FileBarViewId } from './file-bar-layout';
 import type { FileBarLayoutStorage } from './file-bar-layout-storage';
 
 /** What the Workbench tells the File Bar's column, which owns the views and their toggles. */
@@ -18,12 +18,22 @@ export interface FileBarColumnProps {
 	readonly activeFile: FileResource | null;
 	/** The view the column shows. */
 	readonly activeView: FileBarViewId;
+	/**
+	 * What starts the toggles row while the column touches the window's start: the place of the
+	 * Sidebar button, and of the traffic lights before it, that float over it. Null elsewhere.
+	 */
+	readonly leadingPlace: ReactElement | null;
 	/** Where the views report what VS Code would notify. */
 	readonly notifications: FileExplorerProps['notifications'] & SourceControlNotifications;
 	/** Selecting a view's toggle: the active view takes focus, another one shows. */
 	readonly onSelectView: (view: FileBarViewId) => void;
 	/** Which platform's keys the views answer to, as VS Code's lists do on it. */
 	readonly platform: KeyboardShortcutPlatform;
+	/**
+	 * The side of the terminal area the column takes. On the right it touches the window's end, so
+	 * its row keeps the places of the File Bar button and the caption buttons that float over it.
+	 */
+	readonly position: FileBarPosition;
 	/** The window's quick input, where the views ask what VS Code asks there. */
 	readonly quickInput: SourceControlQuickInput;
 	/** The active Workspace's file session the File Bar holds; null while it holds none. */

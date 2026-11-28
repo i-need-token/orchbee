@@ -32,6 +32,7 @@ import {
 	type FileOverlayTitleActions,
 	type FileTabContentPort,
 } from '../../file-overlay';
+import type { FileBarPosition } from '../../file-bar';
 import type { FileResource } from '../../file-session';
 import type { PointerDropTarget } from '../../pointer-drag';
 import type { WorkbenchWorkspace } from '../../project-workspace';
@@ -89,6 +90,11 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly shortcutPlatform: WorkbenchShortcutPlatform;
 	/** Whether the Sidebar shows docked, which offers left-expand while the File Bar is on the right. */
 	readonly sidebarDocked: boolean;
+	/**
+	 * The File Bar's side of the terminal area: on the left it lies between the Sidebar and the
+	 * terminal area, where left-expand would cover it, so left-expand is not offered.
+	 */
+	readonly fileBarPosition: FileBarPosition;
 	/**
 	 * Where picture-in-picture's position persists, read once as the Workbench starts, and each
 	 * Workspace's tabs, read as its overlay starts.
@@ -193,6 +199,7 @@ export function useWorkbenchFileOverlay({
 	actionRuntime,
 	actionScope,
 	currentTerminal,
+	fileBarPosition,
 	focusTerminal,
 	notifications,
 	offered,
@@ -212,8 +219,9 @@ export function useWorkbenchFileOverlay({
 	workspaces,
 }: UseWorkbenchFileOverlayOptions): WorkbenchFileOverlayView {
 	const intl = useOrchbeeIntl();
+	const leftExpandOffered = sidebarDocked && fileBarPosition === 'right';
 	const [registry] = React.useState(() =>
-		offered ? new FileOverlayRegistry(sidebarDocked, storage) : null,
+		offered ? new FileOverlayRegistry(leftExpandOffered, storage) : null,
 	);
 	// Every Workspace's picture-in-picture shows where a drag last left one.
 	const [pipPosition, setPipPosition] = React.useState<FileOverlayPipPosition | null>(() =>
@@ -434,8 +442,8 @@ export function useWorkbenchFileOverlay({
 		);
 	}, [activeTabId, registry, terminalContextId, workspaceId]);
 	React.useEffect(() => {
-		registry?.setLeftExpandOffered(sidebarDocked);
-	}, [registry, sidebarDocked]);
+		registry?.setLeftExpandOffered(leftExpandOffered);
+	}, [leftExpandOffered, registry]);
 	React.useEffect(() => {
 		registry?.retain(new Set(workspaces.map((workspace) => workspace.id)));
 	}, [registry, workspaces]);

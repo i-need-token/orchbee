@@ -1,4 +1,9 @@
-import { createTypedActionRuntime, type ActionRuntime, type ActionScope } from '@orchbee/actions';
+import {
+	createTypedActionRuntime,
+	type ActionResult,
+	type ActionRuntime,
+	type ActionScope,
+} from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileBarMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { ResizablePanelHandle } from '@orchbee/ui/components';
@@ -13,6 +18,7 @@ import {
 	type FileBarLayout,
 	type FileBarLayoutStorage,
 	type FileBarModule,
+	type FileBarPosition,
 	type FileBarViewId,
 } from '../../file-bar';
 import {
@@ -20,6 +26,7 @@ import {
 	type FileSessionPort,
 	type FileWorkspaceSession,
 } from '../../file-session';
+import { readSetting, type UserSettingsControl } from '../../user-settings';
 import { registerWorkbenchFileBarActions } from '../actions/registerWorkbenchFileBarActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchFocusRouting } from '../types/workbench-focus-routing';
@@ -38,6 +45,7 @@ type FileBarLoad =
 
 const IDLE_LOAD: FileBarLoad = { kind: 'idle' };
 const NO_WORKSPACES: ReadonlySet<string> = new Set();
+const NO_SETTINGS_CHANGES = (): (() => void) => () => undefined;
 
 interface ResizableLayoutChangedMeta {
 	readonly isUserInteraction: boolean;
@@ -50,11 +58,11 @@ interface ResizablePanelSize {
 /** The File Bar docked beside the terminal area, as the Workbench lays it out. */
 interface WorkbenchFileBarColumn {
 	readonly activeView: FileBarViewId;
+	/** Attaches the column's landmark, which tells whether focus is inside the File Bar. */
+	readonly attachElement: (element: HTMLElement | null) => (() => void) | undefined;
 	/** The loaded column, or null while its chunk loads or after it failed to. */
 	readonly content: FileBarModule['FileBarColumn'] | null;
 	readonly defaultSize: string;
-	/** The column's landmark, which tells whether focus is inside the File Bar. */
-	readonly elementReference: React.RefObject<HTMLElement | null>;
 	/** What the column says instead of its views when they could not load. */
 	readonly failure: string | null;
 	readonly id: string;
@@ -96,11 +104,13 @@ interface WorkbenchFileBarToggle {
 export interface WorkbenchFileBarView {
 	/** Present while the window offers the File Bar and it shows docked. */
 	readonly column: WorkbenchFileBarColumn | null;
-	/** Follows the Workbench's panel group, which the File Bar shares with the Sidebar. */
+	/** Follows the panel group the File Bar shares with the terminal area. */
 	readonly onLayoutChanged: (
 		layout: Readonly<Record<string, number>>,
 		meta: ResizableLayoutChangedMeta,
 	) => void;
+	/** The side of the terminal area the File Bar takes, as the user's settings name it. */
+	readonly position: FileBarPosition;
 	/** Present while the window offers the File Bar and has room to dock it. */
 	readonly toggle: WorkbenchFileBarToggle | null;
 }
@@ -116,8 +126,6 @@ interface UseWorkbenchFileBarOptions {
 	/** Whether this window offers the File Bar; without the offer nothing registers, reads or loads. */
 	readonly offered: boolean;
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
-	/** Lays the docked Sidebar back at its own width. */
-	readonly restoreSidebarWidth: () => void;
 	/** Where file sessions come from; without it the File Bar opens none. */
 	readonly sessionPort: FileSessionPort | undefined;
 	/** Decides the File Bar's minimum: Windows and Linux draw caption buttons over its row. */
@@ -126,6 +134,11 @@ interface UseWorkbenchFileBarOptions {
 	readonly supplyFocusRegion: WorkbenchFocusRouting['supplyRegion'];
 	/** Where the File Bar keeps its layout on this device. */
 	readonly storage: FileBarLayoutStorage | undefined;
+	/**
+	 * The user's settings, which name the File Bar's side and take the moves; without them it stays
+	 * after the terminal area and offers no move.
+	 */
+	readonly userSettings: UserSettingsControl | undefined;
 	/** The active Workspace, whose files the File Bar shows; null outside a Workspace. */
 	readonly workspaceId: string | null;
 }
@@ -149,11 +162,12 @@ function showViewActionId(view: FileBarViewId) {
 }
 
 /**
- * The File Bar's place in the Workbench: its column after the terminal area, its width, whether it
- * shows, its active view and its button. It starts as this device last left it, hidden at first, and
- * the first show loads its views through the File Bar's lazy entry. It holds the active Workspace's
- * file session once it has shown that Workspace in this run, hidden or not, so a session starts only
- * for a Workspace whose files it showed, and the count badge follows it from then on.
+ * The File Bar's place in the Workbench: its column on the side of the terminal area the user's
+ * settings name, its width, whether it shows, its active view and its button. It starts as this
+ * device last left it, hidden at first, and the first show loads its views through the File Bar's
+ * lazy entry. It holds the active Workspace's file session once it has shown that Workspace in this
+ * run, hidden or not, so a session starts only for a Workspace whose files it showed, and the count
+ * badge follows it from then on.
  */
 export function useWorkbenchFileBar({
 	actionRuntime,
@@ -162,11 +176,11 @@ export function useWorkbenchFileBar({
 	mobile,
 	offered,
 	reportActionOutcome,
-	restoreSidebarWidth,
 	sessionPort,
 	shortcutPlatform,
 	storage,
 	supplyFocusRegion,
+	userSettings,
 	workspaceId,
 }: UseWorkbenchFileBarOptions): WorkbenchFileBarView {
 	const intl = useOrchbeeIntl();
@@ -189,11 +203,55 @@ export function useWorkbenchFileBar({
 	const panelSet = React.useRef<string | null>(null);
 	const panelReference = React.useRef<ResizablePanelHandle>(null);
 	const elementReference = React.useRef<HTMLElement>(null);
+	// Whether the keys were inside the column when it last left the document, as a move takes it out.
+	const focusLeftWithColumn = React.useRef(false);
+	const attachElement = useMemoizedFn((element: HTMLElement | null) => {
+		elementReference.current = element;
+		if (element === null) return undefined;
+		// A landmark detaches before it leaves the document, while the keys are still where they were.
+		return () => {
+			focusLeftWithColumn.current = containsFocus(element);
+			elementReference.current = null;
+		};
+	});
 	const [viewFocusRequest, setViewFocusRequest] = React.useState(0);
 	const [load, setLoad] = React.useState<FileBarLoad>(IDLE_LOAD);
 	const typedRuntime = React.useMemo(
 		() => createTypedActionRuntime<WorkbenchActionCatalog>(actionRuntime),
 		[actionRuntime],
+	);
+	const subscribeSettings = React.useMemo(
+		() =>
+			userSettings === undefined
+				? NO_SETTINGS_CHANGES
+				: (listener: () => void) => userSettings.subscribe(listener),
+		[userSettings],
+	);
+	const readPosition = (): FileBarPosition =>
+		userSettings === undefined
+			? 'right'
+			: readSetting(userSettings.getSnapshot().snapshot, 'appearance.file_bar.position');
+	const position = React.useSyncExternalStore(subscribeSettings, readPosition, readPosition);
+	// The File Bar moves once the settings file answers with its side, as every Client reads it there.
+	const move = React.useMemo(
+		() =>
+			userSettings === undefined
+				? undefined
+				: async (target: FileBarPosition): Promise<ActionResult<void>> => {
+						const result = await userSettings.set('appearance.file_bar.position', target);
+						switch (result.kind) {
+							case 'current':
+							case 'edited':
+								return { kind: 'completed' };
+							case 'outcome-unknown':
+								return { failure: { code: 'outcome-unknown' }, kind: 'failed' };
+							case 'refused':
+								return { failure: { code: 'settings-refused' }, kind: 'failed' };
+							case 'unavailable':
+								return { failure: { code: 'settings-unavailable' }, kind: 'failed' };
+						}
+					},
+		[userSettings],
 	);
 	const commit = useMemoizedFn((next: FileBarLayout) => {
 		if (sameLayout(layoutReference.current, next)) return;
@@ -263,20 +321,22 @@ export function useWorkbenchFileBar({
 		if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
 		// The panel group has already moved the divider for these keys; the File Bar takes its own
 		// steps, and Home and End keep the group's widest and narrowest File Bar as they commit it.
+		// Moving the divider away from the File Bar widens it, on either side.
+		const outward = position === 'right' ? -1 : 1;
 		switch (event.key) {
 			case 'ArrowLeft':
 				event.preventDefault();
-				setWidth(liveWidth.current + DIVIDER_KEY_STEP);
+				setWidth(liveWidth.current - outward * DIVIDER_KEY_STEP);
 				return;
 			case 'ArrowRight':
 				event.preventDefault();
-				setWidth(liveWidth.current - DIVIDER_KEY_STEP);
+				setWidth(liveWidth.current + outward * DIVIDER_KEY_STEP);
 				return;
 			case 'End':
-				setWidth(minimumWidth);
+				setWidth(position === 'right' ? minimumWidth : FILE_BAR_WIDTH.maximum);
 				return;
 			case 'Home':
-				setWidth(FILE_BAR_WIDTH.maximum);
+				setWidth(position === 'right' ? FILE_BAR_WIDTH.maximum : minimumWidth);
 				return;
 		}
 	});
@@ -293,20 +353,18 @@ export function useWorkbenchFileBar({
 			const widthShare = panels[FILE_BAR_PANEL_ID];
 			const widthShareChanged = widthShare !== lastWidthShare.current;
 			lastWidthShare.current = widthShare;
+			// A drag of the File Bar's divider commits once, on release.
 			if (meta.isUserInteraction) {
-				// A drag of the File Bar's divider commits once, on release; a drag of the Sidebar's
-				// leaves the File Bar's width as it was.
 				if (widthShare !== undefined && widthShareChanged) {
 					commit({ ...layoutReference.current, width: clampWidth(liveWidth.current) });
 				}
 				return;
 			}
 			if (!panelSetChanged) return;
-			// When a column shows or hides, the panel group restores the layout it last saw for that
-			// set of panels: shares of a window width that may have changed since, from before a later
-			// resize of either column. Both columns go back to their own widths.
+			// When the File Bar shows, hides or moves, the panel group restores the layout it last saw
+			// for that set of panels: shares of a width that may have changed since. The File Bar goes
+			// back to its own width.
 			panelReference.current?.resize(layoutReference.current.width);
-			restoreSidebarWidth();
 		},
 	);
 	// The mobile layout has no room to dock it yet, so it offers no Action there.
@@ -315,21 +373,35 @@ export function useWorkbenchFileBar({
 		if (!reachable) return undefined;
 		const registration = registerWorkbenchFileBarActions({
 			isVisible: layout.visible,
+			move,
+			position,
 			scope: actionScope,
 			showView,
 			toggle,
 			typedRuntime,
 		});
 		return () => registration.dispose();
-	}, [actionScope, layout.visible, reachable, showView, toggle, typedRuntime]);
+	}, [actionScope, layout.visible, move, position, reachable, showView, toggle, typedRuntime]);
 	const docked = reachable && layout.visible;
-	// A column that stops docking, hidden or left for the mobile layout, drops its focus request: the
-	// column mounts afresh when it docks again and would otherwise take focus then.
+	// A column that stops docking, hidden or left for the mobile layout, drops its focus request, and
+	// so does one that moves to the other side: it mounts afresh where it docks next and would
+	// otherwise take focus then.
 	const [dockedForFocus, setDockedForFocus] = React.useState(docked);
-	if (dockedForFocus !== docked) {
+	const [positionForFocus, setPositionForFocus] = React.useState(position);
+	if (dockedForFocus !== docked || positionForFocus !== position) {
+		if (!docked || positionForFocus !== position) setViewFocusRequest(0);
 		setDockedForFocus(docked);
-		if (!docked) setViewFocusRequest(0);
+		setPositionForFocus(position);
 	}
+	// A move mounts the column afresh on its other side, so keys it held go to its active view there.
+	const placedPosition = React.useRef(position);
+	React.useLayoutEffect(() => {
+		if (placedPosition.current === position) return;
+		placedPosition.current = position;
+		const focusLeft = focusLeftWithColumn.current;
+		focusLeftWithColumn.current = false;
+		if (docked && focusLeft) setViewFocusRequest((request) => request + 1);
+	}, [docked, position]);
 	// The docked File Bar takes its place in the region cycle, where its active view takes the keys.
 	React.useEffect(() => {
 		if (!docked) return undefined;
@@ -383,13 +455,13 @@ export function useWorkbenchFileBar({
 				shown: layout.visible,
 			}
 		: null;
-	if (!docked) return { column: null, onLayoutChanged, toggle: toggleView };
+	if (!docked) return { column: null, onLayoutChanged, position, toggle: toggleView };
 	return {
 		column: {
 			activeView: layout.activeView,
+			attachElement,
 			content: load.kind === 'ready' ? load.module.FileBarColumn : null,
 			defaultSize: `${layout.width}px`,
-			elementReference,
 			failure: load.kind === 'failed' ? intl.formatMessage(fileBarMessages.loadFailed) : null,
 			id: FILE_BAR_PANEL_ID,
 			label: intl.formatMessage(fileBarMessages.label),
@@ -404,6 +476,7 @@ export function useWorkbenchFileBar({
 			viewFocusRequest,
 		},
 		onLayoutChanged,
+		position,
 		toggle: toggleView,
 	};
 }

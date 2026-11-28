@@ -71,6 +71,14 @@ export const fileBarMessages = defineMessages({
 		'fileBar.loadFailed',
 		'Shown in the File Bar column when its views could not be loaded, so it stays empty.',
 	),
+	moveLeft: message(
+		'fileBar.actions.moveLeft',
+		'Action and menu item that moves the File Bar to the left of the terminal area, between the Sidebar and the terminal area, as VS Code’s Move Primary Side Bar Left.',
+	),
+	moveRight: message(
+		'fileBar.actions.moveRight',
+		'Action and menu item that moves the File Bar to the right of the terminal area, as VS Code’s Move Primary Side Bar Right.',
+	),
 	showExplorer: message(
 		'fileBar.actions.showExplorer',
 		'Action that shows the File Bar’s Explorer view and focuses it, or returns focus to the terminal from the focused view.',
@@ -88,6 +96,10 @@ export const fileBarMessages = defineMessages({
 		'Name of the File Bar view that shows the active Workspace’s Git changes, as VS Code names its Source Control.',
 	),
 	toggle: message('fileBar.actions.toggle', 'Action that shows or hides the File Bar column.'),
+	togglePosition: message(
+		'fileBar.actions.togglePosition',
+		'Action that moves the File Bar to the other side of the terminal area, as VS Code’s Toggle Primary Side Bar Position.',
+	),
 	viewSwitcher: message(
 		'fileBar.viewSwitcher',
 		'Accessible name of the row of toggles at the top of the File Bar that switches between its views.',

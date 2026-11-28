@@ -3,6 +3,12 @@ export const FILE_BAR_VIEW_IDS = ['explorer', 'source-control'] as const;
 
 export type FileBarViewId = (typeof FILE_BAR_VIEW_IDS)[number];
 
+/**
+ * The side of the terminal area the File Bar takes, from the user's settings: after it by default,
+ * or between the Sidebar and it.
+ */
+export type FileBarPosition = 'left' | 'right';
+
 /** The File Bar column's widths in pixels. */
 export const FILE_BAR_WIDTH = {
 	default: 300,

@@ -65,7 +65,10 @@
 
 .root[data-window-controls='leading'] :global([data-slot='workbench-tab-bar-leading-actions']),
 .root[data-window-controls='leading']
-	:global([data-slot='workbench-window-drag-region'] [data-sidebar-toggle-place]),
+	:global(
+		:is([data-slot='workbench-window-drag-region'], [data-slot='file-bar-toggles-row'])
+			[data-sidebar-toggle-place]
+	),
 .root[data-window-controls='leading'] :global([data-slot='workbench-mobile-bar-leading']) {
 	width: calc(
 		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-sm) +
@@ -97,7 +100,9 @@
 	),
 .root[data-window-controls='leading']
 	:global(
-		[data-workbench-touch] [data-slot='workbench-window-drag-region'] [data-sidebar-toggle-place]
+		[data-workbench-touch]
+			:is([data-slot='workbench-window-drag-region'], [data-slot='file-bar-toggles-row'])
+			[data-sidebar-toggle-place]
 	) {
 	width: calc(
 		var(--ob-ref-space-16) + var(--ob-ref-space-3) + var(--ob-ref-size-control-lg) +

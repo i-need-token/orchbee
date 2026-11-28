@@ -94,6 +94,11 @@ export interface FileOverlayHostProps {
 	readonly commands: FileOverlayCommands;
 	/** Applies an event to the shown overlay and runs the effects it returns. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
+	/**
+	 * The File Bar's side of the terminal area. Moving it shifts the terminal area without resizing
+	 * it, so the overlay measures what it lies over again.
+	 */
+	readonly fileBarPosition: 'left' | 'right';
 	/** Gives the keys to the current terminal, as Esc in picture-in-picture does. */
 	readonly focusTerminal: () => void;
 	/** The platform whose pointer and key conventions the overlay follows. */

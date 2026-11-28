@@ -1,9 +1,12 @@
 export const enUSFileBarMessages = {
 	'fileBar.actions.hide': 'Hide File Bar',
+	'fileBar.actions.moveLeft': 'Move File Bar Left',
+	'fileBar.actions.moveRight': 'Move File Bar Right',
 	'fileBar.actions.show': 'Show File Bar',
 	'fileBar.actions.showExplorer': 'Show Explorer',
 	'fileBar.actions.showSourceControl': 'Show Source Control',
 	'fileBar.actions.toggle': 'Toggle File Bar',
+	'fileBar.actions.togglePosition': 'Toggle File Bar Position',
 	'fileBar.badge.labelled': '{label} - {badge}',
 	'fileBar.badge.overThousands': '{count}K+',
 	'fileBar.badge.thousands': '{count}K',

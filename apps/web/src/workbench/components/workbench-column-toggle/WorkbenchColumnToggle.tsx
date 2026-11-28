@@ -14,7 +14,10 @@ import styles from './WorkbenchColumnToggle.module.css';
 interface WorkbenchColumnToggleProps {
 	/** A count badge over the icon's bottom end, which `descriptionId` describes. */
 	readonly badge?: React.ReactNode;
-	/** The column it shows and hides: the Sidebar at the window's start, the File Bar at its end. */
+	/**
+	 * The column it shows and hides: the Sidebar, whose button stands at the window's start, or the
+	 * File Bar, whose button stands at its end on either side of the terminal area.
+	 */
 	readonly column: 'file-bar' | 'sidebar';
 	/** The element that describes the button beyond its name, such as what its badge counts. */
 	readonly descriptionId?: string | undefined;
@@ -25,6 +28,8 @@ interface WorkbenchColumnToggleProps {
 	readonly shortcutId: string;
 	/** Absent while a configured command holds the chord. */
 	readonly shortcutLabel: string | undefined;
+	/** The File Bar's side of the terminal area, which its icon mirrors as VS Code's does. */
+	readonly side?: 'left' | 'right' | undefined;
 	/** Touch sizes: a 36 px fill in a 44 px target. */
 	readonly touch?: boolean | undefined;
 }
@@ -32,8 +37,10 @@ interface WorkbenchColumnToggleProps {
 function columnToggleIcon(
 	column: WorkbenchColumnToggleProps['column'],
 	pressed: boolean,
+	side: WorkbenchColumnToggleProps['side'],
 ): ProductIconName {
 	if (column === 'sidebar') return 'sidebar-left';
+	if (side === 'left') return pressed ? 'sidebar-left' : 'sidebar-left-off';
 	return pressed ? 'sidebar-right' : 'sidebar-right-off';
 }
 
@@ -47,6 +54,7 @@ export const WorkbenchColumnToggle = React.memo(function WorkbenchColumnToggle({
 	pressed,
 	shortcutId,
 	shortcutLabel,
+	side,
 	touch = false,
 }: WorkbenchColumnToggleProps): React.ReactNode {
 	return (
@@ -69,7 +77,7 @@ export const WorkbenchColumnToggle = React.memo(function WorkbenchColumnToggle({
 					/>
 				}
 			>
-				<ProductIcon name={columnToggleIcon(column, pressed)} />
+				<ProductIcon name={columnToggleIcon(column, pressed, side)} />
 				{badge}
 			</TooltipTrigger>
 			{/* The tooltip opens toward the window's middle, so it stays in the window. */}

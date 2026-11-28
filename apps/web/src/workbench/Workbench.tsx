@@ -248,11 +248,11 @@ export function Workbench({
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
 		reportActionOutcome: view.reportActionOutcome,
-		restoreSidebarWidth: view.restoreSidebarWidth,
 		sessionPort: fileSessionPort,
 		shortcutPlatform,
 		storage: layoutStorage,
 		supplyFocusRegion: view.supplyFocusRegion,
+		userSettings,
 		workspaceId: activeWorkspaceId,
 	});
 	// The scrim covers the terminal a press on it gives the keys to, so files dropped there go to it.
@@ -263,6 +263,7 @@ export function Workbench({
 		actionRuntime,
 		actionScope: view.actionScope,
 		currentTerminal,
+		fileBarPosition: fileBar.position,
 		focusTerminal: view.returnToTerminal,
 		notifications: notificationQueue,
 		offered: fileBarOffered,
@@ -285,13 +286,13 @@ export function Workbench({
 	const FileBarToggleBadge = fileBarBadge?.Badge ?? null;
 	const fileBarBadgeId = React.useId();
 	const FileOverlayHost = fileOverlay.host?.content ?? null;
-	// The Sidebar and the File Bar share the panel group, so both follow its layout.
-	const onLayoutChanged = useMemoizedFn(
-		(layout: Readonly<Record<string, number>>, meta: { readonly isUserInteraction: boolean }) => {
-			view.onLayoutChanged(layout, meta);
-			fileBar.onLayoutChanged(layout, meta);
-		},
-	);
+	// The column that touches the window's start holds the Sidebar button's place in its top row: the
+	// File Bar's toggles row while it docks on the left of the terminal area and the Sidebar does not.
+	const fileBarHoldsSidebarTogglePlace =
+		fileBar.column !== null && fileBar.position === 'left' && view.sidebarPresentation !== 'docked';
+	// The File Bar's button stays at the window's end, over the toggles row only while the File Bar
+	// docks there; otherwise the Tab bar keeps its place, and the window's controls, at its end.
+	const tabBarAtWindowEnd = fileBar.column === null || fileBar.position === 'left';
 	const agentPresentation = useWorkbenchAgentPresentation({
 		confirmations: view.authority.agentConfirmations,
 		nameSource: agentNameSource,
@@ -523,7 +524,9 @@ export function Workbench({
 				className={styles['noWorkspaceChrome']}
 				data-slot='workbench-window-drag-region'
 			>
-				{view.sidebarPresentation === 'docked' ? null : sidebarTogglePlace}
+				{view.sidebarPresentation === 'docked' || fileBarHoldsSidebarTogglePlace
+					? null
+					: sidebarTogglePlace}
 			</div>
 		);
 	} else if (view.mobileLayout) {
@@ -543,7 +546,7 @@ export function Workbench({
 		tabChrome = (
 			<WorkbenchTabBar
 				actionRuntime={actionRuntime}
-				atWindowEnd={fileBar.column === null}
+				atWindowEnd={tabBarAtWindowEnd}
 				newTabSections={view.newTabSections}
 				onNewTerminal={view.newTab}
 				onCloseTabs={view.onCloseTabs}
@@ -553,8 +556,10 @@ export function Workbench({
 				onSetTabTitle={view.setTabTitle}
 				onTabsChange={view.onTabsChange}
 				parentActionScope={view.actionScope}
-				reserveFileBarToggleSpace={fileBar.toggle !== null && fileBar.column === null}
-				reserveSidebarToggleSpace={view.sidebarPresentation !== 'docked'}
+				reserveFileBarToggleSpace={fileBar.toggle !== null && tabBarAtWindowEnd}
+				reserveSidebarToggleSpace={
+					view.sidebarPresentation !== 'docked' && !fileBarHoldsSidebarTogglePlace
+				}
 				tabModel={terminalContext.tabModel}
 				statusAdornments={agentPresentation.tabStatusAdornments}
 				tabIdentityIcons={agentPresentation.tabIdentityIcons}
@@ -562,6 +567,58 @@ export function Workbench({
 			/>
 		);
 	}
+
+	const fileBarColumn = fileBar.column;
+	const fileBarHandle =
+		fileBarColumn === null ? null : (
+			<ResizableHandle
+				className={styles['resizeHandle']}
+				onDoubleClick={fileBarColumn.onDividerDoubleClick}
+				onKeyDown={fileBarColumn.onDividerKeyDown}
+			/>
+		);
+	const fileBarPanel =
+		fileBarColumn === null ? null : (
+			<ResizablePanel
+				id={fileBarColumn.id}
+				defaultSize={fileBarColumn.defaultSize}
+				minSize={fileBarColumn.minSize}
+				maxSize={fileBarColumn.maxSize}
+				groupResizeBehavior='preserve-pixel-size'
+				onResize={fileBarColumn.onResize}
+				panelRef={fileBarColumn.panelReference}
+			>
+				<aside
+					aria-label={fileBarColumn.label}
+					className={styles['fileBarPanel']}
+					data-slot='file-bar'
+					data-workbench-focus-region='file-bar'
+					ref={fileBarColumn.attachElement}
+				>
+					{FileBarColumn === null ? null : (
+						<FileBarColumn
+							actionRuntime={actionRuntime}
+							actionScope={view.actionScope}
+							activeFile={fileOverlay.activeFile}
+							activeView={fileBarColumn.activeView}
+							leadingPlace={fileBarHoldsSidebarTogglePlace ? sidebarTogglePlace : null}
+							notifications={notificationQueue}
+							onSelectView={fileBarColumn.onSelectView}
+							platform={shortcutPlatform}
+							position={fileBar.position}
+							quickInput={quickInputSessions}
+							session={fileBarColumn.session}
+							settings={userSettings}
+							storage={layoutStorage}
+							viewFocusRequest={fileBarColumn.viewFocusRequest}
+						/>
+					)}
+					{fileBarColumn.failure === null ? null : (
+						<p className={styles['fileBarFailure']}>{fileBarColumn.failure}</p>
+					)}
+				</aside>
+			</ResizablePanel>
+		);
 
 	const sequenceNotice = view.shortcutSequenceNotice;
 	const statusNotice = (
@@ -700,7 +757,7 @@ export function Workbench({
 			>
 				<ResizablePanelGroup
 					disableCursor
-					onLayoutChanged={onLayoutChanged}
+					onLayoutChanged={view.onLayoutChanged}
 					orientation='horizontal'
 					resizeTargetMinimumSize={WORKBENCH_RESIZE_TARGET_SIZE_PX}
 				>
@@ -725,111 +782,88 @@ export function Workbench({
 							/>
 						</>
 					)}
-					<ResizablePanel id='right'>
-						<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
-							{tabChrome}
-							<div
-								className={styles['tabContent']}
-								data-slot='workbench-tab-content'
-								data-workbench-focus-region='terminal'
-								ref={fileOverlay.terminalAreaReference}
-							>
-								{terminalContext !== null && view.hasVisibleTerminalTabs ? (
-									<WorkbenchPanelWorkspace
-										actionRuntime={actionRuntime}
-										authority={view.authority}
-										createPanelTerminal={view.createPanelTerminal}
-										panelWorkspaceStore={terminalContext.panelWorkspaceStore}
-										parentActionScope={view.actionScope}
-										presentationAgentStatuses={agentPresentation.presentationAgentStatuses}
-										reportActionOutcome={view.reportActionOutcome}
-										shortcutLabelForAction={shortcutLabelForAction}
-										terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
-										terminalContextId={terminalContext.terminalContextId}
-										terminalFocusRequest={view.terminalFocusRequest}
-										terminalPathDrops={terminalPathDrops}
-										terminalSurface={terminalSurface}
-									/>
-								) : (
+					{/* The terminal area and the File Bar share their own group, so resizing the Sidebar or the
+					    window leaves the File Bar's width as it was, whichever side it takes. */}
+					<ResizablePanel id='workbench-main'>
+						<ResizablePanelGroup
+							disableCursor
+							onLayoutChanged={fileBar.onLayoutChanged}
+							orientation='horizontal'
+							resizeTargetMinimumSize={WORKBENCH_RESIZE_TARGET_SIZE_PX}
+						>
+							{fileBarPanel === null || fileBar.position !== 'left' ? null : (
+								<>
+									{fileBarPanel}
+									{fileBarHandle}
+								</>
+							)}
+							<ResizablePanel id='terminal-area'>
+								<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
+									{tabChrome}
 									<div
-										className={styles['emptyWindow']}
-										data-slot='workbench-empty-window'
-										onDoubleClick={
-											terminalContext === null ? undefined : view.onEmptyContentDoubleClick
-										}
+										className={styles['tabContent']}
+										data-slot='workbench-tab-content'
+										data-workbench-focus-region='terminal'
+										ref={fileOverlay.terminalAreaReference}
 									>
-										{view.emptyWorkspace === null ? null : (
-											<WorkbenchEmptyWorkspace
-												fact={view.emptyWorkspace.fact}
-												newTabLabel={view.emptyWorkspace.newTabLabel}
-												newTabShortcutLabel={shortcutLabelForAction(
-													WORKBENCH_ACTION_IDS.createTerminal,
-												)}
-												startAgentLabel={view.emptyWorkspace.startAgentLabel}
-												startAgentShortcutLabel={shortcutLabelForAction(
-													WORKBENCH_ACTION_IDS.openAgentStart,
-												)}
+										{terminalContext !== null && view.hasVisibleTerminalTabs ? (
+											<WorkbenchPanelWorkspace
+												actionRuntime={actionRuntime}
+												authority={view.authority}
+												createPanelTerminal={view.createPanelTerminal}
+												panelWorkspaceStore={terminalContext.panelWorkspaceStore}
+												parentActionScope={view.actionScope}
+												presentationAgentStatuses={agentPresentation.presentationAgentStatuses}
+												reportActionOutcome={view.reportActionOutcome}
+												shortcutLabelForAction={shortcutLabelForAction}
+												terminalAutoFocusAllowed={view.terminalAutoFocusAllowed}
+												terminalContextId={terminalContext.terminalContextId}
+												terminalFocusRequest={view.terminalFocusRequest}
+												terminalPathDrops={terminalPathDrops}
+												terminalSurface={terminalSurface}
 											/>
+										) : (
+											<div
+												className={styles['emptyWindow']}
+												data-slot='workbench-empty-window'
+												onDoubleClick={
+													terminalContext === null ? undefined : view.onEmptyContentDoubleClick
+												}
+											>
+												{view.emptyWorkspace === null ? null : (
+													<WorkbenchEmptyWorkspace
+														fact={view.emptyWorkspace.fact}
+														newTabLabel={view.emptyWorkspace.newTabLabel}
+														newTabShortcutLabel={shortcutLabelForAction(
+															WORKBENCH_ACTION_IDS.createTerminal,
+														)}
+														startAgentLabel={view.emptyWorkspace.startAgentLabel}
+														startAgentShortcutLabel={shortcutLabelForAction(
+															WORKBENCH_ACTION_IDS.openAgentStart,
+														)}
+													/>
+												)}
+											</div>
+										)}
+										{otherMachines === undefined ? null : (
+											<WorkbenchMachineCard otherMachines={otherMachines} />
 										)}
 									</div>
-								)}
-								{otherMachines === undefined ? null : (
-									<WorkbenchMachineCard otherMachines={otherMachines} />
-								)}
-							</div>
-						</div>
-					</ResizablePanel>
-					{fileBar.column === null ? null : (
-						<>
-							<ResizableHandle
-								className={styles['resizeHandle']}
-								onDoubleClick={fileBar.column.onDividerDoubleClick}
-								onKeyDown={fileBar.column.onDividerKeyDown}
-							/>
-							<ResizablePanel
-								id={fileBar.column.id}
-								defaultSize={fileBar.column.defaultSize}
-								minSize={fileBar.column.minSize}
-								maxSize={fileBar.column.maxSize}
-								groupResizeBehavior='preserve-pixel-size'
-								onResize={fileBar.column.onResize}
-								panelRef={fileBar.column.panelReference}
-							>
-								<aside
-									aria-label={fileBar.column.label}
-									className={styles['fileBarPanel']}
-									data-slot='file-bar'
-									data-workbench-focus-region='file-bar'
-									ref={fileBar.column.elementReference}
-								>
-									{FileBarColumn === null ? null : (
-										<FileBarColumn
-											actionRuntime={actionRuntime}
-											actionScope={view.actionScope}
-											activeFile={fileOverlay.activeFile}
-											activeView={fileBar.column.activeView}
-											notifications={notificationQueue}
-											onSelectView={fileBar.column.onSelectView}
-											platform={shortcutPlatform}
-											quickInput={quickInputSessions}
-											session={fileBar.column.session}
-											settings={userSettings}
-											storage={layoutStorage}
-											viewFocusRequest={fileBar.column.viewFocusRequest}
-										/>
-									)}
-									{fileBar.column.failure === null ? null : (
-										<p className={styles['fileBarFailure']}>{fileBar.column.failure}</p>
-									)}
-								</aside>
+								</div>
 							</ResizablePanel>
-						</>
-					)}
+							{fileBarPanel === null || fileBar.position !== 'right' ? null : (
+								<>
+									{fileBarHandle}
+									{fileBarPanel}
+								</>
+							)}
+						</ResizablePanelGroup>
+					</ResizablePanel>
 				</ResizablePanelGroup>
 			</div>
 			{/* The File Bar button floats over the top end of whichever chrome lies beneath it: the File
-			    Bar's toggles row while it is docked, else the Tab bar or the no-Workspace row. It follows
-			    the layout, so its no-drag region comes after the toggles row's drag region. */}
+			    Bar's toggles row while it docks on the right, else the Tab bar or the no-Workspace row. It
+			    follows the layout, so its no-drag region comes after the toggles row's drag region. */}
 			{fileBar.toggle === null ? null : (
 				<div className={styles['fileBarToggle']} data-slot='workbench-file-bar-toggle-position'>
 					<WorkbenchColumnToggle
@@ -845,6 +879,7 @@ export function Workbench({
 						pressed={fileBar.toggle.shown}
 						shortcutId={WORKBENCH_ACTION_IDS.toggleFileBar}
 						shortcutLabel={shortcutLabelForAction(WORKBENCH_ACTION_IDS.toggleFileBar)}
+						side={fileBar.position}
 					/>
 				</div>
 			)}
@@ -864,6 +899,7 @@ export function Workbench({
 						returnFocus={fileOverlay.host.returnFocus}
 						scrimDrop={fileOverlay.host.scrimDrop}
 						shortcutLabels={fileOverlay.host.shortcutLabels}
+						fileBarPosition={fileBar.position}
 						sidebarDocked={view.sidebarPresentation === 'docked'}
 						store={fileOverlay.host.store}
 					/>
