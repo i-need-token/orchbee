@@ -48,6 +48,7 @@ interface OpenChildPage {
 export function useTerminalSettingsSurface({
 	about,
 	controller,
+	fileBarOffered = false,
 	initialCategory,
 	machines,
 	macosTerminalInputSettingsController,
@@ -112,6 +113,7 @@ export function useTerminalSettingsSurface({
 	const categories = TERMINAL_SETTINGS_CATEGORIES.filter(
 		(definition) =>
 			(definition.id !== 'terminal' || terminalAvailable) &&
+			(definition.id !== 'file-bar' || fileBarOffered) &&
 			(definition.id !== 'notifications' || terminalFeedbackSettingsController !== undefined) &&
 			(definition.id !== 'machines' || machinesReported) &&
 			(definition.id !== 'about' || about !== undefined),

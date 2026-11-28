@@ -383,6 +383,7 @@ The categories keep a stable product-outcome order instead of exposing implement
 | Appearance    | App appearance; Terminal colors, with custom text and background colors; Terminal text |
 | Themes        | Light theme; Dark theme                                                                |
 | Terminal      | Selection and keys; Output: terminal history; After a restart; Launch profiles         |
+| File Bar      | Layout: position; Explorer: confirmations; Source Control: Git questions and warnings  |
 | Notifications | When to notify; Sound and delivery                                                     |
 | Keyboard      | Window and panel shortcuts                                                             |
 | Agents        | Allow routine confirmations: one switch per Agent type                                 |
@@ -402,14 +403,16 @@ question is answered, cancelled or, once its login ended, closed. A command's lo
 window opens the TUI's notice the same way, Log in or Not now, and a choice counts only once the
 notice has shown for a second with no other key pressed on it.
 
-Every category but Themes, Machines and About ends with a "More options in config.toml" row that shows the path of
+Every category but Themes, File Bar, Machines and About ends with a "More options in config.toml" row that shows the path of
 the settings file the Session reads, taken from its snapshot, with a copy action. The renderer has
 no port that opens a file, so the row copies the path instead; Copy is unavailable until the first
 snapshot arrives.
 
 Navigation and search expose only categories and rows whose required capabilities are present: the
-Terminal category needs at least one of its controls, and Notifications needs the feedback
-controller. Roadmap-only controls remain absent.
+Terminal category needs at least one of its controls, Notifications needs the feedback
+controller, and File Bar needs a window that offers the File Bar. Roadmap-only controls remain
+absent: a File Bar row shows only once the settings registry marks its key for the page, which the
+key's feature does when it ships.
 About holds the version and the update control, which are information, and the Automatic updates
 setting, so it has no settings-file row and search lists only Automatic updates from it. Every
 composition that hands the page its build shows the version and Updates rows; a served Web Client shows

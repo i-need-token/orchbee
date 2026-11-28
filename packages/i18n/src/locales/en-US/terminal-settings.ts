@@ -108,6 +108,7 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.categories.appearance': 'Appearance',
 	'terminal.settings.page.categories.themes': 'Themes',
 	'terminal.settings.page.categories.terminal': 'Terminal',
+	'terminal.settings.page.categories.fileBar': 'File Bar',
 	'terminal.settings.page.categories.notifications': 'Notifications',
 	'terminal.settings.page.categories.keyboard': 'Keyboard',
 	'terminal.settings.page.categories.agents': 'Agents',
@@ -325,6 +326,50 @@ export const enUSTerminalSettingsMessages = {
 	'terminal.settings.page.profiles.edit': 'Edit',
 	'terminal.settings.page.profiles.done': 'Done',
 	'terminal.settings.page.profiles.useAsDefault': 'Use as default',
+	'terminal.settings.page.fileBar.groups.layout': 'Layout',
+	'terminal.settings.page.fileBar.groups.explorer': 'Explorer',
+	'terminal.settings.page.fileBar.groups.sourceControl': 'Source Control',
+	'terminal.settings.page.fileBar.position.label': 'Position',
+	'terminal.settings.page.fileBar.position.description':
+		'Which side of the terminal area the File Bar docks on.',
+	'terminal.settings.page.fileBar.position.right': 'Right',
+	'terminal.settings.page.fileBar.position.left': 'Left',
+	'terminal.settings.page.fileBar.confirmDelete.label': 'Confirm delete',
+	'terminal.settings.page.fileBar.confirmDelete.description':
+		'Ask before deleting files and folders.',
+	'terminal.settings.page.fileBar.confirmDragAndDrop.label': 'Confirm drag and drop',
+	'terminal.settings.page.fileBar.confirmDragAndDrop.description':
+		'Ask before moving files and folders by dragging them.',
+	'terminal.settings.page.fileBar.confirmPasteNative.label': 'Confirm paste from outside',
+	'terminal.settings.page.fileBar.confirmPasteNative.description':
+		'Ask before pasting files and folders copied outside Orchbee.',
+	'terminal.settings.page.fileBar.parentRepositories.label': 'Repositories in parent folders',
+	'terminal.settings.page.fileBar.parentRepositories.description':
+		'Whether to open a Git repository found in a folder above a Workspace’s directory.',
+	'terminal.settings.page.fileBar.parentRepositories.always': 'Always',
+	'terminal.settings.page.fileBar.parentRepositories.never': 'Never',
+	'terminal.settings.page.fileBar.parentRepositories.prompt': 'Ask',
+	'terminal.settings.page.fileBar.smartCommit.label': 'Smart commit',
+	'terminal.settings.page.fileBar.smartCommit.description':
+		'Commit all changes when nothing is staged.',
+	'terminal.settings.page.fileBar.suggestSmartCommit.label': 'Suggest smart commit',
+	'terminal.settings.page.fileBar.suggestSmartCommit.description':
+		'Offer smart commit when a commit finds nothing staged.',
+	'terminal.settings.page.fileBar.confirmSync.label': 'Confirm sync',
+	'terminal.settings.page.fileBar.confirmSync.description':
+		'Ask before syncing a branch with its remote.',
+	'terminal.settings.page.fileBar.confirmForcePush.label': 'Confirm force push',
+	'terminal.settings.page.fileBar.confirmForcePush.description':
+		'Ask before force pushing a branch.',
+	'terminal.settings.page.fileBar.autofetch.label': 'Autofetch',
+	'terminal.settings.page.fileBar.autofetch.description':
+		'Fetch each repository’s remotes periodically.',
+	'terminal.settings.page.fileBar.ignoreLimitWarning.label': 'Ignore the too-many-changes warning',
+	'terminal.settings.page.fileBar.ignoreLimitWarning.description':
+		'Don’t warn when a repository has too many changes to show them all.',
+	'terminal.settings.page.fileBar.ignoreMissingGitWarning.label': 'Ignore the missing Git warning',
+	'terminal.settings.page.fileBar.ignoreMissingGitWarning.description':
+		'Don’t warn when Git isn’t installed.',
 	'terminal.settings.refused.denied':
 		"Couldn't save the change: this window can't change settings.",
 	'terminal.settings.refused.unavailable':

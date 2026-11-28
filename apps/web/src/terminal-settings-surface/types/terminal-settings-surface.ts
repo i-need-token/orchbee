@@ -15,6 +15,7 @@ export type TerminalSettingsCategory =
 	| 'about'
 	| 'agents'
 	| 'appearance'
+	| 'file-bar'
 	| 'general'
 	| 'keyboard'
 	| 'machines'
@@ -373,6 +374,8 @@ export interface TerminalSettingsSurfaceProps {
 	readonly about?: TerminalSettingsAbout | undefined;
 	readonly applicationLocaleController: ApplicationLocaleController;
 	readonly controller: TerminalSettingsController;
+	/** Settings › File Bar; without it Settings has no File Bar category. */
+	readonly fileBarOffered?: boolean | undefined;
 	/** The font row lists installed families from it; without it the row takes a typed family. */
 	readonly fontCatalog?: TerminalSettingsFontCatalog | undefined;
 	/** Settings › Machines; without it, or before its first report, Settings has no Machines category. */

@@ -113,6 +113,7 @@ export const terminalSettingsMessages = defineMessages({
 	pageCategoryAppearance: message('terminal.settings.page.categories.appearance'),
 	pageCategoryThemes: message('terminal.settings.page.categories.themes'),
 	pageCategoryTerminal: message('terminal.settings.page.categories.terminal'),
+	pageCategoryFileBar: message('terminal.settings.page.categories.fileBar'),
 	pageCategoryNotifications: message('terminal.settings.page.categories.notifications'),
 	pageCategoryKeyboard: message('terminal.settings.page.categories.keyboard'),
 	pageCategoryAgents: message('terminal.settings.page.categories.agents'),
@@ -323,6 +324,78 @@ export const terminalSettingsMessages = defineMessages({
 	pageProfilesEdit: message('terminal.settings.page.profiles.edit'),
 	pageProfilesDone: message('terminal.settings.page.profiles.done'),
 	pageProfilesUseAsDefault: message('terminal.settings.page.profiles.useAsDefault'),
+	pageFileBarGroupLayout: message('terminal.settings.page.fileBar.groups.layout'),
+	pageFileBarGroupExplorer: message('terminal.settings.page.fileBar.groups.explorer'),
+	pageFileBarGroupSourceControl: message('terminal.settings.page.fileBar.groups.sourceControl'),
+	pageFileBarPositionLabel: message('terminal.settings.page.fileBar.position.label'),
+	pageFileBarPositionDescription: message('terminal.settings.page.fileBar.position.description'),
+	pageFileBarPositionRight: message('terminal.settings.page.fileBar.position.right'),
+	pageFileBarPositionLeft: message('terminal.settings.page.fileBar.position.left'),
+	pageFileBarConfirmDeleteLabel: message('terminal.settings.page.fileBar.confirmDelete.label'),
+	pageFileBarConfirmDeleteDescription: message(
+		'terminal.settings.page.fileBar.confirmDelete.description',
+	),
+	pageFileBarConfirmDragAndDropLabel: message(
+		'terminal.settings.page.fileBar.confirmDragAndDrop.label',
+	),
+	pageFileBarConfirmDragAndDropDescription: message(
+		'terminal.settings.page.fileBar.confirmDragAndDrop.description',
+	),
+	pageFileBarConfirmPasteNativeLabel: message(
+		'terminal.settings.page.fileBar.confirmPasteNative.label',
+	),
+	pageFileBarConfirmPasteNativeDescription: message(
+		'terminal.settings.page.fileBar.confirmPasteNative.description',
+	),
+	pageFileBarParentRepositoriesLabel: message(
+		'terminal.settings.page.fileBar.parentRepositories.label',
+	),
+	pageFileBarParentRepositoriesDescription: message(
+		'terminal.settings.page.fileBar.parentRepositories.description',
+	),
+	pageFileBarParentRepositoriesAlways: message(
+		'terminal.settings.page.fileBar.parentRepositories.always',
+	),
+	pageFileBarParentRepositoriesNever: message(
+		'terminal.settings.page.fileBar.parentRepositories.never',
+	),
+	pageFileBarParentRepositoriesPrompt: message(
+		'terminal.settings.page.fileBar.parentRepositories.prompt',
+	),
+	pageFileBarSmartCommitLabel: message('terminal.settings.page.fileBar.smartCommit.label'),
+	pageFileBarSmartCommitDescription: message(
+		'terminal.settings.page.fileBar.smartCommit.description',
+	),
+	pageFileBarSuggestSmartCommitLabel: message(
+		'terminal.settings.page.fileBar.suggestSmartCommit.label',
+	),
+	pageFileBarSuggestSmartCommitDescription: message(
+		'terminal.settings.page.fileBar.suggestSmartCommit.description',
+	),
+	pageFileBarConfirmSyncLabel: message('terminal.settings.page.fileBar.confirmSync.label'),
+	pageFileBarConfirmSyncDescription: message(
+		'terminal.settings.page.fileBar.confirmSync.description',
+	),
+	pageFileBarConfirmForcePushLabel: message(
+		'terminal.settings.page.fileBar.confirmForcePush.label',
+	),
+	pageFileBarConfirmForcePushDescription: message(
+		'terminal.settings.page.fileBar.confirmForcePush.description',
+	),
+	pageFileBarAutofetchLabel: message('terminal.settings.page.fileBar.autofetch.label'),
+	pageFileBarAutofetchDescription: message('terminal.settings.page.fileBar.autofetch.description'),
+	pageFileBarIgnoreLimitWarningLabel: message(
+		'terminal.settings.page.fileBar.ignoreLimitWarning.label',
+	),
+	pageFileBarIgnoreLimitWarningDescription: message(
+		'terminal.settings.page.fileBar.ignoreLimitWarning.description',
+	),
+	pageFileBarIgnoreMissingGitWarningLabel: message(
+		'terminal.settings.page.fileBar.ignoreMissingGitWarning.label',
+	),
+	pageFileBarIgnoreMissingGitWarningDescription: message(
+		'terminal.settings.page.fileBar.ignoreMissingGitWarning.description',
+	),
 	refusedDenied: message('terminal.settings.refused.denied'),
 	refusedUnavailable: message('terminal.settings.refused.unavailable'),
 	refusedSessionMismatch: message('terminal.settings.refused.sessionMismatch'),

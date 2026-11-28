@@ -409,7 +409,8 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         "Blank space between Workspace rows.",
     ),
     // The File Bar's keys, here and in the `explorer` and `git` tables, which keep VS Code's names. They
-    // stay out of the reference while releases withhold the File Bar.
+    // stay out of the reference while releases withhold the File Bar. Each joins the settings page
+    // once its feature ships; the page lists them only in a window that offers the File Bar.
     key(
         "appearance.file_bar.position",
         V::Choice(&["right", "left"]),
@@ -418,6 +419,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Docking side of the File Bar: right or left of the terminal area.",
     )
+    .page()
     .clients(DESKTOP)
     .unreferenced(),
     key(
@@ -935,6 +937,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Git commits every change when nothing is staged.",
     )
+    .page()
     .clients(DESKTOP)
     .unreferenced(),
     key(
@@ -945,6 +948,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Git suggests smart commit when a commit finds nothing staged.",
     )
+    .page()
     .clients(DESKTOP)
     .unreferenced(),
     key(
@@ -955,6 +959,7 @@ pub const SETTING_KEYS: &[SettingKey] = &[
         CLIENT,
         "Git asks before it syncs a branch with its remote.",
     )
+    .page()
     .clients(DESKTOP)
     .unreferenced(),
     key(

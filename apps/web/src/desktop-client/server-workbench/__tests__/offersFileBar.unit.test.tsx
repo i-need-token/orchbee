@@ -140,10 +140,20 @@ async function composeWindow(distribution: Distribution) {
 			await actionRuntime.executePrepared(toggle.invocation).completion;
 		});
 	};
+	/** Opens Settings and returns the categories its navigation lists. */
+	const openSettings = async (): Promise<string[]> => {
+		await React.act(async () => {
+			terminalSettingsController.open();
+		});
+		return [...container.querySelectorAll<HTMLElement>('[data-settings-category]')].map(
+			(category) => category.dataset['settingsCategory'] ?? '',
+		);
+	};
 	return {
 		container,
 		fileBarActions,
 		fileSessions,
+		openSettings,
 		projectWorkspaceRuntime,
 		storageReads,
 		toggleFileBar,
@@ -154,7 +164,10 @@ async function composeWindow(distribution: Distribution) {
 describe('the Desktop window composition', { timeout: FILE_BAR_LOAD_TIMEOUT + 10_000 }, () => {
 	it('offers no File Bar in a release', async () => {
 		const composed = await composeWindow('release');
+		const settingsCategories = await composed.openSettings();
 
+		expect(settingsCategories).toContain('general');
+		expect(settingsCategories).not.toContain('file-bar');
 		expect(composed.container.querySelector('[data-slot="file-bar"]')).toBeNull();
 		expect(composed.fileBarActions()).toEqual([]);
 		expect(composed.fileSessions.openWorkspaces()).toEqual([]);
@@ -185,6 +198,7 @@ describe('the Desktop window composition', { timeout: FILE_BAR_LOAD_TIMEOUT + 10
 				() => expect(fileBar?.querySelector('[data-slot="file-bar-toggles-row"]')).not.toBeNull(),
 				{ timeout: FILE_BAR_LOAD_TIMEOUT },
 			);
+			expect(await composed.openSettings()).toContain('file-bar');
 		},
 	);
 

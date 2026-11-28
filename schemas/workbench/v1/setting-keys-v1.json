@@ -133,7 +133,7 @@
 			"effect": "immediate",
 			"category": "file-bar",
 			"group": "placement",
-			"page": false
+			"page": true
 		},
 		{
 			"path": "terminal.new_cwd",
@@ -763,7 +763,7 @@
 			"effect": "immediate",
 			"category": "file-bar",
 			"group": "source-control",
-			"page": false
+			"page": true
 		},
 		{
 			"path": "git.suggest_smart_commit",
@@ -774,7 +774,7 @@
 			"effect": "immediate",
 			"category": "file-bar",
 			"group": "source-control",
-			"page": false
+			"page": true
 		},
 		{
 			"path": "git.confirm_sync",
@@ -785,7 +785,7 @@
 			"effect": "immediate",
 			"category": "file-bar",
 			"group": "source-control",
-			"page": false
+			"page": true
 		},
 		{
 			"path": "git.confirm_force_push",

@@ -37,6 +37,13 @@ export const TERMINAL_SETTINGS_CATEGORIES: readonly TerminalSettingsCategoryDefi
 		id: 'terminal',
 		label: terminalSettingsMessages.pageCategoryTerminal,
 	},
+	// Every File Bar key is on the page, so it ends without the config.toml row.
+	{
+		configFile: false,
+		icon: 'files',
+		id: 'file-bar',
+		label: terminalSettingsMessages.pageCategoryFileBar,
+	},
 	{
 		configFile: true,
 		icon: 'bell',

@@ -281,6 +281,7 @@ export const WebApplication = React.memo(function WebApplication({
 				requestAgent={requestAgent}
 				applicationLocaleController={applicationLocaleController}
 				controller={terminalSettingsController}
+				fileBarOffered={fileBarOffered}
 				fontCatalog={BROWSER_LOCAL_FONT_CATALOG}
 				terminalInteractionSettingsController={terminalInteractionSettingsController}
 				keyboardShortcutController={keyboardShortcutSettingsController}

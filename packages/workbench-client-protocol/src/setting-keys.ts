@@ -147,7 +147,7 @@ export const SETTING_KEY_TABLE = {
 			effect: 'immediate',
 			category: 'file-bar',
 			group: 'placement',
-			page: false,
+			page: true,
 		},
 		{
 			path: 'terminal.new_cwd',
@@ -777,7 +777,7 @@ export const SETTING_KEY_TABLE = {
 			effect: 'immediate',
 			category: 'file-bar',
 			group: 'source-control',
-			page: false,
+			page: true,
 		},
 		{
 			path: 'git.suggest_smart_commit',
@@ -788,7 +788,7 @@ export const SETTING_KEY_TABLE = {
 			effect: 'immediate',
 			category: 'file-bar',
 			group: 'source-control',
-			page: false,
+			page: true,
 		},
 		{
 			path: 'git.confirm_sync',
@@ -799,7 +799,7 @@ export const SETTING_KEY_TABLE = {
 			effect: 'immediate',
 			category: 'file-bar',
 			group: 'source-control',
-			page: false,
+			page: true,
 		},
 		{
 			path: 'git.confirm_force_push',

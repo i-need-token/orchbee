@@ -16,6 +16,7 @@ import { AboutSettings } from './components/about-settings/AboutSettings';
 import { AgentSettings } from './components/agent-settings/AgentSettings';
 import { AppearanceSettings } from './components/appearance-settings/AppearanceSettings';
 import { ConfigFileRow } from './components/config-file-row/ConfigFileRow';
+import { FileBarSettings } from './components/file-bar-settings/FileBarSettings';
 import { GeneralSettings } from './components/general-settings/GeneralSettings';
 import { KeyboardShortcutSettings } from './components/keyboard-shortcut-settings/KeyboardShortcutSettings';
 import { MachineSettings } from './components/machine-settings/MachineSettings';
@@ -250,6 +251,8 @@ function CategoryContent({ category, props, query }: CategoryContentProps): Reac
 					userSettings={userSettings}
 				/>
 			);
+		case 'file-bar':
+			return <FileBarSettings query={query} userSettings={userSettings} />;
 		case 'notifications':
 			return props.terminalFeedbackSettingsController === undefined ? null : (
 				<NotificationSettings controller={props.terminalFeedbackSettingsController} query={query} />
