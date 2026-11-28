@@ -10,8 +10,9 @@ export interface KeyboardShortcutChord {
  * Which chords a binding may hold. A window binding keeps at least one modifier other than Shift. A
  * region binding, in a part of the window that owns keys such as a side bar or a picker, does too,
  * except that a function key may be unmodified or Shift-only. A widget binding, in a tree or list
- * scope, may be unmodified or Shift-only and may hold Escape as a declared default. The second step
- * of a sequence may be unmodified but is never Escape. No rule admits Tab.
+ * scope, may be unmodified or Shift-only and may hold Escape as a declared default. A region or
+ * widget binding may hold Tab only with Control, and Shift if any, on every platform, as VS Code's
+ * quick switch does. The second step of a sequence may be unmodified but is never Escape or Tab.
  */
 export type KeyboardShortcutChordRule = 'region' | 'second-step' | 'widget' | 'window';
 
@@ -141,6 +142,7 @@ export function normalizeKeyboardShortcutChord(
 	if (modifierRequired && !effectiveModifiers.some((modifier) => modifier !== 'shift')) {
 		return null;
 	}
+	if (input['code'] === 'Tab' && !holdsControlOnly(effectiveModifiers, platform)) return null;
 	return Object.freeze({
 		code: input['code'],
 		modifiers: Object.freeze(
@@ -212,6 +214,16 @@ export function formatKeyboardShortcutChord(
 	const normalized = canonicalChord(chord, platform);
 	if (normalized === null) throw new TypeError('Invalid keyboard shortcut chord.');
 	return formatPress(effectiveModifierFlags(normalized, platform), normalized.code, platform);
+}
+
+/** The modifier keys a chord holds on `platform`, as a key event reports them. */
+export function keyboardShortcutChordModifiers(
+	chord: KeyboardShortcutChord,
+	platform: KeyboardShortcutPlatform,
+): Pick<KeyboardShortcutEvent, 'altKey' | 'ctrlKey' | 'metaKey' | 'shiftKey'> {
+	const normalized = canonicalChord(chord, platform);
+	if (normalized === null) throw new TypeError('Invalid keyboard shortcut chord.');
+	return effectiveModifierFlags(normalized, platform);
 }
 
 /**
@@ -336,7 +348,20 @@ function requiresModifier(code: string, rule: KeyboardShortcutChordRule): boolea
 }
 
 function isAdmittedCode(code: string, rule: KeyboardShortcutChordRule): boolean {
+	if (code === 'Tab') return rule === 'region' || rule === 'widget';
 	return isSupportedCode(code) || (rule === 'widget' && code === 'Escape');
+}
+
+/** Whether the modifiers are the Control key, with Shift or without; Command and Super never are. */
+function holdsControlOnly(
+	modifiers: readonly KeyboardShortcutModifier[],
+	platform: KeyboardShortcutPlatform,
+): boolean {
+	const control = platform === 'apple' ? 'control' : 'mod';
+	return (
+		modifiers.includes(control) &&
+		modifiers.every((modifier) => modifier === control || modifier === 'shift')
+	);
 }
 
 function isSupportedCode(code: string): boolean {

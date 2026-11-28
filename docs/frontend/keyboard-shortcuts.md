@@ -64,11 +64,13 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
   on window blur, or when a key arrives where no scope admits sequences. The status line announces
   waiting and a missed step in VS Code's wording.
 - A tree or list widget may bind unmodified or Shift-only keys, which apply while focus is on the
-  widget and not in a text field inside it. No binding takes Tab, and Escape only as a declared
-  default that recording never captures.
+  widget and not in a text field inside it. It takes Escape only as a declared default that
+  recording never captures.
 - A region that owns keys, such as a side bar, an overlay, an editor, or a picker, keeps the
   modifier rule but may bind a function key alone or with Shift. Focus outside the region leaves
   the key to its native owner, such as a terminal's shell.
+- Tab moves focus. A region or widget may declare Control+Tab and Control+Shift+Tab, with the
+  Control key on every platform, as VS Code's quick switch does; no other binding takes Tab.
 - A temporary surface that declares bindings, such as a picker, is the narrowest scope. Its keys win
   over every wider binding while focus is inside it, and every other key stays with the surface.
 - A binding exists only on the platforms its owner gives a default. Where the platforms place a key

@@ -6,6 +6,7 @@ export {
 	formatKeyboardShortcutSequence,
 	isKeyboardShortcutModifierCode,
 	keyboardShortcutChordKey,
+	keyboardShortcutChordModifiers,
 	keyboardShortcutSequenceKey,
 	matchesKeyboardShortcutChord,
 	normalizeKeyboardShortcutChord,

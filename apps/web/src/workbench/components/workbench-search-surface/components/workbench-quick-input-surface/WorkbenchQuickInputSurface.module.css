@@ -29,6 +29,19 @@
 	color: var(--ob-sys-color-icon-muted);
 }
 
+/* VS Code's quick navigate shows no field; the field still takes the keys for the list. */
+.inputRegion[data-hidden] {
+	position: absolute;
+	width: var(--ob-ref-border-width-default);
+	height: var(--ob-ref-border-width-default);
+	min-height: var(--ob-ref-space-0);
+	padding: var(--ob-ref-space-0);
+	overflow: hidden;
+	border: none;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
 .input {
 	min-width: var(--ob-ref-space-0);
 	flex: 1;

@@ -10,7 +10,6 @@ import {
 import type {
 	WorkbenchQuickInputSession,
 	WorkbenchQuickInputSessions,
-	WorkbenchQuickPickRow,
 } from '../../model/WorkbenchQuickInputSessions';
 import { useWorkbenchQuickInputFocusReturn } from './hooks/useWorkbenchQuickInputFocusReturn';
 import styles from './WorkbenchQuickInputSurface.module.css';
@@ -53,12 +52,9 @@ function QuickInputSession({
 	const scopeReference = React.useRef<HTMLDivElement>(null);
 	useWorkbenchKeyboardScope(scopeReference, QUICK_INPUT_SCOPE);
 	const listId = React.useId();
-	const [filter, setFilter] = React.useState('');
-	const [activeIndex, setActiveIndex] = React.useState(0);
-	const shown =
-		session.kind === 'pick' ? shownRows(session.rows, filter, session.matchOnDescription) : [];
-	const choices = shown.flatMap((row) => (row.kind === 'item' ? [row] : []));
-	const active = choices[Math.min(activeIndex, choices.length - 1)];
+	const shown = session.kind === 'pick' ? session.rows : [];
+	const activeId = session.kind === 'pick' ? session.activeId : null;
+	const hasChoices = shown.some((row) => row.kind === 'item');
 	const label = session.frame.title ?? intl.formatMessage(workbenchMessages.quickInputLabel);
 	const prompt = session.kind === 'input' ? session.prompt : undefined;
 	const step = session.frame.step;
@@ -69,12 +65,8 @@ function QuickInputSession({
 		if (!open && !(session.kind === 'input' && session.ignoreFocusOut)) sessions.cancel(session.id);
 	});
 	const onChange = useMemoizedFn((event: React.ChangeEvent<HTMLInputElement>): void => {
-		if (session.kind === 'input') {
-			sessions.changeValue(session.id, event.currentTarget.value);
-			return;
-		}
-		setFilter(event.currentTarget.value);
-		setActiveIndex(0);
+		if (session.kind === 'input') sessions.changeValue(session.id, event.currentTarget.value);
+		else sessions.changeFilter(session.id, event.currentTarget.value);
 	});
 	const onKeyDown = useMemoizedFn((event: React.KeyboardEvent<HTMLInputElement>): void => {
 		switch (event.key) {
@@ -83,20 +75,25 @@ function QuickInputSession({
 				break;
 			case 'Enter':
 				if (event.nativeEvent.isComposing) return;
-				sessions.accept(session.id, active?.id);
+				sessions.accept(session.id);
 				break;
 			case 'ArrowDown':
-			case 'ArrowUp': {
-				if (choices.length === 0) return;
-				const offset = event.key === 'ArrowDown' ? 1 : choices.length - 1;
-				setActiveIndex((Math.min(activeIndex, choices.length - 1) + offset) % choices.length);
+			case 'ArrowUp':
+				if (session.kind !== 'pick') return;
+				sessions.moveActive(session.id, event.key === 'ArrowDown' ? 'next' : 'previous');
 				break;
-			}
 			default:
 				return;
 		}
 		event.preventDefault();
 	});
+	// Letting go of the keys that opened a pick in quick navigate accepts its active item.
+	const onKeyUp = useMemoizedFn((event: React.KeyboardEvent<HTMLInputElement>): void => {
+		if (session.kind !== 'pick') return;
+		const { altKey, ctrlKey, key, metaKey } = event;
+		sessions.keyUp(session.id, { altKey, ctrlKey, key, metaKey });
+	});
+	const inputHidden = session.kind === 'pick' && session.inputHidden;
 
 	return (
 		<Dialog onOpenChange={onOpenChange} open>
@@ -109,10 +106,10 @@ function QuickInputSession({
 				showCloseButton={false}
 			>
 				<div className={styles['scope']} ref={scopeReference}>
-					<div className={styles['inputRegion']}>
+					<div className={styles['inputRegion']} data-hidden={inputHidden ? '' : undefined}>
 						<ProductIcon name='search' />
 						<input
-							aria-activedescendant={active === undefined ? undefined : `${listId}-${active.id}`}
+							aria-activedescendant={activeId === null ? undefined : `${listId}-${activeId}`}
 							aria-controls={session.kind === 'pick' ? listId : undefined}
 							aria-expanded={session.kind === 'pick' ? true : undefined}
 							aria-invalid={validation?.severity === 'error' || undefined}
@@ -121,12 +118,14 @@ function QuickInputSession({
 							autoFocus
 							className={styles['input']}
 							placeholder={session.frame.placeholder}
+							readOnly={inputHidden}
 							role={session.kind === 'pick' ? 'combobox' : undefined}
 							spellCheck={false}
 							type={session.kind === 'input' && session.password ? 'password' : 'text'}
-							value={session.kind === 'input' ? session.value : filter}
+							value={session.kind === 'input' ? session.value : session.filter}
 							onChange={onChange}
 							onKeyDown={onKeyDown}
+							onKeyUp={onKeyUp}
 						/>
 					</div>
 					{prompt === undefined && step === undefined && !busy ? null : (
@@ -149,7 +148,7 @@ function QuickInputSession({
 					)}
 					{session.kind === 'pick' ? (
 						<div aria-label={label} className={styles['results']} id={listId} role='listbox'>
-							{choices.length === 0 ? (
+							{!hasChoices ? (
 								<div className={styles['empty']}>
 									{intl.formatMessage(workbenchMessages.quickInputNoMatches)}
 								</div>
@@ -165,9 +164,9 @@ function QuickInputSession({
 										</div>
 									) : (
 										<div
-											aria-selected={row.id === active?.id}
+											aria-selected={row.id === activeId}
 											className={styles['row']}
-											data-highlighted={row.id === active?.id}
+											data-highlighted={row.id === activeId}
 											id={`${listId}-${row.id}`}
 											key={row.id}
 											role='option'
@@ -197,25 +196,5 @@ function QuickInputSession({
 				</div>
 			</DialogContent>
 		</Dialog>
-	);
-}
-
-/**
- * The rows a filter keeps: items whose label, or description when the pick matches on it, holds the
- * text typed, and separators only while nothing is typed.
- */
-function shownRows(
-	rows: readonly WorkbenchQuickPickRow[],
-	filter: string,
-	matchOnDescription: boolean,
-): readonly WorkbenchQuickPickRow[] {
-	const needle = filter.trim().toLocaleLowerCase();
-	if (needle === '') return rows;
-	const matches = (text: string | undefined): boolean =>
-		text !== undefined && text.toLocaleLowerCase().includes(needle);
-	return rows.filter(
-		(row) =>
-			row.kind === 'item' &&
-			(matches(row.label) || (matchOnDescription && matches(row.description))),
 	);
 }

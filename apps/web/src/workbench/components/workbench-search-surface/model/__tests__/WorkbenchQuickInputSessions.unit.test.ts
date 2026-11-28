@@ -19,6 +19,18 @@ interface PendingCheck {
 	readonly signal: AbortSignal;
 }
 
+const CONTROL = Object.freeze({ altKey: false, ctrlKey: true, metaKey: false, shiftKey: false });
+const CONTROL_SHIFT = Object.freeze({ ...CONTROL, shiftKey: true });
+
+function released(key: string, held: { readonly ctrlKey?: boolean } = {}) {
+	return { altKey: false, ctrlKey: held.ctrlKey === true, key, metaKey: false };
+}
+
+function activeId(sessions: WorkbenchQuickInputSessions): string | null | undefined {
+	const session = sessions.getSnapshot();
+	return session?.kind === 'pick' ? session.activeId : undefined;
+}
+
 function currentId(sessions: WorkbenchQuickInputSessions): number {
 	const session = sessions.getSnapshot();
 	if (session === null) throw new Error('No session is current.');
@@ -98,6 +110,72 @@ describe('WorkbenchQuickInputSessions', () => {
 		expect(closedCheck?.aborted).toBe(true);
 		await expect(prompt).resolves.toEqual({ kind: 'cancelled' });
 		expect(sessions.getSnapshot()).toBeNull();
+	});
+
+	it('starts a pick on the item it names, on none without that item, and moves round', () => {
+		const sessions = new WorkbenchQuickInputSessions();
+		for (const [activation, entries, expected] of [
+			['first', ITEMS, 'lf'],
+			['second', ITEMS, 'crlf'],
+			['last', ITEMS, 'crlf'],
+			['second', ITEMS.slice(0, 1), null],
+		] as const) {
+			void sessions.pick({ activation, entries });
+			expect(activeId(sessions)).toBe(expected);
+		}
+		const id = currentId(sessions);
+		sessions.moveActive(id, 'previous');
+		expect(activeId(sessions)).toBe('lf');
+
+		void sessions.pick({ entries: ITEMS });
+		expect(sessions.navigate('previous', [])).toBe(true);
+		expect(activeId(sessions)).toBe('crlf');
+		expect(sessions.navigate('next', [])).toBe(true);
+		expect(activeId(sessions)).toBe('lf');
+		sessions.changeFilter(currentId(sessions), 'cr');
+		expect(activeId(sessions)).toBe('crlf');
+		sessions.close();
+		expect(sessions.navigate('next', [])).toBe(false);
+	});
+
+	it('accepts the active item once a modifier key that opened a quick navigate is let go', async () => {
+		const sessions = new WorkbenchQuickInputSessions();
+		const switched = sessions.pick({
+			activation: 'second',
+			entries: ITEMS,
+			hideInput: true,
+			quickNavigate: [CONTROL],
+		});
+		const id = currentId(sessions);
+		expect(sessions.getSnapshot()).toMatchObject({ activeId: 'crlf', inputHidden: true });
+		sessions.navigate('previous', [CONTROL_SHIFT]);
+		// Shift let go while Control is held goes on moving, as VS Code's quick navigate does.
+		sessions.keyUp(id, released('Shift', { ctrlKey: true }));
+		sessions.keyUp(id, released('Tab', { ctrlKey: true }));
+		expect(activeId(sessions)).toBe('lf');
+		sessions.keyUp(id, released('Control'));
+		await expect(switched).resolves.toEqual({ kind: 'accepted', value: '\n' });
+
+		// Without an active item the pick stays open, and quick navigate has ended.
+		const lone = sessions.pick({
+			activation: 'second',
+			entries: ITEMS.slice(0, 1),
+			hideInput: true,
+			quickNavigate: [CONTROL],
+		});
+		const loneId = currentId(sessions);
+		sessions.keyUp(loneId, released('Control'));
+		sessions.moveActive(loneId, 'next');
+		sessions.keyUp(loneId, released('Control'));
+		expect(sessions.getSnapshot()).toMatchObject({ activeId: 'lf', id: loneId });
+
+		// A pick opened without held keys ignores them.
+		const searched = sessions.pick({ entries: ITEMS });
+		await expect(lone).resolves.toEqual({ kind: 'cancelled' });
+		sessions.keyUp(currentId(sessions), released('Control'));
+		expect(activeId(sessions)).toBe('lf');
+		sessions.close();
+		await expect(searched).resolves.toEqual({ kind: 'cancelled' });
 	});
 
 	it('settles every request but the current one, whatever the order of events', async () => {

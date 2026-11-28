@@ -30,6 +30,10 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileOverlayMessages.keepEditor);
 		case 'last-editor':
 			return intl.formatMessage(fileOverlayMessages.lastEditor);
+		case 'navigate-next-in-quick-open':
+			return intl.formatMessage(fileOverlayMessages.navigateNextInQuickOpen);
+		case 'navigate-previous-in-quick-open':
+			return intl.formatMessage(fileOverlayMessages.navigatePreviousInQuickOpen);
 		case 'next-editor':
 			return intl.formatMessage(fileOverlayMessages.nextEditor);
 		case 'pin-editor':
@@ -40,6 +44,10 @@ export function formatKeyboardShortcutActionName(
 			});
 		case 'previous-editor':
 			return intl.formatMessage(fileOverlayMessages.previousEditor);
+		case 'quick-open-least-recently-used-editor':
+			return intl.formatMessage(fileOverlayMessages.quickOpenLeastRecentlyUsedEditor);
+		case 'quick-open-previous-recently-used-editor':
+			return intl.formatMessage(fileOverlayMessages.quickOpenPreviousRecentlyUsedEditor);
 		case 'reopen-closed-editor':
 			return intl.formatMessage(fileOverlayMessages.reopenClosedEditor);
 		case 'unpin-editor':

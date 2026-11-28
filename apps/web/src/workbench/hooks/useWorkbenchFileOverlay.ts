@@ -7,6 +7,7 @@ import {
 } from '@orchbee/actions';
 import { useMemoizedFn } from '@orchbee/foundation/react';
 import { fileOverlayMessages, useOrchbeeIntl, type MessageDescriptor } from '@orchbee/i18n';
+import { keyboardShortcutChordModifiers } from '@orchbee/keyboard-shortcuts';
 import * as React from 'react';
 
 import {
@@ -26,14 +27,22 @@ import {
 } from '../../file-overlay';
 import type { PointerDropTarget } from '../../pointer-drag';
 import type { WorkbenchWorkspace } from '../../project-workspace';
-import { registerWorkbenchFileOverlayActions } from '../actions/registerWorkbenchFileOverlayActions';
+import {
+	registerWorkbenchFileOverlayActions,
+	type FileTabPickOptions,
+	type FileTabPicker,
+} from '../actions/registerWorkbenchFileOverlayActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
 import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-platform';
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
-import type { WorkbenchQuickInputSessions } from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
+import type {
+	WorkbenchQuickInputSessions,
+	WorkbenchQuickNavigateKeys,
+} from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
 import type { WorkbenchTerminalPathDrops } from '../model/WorkbenchTerminalPathDrops';
 import { buildFileOverlayTitleActions, buildFileTabMenuEntries } from '../utils/file-overlay-menus';
+import type { WorkbenchScopedShortcutBinding } from '../utils/workbench-shortcuts';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
 type FileOverlayLoad =
@@ -55,11 +64,13 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly notifications: Pick<WorkbenchNotificationQueue, 'notify'>;
 	/** Whether this window offers the File Bar; without the offer no overlay exists or listens. */
 	readonly offered: boolean;
-	/** The quick input, where Show Editors By Most Recently Used lists the tabs. */
-	readonly quickInputSessions: Pick<WorkbenchQuickInputSessions, 'pick'>;
+	/** The quick input, where the tab picker lists the tabs. */
+	readonly quickInputSessions: Pick<WorkbenchQuickInputSessions, 'navigate' | 'pick'>;
 	readonly reportActionOutcome: WorkbenchAuthorityNoticeView['reportActionOutcome'];
 	/** The Workbench root, which places the overlay. */
 	readonly rootReference: React.RefObject<HTMLElement | null>;
+	/** The File Bar family's keys now, whose modifier keys the tab picker's quick navigate waits on. */
+	readonly scopedShortcutBindings: readonly WorkbenchScopedShortcutBinding[] | undefined;
 	/** The keys that run an Action now, for the overlay's tooltips. */
 	readonly shortcutLabelForAction: (actionId: string) => string | undefined;
 	/** The platform whose pointer and key conventions the overlay follows. */
@@ -128,6 +139,7 @@ export function useWorkbenchFileOverlay({
 	quickInputSessions,
 	reportActionOutcome,
 	rootReference,
+	scopedShortcutBindings,
 	shortcutLabelForAction,
 	shortcutPlatform,
 	sidebarDocked,
@@ -242,8 +254,10 @@ export function useWorkbenchFileOverlay({
 		}),
 		[invokeTabAction, invokeToggleFull, tabMenu, titleActions],
 	);
+	// How many tab picks wait on the quick input; while one does, its current session is the picker.
+	const tabPicks = React.useRef(0);
 	// VS Code's editor picker: each tab by its file's name, icon and folder, the preview tab in italics.
-	const pickTab = useMemoizedFn(async (signal: AbortSignal): Promise<string | null> => {
+	const pickTab = useMemoizedFn(async (options: FileTabPickOptions): Promise<string | null> => {
 		if (store === null) return null;
 		const { tabs } = store.state.getState();
 		const entries = tabs.recent.flatMap((id) => {
@@ -263,14 +277,36 @@ export function useWorkbenchFileOverlay({
 				} as const,
 			];
 		});
-		const outcome = await quickInputSessions.pick({
-			entries,
-			matchOnDescription: true,
-			placeholder: intl.formatMessage(fileOverlayMessages.tabPickPlaceholder),
-			signal,
-		});
-		return outcome.kind === 'accepted' ? outcome.value : null;
+		tabPicks.current += 1;
+		try {
+			const outcome = await quickInputSessions.pick({
+				...options,
+				entries,
+				matchOnDescription: true,
+				placeholder: intl.formatMessage(fileOverlayMessages.tabPickPlaceholder),
+			});
+			return outcome.kind === 'accepted' ? outcome.value : null;
+		} finally {
+			tabPicks.current -= 1;
+		}
 	});
+	const tabPicker = React.useMemo<FileTabPicker>(
+		() => ({
+			navigate: (direction, quickNavigate) => quickInputSessions.navigate(direction, quickNavigate),
+			pick: pickTab,
+			showing: () => tabPicks.current > 0,
+		}),
+		[pickTab, quickInputSessions],
+	);
+	// VS Code's quick navigate waits on the modifier keys of every one-chord binding of its Action.
+	const quickNavigateKeys = useMemoizedFn(
+		(actionId: string): readonly WorkbenchQuickNavigateKeys[] =>
+			(scopedShortcutBindings ?? []).flatMap(({ definition, sequence }) =>
+				definition.actionId === actionId && sequence.length === 1
+					? [keyboardShortcutChordModifiers(sequence[0], shortcutPlatform)]
+					: [],
+			),
+	);
 	const focusOverlay = useMemoizedFn(() => overlayReference.current?.focus());
 	React.useEffect(() => {
 		registry?.showTerminal(
@@ -289,15 +325,25 @@ export function useWorkbenchFileOverlay({
 			dispatch,
 			focusOverlay,
 			getState: () => store.state.getState(),
-			pickTab,
+			quickNavigateKeys,
 			scope: actionScope,
+			tabPicker,
 			typedRuntime,
 			workspaceId,
 		});
 		return () => {
 			for (const registration of registrations) registration.dispose();
 		};
-	}, [actionScope, dispatch, focusOverlay, pickTab, store, typedRuntime, workspaceId]);
+	}, [
+		actionScope,
+		dispatch,
+		focusOverlay,
+		quickNavigateKeys,
+		store,
+		tabPicker,
+		typedRuntime,
+		workspaceId,
+	]);
 	// A failed load says so on a card, and tries again from its button or the next time an overlay
 	// shows.
 	if (!shown && load.kind === 'failed') setLoad(IDLE_LOAD);

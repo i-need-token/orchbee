@@ -264,6 +264,7 @@ export function Workbench({
 		quickInputSessions,
 		reportActionOutcome: view.reportActionOutcome,
 		rootReference: view.shortcutScopeReference,
+		scopedShortcutBindings: effectiveScopedShortcutBindings,
 		shortcutLabelForAction,
 		shortcutPlatform,
 		sidebarDocked: view.sidebarPresentation === 'docked',

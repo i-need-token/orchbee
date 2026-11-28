@@ -26,8 +26,13 @@ function createHarness(paths: readonly string[]) {
 		},
 		focusOverlay: () => undefined,
 		getState: () => store.state.getState(),
-		pickTab: () => Promise.resolve(null),
+		quickNavigateKeys: () => [],
 		scope,
+		tabPicker: {
+			navigate: () => false,
+			pick: () => Promise.resolve(null),
+			showing: () => false,
+		},
 		typedRuntime: createTypedActionRuntime<WorkbenchActionCatalog>(runtime),
 		workspaceId: WORKSPACE_ID,
 	});

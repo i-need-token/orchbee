@@ -55,6 +55,14 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.actions.moreActions',
 		'Label of the button near the end of the file overlay’s tab row that opens a menu of more actions for its file tabs.',
 	),
+	navigateNextInQuickOpen: message(
+		'fileOverlay.actions.navigateNextInQuickOpen',
+		'Action that, while the list of the file overlay’s tabs shows, highlights the next tab in the list, the first after the last; letting go of the keys that ran it shows that tab. VS Code calls such a list Quick Open.',
+	),
+	navigatePreviousInQuickOpen: message(
+		'fileOverlay.actions.navigatePreviousInQuickOpen',
+		'Action that, while the list of the file overlay’s tabs shows, highlights the tab before in the list, the last before the first; letting go of the keys that ran it shows that tab. VS Code calls such a list Quick Open.',
+	),
 	nextEditor: message(
 		'fileOverlay.actions.nextEditor',
 		'Action that shows the file of the tab after the active one in the file overlay’s tab row, the first after the last. VS Code calls a file open in a tab an editor.',
@@ -86,6 +94,14 @@ export const fileOverlayMessages = defineMessages({
 	previousEditor: message(
 		'fileOverlay.actions.previousEditor',
 		'Action that shows the file of the tab before the active one in the file overlay’s tab row, the last before the first. VS Code calls a file open in a tab an editor.',
+	),
+	quickOpenLeastRecentlyUsedEditor: message(
+		'fileOverlay.actions.quickOpenLeastRecentlyUsedEditor',
+		'Action that lists the file overlay’s file tabs, the most recently shown first, with the least recently shown one highlighted; letting go of the keys that ran it shows the highlighted tab. VS Code calls a file open in a tab an editor.',
+	),
+	quickOpenPreviousRecentlyUsedEditor: message(
+		'fileOverlay.actions.quickOpenPreviousRecentlyUsedEditor',
+		'Action that lists the file overlay’s file tabs, the most recently shown first, with the one shown before the active tab highlighted; letting go of the keys that ran it shows the highlighted tab. VS Code calls a file open in a tab an editor.',
 	),
 	reopenClosedEditor: message(
 		'fileOverlay.actions.reopenClosedEditor',

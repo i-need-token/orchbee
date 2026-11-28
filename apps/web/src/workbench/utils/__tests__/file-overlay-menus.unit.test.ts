@@ -109,8 +109,13 @@ function createHarness() {
 		},
 		focusOverlay: () => undefined,
 		getState: () => store.state.getState(),
-		pickTab: () => Promise.resolve(null),
+		quickNavigateKeys: () => [],
 		scope,
+		tabPicker: {
+			navigate: () => false,
+			pick: () => Promise.resolve(null),
+			showing: () => false,
+		},
 		typedRuntime,
 		workspaceId: WORKSPACE_ID,
 	});

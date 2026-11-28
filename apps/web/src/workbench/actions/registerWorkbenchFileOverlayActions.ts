@@ -3,6 +3,7 @@ import {
 	noActionInput,
 	type ActionAvailability,
 	type ActionDisposable,
+	type ActionExecutionContext,
 	type ActionMessageDescriptor,
 	type ActionResult,
 	type ActionScope,
@@ -11,6 +12,7 @@ import {
 import { fileOverlayMessages, workbenchMessages } from '@orchbee/i18n';
 
 import type { FileOverlayEvent, FileOverlayState } from '../../file-overlay';
+import type { WorkbenchQuickNavigateKeys } from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
 import {
 	WORKBENCH_ACTION_IDS,
 	workbenchFileOverlayTabInput,
@@ -20,6 +22,36 @@ import {
 	type WorkbenchFileOverlayTabInput,
 } from './workbench-action-ids';
 
+/** How the tab picker opens: the item active first, and whether held keys keep it open. */
+export interface FileTabPickOptions {
+	readonly activation: 'first' | 'last' | 'second';
+	/** Shows no field, as VS Code's quick navigate does when held keys open the picker. */
+	readonly hideInput: boolean;
+	/** The chords that opened the picker; letting go of one of their modifier keys picks. */
+	readonly quickNavigate: readonly WorkbenchQuickNavigateKeys[];
+	/** Ends the pick as cancelled once it aborts. */
+	readonly signal: AbortSignal;
+}
+
+/** VS Code's editor picker for the shown overlay: its tabs in the quick input. */
+export interface FileTabPicker {
+	/**
+	 * Moves the picker's active item to the next or the previous tab, going round, and arms quick
+	 * navigate with the chords given. Answers whether the picker was open.
+	 */
+	readonly navigate: (
+		direction: 'next' | 'previous',
+		quickNavigate: readonly WorkbenchQuickNavigateKeys[],
+	) => boolean;
+	/**
+	 * Lists the tabs, the most recently active first, for the person to pick one; answers its id, or
+	 * null once the pick is cancelled or the signal aborts.
+	 */
+	readonly pick: (options: FileTabPickOptions) => Promise<string | null>;
+	/** Whether the picker shows now. */
+	readonly showing: () => boolean;
+}
+
 interface RegisterWorkbenchFileOverlayActionsOptions {
 	/** Applies an event to the shown Workspace's overlay and carries out what it asks of the Workbench. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
@@ -27,12 +59,10 @@ interface RegisterWorkbenchFileOverlayActionsOptions {
 	readonly focusOverlay: () => void;
 	/** The shown Workspace's overlay now, read whenever an Action asks. */
 	readonly getState: () => FileOverlayState;
-	/**
-	 * Lists the tabs, the most recently active first, for the person to pick one; answers its id, or
-	 * null once the pick is cancelled or the signal aborts.
-	 */
-	readonly pickTab: (signal: AbortSignal) => Promise<string | null>;
+	/** The modifier keys of each chord bound to an Action now, which quick navigate waits on. */
+	readonly quickNavigateKeys: (actionId: string) => readonly WorkbenchQuickNavigateKeys[];
 	readonly scope: ActionScope;
+	readonly tabPicker: FileTabPicker;
 	readonly typedRuntime: TypedActionRuntime<WorkbenchActionCatalog>;
 	/** The Workspace whose overlay shows; a tab named in another one is not offered. */
 	readonly workspaceId: string;
@@ -97,6 +127,60 @@ const PICKED_FILE_TAB_ACTIONS: readonly PickedFileTabAction[] = [
 	},
 ];
 
+/** The Actions that list the tabs in the tab picker. */
+interface FileTabPickerAction {
+	readonly activation: FileTabPickOptions['activation'];
+	readonly id:
+		| typeof WORKBENCH_ACTION_IDS.quickOpenLeastRecentFileOverlayTab
+		| typeof WORKBENCH_ACTION_IDS.quickOpenPreviousFileOverlayTab
+		| typeof WORKBENCH_ACTION_IDS.showRecentFileOverlayTabs;
+	/** Whether the keys that run it hold the picker open until they are let go: quick navigate. */
+	readonly quickNavigate: boolean;
+	readonly title: ActionMessageDescriptor;
+}
+
+const FILE_TAB_PICKER_ACTIONS: readonly FileTabPickerAction[] = [
+	{
+		activation: 'first',
+		// VS Code parity: workbench.action.showEditorsInActiveGroup, and Show Opened Editors in the
+		// editor title's menu, workbench.action.showEditorsInGroup.
+		id: WORKBENCH_ACTION_IDS.showRecentFileOverlayTabs,
+		quickNavigate: false,
+		title: fileOverlayMessages.showEditorsByMostRecentlyUsed,
+	},
+	{
+		// The tab shown before the active one; VS Code's quick navigate starts on the second item.
+		activation: 'second',
+		// VS Code parity: workbench.action.quickOpenPreviousRecentlyUsedEditorInGroup.
+		id: WORKBENCH_ACTION_IDS.quickOpenPreviousFileOverlayTab,
+		quickNavigate: true,
+		title: fileOverlayMessages.quickOpenPreviousRecentlyUsedEditor,
+	},
+	{
+		activation: 'last',
+		// VS Code parity: workbench.action.quickOpenLeastRecentlyUsedEditorInGroup.
+		id: WORKBENCH_ACTION_IDS.quickOpenLeastRecentFileOverlayTab,
+		quickNavigate: true,
+		title: fileOverlayMessages.quickOpenLeastRecentlyUsedEditor,
+	},
+];
+
+/** The Actions that move through the tab picker while it shows. */
+const FILE_TAB_PICKER_NAVIGATIONS = [
+	{
+		direction: 'next',
+		// VS Code parity: workbench.action.quickOpenNavigateNextInEditorPicker.
+		id: WORKBENCH_ACTION_IDS.navigateNextInFileTabPicker,
+		title: fileOverlayMessages.navigateNextInQuickOpen,
+	},
+	{
+		direction: 'previous',
+		// VS Code parity: workbench.action.quickOpenNavigatePreviousInEditorPicker.
+		id: WORKBENCH_ACTION_IDS.navigatePreviousInFileTabPicker,
+		title: fileOverlayMessages.navigatePreviousInQuickOpen,
+	},
+] as const;
+
 const VIEW_CATEGORY = {
 	id: 'view',
 	title: workbenchMessages.actionCategoryView,
@@ -120,8 +204,9 @@ export function registerWorkbenchFileOverlayActions({
 	dispatch,
 	focusOverlay,
 	getState,
-	pickTab,
+	quickNavigateKeys,
 	scope,
+	tabPicker,
 	typedRuntime,
 	workspaceId,
 }: RegisterWorkbenchFileOverlayActionsOptions): readonly ActionDisposable[] {
@@ -162,6 +247,31 @@ export function registerWorkbenchFileOverlayActions({
 		concurrencyKey: () => `${workspaceId}:selection`,
 		mode: 'foreground',
 	} as const;
+	/** Lets the person pick a tab and shows it. */
+	const pickTab = async (
+		context: ActionExecutionContext,
+		start: Omit<FileTabPickOptions, 'signal'>,
+	): Promise<ActionResult<void>> => {
+		if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
+		const picking = new AbortController();
+		const stop = (): void => picking.abort();
+		context.signal.addEventListener('abort', stop, { once: true });
+		registered.signal.addEventListener('abort', stop, { once: true });
+		let picked: string | null;
+		try {
+			picked = await tabPicker.pick({ ...start, signal: picking.signal });
+		} finally {
+			context.signal.removeEventListener('abort', stop);
+			registered.signal.removeEventListener('abort', stop);
+		}
+		if (picked === null || picking.signal.aborted) return { kind: 'cancelled' };
+		if (!getState().tabs.tabs.some((tab) => tab.id === picked)) return SCOPE_CHANGED;
+		context.markCommitted();
+		const result = apply({ id: picked, type: 'tab-activated' });
+		// VS Code's picker opens the editor and focuses it.
+		focusOverlay();
+		return result;
+	};
 	return [
 		{ dispose: () => registered.abort() },
 		...PICKED_FILE_TAB_ACTIONS.map(({ id, minimum, pick, title }) =>
@@ -206,41 +316,55 @@ export function registerWorkbenchFileOverlayActions({
 				title: fileOverlayMessages.positionEditor,
 			}),
 		),
-		typedRuntime.register(
-			scope,
-			defineAction({
-				category: VIEW_CATEGORY,
-				execution: selectionExecution,
-				getAvailability: rowAvailability,
-				handler: {
-					execute: async (context) => {
-						if (getState().tabs.tabs.length === 0) return SCOPE_CHANGED;
-						const picking = new AbortController();
-						const stop = (): void => picking.abort();
-						context.signal.addEventListener('abort', stop, { once: true });
-						registered.signal.addEventListener('abort', stop, { once: true });
-						let picked: string | null;
-						try {
-							picked = await pickTab(picking.signal);
-						} finally {
-							context.signal.removeEventListener('abort', stop);
-							registered.signal.removeEventListener('abort', stop);
-						}
-						if (picked === null || picking.signal.aborted) return { kind: 'cancelled' };
-						if (!getState().tabs.tabs.some((tab) => tab.id === picked)) return SCOPE_CHANGED;
-						context.markCommitted();
-						const result = apply({ id: picked, type: 'tab-activated' });
-						// VS Code's picker opens the editor and focuses it.
-						focusOverlay();
-						return result;
+		...FILE_TAB_PICKER_ACTIONS.map(({ activation, id, quickNavigate, title }) =>
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: VIEW_CATEGORY,
+					execution: selectionExecution,
+					getAvailability: rowAvailability,
+					handler: {
+						// Held keys open the picker without its field and pick once let go. Run from
+						// elsewhere, such as Action search, it shows the field and no key is held.
+						execute: (context) => {
+							const held = quickNavigate && context.source === 'keyboard';
+							return pickTab(context, {
+								activation,
+								hideInput: held,
+								quickNavigate: held ? quickNavigateKeys(id) : [],
+							});
+						},
 					},
-				},
-				// VS Code parity: workbench.action.showEditorsInActiveGroup, and Show Opened Editors in the
-				// editor title's menu, workbench.action.showEditorsInGroup.
-				id: WORKBENCH_ACTION_IDS.showRecentFileOverlayTabs,
-				input: noActionInput,
-				title: fileOverlayMessages.showEditorsByMostRecentlyUsed,
-			}),
+					id,
+					input: noActionInput,
+					title,
+				}),
+			),
+		),
+		...FILE_TAB_PICKER_NAVIGATIONS.map(({ direction, id, title }) =>
+			typedRuntime.register(
+				scope,
+				defineAction({
+					category: VIEW_CATEGORY,
+					execution: {
+						concurrency: 'parallel',
+						concurrencyKey: () => `${workspaceId}:picker`,
+						mode: 'foreground',
+					},
+					// Offered only while the picker shows, so that Action search never lists them.
+					getAvailability: () => (tabPicker.showing() ? ENABLED : HIDDEN),
+					handler: {
+						execute: (context) => {
+							if (!tabPicker.navigate(direction, quickNavigateKeys(id))) return SCOPE_CHANGED;
+							context.markCommitted();
+							return { kind: 'completed' };
+						},
+					},
+					id,
+					input: noActionInput,
+					title,
+				}),
+			),
 		),
 		typedRuntime.register(
 			scope,

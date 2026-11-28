@@ -102,7 +102,11 @@ export const WORKBENCH_ACTION_IDS = {
 	closeOtherFileOverlayTabs: 'file-overlay.tab.close-others',
 	closeSavedFileOverlayTabs: 'file-overlay.tab.close-saved',
 	keepFileOverlayTab: 'file-overlay.tab.keep',
+	navigateNextInFileTabPicker: 'file-overlay.tab-picker.navigate-next',
+	navigatePreviousInFileTabPicker: 'file-overlay.tab-picker.navigate-previous',
 	pinFileOverlayTab: 'file-overlay.tab.pin',
+	quickOpenLeastRecentFileOverlayTab: 'file-overlay.tab.quick-open-least-recent',
+	quickOpenPreviousFileOverlayTab: 'file-overlay.tab.quick-open-previous',
 	reopenFileOverlayTab: 'file-overlay.tab.reopen',
 	selectFileOverlayTab: 'file-overlay.tab.select',
 	selectFileOverlayTabByPosition: 'file-overlay.tab.select-by-position',
@@ -386,7 +390,11 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.closeOtherFileOverlayTabs]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.closeSavedFileOverlayTabs]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.keepFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.navigateNextInFileTabPicker]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.navigatePreviousInFileTabPicker]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.pinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.quickOpenLeastRecentFileOverlayTab]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.quickOpenPreviousFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.reopenFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabTargetInput>;
 	readonly [WORKBENCH_ACTION_IDS.selectFileOverlayTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;

@@ -176,7 +176,7 @@ describe('keyboard shortcut chords', () => {
 });
 
 describe('keyboard shortcut rules and sequences', () => {
-	it('admits unmodified keys only where a rule allows them and never Tab', () => {
+	it('admits unmodified keys only where a rule allows them, and Tab only with Control', () => {
 		const f2 = { code: 'F2', modifiers: [] };
 		expect(normalizeKeyboardShortcutChord(f2, 'standard')).toBeNull();
 		expect(normalizeKeyboardShortcutChord(f2, 'standard', 'widget')).toEqual(f2);
@@ -197,6 +197,32 @@ describe('keyboard shortcut rules and sequences', () => {
 				normalizeKeyboardShortcutChord({ code: 'Tab', modifiers: [] }, 'apple', rule),
 			).toBeNull();
 		}
+		// A quick switch holds Control on every platform; Command, Option, Super and Shift alone move
+		// focus or belong to the system, and a recorder never takes Tab.
+		const quickSwitch = { code: 'Tab', modifiers: ['control', 'shift'] };
+		expect(normalizeKeyboardShortcutChord(quickSwitch, 'apple', 'region')).toEqual(quickSwitch);
+		expect(
+			normalizeKeyboardShortcutChord({ code: 'Tab', modifiers: ['control'] }, 'standard', 'widget'),
+		).toEqual({ code: 'Tab', modifiers: ['mod'] });
+		expect(normalizeKeyboardShortcutChord(quickSwitch, 'apple', 'window')).toBeNull();
+		expect(normalizeKeyboardShortcutChord(quickSwitch, 'apple', 'second-step')).toBeNull();
+		for (const modifiers of [['mod'], ['meta'], ['alt'], ['shift'], ['control', 'alt']]) {
+			expect(
+				normalizeKeyboardShortcutChord({ code: 'Tab', modifiers }, 'apple', 'region'),
+			).toBeNull();
+		}
+		for (const modifiers of [['meta'], ['alt'], ['shift'], ['control', 'alt']]) {
+			expect(
+				normalizeKeyboardShortcutChord({ code: 'Tab', modifiers }, 'standard', 'region'),
+			).toBeNull();
+		}
+		expect(
+			captureKeyboardShortcutChord(
+				shortcutEvent({ code: 'Tab', ctrlKey: true }),
+				'standard',
+				'region',
+			),
+		).toEqual({ kind: 'ignored', reason: 'unsupported-code' });
 		expect(
 			captureKeyboardShortcutChord(shortcutEvent({ code: 'F2' }), 'standard', 'widget'),
 		).toEqual({ chord: f2, kind: 'captured' });

@@ -500,8 +500,8 @@ export type WorkbenchScopedShortcutScope =
 /**
  * A shortcut of the File Bar family. Its keys follow the scope's rule: the window scope keeps a
  * modifier other than Shift; a region scope also takes a function key alone, such as F4; a widget
- * scope may bind any unmodified or Shift-only key. Every scope but `shell` and `quick-input` also
- * admits a `Mod+K` sequence. A shortcut without a default on a platform does not exist there. The
+ * scope may bind any unmodified or Shift-only key; a region or widget scope may take Tab with the
+ * Control key only. Every scope but `shell` and `quick-input` also admits a `Mod+K` sequence. A shortcut without a default on a platform does not exist there. The
  * Action resolves in the scope's Action scope.
  */
 export interface WorkbenchScopedShortcutDefinition {
@@ -699,6 +699,46 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		exclusiveWith: 'file-overlay.tab.pin',
 		scope: 'file-bar',
 		shortcutId: 'file-overlay.tab.unpin',
+	},
+	// VS Code's quick switch holds the Control key on a Mac as well: Quick Open Previous Recently
+	// Used Editor in Group, and Least Recently Used.
+	fileTabQuickOpenPrevious: {
+		actionId: WORKBENCH_ACTION_IDS.quickOpenPreviousFileOverlayTab,
+		defaults: {
+			apple: [chord('Tab', ['control'])],
+			standard: [chord('Tab', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.quick-open-previous',
+	},
+	fileTabQuickOpenLeastRecent: {
+		actionId: WORKBENCH_ACTION_IDS.quickOpenLeastRecentFileOverlayTab,
+		defaults: {
+			apple: [chord('Tab', ['control', 'shift'])],
+			standard: [chord('Tab', ['mod', 'shift'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.quick-open-least-recent',
+	},
+	// While the tab picker shows, VS Code's keys that move through it: Quick Open Navigate Next and
+	// Previous in Editor Picker.
+	fileTabPickerNavigateNext: {
+		actionId: WORKBENCH_ACTION_IDS.navigateNextInFileTabPicker,
+		defaults: {
+			apple: [chord('Tab', ['control'])],
+			standard: [chord('Tab', ['mod'])],
+		},
+		scope: 'quick-input',
+		shortcutId: 'file-overlay.tab-picker.navigate-next',
+	},
+	fileTabPickerNavigatePrevious: {
+		actionId: WORKBENCH_ACTION_IDS.navigatePreviousInFileTabPicker,
+		defaults: {
+			apple: [chord('Tab', ['control', 'shift'])],
+			standard: [chord('Tab', ['mod', 'shift'])],
+		},
+		scope: 'quick-input',
+		shortcutId: 'file-overlay.tab-picker.navigate-previous',
 	},
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 
