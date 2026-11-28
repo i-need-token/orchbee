@@ -1,7 +1,8 @@
 //! The identities File Bar traffic names: the Workspace a request acts in, a mutation's request,
-//! a credential prompt, a Client's transfer, the Server's call, Client connection and lane numbers
-//! on the private link, and the one-time token that admits a started `orchbee-files` process. Each
-//! is validated at construction; none grants authority by itself.
+//! a credential prompt, a delete's undo stash, a Client's transfer and its import, export and
+//! picker sessions, the Server's call, Client connection and lane numbers on the private link, and
+//! the one-time token that admits a started `orchbee-files` process. Each is validated at
+//! construction; none grants authority by itself.
 
 use std::{fmt, num::NonZeroU64};
 
@@ -92,6 +93,11 @@ wide_identity!(
     /// One credential, host-key or editor prompt an operation's Git child raised.
     PromptId
 );
+wide_identity!(
+    /// The undo stash a capturing `fs.delete` filled, which `orchbee-files` chooses and
+    /// `fs.restore` names.
+    StashId
+);
 
 macro_rules! link_number {
     ($(#[$meta:meta])* $name:ident) => {
@@ -136,21 +142,35 @@ link_number!(
     /// records spell it in canonical decimal; Put and Chunk records carry it as a u64.
     TransferId
 );
+link_number!(
+    /// One import, export or picker session, which its Client numbers uniquely in its connection
+    /// among the sessions of that kind, so it can send the session's next requests before the
+    /// first one answers. JSON records spell it in canonical decimal.
+    SessionId
+);
 
-impl Serialize for TransferId {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.collect_str(&self.get())
-    }
+/// Implements serialization in canonical decimal for a nonzero number that JSON records carry.
+macro_rules! decimal_serde {
+    ($name:ident) => {
+        impl Serialize for $name {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.collect_str(&self.get())
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $name {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let text = String::deserialize(deserializer)?;
+                parse_canonical_u64(&text)
+                    .and_then(Self::new)
+                    .ok_or_else(|| de::Error::custom("a nonzero canonical unsigned 64-bit decimal"))
+            }
+        }
+    };
 }
 
-impl<'de> Deserialize<'de> for TransferId {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        parse_canonical_u64(&text)
-            .and_then(Self::new)
-            .ok_or_else(|| de::Error::custom("a nonzero canonical unsigned 64-bit decimal"))
-    }
-}
+decimal_serde!(TransferId);
+decimal_serde!(SessionId);
 
 /// The 256-bit secret a Server hands one `orchbee-files` start, which the started process
 /// returns in its hello. Comparing two tokens takes the same time wherever they differ.

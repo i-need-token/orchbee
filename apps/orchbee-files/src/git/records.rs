@@ -14,12 +14,12 @@ use super::{
 };
 use crate::requests::Outcome;
 use orchbee_files_protocol::{
-    CleanItem, CommitName, Counter, ErrorCode, FilePath, FilesError, FilesNotice, FilesReply,
-    GitCheckIgnoreResult, GitCleanResult, GitCommitResult, GitInitResult, GitName, GitOutputResult,
-    GitRef, GitRefsResult, GitRemote, GitStatusPageResult, GitUserConfigResult, Head, InvalidValue,
-    List, MAXIMUM_REPLY_BYTES, MAXIMUM_SAFE_INTEGER, MutationState, PageCursor, RefUpstream,
-    RelaySnapshot, RelayUpdate, RequestOutcomeResult, SafeInteger, ScmRepository, StatusCode,
-    StatusCounts, StatusEntry, Text, Upstream,
+    CommitName, Counter, ErrorCode, FilePath, FilesError, FilesNotice, FilesReply,
+    GitCheckIgnoreResult, GitCommitResult, GitInitResult, GitName, GitOutputResult, GitRef,
+    GitRefsResult, GitRemote, GitStatusPageResult, GitUserConfigResult, Head, InvalidValue, List,
+    MAXIMUM_REPLY_BYTES, MAXIMUM_SAFE_INTEGER, MutationState, PageCursor, PathItem,
+    PathItemsResult, RefUpstream, RelaySnapshot, RelayUpdate, RequestOutcomeResult, SafeInteger,
+    ScmRepository, StatusCode, StatusCounts, StatusEntry, Text, Upstream,
 };
 use serde::Serialize;
 use std::{collections::HashSet, io};
@@ -270,13 +270,7 @@ pub(super) fn empty(result: Result<(), GitError>) -> FilesReply {
 
 /// How a mutation ended, as its Result record carries it.
 pub(super) fn done(ended: Ended) -> FilesReply {
-    match mutation(ended) {
-        orchbee_files_protocol::MutationReply::Error(reply) => FilesReply::Error(reply.error),
-        orchbee_files_protocol::MutationReply::GitClean(result) => FilesReply::GitClean(result),
-        orchbee_files_protocol::MutationReply::GitCommit(result) => FilesReply::GitCommit(result),
-        orchbee_files_protocol::MutationReply::GitInit(result) => FilesReply::GitInit(result),
-        orchbee_files_protocol::MutationReply::Empty(_) => FilesReply::Empty,
-    }
+    mutation(ended).into()
 }
 
 /// `request.outcome`.
@@ -326,7 +320,7 @@ fn mutation(ended: Ended) -> orchbee_files_protocol::MutationReply {
                         }
                         error.into_wire()
                     });
-                    Some(CleanItem {
+                    Some(PathItem {
                         path: FilePath::new(item.path).ok()?,
                         error,
                     })
@@ -335,7 +329,7 @@ fn mutation(ended: Ended) -> orchbee_files_protocol::MutationReply {
             items
                 .and_then(|items| List::new(items).ok())
                 .map_or_else(failed, |items| {
-                    MutationReply::GitClean(GitCleanResult { items })
+                    MutationReply::PathItems(PathItemsResult { items })
                 })
         }
         Done::Committed(commit) => CommitName::new(commit).map_or_else(

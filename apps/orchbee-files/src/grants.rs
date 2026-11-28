@@ -35,7 +35,7 @@ pub(crate) fn grant(
             FilesReply::Error(FilesError::new(ErrorCode::IsDirectory))
         }
         Ok(Ok(entry)) => match scopes.grant(view, path, || call.cancelled()) {
-            Some(Ok(())) => FilesReply::FsGrant(FsGrantResult { entry }),
+            Some(Ok(())) => FilesReply::FsGrant(FsGrantResult { entry: Some(entry) }),
             Some(Err(error)) => FilesReply::Error(error),
             // The Client gave the grant up or its connection ended; dropping the call closes it
             // as cancelled.

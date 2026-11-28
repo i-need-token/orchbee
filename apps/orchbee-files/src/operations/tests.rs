@@ -12,11 +12,12 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, ChangeKind, ConnectionId, EntryKind, ErrorCode, FilePath, FilesNotice,
-    FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsList, FsSnapshot, FsUpdate,
-    GitPath, GrantClass, GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List,
-    NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root, ScopeUpdate,
-    TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, decode_files_record,
-    decode_link_message, encode_files_record, encode_request, parse_notice, parse_reply,
+    FilesRecord, FilesReply, FilesRequest, FrameKind, FsGrant, FsGrantResult, FsList, FsSnapshot,
+    FsUpdate, GitPath, GrantClass, GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest,
+    LinkSide, List, NoticeKind, Operation, PathsRequest, Put, PutEnd, RecordPlace, RequestId, Root,
+    ScopeUpdate, TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope,
+    decode_files_record, decode_link_message, encode_files_record, encode_request, parse_notice,
+    parse_reply,
 };
 
 use super::Services;
@@ -325,15 +326,14 @@ fn grants_and_root_facts_follow_the_scope() {
     ))
     .unwrap();
     link.request(2, &grant(&inside, GrantSource::Tree));
-    let FilesReply::FsGrant(granted) = link.reply(2, Operation::FsGrant) else {
+    let FilesReply::FsGrant(FsGrantResult {
+        entry: Some(granted),
+    }) = link.reply(2, Operation::FsGrant)
+    else {
         panic!("expected the granted entry");
     };
     assert_eq!(
-        (
-            granted.entry.name.as_str(),
-            granted.entry.kind,
-            granted.entry.size.get()
-        ),
+        (granted.name.as_str(), granted.kind, granted.size.get()),
         ("inside.txt", EntryKind::File, 6)
     );
     let outside = fixture.file("outside.txt");

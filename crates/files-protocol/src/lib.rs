@@ -1,8 +1,8 @@
 //! The File Bar's wire contracts: OBFB, the records File Bar traffic carries inside the Client
-//! multiplex, with the strict JSON of every `files` operation, and OBFL, the private link between
-//! a Server and the `orchbee-files` process it admitted. Values are validated at decoding, so a
-//! decoded value is valid wherever the protocol carries it. Callers own transport, deadlines,
-//! admission and scope; decoding a value grants no authority.
+//! multiplex, with the strict JSON of every `files` and `files-edit` operation, and OBFL, the
+//! private link between a Server and the `orchbee-files` process it admitted. Values are validated
+//! at decoding, so a decoded value is valid wherever the protocol carries it. Callers own
+//! transport, deadlines, admission and scope; decoding a value grants no authority.
 
 mod identity;
 mod json;
@@ -14,8 +14,8 @@ mod request;
 mod value;
 
 pub use identity::{
-    CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId, TransferId,
-    WorkspaceId,
+    CallId, ConnectionId, InvalidIdentity, LaneId, LinkToken, PromptId, RequestId, SessionId,
+    StashId, TransferId, WorkspaceId,
 };
 pub use link::{
     BuildIdentity, CallClose, DrainReason, FrameKind, GrantClass, LINK_MAGIC, LINK_VERSION,
@@ -36,22 +36,30 @@ pub use record::{
     check_files_record, decode_files_record, encode_files_record, is_files_record,
 };
 pub use reply::{
-    CleanItem, Descendant, Empty, Entry, EntryKind, ErrorCode, ErrorReply, FilesError, FilesReply,
-    FsGrantResult, FsListResult, FsStatResult, GitCheckIgnoreResult, GitCleanResult,
-    GitCommitResult, GitInitResult, GitOutputResult, GitRef, GitRefsResult, GitRemote,
-    GitStatusPageResult, GitUserConfigResult, GuessEncodingResult, MutationReply, MutationState,
-    ReadResult, RefKind, RefUpstream, RequestOutcomeResult, StatItem, StatusCode, StatusEntry,
+    Descendant, Empty, Entry, EntryKind, ErrorCode, ErrorReply, ExportEntry, ExportFacts,
+    ExportKind, FilesError, FilesReply, FsDeleteResult, FsEntryResult, FsExistsResult,
+    FsExportEntriesResult, FsGrantResult, FsImportFileResult, FsImportResult, FsListResult,
+    FsStatResult, FsTransferResult, FsWriteResult, GitCheckIgnoreResult, GitCommitResult,
+    GitInitResult, GitOutputResult, GitRef, GitRefsResult, GitRemote, GitStatusPageResult,
+    GitUserConfigResult, GuessEncodingResult, ImportOutcome, MutationReply, MutationState,
+    PathItem, PathItemsResult, PickerListResult, PickerOpenResult, ReadResult, RefKind,
+    RefUpstream, RequestOutcomeResult, StatItem, StatusCode, StatusEntry, TransferItem,
     encode_reply, parse_reply,
 };
 pub use request::{
-    ChunkLength, CleanMode, ClientFocus, CommitAll, CommitMessage, FetchRemotes, FilesRequest,
-    FsGrant, FsList, FsRead, FsReadChunk, GitCheckIgnore, GitClean, GitCommit, GitFetch, GitOutput,
-    GitPath, GitPaths, GitPull, GitPush, GitRefs, GitShow, GitStageContent, GitStatusPage,
-    GrantSource, Operation, OperationStream, PathRequest, PathsRequest, PromptAnswer, PushForce,
-    ReadMode, RelayAnswer, RepositoryRequest, RequestError, RequestOutcome, ShowRef,
-    TransferRequest, WorkspaceRequest, encode_request, parse_request,
+    ChunkLength, CleanMode, ClientFocus, CommitAll, CommitMessage, Conflict, CreateKind,
+    DeleteMode, FetchRemotes, FilesCapability, FilesRequest, FsClipboard, FsCreate, FsDelete,
+    FsExists, FsExportBegin, FsExportEntries, FsGrant, FsImportBegin, FsImportEnd, FsImportFile,
+    FsImportItems, FsList, FsRead, FsReadChunk, FsRename, FsRestore, FsTransfer, FsWrite,
+    GitCheckIgnore, GitClean, GitCommit, GitFetch, GitOutput, GitPath, GitPaths, GitPull, GitPush,
+    GitRefs, GitShow, GitStageContent, GitStatusPage, GrantSource, ImportItem, ImportKind,
+    Operation, OperationStream, PathRequest, PathsRequest, PickerList, PickerRequest, PromptAnswer,
+    PushForce, ReadMode, ReadSource, RelayAnswer, RepositoryRequest, RequestError, RequestOutcome,
+    ShowRef, TransferRequest, WorkspaceRequest, WriteHistory, WritePrecondition, encode_request,
+    parse_request,
 };
 pub use value::{
-    CommitName, Counter, EncodingName, FilePath, GitName, Integer, InvalidValue, List,
-    MAXIMUM_PATH_BYTES, MAXIMUM_SAFE_INTEGER, PageCursor, SafeInteger, Signed, Text, Token,
+    CommitName, Counter, EncodingName, FileName, FilePath, GitName, Integer, InvalidValue, List,
+    MAXIMUM_PATH_BYTES, MAXIMUM_SAFE_INTEGER, PageCursor, RelativePath, SafeInteger, Sha256Digest,
+    Signed, Text, Token,
 };

@@ -5,6 +5,14 @@
 
 use serde::{Deserialize, Serialize};
 
+mod edit;
+
+pub use edit::{
+    ExportEntry, ExportFacts, ExportKind, FsDeleteResult, FsEntryResult, FsExistsResult,
+    FsExportEntriesResult, FsImportFileResult, FsImportResult, FsTransferResult, FsWriteResult,
+    ImportOutcome, PickerListResult, PickerOpenResult, TransferItem,
+};
+
 use crate::{
     json::read_object,
     request::Operation,
@@ -334,8 +342,13 @@ pub struct FsStatResult {
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct FsGrantResult {
-    /// The granted file's entry.
-    pub entry: Entry,
+    /// The granted file's entry; absent only for a Save As destination that does not exist yet.
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub entry: Option<Entry>,
 }
 
 /// `fs.read` and `git.show`: what the read found before its first chunk.
@@ -556,13 +569,13 @@ pub struct GitOutputResult {
     pub dropped: Counter,
 }
 
-/// One `git.clean` answer.
+/// One path's answer: the path as requested, and why the operation failed for it.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct CleanItem {
+pub struct PathItem {
     /// The path as requested.
     pub path: FilePath,
-    /// Why it was not removed.
+    /// Why the operation failed for it.
     #[serde(
         default,
         deserialize_with = "some",
@@ -571,12 +584,12 @@ pub struct CleanItem {
     pub error: Option<FilesError>,
 }
 
-/// `git.clean`.
+/// `git.clean` and `fs.restore`: one answer per path the request named, or the stash held.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
-pub struct GitCleanResult {
-    /// One answer per requested path, in request order.
-    pub items: List<CleanItem, 1, 256>,
+pub struct PathItemsResult {
+    /// The answers, in request order.
+    pub items: List<PathItem, 1, 256>,
 }
 
 /// `git.commit`.
@@ -595,20 +608,49 @@ pub struct GitInitResult {
     pub repository: FilePath,
 }
 
-/// A mutation's recorded reply, which `request.outcome` returns.
+/// A mutation's recorded reply, which `request.outcome` returns. Each variant is a shape of JSON,
+/// read in this order; the requester knows which operation it named.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(untagged)]
 pub enum MutationReply {
     /// The mutation failed.
     Error(ErrorReply),
-    /// `git.clean`.
-    GitClean(GitCleanResult),
+    /// `git.clean`, `fs.restore`, and an `fs.delete` that kept no stash.
+    PathItems(PathItemsResult),
+    /// An `fs.delete` that kept a stash.
+    FsDelete(FsDeleteResult),
     /// `git.commit`.
     GitCommit(GitCommitResult),
     /// `git.init`.
     GitInit(GitInitResult),
+    /// `fs.write`.
+    FsWrite(FsWriteResult),
+    /// `fs.create` and `fs.rename`.
+    FsEntry(FsEntryResult),
+    /// `fs.move` and `fs.copy`.
+    FsTransfer(FsTransferResult),
+    /// `fs.import-begin`.
+    FsImport(FsImportResult),
     /// Every other mutation.
     Empty(Empty),
+}
+
+impl From<MutationReply> for FilesReply {
+    /// The Result record that repeats a recorded reply.
+    fn from(reply: MutationReply) -> Self {
+        match reply {
+            MutationReply::Error(reply) => Self::Error(reply.error),
+            MutationReply::PathItems(result) => Self::GitClean(result),
+            MutationReply::FsDelete(result) => Self::FsDelete(result),
+            MutationReply::GitCommit(result) => Self::GitCommit(result),
+            MutationReply::GitInit(result) => Self::GitInit(result),
+            MutationReply::FsWrite(result) => Self::FsWrite(result),
+            MutationReply::FsEntry(result) => Self::FsEntry(result),
+            MutationReply::FsTransfer(result) => Self::FsTransfer(result),
+            MutationReply::FsImport(result) => Self::FsImport(result),
+            MutationReply::Empty(_) => Self::Empty,
+        }
+    }
 }
 
 /// Whether a mutation ran.
@@ -711,13 +753,35 @@ pub enum FilesReply {
     /// `git.output`.
     GitOutput(GitOutputResult),
     /// `git.clean`.
-    GitClean(GitCleanResult),
+    GitClean(PathItemsResult),
     /// `git.commit`.
     GitCommit(GitCommitResult),
     /// `git.init`.
     GitInit(GitInitResult),
     /// `request.outcome`.
     RequestOutcome(RequestOutcomeResult),
+    /// `fs.write`.
+    FsWrite(FsWriteResult),
+    /// `fs.create` and `fs.rename`.
+    FsEntry(FsEntryResult),
+    /// `fs.move` and `fs.copy`.
+    FsTransfer(FsTransferResult),
+    /// `fs.exists`.
+    FsExists(FsExistsResult),
+    /// `fs.delete`.
+    FsDelete(FsDeleteResult),
+    /// `fs.restore`.
+    FsRestore(PathItemsResult),
+    /// `fs.import-begin` and `fs.import-items`.
+    FsImport(FsImportResult),
+    /// `fs.import-file`.
+    FsImportFile(FsImportFileResult),
+    /// `fs.export-entries`.
+    FsExportEntries(FsExportEntriesResult),
+    /// `picker.open`.
+    PickerOpen(PickerOpenResult),
+    /// `picker.list`.
+    PickerList(PickerListResult),
 }
 
 /// Reads the JSON body of the Result record that answers a request of `operation`: its error, or
@@ -750,7 +814,11 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         | Operation::RepositoryConsent
         | Operation::RepositoryClose
         | Operation::RelayAnswer
-        | Operation::ClientFocus => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
+        | Operation::ClientFocus
+        | Operation::FsClipboard
+        | Operation::FsImportEnd
+        | Operation::FsExportBegin
+        | Operation::PickerClose => read_object::<Empty>(json).map(|_| FilesReply::Empty)?,
         Operation::FsList => FilesReply::FsList(read_object(json)?),
         Operation::FsStat => FilesReply::FsStat(read_object(json)?),
         Operation::FsGrant => FilesReply::FsGrant(read_object(json)?),
@@ -765,6 +833,19 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         Operation::GitCommit => FilesReply::GitCommit(read_object(json)?),
         Operation::GitInit => FilesReply::GitInit(read_object(json)?),
         Operation::RequestOutcome => FilesReply::RequestOutcome(read_object(json)?),
+        Operation::FsWrite => FilesReply::FsWrite(read_object(json)?),
+        Operation::FsCreate | Operation::FsRename => FilesReply::FsEntry(read_object(json)?),
+        Operation::FsMove | Operation::FsCopy => FilesReply::FsTransfer(read_object(json)?),
+        Operation::FsExists => FilesReply::FsExists(read_object(json)?),
+        Operation::FsDelete => FilesReply::FsDelete(read_object(json)?),
+        Operation::FsRestore => FilesReply::FsRestore(read_object(json)?),
+        Operation::FsImportBegin | Operation::FsImportItems => {
+            FilesReply::FsImport(read_object(json)?)
+        }
+        Operation::FsImportFile => FilesReply::FsImportFile(read_object(json)?),
+        Operation::FsExportEntries => FilesReply::FsExportEntries(read_object(json)?),
+        Operation::PickerOpen => FilesReply::PickerOpen(read_object(json)?),
+        Operation::PickerList => FilesReply::PickerList(read_object(json)?),
     })
 }
 
@@ -790,6 +871,17 @@ pub fn encode_reply(reply: &FilesReply) -> Vec<u8> {
         FilesReply::GitCommit(result) => serde_json::to_vec(result),
         FilesReply::GitInit(result) => serde_json::to_vec(result),
         FilesReply::RequestOutcome(result) => serde_json::to_vec(result),
+        FilesReply::FsWrite(result) => serde_json::to_vec(result),
+        FilesReply::FsEntry(result) => serde_json::to_vec(result),
+        FilesReply::FsTransfer(result) => serde_json::to_vec(result),
+        FilesReply::FsExists(result) => serde_json::to_vec(result),
+        FilesReply::FsDelete(result) => serde_json::to_vec(result),
+        FilesReply::FsRestore(result) => serde_json::to_vec(result),
+        FilesReply::FsImport(result) => serde_json::to_vec(result),
+        FilesReply::FsImportFile(result) => serde_json::to_vec(result),
+        FilesReply::FsExportEntries(result) => serde_json::to_vec(result),
+        FilesReply::PickerOpen(result) => serde_json::to_vec(result),
+        FilesReply::PickerList(result) => serde_json::to_vec(result),
     };
     encoded.expect("every reply value encodes as JSON")
 }

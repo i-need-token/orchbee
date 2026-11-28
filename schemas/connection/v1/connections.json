@@ -10,6 +10,7 @@
 				{ "name": "compatibility-window", "addedIn": "0.1.0-beta.14" },
 				{ "name": "configured-command-source-exited", "addedIn": "0.1.0-beta.15" },
 				{ "name": "files", "addedIn": "0.1.0-beta.27" },
+				{ "name": "files-edit", "addedIn": "0.1.0-beta.27" },
 				{ "name": "project-identity", "addedIn": "0.1.0-beta.23" },
 				{ "name": "prompt-gated-input", "addedIn": "0.1.0" },
 				{ "name": "reconnect", "addedIn": "0.1.0-beta.23" },

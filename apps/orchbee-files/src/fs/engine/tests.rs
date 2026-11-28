@@ -11,9 +11,9 @@ use std::{
 
 use orchbee_files_protocol::{
     CallId, Chunk, ChunkLength, Counter, FilesRecord, FrameKind, FsListResult, LineEnding,
-    LinkFrame, LinkMessage, LinkSide, MAXIMUM_REPLY_BYTES, PageCursor, ReadMode, RecordPlace,
-    SafeInteger, TransferId, WorkspaceId, decode_files_record, decode_link_message, encode_reply,
-    parse_reply,
+    LinkFrame, LinkMessage, LinkSide, MAXIMUM_REPLY_BYTES, PageCursor, ReadMode, ReadSource,
+    RecordPlace, SafeInteger, TransferId, WorkspaceId, decode_files_record, decode_link_message,
+    encode_reply, parse_reply,
 };
 
 use super::*;
@@ -217,7 +217,7 @@ fn a_read_answers_its_facts_then_chunk_records_until_its_transfer_closes() {
     let request = FsRead {
         workspace_id: workspace(),
         transfer,
-        path: wire(&path),
+        source: ReadSource::Path(wire(&path)),
         mode: ReadMode::Text,
         encoding: None,
         force_text: false,

@@ -165,7 +165,7 @@
 			"stream": "request",
 			"grant": "lifecycle",
 			"afterClose": false,
-			"result": "gitCleanResult"
+			"result": "pathItemsResult"
 		},
 		{
 			"op": "git.commit",
@@ -661,15 +661,6 @@
 					"workspaceId": "0123456789abcdef0123456789abcdef",
 					"path": "/home/dev/project/src/main.rs",
 					"source": "terminal-link"
-				}
-			},
-			{
-				"name": "fs-grant-save-as",
-				"json": {
-					"op": "fs.grant",
-					"workspaceId": "0123456789abcdef0123456789abcdef",
-					"path": "/tmp/notes.md",
-					"source": "save-as"
 				}
 			},
 			{
@@ -2998,16 +2989,6 @@
 		],
 		"unsupported": [
 			{
-				"name": "batch-two-operation",
-				"json": {
-					"op": "fs.write",
-					"workspaceId": "0123456789abcdef0123456789abcdef",
-					"requestId": "fedcba9876543210fedcba9876543210",
-					"transfer": "1",
-					"path": "/home/dev/project/src/main.rs"
-				}
-			},
-			{
 				"name": "unknown-operation",
 				"json": {
 					"op": "fs.unknown",
@@ -4145,14 +4126,7 @@
 				"json": {
 					"state": "completed",
 					"result": {
-						"entry": {
-							"name": "x",
-							"type": "file",
-							"symlink": false,
-							"size": 12,
-							"mtimeMs": 1732700000000,
-							"readonly": false
-						}
+						"head": "main"
 					}
 				}
 			},

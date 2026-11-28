@@ -20,8 +20,8 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, ConnectionId, ErrorCode, FilesError, FilesRecord, FilesReply, FilesRequest,
-    GrantClass, LaneId, LinkRequest, RecordPlace, RequestError, ScopeUpdate, WorkspaceId,
-    decode_files_record, parse_request,
+    GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError, ScopeUpdate,
+    WorkspaceId, decode_files_record, parse_request,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -226,9 +226,12 @@ impl Services {
                 let paths = paths.map(|path| (path.clone(), view.read(path))).collect();
                 self.files.stat(call, paths);
             }
-            FilesRequest::FsRead(request) => match view.read(&request.path) {
-                Ok(path) => self.files.read(call, path, &request),
-                Err(refused) => call.reply(&FilesReply::Error(refused)),
+            FilesRequest::FsRead(request) => match &request.source {
+                ReadSource::Path(path) => match view.read(path) {
+                    Ok(path) => self.files.read(call, path, &request),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                },
+                ReadSource::Export { .. } => call.close(CallClose::Unsupported),
             },
             FilesRequest::FsReadChunk(request) => self.files.read_chunk(call, &request),
             FilesRequest::FsGuessEncoding(request) => match view.read(&request.path) {
@@ -269,6 +272,24 @@ impl Services {
                 self.files
                     .show_read(call, request.transfer, mode, encoding, limit)
             }),
+            FilesRequest::FsWrite(_)
+            | FilesRequest::FsCreate(_)
+            | FilesRequest::FsRename(_)
+            | FilesRequest::FsMove(_)
+            | FilesRequest::FsCopy(_)
+            | FilesRequest::FsExists(_)
+            | FilesRequest::FsDelete(_)
+            | FilesRequest::FsRestore(_)
+            | FilesRequest::FsClipboard(_)
+            | FilesRequest::FsImportBegin(_)
+            | FilesRequest::FsImportItems(_)
+            | FilesRequest::FsImportFile(_)
+            | FilesRequest::FsImportEnd(_)
+            | FilesRequest::FsExportBegin(_)
+            | FilesRequest::FsExportEntries(_)
+            | FilesRequest::PickerOpen(_)
+            | FilesRequest::PickerList(_)
+            | FilesRequest::PickerClose(_) => call.close(CallClose::Unsupported),
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);

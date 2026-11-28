@@ -1,13 +1,22 @@
-//! File Bar requests: the closed set of `files` operations, the facts a Server needs to admit each
-//! one before it relays it (its stream mode, the Session grant it needs, and whether it may name a
-//! Workspace that has closed), and the strict JSON of each request. Values are validated here;
-//! whether a path lies inside a Workspace's scope is decided by `orchbee-files` when the operation
-//! starts.
+//! File Bar requests: the closed set of operations, the facts a Server needs to admit each one
+//! before it relays it (the capability that adds it, its stream mode, the Session grant it needs,
+//! and whether it may name a Workspace that has closed), and the strict JSON of each request.
+//! Values are validated here; whether a path lies inside a Workspace's scope is decided by
+//! `orchbee-files` when the operation starts.
 
+mod edit;
+
+pub use edit::{
+    Conflict, CreateKind, DeleteMode, FsClipboard, FsCreate, FsDelete, FsExists, FsExportBegin,
+    FsExportEntries, FsImportBegin, FsImportEnd, FsImportFile, FsImportItems, FsRename, FsRestore,
+    FsTransfer, FsWrite, ImportItem, ImportKind, PickerList, PickerRequest, WriteHistory,
+    WritePrecondition,
+};
+use orchbee_connection_handshake::{FILES, FILES_EDIT};
 use serde::{Deserialize, Deserializer, Serialize};
 
 use crate::{
-    identity::{PromptId, RequestId, TransferId, WorkspaceId},
+    identity::{PromptId, RequestId, SessionId, TransferId, WorkspaceId},
     json::{read_value, strict_object},
     link::GrantClass,
     value::{
@@ -15,6 +24,28 @@ use crate::{
         PageCursor, SafeInteger, Text, is_false, some,
     },
 };
+
+/// The `client-server` capability that adds an operation, which the connection's handshake answer
+/// must list before the Server relays its requests.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum FilesCapability {
+    /// `files`, batch ①: browsing, reads, opened files, watching, source control and outcomes.
+    Files,
+    /// `files-edit`, batch ②: writes, file operations, delete and undo, clipboard sources,
+    /// import, export and the Save As picker.
+    FilesEdit,
+}
+
+impl FilesCapability {
+    /// The registry's name of the capability.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Files => FILES,
+            Self::FilesEdit => FILES_EDIT,
+        }
+    }
+}
 
 /// How an operation's Client stream runs.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -49,9 +80,10 @@ impl std::error::Error for RequestError {}
 macro_rules! operations {
     ($(
         $(#[$meta:meta])*
-        $variant:ident($request:ty) = $name:literal, $stream:ident, $grant:ident, $closed:literal;
+        $variant:ident($request:ty) = $name:literal, $capability:ident, $stream:ident,
+            $grant:ident, $closed:literal;
     )+) => {
-        /// Every operation the `files` capability serves.
+        /// Every operation the File Bar capabilities serve.
         #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
         pub enum Operation {
             $($(#[$meta])* $variant,)+
@@ -73,6 +105,15 @@ macro_rules! operations {
             #[must_use]
             pub fn from_name(name: &str) -> Option<Self> {
                 Self::ALL.iter().copied().find(|operation| operation.name() == name)
+            }
+
+            /// The capability that adds the operation; a request may need `files-edit` beyond it,
+            /// as [`FilesRequest::capability`] says.
+            #[must_use]
+            pub const fn capability(self) -> FilesCapability {
+                match self {
+                    $(Self::$variant => FilesCapability::$capability,)+
+                }
             }
 
             /// How the operation's stream runs; a request on a stream of the other mode is
@@ -129,77 +170,134 @@ macro_rules! operations {
     };
 }
 
+impl FilesRequest {
+    /// The capability the request needs: its operation's, or `files-edit` for a `files`
+    /// operation that names what only `files-edit` adds, a Save As destination or an export.
+    #[must_use]
+    pub const fn capability(&self) -> FilesCapability {
+        match self {
+            Self::FsGrant(FsGrant {
+                source: GrantSource::SaveAs,
+                ..
+            })
+            | Self::FsRead(FsRead {
+                source: ReadSource::Export { .. },
+                ..
+            }) => FilesCapability::FilesEdit,
+            request => request.operation().capability(),
+        }
+    }
+}
+
 operations! {
     /// Root facts, then the changes of the folders the connection loaded and the files it opened.
-    FsSubscribe(WorkspaceRequest) = "fs.subscribe", Events, TerminalCreate, false;
+    FsSubscribe(WorkspaceRequest) = "fs.subscribe", Files, Events, TerminalCreate, false;
     /// One page of a directory's entries; loads the directory for change delivery.
-    FsList(FsList) = "fs.list", Request, TerminalCreate, false;
+    FsList(FsList) = "fs.list", Files, Request, TerminalCreate, false;
     /// Unloads directories.
-    FsRelease(PathsRequest) = "fs.release", Request, TerminalCreate, false;
+    FsRelease(PathsRequest) = "fs.release", Files, Request, TerminalCreate, false;
     /// The entries of paths, or why each has none.
-    FsStat(PathsRequest) = "fs.stat", Request, TerminalCreate, true;
+    FsStat(PathsRequest) = "fs.stat", Files, Request, TerminalCreate, true;
     /// Grants the connection one opened file.
-    FsGrant(FsGrant) = "fs.grant", Request, TerminalCreate, false;
+    FsGrant(FsGrant) = "fs.grant", Files, Request, TerminalCreate, false;
     /// Withdraws opened-file grants.
-    FsUngrant(PathsRequest) = "fs.ungrant", Request, TerminalCreate, true;
-    /// Opens a read transfer.
-    FsRead(FsRead) = "fs.read", Request, TerminalCreate, true;
+    FsUngrant(PathsRequest) = "fs.ungrant", Files, Request, TerminalCreate, true;
+    /// Opens a read transfer of a file, or of one file of an export.
+    FsRead(FsRead) = "fs.read", Files, Request, TerminalCreate, true;
     /// One chunk of an open read transfer.
-    FsReadChunk(FsReadChunk) = "fs.read-chunk", Request, TerminalCreate, true;
+    FsReadChunk(FsReadChunk) = "fs.read-chunk", Files, Request, TerminalCreate, true;
     /// The encoding a file's content suggests.
-    FsGuessEncoding(PathRequest) = "fs.guess-encoding", Request, TerminalCreate, true;
+    FsGuessEncoding(PathRequest) = "fs.guess-encoding", Files, Request, TerminalCreate, true;
     /// Ends a transfer and frees what it holds.
-    TransferClose(TransferRequest) = "transfer.close", Request, TerminalCreate, true;
+    TransferClose(TransferRequest) = "transfer.close", Files, Request, TerminalCreate, true;
     /// The Workspace's source control summary, then every change of it.
-    ScmSubscribe(WorkspaceRequest) = "scm.subscribe", Events, TerminalCreate, false;
+    ScmSubscribe(WorkspaceRequest) = "scm.subscribe", Files, Events, TerminalCreate, false;
     /// One page of a repository's status at a revision.
-    GitStatusPage(GitStatusPage) = "git.status-page", Request, TerminalCreate, false;
+    GitStatusPage(GitStatusPage) = "git.status-page", Files, Request, TerminalCreate, false;
     /// Opens a read transfer of a file's content at a reference.
-    GitShow(GitShow) = "git.show", Request, TerminalCreate, false;
+    GitShow(GitShow) = "git.show", Files, Request, TerminalCreate, false;
     /// Which paths the repository ignores.
-    GitCheckIgnore(GitCheckIgnore) = "git.check-ignore", Request, TerminalCreate, false;
+    GitCheckIgnore(GitCheckIgnore) = "git.check-ignore", Files, Request, TerminalCreate, false;
     /// One page of a repository's references, and its remotes.
-    GitRefs(GitRefs) = "git.refs", Request, TerminalCreate, false;
+    GitRefs(GitRefs) = "git.refs", Files, Request, TerminalCreate, false;
     /// The user name and email the repository's configuration sets.
-    GitUserConfig(RepositoryRequest) = "git.user-config", Request, TerminalCreate, false;
+    GitUserConfig(RepositoryRequest) = "git.user-config", Files, Request, TerminalCreate, false;
     /// The Workspace's Git Output from a cursor.
-    GitOutput(GitOutput) = "git.output", Request, TerminalCreate, false;
+    GitOutput(GitOutput) = "git.output", Files, Request, TerminalCreate, false;
     /// Stages paths.
-    GitStage(GitPaths) = "git.stage", Request, Lifecycle, false;
+    GitStage(GitPaths) = "git.stage", Files, Request, Lifecycle, false;
     /// Unstages paths.
-    GitUnstage(GitPaths) = "git.unstage", Request, Lifecycle, false;
+    GitUnstage(GitPaths) = "git.unstage", Files, Request, Lifecycle, false;
     /// Discards working-tree changes of paths.
-    GitDiscard(GitPaths) = "git.discard", Request, Lifecycle, false;
+    GitDiscard(GitPaths) = "git.discard", Files, Request, Lifecycle, false;
     /// Replaces a path's index content with the transfer's Puts.
-    GitStageContent(GitStageContent) = "git.stage-content", Request, Lifecycle, false;
+    GitStageContent(GitStageContent) = "git.stage-content", Files, Request, Lifecycle, false;
     /// Removes untracked paths.
-    GitClean(GitClean) = "git.clean", Request, Lifecycle, false;
+    GitClean(GitClean) = "git.clean", Files, Request, Lifecycle, false;
     /// Commits.
-    GitCommit(GitCommit) = "git.commit", Request, Lifecycle, false;
+    GitCommit(GitCommit) = "git.commit", Files, Request, Lifecycle, false;
     /// Fetches.
-    GitFetch(GitFetch) = "git.fetch", Request, Lifecycle, false;
+    GitFetch(GitFetch) = "git.fetch", Files, Request, Lifecycle, false;
     /// Pulls.
-    GitPull(GitPull) = "git.pull", Request, Lifecycle, false;
+    GitPull(GitPull) = "git.pull", Files, Request, Lifecycle, false;
     /// Pulls, then pushes.
-    GitSync(GitPull) = "git.sync", Request, Lifecycle, false;
+    GitSync(GitPull) = "git.sync", Files, Request, Lifecycle, false;
     /// Pushes.
-    GitPush(GitPush) = "git.push", Request, Lifecycle, false;
+    GitPush(GitPush) = "git.push", Files, Request, Lifecycle, false;
     /// Creates a repository.
-    GitInit(GitPath) = "git.init", Request, Lifecycle, false;
+    GitInit(GitPath) = "git.init", Files, Request, Lifecycle, false;
     /// Adds a repository to the user's `safe.directory`.
-    GitMarkSafe(GitPath) = "git.mark-safe", Request, Lifecycle, false;
+    GitMarkSafe(GitPath) = "git.mark-safe", Files, Request, Lifecycle, false;
     /// Admits a repository above the root or an opened file after the user's consent.
-    RepositoryConsent(RepositoryRequest) = "repository.consent", Request, TerminalCreate, false;
+    RepositoryConsent(RepositoryRequest) = "repository.consent", Files, Request, TerminalCreate,
+        false;
     /// Withdraws a repository's consent.
-    RepositoryClose(RepositoryRequest) = "repository.close", Request, TerminalCreate, false;
+    RepositoryClose(RepositoryRequest) = "repository.close", Files, Request, TerminalCreate, false;
     /// The credential, host-key and editor prompts routed to the connection.
-    RelaySubscribe(WorkspaceRequest) = "relay.subscribe", Events, TerminalCreate, false;
+    RelaySubscribe(WorkspaceRequest) = "relay.subscribe", Files, Events, TerminalCreate, false;
     /// Answers a prompt.
-    RelayAnswer(RelayAnswer) = "relay.answer", Request, Lifecycle, false;
+    RelayAnswer(RelayAnswer) = "relay.answer", Files, Request, Lifecycle, false;
     /// Whether the connection's window has focus, which status refreshes wait for.
-    ClientFocus(ClientFocus) = "client.focus", Request, TerminalCreate, false;
+    ClientFocus(ClientFocus) = "client.focus", Files, Request, TerminalCreate, false;
     /// How an earlier mutation ended.
-    RequestOutcome(RequestOutcome) = "request.outcome", Request, TerminalCreate, true;
+    RequestOutcome(RequestOutcome) = "request.outcome", Files, Request, TerminalCreate, true;
+    /// Replaces a file's content with the transfer's Puts, or creates the file.
+    FsWrite(FsWrite) = "fs.write", FilesEdit, Request, Lifecycle, true;
+    /// Creates an empty file or directory.
+    FsCreate(FsCreate) = "fs.create", FilesEdit, Request, Lifecycle, false;
+    /// Renames an item.
+    FsRename(FsRename) = "fs.rename", FilesEdit, Request, Lifecycle, false;
+    /// Moves items into a directory.
+    FsMove(FsTransfer) = "fs.move", FilesEdit, Request, Lifecycle, false;
+    /// Copies items into a directory.
+    FsCopy(FsTransfer) = "fs.copy", FilesEdit, Request, Lifecycle, false;
+    /// Which names exist in a directory.
+    FsExists(FsExists) = "fs.exists", FilesEdit, Request, TerminalCreate, false;
+    /// Moves items to the trash or removes them, first keeping an undo stash on request.
+    FsDelete(FsDelete) = "fs.delete", FilesEdit, Request, Lifecycle, false;
+    /// Recreates what an undo stash holds.
+    FsRestore(FsRestore) = "fs.restore", FilesEdit, Request, Lifecycle, false;
+    /// Replaces the items the connection's clipboard holds.
+    FsClipboard(FsClipboard) = "fs.clipboard", FilesEdit, Request, TerminalCreate, false;
+    /// Opens an import into a directory with its first items.
+    FsImportBegin(FsImportBegin) = "fs.import-begin", FilesEdit, Request, Lifecycle, false;
+    /// Adds items to an open import.
+    FsImportItems(FsImportItems) = "fs.import-items", FilesEdit, Request, Lifecycle, false;
+    /// Brings one file of an open import with the transfer's Puts.
+    FsImportFile(FsImportFile) = "fs.import-file", FilesEdit, Request, Lifecycle, false;
+    /// Ends an import.
+    FsImportEnd(FsImportEnd) = "fs.import-end", FilesEdit, Request, Lifecycle, false;
+    /// Opens an export of items to download.
+    FsExportBegin(FsExportBegin) = "fs.export-begin", FilesEdit, Request, TerminalCreate, false;
+    /// One page of an open export's entries.
+    FsExportEntries(FsExportEntries) = "fs.export-entries", FilesEdit, Request, TerminalCreate,
+        false;
+    /// Opens a Save As picker session.
+    PickerOpen(PickerRequest) = "picker.open", FilesEdit, Request, TerminalCreate, false;
+    /// One page of any directory's entries for an open picker.
+    PickerList(PickerList) = "picker.list", FilesEdit, Request, TerminalCreate, false;
+    /// Ends a picker session.
+    PickerClose(PickerRequest) = "picker.close", FilesEdit, Request, TerminalCreate, false;
 }
 
 /// Reads one Request record's JSON body.
@@ -334,30 +432,114 @@ pub enum ReadMode {
     Bytes,
 }
 
+/// The file `fs.read` reads.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ReadSource {
+    /// The file at this path.
+    Path(FilePath),
+    /// The file entry `index` of an open export, which `files-edit` adds.
+    Export {
+        /// The export.
+        export: SessionId,
+        /// The entry's number.
+        index: SafeInteger,
+    },
+}
+
 /// `fs.read`.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
+#[serde(try_from = "WireFsRead", into = "WireFsRead")]
 pub struct FsRead {
     /// The Workspace.
     pub workspace_id: WorkspaceId,
     /// The transfer the Client chose for the read.
     pub transfer: TransferId,
     /// The file.
-    pub path: FilePath,
+    pub source: ReadSource,
     /// Whether the read decodes text.
     pub mode: ReadMode,
     /// The encoding to decode without a byte order mark; absent means UTF-8.
+    pub encoding: Option<EncodingName>,
+    /// Decode a binary file as text.
+    pub force_text: bool,
+    /// The largest file the Client accepts, in bytes; a larger one is `too-large`.
+    pub limit: SafeInteger,
+}
+
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct WireFsRead {
+    workspace_id: WorkspaceId,
+    transfer: TransferId,
     #[serde(
         default,
         deserialize_with = "some",
         skip_serializing_if = "Option::is_none"
     )]
-    pub encoding: Option<EncodingName>,
-    /// Decode a binary file as text.
+    path: Option<FilePath>,
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    export: Option<SessionId>,
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    index: Option<SafeInteger>,
+    mode: ReadMode,
+    #[serde(
+        default,
+        deserialize_with = "some",
+        skip_serializing_if = "Option::is_none"
+    )]
+    encoding: Option<EncodingName>,
     #[serde(default, skip_serializing_if = "is_false")]
-    pub force_text: bool,
-    /// The largest file the Client accepts, in bytes; a larger one is `too-large`.
-    pub limit: SafeInteger,
+    force_text: bool,
+    limit: SafeInteger,
+}
+
+impl TryFrom<WireFsRead> for FsRead {
+    type Error = InvalidValue;
+
+    fn try_from(wire: WireFsRead) -> Result<Self, InvalidValue> {
+        let source = match (wire.path, wire.export, wire.index) {
+            (Some(path), None, None) => ReadSource::Path(path),
+            (None, Some(export), Some(index)) => ReadSource::Export { export, index },
+            _ => return Err(InvalidValue),
+        };
+        Ok(Self {
+            workspace_id: wire.workspace_id,
+            transfer: wire.transfer,
+            source,
+            mode: wire.mode,
+            encoding: wire.encoding,
+            force_text: wire.force_text,
+            limit: wire.limit,
+        })
+    }
+}
+
+impl From<FsRead> for WireFsRead {
+    fn from(read: FsRead) -> Self {
+        let (path, export, index) = match read.source {
+            ReadSource::Path(path) => (Some(path), None, None),
+            ReadSource::Export { export, index } => (None, Some(export), Some(index)),
+        };
+        Self {
+            workspace_id: read.workspace_id,
+            transfer: read.transfer,
+            path,
+            export,
+            index,
+            mode: read.mode,
+            encoding: read.encoding,
+            force_text: read.force_text,
+            limit: read.limit,
+        }
+    }
 }
 
 /// A chunk length the Client chooses: 16 to 128 KiB.

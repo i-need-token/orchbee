@@ -164,13 +164,15 @@ impl FileBar {
         Ok(bar)
     }
 
-    /// The File Bar streams of the Client connection `connection`, which holds `grant`.
+    /// The File Bar streams of the Client connection `connection`, which holds `grant` and whose
+    /// handshake answer lists `files-edit` when `edit` holds.
     pub(crate) fn relay(
         self: &Arc<Self>,
         connection: ConnectionId,
         grant: Option<GrantClass>,
+        edit: bool,
     ) -> Relay {
-        Relay::new(Arc::clone(self), connection, grant)
+        Relay::new(Arc::clone(self), connection, grant, edit)
     }
 
     /// Stops for the Session's end: calls are refused from now on, and a running process is

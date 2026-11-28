@@ -3,14 +3,15 @@
 ## Authority
 
 This directory is the language-neutral authority for the records a Client and a Server exchange
-for the File Bar under the `files` capability: OBFB, the record OBWP stream frames carry, and the
-JSON of every `files` operation.
+for the File Bar under the `files` and `files-edit` capabilities: OBFB, the record OBWP stream
+frames carry, and the JSON of every operation they add.
 
 | File                                                                                                             | Content                                                                |
 | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
 | This README                                                                                                      | Records, JSON rules, compatibility and the corpus format               |
 | [`v1/files.schema.json`](v1/files.schema.json)                                                                   | JSON Schema 2020-12 of every request, result, error and notice         |
 | [`v1/files-conformance-v1.json`](v1/files-conformance-v1.json)                                                   | Operations, bounds, and valid and invalid records and documents        |
+| [`v1/files-edit-conformance-v1.json`](v1/files-edit-conformance-v1.json)                                         | The same for what `files-edit` adds                                    |
 | [`workbench-multiplex-files-conformance-v1.json`](../workbench/v1/workbench-multiplex-files-conformance-v1.json) | OBWP stream messages that carry OBFB records, valid only under `files` |
 | [Backend proposal](../../proposals/platform/file-bar-backend.md)                                                 | The accepted design and its reserved decisions                         |
 
@@ -19,12 +20,12 @@ OBWP multiplex use. The web Client's binding sits beside its OBWP stream codec i
 `apps/web/src/workbench-client/server-connection/`: `files-record-codec.ts` checks and frames
 records, `files-json.ts` applies the JSON rules, and `files-contract.ts` reads and writes the JSON
 of the operations its file sessions send. Bindings are independent implementations of this
-contract and consume the corpus unchanged.
+contract and consume the corpora unchanged.
 
 The contract is frozen when its batch is released; until then, a change edits the schema, the
-corpora and every binding together. That release adds both corpora to the connection registry's
-[frozen fixtures](../connection/README.md#frozen-fixtures). After it, additions arrive under new
-capability names and released records never change.
+corpora and every binding together. Each batch's release adds its corpora to the connection
+registry's [frozen fixtures](../connection/README.md#frozen-fixtures). After it, additions arrive
+under new capability names and released records never change.
 
 ## Records
 
@@ -71,16 +72,23 @@ it may name a Workspace that has closed, and the definitions of its result and n
 ## Compatibility
 
 - A Server closes a stream whose `op` it does not serve with StreamClose Unsupported, and one whose
-  request breaks the operation's rules with StreamClose InvalidRequest.
+  request breaks the operation's rules with StreamClose InvalidRequest. A request that needs a
+  capability the connection's handshake answer does not list closes as unsupported too: every
+  `files-edit` operation, `fs.grant` with source `save-as`, and `fs.read` of an export.
 - A Client treats an error code it does not know as `failed`, a `reason` or `gitErrorCode` it does
   not know as absent, and a notice it cannot read as absent. `remote-disconnected` is the Client's
   own code and never crosses the wire.
 
 ## Corpus
 
-`files-conformance-v1.json` holds `bounds`, `operations`, and `records`, `requests`, `replies` and
-`notices`, each with `valid` and `invalid` cases; `requests` also lists `unsupported` cases.
+Each capability has one corpus, which names it as `capability` and holds `bounds`, `operations`,
+and `records`, `requests`, `replies` and `notices`, each with `valid` and `invalid` cases;
+`requests` also lists `unsupported` cases. A corpus leaves out the sections its capability adds
+nothing to.
 
+- `operations` lists the operations the capability adds. Every valid request needs exactly that
+  capability; a reply case may name an earlier capability's operation whose results it extends,
+  such as `request.outcome`.
 - A record case names its `place`: `request-open`, `events-open`, `result-frame` or `notice-frame`.
   A valid case also states the decoded `record`, with u64 values as decimal strings and data as
   hexadecimal.

@@ -1,7 +1,8 @@
-//! The File Bar corpus against the Rust binding and `schemas/files/v1`: both admit exactly the
+//! The File Bar corpora against the Rust binding and `schemas/files/v1`: both admit exactly the
 //! valid documents, except cases marked as binding boundaries, which the schema's character
-//! counts admit and the binding's UTF-8 byte bounds refuse. The TypeScript binding reads the same
-//! corpus.
+//! counts admit and the binding's UTF-8 byte bounds refuse. Each corpus holds what its capability
+//! adds, and every valid request in it needs exactly that capability. The TypeScript binding reads
+//! the same corpora.
 
 use std::collections::HashMap;
 
@@ -14,7 +15,7 @@ use orchbee_files_protocol::{
 };
 use serde_json::Value;
 
-use crate::support::{Document, bytes, corpus};
+use crate::support::{Corpus, Document, bytes, corpora};
 
 const SCHEMA: &str = include_str!("../../../schemas/files/v1/files.schema.json");
 
@@ -118,12 +119,15 @@ fn operation(document: &Document) -> Operation {
     Operation::from_name(name).unwrap_or_else(|| panic!("{}: unknown op {name}", document.name))
 }
 
+/// The operations of every corpus, which a reply case may name whatever corpus holds it.
+fn all_operations(corpora: &[Corpus]) -> impl Iterator<Item = &crate::support::OperationFacts> {
+    corpora.iter().flat_map(|corpus| &corpus.operations)
+}
+
 #[test]
 fn operations_and_bounds_match_the_binding() {
-    let corpus = corpus();
-    let names = corpus
-        .operations
-        .iter()
+    let corpora = corpora();
+    let names = all_operations(&corpora)
         .map(|facts| facts.op.as_str())
         .collect::<Vec<_>>();
     let bound = Operation::ALL
@@ -132,7 +136,18 @@ fn operations_and_bounds_match_the_binding() {
         .collect::<Vec<_>>();
     assert_eq!(names, bound);
     let mut schema = Schema::new();
-    for facts in &corpus.operations {
+    for corpus in &corpora {
+        for facts in &corpus.operations {
+            let operation = Operation::from_name(&facts.op).unwrap();
+            assert_eq!(
+                operation.capability().name(),
+                corpus.capability,
+                "{}",
+                facts.op
+            );
+        }
+    }
+    for facts in all_operations(&corpora) {
         let operation = Operation::from_name(&facts.op).unwrap();
         let stream = match operation.stream() {
             OperationStream::Request => "request",
@@ -170,18 +185,28 @@ fn operations_and_bounds_match_the_binding() {
             schema.admits(definition, &Value::Null);
         }
     }
-    let bounds = &corpus.bounds;
-    assert_eq!(bounds.request_bytes, MAXIMUM_REQUEST_BYTES);
-    assert_eq!(bounds.reply_bytes, MAXIMUM_REPLY_BYTES);
-    assert_eq!(bounds.data_bytes, MAXIMUM_DATA_BYTES);
-    assert_eq!(bounds.path_bytes, MAXIMUM_PATH_BYTES);
+    for corpus in &corpora {
+        let bounds = &corpus.bounds;
+        assert_eq!(bounds.request_bytes, MAXIMUM_REQUEST_BYTES);
+        assert_eq!(bounds.reply_bytes, MAXIMUM_REPLY_BYTES);
+        assert_eq!(bounds.data_bytes, MAXIMUM_DATA_BYTES);
+        assert_eq!(bounds.path_bytes, MAXIMUM_PATH_BYTES);
+    }
 }
 
 #[test]
 fn records_decode_and_encode_as_the_corpus_states() {
-    let corpus = corpus();
-    assert!(!corpus.records.valid.is_empty() && !corpus.records.invalid.is_empty());
-    for case in &corpus.records.valid {
+    let corpora = corpora();
+    let valid = corpora
+        .iter()
+        .flat_map(|corpus| &corpus.records.valid)
+        .collect::<Vec<_>>();
+    let invalid = corpora
+        .iter()
+        .flat_map(|corpus| &corpus.records.invalid)
+        .collect::<Vec<_>>();
+    assert!(!valid.is_empty() && !invalid.is_empty());
+    for case in valid {
         let record = bytes(&case.hex);
         let expected = expected_record(&case.record);
         let place = place(&case.place);
@@ -199,7 +224,7 @@ fn records_decode_and_encode_as_the_corpus_states() {
             case.name
         );
     }
-    for case in &corpus.records.invalid {
+    for case in invalid {
         let record = bytes(&case.hex);
         let place = place(&case.place);
         assert!(
@@ -213,13 +238,24 @@ fn records_decode_and_encode_as_the_corpus_states() {
 
 #[test]
 fn requests_follow_the_corpus_in_binding_and_schema() {
-    let corpus = corpus();
     let mut schema = Schema::new();
+    for corpus in corpora() {
+        requests_follow(&corpus, &mut schema);
+    }
+}
+
+fn requests_follow(corpus: &Corpus, schema: &mut Schema) {
     for case in &corpus.requests.valid {
         let request =
             parse_request(&case.bytes()).unwrap_or_else(|error| panic!("{}: {error}", case.name));
         let name = case.json.as_ref().unwrap()["op"].as_str().unwrap();
         assert_eq!(request.operation().name(), name, "{}", case.name);
+        assert_eq!(
+            request.capability().name(),
+            corpus.capability,
+            "{}",
+            case.name
+        );
         assert_eq!(
             parse_request(&encode_request(&request)).as_ref(),
             Ok(&request),
@@ -265,11 +301,9 @@ fn requests_follow_the_corpus_in_binding_and_schema() {
 
 #[test]
 fn replies_follow_the_corpus_in_binding_and_schema() {
-    let corpus = corpus();
+    let corpora = corpora();
     let mut schema = Schema::new();
-    let results = corpus
-        .operations
-        .iter()
+    let results = all_operations(&corpora)
         .map(|facts| (facts.op.clone(), facts.result.clone()))
         .collect::<HashMap<_, _>>();
     let mut admits = |document: &Document, json: &Value| {
@@ -279,7 +313,10 @@ fn replies_follow_the_corpus_in_binding_and_schema() {
                 .as_ref()
                 .is_some_and(|definition| schema.admits(definition, json))
     };
-    for case in &corpus.replies.valid {
+    let replies = corpora.iter().map(|corpus| &corpus.replies);
+    let valid = replies.clone().flat_map(|cases| &cases.valid);
+    let invalid = replies.flat_map(|cases| &cases.invalid);
+    for case in valid {
         let operation = operation(case);
         let reply = parse_reply(operation, &case.bytes())
             .unwrap_or_else(|error| panic!("{}: {error}", case.name));
@@ -291,7 +328,7 @@ fn replies_follow_the_corpus_in_binding_and_schema() {
         );
         assert!(admits(case, case.json.as_ref().unwrap()), "{}", case.name);
     }
-    for case in &corpus.replies.invalid {
+    for case in invalid {
         assert!(
             parse_reply(operation(case), &case.bytes()).is_err(),
             "{}",
@@ -305,11 +342,9 @@ fn replies_follow_the_corpus_in_binding_and_schema() {
 
 #[test]
 fn notices_follow_the_corpus_in_binding_and_schema() {
-    let corpus = corpus();
+    let corpora = corpora();
     let mut schema = Schema::new();
-    let notices = corpus
-        .operations
-        .iter()
+    let notices = all_operations(&corpora)
         .map(|facts| {
             (
                 facts.op.clone(),
@@ -332,7 +367,10 @@ fn notices_follow_the_corpus_in_binding_and_schema() {
             .as_ref()
             .is_some_and(|definition| schema.admits(definition, json))
     };
-    for case in &corpus.notices.valid {
+    let cases = corpora.iter().map(|corpus| &corpus.notices);
+    let valid = cases.clone().flat_map(|cases| &cases.valid);
+    let invalid = cases.flat_map(|cases| &cases.invalid);
+    for case in valid {
         let (operation, kind) = (operation(case), kind(case));
         let notice = parse_notice(operation, kind, &case.bytes())
             .unwrap_or_else(|error| panic!("{}: {error}", case.name));
@@ -344,7 +382,7 @@ fn notices_follow_the_corpus_in_binding_and_schema() {
         );
         assert!(admits(case, case.json.as_ref().unwrap()), "{}", case.name);
     }
-    for case in &corpus.notices.invalid {
+    for case in invalid {
         assert!(
             parse_notice(operation(case), kind(case), &case.bytes()).is_err(),
             "{}",

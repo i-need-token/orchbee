@@ -1,8 +1,9 @@
 //! The refined values File Bar JSON records share: texts and lists bounded as the schema bounds
-//! them, safe integers, canonical counters, opaque cursors, native paths and Git names. Each value
-//! refuses what `schemas/files/v1` refuses and also what only a binding can check, such as UTF-8
-//! byte lengths, so a value that deserializes is valid wherever the protocol carries it. Whether a
-//! path is inside a Workspace's scope is not decided here.
+//! them, safe integers, canonical counters, opaque cursors, content digests, native paths, file
+//! names, relative paths and Git names. Each value refuses what `schemas/files/v1` refuses and also
+//! what only a binding can check, such as UTF-8 byte lengths, so a value that deserializes is valid
+//! wherever the protocol carries it. Whether a path is inside a Workspace's scope is not decided
+//! here.
 
 use std::{fmt, marker::PhantomData};
 
@@ -104,6 +105,83 @@ text_serde!(
     FilePath,
     "an absolute path of at most 4096 bytes without NUL"
 );
+
+/// One name in a directory, as a Client names a file to look for: 1 to 1,024 UTF-8 bytes without
+/// NUL or `/`, and neither `.` nor `..`. `orchbee-files` refuses again what the machine's own rules
+/// refuse, such as a backslash or a reserved device name on Windows.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct FileName(String);
+
+impl FileName {
+    /// Admits 1 to 1,024 bytes that hold no NUL or `/` and are neither `.` nor `..`.
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidValue`] for any other text.
+    pub fn new(name: impl Into<String>) -> Result<Self, InvalidValue> {
+        let name = name.into();
+        if is_name(&name) && name.len() <= 1024 {
+            Ok(Self(name))
+        } else {
+            Err(InvalidValue)
+        }
+    }
+
+    /// The name.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+text_serde!(
+    FileName,
+    "a file name without NUL or '/' that is not '.' or '..'"
+);
+
+/// A path below a directory the request names, in `/`-separated names whatever the machine: 1 to
+/// [`MAXIMUM_PATH_BYTES`] UTF-8 bytes of names that [`FileName`] admits, so it never leaves that
+/// directory.
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct RelativePath(String);
+
+impl RelativePath {
+    /// Admits 1 to [`MAXIMUM_PATH_BYTES`] bytes of names joined by single `/`.
+    ///
+    /// # Errors
+    ///
+    /// [`InvalidValue`] for an empty or overlong path, a leading, trailing or doubled `/`, or a
+    /// `.`, `..` or NUL-holding name.
+    pub fn new(path: impl Into<String>) -> Result<Self, InvalidValue> {
+        let path = path.into();
+        if path.len() <= MAXIMUM_PATH_BYTES && path.split('/').all(is_name) {
+            Ok(Self(path))
+        } else {
+            Err(InvalidValue)
+        }
+    }
+
+    /// The path.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Its names, outermost first.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.0.split('/')
+    }
+}
+
+text_serde!(
+    RelativePath,
+    "a relative path of '/'-separated names, none '.' or '..', at most 4096 bytes without NUL"
+);
+
+/// Whether `name` is one non-empty name: no NUL or `/`, and neither `.` nor `..`.
+fn is_name(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".." && !name.contains(['/', '\0'])
+}
 
 /// A VS Code encoding identifier, such as `utf8` or `windows1252`: 1 to 24 lowercase letters and
 /// digits. Whether `orchbee-files` decodes it is its own answer.
@@ -267,6 +345,40 @@ impl<'de> Deserialize<'de> for PageCursor {
         decode_lowercase_hex::<16>(&text)
             .map(Self)
             .ok_or_else(|| de::Error::custom("a page cursor of 32 lowercase hexadecimal digits"))
+    }
+}
+
+/// The SHA-256 digest of a file's bytes, 64 lowercase hexadecimal digits: what a read's final
+/// chunk reports and a save sends back as its precondition.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub struct Sha256Digest([u8; 32]);
+
+impl Sha256Digest {
+    /// The digest these bytes spell.
+    #[must_use]
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    /// The digest's bytes.
+    #[must_use]
+    pub const fn as_bytes(&self) -> &[u8; 32] {
+        &self.0
+    }
+}
+
+impl Serialize for Sha256Digest {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&lowercase_hex(&self.0))
+    }
+}
+
+impl<'de> Deserialize<'de> for Sha256Digest {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        decode_lowercase_hex::<32>(&text)
+            .map(Self)
+            .ok_or_else(|| de::Error::custom("a SHA-256 digest of 64 lowercase hexadecimal digits"))
     }
 }
 

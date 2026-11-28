@@ -21,9 +21,9 @@ use std::{
 use orchbee_connection_handshake::{
     AcceptorLoad, AcceptorMessage, AcceptorProfile, Build, CANDIDATE_DEADLINE,
     CONFIGURED_COMMAND_SOURCE_EXITED, CohortIdentity, ConnectionKind, Decision, DrainResult,
-    ExitResult, Extensions, FILES, ProductVersion, RECONNECT, ReadError, RequestKind, RequestName,
-    STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported, encode_acceptor_frame,
-    read_initiator_message,
+    ExitResult, Extensions, FILES, FILES_EDIT, ProductVersion, RECONNECT, ReadError, RequestKind,
+    RequestName, STREAM_OUTCOME_UNKNOWN, TERMINAL_LIMIT_REACHED, Unsupported,
+    encode_acceptor_frame, read_initiator_message,
 };
 use orchbee_local_client_protocol::{
     LocalClientMessage, ReadMessageError, RejectionReason, read_message, write_message,
@@ -116,9 +116,10 @@ impl ServerIdentity {
         self.worker.clone()
     }
 
-    /// This identity for a Server that runs no File Bar, which therefore does not list `files`.
+    /// This identity for a Server that runs no File Bar, which therefore lists neither `files`
+    /// nor `files-edit`.
     pub(crate) fn without_file_bar(mut self) -> Self {
-        self.profile.capabilities = self.profile.capabilities.without(FILES);
+        self.profile.capabilities = self.profile.capabilities.without(FILES).without(FILES_EDIT);
         self
     }
 }
@@ -403,7 +404,11 @@ fn handle_candidate_control(
                 .capabilities
                 .contains(CONFIGURED_COMMAND_SOURCE_EXITED);
             let terminal_limit = answer.capabilities.contains(TERMINAL_LIMIT_REACHED);
-            let files = answer.capabilities.contains(FILES);
+            // Whether the answer lists `files`, and then whether it also lists `files-edit`.
+            let files = answer
+                .capabilities
+                .contains(FILES)
+                .then(|| answer.capabilities.contains(FILES_EDIT));
             if !send_handshake(&mut stream, &AcceptorMessage::Answer(answer)) {
                 return;
             }
@@ -581,9 +586,9 @@ fn handle_candidate_control(
     // A connection whose answer lists `files` relays its File Bar streams to the Session's.
     let files = terminals
         .file_bar()
-        .filter(|_| names_files)
+        .zip(names_files)
         .zip(orchbee_files_protocol::ConnectionId::new(generation.get()))
-        .map(|(bar, connection)| bar.relay(connection, workbench.file_bar_grant()));
+        .map(|((bar, edit), connection)| bar.relay(connection, workbench.file_bar_grant(), edit));
     let connection_result = application_connection::run_network(
         &stream,
         intent_unknown,

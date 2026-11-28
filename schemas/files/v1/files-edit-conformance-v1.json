@@ -1,0 +1,2239 @@
+{
+	"contractVersion": 1,
+	"capability": "files-edit",
+	"bounds": {
+		"requestBytes": 16384,
+		"replyBytes": 131072,
+		"dataBytes": 131072,
+		"pathBytes": 4096
+	},
+	"operations": [
+		{
+			"op": "fs.write",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": true,
+			"result": "fsWriteResult"
+		},
+		{
+			"op": "fs.create",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsEntryResult"
+		},
+		{
+			"op": "fs.rename",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsEntryResult"
+		},
+		{
+			"op": "fs.move",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsTransferResult"
+		},
+		{
+			"op": "fs.copy",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsTransferResult"
+		},
+		{
+			"op": "fs.exists",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "fsExistsResult"
+		},
+		{
+			"op": "fs.delete",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsDeleteResult"
+		},
+		{
+			"op": "fs.restore",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "pathItemsResult"
+		},
+		{
+			"op": "fs.clipboard",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "fs.import-begin",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsImportResult"
+		},
+		{
+			"op": "fs.import-items",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsImportResult"
+		},
+		{
+			"op": "fs.import-file",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "fsImportFileResult"
+		},
+		{
+			"op": "fs.import-end",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "fs.export-begin",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		},
+		{
+			"op": "fs.export-entries",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "fsExportEntriesResult"
+		},
+		{
+			"op": "picker.open",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "pickerOpenResult"
+		},
+		{
+			"op": "picker.list",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "pickerListResult"
+		},
+		{
+			"op": "picker.close",
+			"stream": "request",
+			"grant": "terminal-create",
+			"afterClose": false,
+			"result": "emptyResult"
+		}
+	],
+	"requests": {
+		"valid": [
+			{
+				"name": "fs-write-saved-version",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					},
+					"history": "save"
+				}
+			},
+			{
+				"name": "fs-write-unlocked-with-bom",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "C:\\Users\\dev\\project\\notes.txt",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": "none",
+					"bom": true,
+					"unlock": true
+				}
+			},
+			{
+				"name": "fs-write-create-utf16",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 0,
+					"encoding": "utf16le",
+					"precondition": "create"
+				}
+			},
+			{
+				"name": "fs-write-restored-legacy",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "windows1252",
+					"precondition": {
+						"mtimeMs": -1,
+						"size": 0,
+						"sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+					},
+					"history": "restore"
+				}
+			},
+			{
+				"name": "fs-create-file",
+				"json": {
+					"op": "fs.create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/new.rs",
+					"type": "file"
+				}
+			},
+			{
+				"name": "fs-create-directory",
+				"json": {
+					"op": "fs.create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/docs/guides",
+					"type": "directory"
+				}
+			},
+			{
+				"name": "fs-rename",
+				"json": {
+					"op": "fs.rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"from": "/home/dev/project/src/main.rs",
+					"to": "/home/dev/project/src/lib.rs"
+				}
+			},
+			{
+				"name": "fs-move-increment",
+				"json": {
+					"op": "fs.move",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["/home/dev/project/src/main.rs", "/home/dev/project/README.md"],
+					"targetDirectory": "/home/dev/project/docs",
+					"conflict": "increment"
+				}
+			},
+			{
+				"name": "fs-move-fail",
+				"json": {
+					"op": "fs.move",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["/home/dev/project/src/main.rs"],
+					"targetDirectory": "/home/dev/project",
+					"conflict": "fail"
+				}
+			},
+			{
+				"name": "fs-copy-merge",
+				"json": {
+					"op": "fs.copy",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["/home/dev/project/src"],
+					"targetDirectory": "/home/dev/project/backup",
+					"conflict": "merge"
+				}
+			},
+			{
+				"name": "fs-copy-replace",
+				"json": {
+					"op": "fs.copy",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["C:\\Users\\dev\\project\\a.txt"],
+					"targetDirectory": "C:\\Users\\dev\\project\\b",
+					"conflict": "replace"
+				}
+			},
+			{
+				"name": "fs-exists",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": ["a.txt", "a copy.txt", ".env", "...", "名前.md"]
+				}
+			},
+			{
+				"name": "fs-exists-longest-name",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": [
+						"éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+					]
+				}
+			},
+			{
+				"name": "fs-delete-to-trash-captured",
+				"json": {
+					"op": "fs.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"paths": ["/home/dev/project/src/main.rs", "/home/dev/project/docs"],
+					"mode": "trash",
+					"capture": true
+				}
+			},
+			{
+				"name": "fs-delete-permanently",
+				"json": {
+					"op": "fs.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"paths": ["/home/dev/project/src/main.rs"],
+					"mode": "permanent"
+				}
+			},
+			{
+				"name": "fs-restore",
+				"json": {
+					"op": "fs.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"stash": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "fs-clipboard-cut",
+				"json": {
+					"op": "fs.clipboard",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project/src/main.rs", "/home/dev/project/docs"],
+					"cut": true
+				}
+			},
+			{
+				"name": "fs-clipboard-cleared",
+				"json": {
+					"op": "fs.clipboard",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": []
+				}
+			},
+			{
+				"name": "fs-import-begin",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "photos",
+							"type": "directory",
+							"conflict": "merge"
+						},
+						{
+							"path": "photos/a.png",
+							"type": "file",
+							"size": 2048,
+							"conflict": "replace"
+						},
+						{
+							"path": "notes.md",
+							"type": "file",
+							"size": 0,
+							"conflict": "increment"
+						},
+						{
+							"path": ".config",
+							"type": "directory",
+							"conflict": "fail"
+						},
+						{
+							"path": ".config/..settings",
+							"type": "file",
+							"size": 7,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-items",
+				"json": {
+					"op": "fs.import-items",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1",
+					"items": [
+						{
+							"path": "photos/b.png",
+							"type": "file",
+							"size": 10,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-file",
+				"json": {
+					"op": "fs.import-file",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1",
+					"index": 1,
+					"transfer": "7"
+				}
+			},
+			{
+				"name": "fs-import-end",
+				"json": {
+					"op": "fs.import-end",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1"
+				}
+			},
+			{
+				"name": "fs-export-begin",
+				"json": {
+					"op": "fs.export-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"export": "2",
+					"paths": ["/home/dev/project/src", "/home/dev/project/src/main.rs"]
+				}
+			},
+			{
+				"name": "fs-export-entries-first",
+				"json": {
+					"op": "fs.export-entries",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"export": "2"
+				}
+			},
+			{
+				"name": "fs-export-entries-continued",
+				"json": {
+					"op": "fs.export-entries",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"export": "2",
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "picker-open",
+				"json": {
+					"op": "picker.open",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "3"
+				}
+			},
+			{
+				"name": "picker-list",
+				"json": {
+					"op": "picker.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "3",
+					"path": "/"
+				}
+			},
+			{
+				"name": "picker-list-continued",
+				"json": {
+					"op": "picker.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "3",
+					"path": "D:\\",
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "picker-close",
+				"json": {
+					"op": "picker.close",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "18446744073709551615"
+				}
+			},
+			{
+				"name": "fs-grant-save-as",
+				"json": {
+					"op": "fs.grant",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"path": "/tmp/notes.md",
+					"source": "save-as"
+				}
+			},
+			{
+				"name": "fs-read-export",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"export": "2",
+					"index": 4,
+					"mode": "bytes",
+					"limit": 1048576
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "fs-write-without-size",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					}
+				}
+			},
+			{
+				"name": "fs-write-without-precondition",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8"
+				}
+			},
+			{
+				"name": "fs-write-version-without-digest",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12
+					}
+				}
+			},
+			{
+				"name": "fs-write-digest-uppercase",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+					}
+				}
+			},
+			{
+				"name": "fs-write-digest-short",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b8"
+					}
+				}
+			},
+			{
+				"name": "fs-write-version-extra-member",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+						"etag": "1"
+					}
+				}
+			},
+			{
+				"name": "fs-write-precondition-unknown",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": "replace"
+				}
+			},
+			{
+				"name": "fs-write-precondition-null",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": null
+				}
+			},
+			{
+				"name": "fs-write-history-unknown",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					},
+					"history": "autosave"
+				}
+			},
+			{
+				"name": "fs-write-bom-null",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					},
+					"bom": null
+				}
+			},
+			{
+				"name": "fs-write-transfer-zero",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"transfer": "0",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					}
+				}
+			},
+			{
+				"name": "fs-write-without-request-id",
+				"json": {
+					"op": "fs.write",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "1",
+					"path": "/home/dev/project/src/main.rs",
+					"size": 1024,
+					"encoding": "utf8",
+					"precondition": {
+						"mtimeMs": 1732700000000,
+						"size": 12,
+						"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+					}
+				}
+			},
+			{
+				"name": "fs-create-type-unknown",
+				"json": {
+					"op": "fs.create",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"path": "/home/dev/project/src/main.rs",
+					"type": "symlink"
+				}
+			},
+			{
+				"name": "fs-rename-without-target",
+				"json": {
+					"op": "fs.rename",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"from": "/home/dev/project/src/main.rs"
+				}
+			},
+			{
+				"name": "fs-move-sources-empty",
+				"json": {
+					"op": "fs.move",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": [],
+					"targetDirectory": "/home/dev/project",
+					"conflict": "fail"
+				}
+			},
+			{
+				"name": "fs-copy-too-many-sources",
+				"json": {
+					"op": "fs.copy",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": [
+						"/a/0",
+						"/a/1",
+						"/a/2",
+						"/a/3",
+						"/a/4",
+						"/a/5",
+						"/a/6",
+						"/a/7",
+						"/a/8",
+						"/a/9",
+						"/a/10",
+						"/a/11",
+						"/a/12",
+						"/a/13",
+						"/a/14",
+						"/a/15",
+						"/a/16",
+						"/a/17",
+						"/a/18",
+						"/a/19",
+						"/a/20",
+						"/a/21",
+						"/a/22",
+						"/a/23",
+						"/a/24",
+						"/a/25",
+						"/a/26",
+						"/a/27",
+						"/a/28",
+						"/a/29",
+						"/a/30",
+						"/a/31",
+						"/a/32",
+						"/a/33",
+						"/a/34",
+						"/a/35",
+						"/a/36",
+						"/a/37",
+						"/a/38",
+						"/a/39",
+						"/a/40",
+						"/a/41",
+						"/a/42",
+						"/a/43",
+						"/a/44",
+						"/a/45",
+						"/a/46",
+						"/a/47",
+						"/a/48",
+						"/a/49",
+						"/a/50",
+						"/a/51",
+						"/a/52",
+						"/a/53",
+						"/a/54",
+						"/a/55",
+						"/a/56",
+						"/a/57",
+						"/a/58",
+						"/a/59",
+						"/a/60",
+						"/a/61",
+						"/a/62",
+						"/a/63",
+						"/a/64",
+						"/a/65",
+						"/a/66",
+						"/a/67",
+						"/a/68",
+						"/a/69",
+						"/a/70",
+						"/a/71",
+						"/a/72",
+						"/a/73",
+						"/a/74",
+						"/a/75",
+						"/a/76",
+						"/a/77",
+						"/a/78",
+						"/a/79",
+						"/a/80",
+						"/a/81",
+						"/a/82",
+						"/a/83",
+						"/a/84",
+						"/a/85",
+						"/a/86",
+						"/a/87",
+						"/a/88",
+						"/a/89",
+						"/a/90",
+						"/a/91",
+						"/a/92",
+						"/a/93",
+						"/a/94",
+						"/a/95",
+						"/a/96",
+						"/a/97",
+						"/a/98",
+						"/a/99",
+						"/a/100",
+						"/a/101",
+						"/a/102",
+						"/a/103",
+						"/a/104",
+						"/a/105",
+						"/a/106",
+						"/a/107",
+						"/a/108",
+						"/a/109",
+						"/a/110",
+						"/a/111",
+						"/a/112",
+						"/a/113",
+						"/a/114",
+						"/a/115",
+						"/a/116",
+						"/a/117",
+						"/a/118",
+						"/a/119",
+						"/a/120",
+						"/a/121",
+						"/a/122",
+						"/a/123",
+						"/a/124",
+						"/a/125",
+						"/a/126",
+						"/a/127",
+						"/a/128",
+						"/a/129",
+						"/a/130",
+						"/a/131",
+						"/a/132",
+						"/a/133",
+						"/a/134",
+						"/a/135",
+						"/a/136",
+						"/a/137",
+						"/a/138",
+						"/a/139",
+						"/a/140",
+						"/a/141",
+						"/a/142",
+						"/a/143",
+						"/a/144",
+						"/a/145",
+						"/a/146",
+						"/a/147",
+						"/a/148",
+						"/a/149",
+						"/a/150",
+						"/a/151",
+						"/a/152",
+						"/a/153",
+						"/a/154",
+						"/a/155",
+						"/a/156",
+						"/a/157",
+						"/a/158",
+						"/a/159",
+						"/a/160",
+						"/a/161",
+						"/a/162",
+						"/a/163",
+						"/a/164",
+						"/a/165",
+						"/a/166",
+						"/a/167",
+						"/a/168",
+						"/a/169",
+						"/a/170",
+						"/a/171",
+						"/a/172",
+						"/a/173",
+						"/a/174",
+						"/a/175",
+						"/a/176",
+						"/a/177",
+						"/a/178",
+						"/a/179",
+						"/a/180",
+						"/a/181",
+						"/a/182",
+						"/a/183",
+						"/a/184",
+						"/a/185",
+						"/a/186",
+						"/a/187",
+						"/a/188",
+						"/a/189",
+						"/a/190",
+						"/a/191",
+						"/a/192",
+						"/a/193",
+						"/a/194",
+						"/a/195",
+						"/a/196",
+						"/a/197",
+						"/a/198",
+						"/a/199",
+						"/a/200",
+						"/a/201",
+						"/a/202",
+						"/a/203",
+						"/a/204",
+						"/a/205",
+						"/a/206",
+						"/a/207",
+						"/a/208",
+						"/a/209",
+						"/a/210",
+						"/a/211",
+						"/a/212",
+						"/a/213",
+						"/a/214",
+						"/a/215",
+						"/a/216",
+						"/a/217",
+						"/a/218",
+						"/a/219",
+						"/a/220",
+						"/a/221",
+						"/a/222",
+						"/a/223",
+						"/a/224",
+						"/a/225",
+						"/a/226",
+						"/a/227",
+						"/a/228",
+						"/a/229",
+						"/a/230",
+						"/a/231",
+						"/a/232",
+						"/a/233",
+						"/a/234",
+						"/a/235",
+						"/a/236",
+						"/a/237",
+						"/a/238",
+						"/a/239",
+						"/a/240",
+						"/a/241",
+						"/a/242",
+						"/a/243",
+						"/a/244",
+						"/a/245",
+						"/a/246",
+						"/a/247",
+						"/a/248",
+						"/a/249",
+						"/a/250",
+						"/a/251",
+						"/a/252",
+						"/a/253",
+						"/a/254",
+						"/a/255",
+						"/a/256"
+					],
+					"targetDirectory": "/home/dev/project",
+					"conflict": "fail"
+				}
+			},
+			{
+				"name": "fs-move-conflict-unknown",
+				"json": {
+					"op": "fs.move",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["/home/dev/project/src/main.rs"],
+					"targetDirectory": "/home/dev/project",
+					"conflict": "skip"
+				}
+			},
+			{
+				"name": "fs-copy-without-conflict",
+				"json": {
+					"op": "fs.copy",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"sources": ["/home/dev/project/src/main.rs"],
+					"targetDirectory": "/home/dev/project"
+				}
+			},
+			{
+				"name": "fs-exists-dot",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": ["."]
+				}
+			},
+			{
+				"name": "fs-exists-dot-dot",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": [".."]
+				}
+			},
+			{
+				"name": "fs-exists-separator",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": ["src/main.rs"]
+				}
+			},
+			{
+				"name": "fs-exists-empty-name",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": [""]
+				}
+			},
+			{
+				"name": "fs-exists-nul",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": ["a\u0000b"]
+				}
+			},
+			{
+				"name": "fs-exists-without-names",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": []
+				}
+			},
+			{
+				"name": "fs-exists-name-too-long",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": [
+						"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+					]
+				}
+			},
+			{
+				"name": "fs-exists-name-too-long-in-bytes",
+				"json": {
+					"op": "fs.exists",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"directory": "/home/dev/project",
+					"names": [
+						"ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+					]
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "fs-delete-mode-unknown",
+				"json": {
+					"op": "fs.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"paths": ["/home/dev/project/src/main.rs"],
+					"mode": "recycle"
+				}
+			},
+			{
+				"name": "fs-delete-capture-null",
+				"json": {
+					"op": "fs.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"paths": ["/home/dev/project/src/main.rs"],
+					"mode": "trash",
+					"capture": null
+				}
+			},
+			{
+				"name": "fs-delete-without-paths",
+				"json": {
+					"op": "fs.delete",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"paths": [],
+					"mode": "trash"
+				}
+			},
+			{
+				"name": "fs-restore-zero-stash",
+				"json": {
+					"op": "fs.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"stash": "00000000000000000000000000000000"
+				}
+			},
+			{
+				"name": "fs-restore-uppercase-stash",
+				"json": {
+					"op": "fs.restore",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"stash": "00112233445566778899AABBCCDDEEFF"
+				}
+			},
+			{
+				"name": "fs-clipboard-cut-null",
+				"json": {
+					"op": "fs.clipboard",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"paths": ["/home/dev/project/src/main.rs"],
+					"cut": null
+				}
+			},
+			{
+				"name": "fs-clipboard-without-paths",
+				"json": {
+					"op": "fs.clipboard",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"cut": true
+				}
+			},
+			{
+				"name": "fs-import-file-item-without-size",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a.txt",
+							"type": "file",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-directory-item-with-size",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "photos",
+							"type": "directory",
+							"size": 0,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-without-conflict",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a.txt",
+							"type": "file",
+							"size": 1
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-conflict-unknown",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a.txt",
+							"type": "file",
+							"size": 1,
+							"conflict": "skip"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-type-unknown",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a",
+							"type": "symlink",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-absolute",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "/etc/passwd",
+							"type": "file",
+							"size": 1,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-parent-segment",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "photos/../x",
+							"type": "file",
+							"size": 1,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-parent",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "..",
+							"type": "directory",
+							"conflict": "merge"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-ending-in-parent",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "photos/..",
+							"type": "directory",
+							"conflict": "merge"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-dot-segment",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "./x",
+							"type": "file",
+							"size": 1,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-trailing-separator",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "photos/",
+							"type": "directory",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-empty-segment",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a//b",
+							"type": "file",
+							"size": 1,
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-item-path-too-long-in-bytes",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé",
+							"type": "file",
+							"size": 1,
+							"conflict": "fail"
+						}
+					]
+				},
+				"boundary": "binding"
+			},
+			{
+				"name": "fs-import-begin-without-items",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": []
+				}
+			},
+			{
+				"name": "fs-import-begin-without-request-id",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a",
+							"type": "directory",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-session-zero",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "0",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a",
+							"type": "directory",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-session-leading-zero",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": "01",
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a",
+							"type": "directory",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-session-number",
+				"json": {
+					"op": "fs.import-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"import": 1,
+					"targetDirectory": "/home/dev/project",
+					"items": [
+						{
+							"path": "a",
+							"type": "directory",
+							"conflict": "fail"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-file-negative-index",
+				"json": {
+					"op": "fs.import-file",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1",
+					"index": -1,
+					"transfer": "7"
+				}
+			},
+			{
+				"name": "fs-import-file-without-transfer",
+				"json": {
+					"op": "fs.import-file",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"import": "1",
+					"index": 0
+				}
+			},
+			{
+				"name": "fs-export-begin-without-paths",
+				"json": {
+					"op": "fs.export-begin",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"export": "2",
+					"paths": []
+				}
+			},
+			{
+				"name": "fs-export-entries-short-cursor",
+				"json": {
+					"op": "fs.export-entries",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"export": "2",
+					"cursor": "abc"
+				}
+			},
+			{
+				"name": "picker-open-session-overflow",
+				"json": {
+					"op": "picker.open",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "18446744073709551616"
+				}
+			},
+			{
+				"name": "picker-list-without-path",
+				"json": {
+					"op": "picker.list",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "3"
+				}
+			},
+			{
+				"name": "picker-close-with-path",
+				"json": {
+					"op": "picker.close",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"picker": "3",
+					"path": "/"
+				}
+			},
+			{
+				"name": "fs-read-path-and-export",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"path": "/home/dev/project/src/main.rs",
+					"export": "2",
+					"index": 4,
+					"mode": "bytes",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "fs-read-export-without-index",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"export": "2",
+					"mode": "bytes",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "fs-read-index-without-export",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"path": "/home/dev/project/src/main.rs",
+					"index": 4,
+					"mode": "bytes",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "fs-read-without-source",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"mode": "bytes",
+					"limit": 1024
+				}
+			},
+			{
+				"name": "fs-read-zero-export",
+				"json": {
+					"op": "fs.read",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"transfer": "3",
+					"export": "0",
+					"index": 4,
+					"mode": "bytes",
+					"limit": 1024
+				}
+			}
+		]
+	},
+	"replies": {
+		"valid": [
+			{
+				"name": "fs-write",
+				"op": "fs.write",
+				"json": {
+					"mtimeMs": 1732700000001,
+					"size": 1024,
+					"replaced": 0,
+					"sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+				}
+			},
+			{
+				"name": "fs-write-replaced",
+				"op": "fs.write",
+				"json": {
+					"mtimeMs": 1732700000001,
+					"size": 9,
+					"replaced": 3,
+					"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+				}
+			},
+			{
+				"name": "fs-write-content-newer",
+				"op": "fs.write",
+				"json": {
+					"error": {
+						"code": "content-newer"
+					}
+				}
+			},
+			{
+				"name": "fs-write-incomplete",
+				"op": "fs.write",
+				"json": {
+					"error": {
+						"code": "write-incomplete",
+						"osError": 28
+					}
+				}
+			},
+			{
+				"name": "fs-create",
+				"op": "fs.create",
+				"json": {
+					"entry": {
+						"name": "main.rs",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "fs-create-invalid-name",
+				"op": "fs.create",
+				"json": {
+					"error": {
+						"code": "invalid-name"
+					}
+				}
+			},
+			{
+				"name": "fs-rename",
+				"op": "fs.rename",
+				"json": {
+					"entry": {
+						"name": "lib.rs",
+						"type": "file",
+						"symlink": false,
+						"size": 12,
+						"mtimeMs": 1732700000000,
+						"readonly": false
+					}
+				}
+			},
+			{
+				"name": "fs-move",
+				"op": "fs.move",
+				"json": {
+					"items": [
+						{
+							"source": "/home/dev/project/src/main.rs",
+							"path": "/home/dev/project/docs/main.rs"
+						},
+						{
+							"source": "/home/dev/project/README.md",
+							"error": {
+								"code": "exists"
+							}
+						},
+						{
+							"source": "/home/dev/project/big.bin",
+							"path": "/mnt/usb/big.bin",
+							"error": {
+								"code": "permission-denied",
+								"osError": 13
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-copy",
+				"op": "fs.copy",
+				"json": {
+					"items": [
+						{
+							"source": "/home/dev/project/src/main.rs",
+							"path": "/home/dev/project/src/main copy.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-exists",
+				"op": "fs.exists",
+				"json": {
+					"existing": ["a.txt", ".env"]
+				}
+			},
+			{
+				"name": "fs-exists-none",
+				"op": "fs.exists",
+				"json": {
+					"existing": []
+				}
+			},
+			{
+				"name": "fs-delete-captured",
+				"op": "fs.delete",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						},
+						{
+							"path": "/home/dev/project/docs",
+							"error": {
+								"code": "trash-failed"
+							}
+						}
+					],
+					"stash": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "fs-delete",
+				"op": "fs.delete",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-delete-trash-unavailable",
+				"op": "fs.delete",
+				"json": {
+					"error": {
+						"code": "trash-unavailable"
+					}
+				}
+			},
+			{
+				"name": "fs-restore",
+				"op": "fs.restore",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						},
+						{
+							"path": "/home/dev/project/docs"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-restore-expired",
+				"op": "fs.restore",
+				"json": {
+					"error": {
+						"code": "undo-expired"
+					}
+				}
+			},
+			{
+				"name": "fs-clipboard",
+				"op": "fs.clipboard",
+				"json": {}
+			},
+			{
+				"name": "fs-import-begin",
+				"op": "fs.import-begin",
+				"json": {
+					"items": [
+						{
+							"index": 0,
+							"path": "photos"
+						},
+						{
+							"index": 3,
+							"error": {
+								"code": "exists"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-begin-files-only",
+				"op": "fs.import-begin",
+				"json": {
+					"items": []
+				}
+			},
+			{
+				"name": "fs-import-items",
+				"op": "fs.import-items",
+				"json": {
+					"items": [
+						{
+							"index": 7,
+							"path": "photos copy/raw"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-file",
+				"op": "fs.import-file",
+				"json": {
+					"path": "photos/a copy.png"
+				}
+			},
+			{
+				"name": "fs-import-file-disk-full",
+				"op": "fs.import-file",
+				"json": {
+					"error": {
+						"code": "disk-full",
+						"osError": 28
+					}
+				}
+			},
+			{
+				"name": "fs-import-end",
+				"op": "fs.import-end",
+				"json": {}
+			},
+			{
+				"name": "fs-export-begin",
+				"op": "fs.export-begin",
+				"json": {}
+			},
+			{
+				"name": "fs-export-entries",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": [
+						{
+							"index": 0,
+							"path": "src",
+							"type": "directory",
+							"size": 0,
+							"mtimeMs": 1732700000000
+						},
+						{
+							"index": 1,
+							"path": "src/main.rs",
+							"type": "file",
+							"size": 12,
+							"mtimeMs": 1732700000000
+						},
+						{
+							"index": 2,
+							"path": "src/outside",
+							"type": "file",
+							"skipped": true
+						}
+					],
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "fs-export-entries-last",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": []
+				}
+			},
+			{
+				"name": "picker-open",
+				"op": "picker.open",
+				"json": {
+					"home": "/home/dev",
+					"roots": ["/"]
+				}
+			},
+			{
+				"name": "picker-open-windows",
+				"op": "picker.open",
+				"json": {
+					"home": "C:\\Users\\dev",
+					"roots": ["C:\\", "D:\\"]
+				}
+			},
+			{
+				"name": "picker-list",
+				"op": "picker.list",
+				"json": {
+					"entries": [
+						{
+							"name": "main.rs",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					],
+					"cursor": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "picker-list-last",
+				"op": "picker.list",
+				"json": {
+					"entries": []
+				}
+			},
+			{
+				"name": "picker-close",
+				"op": "picker.close",
+				"json": {}
+			},
+			{
+				"name": "fs-grant-new-save-as-destination",
+				"op": "fs.grant",
+				"json": {}
+			},
+			{
+				"name": "outcome-completed-write",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"mtimeMs": 1732700000001,
+						"size": 1024,
+						"replaced": 0,
+						"sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-entry",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"entry": {
+							"name": "main.rs",
+							"type": "file",
+							"symlink": false,
+							"size": 12,
+							"mtimeMs": 1732700000000,
+							"readonly": false
+						}
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-transfer",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"items": [
+							{
+								"source": "/home/dev/project/src/main.rs",
+								"path": "/home/dev/project/docs/main.rs"
+							}
+						]
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-captured-delete",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"items": [
+							{
+								"path": "/home/dev/project/src/main.rs"
+							}
+						],
+						"stash": "00112233445566778899aabbccddeeff"
+					}
+				}
+			},
+			{
+				"name": "outcome-completed-import",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"items": []
+					}
+				}
+			}
+		],
+		"invalid": [
+			{
+				"name": "fs-write-without-digest",
+				"op": "fs.write",
+				"json": {
+					"mtimeMs": 1,
+					"size": 1,
+					"replaced": 0
+				}
+			},
+			{
+				"name": "fs-write-digest-uppercase",
+				"op": "fs.write",
+				"json": {
+					"mtimeMs": 1,
+					"size": 1,
+					"replaced": 0,
+					"sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+				}
+			},
+			{
+				"name": "fs-write-negative-replaced",
+				"op": "fs.write",
+				"json": {
+					"mtimeMs": 1,
+					"size": 1,
+					"replaced": -1,
+					"sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+				}
+			},
+			{
+				"name": "fs-create-without-entry",
+				"op": "fs.create",
+				"json": {}
+			},
+			{
+				"name": "fs-move-item-without-outcome",
+				"op": "fs.move",
+				"json": {
+					"items": [
+						{
+							"source": "/home/dev/project/src/main.rs"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-copy-without-items",
+				"op": "fs.copy",
+				"json": {
+					"items": []
+				}
+			},
+			{
+				"name": "fs-exists-parent-name",
+				"op": "fs.exists",
+				"json": {
+					"existing": [".."]
+				}
+			},
+			{
+				"name": "fs-delete-zero-stash",
+				"op": "fs.delete",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						}
+					],
+					"stash": "00000000000000000000000000000000"
+				}
+			},
+			{
+				"name": "fs-delete-without-items",
+				"op": "fs.delete",
+				"json": {
+					"items": []
+				}
+			},
+			{
+				"name": "fs-restore-with-stash",
+				"op": "fs.restore",
+				"json": {
+					"items": [
+						{
+							"path": "/home/dev/project/src/main.rs"
+						}
+					],
+					"stash": "00112233445566778899aabbccddeeff"
+				}
+			},
+			{
+				"name": "fs-clipboard-with-member",
+				"op": "fs.clipboard",
+				"json": {
+					"ok": true
+				}
+			},
+			{
+				"name": "fs-import-outcome-path-and-error",
+				"op": "fs.import-begin",
+				"json": {
+					"items": [
+						{
+							"index": 0,
+							"path": "a",
+							"error": {
+								"code": "exists"
+							}
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-outcome-without-result",
+				"op": "fs.import-begin",
+				"json": {
+					"items": [
+						{
+							"index": 0
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-outcome-absolute",
+				"op": "fs.import-items",
+				"json": {
+					"items": [
+						{
+							"index": 0,
+							"path": "/a"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-import-file-without-path",
+				"op": "fs.import-file",
+				"json": {}
+			},
+			{
+				"name": "fs-export-entry-skipped-false",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": [
+						{
+							"index": 0,
+							"path": "a",
+							"type": "file",
+							"size": 1,
+							"mtimeMs": 1,
+							"skipped": false
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-export-entry-skipped-with-size",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": [
+						{
+							"index": 0,
+							"path": "a",
+							"type": "file",
+							"size": 1,
+							"skipped": true
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-export-entry-without-facts",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": [
+						{
+							"index": 0,
+							"path": "a",
+							"type": "file"
+						}
+					]
+				}
+			},
+			{
+				"name": "fs-export-entry-type-unknown",
+				"op": "fs.export-entries",
+				"json": {
+					"entries": [
+						{
+							"index": 0,
+							"path": "a",
+							"type": "symlink",
+							"size": 1,
+							"mtimeMs": 1
+						}
+					]
+				}
+			},
+			{
+				"name": "picker-open-without-roots",
+				"op": "picker.open",
+				"json": {
+					"home": "/home/dev",
+					"roots": []
+				}
+			},
+			{
+				"name": "picker-open-without-home",
+				"op": "picker.open",
+				"json": {
+					"roots": ["/"]
+				}
+			},
+			{
+				"name": "fs-grant-null-entry",
+				"op": "fs.grant",
+				"json": {
+					"entry": null
+				}
+			},
+			{
+				"name": "outcome-completed-write-without-digest",
+				"op": "request.outcome",
+				"json": {
+					"state": "completed",
+					"result": {
+						"mtimeMs": 1,
+						"size": 1,
+						"replaced": 0
+					}
+				}
+			}
+		]
+	}
+}

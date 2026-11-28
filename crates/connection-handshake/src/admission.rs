@@ -4,7 +4,7 @@
 
 use crate::{
     AcceptorMessage, Answer, Build, BuildEnvironment, CapabilitySet, ConnectionKind, DrainResult,
-    EnvironmentName, ExitResult, Extensions, FILES, GenerationRange, HandoverResult,
+    EnvironmentName, ExitResult, Extensions, FILES, FILES_EDIT, GenerationRange, HandoverResult,
     InitiatorMessage, Offer, ProcessState, ProductVersion, QueryResult, Rejection, RejectionReason,
     RequestKind, STREAM_OUTCOME_UNKNOWN, Unsupported,
 };
@@ -152,6 +152,9 @@ impl AcceptorProfile {
         let mut capabilities = offer.capabilities.intersection(&self.capabilities);
         if !capabilities.contains(STREAM_OUTCOME_UNKNOWN) {
             capabilities = capabilities.without(FILES);
+        }
+        if !capabilities.contains(FILES) {
+            capabilities = capabilities.without(FILES_EDIT);
         }
         Decision::Accept(Answer {
             generation,

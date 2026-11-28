@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "urn:orchbee:schema:files:v1",
-	"$comment": "Bindings additionally enforce UTF-8 byte bounds and the record bounds: 16 KiB per request, 128 KiB per result or notice. files-conformance-v1.json names the result and notice definitions of each operation.",
+	"$comment": "Bindings additionally enforce UTF-8 byte bounds and the record bounds: 16 KiB per request, 128 KiB per result or notice. The conformance corpora name the capability, result and notice definitions of each operation.",
 	"$ref": "#/$defs/request",
 	"$defs": {
 		"identity": {
@@ -102,6 +102,45 @@
 		},
 		"readMode": {
 			"enum": ["text", "bytes"]
+		},
+		"session": {
+			"title": "SessionId",
+			"description": "A Client-chosen import, export or picker session under `files-edit`, nonzero and unique in the connection.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 20,
+			"pattern": "^[1-9][0-9]{0,19}$",
+			"format": "orchbee-uint64"
+		},
+		"stash": {
+			"title": "StashId",
+			"description": "The undo stash a capturing `fs.delete` filled.",
+			"$ref": "#/$defs/identity"
+		},
+		"sha256": {
+			"description": "A SHA-256 digest in lowercase hexadecimal.",
+			"type": "string",
+			"pattern": "^[0-9a-f]{64}$"
+		},
+		"name": {
+			"title": "FileName",
+			"description": "One path segment: at most 1,024 UTF-8 bytes, neither `.` nor `..`, no `/` or NUL. orchbee-files refuses a name the machine cannot hold with `invalid-name`.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"pattern": "^(?!\\.\\.?$)[^/\\u0000]+$"
+		},
+		"relativePath": {
+			"title": "RelativePath",
+			"description": "A path below a directory: names joined by `/`, at most 4,096 UTF-8 bytes.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^(?!\\.\\.?(?:/|$))(?![\\s\\S]*/\\.\\.?(?:/|$))[^/\\u0000]+(?:/[^/\\u0000]+)*$"
+		},
+		"conflict": {
+			"description": "What happens where a target exists: `fail` answers `exists`, `replace` removes the existing item permanently first, `increment` takes VS Code's next free `copy` name, and `merge` combines a directory with an existing directory, each child by the same rule, and replaces anything else.",
+			"enum": ["fail", "replace", "increment", "merge"]
 		},
 		"entry": {
 			"type": "object",
@@ -294,6 +333,7 @@
 			"additionalProperties": false
 		},
 		"fsGrantRequest": {
+			"description": "`save-as` needs `files-edit`: the destination a Save As picker or dialog chose, anywhere on the machine and possibly not yet existing, which then counts as an opened file.",
 			"type": "object",
 			"properties": {
 				"op": {
@@ -313,6 +353,7 @@
 			"additionalProperties": false
 		},
 		"fsReadRequest": {
+			"description": "Reads `path`, or the file entry `index` of an open export.",
 			"type": "object",
 			"properties": {
 				"op": {
@@ -326,6 +367,13 @@
 				},
 				"path": {
 					"$ref": "#/$defs/path"
+				},
+				"export": {
+					"description": "The open export whose file entry `index` is read, under `files-edit`.",
+					"$ref": "#/$defs/session"
+				},
+				"index": {
+					"$ref": "#/$defs/safeInteger"
 				},
 				"mode": {
 					"$ref": "#/$defs/readMode"
@@ -342,7 +390,19 @@
 					"$ref": "#/$defs/safeInteger"
 				}
 			},
-			"required": ["op", "workspaceId", "transfer", "path", "mode", "limit"],
+			"required": ["op", "workspaceId", "transfer", "mode", "limit"],
+			"oneOf": [
+				{
+					"required": ["path"]
+				},
+				{
+					"required": ["export"]
+				}
+			],
+			"dependentRequired": {
+				"export": ["index"],
+				"index": ["export"]
+			},
 			"additionalProperties": false
 		},
 		"fsReadChunkRequest": {
@@ -980,6 +1040,458 @@
 			"required": ["op", "workspaceId", "requestId"],
 			"additionalProperties": false
 		},
+		"writePrecondition": {
+			"description": "What the file must be for the write to replace it: the version the editor last read or wrote, whose SHA-256 the content must still have unless it already holds the new content; `create`, no file at the path; or `none`, whatever is there.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"mtimeMs": {
+							"$ref": "#/$defs/mtimeMs"
+						},
+						"size": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"sha256": {
+							"$ref": "#/$defs/sha256"
+						}
+					},
+					"required": ["mtimeMs", "size", "sha256"],
+					"additionalProperties": false
+				},
+				{
+					"enum": ["create", "none"]
+				}
+			]
+		},
+		"fsWriteRequest": {
+			"description": "The new content follows as Put records of `transfer`: `size` bytes of UTF-8 text, the last flagged `commit`.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.write"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"size": {
+					"description": "The UTF-8 bytes the Puts carry.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"encoding": {
+					"$ref": "#/$defs/encoding"
+				},
+				"bom": {
+					"description": "Start a UTF-8 file with a byte order mark; UTF-16 always starts with one and other encodings never do. Absent means false.",
+					"type": "boolean"
+				},
+				"precondition": {
+					"$ref": "#/$defs/writePrecondition"
+				},
+				"unlock": {
+					"description": "Clear the file's read-only attribute or owner write bit before writing. Absent means false.",
+					"type": "boolean"
+				},
+				"history": {
+					"description": "Why the content is written, which Local History records once `files-history` serves it.",
+					"enum": ["save", "restore"]
+				}
+			},
+			"required": [
+				"op",
+				"workspaceId",
+				"requestId",
+				"transfer",
+				"path",
+				"size",
+				"encoding",
+				"precondition"
+			],
+			"additionalProperties": false
+		},
+		"fsCreateRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.create"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"type": {
+					"enum": ["file", "directory"]
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "path", "type"],
+			"additionalProperties": false
+		},
+		"fsRenameRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.rename"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"from": {
+					"$ref": "#/$defs/path"
+				},
+				"to": {
+					"$ref": "#/$defs/path"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "from", "to"],
+			"additionalProperties": false
+		},
+		"fsTransferRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["fs.move", "fs.copy"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"sources": {
+					"$ref": "#/$defs/paths"
+				},
+				"targetDirectory": {
+					"$ref": "#/$defs/path"
+				},
+				"conflict": {
+					"$ref": "#/$defs/conflict"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "sources", "targetDirectory", "conflict"],
+			"additionalProperties": false
+		},
+		"fsExistsRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.exists"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"directory": {
+					"$ref": "#/$defs/path"
+				},
+				"names": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/name"
+					},
+					"minItems": 1,
+					"maxItems": 1000
+				}
+			},
+			"required": ["op", "workspaceId", "directory", "names"],
+			"additionalProperties": false
+		},
+		"fsDeleteRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.delete"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				},
+				"mode": {
+					"enum": ["trash", "permanent"]
+				},
+				"capture": {
+					"description": "First keep the folders and the files of at most 5,000,000 bytes in an undo stash. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "paths", "mode"],
+			"additionalProperties": false
+		},
+		"fsRestoreRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.restore"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"stash": {
+					"$ref": "#/$defs/stash"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "stash"],
+			"additionalProperties": false
+		},
+		"fsClipboardRequest": {
+			"description": "Replaces the items the connection's clipboard holds; no paths clears it.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.clipboard"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"paths": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"minItems": 0,
+					"maxItems": 256
+				},
+				"cut": {
+					"description": "The items were cut, so a paste may move them. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "paths"],
+			"additionalProperties": false
+		},
+		"importItem": {
+			"description": "One item an import brings: a file of `size` bytes, or a directory, created when declared. Items are numbered from 0 across the import; an item of several names lies in a directory item declared earlier.",
+			"oneOf": [
+				{
+					"type": "object",
+					"properties": {
+						"path": {
+							"$ref": "#/$defs/relativePath"
+						},
+						"type": {
+							"const": "file"
+						},
+						"size": {
+							"$ref": "#/$defs/safeInteger"
+						},
+						"conflict": {
+							"$ref": "#/$defs/conflict"
+						}
+					},
+					"required": ["path", "type", "size", "conflict"],
+					"additionalProperties": false
+				},
+				{
+					"type": "object",
+					"properties": {
+						"path": {
+							"$ref": "#/$defs/relativePath"
+						},
+						"type": {
+							"const": "directory"
+						},
+						"conflict": {
+							"$ref": "#/$defs/conflict"
+						}
+					},
+					"required": ["path", "type", "conflict"],
+					"additionalProperties": false
+				}
+			]
+		},
+		"fsImportBeginRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.import-begin"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"import": {
+					"$ref": "#/$defs/session"
+				},
+				"targetDirectory": {
+					"$ref": "#/$defs/path"
+				},
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/importItem"
+					},
+					"minItems": 1,
+					"maxItems": 1000
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "import", "targetDirectory", "items"],
+			"additionalProperties": false
+		},
+		"fsImportItemsRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.import-items"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"import": {
+					"$ref": "#/$defs/session"
+				},
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/importItem"
+					},
+					"minItems": 1,
+					"maxItems": 1000
+				}
+			},
+			"required": ["op", "workspaceId", "import", "items"],
+			"additionalProperties": false
+		},
+		"fsImportFileRequest": {
+			"description": "The file item's bytes follow as Put records of `transfer`, the last flagged `commit`.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.import-file"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"import": {
+					"$ref": "#/$defs/session"
+				},
+				"index": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"transfer": {
+					"$ref": "#/$defs/transfer"
+				}
+			},
+			"required": ["op", "workspaceId", "import", "index", "transfer"],
+			"additionalProperties": false
+		},
+		"fsImportEndRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.import-end"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"import": {
+					"$ref": "#/$defs/session"
+				}
+			},
+			"required": ["op", "workspaceId", "import"],
+			"additionalProperties": false
+		},
+		"fsExportBeginRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.export-begin"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"export": {
+					"$ref": "#/$defs/session"
+				},
+				"paths": {
+					"$ref": "#/$defs/paths"
+				}
+			},
+			"required": ["op", "workspaceId", "export", "paths"],
+			"additionalProperties": false
+		},
+		"fsExportEntriesRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "fs.export-entries"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"export": {
+					"$ref": "#/$defs/session"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "export"],
+			"additionalProperties": false
+		},
+		"pickerRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"enum": ["picker.open", "picker.close"]
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"picker": {
+					"$ref": "#/$defs/session"
+				}
+			},
+			"required": ["op", "workspaceId", "picker"],
+			"additionalProperties": false
+		},
+		"pickerListRequest": {
+			"description": "Lists any directory of the machine for an open picker.",
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "picker.list"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"picker": {
+					"$ref": "#/$defs/session"
+				},
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["op", "workspaceId", "picker", "path"],
+			"additionalProperties": false
+		},
 		"request": {
 			"description": "A File Bar Request record's JSON body.",
 			"oneOf": [
@@ -1066,6 +1578,54 @@
 				},
 				{
 					"$ref": "#/$defs/requestOutcomeRequest"
+				},
+				{
+					"$ref": "#/$defs/fsWriteRequest"
+				},
+				{
+					"$ref": "#/$defs/fsCreateRequest"
+				},
+				{
+					"$ref": "#/$defs/fsRenameRequest"
+				},
+				{
+					"$ref": "#/$defs/fsTransferRequest"
+				},
+				{
+					"$ref": "#/$defs/fsExistsRequest"
+				},
+				{
+					"$ref": "#/$defs/fsDeleteRequest"
+				},
+				{
+					"$ref": "#/$defs/fsRestoreRequest"
+				},
+				{
+					"$ref": "#/$defs/fsClipboardRequest"
+				},
+				{
+					"$ref": "#/$defs/fsImportBeginRequest"
+				},
+				{
+					"$ref": "#/$defs/fsImportItemsRequest"
+				},
+				{
+					"$ref": "#/$defs/fsImportFileRequest"
+				},
+				{
+					"$ref": "#/$defs/fsImportEndRequest"
+				},
+				{
+					"$ref": "#/$defs/fsExportBeginRequest"
+				},
+				{
+					"$ref": "#/$defs/fsExportEntriesRequest"
+				},
+				{
+					"$ref": "#/$defs/pickerRequest"
+				},
+				{
+					"$ref": "#/$defs/pickerListRequest"
 				}
 			]
 		},
@@ -1157,13 +1717,14 @@
 			"additionalProperties": false
 		},
 		"fsGrantResult": {
+			"description": "`entry` is absent only for a Save As destination that does not exist yet.",
 			"type": "object",
 			"properties": {
 				"entry": {
 					"$ref": "#/$defs/entry"
 				}
 			},
-			"required": ["entry"],
+			"required": [],
 			"additionalProperties": false
 		},
 		"readResult": {
@@ -1382,23 +1943,27 @@
 			"required": ["text", "cursor", "dropped"],
 			"additionalProperties": false
 		},
-		"gitCleanResult": {
+		"pathItem": {
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/path"
+				},
+				"error": {
+					"$ref": "#/$defs/error"
+				}
+			},
+			"required": ["path"],
+			"additionalProperties": false
+		},
+		"pathItemsResult": {
+			"description": "`git.clean` and `fs.restore`: one answer per path, with why it failed.",
 			"type": "object",
 			"properties": {
 				"items": {
 					"type": "array",
 					"items": {
-						"type": "object",
-						"properties": {
-							"path": {
-								"$ref": "#/$defs/path"
-							},
-							"error": {
-								"$ref": "#/$defs/error"
-							}
-						},
-						"required": ["path"],
-						"additionalProperties": false
+						"$ref": "#/$defs/pathItem"
 					},
 					"minItems": 1,
 					"maxItems": 256
@@ -1428,7 +1993,8 @@
 			"additionalProperties": false
 		},
 		"mutationReply": {
-			"oneOf": [
+			"description": "A mutation's recorded result, in any shape a mutation answers with; the requester knows which operation it named.",
+			"anyOf": [
 				{
 					"$ref": "#/$defs/errorReply"
 				},
@@ -1436,13 +2002,28 @@
 					"$ref": "#/$defs/emptyResult"
 				},
 				{
-					"$ref": "#/$defs/gitCleanResult"
+					"$ref": "#/$defs/pathItemsResult"
+				},
+				{
+					"$ref": "#/$defs/fsDeleteResult"
 				},
 				{
 					"$ref": "#/$defs/gitCommitResult"
 				},
 				{
 					"$ref": "#/$defs/gitInitResult"
+				},
+				{
+					"$ref": "#/$defs/fsWriteResult"
+				},
+				{
+					"$ref": "#/$defs/fsEntryResult"
+				},
+				{
+					"$ref": "#/$defs/fsTransferResult"
+				},
+				{
+					"$ref": "#/$defs/fsImportResult"
 				}
 			]
 		},
@@ -1472,6 +2053,264 @@
 					"additionalProperties": false
 				}
 			]
+		},
+		"fsWriteResult": {
+			"type": "object",
+			"properties": {
+				"mtimeMs": {
+					"$ref": "#/$defs/mtimeMs"
+				},
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"replaced": {
+					"description": "The characters the encoding cannot represent, each written as `?`.",
+					"$ref": "#/$defs/safeInteger"
+				},
+				"sha256": {
+					"description": "The digest of the written bytes, the precondition of the next save.",
+					"$ref": "#/$defs/sha256"
+				}
+			},
+			"required": ["mtimeMs", "size", "replaced", "sha256"],
+			"additionalProperties": false
+		},
+		"fsEntryResult": {
+			"description": "`fs.create` and `fs.rename`: the item's entry at its new path.",
+			"type": "object",
+			"properties": {
+				"entry": {
+					"$ref": "#/$defs/entry"
+				}
+			},
+			"required": ["entry"],
+			"additionalProperties": false
+		},
+		"fsTransferResult": {
+			"description": "`fs.move` and `fs.copy`: one answer per source, in request order.",
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"description": "The item's final path, or why it failed; both when a move across volumes copied it but could not remove the source.",
+						"type": "object",
+						"properties": {
+							"source": {
+								"$ref": "#/$defs/path"
+							},
+							"path": {
+								"$ref": "#/$defs/path"
+							},
+							"error": {
+								"$ref": "#/$defs/error"
+							}
+						},
+						"required": ["source"],
+						"anyOf": [
+							{
+								"required": ["path"]
+							},
+							{
+								"required": ["error"]
+							}
+						],
+						"additionalProperties": false
+					},
+					"minItems": 1,
+					"maxItems": 256
+				}
+			},
+			"required": ["items"],
+			"additionalProperties": false
+		},
+		"fsExistsResult": {
+			"type": "object",
+			"properties": {
+				"existing": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/name"
+					},
+					"minItems": 0,
+					"maxItems": 1000
+				}
+			},
+			"required": ["existing"],
+			"additionalProperties": false
+		},
+		"fsDeleteResult": {
+			"description": "One answer per path, in request order, and the undo stash when the delete captured something.",
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/pathItem"
+					},
+					"minItems": 1,
+					"maxItems": 256
+				},
+				"stash": {
+					"$ref": "#/$defs/stash"
+				}
+			},
+			"required": ["items"],
+			"additionalProperties": false
+		},
+		"importOutcome": {
+			"description": "How a directory item ended when it was declared: its final path below the target directory, or why it failed.",
+			"type": "object",
+			"properties": {
+				"index": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				},
+				"error": {
+					"$ref": "#/$defs/error"
+				}
+			},
+			"required": ["index"],
+			"oneOf": [
+				{
+					"required": ["path"]
+				},
+				{
+					"required": ["error"]
+				}
+			],
+			"additionalProperties": false
+		},
+		"fsImportResult": {
+			"description": "`fs.import-begin` and `fs.import-items`: one outcome per directory item the request declared, in request order.",
+			"type": "object",
+			"properties": {
+				"items": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/importOutcome"
+					},
+					"minItems": 0,
+					"maxItems": 1000
+				}
+			},
+			"required": ["items"],
+			"additionalProperties": false
+		},
+		"fsImportFileResult": {
+			"description": "The file's final path below the target directory.",
+			"type": "object",
+			"properties": {
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				}
+			},
+			"required": ["path"],
+			"additionalProperties": false
+		},
+		"exportEntry": {
+			"description": "One entry of an export, numbered in order, each directory before what it holds; `skipped` marks a link whose target leaves the boundary or an entry that could not be read.",
+			"type": "object",
+			"properties": {
+				"index": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"path": {
+					"$ref": "#/$defs/relativePath"
+				},
+				"type": {
+					"enum": ["file", "directory"]
+				},
+				"size": {
+					"$ref": "#/$defs/safeInteger"
+				},
+				"mtimeMs": {
+					"$ref": "#/$defs/mtimeMs"
+				},
+				"skipped": {
+					"const": true
+				}
+			},
+			"required": ["index", "path", "type"],
+			"oneOf": [
+				{
+					"required": ["size", "mtimeMs"],
+					"not": {
+						"required": ["skipped"]
+					}
+				},
+				{
+					"required": ["skipped"],
+					"not": {
+						"anyOf": [
+							{
+								"required": ["size"]
+							},
+							{
+								"required": ["mtimeMs"]
+							}
+						]
+					}
+				}
+			],
+			"additionalProperties": false
+		},
+		"fsExportEntriesResult": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/exportEntry"
+					},
+					"minItems": 0,
+					"maxItems": 2000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["entries"],
+			"additionalProperties": false
+		},
+		"pickerOpenResult": {
+			"description": "The user's home directory and the machine's filesystem roots.",
+			"type": "object",
+			"properties": {
+				"home": {
+					"$ref": "#/$defs/path"
+				},
+				"roots": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/path"
+					},
+					"minItems": 1,
+					"maxItems": 26
+				}
+			},
+			"required": ["home", "roots"],
+			"additionalProperties": false
+		},
+		"pickerListResult": {
+			"type": "object",
+			"properties": {
+				"entries": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/entry"
+					},
+					"minItems": 0,
+					"maxItems": 2000
+				},
+				"cursor": {
+					"$ref": "#/$defs/pageCursor"
+				}
+			},
+			"required": ["entries"],
+			"additionalProperties": false
 		},
 		"root": {
 			"oneOf": [

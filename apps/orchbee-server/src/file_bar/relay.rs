@@ -1,13 +1,14 @@
 //! One Client connection's File Bar streams. A stream's OBFB record is checked only for its
-//! operation, Workspace and grant class, then travels to `orchbee-files` unchanged; Put records
-//! are never parsed. A connection holds at most 24 File Bar streams, 16 of them carrying Puts or
+//! operation, the capability it needs, its Workspace and its grant class, then travels to
+//! `orchbee-files` unchanged; Put records are never parsed. A request that needs `files-edit` from
+//! a connection whose answer did not list it closes as unsupported, as on a Server without it. A connection holds at most 24 File Bar streams, 16 of them carrying Puts or
 //! read chunks. Its dispatcher writes a File Bar record only when no terminal or Workbench record
 //! waits, but at least one every 100 milliseconds, so neither starves the other.
 
 use super::{Call, FileBar, mailbox::Mailbox, mailbox::Outbound};
 use orchbee_files_protocol::{
-    CallId, ConnectionId, ErrorCode, FilesError, FilesRecord, GrantClass, LaneId, Operation,
-    OperationStream, RecordPlace, RequestError, decode_files_record, parse_request,
+    CallId, ConnectionId, ErrorCode, FilesCapability, FilesError, FilesRecord, GrantClass, LaneId,
+    Operation, OperationStream, RecordPlace, RequestError, decode_files_record, parse_request,
 };
 use orchbee_server::SessionChangeSignal;
 use orchbee_workbench_protocol::{
@@ -40,6 +41,8 @@ pub(crate) struct Relay {
     bar: Arc<FileBar>,
     connection: ConnectionId,
     grant: Option<GrantClass>,
+    /// Whether the connection's handshake answer lists `files-edit`.
+    edit: bool,
     mailbox: Arc<Mailbox>,
     streams: BTreeMap<MultiplexStreamId, Open>,
     lanes: BTreeSet<MultiplexLaneId>,
@@ -54,11 +57,13 @@ impl Relay {
         bar: Arc<FileBar>,
         connection: ConnectionId,
         grant: Option<GrantClass>,
+        edit: bool,
     ) -> Self {
         Self {
             bar,
             connection,
             grant,
+            edit,
             mailbox: Arc::default(),
             streams: BTreeMap::new(),
             lanes: BTreeSet::new(),
@@ -98,6 +103,9 @@ impl Relay {
                     RequestError::Unsupported => StreamCloseReason::Unsupported,
                     RequestError::Invalid => StreamCloseReason::InvalidRequest,
                 })?;
+                if request.capability() == FilesCapability::FilesEdit && !self.edit {
+                    return Err(StreamCloseReason::Unsupported);
+                }
                 let operation = request.operation();
                 if (operation.stream() == OperationStream::Events) != events {
                     return Err(StreamCloseReason::InvalidRequest);

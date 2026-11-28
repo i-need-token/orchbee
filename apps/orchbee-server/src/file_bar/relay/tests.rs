@@ -26,7 +26,7 @@ fn file_bar() -> Arc<FileBar> {
 }
 
 fn relay(bar: &Arc<FileBar>, grant: Option<GrantClass>) -> Relay {
-    bar.relay(ConnectionId::new(1).unwrap(), grant)
+    bar.relay(ConnectionId::new(1).unwrap(), grant, true)
 }
 
 fn stream(id: u64) -> MultiplexStreamId {
@@ -179,5 +179,43 @@ fn file_bar_records_yield_to_other_records_but_one_passes_every_100_milliseconds
     assert_eq!(rest.len(), 2);
     assert_eq!(relay.due(start + PRIORITY_INTERVAL), None);
     drop(relay);
+    bar.stop_before(Instant::now() + Duration::from_secs(5));
+}
+
+#[test]
+fn a_connection_without_files_edit_has_every_request_that_needs_it_closed_as_unsupported() {
+    const WORKSPACE: &str = r#""workspaceId":"0123456789abcdef0123456789abcdef""#;
+    let edits = [
+        format!(
+            r#"{{"op":"fs.create",{WORKSPACE},"requestId":"fedcba9876543210fedcba9876543210","path":"/home/dev/project/a.txt","type":"file"}}"#
+        ),
+        format!(r#"{{"op":"picker.open",{WORKSPACE},"picker":"1"}}"#),
+        format!(r#"{{"op":"fs.grant",{WORKSPACE},"path":"/tmp/notes.md","source":"save-as"}}"#),
+        format!(
+            r#"{{"op":"fs.read",{WORKSPACE},"transfer":"1","export":"1","index":0,"mode":"bytes","limit":1024}}"#
+        ),
+    ];
+    let bar = file_bar();
+    // Without a grant the relay answers what it admits itself, so no call reaches the File Bar.
+    let mut viewer = bar.relay(ConnectionId::new(1).unwrap(), None, false);
+    let mut editor = bar.relay(ConnectionId::new(2).unwrap(), None, true);
+    for (id, json) in (1..).zip(&edits) {
+        assert_eq!(
+            open(&mut viewer, id, StreamMode::Request, request(json)),
+            Err(StreamCloseReason::Unsupported),
+            "{json}"
+        );
+        assert_eq!(
+            open(&mut editor, id, StreamMode::Request, request(json)),
+            Ok(()),
+            "{json}"
+        );
+    }
+    // What `files` alone serves still relays.
+    assert_eq!(
+        open(&mut viewer, 9, StreamMode::Request, request(STAT)),
+        Ok(())
+    );
+    drop((viewer, editor));
     bar.stop_before(Instant::now() + Duration::from_secs(5));
 }

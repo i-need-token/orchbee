@@ -1504,8 +1504,8 @@ Server has the serving Worker start on the first File Bar call
 ([Worker](../orchbee-worker/README.md#orchbee-files-process)). `file_bar::FileBar`, owned by
 `LocalTerminalService`, starts with a managed Session before its Client listener opens and stops
 with its background jobs. The File Bar is unfinished: a build for the release environment neither
-offers nor lists the `files` capability and never starts the process, and an unmanaged Server
-lists no `files` either.
+offers nor lists the `files` and `files-edit` capabilities and never starts the process, and an
+unmanaged Server lists neither.
 
 Each start binds a one-shot endpoint in the runtime directory, a pipe on Windows and a `0600`
 socket on macOS and Linux, and draws a fresh 256-bit token that reaches the process only through
@@ -1536,8 +1536,9 @@ once; a turn that finishes while no process serves is not passed on.
 
 A connection whose handshake answer lists `files` admits OBFB records on its carrier and relays its
 File Bar streams; on any other connection such a record ends the connection. The Server reads a
-stream's request only for its operation, Workspace and grant class, never parses a Put, and passes
-the record on unchanged. Reads need the connection's terminal-create grant, and mutations, Puts and
+stream's request only for its operation, the capability it needs, its Workspace and its grant
+class, never parses a Put, and passes the record on unchanged. A request that needs `files-edit`
+on a connection whose answer does not list it closes as unsupported. Reads need the connection's terminal-create grant, and mutations, Puts and
 prompt answers its lifecycle grant as well; a call without them is answered `denied`. A connection
 holds at most 24 File Bar streams, 16 of them carrying Puts or read chunks, and closes one more
 with `capacity`. Each open File Bar stream keeps its reservation in the connection's budget and

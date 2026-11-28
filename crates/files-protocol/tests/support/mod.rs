@@ -1,9 +1,19 @@
-//! The File Bar corpus as the tests read it.
+//! The File Bar corpora as the tests read them.
 
 use serde::Deserialize;
 use serde_json::Value;
 
-const CORPUS: &str = include_str!("../../../../schemas/files/v1/files-conformance-v1.json");
+/// Each capability's corpus, in the order the registry lists the capabilities.
+const CORPORA: [(&str, &str); 2] = [
+    (
+        "files",
+        include_str!("../../../../schemas/files/v1/files-conformance-v1.json"),
+    ),
+    (
+        "files-edit",
+        include_str!("../../../../schemas/files/v1/files-edit-conformance-v1.json"),
+    ),
+];
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
@@ -12,9 +22,11 @@ pub struct Corpus {
     pub capability: String,
     pub bounds: Bounds,
     pub operations: Vec<OperationFacts>,
+    #[serde(default)]
     pub records: RecordCases,
     pub requests: RequestCases,
     pub replies: DocumentCases,
+    #[serde(default)]
     pub notices: DocumentCases,
 }
 
@@ -41,7 +53,7 @@ pub struct OperationFacts {
     pub update: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RecordCases {
     pub valid: Vec<ValidRecord>,
@@ -70,10 +82,11 @@ pub struct InvalidRecord {
 pub struct RequestCases {
     pub valid: Vec<Document>,
     pub invalid: Vec<Document>,
+    #[serde(default)]
     pub unsupported: Vec<Document>,
 }
 
-#[derive(Deserialize)]
+#[derive(Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DocumentCases {
     pub valid: Vec<Document>,
@@ -113,11 +126,17 @@ impl Document {
     }
 }
 
-pub fn corpus() -> Corpus {
-    let corpus: Corpus = serde_json::from_str(CORPUS).unwrap();
-    assert_eq!(corpus.contract_version, 1);
-    assert_eq!(corpus.capability, "files");
-    corpus
+/// Every capability's corpus.
+pub fn corpora() -> Vec<Corpus> {
+    CORPORA
+        .iter()
+        .map(|(capability, text)| {
+            let corpus: Corpus = serde_json::from_str(text).unwrap();
+            assert_eq!(corpus.contract_version, 1);
+            assert_eq!(corpus.capability, *capability);
+            corpus
+        })
+        .collect()
 }
 
 pub fn bytes(hex: &str) -> Vec<u8> {

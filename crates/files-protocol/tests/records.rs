@@ -10,7 +10,7 @@ use orchbee_files_protocol::{
     decode_files_record, encode_files_record,
 };
 
-use crate::support::{bytes, corpus};
+use crate::support::{bytes, corpora};
 
 const PLACES: [RecordPlace; 4] = [
     RecordPlace::RequestOpen,
@@ -42,7 +42,10 @@ fn agree(record: &[u8], origin: &str) {
 
 #[test]
 fn every_single_byte_mutation_is_refused_or_canonical() {
-    for case in corpus().records.valid {
+    for case in corpora()
+        .into_iter()
+        .flat_map(|corpus| corpus.records.valid)
+    {
         let record = bytes(&case.hex);
         for position in 0..record.len() {
             let flips = (0..8).map(|bit| record[position] ^ (1 << bit));
