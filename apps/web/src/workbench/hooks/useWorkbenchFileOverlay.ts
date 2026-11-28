@@ -24,6 +24,7 @@ import {
 	type FileOverlayStore,
 	type FileOverlayTitleActions,
 } from '../../file-overlay';
+import type { PointerDropTarget } from '../../pointer-drag';
 import type { WorkbenchWorkspace } from '../../project-workspace';
 import { registerWorkbenchFileOverlayActions } from '../actions/registerWorkbenchFileOverlayActions';
 import { WORKBENCH_ACTION_IDS, type WorkbenchActionCatalog } from '../actions/workbench-action-ids';
@@ -31,6 +32,7 @@ import type { WorkbenchShortcutPlatform } from '../types/workbench-shortcut-plat
 import type { WorkbenchNotificationQueue } from '../components/workbench-notification-cards/model/WorkbenchNotificationQueue';
 import type { WorkbenchQuickInputSessions } from '../components/workbench-search-surface/model/WorkbenchQuickInputSessions';
 import type { WorkbenchTerminalContext } from '../model/WorkbenchProjectWorkspaceRuntime';
+import type { WorkbenchTerminalPathDrops } from '../model/WorkbenchTerminalPathDrops';
 import { buildFileOverlayTitleActions, buildFileTabMenuEntries } from '../utils/file-overlay-menus';
 import type { WorkbenchAuthorityNoticeView } from './useWorkbenchAuthorityNotice';
 
@@ -45,6 +47,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly actionRuntime: ActionRuntime;
 	/** The Workbench's own scope, where the overlay's Actions resolve. */
 	readonly actionScope: ActionScope;
+	/** The terminal a press on the scrim gives the keys to, which the scrim covers. */
+	readonly currentTerminal: () => string | null;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly focusTerminal: () => void;
 	/** Where a failed load of the overlay's chunk is reported. */
@@ -64,6 +68,8 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly sidebarDocked: boolean;
 	/** The active Workspace's terminals, which the terminal area shows; null outside a Workspace. */
 	readonly terminalContext: WorkbenchTerminalContext | null;
+	/** Drops of files on terminals, which the scrim passes to the terminal it covers. */
+	readonly terminalPathDrops: WorkbenchTerminalPathDrops | undefined;
 	/** The active Workspace; null outside a Workspace. */
 	readonly workspaceId: string | null;
 	/** The window's Workspaces, whose overlays live while they exist. */
@@ -80,6 +86,7 @@ interface WorkbenchFileOverlayHost {
 	/** Receives how the Workbench gives the overlay the keys. */
 	readonly reference: React.RefObject<FileOverlayFocus | null>;
 	readonly regions: FileOverlayRegionElements;
+	readonly scrimDrop: PointerDropTarget | null;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	readonly store: FileOverlayStore;
 }
@@ -114,6 +121,7 @@ type FileOverlayTabActionId =
 export function useWorkbenchFileOverlay({
 	actionRuntime,
 	actionScope,
+	currentTerminal,
 	focusTerminal,
 	notifications,
 	offered,
@@ -124,6 +132,7 @@ export function useWorkbenchFileOverlay({
 	shortcutPlatform,
 	sidebarDocked,
 	terminalContext,
+	terminalPathDrops,
 	workspaceId,
 	workspaces,
 }: UseWorkbenchFileOverlayOptions): WorkbenchFileOverlayView {
@@ -171,6 +180,15 @@ export function useWorkbenchFileOverlay({
 	});
 	// The overlay keeps one function across renders, whichever the Workbench passes.
 	const returnToTerminal = useMemoizedFn(() => focusTerminal());
+	const resolveCurrentTerminal = useMemoizedFn(() => currentTerminal());
+	// Typing into the terminal replaces what the overlay covered, so the overlay shrinks out of its way.
+	const scrimDrop = React.useMemo(
+		() =>
+			terminalPathDrops?.currentTerminalTarget(resolveCurrentTerminal, () =>
+				dispatch({ type: 'terminal-replaced' }),
+			) ?? null,
+		[dispatch, resolveCurrentTerminal, terminalPathDrops],
+	);
 	const invokeToggleFull = useMemoizedFn(() => {
 		reportActionOutcome('button', () =>
 			typedRuntime.execute(WORKBENCH_ACTION_IDS.toggleFileOverlayFull, undefined, {
@@ -329,6 +347,7 @@ export function useWorkbenchFileOverlay({
 					platform: shortcutPlatform,
 					reference: overlayReference,
 					regions,
+					scrimDrop,
 					shortcutLabels,
 					store,
 				};

@@ -2,6 +2,7 @@ import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ProductIconName } from '@orchbee/ui/components';
 import type { ComponentType, Ref, RefObject } from 'react';
 
+import type { PointerDropTarget } from '../../pointer-drag';
 import type { FileOverlayEvent } from '../model';
 import type { FileOverlayStore } from '../workspace-stores';
 
@@ -94,6 +95,11 @@ export interface FileOverlayHostProps {
 	/** Receives how the Workbench gives the keys to the overlay. */
 	readonly ref?: Ref<FileOverlayFocus> | undefined;
 	readonly regions: FileOverlayRegionElements;
+	/**
+	 * Takes drops on the scrim, which covers the current terminal, as a drop on that terminal; null
+	 * where nothing drops there.
+	 */
+	readonly scrimDrop: PointerDropTarget | null;
 	readonly shortcutLabels: FileOverlayShortcutLabels;
 	/** Whether the Sidebar shows docked, which left-expand covers. */
 	readonly sidebarDocked: boolean;

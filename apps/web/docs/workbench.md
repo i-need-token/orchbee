@@ -200,7 +200,9 @@ The File Bar's views drag files and folders as the `file-drag` module's `FILE_DR
 lets the shown terminal Panels take them. A terminal that takes input lights up under such a drag,
 and a drop runs its `terminal.paths.insert` with the paths and the platform family of the machine
 that holds them, so the shell reads them as it reads that machine's own dropped files; a refusal or
-failure shows on the floating status notice.
+failure shows on the floating status notice. The open overlay's scrim covers the terminal a press on
+it returns to and takes such drops for that terminal: it lights up the same way, and a drop shrinks
+the overlay to picture-in-picture before the paths are typed, so the terminal they go to shows.
 
 Where the File Bar is offered, the Workbench also holds a `WorkbenchNotificationQueue` and shows
 its cards above the floating status notice, at the toast layer and so above the overlay. A card has

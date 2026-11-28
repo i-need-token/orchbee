@@ -16,3 +16,13 @@
 	background: var(--ob-sys-color-surface-scrim);
 	pointer-events: auto;
 }
+
+/* Files that would drop on the terminal beneath light the scrim up, as they light up a terminal
+   they are over. */
+.scrim[data-drop-target]::after {
+	position: absolute;
+	inset: 0;
+	background: var(--ob-sys-color-surface-hovered);
+	content: '';
+	pointer-events: none;
+}

@@ -79,6 +79,7 @@ import { WorkbenchTerminalPathDrops } from './model/WorkbenchTerminalPathDrops';
 import { workbenchEnvironmentMarkerView } from './model/workbenchEnvironmentMarkerView';
 import { WORKBENCH_RESIZE_TARGET_SIZE_PX } from './model/workbench-resize-target';
 import type { WorkbenchEnvironmentMarker } from './types/workbench-environment-marker';
+import { resolveActiveTerminalPresentationId } from './utils/resolveActiveTerminalPresentationId';
 import {
 	defaultWorkbenchScopedShortcutBindings,
 	defaultWorkbenchShortcutBindings,
@@ -249,9 +250,14 @@ export function Workbench({
 		storage: layoutStorage,
 		workspaceId: activeWorkspaceId,
 	});
+	// The scrim covers the terminal a press on it gives the keys to, so files dropped there go to it.
+	const currentTerminal = useMemoizedFn(() =>
+		resolveActiveTerminalPresentationId(projectWorkspaceRuntime),
+	);
 	const fileOverlay = useWorkbenchFileOverlay({
 		actionRuntime,
 		actionScope: view.actionScope,
+		currentTerminal,
 		focusTerminal: view.returnToTerminal,
 		notifications: notificationQueue,
 		offered: fileBarOffered,
@@ -262,6 +268,7 @@ export function Workbench({
 		shortcutPlatform,
 		sidebarDocked: view.sidebarPresentation === 'docked',
 		terminalContext,
+		terminalPathDrops,
 		workspaceId: activeWorkspaceId,
 		workspaces: view.projectWorkspaceState.workspaces,
 	});
@@ -840,6 +847,7 @@ export function Workbench({
 					platform={fileOverlay.host.platform}
 					ref={fileOverlay.host.reference}
 					regions={fileOverlay.host.regions}
+					scrimDrop={fileOverlay.host.scrimDrop}
 					shortcutLabels={fileOverlay.host.shortcutLabels}
 					sidebarDocked={view.sidebarPresentation === 'docked'}
 					store={fileOverlay.host.store}
