@@ -507,6 +507,13 @@ export type WorkbenchScopedShortcutScope =
 export interface WorkbenchScopedShortcutDefinition {
 	readonly actionId: string;
 	readonly defaults: Readonly<Partial<Record<WorkbenchShortcutPlatform, KeyboardShortcutSequence>>>;
+	/**
+	 * The shortcut whose Action is never offered while this one's is, so that the two may hold the
+	 * same keys in one scope, as Pin Editor and Unpin Editor do in VS Code.
+	 */
+	readonly exclusiveWith?: string;
+	/** What the Action runs with; it runs without input when this is absent. */
+	readonly input?: unknown;
 	readonly scope: WorkbenchScopedShortcutScope;
 	readonly shortcutId: string;
 }
@@ -536,15 +543,127 @@ export const WORKBENCH_SCOPED_SHORTCUTS = {
 		scope: 'file-bar',
 		shortcutId: 'workbench.file-bar.toggle.in-file-bar',
 	},
-	// VS Code's Toggle Maximize Editor Group keys, inside the file overlay.
+	// VS Code's editor keys follow, inside the File Bar or the file overlay, as VS Code's work with
+	// focus in its side bar. Toggle Maximize Editor Group:
 	fileOverlayToggleFull: {
 		actionId: WORKBENCH_ACTION_IDS.toggleFileOverlayFull,
 		defaults: {
 			apple: [chord('KeyK', ['mod']), chord('KeyM', ['mod'])],
 			standard: [chord('KeyK', ['mod']), chord('KeyM', ['mod'])],
 		},
-		scope: 'file-overlay',
+		scope: 'file-bar',
 		shortcutId: 'file-overlay.tier.toggle-full',
+	},
+	fileTabClose: {
+		actionId: WORKBENCH_ACTION_IDS.closeFileOverlayTab,
+		defaults: {
+			apple: [chord('KeyW', ['mod'])],
+			standard: [chord('KeyW', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close',
+	},
+	// Close Editor's Windows key in VS Code.
+	fileTabCloseFunctionKey: {
+		actionId: WORKBENCH_ACTION_IDS.closeFileOverlayTab,
+		defaults: { standard: [chord('F4', ['mod'])] },
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.close.function-key',
+	},
+	fileTabReopen: {
+		actionId: WORKBENCH_ACTION_IDS.reopenFileOverlayTab,
+		defaults: {
+			apple: [chord('KeyT', ['mod', 'shift'])],
+			standard: [chord('KeyT', ['mod', 'shift'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.reopen',
+	},
+	fileTabSelectNext: {
+		actionId: WORKBENCH_ACTION_IDS.selectNextFileOverlayTab,
+		defaults: {
+			apple: [chord('ArrowRight', ['alt', 'mod'])],
+			standard: [chord('PageDown', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-next',
+	},
+	fileTabSelectNextBracket: {
+		actionId: WORKBENCH_ACTION_IDS.selectNextFileOverlayTab,
+		defaults: { apple: [chord('BracketRight', ['mod', 'shift'])] },
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-next.bracket',
+	},
+	fileTabSelectPrevious: {
+		actionId: WORKBENCH_ACTION_IDS.selectPreviousFileOverlayTab,
+		defaults: {
+			apple: [chord('ArrowLeft', ['alt', 'mod'])],
+			standard: [chord('PageUp', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-previous',
+	},
+	fileTabSelectPreviousBracket: {
+		actionId: WORKBENCH_ACTION_IDS.selectPreviousFileOverlayTab,
+		defaults: { apple: [chord('BracketLeft', ['mod', 'shift'])] },
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-previous.bracket',
+	},
+	fileTabSelect1: fileTabPositionShortcut(1),
+	fileTabSelect2: fileTabPositionShortcut(2),
+	fileTabSelect3: fileTabPositionShortcut(3),
+	fileTabSelect4: fileTabPositionShortcut(4),
+	fileTabSelect5: fileTabPositionShortcut(5),
+	fileTabSelect6: fileTabPositionShortcut(6),
+	fileTabSelect7: fileTabPositionShortcut(7),
+	fileTabSelect8: fileTabPositionShortcut(8),
+	fileTabSelect9: fileTabPositionShortcut(9),
+	fileTabSelectLast: {
+		actionId: WORKBENCH_ACTION_IDS.selectLastFileOverlayTab,
+		defaults: {
+			apple: [chord('Digit0', ['control'])],
+			standard: [chord('Digit0', ['alt'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-last',
+	},
+	fileTabSelectLastDigitNine: {
+		actionId: WORKBENCH_ACTION_IDS.selectLastFileOverlayTab,
+		defaults: {
+			apple: [chord('Digit9', ['mod'])],
+			standard: [chord('Digit9', ['mod'])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.select-last.digit-nine',
+	},
+	fileTabKeep: {
+		actionId: WORKBENCH_ACTION_IDS.keepFileOverlayTab,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('Enter', [])],
+			standard: [chord('KeyK', ['mod']), chord('Enter', [])],
+		},
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.keep',
+	},
+	fileTabPin: {
+		actionId: WORKBENCH_ACTION_IDS.pinFileOverlayTab,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('Enter', ['shift'])],
+			standard: [chord('KeyK', ['mod']), chord('Enter', ['shift'])],
+		},
+		exclusiveWith: 'file-overlay.tab.unpin',
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.pin',
+	},
+	fileTabUnpin: {
+		actionId: WORKBENCH_ACTION_IDS.unpinFileOverlayTab,
+		defaults: {
+			apple: [chord('KeyK', ['mod']), chord('Enter', ['shift'])],
+			standard: [chord('KeyK', ['mod']), chord('Enter', ['shift'])],
+		},
+		exclusiveWith: 'file-overlay.tab.pin',
+		scope: 'file-bar',
+		shortcutId: 'file-overlay.tab.unpin',
 	},
 } as const satisfies Readonly<Record<string, WorkbenchScopedShortcutDefinition>>;
 
@@ -711,6 +830,22 @@ function positionalPanelShortcut<const Position extends WorkbenchPanelPositionIn
 		id: WORKBENCH_ACTION_IDS.focusActivePanelByPosition,
 		input: { position },
 		shortcutId: `workbench.panel.focus.${position}`,
+	} as const;
+}
+
+/** Open Editor at Index: VS Code's Alt with a digit, Control with a digit on a Mac. */
+function fileTabPositionShortcut<const Position extends WorkbenchTabPositionInput['position']>(
+	position: Position,
+) {
+	return {
+		actionId: WORKBENCH_ACTION_IDS.selectFileOverlayTabByPosition,
+		defaults: {
+			apple: [chord(`Digit${position}`, ['control'])],
+			standard: [chord(`Digit${position}`, ['alt'])],
+		},
+		input: { position } satisfies WorkbenchTabPositionInput,
+		scope: 'file-bar',
+		shortcutId: `file-overlay.tab.select.${position}`,
 	} as const;
 }
 

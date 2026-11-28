@@ -1005,18 +1005,19 @@ export function useWorkbench({
 		);
 		return true;
 	});
-	// A File Bar family shortcut runs its Action in the scope of the region that owns its keys.
+	// A File Bar family shortcut runs its Action, with the input it declares, in the scope of the
+	// region that owns its keys.
 	const invokeScopedShortcut = useMemoizedFn(
 		(definition: WorkbenchScopedShortcutDefinition, scope: ActionScope | undefined): boolean => {
 			const invocation = { scope: scope ?? actions.scope, source: 'keyboard' } as const;
 			if (
-				actionRuntime.resolveAction(definition.actionId, undefined, invocation)?.availability
+				actionRuntime.resolveAction(definition.actionId, definition.input, invocation)?.availability
 					.kind !== 'enabled'
 			) {
 				return false;
 			}
 			authorityNotice.reportActionOutcome(invocation.source, () =>
-				actionRuntime.execute(definition.actionId, undefined, invocation),
+				actionRuntime.execute(definition.actionId, definition.input, invocation),
 			);
 			return true;
 		},

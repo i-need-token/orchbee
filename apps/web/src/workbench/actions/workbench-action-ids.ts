@@ -98,7 +98,13 @@ export const WORKBENCH_ACTION_IDS = {
 	toggleFileOverlayFull: 'file-overlay.tier.toggle-full',
 	closeFileOverlayTab: 'file-overlay.tab.close',
 	keepFileOverlayTab: 'file-overlay.tab.keep',
+	pinFileOverlayTab: 'file-overlay.tab.pin',
+	reopenFileOverlayTab: 'file-overlay.tab.reopen',
 	selectFileOverlayTab: 'file-overlay.tab.select',
+	selectFileOverlayTabByPosition: 'file-overlay.tab.select-by-position',
+	selectLastFileOverlayTab: 'file-overlay.tab.select-last',
+	selectNextFileOverlayTab: 'file-overlay.tab.select-next',
+	selectPreviousFileOverlayTab: 'file-overlay.tab.select-previous',
 	unpinFileOverlayTab: 'file-overlay.tab.unpin',
 	toggleProjectExpansion: 'workbench.project.expansion.toggle',
 	toggleRecentsExpansion: 'workbench.recents.expansion.toggle',
@@ -219,6 +225,7 @@ export interface WorkbenchPanelPositionInput {
 
 export type WorkbenchTabPosition = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 
+/** A tab by its place in a row counted from one: the Tab bar's, or the file overlay's tab row. */
 export interface WorkbenchTabPositionInput {
 	readonly position: WorkbenchTabPosition;
 }
@@ -370,7 +377,13 @@ export interface WorkbenchActionCatalog {
 	readonly [WORKBENCH_ACTION_IDS.toggleFileOverlayFull]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.closeFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.keepFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.pinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
+	readonly [WORKBENCH_ACTION_IDS.reopenFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.selectFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabTargetInput>;
+	readonly [WORKBENCH_ACTION_IDS.selectFileOverlayTabByPosition]: ActionSignature<WorkbenchTabPositionInput>;
+	readonly [WORKBENCH_ACTION_IDS.selectLastFileOverlayTab]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.selectNextFileOverlayTab]: ActionSignature<void>;
+	readonly [WORKBENCH_ACTION_IDS.selectPreviousFileOverlayTab]: ActionSignature<void>;
 	readonly [WORKBENCH_ACTION_IDS.unpinFileOverlayTab]: ActionSignature<WorkbenchFileOverlayTabInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleProjectExpansion]: ActionSignature<WorkbenchProjectInput>;
 	readonly [WORKBENCH_ACTION_IDS.toggleRecentsExpansion]: ActionSignature<void>;

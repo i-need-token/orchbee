@@ -18,6 +18,26 @@ export function formatKeyboardShortcutActionName(
 			return intl.formatMessage(fileBarMessages.toggle);
 		case 'toggle-file-overlay-full':
 			return intl.formatMessage(fileOverlayMessages.toggleFull);
+		case 'close-editor':
+			return intl.formatMessage(fileOverlayMessages.closeEditor);
+		case 'keep-editor':
+			return intl.formatMessage(fileOverlayMessages.keepEditor);
+		case 'last-editor':
+			return intl.formatMessage(fileOverlayMessages.lastEditor);
+		case 'next-editor':
+			return intl.formatMessage(fileOverlayMessages.nextEditor);
+		case 'pin-editor':
+			return intl.formatMessage(fileOverlayMessages.pinEditor);
+		case 'position-editor':
+			return intl.formatMessage(fileOverlayMessages.positionEditorNumbered, {
+				position: declaration.position,
+			});
+		case 'previous-editor':
+			return intl.formatMessage(fileOverlayMessages.previousEditor);
+		case 'reopen-closed-editor':
+			return intl.formatMessage(fileOverlayMessages.reopenClosedEditor);
+		case 'unpin-editor':
+			return intl.formatMessage(fileOverlayMessages.unpinEditor);
 		case 'actions-search':
 			return intl.formatMessage(keyboardShortcutMessages.actionsSearch);
 		case 'clear-terminal':

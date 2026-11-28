@@ -58,7 +58,7 @@ export function FileTabRow({ idPrefix, panelId }: FileTabRowProps): ReactNode {
 	);
 	useFileTabRowWheel(rowReference);
 	useFileTabReveal(rowReference, listReference, tabs.activeId, tabs.tabs.length);
-	const handOffFocus = useFileTabFocusHandoff(rowReference);
+	const handOffFocus = useFileTabFocusHandoff(rowReference, tabs.activeId);
 	const onKeyDown = useMemoizedFn((event: KeyboardEvent<HTMLDivElement>) => {
 		const list = listReference.current;
 		if (list === null || event.nativeEvent.isComposing) return;

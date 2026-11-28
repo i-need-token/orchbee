@@ -27,13 +27,33 @@ export const fileOverlayMessages = defineMessages({
 		'fileOverlay.label',
 		'Accessible name of the file overlay, the frame over the terminal area where files open in tabs.',
 	),
+	lastEditor: message(
+		'fileOverlay.actions.lastEditor',
+		'Action that shows the file of the last tab in the file overlay’s tab row. VS Code calls a file open in a tab an editor.',
+	),
 	loadFailed: message(
 		'fileOverlay.loadFailed',
 		'Error card shown when the file overlay could not be loaded, so the file opened does not show.',
 	),
+	nextEditor: message(
+		'fileOverlay.actions.nextEditor',
+		'Action that shows the file of the tab after the active one in the file overlay’s tab row, the first after the last. VS Code calls a file open in a tab an editor.',
+	),
+	pinEditor: message(
+		'fileOverlay.actions.pinEditor',
+		'Action that pins a file tab to the start of the file overlay’s tab row, the active one unless a tab is named. VS Code calls a file open in a tab an editor.',
+	),
 	pinnedTabName: message(
 		'fileOverlay.tabs.pinnedName',
 		'Accessible name of a file tab pinned to the start of the file overlay’s tab row. {name} is the file name the tab shows, with its folder when another tab shows the same name.',
+	),
+	positionEditor: message(
+		'fileOverlay.actions.positionEditor',
+		'Action that shows the file of the tab at a given place in the file overlay’s tab row, counted from the start. VS Code calls a file open in a tab an editor.',
+	),
+	positionEditorNumbered: message(
+		'fileOverlay.actions.positionEditorNumbered',
+		'Name of the keyboard shortcut that shows the file of one tab in the file overlay’s tab row. {position} is that tab’s place in the row, 1 to 9, counted from the start. VS Code calls a file open in a tab an editor.',
 	),
 	previewTabName: message(
 		'fileOverlay.tabs.previewName',
@@ -42,6 +62,14 @@ export const fileOverlayMessages = defineMessages({
 	previewTabPath: message(
 		'fileOverlay.tabs.previewPath',
 		'Tooltip of the file tab in preview, which the next file opened in preview replaces. {path} is the file’s full path.',
+	),
+	previousEditor: message(
+		'fileOverlay.actions.previousEditor',
+		'Action that shows the file of the tab before the active one in the file overlay’s tab row, the last before the first. VS Code calls a file open in a tab an editor.',
+	),
+	reopenClosedEditor: message(
+		'fileOverlay.actions.reopenClosedEditor',
+		'Action that opens again the file overlay tabs closed last, together if they closed together. VS Code calls a file open in a tab an editor.',
 	),
 	restore: message(
 		'fileOverlay.actions.restore',

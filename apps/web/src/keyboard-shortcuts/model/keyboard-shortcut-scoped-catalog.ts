@@ -16,6 +16,7 @@ import {
 	type WorkbenchScopedShortcutDefinition,
 	type WorkbenchScopedShortcutId,
 	type WorkbenchScopedShortcutScope,
+	type WorkbenchTabPosition,
 } from '../../workbench';
 
 import {
@@ -24,18 +25,32 @@ import {
 	type KeyboardShortcutId,
 } from './keyboard-shortcut-catalog';
 
-type KeyboardShortcutScopedName = 'toggle-file-bar' | 'toggle-file-overlay-full';
+type KeyboardShortcutScopedName =
+	| 'close-editor'
+	| 'keep-editor'
+	| 'last-editor'
+	| 'next-editor'
+	| 'pin-editor'
+	| 'previous-editor'
+	| 'reopen-closed-editor'
+	| 'toggle-file-bar'
+	| 'toggle-file-overlay-full'
+	| 'unpin-editor';
+
+/** The name Settings gives a scoped shortcut, and the tab it shows when it names one by its place. */
+type KeyboardShortcutScopedNaming =
+	| { readonly name: 'position-editor'; readonly position: WorkbenchTabPosition }
+	| { readonly name: KeyboardShortcutScopedName; readonly position?: undefined };
 
 /**
  * A File Bar family shortcut as Settings lists it on one platform. It exists only where the File
  * Bar is offered, and only on a platform its definition gives a default.
  */
-export interface KeyboardShortcutScopedDeclaration {
+export type KeyboardShortcutScopedDeclaration = KeyboardShortcutScopedNaming & {
 	readonly defaultSequence: KeyboardShortcutSequence;
 	readonly definition: WorkbenchScopedShortcutDefinition;
-	readonly name: KeyboardShortcutScopedName;
 	readonly shortcutId: WorkbenchScopedShortcutId;
-}
+};
 
 /** The person's own keys for one scoped shortcut; a default is never stored. */
 export interface KeyboardShortcutScopedOverride {
@@ -46,13 +61,40 @@ export interface KeyboardShortcutScopedOverride {
 /** Any shortcut a conflict or a shadow can name: a window shortcut or a scoped one. */
 export type KeyboardShortcutAnyId = KeyboardShortcutId | WorkbenchScopedShortcutId;
 
+type ScopedShortcutEntry =
+	(typeof WORKBENCH_SCOPED_SHORTCUTS)[keyof typeof WORKBENCH_SCOPED_SHORTCUTS];
+
+/** The shortcuts with an input, which name the tab they show by its place. */
+type PositionalScopedShortcutEntry = Extract<ScopedShortcutEntry, { readonly input: unknown }>;
+
 const SCOPED_SHORTCUT_NAMES: Readonly<
-	Record<WorkbenchScopedShortcutId, KeyboardShortcutScopedName>
+	Record<
+		Exclude<ScopedShortcutEntry, PositionalScopedShortcutEntry>['shortcutId'],
+		KeyboardShortcutScopedName
+	>
 > = Object.freeze({
 	'workbench.file-bar.toggle': 'toggle-file-bar',
 	'workbench.file-bar.toggle.in-file-bar': 'toggle-file-bar',
 	'file-overlay.tier.toggle-full': 'toggle-file-overlay-full',
+	'file-overlay.tab.close': 'close-editor',
+	'file-overlay.tab.close.function-key': 'close-editor',
+	'file-overlay.tab.reopen': 'reopen-closed-editor',
+	'file-overlay.tab.select-next': 'next-editor',
+	'file-overlay.tab.select-next.bracket': 'next-editor',
+	'file-overlay.tab.select-previous': 'previous-editor',
+	'file-overlay.tab.select-previous.bracket': 'previous-editor',
+	'file-overlay.tab.select-last': 'last-editor',
+	'file-overlay.tab.select-last.digit-nine': 'last-editor',
+	'file-overlay.tab.keep': 'keep-editor',
+	'file-overlay.tab.pin': 'pin-editor',
+	'file-overlay.tab.unpin': 'unpin-editor',
 });
+
+function scopedNaming(definition: ScopedShortcutEntry): KeyboardShortcutScopedNaming {
+	if ('input' in definition)
+		return { name: 'position-editor', position: definition.input.position };
+	return { name: SCOPED_SHORTCUT_NAMES[definition.shortcutId] };
+}
 
 /** How many scoped shortcuts exist on any platform, which bounds a stored record. */
 export const KEYBOARD_SHORTCUT_SCOPED_COUNT = Object.keys(WORKBENCH_SCOPED_SHORTCUTS).length;
@@ -68,9 +110,9 @@ function platformDeclarations(
 				? []
 				: [
 						Object.freeze({
+							...scopedNaming(definition),
 							defaultSequence,
 							definition,
-							name: SCOPED_SHORTCUT_NAMES[definition.shortcutId],
 							shortcutId: definition.shortcutId,
 						}),
 					];
@@ -194,8 +236,9 @@ export function keyboardShortcutScopedOverridesEqual(
 
 /**
  * Two bindings conflict when one key press reaches both at the same step of the scope walk: the
- * same keys in the same scope, where the window scope holds every window shortcut as well. A
- * narrower scope's binding for a wider one's keys is a shadow, not a conflict.
+ * same keys in the same scope, where the window scope holds every window shortcut as well, unless
+ * one names the other as never offered together with it. A narrower scope's binding for a wider
+ * one's keys is a shadow, not a conflict.
  */
 export function findKeyboardShortcutScopedConflict(
 	bindings: KeyboardShortcutBindings,
@@ -205,10 +248,13 @@ export function findKeyboardShortcutScopedConflict(
 	readonly firstShortcutId: KeyboardShortcutAnyId;
 	readonly secondShortcutId: KeyboardShortcutAnyId;
 } | null {
-	const firstIdByKey = new Map<string, KeyboardShortcutAnyId>();
+	const holdersByKey = new Map<string, readonly KeyboardShortcutAnyId[]>();
+	const hold = (key: string, shortcutId: KeyboardShortcutAnyId): void => {
+		holdersByKey.set(key, [...(holdersByKey.get(key) ?? []), shortcutId]);
+	};
 	for (const declaration of KEYBOARD_SHORTCUT_CATALOG) {
 		const chordKey = keyboardShortcutChordKey(bindings[declaration.shortcutId], platform);
-		firstIdByKey.set(scopedKey('shell', chordKey), declaration.shortcutId);
+		hold(scopedKey('shell', chordKey), declaration.shortcutId);
 	}
 	for (const declaration of keyboardShortcutScopedDeclarations(platform)) {
 		const sequence = keyboardShortcutScopedSequence(declaration, overrides);
@@ -216,13 +262,28 @@ export function findKeyboardShortcutScopedConflict(
 			declaration.definition.scope,
 			keyboardShortcutSequenceKey(sequence, platform),
 		);
-		const firstShortcutId = firstIdByKey.get(key);
+		const firstShortcutId = holdersByKey
+			.get(key)
+			?.find((holder) => !scopedShortcutsExclusive(declaration, holder, platform));
 		if (firstShortcutId !== undefined) {
 			return { firstShortcutId, secondShortcutId: declaration.shortcutId };
 		}
-		firstIdByKey.set(key, declaration.shortcutId);
+		hold(key, declaration.shortcutId);
 	}
 	return null;
+}
+
+/** Whether either of two shortcuts names the other as never offered together with it. */
+function scopedShortcutsExclusive(
+	declaration: KeyboardShortcutScopedDeclaration,
+	otherShortcutId: KeyboardShortcutAnyId,
+	platform: KeyboardShortcutPlatform,
+): boolean {
+	return (
+		declaration.definition.exclusiveWith === otherShortcutId ||
+		keyboardShortcutScopedDeclaration(otherShortcutId, platform)?.definition.exclusiveWith ===
+			declaration.shortcutId
+	);
 }
 
 /** The wider binding whose keys `declaration` takes while focus is inside its scope, if any. */
