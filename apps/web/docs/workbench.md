@@ -182,11 +182,10 @@ first hold and closes it on the last release. Switching Workspaces moves the hol
 withheld or mobile File Bar holds none, so no session exists for a Workspace whose files nothing
 shows. A window without the input opens no session. Desktop passes it where it offers the File
 Bar and the shown Session's handshake lists `files`: that Session's runtime opens sessions through
-`ServerFileSessionPort` over its connection and closes them when it is disposed. No build offers
-`files` before its Server relays File Bar streams to `orchbee-files`, so no window opens a session
-yet. A session's Source Control shares its connection: its summary and prompt streams stay open
-while something follows them, and each Git change runs on a lane of its own, so a change its caller
-gives up stops its Git process.
+`ServerFileSessionPort` over its connection and closes them when it is disposed. A session's Source
+Control shares its connection: its summary and prompt streams stay open while something follows
+them, and each Git change runs on a lane of its own, so a change its caller gives up stops its Git
+process.
 
 Each Workspace has one file overlay, which a `FileOverlayRegistry` keeps while the Workspace
 exists; only the active Workspace's shows. Its components load through `loadFileOverlay()` as
