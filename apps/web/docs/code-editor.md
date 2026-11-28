@@ -149,17 +149,18 @@ a change that grows them reports the new sizes.
 | zh-CN message table, loaded only in zh-CN        | 96,957 B    | 26,219 B    |
 | 81 grammar chunks, each loaded with its language | 422,967 B   | 148,741 B   |
 | Largest grammar chunk                            | 18,564 B    | 4,463 B     |
-| Theme, JSON languages, documents and views       | 39,484 B    | 12,398 B    |
-| Views' stylesheet                                | 6,086 B     | 1,672 B     |
-| Main bundle growth                               | 13,248 B    | 4,451 B     |
-| Main stylesheet growth                           | 5,353 B     | 828 B       |
-| Production web build growth                      | 4,690,264 B | 1,271,379 B |
+| Theme, JSON languages, documents and views       | 50,344 B    | 15,573 B    |
+| Views' stylesheet                                | 4,019 B     | 1,299 B     |
+| Main bundle growth                               | 32,871 B    | 9,153 B     |
+| Main stylesheet growth                           | 5,451 B     | 840 B       |
+| Production web build growth                      | 4,730,060 B | 1,282,382 B |
 
 The main bundle grows because the added modules lengthen every module ID by a digit, the loader's
-chunk map lists the new chunks, and `@orchbee/i18n` carries the editor's messages with every other
-domain's; the File Bar's limit for it is 10 KB gzip. The main stylesheet grows by the syntax roles
-of both appearances and every named theme. The views' stylesheet carries a copy of the virtual
-tree's, which the multi-diff's import of the tree's scrolling arithmetic brings along.
+chunk map lists the new chunks, `@orchbee/i18n` carries the editor's messages with every other
+domain's, and the Workbench carries what it owns for the editor: the `Mod+K` rows and their Settings
+names, the font size Actions, and the store that keeps each Workspace's file documents for the
+overlay's tabs. The File Bar's limit for that growth is 10 KB gzip. The main stylesheet grows by the
+syntax roles of both appearances and every named theme, and by the multi-diff's geometry tokens.
 
 ## Upgrading Monaco
 
