@@ -42,7 +42,16 @@ fn pending_mutation_does_not_block_a_view_update_on_the_same_carrier() {
         loop {
             let open = match read_open(&mut stream) {
                 Ok(open) => open,
-                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => return Ok(()),
+                // The lane closes without reading what it no longer needs, such as the last view's
+                // answer; Linux reports such a close as a reset rather than end of file.
+                Err(error)
+                    if matches!(
+                        error.kind(),
+                        io::ErrorKind::UnexpectedEof | io::ErrorKind::ConnectionReset
+                    ) =>
+                {
+                    return Ok(());
+                }
                 Err(error) => return Err(error),
             };
             match read_workbench_request(&mut io::Cursor::new(&open.request)).unwrap() {
