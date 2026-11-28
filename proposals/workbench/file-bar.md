@@ -661,7 +661,7 @@ This page picked these under the owner's instruction; the owner may veto any of 
 - Placement Actions live in Action search and the two context menus; the native application menu gains no entries.
 - A Workspace closed by another Client keeps its unsaved tabs alive behind a Save All or Discard notification.
 - The quit veto asks each window in turn.
-- `Mod+K Mod+M` maps VS Code's maximize-group key onto the full tier. M4's key trace settles whether the editor's Replace all in find also takes Apple `Cmd+Option+Enter`; Search's Replace All in Files takes it in batch 3.
+- `Mod+K Mod+M` maps VS Code's maximize-group key onto the full tier. M4's key trace settled that the editor's Replace all in find also takes Apple `Cmd+Option+Enter`, as Monaco binds `Mod+Alt+Enter` on every operating system; Search's Replace All in Files takes it in batch 3.
 - Inline merge actions are VS Code's whole set: Accept Current, Accept Incoming, Accept Both and Compare Changes.
 - Syntax and file-icon color roles are routine additions under the design-token change process.
 - On Windows and Linux, `Ctrl+P` and `Ctrl+E` open Go to File... only in the File Bar and the overlay, while VS Code also takes them in the terminal: a terminal keeps readline's previous-history and end-of-line, and Go to File... in Action search reaches Quick Open from there.
