@@ -13,6 +13,7 @@ import { EXPLORER_ROW_HEIGHT } from './constants/explorer-row-height';
 import { useExplorerDrag } from './hooks/useExplorerDrag';
 import { useExplorerFocus } from './hooks/useExplorerFocus';
 import { useExplorerGitDecorations } from './hooks/useExplorerGitDecorations';
+import { useExplorerOpen } from './hooks/useExplorerOpen';
 import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
@@ -63,9 +64,9 @@ function hasFileIcon(row: VirtualTreeRow<string, ExplorerItem>): boolean {
 /**
  * The File Bar's Explorer: VS Code's Folders view over the active Workspace's current directory,
  * with its title Actions, and the one sentence VS Code's welcome view becomes when there is no
- * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does, its rows
- * carry VS Code's Git decorations from the status Source Control reads, and they drag as the File
- * Bar's files and folders.
+ * directory. Its tree answers keys, clicks and type navigation as VS Code's Explorer does and opens
+ * files in the file overlay, its rows carry VS Code's Git decorations from the status Source Control
+ * reads, and they drag as the File Bar's files and folders.
  */
 export function FileExplorer({
 	actionRuntime,
@@ -96,6 +97,12 @@ export function FileExplorer({
 		runtime: actionRuntime,
 		tree,
 	});
+	const open = useExplorerOpen(
+		actionRuntime,
+		commands.scope,
+		session,
+		state.kind === 'tree' ? state.rules : null,
+	);
 	useExplorerFocus(ref, rootReference, treeReference, state.kind === 'tree');
 	return (
 		<div className={styles['root']} data-slot='file-explorer' ref={rootReference} tabIndex={-1}>
@@ -122,6 +129,7 @@ export function FileExplorer({
 								keyboardScope={{ actionScope: commands.scope, widget: EXPLORER_WIDGET }}
 								label={intl.formatMessage(fileExplorerMessages.tree)}
 								model={state.model}
+								onOpen={open}
 								paddingBottom={EXPLORER_ROW_HEIGHT}
 								platform={platform}
 								renderRow={renderRow}
