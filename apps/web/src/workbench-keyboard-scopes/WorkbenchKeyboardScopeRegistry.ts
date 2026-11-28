@@ -25,6 +25,11 @@ export type WorkbenchKeyboardScope =
 			 * the scope `widget:explorer` apply while focus is on it, but not in a text field inside it.
 			 */
 			readonly widget: string;
+			/**
+			 * The chords the widget handles itself, as a `VirtualTree` registers its list keys: after
+			 * the widget's own bindings, they go to the widget, which no wider binding takes from it.
+			 */
+			readonly yields?: readonly KeyboardShortcutChord[] | undefined;
 	  }
 	| {
 			/**

@@ -79,9 +79,10 @@ Before adding a binding, search all scopes for the same canonical chord. Conditi
 - Conflicts follow the resolution walk. The same keys in the same scope conflict and are refused. A
   narrower binding for a wider binding's keys is a shadow, which the narrower row notes. Keys no
   press could reach, such as a lone `Mod+K` where it starts a sequence, are refused.
-- A code editor declares the keys it binds itself. While focus is inside it, the resolver yields
-  those keys and no wider scope takes them; `Mod+K` and a sequence's second step stay with the
-  resolver.
+- A code editor, or a tree or list widget, declares the keys it handles itself. While focus is
+  inside it, and for a widget not in a text field inside it, the resolver yields those keys once the
+  scope's own bindings have passed, and no wider scope takes them; `Mod+K` and a sequence's second
+  step stay with the resolver.
 
 ## Display and localization
 

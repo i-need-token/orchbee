@@ -6,9 +6,9 @@ import { createRsbuild, loadConfig, type RsbuildDevServer } from '@rsbuild/core'
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { z } from 'zod';
 
-// The virtual tree's render benchmark and structure checks, on the page that
-// `src/__tests__/virtual-tree.system-fixture.ts` builds. Structure is asserted; timings are measured
-// in the page and printed, since they depend on the machine.
+// The virtual tree's render benchmark, structure checks and interaction check, on the page that
+// `src/__tests__/virtual-tree.system-fixture.ts` builds. Structure and interaction are asserted;
+// timings are measured in the page and printed, since they depend on the machine.
 
 const webRoot = path.resolve(import.meta.dirname, '..');
 const fixtureEntry = 'virtual-tree-fixture';
@@ -36,9 +36,13 @@ interface VirtualTreeFixture {
 	measureExpand(): Promise<unknown>;
 	measureScroll(pixelsPerFrame: number, frames: number): Promise<unknown>;
 	measureSelectAll(): Promise<unknown>;
+	measureSelectSiblings(): Promise<unknown>;
+	measureTypeNavigation(): Promise<unknown>;
 	scrollTop(): number;
 	setFocus(key: string | null): void;
 	setScrollTop(offset: number): void;
+	state(): unknown;
+	takeRequests(): unknown;
 }
 
 type FixtureWindow = Window & { readonly virtualTreeFixture: VirtualTreeFixture };
@@ -52,6 +56,7 @@ const paintedChangeSchema = z.object({
 });
 const expandSchema = paintedChangeSchema.extend({ rowCount: z.number() });
 const selectAllSchema = paintedChangeSchema.extend({ selected: z.number() });
+const typeNavigationSchema = z.object({ rowCount: z.number(), scriptMs: z.number() });
 const scrollSchema = z.object({
 	frameIntervalMs: statsSchema,
 	frameMs: statsSchema,
@@ -60,6 +65,22 @@ const scrollSchema = z.object({
 	pixelsPerFrame: z.number(),
 	scriptMs: statsSchema,
 });
+const treeStateSchema = z.object({
+	anchor: z.string().nullable(),
+	focus: z.string().nullable(),
+	rowCount: z.number(),
+	selection: z.array(z.string()),
+});
+const treeRequestsSchema = z.array(
+	z.object({
+		key: z.string().nullable(),
+		kind: z.enum(['contextMenu', 'open']),
+		offset: z.object({ x: z.number(), y: z.number() }).optional(),
+		pinned: z.boolean().optional(),
+		preserveFocus: z.boolean().optional(),
+		sideBySide: z.boolean().optional(),
+	}),
+);
 const traceEventSchema = z.object({
 	dur: z.number().optional(),
 	name: z.string(),
@@ -126,6 +147,129 @@ test('virtual tree renders only the rows in sight and the focused row', async ({
 	if (process.platform !== 'darwin') expect(await wheelScroll(page, 'Shift')).toBe(0);
 });
 
+test('virtual tree answers keys, clicks and the context menu as VS Code does', async ({ page }) => {
+	await openFixture(page);
+	const tree = page.getByRole('tree');
+	const row = (name: string) => page.getByRole('treeitem', { exact: true, name });
+	const state = async () =>
+		treeStateSchema.parse(
+			await page.evaluate(() => (window as unknown as FixtureWindow).virtualTreeFixture.state()),
+		);
+	const requests = async () =>
+		treeRequestsSchema.parse(
+			await page.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.takeRequests(),
+			),
+		);
+	const preview = (key: string) => ({
+		key,
+		kind: 'open',
+		pinned: false,
+		preserveFocus: true,
+		sideBySide: false,
+	});
+	const box = await tree.boundingBox();
+	if (box === null) throw new Error('The tree has no box.');
+	const emptySpace = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+
+	// A click focuses the tree, then focuses, anchors and selects its row and previews it.
+	await row('package.json').click();
+	await expect(tree).toBeFocused();
+	expect(await state()).toEqual({
+		anchor: 'package.json',
+		focus: 'package.json',
+		rowCount: 3,
+		selection: ['package.json'],
+	});
+	expect(await requests()).toEqual([preview('package.json')]);
+
+	// Down moves focus and the anchor, and the focus ring shows; Enter selects and opens for good.
+	await page.keyboard.press('ArrowDown');
+	expect(await state()).toMatchObject({ anchor: 'README.md', focus: 'README.md' });
+	await expect(tree).toHaveAttribute(
+		'aria-activedescendant',
+		(await row('README.md').getAttribute('id')) ?? '',
+	);
+	expect(await tree.evaluate((element) => element.matches(':focus-visible'))).toBe(true);
+	await page.keyboard.press('Enter');
+	expect(await state()).toMatchObject({ selection: ['README.md'] });
+	expect(await requests()).toEqual([
+		{ key: 'README.md', kind: 'open', pinned: true, preserveFocus: false, sideBySide: false },
+	]);
+
+	// Shift+F10 and the context menu key each ask once for the focused row's menu, at its corner.
+	await page.keyboard.press('Shift+F10');
+	await page.keyboard.press('ContextMenu');
+	const keyMenu = { key: 'README.md', kind: 'contextMenu', offset: { x: 0, y: 0 } };
+	expect(await requests()).toEqual([keyMenu, keyMenu]);
+
+	// A right click focuses its row before asking; on the empty space it clears focus.
+	await row('folder').click({ button: 'right' });
+	expect(await state()).toMatchObject({ focus: 'folder' });
+	await page.mouse.click(emptySpace.x, emptySpace.y, { button: 'right' });
+	expect(await state()).toMatchObject({ focus: null, selection: ['README.md'] });
+	expect((await requests()).map((request) => request.key)).toEqual(['folder', null]);
+
+	// Shift-click selects from the anchor; Ctrl-click, Cmd-click on macOS, takes one row out.
+	await row('package.json').click({ modifiers: ['Shift'] });
+	expect(await state()).toMatchObject({
+		anchor: 'README.md',
+		focus: 'package.json',
+		selection: ['README.md', 'package.json'],
+	});
+	await row('README.md').click({ modifiers: ['ControlOrMeta'] });
+	expect(await state()).toMatchObject({
+		anchor: 'README.md',
+		focus: 'README.md',
+		selection: ['package.json'],
+	});
+	await page.keyboard.press('Escape');
+	expect(await state()).toMatchObject({ anchor: null, focus: null, selection: [] });
+	expect(await requests()).toEqual([]);
+
+	// Typing moves focus to the next row its label starts, wrapping once a word has ended.
+	await page.keyboard.press('r');
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: [] });
+	await page.waitForTimeout(900);
+	await page.keyboard.press('f');
+	expect(await state()).toMatchObject({ focus: 'folder' });
+
+	// Space expands and collapses a folder without opening it, and previews a file.
+	await page.keyboard.press('Space');
+	await expect.poll(async () => (await state()).rowCount).toBe(largeFolderRows);
+	await page.keyboard.press('Space');
+	expect(await state()).toMatchObject({ rowCount: 3 });
+	await page.keyboard.press('End');
+	await page.keyboard.press('Space');
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: ['README.md'] });
+	expect(await requests()).toEqual([preview('README.md')]);
+
+	// A double click previews on its first click, then opens for good and takes focus.
+	await row('package.json').dblclick();
+	expect(await requests()).toEqual([
+		preview('package.json'),
+		{ key: 'package.json', kind: 'open', pinned: true, preserveFocus: false, sideBySide: false },
+	]);
+	// A middle click opens for good and keeps focus.
+	await row('README.md').click({ button: 'middle' });
+	expect(await state()).toMatchObject({ focus: 'README.md', selection: ['README.md'] });
+	expect(await requests()).toEqual([
+		{ key: 'README.md', kind: 'open', pinned: true, preserveFocus: true, sideBySide: false },
+	]);
+
+	// The twistie only toggles; a click elsewhere on a folder's row toggles it and selects it.
+	await row('folder').locator('[data-twistie]').click();
+	await expect.poll(async () => (await state()).rowCount).toBe(largeFolderRows);
+	expect(await state()).toMatchObject({ focus: 'folder', selection: ['README.md'] });
+	await row('folder').click();
+	expect(await state()).toMatchObject({ rowCount: 3, selection: ['folder'] });
+	expect(await requests()).toEqual([preview('folder')]);
+
+	// A click on the empty space clears focus, selection and anchor.
+	await page.mouse.click(emptySpace.x, emptySpace.y);
+	expect(await state()).toEqual({ anchor: null, focus: null, rowCount: 3, selection: [] });
+});
+
 test('virtual tree render benchmark', async ({ browser, page }) => {
 	test.setTimeout(180_000);
 	await openFixture(page);
@@ -153,11 +297,29 @@ test('virtual tree render benchmark', async ({ browser, page }) => {
 			.then((result) => selectAllSchema.parse(result)),
 	);
 	expect(selectAll.every((run) => run.selected === largeFolderRows)).toBe(true);
+	// The select-all key on one of the folder's files selects its 100,000 siblings.
+	const selectSiblings = await repeat(() =>
+		page
+			.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.measureSelectSiblings(),
+			)
+			.then((result) => selectAllSchema.parse(result)),
+	);
+	expect(selectSiblings.every((run) => run.selected === largeFolderRows - 3)).toBe(true);
+	const typeNavigation = await repeat(() =>
+		page
+			.evaluate(() =>
+				(window as unknown as FixtureWindow).virtualTreeFixture.measureTypeNavigation(),
+			)
+			.then((result) => typeNavigationSchema.parse(result)),
+	);
 
 	const report = {
 		expand: medians(expand),
 		scroll,
 		selectAll: medians(selectAll),
+		selectSiblings: medians(selectSiblings),
+		typeNavigation: medians(typeNavigation),
 		userAgent: await page.evaluate(() => navigator.userAgent),
 	};
 	await test.info().attach('virtual-tree-render-benchmark', {

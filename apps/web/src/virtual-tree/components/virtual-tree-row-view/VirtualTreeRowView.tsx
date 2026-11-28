@@ -10,6 +10,8 @@ type RowPlace =
 	| {
 			readonly kind: 'item';
 			readonly id: string;
+			/** The row's index, which a click resolves. */
+			readonly index: number;
 			readonly positionInSet: number;
 			readonly setSize: number;
 	  }
@@ -56,6 +58,7 @@ export function VirtualTreeRowView<K, T>({
 			aria-setsize={item?.setSize}
 			className={styles['row']}
 			data-focused={focused ? '' : undefined}
+			data-row-index={item?.index}
 			data-sticky-index={place.kind === 'sticky' ? place.index : undefined}
 			id={item?.id}
 			role={item === null ? undefined : 'treeitem'}

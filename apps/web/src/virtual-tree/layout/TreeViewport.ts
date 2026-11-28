@@ -204,6 +204,16 @@ export class TreeViewport<K, T> {
 		this.scrollTo(this.rowTop(index) - this.stickyPadding(this.model.rowAt(index)));
 	}
 
+	/**
+	 * The row holding a content offset, counted as VS Code's lists count: -1 above the rows and the
+	 * row count below them.
+	 */
+	indexAtOffset(offset: number): number {
+		if (offset < 0) return -1;
+		const count = this.model.rowCount;
+		return offset < this.geometry.height ? this.indexAt(offset, count) : count;
+	}
+
 	/** The nearest offset the rows allow, in whole pixels. */
 	clampScrollTop(offset: number): number {
 		const max = Math.max(0, this.geometry.height - this.height);

@@ -259,6 +259,7 @@ function scopeFrames(
 				frames.push({
 					bindings: bindingsIn(`widget:${scope.widget}`, scope.actionScope),
 					sequences: true,
+					yields: scope.yields,
 				});
 				break;
 			case 'file-overlay':

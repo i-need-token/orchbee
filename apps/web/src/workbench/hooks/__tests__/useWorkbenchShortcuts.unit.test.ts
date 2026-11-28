@@ -474,10 +474,12 @@ const PICKER_PREVIOUS = scopedBinding('quick-input.item.previous', 'quick-input'
 const EXPLORER_ACTION_SCOPE = new ActionRuntime().createScope('explorer');
 const FILE_BAR_SCOPE: WorkbenchKeyboardScope = { kind: 'file-bar' };
 const PICKER_SCOPE: WorkbenchKeyboardScope = { kind: 'quick-input' };
+/** A tree, which handles keys of its own, such as Cmd+Shift+Enter to add a row to the selection. */
 const EXPLORER_SCOPE: WorkbenchKeyboardScope = {
 	actionScope: EXPLORER_ACTION_SCOPE,
 	kind: 'widget',
 	widget: 'explorer',
+	yields: [{ code: 'Enter', modifiers: ['mod', 'shift'] }],
 };
 /** Monaco's Insert Line Above, which the window binds to Maximize Panel. */
 const EDITOR_SCOPE: WorkbenchKeyboardScope = {
@@ -648,7 +650,7 @@ describe('useWorkbenchShortcuts keyboard scopes', () => {
 		expect(invoke).toHaveBeenCalledTimes(2);
 	});
 
-	it('runs a widget key outside its text fields and yields a code editor key past wider scopes', () => {
+	it("runs a widget key outside its text fields and yields a code editor's or a tree's keys past wider scopes", () => {
 		const { editor, invoke, invokeShortcut, renameField, row, terminal } = renderScopedShortcuts();
 
 		expect(press(row, 'F2').defaultPrevented).toBe(true);
@@ -658,6 +660,7 @@ describe('useWorkbenchShortcuts keyboard scopes', () => {
 		expect(invoke).toHaveBeenCalledOnce();
 
 		expect(press(editor, 'Enter', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(false);
+		expect(press(row, 'Enter', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(false);
 		expect(invokeShortcut).not.toHaveBeenCalled();
 		expect(press(terminal, 'Enter', { metaKey: true, shiftKey: true }).defaultPrevented).toBe(true);
 		expect(invokeShortcut).toHaveBeenCalledWith(

@@ -5,7 +5,7 @@ Source Control views. It holds the loaded items, the flat array of visible rows,
 selection and anchor, and turns every change into the fewest row splices it can. It never knows
 about files, Git, or where its items come from: a view hands it a `VirtualTreeSource` and draws
 each row's content in `VirtualTree`. The public API and its contracts are the TSDoc of
-`virtual-tree-types.ts`, `VirtualTreeModel` and `VirtualTree`.
+`virtual-tree-types.ts`, `virtual-tree-events.ts`, `VirtualTreeModel` and `VirtualTree`.
 
 ## Connecting a data source
 
@@ -67,6 +67,41 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   twistie also collapses it, with Alt every row below it too. `reveal` keeps a row clear of the rows
   that would stick above it.
 
+## Keys, clicks and the context menu
+
+- Keys and clicks work as in VS Code's trees: `interaction/tree-keys.ts` holds each platform's keys,
+  `interaction/tree-commands.ts` what each does, and `useTreePointer` the clicks. Pass the
+  `platform` the Workbench resolves, so the tree answers to that platform's keys.
+- Keys act while the tree element itself has focus, which names the focused row through
+  `aria-activedescendant`. A control inside a row keeps its own keys, and Tab moves into the focused
+  row's first element with a `tabindex` of its own.
+- `onOpen` hears each row the tree asks the view to open. A click, Space on a row that does not
+  expand, and Shift with an arrow or Select All when it leaves one row selected preview the row and
+  keep focus in the tree; Enter, a double click or a middle click opens it for good, and Ctrl, Cmd
+  or Alt with a click asks for it beside the current editor. Rows that expand ask too, as in VS
+  Code, so a view that opens only files ignores the others.
+- `keyboardNavigationLabel` turns on type navigation: typing moves focus to the next row whose label
+  starts with the typed word. Without it, typing does nothing.
+- The view owns the context menu and wraps the tree in a `ContextMenu` trigger. A right click,
+  Shift+F10 or the context menu key focuses the row and calls `onContextMenu` with it, or with
+  `null` on the empty space, before the same `contextmenu` event reaches the trigger; from a key it
+  opens at the focused row's bottom-left corner.
+- Name the tree's widget in the shortcut catalog with `keyboardScope`, and the tree registers itself
+  as that widget's keyboard scope. While it has focus, the widget's bindings, such as F2 to rename,
+  come first; then the tree's own keys, which no wider binding, such as the window's
+  `Mod+Shift+Enter`, takes from it:
+
+  ```tsx
+  <VirtualTree
+  	keyboardScope={{ actionScope, widget: 'explorer' }}
+  	label={label}
+  	model={model}
+  	platform={platform}
+  	renderRow={renderRow}
+  	onOpen={openRow}
+  />
+  ```
+
 ## Performance constraints
 
 - `key` and `hasChildren` run for every child on every refresh of its parent; keep them
@@ -92,10 +127,12 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
   it for every row in sight.
 - `pnpm --filter @orchbee/web benchmark:virtual-tree` times the File Bar proposal's reference
   scenarios and the height index; run it before and after a change to the model or the index.
-  `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist and prints
-  the render benchmark: expanding the folder of 100,000 files to its painted frame, selecting all of
-  it, and scrolling it at fixed speeds, with each frame's script time, long tasks and the layouts
-  that script forced. It needs an installed Playwright Chromium.
+  `pnpm --filter @orchbee/web test:system virtual-tree` checks which row elements exist and how keys,
+  clicks and the context menu act, and prints the render benchmark: expanding the folder of 100,000
+  files to its painted frame, selecting all of it, with the select-all key from one of its files
+  too, a typed character that matches no row, and scrolling it at fixed speeds, with each frame's
+  script time, long tasks and the layouts that script forced. It needs an installed Playwright
+  Chromium.
 
 ## Decisions
 
@@ -144,3 +181,28 @@ each row's content in `VirtualTree`. The public API and its contracts are the TS
 - **A sticky click also sets the anchor**, so a Shift-click after it extends from the row clicked;
   VS Code moves focus and selection and leaves the anchor where it was.
 - **Sticky rows show the default cursor**, as every row does; VS Code's pointer stays with links.
+- **Keys act only while the tree itself has focus.** VS Code's list commands also run while a button
+  inside a row has focus, moving list focus away from the control that holds DOM focus; here every
+  control inside a row keeps its keys.
+- **A tree yields the same keys whatever its state.** VS Code resolves each key against context keys
+  at the moment it is pressed, so Escape with nothing selected or focused reaches its other bindings;
+  a keyboard scope declares its keys once, so such a key goes to the tree, which leaves it unused.
+  No wider binding uses one of these keys today.
+- **Select All starts from the selected row that shows highest.** VS Code starts from the first row
+  of its selection, in the order the rows were selected, which is the same row unless a row joined
+  the selection above it later.
+- **The open and expand modes are VS Code's defaults.** A click opens its row and a click on an
+  expandable row's label toggles it, as `workbench.list.openMode` and `workbench.tree.expandMode`
+  set by default; the File Bar has neither setting.
+- **The focus ring shows once a key is pressed.** The focused row's ring follows `:focus-visible`,
+  so a click shows the selection without a ring and the next key shows it. VS Code outlines the
+  focused row whenever the list has focus.
+- **Rows stay in slot order in the document.** The rows in sight are in the document in slot order,
+  which starts at whichever row's index leaves remainder zero, so a screen reader's browse mode
+  reads them from there; VS Code keeps rows in visual order. The tree's own navigation is
+  unaffected, since `aria-activedescendant`, level, position and set size name the focused row, and
+  keeping visual order would move elements on every scrolled frame.
+- **A keyboard context menu goes through the view's trigger.** The tree dispatches a `contextmenu`
+  event at the focused row's corner once the key is released and prevents the key's default, so the
+  browser's own menu event for the key never arrives. VS Code's list raises its own context menu
+  event and calls the menu service directly.

@@ -189,7 +189,8 @@ scope registers and no scoped binding exists, so the walk is the configured-comm
 dispatch it always was.
 
 A tree or list widget gets keys in three edits. Its component declares the scope once and registers
-the element that holds focus:
+the element that holds focus, which a `VirtualTree` does itself when its view passes
+`keyboardScope={{ widget: 'explorer' }}`:
 
 ```tsx
 const EXPLORER_KEYBOARD_SCOPE: WorkbenchKeyboardScope = { kind: 'widget', widget: 'explorer' };
@@ -204,7 +205,9 @@ the widget's Action scope as `actionScope` when its Actions register below the W
 Last, the row's Settings name goes in `SCOPED_SHORTCUT_NAMES` in
 `model/keyboard-shortcut-scoped-catalog.ts`, which `formatKeyboardShortcutActionName` localizes;
 typecheck refuses a row without one. A code editor registers `{ kind: 'code-editor', yields }`,
-where `yields` lists the chords the editor binds itself.
+where `yields` lists the chords the editor binds itself. A widget that handles keys itself lists
+them in the same field, which no wider row takes from it once its own rows have passed; a
+`VirtualTree` registers its list keys there (see [Virtual tree](virtual-tree.md)).
 
 A row's keys follow its scope's rule. The window, `shell`, keeps a modifier other than Shift,
 because a focused terminal receives every key the window does not take. The File Bar, the overlay,

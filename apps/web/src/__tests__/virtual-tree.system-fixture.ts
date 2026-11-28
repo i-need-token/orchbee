@@ -5,6 +5,8 @@ import { createRoot } from 'react-dom/client';
 import {
 	VirtualTree,
 	VirtualTreeModel,
+	type VirtualTreeContextMenuEvent,
+	type VirtualTreeOpenEvent,
 	type VirtualTreeProps,
 	type VirtualTreeRow,
 	type VirtualTreeSource,
@@ -13,7 +15,9 @@ import {
 // The render benchmark's page: a tree over the reference scenario's folder of 100,000 files, and the
 // measurements `system-tests/virtual-tree.spec.ts` runs in it. A measurement runs in the page, so
 // timers read the main thread directly: script time ends once React's synchronous render commits,
-// and a frame's rendering ends when a task posted from its animation frame callback runs.
+// and a frame's rendering ends when a task posted from its animation frame callback runs. The page
+// also records the rows the tree asks to open and the context menus it asks for, which the
+// interaction check reads.
 
 interface FixtureItem {
 	readonly key: string;
@@ -55,9 +59,58 @@ host.style.width = `${TREE_WIDTH}px`;
 document.body.replaceChildren(host);
 document.body.style.margin = '0';
 
+interface TreeRequest {
+	readonly kind: 'contextMenu' | 'open';
+	/** The row's key; null for a context menu on the empty space. */
+	readonly key: string | null;
+	readonly pinned?: boolean;
+	readonly preserveFocus?: boolean;
+	readonly sideBySide?: boolean;
+	/** Where a context menu would open, relative to the row's bottom-left corner. */
+	readonly offset?: { readonly x: number; readonly y: number };
+}
+
+const requests: TreeRequest[] = [];
+
+function recordOpen({
+	pinned,
+	preserveFocus,
+	row,
+	sideBySide,
+}: VirtualTreeOpenEvent<string, FixtureItem>): void {
+	requests.push({ key: row.key, kind: 'open', pinned, preserveFocus, sideBySide });
+}
+
+function recordContextMenu({
+	browserEvent,
+	row,
+}: VirtualTreeContextMenuEvent<string, FixtureItem>): void {
+	const index = row === null ? -1 : model.indexOf(row.key);
+	const box =
+		index < 0
+			? undefined
+			: document.querySelector(`[data-row-index="${index}"]`)?.getBoundingClientRect();
+	requests.push({
+		key: row?.key ?? null,
+		kind: 'contextMenu',
+		...(box === undefined
+			? {}
+			: {
+					offset: {
+						x: Math.round(browserEvent.clientX - box.left),
+						y: Math.round(browserEvent.clientY - box.bottom),
+					},
+				}),
+	});
+}
+
 const props: VirtualTreeProps<string, FixtureItem> = {
+	keyboardNavigationLabel: (row) => row.element.label,
 	label: 'Benchmark tree',
 	model,
+	onContextMenu: recordContextMenu,
+	onOpen: recordOpen,
+	platform: /^(?:Mac|iPhone|iPad|iPod)/u.test(navigator.platform) ? 'apple' : 'standard',
 	renderRow: (row: VirtualTreeRow<string, FixtureItem>) => row.element.label,
 };
 createRoot(host).render(createElement(VirtualTree<string, FixtureItem>, props));
@@ -207,11 +260,58 @@ async function measureSelectAll() {
 	};
 }
 
+/** Presses a key on the tree element, as the keyboard does while the tree has focus. */
+function pressKey(code: string, key: string, primaryModifier = false): void {
+	host.querySelector('[role="tree"]')?.dispatchEvent(
+		new KeyboardEvent('keydown', {
+			bubbles: true,
+			cancelable: true,
+			code,
+			ctrlKey: primaryModifier && props.platform === 'standard',
+			key,
+			metaKey: primaryModifier && props.platform === 'apple',
+		}),
+	);
+}
+
+/**
+ * Selects the expanded folder's 100,000 files with the select-all key pressed on one of them, as
+ * the tree's keyboard handling runs it, and times it to the painted selection.
+ */
+async function measureSelectSiblings() {
+	await model.expand(LARGE_FOLDER);
+	model.setFocus(`${LARGE_FOLDER}/file-50000.ts`);
+	model.setSelection([]);
+	await settle();
+	const start = performance.now();
+	pressKey('KeyA', 'a', true);
+	const committed = await afterMicrotasks();
+	const frame = await nextPaint();
+	return {
+		renderMs: frame.renderMs,
+		scriptMs: committed - start,
+		selected: model.selection.size,
+		toPaintMs: frame.paintedAt - start,
+		workMs: committed - start + frame.renderMs,
+	};
+}
+
+/** Types a character no row's label starts with, which reads every label once, and times the key. */
+async function measureTypeNavigation() {
+	await model.expand(LARGE_FOLDER);
+	await settle();
+	const start = performance.now();
+	pressKey('KeyZ', 'z');
+	return { rowCount: model.rowCount, scriptMs: performance.now() - start };
+}
+
 Object.defineProperty(window, 'virtualTreeFixture', {
 	value: Object.freeze({
 		measureExpand,
 		measureScroll,
 		measureSelectAll,
+		measureSelectSiblings,
+		measureTypeNavigation,
 		scrollTop: () => model.scrollTop,
 		setFocus: (key: string | null) => {
 			model.setFocus(key);
@@ -219,5 +319,12 @@ Object.defineProperty(window, 'virtualTreeFixture', {
 		setScrollTop: (offset: number) => {
 			model.setScrollTop(offset);
 		},
+		state: () => ({
+			anchor: model.anchor,
+			focus: model.focus,
+			rowCount: model.rowCount,
+			selection: [...model.selection].sort(),
+		}),
+		takeRequests: () => requests.splice(0),
 	}),
 });

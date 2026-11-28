@@ -33,6 +33,7 @@ export function VirtualTreeSlot<K, T>({
 			height={shown.height}
 			place={{
 				id: rowElementId(treeId, shown.index),
+				index: shown.index,
 				kind: 'item',
 				positionInSet: shown.positionInSet,
 				setSize: shown.setSize,
