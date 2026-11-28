@@ -19,9 +19,9 @@ use std::{
 };
 
 use orchbee_files_protocol::{
-    CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesCapability, FilesError, FilesRecord,
-    FilesReply, FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace,
-    RequestError, ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
+    CallClose, CallId, ConnectionId, ErrorCode, FilePath, FilesError, FilesRecord, FilesReply,
+    FilesRequest, GrantClass, LaneId, LinkRequest, ReadSource, RecordPlace, RequestError,
+    ScopeUpdate, WorkspaceId, decode_files_record, parse_request,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -190,11 +190,6 @@ impl Services {
     }
 
     fn route(self: &Arc<Self>, call: Call, view: View, grant: GrantClass, request: FilesRequest) {
-        // No request that needs `files-search` is served yet.
-        if request.capability() == FilesCapability::FilesSearch {
-            call.close(CallClose::Unsupported);
-            return;
-        }
         match request {
             FilesRequest::FsSubscribe(request) => {
                 let workspace = request.workspace_id;
@@ -238,7 +233,13 @@ impl Services {
             FilesRequest::FsStat(request) => {
                 let paths = request.paths.as_slice().iter();
                 let paths = paths
-                    .map(|path| (path.clone(), self.readable(&call, &view, path)))
+                    .map(|path| {
+                        let admitted = match request.source {
+                            None => self.readable(&call, &view, path),
+                            Some(source) => view.statable(path, source),
+                        };
+                        (path.clone(), admitted)
+                    })
                     .collect();
                 self.files.stat(call, paths);
             }

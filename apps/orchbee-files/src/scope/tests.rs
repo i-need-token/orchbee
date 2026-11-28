@@ -5,7 +5,7 @@ use std::io;
 
 use orchbee_files_protocol::{
     ConnectionId, ErrorCode, FilePath, FilesError, GrantSource, Operation, Root, ScopeUpdate,
-    Token, WorkspaceId, WorkspaceScope,
+    StatSource, Token, WorkspaceId, WorkspaceScope,
 };
 
 use super::{RootFact, Scopes, View, path::NativePath};
@@ -101,6 +101,20 @@ fn a_view_keeps_its_scope_and_opened_files_outlive_the_close() {
         code(view(&scopes, reader).read(&outside)),
         Some(ErrorCode::OutsideScope)
     );
+}
+
+#[test]
+fn quick_open_states_one_typed_path_anywhere_and_reads_only_what_it_picks() {
+    let scopes = Scopes::new();
+    scopes.update(state(WorkspaceScope::Root(native(&["w", "project"]))));
+    let reader = connection(1);
+    let open = view(&scopes, reader);
+    let typed = file(&["etc", "hosts"]);
+    assert_eq!(code(open.statable(&typed, StatSource::QuickOpen)), None);
+    // Stating the typed path admits nothing to read; picking it grants the file.
+    assert_eq!(code(open.read(&typed)), Some(ErrorCode::OutsideScope));
+    grant(&scopes, reader, &typed, GrantSource::QuickOpen);
+    assert_eq!(code(view(&scopes, reader).read(&typed)), None);
 }
 
 #[test]

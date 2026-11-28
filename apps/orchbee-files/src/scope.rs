@@ -5,12 +5,13 @@
 //! or as its real location, or inside a member the Git engine establishes: the working tree of a
 //! repository consented to in that Workspace, or the file an open editor prompt names. It is also
 //! readable when it is a file the requesting connection opened in that Workspace. Links inside are
-//! followed, as VS Code follows them. A mutation's path passes [`View::mutable`] when its execution
-//! starts: the real location it changes must also lie inside a member's real location, so a link
-//! or junction inside cannot carry the change outside. An operation keeps the view it started
-//! under, so a later root change never moves it. Opened files outlive their Workspace's close and
-//! end with `fs.ungrant` or their connection; each successful `fs.grant` of a file adds one grant
-//! of it, and the file stays opened while one remains.
+//! followed, as VS Code follows them. One act of the person reaches past these for one request:
+//! `fs.stat` states the one path typed in Quick Open. A mutation's path passes [`View::mutable`]
+//! when its execution starts: the real location it changes must also lie inside a member's real
+//! location, so a link or junction inside cannot carry the change outside. An operation keeps the
+//! view it started under, so a later root change never moves it. Opened files outlive their
+//! Workspace's close and end with `fs.ungrant` or their connection; each successful `fs.grant` of
+//! a file adds one grant of it, and the file stays opened while one remains.
 
 pub(crate) mod path;
 
@@ -23,7 +24,7 @@ use std::{
 
 use orchbee_files_protocol::{
     ConnectionId, ErrorCode, FilePath, FilesError, GrantSource, Operation, Root, ScopeUpdate,
-    Token, WorkspaceId, WorkspaceScope,
+    StatSource, Token, WorkspaceId, WorkspaceScope,
 };
 
 use self::path::NativePath;
@@ -384,8 +385,9 @@ impl View {
     }
 
     /// Admits `path` for a grant from `source`. A file picked in a tree or a diff is already in
-    /// scope; a Save As destination, a terminal link, a restored tab or the operating system's
-    /// open names a file the person chose explicitly, which may lie anywhere.
+    /// scope; a Save As destination, a terminal link, a restored tab, the operating system's
+    /// open or a Quick Open pick names a file the person chose explicitly, which may lie
+    /// anywhere.
     ///
     /// # Errors
     ///
@@ -397,12 +399,28 @@ impl View {
         source: GrantSource,
     ) -> Result<NativePath, FilesError> {
         match source {
-            // A Quick Open pick needs `files-search`, which is not served yet.
-            GrantSource::Tree | GrantSource::Diff | GrantSource::QuickOpen => self.read(path),
+            GrantSource::Tree | GrantSource::Diff => self.read(path),
             GrantSource::SaveAs
             | GrantSource::TerminalLink
             | GrantSource::Restored
-            | GrantSource::OsOpen => NativePath::parse(path.as_str()),
+            | GrantSource::OsOpen
+            | GrantSource::QuickOpen => NativePath::parse(path.as_str()),
+        }
+    }
+
+    /// Admits `path` for `fs.stat` from `source`: the one path the person typed in Quick Open,
+    /// wherever it lies, which is stated and nothing more.
+    ///
+    /// # Errors
+    ///
+    /// The error of a form this machine does not admit.
+    pub(crate) fn statable(
+        &self,
+        path: &FilePath,
+        source: StatSource,
+    ) -> Result<NativePath, FilesError> {
+        match source {
+            StatSource::QuickOpen => NativePath::parse(path.as_str()),
         }
     }
 

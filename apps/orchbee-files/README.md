@@ -60,6 +60,10 @@ These rules are the contract a Client builds on; no single declaration holds the
   other. Grants outlive their Workspace's close and end with their connection.
 - Grants live in this process. After it restarts, which ends every subscription, a Client grants
   its open files again.
+- Quick Open reaches past the root only through what the person typed or picked, and only under
+  `files-search`: `fs.stat` with source `quick-open` states the one path typed there wherever it
+  lies and admits nothing more, and `fs.grant` from a Quick Open pick may name any path, as a
+  terminal link may.
 
 ## Windows Recycle Bin
 
