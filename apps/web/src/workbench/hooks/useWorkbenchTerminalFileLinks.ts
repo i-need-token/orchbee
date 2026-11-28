@@ -36,6 +36,14 @@ function failed(code: string): WorkbenchTerminalFileOpenResult {
 	return { code, kind: 'failed', retryable: false };
 }
 
+/**
+ * A link's path as the Workspace's machine writes it. The terminal writes every link's path with
+ * `/`, which a Windows machine's file session refuses, so there each one turns back into `\`.
+ */
+function machinePath(path: string, rules: FilePathRules): string {
+	return rules.separator === '/' ? path : path.replaceAll('/', rules.separator);
+}
+
 /** The session's path rules, from its root stream's snapshot; null once the signal or the wait ends. */
 function readRules(
 	session: FileWorkspaceSession,
@@ -93,7 +101,10 @@ export function useWorkbenchTerminalFileLinks({
 			if (sessions === null || opening === null) return failed('no-workspace');
 			const hold = sessions.hold(opening);
 			try {
-				const stated = await hold.session.tree.stat([target.path], signal);
+				const rules = await readRules(hold.session, signal);
+				if (signal.aborted) return CANCELLED;
+				if (rules === null) return failed('timeout');
+				const stated = await hold.session.tree.stat([machinePath(target.path, rules)], signal);
 				if (signal.aborted) return CANCELLED;
 				if (stated.kind === 'error') return failed(stated.error.code);
 				const item = stated.value[0];
@@ -101,9 +112,6 @@ export function useWorkbenchTerminalFileLinks({
 				if (item.kind === 'error') return failed(item.error.code);
 				if (item.entry.type === 'directory') return failed('is-directory');
 				if (item.entry.type !== 'file') return failed('not-file');
-				const rules = await readRules(hold.session, signal);
-				if (signal.aborted) return CANCELLED;
-				if (rules === null) return failed('timeout');
 				const result = await openFile(
 					{
 						focus: true,
