@@ -777,6 +777,7 @@ export function Workbench({
 											actionRuntime={actionRuntime}
 											actionScope={view.actionScope}
 											activeView={fileBar.column.activeView}
+											notifications={notificationQueue}
 											onSelectView={fileBar.column.onSelectView}
 											platform={shortcutPlatform}
 											session={fileBar.column.session}

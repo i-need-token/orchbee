@@ -2,6 +2,7 @@ import type { ActionRuntime, ActionScope } from '@orchbee/actions';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ComponentType } from 'react';
 
+import type { FileExplorerProps } from '../file-explorer';
 import type { FileWorkspaceSession } from '../file-session';
 import type { FileBarViewId } from './file-bar-layout';
 
@@ -12,6 +13,8 @@ export interface FileBarColumnProps {
 	readonly actionScope: ActionScope;
 	/** The view the column shows. */
 	readonly activeView: FileBarViewId;
+	/** Where the views report what VS Code would notify. */
+	readonly notifications: FileExplorerProps['notifications'];
 	/** Selecting a view's toggle: the active view takes focus, another one shows. */
 	readonly onSelectView: (view: FileBarViewId) => void;
 	/** Which platform's keys the views answer to, as VS Code's lists do on it. */

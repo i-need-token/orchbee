@@ -204,7 +204,8 @@ seconds after it last began to show, and its clock stops while it waits; errors 
 buttons stay until answered. Errors and warnings announce assertively, information politely, and
 Escape on a card dismisses it. Each card settles once, with its button or a dismissal, and
 unmounting the Workbench dismisses every card. A File Bar feature that notifies gets the queue
-from the Workbench; so far only a failed overlay load does, and a release window renders no card.
+from the Workbench, as the overlay does for a failed load and the Explorer for a folder it cannot
+list; a release window renders no card.
 
 ### Search modeling record
 

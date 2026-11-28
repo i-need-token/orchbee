@@ -1,5 +1,5 @@
 import type { ActionRuntime, ActionScope } from '@orchbee/actions';
-import { fileExplorerMessages, resolveOrchbeeLocale, useOrchbeeIntl } from '@orchbee/i18n';
+import { fileExplorerMessages, useOrchbeeIntl } from '@orchbee/i18n';
 import type { KeyboardShortcutPlatform } from '@orchbee/keyboard-shortcuts';
 import type { ReactNode } from 'react';
 
@@ -13,12 +13,15 @@ import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
 import type { ExplorerItem } from './model/explorer-item';
+import type { FileExplorerNotifications } from './types/file-explorer-notifications';
 import styles from './FileExplorer.module.css';
 
 export interface FileExplorerProps {
 	readonly actionRuntime: ActionRuntime;
 	/** The scope the Explorer's own Actions nest in while it shows. */
 	readonly actionScope: ActionScope;
+	/** Where a folder that could not be listed is reported. */
+	readonly notifications: FileExplorerNotifications;
 	/** Which platform's keys the tree answers to. */
 	readonly platform: KeyboardShortcutPlatform;
 	/** The active Workspace's file session; null while there is none to show. */
@@ -37,11 +40,12 @@ function renderRow(row: VirtualTreeRow<string, ExplorerItem>): ReactNode {
 export function FileExplorer({
 	actionRuntime,
 	actionScope,
+	notifications,
 	platform,
 	session,
 }: FileExplorerProps): ReactNode {
 	const intl = useOrchbeeIntl();
-	const { state, tree } = useExplorerTree(session, resolveOrchbeeLocale([intl.locale]));
+	const { state, tree } = useExplorerTree({ notifications, session });
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
 	const commands = useFileExplorerActions({
 		parentScope: actionScope,

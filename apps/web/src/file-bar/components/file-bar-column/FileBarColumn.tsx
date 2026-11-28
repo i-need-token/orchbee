@@ -25,6 +25,7 @@ export function FileBarColumn({
 	actionRuntime,
 	actionScope,
 	activeView,
+	notifications,
 	onSelectView,
 	platform,
 	session,
@@ -77,6 +78,7 @@ export function FileBarColumn({
 						<FileExplorer
 							actionRuntime={actionRuntime}
 							actionScope={actionScope}
+							notifications={notifications}
 							platform={platform}
 							session={session}
 						/>

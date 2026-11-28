@@ -50,6 +50,8 @@ interface ExplorerTreeOptions {
 	readonly locale: OrchbeeLocale;
 	/** What the Workspace's Explorer keeps across root moves and file sessions. */
 	readonly memory: ExplorerViewMemory;
+	/** Reports a folder below the root that could not be listed, by name, as VS Code notifies one. */
+	readonly reportUnreadable: (name: string, error: FileError) => void;
 	readonly session: FileWorkspaceSession;
 }
 
@@ -90,10 +92,9 @@ function unresolvedTree(tree: RootTree, error: FileError): ExplorerTreeState {
 	return { error, kind: 'unresolved', name: rootName(tree.root, tree.rules), root: tree.root };
 }
 
-/** Why a tree's root could not be listed; null when only a folder below it failed, which collapses. */
-function rootFailure(tree: RootTree, error: unknown): FileError | null {
-	if (!(error instanceof ExplorerListError)) return { code: 'failed' };
-	return filePathKey(error.path, tree.rules) === tree.key ? error.error : null;
+/** Why a tree's root could not be listed: a folder below it that fails shows empty instead. */
+function rootFailure(error: unknown): FileError {
+	return error instanceof ExplorerListError ? error.error : { code: 'failed' };
 }
 
 /** A folder's refresh lists its expanded folders again too, so only the outermost ones refresh. */
@@ -124,6 +125,7 @@ export class ExplorerTree {
 	readonly #memory: ExplorerViewMemory;
 	/** A new root's tree while it loads. */
 	#pending: RootTree | null = null;
+	readonly #reportUnreadable: (name: string, error: FileError) => void;
 	/** The first snapshot's: a session stays on one machine, so they hold for its listings. */
 	#rules: FilePathRules | null = null;
 	readonly #session: FileWorkspaceSession;
@@ -136,6 +138,7 @@ export class ExplorerTree {
 	constructor(options: ExplorerTreeOptions) {
 		this.#locale = options.locale;
 		this.#memory = options.memory;
+		this.#reportUnreadable = options.reportUnreadable;
 		this.#session = options.session;
 		this.#unsubscribe = options.session.subscribe((event) => this.#follow(event));
 	}
@@ -243,7 +246,18 @@ export class ExplorerTree {
 	#load(listings: ExplorerListings, rules: FilePathRules, root: string): void {
 		this.#cancelPending();
 		const key = filePathKey(root, rules);
-		const source = new ExplorerTreeSource({ listings, rules });
+		const source = new ExplorerTreeSource({
+			listings,
+			onGone: (folder) => {
+				// Its deletion is usually on the way; the parent listing again drops it either way.
+				const parent = filePathParent(folder.path, rules);
+				if (parent !== null) this.#noteFolder(listings, filePathKey(parent, rules));
+			},
+			onUnreadable: (folder, error) => {
+				if (!this.#disposed) this.#reportUnreadable(folder.name, error);
+			},
+			rules,
+		});
 		const model = new VirtualTreeModel<string, ExplorerItem>({
 			input: { directory: true, entry: null, name: rootName(root, rules), path: root },
 			source,
@@ -266,7 +280,7 @@ export class ExplorerTree {
 		this.#pending = tree;
 		model.restoreViewState(restore.state).then(
 			() => this.#adopt(tree, null),
-			(error: unknown) => this.#adopt(tree, rootFailure(tree, error)),
+			(error: unknown) => this.#adopt(tree, rootFailure(error)),
 		);
 	}
 
@@ -337,10 +351,7 @@ export class ExplorerTree {
 				this.#setState(shownTree(tree));
 			},
 			(error: unknown) => {
-				// A folder below the root that fails only collapses its row.
-				if (this.#current !== tree) return;
-				const failure = rootFailure(tree, error);
-				if (failure !== null) this.#setState(unresolvedTree(tree, failure));
+				if (this.#current === tree) this.#setState(unresolvedTree(tree, rootFailure(error)));
 			},
 		);
 	}
@@ -401,7 +412,7 @@ export class ExplorerTree {
 		const current = this.#current;
 		// A root that is gone lists nothing; when it returns, every loaded folder lists again.
 		if (current === null || this.#state.kind !== 'tree') return;
-		// A folder deleted meanwhile only collapses; its deletion arrives on its own.
+		// A folder deleted meanwhile shows empty until its parent lists again and drops it.
 		this.#refreshOutdated(current, due);
 	}
 

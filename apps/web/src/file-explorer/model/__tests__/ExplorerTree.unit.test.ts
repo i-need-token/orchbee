@@ -1,13 +1,26 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { type FileWorkspaceSession, MemoryFileSessionPort } from '../../../file-session';
+import {
+	type FileError,
+	type FileListPage,
+	type FileResult,
+	type FileWorkspaceSession,
+	MemoryFileSessionPort,
+} from '../../../file-session';
 import { ExplorerTree, type ExplorerTreeState } from '../ExplorerTree';
 import { ExplorerViewMemory } from '../ExplorerViewMemory';
 
 const WORKSPACE = 'workspace';
 
-/** A session whose listings and releases the test can count. */
-function observe(session: FileWorkspaceSession): {
+function unexpectedReport(name: string): void {
+	throw new Error(`The folder ${name} was reported.`);
+}
+
+/** A session whose listings and releases the test can count, and whose listed folders can fail. */
+function observe(
+	session: FileWorkspaceSession,
+	failures: ReadonlyMap<string, FileError> = new Map(),
+): {
 	readonly listed: string[];
 	readonly released: string[][];
 	readonly session: FileWorkspaceSession;
@@ -21,8 +34,10 @@ function observe(session: FileWorkspaceSession): {
 			...session,
 			tree: {
 				...session.tree,
-				list: (request, signal) => {
+				list: (request, signal): Promise<FileResult<FileListPage>> => {
 					if (request.cursor === undefined) listed.push(request.path);
+					const error = failures.get(request.path);
+					if (error !== undefined) return Promise.resolve({ error, kind: 'error' });
 					return session.tree.list(request, signal);
 				},
 				release: (paths) => {
@@ -72,6 +87,7 @@ describe('ExplorerTree', () => {
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
 			session,
 		});
 		await settle();
@@ -105,6 +121,7 @@ describe('ExplorerTree', () => {
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
 			session,
 		});
 		await settle();
@@ -134,6 +151,7 @@ describe('ExplorerTree', () => {
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
 			session,
 		});
 		await settle();
@@ -161,6 +179,7 @@ describe('ExplorerTree', () => {
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
 			session,
 		});
 		await settle();
@@ -212,6 +231,7 @@ describe('ExplorerTree', () => {
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(record),
+			reportUnreadable: unexpectedReport,
 			session: port.open(WORKSPACE),
 		});
 		await settle();
@@ -225,12 +245,64 @@ describe('ExplorerTree', () => {
 		tree.dispose();
 	});
 
+	it('shows a folder it cannot list as empty and reports why', async () => {
+		const port = machine();
+		const reports: string[] = [];
+		const { session } = observe(
+			port.open(WORKSPACE),
+			new Map([['/w/src', { code: 'permission-denied' }]]),
+		);
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: (name, error) => reports.push(`${name}: ${error.code}`),
+			session,
+		});
+		await settle();
+		await modelOf(tree).expand('/w/src');
+
+		expect(rows(tree.state)).toEqual(['/w/docs', '/w/src', '/w/a.txt']);
+		expect(modelOf(tree).rowAt(1).collapsed).toBe(false);
+		expect(reports).toEqual(['src: permission-denied']);
+		tree.dispose();
+	});
+
+	it('lists the parent of a folder found gone, and reports it once the parent still lists it', async () => {
+		vi.useFakeTimers();
+		const port = machine();
+		const reports: string[] = [];
+		const { listed, session } = observe(
+			port.open(WORKSPACE),
+			new Map([['/w/src', { code: 'not-found' }]]),
+		);
+		const tree = new ExplorerTree({
+			locale: 'en-US',
+			memory: new ExplorerViewMemory(null),
+			reportUnreadable: (name, error) => reports.push(`${name}: ${error.code}`),
+			session,
+		});
+		await settle();
+		await modelOf(tree).expand('/w/src');
+		expect(reports).toEqual([]);
+		listed.length = 0;
+
+		await vi.advanceTimersByTimeAsync(500);
+		await settle();
+		expect(listed).toEqual(['/w', '/w/src']);
+		expect(reports).toEqual(['src: not-found']);
+
+		await vi.advanceTimersByTimeAsync(5000);
+		expect(listed).toEqual(['/w', '/w/src']);
+		tree.dispose();
+	});
+
 	it('keeps the tree of a root that went missing and lists it again when it returns', async () => {
 		vi.useFakeTimers();
 		const port = machine();
 		const tree = new ExplorerTree({
 			locale: 'en-US',
 			memory: new ExplorerViewMemory(null),
+			reportUnreadable: unexpectedReport,
 			session: port.open(WORKSPACE),
 		});
 		await settle();
