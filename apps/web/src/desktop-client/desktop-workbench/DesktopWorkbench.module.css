@@ -32,6 +32,7 @@
 			[data-slot='workbench-file-bar-toggle-position'],
 			[data-file-bar-toggle-place],
 			[data-slot='workbench-sidebar-scrim'],
+			[data-slot='workbench-file-bar-scrim'],
 			[data-slot='workbench-tab-bar'][data-orientation='horizontal']
 				:is([data-tab-id], [data-group-id], button),
 			[data-slot='file-bar-toggles-row'] button,

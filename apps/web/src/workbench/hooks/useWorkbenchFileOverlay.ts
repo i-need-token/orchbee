@@ -73,6 +73,16 @@ interface UseWorkbenchFileOverlayOptions {
 	readonly actionScope: ActionScope;
 	/** The terminal a press on the scrim gives the keys to, which the scrim covers. */
 	readonly currentTerminal: () => string | null;
+	/**
+	 * Whether the File Bar shows docked beside the terminal area, where only the full tier covers it;
+	 * opened over the terminal area, it lies under every tier.
+	 */
+	readonly fileBarDocked: boolean;
+	/**
+	 * Called as a file opens: the File Bar open over the terminal area closes and answers whether it
+	 * held the keys, which the file's tab then takes.
+	 */
+	readonly fileOpened: () => boolean;
 	/** Gives keyboard focus back to the current terminal. */
 	readonly focusTerminal: () => void;
 	/** Where a failed load of the overlay's chunk is reported. */
@@ -157,13 +167,15 @@ interface WorkbenchFileOverlayView {
 
 /**
  * Whether the open overlay lies over a region at its tier. Every tier covers the terminal area and
- * none the 36px row the Tab Strip is in; left-expand adds the docked Sidebar, and full adds the File
- * Bar too. A Sidebar that is not docked opens over the terminal area, so every tier covers it.
+ * none the 36px row the Tab Strip is in; left-expand adds the docked Sidebar, and full adds the docked
+ * File Bar too. A Sidebar or File Bar that is not docked opens over the terminal area, so every tier
+ * covers it.
  */
 function coversFocusRegion(
 	tier: FileOverlayState['mode']['tier'],
 	region: WorkbenchFocusRegion,
 	sidebarDocked: boolean,
+	fileBarDocked: boolean,
 ): boolean {
 	switch (region) {
 		case 'terminal':
@@ -171,7 +183,7 @@ function coversFocusRegion(
 		case 'sidebar':
 			return !sidebarDocked || tier !== 'default';
 		case 'file-bar':
-			return tier === 'full';
+			return !fileBarDocked || tier === 'full';
 		case 'file-overlay':
 		case 'tab-strip':
 			return false;
@@ -208,7 +220,9 @@ export function useWorkbenchFileOverlay({
 	actionRuntime,
 	actionScope,
 	currentTerminal,
+	fileBarDocked,
 	fileBarPosition,
+	fileOpened,
 	focusTerminal,
 	notifications,
 	offered,
@@ -476,17 +490,18 @@ export function useWorkbenchFileOverlay({
 			const { mode } = store.state.getState();
 			if (mode.kind !== 'open' || isInFileBarTogglesRow(event.target)) return;
 			const region = resolveWorkbenchFocusRegionFromTarget(event.target);
-			if (region !== null && coversFocusRegion(mode.tier, region, sidebarDocked)) {
+			if (region !== null && coversFocusRegion(mode.tier, region, sidebarDocked, fileBarDocked)) {
 				dispatch({ type: 'terminal-replaced' });
 			}
 		};
 		root.addEventListener('focusin', onFocusIn);
 		return () => root.removeEventListener('focusin', onFocusIn);
-	}, [dispatch, rootReference, sidebarDocked, store]);
+	}, [dispatch, fileBarDocked, rootReference, sidebarDocked, store]);
 	React.useEffect(() => {
 		if (store === null || workspaceId === null) return undefined;
 		const registrations = registerWorkbenchFileOverlayActions({
 			dispatch,
+			fileOpened,
 			focusOverlay,
 			getState: () => store.state.getState(),
 			quickNavigateKeys,
@@ -501,6 +516,7 @@ export function useWorkbenchFileOverlay({
 	}, [
 		actionScope,
 		dispatch,
+		fileOpened,
 		focusOverlay,
 		quickNavigateKeys,
 		store,

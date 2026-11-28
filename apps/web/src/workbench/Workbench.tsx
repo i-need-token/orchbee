@@ -230,6 +230,7 @@ export function Workbench({
 		terminalSurfaceAvailable: terminalSurface !== undefined,
 	});
 	const terminalContext = view.terminalContext;
+	const tabListShown = view.tabListOpen && terminalContext !== null;
 	// Only the File Bar's views drag files, so a window that does not offer it takes no such drops.
 	const terminalPathDrops = React.useMemo(
 		() =>
@@ -253,15 +254,19 @@ export function Workbench({
 	const fileBar = useWorkbenchFileBar({
 		actionRuntime,
 		actionScope: view.actionScope,
+		closeSurfacesOverContent: view.closeSurfacesOverContent,
 		focusTerminal: view.returnToTerminal,
 		mobile: view.mobileLayout,
 		offered: fileBarOffered,
 		reportActionOutcome: view.reportActionOutcome,
+		rootReference: view.shortcutScopeReference,
 		sessions: fileSessions,
 		shortcutLabelForAction,
 		shortcutPlatform,
 		storage: layoutStorage,
 		supplyFocusRegion: view.supplyFocusRegion,
+		surfacesOverContent:
+			tabListShown || view.sidebarPresentation === 'overlay' || view.sidebarPresentation === 'fill',
 		uncoverViews: uncoverFileBarViews,
 		userSettings,
 		workspaceId: activeWorkspaceId,
@@ -274,7 +279,9 @@ export function Workbench({
 		actionRuntime,
 		actionScope: view.actionScope,
 		currentTerminal,
+		fileBarDocked: fileBar.column !== null,
 		fileBarPosition: fileBar.position,
+		fileOpened: fileBar.fileOpened,
 		focusTerminal: view.returnToTerminal,
 		notifications: notificationQueue,
 		offered: fileBarOffered,
@@ -299,7 +306,8 @@ export function Workbench({
 		sessions: fileSessions,
 		workspaceId: activeWorkspaceId,
 	});
-	const FileBarColumn = fileBar.column?.content ?? null;
+	const fileBarContent = fileBar.column ?? fileBar.overlay;
+	const FileBarColumn = fileBarContent?.content ?? null;
 	const fileBarBadge = fileBar.toggle?.badge ?? null;
 	const FileBarToggleBadge = fileBarBadge?.Badge ?? null;
 	const fileBarBadgeId = React.useId();
@@ -527,11 +535,13 @@ export function Workbench({
 			/>
 		);
 
-	const tabListShown = view.tabListOpen && terminalContext !== null;
 	// The surfaces over the layout come before it in the document, which keeps them first in the
 	// focus order; the layout marks itself covered while one of them is shown.
 	const layoutCovered =
-		tabListShown || view.sidebarPresentation === 'overlay' || view.sidebarPresentation === 'fill';
+		tabListShown ||
+		view.sidebarPresentation === 'overlay' ||
+		view.sidebarPresentation === 'fill' ||
+		fileBar.overlay !== null;
 	// No Workspace has no Tab Strip, so its row keeps the toggle's place and the window's drag. The
 	// mobile layout's bar takes the strip's place.
 	let tabChrome: React.ReactNode;
@@ -586,6 +596,54 @@ export function Workbench({
 		);
 	}
 
+	// The File Bar's landmark, docked in its panel or opened over the terminal area. Over the terminal
+	// area its row holds the places of the buttons floating over the window's ends it reaches, while the
+	// chrome beneath keeps them too, so nothing beneath moves as it opens.
+	const fileBarLandmark =
+		fileBarContent === null ? null : (
+			<aside
+				aria-label={fileBarContent.label}
+				className={styles['fileBarPanel']}
+				data-slot='file-bar'
+				data-workbench-focus-region='file-bar'
+				ref={fileBarContent.attachElement}
+			>
+				{FileBarColumn === null ? null : (
+					<FileBarColumn
+						actionRuntime={actionRuntime}
+						actionScope={view.actionScope}
+						activeFile={fileOverlay.activeFile}
+						activeView={fileBarContent.activeView}
+						atWindowEnd={
+							fileBar.overlay === null ? fileBar.position === 'right' : fileBar.overlay.atWindowEnd
+						}
+						leadingPlace={
+							(
+								fileBar.overlay === null
+									? fileBarHoldsSidebarTogglePlace
+									: fileBar.overlay.atWindowStart
+							)
+								? sidebarTogglePlace
+								: null
+						}
+						notifications={notificationQueue}
+						onSelectView={fileBarContent.onSelectView}
+						openFile={fileOverlay.openFile}
+						platform={shortcutPlatform}
+						quickInput={quickInputSessions}
+						rowMenu={fileBarContent.rowMenu}
+						session={fileBarContent.session}
+						settings={userSettings}
+						storage={layoutStorage}
+						toggles={fileBarContent.toggles}
+						viewFocusRequest={fileBarContent.viewFocusRequest}
+					/>
+				)}
+				{fileBarContent.failure === null ? null : (
+					<p className={styles['fileBarFailure']}>{fileBarContent.failure}</p>
+				)}
+			</aside>
+		);
 	const fileBarColumn = fileBar.column;
 	const fileBarHandle =
 		fileBarColumn === null ? null : (
@@ -606,40 +664,10 @@ export function Workbench({
 				onResize={fileBarColumn.onResize}
 				panelRef={fileBarColumn.panelReference}
 			>
-				<aside
-					aria-label={fileBarColumn.label}
-					className={styles['fileBarPanel']}
-					data-slot='file-bar'
-					data-workbench-focus-region='file-bar'
-					ref={fileBarColumn.attachElement}
-				>
-					{FileBarColumn === null ? null : (
-						<FileBarColumn
-							actionRuntime={actionRuntime}
-							actionScope={view.actionScope}
-							activeFile={fileOverlay.activeFile}
-							activeView={fileBarColumn.activeView}
-							leadingPlace={fileBarHoldsSidebarTogglePlace ? sidebarTogglePlace : null}
-							notifications={notificationQueue}
-							onSelectView={fileBarColumn.onSelectView}
-							openFile={fileOverlay.openFile}
-							platform={shortcutPlatform}
-							position={fileBar.position}
-							quickInput={quickInputSessions}
-							rowMenu={fileBarColumn.rowMenu}
-							session={fileBarColumn.session}
-							settings={userSettings}
-							storage={layoutStorage}
-							toggles={fileBarColumn.toggles}
-							viewFocusRequest={fileBarColumn.viewFocusRequest}
-						/>
-					)}
-					{fileBarColumn.failure === null ? null : (
-						<p className={styles['fileBarFailure']}>{fileBarColumn.failure}</p>
-					)}
-				</aside>
+				{fileBarLandmark}
 			</ResizablePanel>
 		);
+	const fileBarOverlay = fileBar.overlay;
 
 	const sequenceNotice = view.shortcutSequenceNotice;
 	const statusNotice = (
@@ -739,6 +767,31 @@ export function Workbench({
 					{sidebarPanel}
 				</div>
 			) : null}
+			{fileBarOverlay === null ? null : (
+				<>
+					{/* Nothing dims: the scrim only takes the press that closes the File Bar. */}
+					<div
+						aria-hidden='true'
+						className={styles['fileBarScrim']}
+						data-slot='workbench-file-bar-scrim'
+						onPointerDown={fileBarOverlay.onScrimPointerDown}
+					/>
+					<div
+						className={styles['fileBarOverlay']}
+						data-side={fileBar.position}
+						data-slot='workbench-file-bar-overlay'
+						onKeyDown={fileBarOverlay.onKeyDown}
+						style={
+							{
+								'--ob-comp-workbench-file-bar-overlay-inline-size': `${fileBarOverlay.width}px`,
+								'--ob-comp-workbench-file-bar-overlay-inline-start': `${fileBarOverlay.inlineStart}px`,
+							} satisfies CSSProperties
+						}
+					>
+						{fileBarLandmark}
+					</div>
+				</>
+			)}
 			{/* The Tab list covers the sidebar button, as it covers the bar. */}
 			{tabListShown ? null : (
 				<div className={styles['sidebarToggle']} data-slot='workbench-sidebar-toggle-position'>
@@ -808,6 +861,7 @@ export function Workbench({
 					<ResizablePanel id='workbench-main'>
 						<ResizablePanelGroup
 							disableCursor
+							elementRef={fileBar.areaReference}
 							onLayoutChanged={fileBar.onLayoutChanged}
 							orientation='horizontal'
 							resizeTargetMinimumSize={WORKBENCH_RESIZE_TARGET_SIZE_PX}
@@ -818,7 +872,7 @@ export function Workbench({
 									{fileBarHandle}
 								</>
 							)}
-							<ResizablePanel id='terminal-area'>
+							<ResizablePanel id='terminal-area' minSize={fileBarColumn?.terminalAreaMinSize}>
 								<div className={styles['rightPanel']} data-slot='workbench-right-panel'>
 									{tabChrome}
 									<div
@@ -884,10 +938,16 @@ export function Workbench({
 				</ResizablePanelGroup>
 			</div>
 			{/* The File Bar button floats over the top end of whichever chrome lies beneath it: the File
-			    Bar's toggles row while it docks on the right, else the Tab bar or the no-Workspace row. It
-			    follows the layout, so its no-drag region comes after the toggles row's drag region. */}
+			    Bar's toggles row while it docks on the right or opens over the terminal area to the
+			    window's end, else the Tab bar or the no-Workspace row. It follows the layout and the File
+			    Bar over it, so its no-drag region comes after the toggles row's drag region, and it stays
+			    over the scrim of the File Bar it closes. */}
 			{fileBar.toggle === null ? null : (
-				<div className={styles['fileBarToggle']} data-slot='workbench-file-bar-toggle-position'>
+				<div
+					className={styles['fileBarToggle']}
+					data-over-file-bar={fileBarOverlay === null ? undefined : ''}
+					data-slot='workbench-file-bar-toggle-position'
+				>
 					<WorkbenchColumnToggle
 						badge={
 							fileBarBadge === null || FileBarToggleBadge === null ? undefined : (

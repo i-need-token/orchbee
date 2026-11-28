@@ -944,6 +944,10 @@
 	--ob-comp-workbench-navigation-reorder-inline-start: 0px;
 	--ob-comp-workbench-navigation-reorder-translate-y: 0px;
 	--ob-comp-workbench-sidebar-overlay-inline-size: 15.625rem;
+	/* The File Bar opened over the terminal area without room to dock: its own width, and where
+	   the terminal area starts, which it opens from on the left and never passes on either side. */
+	--ob-comp-workbench-file-bar-overlay-inline-size: 18.75rem;
+	--ob-comp-workbench-file-bar-overlay-inline-start: 0px;
 	/* A machine's color where its name is written: a --ob-sys-color-machine-* token, or the custom
 	   color as chosen, set on the element that writes it. */
 	--ob-comp-machine-color: currentcolor;

@@ -105,6 +105,7 @@ import {
 } from './useWorkbenchAgentDialogs';
 import { resolveActiveTerminalPresentationId } from '../utils/resolveActiveTerminalPresentationId';
 import { subscribeToNothing } from '../utils/subscribeToNothing';
+import { isUnclaimedEscape } from '../utils/isUnclaimedEscape';
 import { useWorkbenchMobileFocusRouter } from './useWorkbenchMobileFocusRouter';
 import { useWorkbenchSidebarPresentation } from './useWorkbenchSidebarPresentation';
 import {
@@ -246,6 +247,11 @@ interface WorkbenchView {
 	readonly onSidebarScrimPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
 	/** Esc inside the overlay closes it; a menu's own Esc stays in its portal, a drag's in the drag. */
 	readonly onSidebarOverlayKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+	/**
+	 * Closes the sidebar over the content or the window and the Tab list, and leaves the keys where
+	 * they are, as another surface opens over the content in their place.
+	 */
+	readonly closeSurfacesOverContent: () => void;
 	/** The sidebar's width in pixels, which the overlay takes too. */
 	readonly sidebarWidth: number;
 	/** Shift-free ← and → on the focused divider change the width in 10 px steps. */
@@ -1244,6 +1250,10 @@ export function useWorkbench({
 			closeSidebarOverlay();
 			focusRouting.requestTerminalFocus();
 		},
+		closeSurfacesOverContent: () => {
+			closeSidebarOverlay();
+			sidebar.dismissTabList();
+		},
 		sidebarWidth: leftPanelWidth.current,
 		onSidebarDividerKeyDown: (event) => {
 			if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
@@ -1463,17 +1473,6 @@ export function useWorkbench({
 /** A plain primary-button press, as the TUI's double-click shortcuts take. */
 function isPlainPrimaryPress(event: React.MouseEvent<HTMLElement>): boolean {
 	return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey;
-}
-
-/** Esc that no menu, field or drag inside the surface has already taken. */
-function isUnclaimedEscape(event: React.KeyboardEvent<HTMLElement>): boolean {
-	return (
-		event.key === 'Escape' &&
-		!event.defaultPrevented &&
-		event.target instanceof Node &&
-		event.currentTarget.contains(event.target) &&
-		event.currentTarget.querySelector('[data-dragging]') === null
-	);
 }
 
 function findActiveWorkspaceName(state: ProjectWorkspaceState): string | null {

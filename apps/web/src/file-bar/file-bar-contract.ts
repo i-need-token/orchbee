@@ -6,7 +6,7 @@ import type { FileExplorerProps } from '../file-explorer';
 import type { FileResource, FileWorkspaceSession } from '../file-session';
 import type { SourceControlNotifications, SourceControlQuickInput } from '../source-control';
 import type { UserSettingsControl } from '../user-settings';
-import type { FileBarPosition, FileBarViewId } from './file-bar-layout';
+import type { FileBarViewId } from './file-bar-layout';
 import type { FileBarLayoutStorage } from './file-bar-layout-storage';
 
 /** One row of the toggles row's menu. */
@@ -42,6 +42,12 @@ export interface FileBarColumnProps {
 	/** The view the column shows. */
 	readonly activeView: FileBarViewId;
 	/**
+	 * Whether the column touches the window's end, as it does on the right of the terminal area or
+	 * open across it, so its row keeps the places of the File Bar button and the caption buttons that
+	 * float over it.
+	 */
+	readonly atWindowEnd: boolean;
+	/**
 	 * What starts the toggles row while the column touches the window's start: the place of the
 	 * Sidebar button, and of the traffic lights before it, that float over it. Null elsewhere.
 	 */
@@ -54,11 +60,6 @@ export interface FileBarColumnProps {
 	readonly openFile: FileExplorerProps['openFile'];
 	/** Which platform's keys the views answer to, as VS Code's lists do on it. */
 	readonly platform: KeyboardShortcutPlatform;
-	/**
-	 * The side of the terminal area the column takes. On the right it touches the window's end, so
-	 * its row keeps the places of the File Bar button and the caption buttons that float over it.
-	 */
-	readonly position: FileBarPosition;
 	/** The window's quick input, where the views ask what VS Code asks there. */
 	readonly quickInput: SourceControlQuickInput;
 	/**

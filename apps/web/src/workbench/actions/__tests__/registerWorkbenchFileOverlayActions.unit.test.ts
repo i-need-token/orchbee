@@ -24,6 +24,7 @@ function createHarness(paths: readonly string[]) {
 		dispatch: (event) => {
 			store.dispatch(event);
 		},
+		fileOpened: () => false,
 		focusOverlay: () => undefined,
 		getState: () => store.state.getState(),
 		quickNavigateKeys: () => [],

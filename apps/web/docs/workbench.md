@@ -161,26 +161,34 @@ The dialog keeps DOM focus in its combobox. Up and Down move `aria-activedescend
 The File Bar is unfinished, so only a development or test Desktop window offers it: the renderer
 passes `fileBarOffered` from its distribution, and a release window and a Web Client, which gets the
 Workbench's default, register none of its Actions, render none of it and read none of its storage.
-Where it is offered it docks as a column after the terminal area, except in the mobile layout, which
-offers no Action or button for it yet. The Workbench owns that column, its width, visibility and
-active view, its button and its Actions, and keeps them in the `file-bar` module's layout record;
-the File Bar's views reach it only through `loadFileBar()`, which loads them as their own chunk the
-first time a window shows the column. A failed load says so inside the column and tries again the
-next time it shows. A shown column loads the [code editor](code-editor.md) at idle.
+Where it is offered it docks as a column on the side of the terminal area that the user's settings
+name, in a panel group of its own with that area, while the area keeps 481px beside it: as the room
+narrows the File Bar narrows first, down to its minimum, and widens back as the room returns. With
+less room it steps aside as the Sidebar does in a narrow window: its button opens it at its width
+over the terminal area from its side, where it takes the keys until Escape, a press outside it or a
+file opening closes it, and the Sidebar and the Tab list over the content give way to it. Only a
+docked choice persists, so regained room docks it as it was left. The mobile layout offers no Action
+or button for it yet. The Workbench owns the File Bar's place, its width, visibility and active
+view, its button and its Actions, and keeps them in the `file-bar` module's layout record; the File
+Bar's views reach it only through `loadFileBar()`, which loads them as their own chunk the first
+time a window shows the File Bar. A failed load says so inside the File Bar and tries again the next
+time it shows. A shown File Bar loads the [code editor](code-editor.md) at idle.
 
 The File Bar button floats at the window's top end over whichever chrome lies beneath it: the File
-Bar's toggles row while it is docked, else a reserve at the end of the horizontal Tab bar. Like the
-Sidebar button, it is one element in every state rather than one per row, so it keeps focus as it
-toggles. It follows the layout in the document because Electron folds app regions in document order
+Bar's toggles row while the File Bar reaches the window's end, on the right of the terminal area or
+open across it, else a reserve at the end of the horizontal Tab bar. Like the Sidebar button, it is
+one element in every state rather than one per row, so it keeps focus as it toggles. It follows the
+layout and the File Bar over it in the document because Electron folds app regions in document order
 and its no-drag region must come after the toggles row's drag region. Where Windows and Linux draw
 their caption buttons over the row, the button stands left of them and the File Bar's minimum width
 grows so that its toggles still fit.
 
-While the column shows, the Workbench holds the active Workspace's file session from its
-`fileSessionPort` input through a `FileSessionRegistry`, which opens a Workspace's session on its
-first hold and closes it on the last release. Switching Workspaces moves the hold, and a hidden,
-withheld or mobile File Bar holds none, so no session exists for a Workspace whose files nothing
-shows. A window without the input opens no session. Desktop passes it where it offers the File
+Once the File Bar has shown the active Workspace in this run, the Workbench holds that Workspace's
+file session from its `fileSessionPort` input through a `FileSessionRegistry`, which opens a
+Workspace's session on its first hold and closes it on the last release; the hold stays while the
+File Bar hides, for its button's count badge. Switching Workspaces moves the hold, and a withheld or
+mobile File Bar holds none, so no session exists for a Workspace whose files the File Bar has not
+shown. A window without the input opens no session. Desktop passes it where it offers the File
 Bar and the shown Session's handshake lists `files`: that Session's runtime opens sessions through
 `ServerFileSessionPort` over its connection and closes them when it is disposed. A session's Source
 Control shares its connection: its summary and prompt streams stay open while something follows

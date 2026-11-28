@@ -62,6 +62,11 @@ interface RegisterWorkbenchFileOverlayActionsOptions {
 	/** Applies an event to the shown Workspace's overlay and carries out what it asks of the Workbench. */
 	readonly dispatch: (event: FileOverlayEvent) => void;
 	/**
+	 * Called as a file opens: the File Bar open over the terminal area, which the overlay would cover,
+	 * closes and answers whether it held the keys, which then go to the file's tab.
+	 */
+	readonly fileOpened: () => boolean;
+	/**
 	 * Whether the shown overlay's active tab takes the keys once the overlay shows the change just
 	 * dispatched. The latest ask decides, so false withdraws one that still waits for the overlay.
 	 */
@@ -250,6 +255,7 @@ const SCOPE_CHANGED: ActionResult<void> = { code: 'scope-changed', kind: 'blocke
  */
 export function registerWorkbenchFileOverlayActions({
 	dispatch,
+	fileOpened,
 	focusOverlay,
 	getState,
 	quickNavigateKeys,
@@ -338,7 +344,8 @@ export function registerWorkbenchFileOverlayActions({
 							preview: input.preview,
 							type: 'file-opened',
 						});
-						focusOverlay(input.focus);
+						const keysLeftFileBar = fileOpened();
+						focusOverlay(input.focus || keysLeftFileBar);
 						return result;
 					},
 				},

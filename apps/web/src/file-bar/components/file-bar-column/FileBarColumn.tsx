@@ -35,12 +35,12 @@ export function FileBarColumn({
 	actionScope,
 	activeFile,
 	activeView,
+	atWindowEnd,
 	leadingPlace,
 	notifications,
 	onSelectView,
 	openFile,
 	platform,
-	position,
 	quickInput,
 	rowMenu,
 	session,
@@ -97,7 +97,7 @@ export function FileBarColumn({
 						viewId={viewId}
 					/>
 					{/* The File Bar toggle floats over its place, and the window's caption buttons over theirs. */}
-					{position === 'right' ? (
+					{atWindowEnd ? (
 						<>
 							<span className={styles['fileBarTogglePlace']} data-file-bar-toggle-place='' />
 							<span

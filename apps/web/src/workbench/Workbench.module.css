@@ -66,7 +66,8 @@ button.statusNoticeText {
 }
 
 /* The File Bar button stands at the top end as the sidebar button stands at the start. It stays under
-   the overlay sidebar's scrim, which takes the click that closes the overlay. */
+   the overlay sidebar's scrim, which takes the click that closes the overlay, and over the File Bar
+   opened over the terminal area, which it closes. */
 .fileBarToggle {
 	position: absolute;
 	inset-block-start: calc(
@@ -74,6 +75,10 @@ button.statusNoticeText {
 	);
 	inset-inline-end: var(--ob-ref-space-2);
 	z-index: var(--ob-ref-layer-base);
+}
+
+.fileBarToggle[data-over-file-bar] {
+	z-index: var(--ob-ref-layer-raised);
 }
 
 .confirmationContent {
@@ -135,6 +140,43 @@ button.statusNoticeText {
 
 .sidebarOverlay > .leftPanel,
 .sidebarFill > .leftPanel {
+	flex: 1;
+	min-width: var(--ob-ref-space-0);
+}
+
+/* Without room to dock, the File Bar opens over the terminal area from its side at its own width, as
+   far as that area reaches, as the sidebar opens over the content, on the same surface, so nothing
+   beneath shows through. The terminal area runs from its start to the root's end. */
+.fileBarScrim {
+	position: absolute;
+	inset: 0;
+	z-index: var(--ob-ref-layer-raised);
+}
+
+.fileBarOverlay {
+	position: absolute;
+	inset-block: 0;
+	z-index: var(--ob-ref-layer-raised);
+	display: flex;
+	width: min(
+		var(--ob-comp-workbench-file-bar-overlay-inline-size),
+		calc(100% - var(--ob-comp-workbench-file-bar-overlay-inline-start))
+	);
+	background: var(--ob-sys-color-surface-raised);
+	box-shadow: var(--ob-sys-shadow-overlay);
+}
+
+.fileBarOverlay[data-side='left'] {
+	inset-inline-start: var(--ob-comp-workbench-file-bar-overlay-inline-start);
+	border-inline-end: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+}
+
+.fileBarOverlay[data-side='right'] {
+	inset-inline-end: var(--ob-ref-space-0);
+	border-inline-start: var(--ob-ref-border-width-default) solid var(--ob-sys-color-border-default);
+}
+
+.fileBarOverlay > .fileBarPanel {
 	flex: 1;
 	min-width: var(--ob-ref-space-0);
 }
