@@ -1,5 +1,6 @@
 import { type FilePathRules, filePathParent, isFilePathWithin } from '../../file-session';
 import type { VirtualTreeModel } from '../../virtual-tree';
+import { EXPLORER_EXPANSION_LIMIT } from '../constants/explorer-expansion-limit';
 import type { ExplorerItem } from './explorer-item';
 
 /** A root's tree state, as the virtual tree saves and restores it. */
@@ -29,8 +30,7 @@ interface ExplorerPreviousTree {
 	readonly state: ExplorerTreeViewState;
 }
 
-/** The bounds of the proposal's view state: expanded folders per Workspace, roots in memory. */
-const EXPANDED_FOLDERS = 2000;
+/** Roots whose focus, selection and scroll stay in memory, least recently left going first. */
 const ROOT_VIEWS = 20;
 
 /**
@@ -97,7 +97,7 @@ export class ExplorerViewMemory {
 		}
 		for (const key of expanded) this.#expanded.add(key);
 		for (const key of this.#expanded) {
-			if (this.#expanded.size <= EXPANDED_FOLDERS) break;
+			if (this.#expanded.size <= EXPLORER_EXPANSION_LIMIT) break;
 			this.#expanded.delete(key);
 		}
 		this.#record?.write([...this.#expanded]);

@@ -781,6 +781,7 @@ export function Workbench({
 											onSelectView={fileBar.column.onSelectView}
 											platform={shortcutPlatform}
 											session={fileBar.column.session}
+											storage={layoutStorage}
 											viewFocusRequest={fileBar.column.viewFocusRequest}
 										/>
 									)}

@@ -5,6 +5,11 @@ import * as React from 'react';
 import type { FileError, FileWorkspaceSession } from '../../file-session';
 import { ExplorerTree, type ExplorerTreeState } from '../model/ExplorerTree';
 import { ExplorerViewMemory } from '../model/ExplorerViewMemory';
+import {
+	type ExplorerExpansionStorage,
+	readExplorerExpansion,
+	writeExplorerExpansion,
+} from '../model/explorer-expansion-storage';
 import type { FileExplorerNotifications } from '../types/file-explorer-notifications';
 import { readFailureReason } from '../utils/readFailureReason';
 
@@ -20,6 +25,8 @@ interface ExplorerTreeOptions {
 	readonly notifications: FileExplorerNotifications;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
+	/** Where each Workspace's expanded folders are saved between runs; without it they are not. */
+	readonly storage: ExplorerExpansionStorage | undefined;
 }
 
 interface ExplorerTreeView {
@@ -34,7 +41,11 @@ interface ExplorerTreeView {
  * Explorer remembers stays for its next tree. A folder that could not be listed is reported once
  * while its notification shows, as VS Code shows one notification for repeats of the same message.
  */
-export function useExplorerTree({ notifications, session }: ExplorerTreeOptions): ExplorerTreeView {
+export function useExplorerTree({
+	notifications,
+	session,
+	storage,
+}: ExplorerTreeOptions): ExplorerTreeView {
 	const intl = useOrchbeeIntl();
 	const locale = resolveOrchbeeLocale([intl.locale]);
 	const [memories] = React.useState(() => new Map<string, ExplorerViewMemory>());
@@ -53,12 +64,18 @@ export function useExplorerTree({ notifications, session }: ExplorerTreeOptions)
 	});
 	React.useEffect(() => {
 		if (session === null) return undefined;
-		const memory = memories.get(session.workspaceId) ?? new ExplorerViewMemory(null);
-		memories.delete(session.workspaceId);
-		memories.set(session.workspaceId, memory);
-		for (const workspaceId of memories.keys()) {
+		const { workspaceId } = session;
+		const memory =
+			memories.get(workspaceId) ??
+			new ExplorerViewMemory({
+				read: () => readExplorerExpansion(storage, workspaceId),
+				write: (expanded) => writeExplorerExpansion(storage, workspaceId, expanded),
+			});
+		memories.delete(workspaceId);
+		memories.set(workspaceId, memory);
+		for (const remembered of memories.keys()) {
 			if (memories.size <= REMEMBERED_WORKSPACES) break;
-			memories.delete(workspaceId);
+			memories.delete(remembered);
 		}
 		const built = new ExplorerTree({ locale, memory, reportUnreadable, session });
 		setTree(built);
@@ -66,7 +83,7 @@ export function useExplorerTree({ notifications, session }: ExplorerTreeOptions)
 			setTree(null);
 			built.dispose();
 		};
-	}, [locale, memories, reportUnreadable, session]);
+	}, [locale, memories, reportUnreadable, session, storage]);
 	const state = React.useSyncExternalStore(
 		tree === null ? subscribeToNothing : tree.subscribe,
 		() => (tree === null ? LOADING : tree.state),

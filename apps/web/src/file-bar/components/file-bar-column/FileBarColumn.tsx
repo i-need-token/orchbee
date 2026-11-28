@@ -29,6 +29,7 @@ export function FileBarColumn({
 	onSelectView,
 	platform,
 	session,
+	storage,
 	viewFocusRequest,
 }: FileBarColumnProps): ReactNode {
 	const rootReference = useRef<HTMLDivElement>(null);
@@ -81,6 +82,7 @@ export function FileBarColumn({
 							notifications={notifications}
 							platform={platform}
 							session={session}
+							storage={storage}
 						/>
 					</div>
 				) : null}

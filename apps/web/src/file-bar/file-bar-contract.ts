@@ -5,6 +5,7 @@ import type { ComponentType } from 'react';
 import type { FileExplorerProps } from '../file-explorer';
 import type { FileWorkspaceSession } from '../file-session';
 import type { FileBarViewId } from './file-bar-layout';
+import type { FileBarLayoutStorage } from './file-bar-layout-storage';
 
 /** What the Workbench tells the File Bar's column, which owns the views and their toggles. */
 export interface FileBarColumnProps {
@@ -21,6 +22,8 @@ export interface FileBarColumnProps {
 	readonly platform: KeyboardShortcutPlatform;
 	/** The active Workspace's file session the File Bar holds; null while it holds none. */
 	readonly session: FileWorkspaceSession | null;
+	/** Device-local storage for what the views remember between runs; without it they remember nothing. */
+	readonly storage: FileBarLayoutStorage | undefined;
 	/** Each increase moves focus into the active view; zero asks for nothing. */
 	readonly viewFocusRequest: number;
 }

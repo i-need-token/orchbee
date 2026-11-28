@@ -239,9 +239,18 @@ describe('ExplorerTree', () => {
 		expect(rows(tree.state)).toEqual(['/w/docs', '/w/docs/d.md', '/w/src', '/w/a.txt']);
 
 		await modelOf(tree).expand('/w/src');
-		expect([...(saved.at(-1) ?? [])].sort()).toEqual(['/w/docs', '/w/src']);
+		await modelOf(tree).expand('/w/src/lib');
+		expect([...(saved.at(-1) ?? [])].sort()).toEqual(['/w/docs', '/w/src', '/w/src/lib']);
 		modelOf(tree).collapseAll();
+		await settle();
 		expect(saved.at(-1)).toEqual([]);
+
+		// A reveal expands every folder above the row in one operation, which saves once.
+		const writes = saved.length;
+		modelOf(tree).reveal('/w/src/lib/c.ts');
+		await settle();
+		expect(saved.length).toBe(writes + 1);
+		expect([...(saved.at(-1) ?? [])].sort()).toEqual(['/w/src', '/w/src/lib']);
 		tree.dispose();
 	});
 

@@ -13,6 +13,7 @@ import { useExplorerTree } from './hooks/useExplorerTree';
 import { useFileExplorerActions } from './hooks/useFileExplorerActions';
 import { useHasExpandedFolder } from './hooks/useHasExpandedFolder';
 import type { ExplorerItem } from './model/explorer-item';
+import type { ExplorerExpansionStorage } from './model/explorer-expansion-storage';
 import type { FileExplorerNotifications } from './types/file-explorer-notifications';
 import styles from './FileExplorer.module.css';
 
@@ -26,6 +27,8 @@ export interface FileExplorerProps {
 	readonly platform: KeyboardShortcutPlatform;
 	/** The active Workspace's file session; null while there is none to show. */
 	readonly session: FileWorkspaceSession | null;
+	/** Where each Workspace's expanded folders are saved between runs; without it they are not. */
+	readonly storage?: ExplorerExpansionStorage | undefined;
 }
 
 function renderRow(row: VirtualTreeRow<string, ExplorerItem>): ReactNode {
@@ -43,9 +46,10 @@ export function FileExplorer({
 	notifications,
 	platform,
 	session,
+	storage,
 }: FileExplorerProps): ReactNode {
 	const intl = useOrchbeeIntl();
-	const { state, tree } = useExplorerTree({ notifications, session });
+	const { state, tree } = useExplorerTree({ notifications, session, storage });
 	const canCollapse = useHasExpandedFolder(state.kind === 'tree' ? state.model : null);
 	const commands = useFileExplorerActions({
 		parentScope: actionScope,

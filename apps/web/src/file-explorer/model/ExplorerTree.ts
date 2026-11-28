@@ -118,6 +118,8 @@ export class ExplorerTree {
 	#disposed = false;
 	/** Loaded folders that changes touched, listed again when the delay ends. */
 	readonly #due = new Set<string>();
+	/** The shown tree whose expanded folders changed, saved once its operation's events are through. */
+	#expansionChanged: RootTree | null = null;
 	readonly #listeners = new Set<() => void>();
 	/** Created with the first snapshot, which gives the machine's path rules. */
 	#listings: ExplorerListings | null = null;
@@ -164,6 +166,7 @@ export class ExplorerTree {
 	dispose(): void {
 		if (this.#disposed) return;
 		this.#disposed = true;
+		this.#saveExpansion();
 		this.#unsubscribe();
 		if (this.#timer !== null) clearTimeout(this.#timer);
 		this.#timer = null;
@@ -303,9 +306,7 @@ export class ExplorerTree {
 		}
 		tree.unsubscribe = tree.model.subscribe((event) => {
 			if (this.#current !== tree) return;
-			if (event.kind === 'collapse') {
-				this.#memory.noteExpansion(tree.key, tree.model.viewState().expanded, tree.rules);
-			}
+			if (event.kind === 'collapse') this.#noteExpansionChange(tree);
 			this.#relistUnheld(tree);
 		});
 		this.#setState(error === null ? shownTree(tree) : unresolvedTree(tree, error));
@@ -317,6 +318,20 @@ export class ExplorerTree {
 			tree,
 			tree.source.readFolders().filter((key) => listings.peek(key) === null),
 		);
+	}
+
+	/** Saves the expanded folders once for an operation that changes several, as a reveal does. */
+	#noteExpansionChange(tree: RootTree): void {
+		if (this.#expansionChanged === null) queueMicrotask(() => this.#saveExpansion());
+		else if (this.#expansionChanged !== tree) this.#saveExpansion();
+		this.#expansionChanged = tree;
+	}
+
+	#saveExpansion(): void {
+		const tree = this.#expansionChanged;
+		if (tree === null) return;
+		this.#expansionChanged = null;
+		this.#memory.noteExpansion(tree.key, tree.model.viewState().expanded, tree.rules);
 	}
 
 	/** Lists again the folders a tree drew from listings the Server had stopped watching. */
