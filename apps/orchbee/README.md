@@ -23,8 +23,9 @@ and evidence.
 
 `orchbee terminal run <terminal-id> "Write-Output ready" --format json` pastes one command and sends
 Enter in one input request. The receipt confirms input submission, not Shell readiness, command
-completion or exit status; never replay partial or unknown delivery. [Command submission
-contract](docs/native-terminal-run.md).
+completion or exit status; never replay partial or unknown delivery. `--capture --shell <syntax>`
+instead returns the command's own output and exit status from any Shell at an empty prompt, cmd and
+SSH sessions included. [Command submission contract](docs/native-terminal-run.md).
 
 On Windows and Linux, and in the Apple Silicon macOS development package, bare invocation connects
 or activates a local Session from a verified executable cohort and enters its TUI after the first
@@ -825,7 +826,7 @@ contract](docs/native-terminal-output.md) owns selection, exact sample validatio
 
 `terminal wait-output` uses the same sources and line limits, with a default total timeout of 30000
 ms. A match does not prove command completion; managed-shell completion is observed by `terminal run
---wait`.
+--wait`, and completion in any Shell by `terminal run --capture`.
 
 `terminal read` and `agent read --ansi` export styled snapshots. Original PTY bytes, hyperlinks and
 graphics are not reproduced. See the [output contract](docs/native-terminal-output.md).
