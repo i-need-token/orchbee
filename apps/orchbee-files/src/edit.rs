@@ -12,10 +12,13 @@
 //!   recreate what a delete kept.
 //! - `picker.*` ([`pickers`]) browse the whole machine for a Save As or clone dialog, and
 //!   `fs.clipboard` ([`clipboard`]) keeps what a paste may take from beyond the root.
+//! - `fs.export-begin` and `fs.export-entries` ([`exports`]) number what a download takes, whose
+//!   files `fs.read` then reads.
 
 mod clipboard;
 mod delete;
 mod entries;
+mod exports;
 mod names;
 mod observer;
 mod outcomes;
@@ -27,14 +30,16 @@ use std::sync::Arc;
 
 use orchbee_files_protocol::{
     ConnectionId, ErrorCode, ErrorReply, FilePath, FilesError, FilesReply, FsClipboard, FsCreate,
-    FsDelete, FsDeleteResult, FsEntryResult, FsExists, FsExistsResult, FsRename, FsRestore,
-    FsTransfer, FsTransferResult, FsWrite, List, MutationReply, Operation, PathItemsResult,
-    PickerList, PickerRequest, RequestOutcome, SessionId, WorkspaceId,
+    FsDelete, FsDeleteResult, FsEntryResult, FsExists, FsExistsResult, FsExportBegin,
+    FsExportEntries, FsRename, FsRestore, FsTransfer, FsTransferResult, FsWrite, List,
+    MutationReply, Operation, PathItemsResult, PickerList, PickerRequest, RequestOutcome,
+    SessionId, WorkspaceId,
 };
 
 use self::{
     clipboard::Clipboards,
     delete::{Deleting, Stashes},
+    exports::Exports,
     outcomes::{Outcomes, finish},
     pickers::Pickers,
     write::{System, Write, Writing},
@@ -60,6 +65,7 @@ pub(crate) struct Service {
     trash: Arc<dyn Trash>,
     pickers: Pickers,
     clipboard: Clipboards,
+    exports: Exports,
     observer: Arc<dyn Observer>,
 }
 
@@ -79,6 +85,7 @@ impl Service {
             trash,
             pickers: Pickers::new(),
             clipboard: Clipboards::new(),
+            exports: Exports::new(),
             observer,
         }
     }
@@ -385,10 +392,61 @@ impl Service {
         }
     }
 
-    /// Releases what `connection` held: its pickers and its clipboard sources.
+    /// `fs.export-begin` under `view`, which captures the selection at once, so the export's
+    /// pages may be asked for before it answers. Each path must lie in the boundary as a read
+    /// admits it.
+    pub(crate) fn export_begin(&self, call: Call, view: View, request: &FsExportBegin) {
+        let paths = request.paths.as_slice().iter();
+        let admitted: Result<Vec<_>, _> = paths.map(|path| view.read(path)).collect();
+        let begun = admitted.and_then(|paths| {
+            let (connection, workspace) = (call.connection(), request.workspace_id);
+            self.exports
+                .begin(connection, workspace, view, request.export, paths)
+        });
+        finish(
+            call,
+            &begun.map_or_else(FilesReply::Error, |()| FilesReply::Empty),
+        );
+    }
+
+    /// `fs.export-entries`, which reads the filesystem, so it runs on the call's own thread.
+    pub(crate) fn export_entries(&self, call: Call, request: &FsExportEntries) {
+        let (connection, workspace) = (call.connection(), request.workspace_id);
+        let page = self.exports.page(
+            &self.helpers,
+            connection,
+            workspace,
+            request.export,
+            request.cursor,
+        );
+        finish(
+            call,
+            &page.map_or_else(FilesReply::Error, FilesReply::FsExportEntries),
+        );
+    }
+
+    /// The file entry `index` of `export`, which `fs.read` of that entry reads.
+    ///
+    /// # Errors
+    ///
+    /// `invalid-request` for an export the call's connection does not hold open in `workspace`,
+    /// or a number that names none of its files.
+    pub(crate) fn exported(
+        &self,
+        call: &Call,
+        workspace: WorkspaceId,
+        export: SessionId,
+        index: u64,
+    ) -> Result<NativePath, FilesError> {
+        self.exports
+            .file(call.connection(), workspace, export, index)
+    }
+
+    /// Releases what `connection` held: its pickers, clipboard sources and exports.
     pub(crate) fn connection_lost(&self, connection: ConnectionId) {
         self.pickers.connection_lost(connection);
         self.clipboard.connection_lost(connection);
+        self.exports.connection_lost(connection);
     }
 
     /// `fs.exists` under `view`, whose names are read as any read is.

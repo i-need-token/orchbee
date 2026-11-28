@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     fs,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -13,15 +13,16 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, CallId, ChangeKind, Conflict, ConnectionId, CreateKind, DeleteMode, EncodingName,
-    EntryKind, ErrorCode, FileName, FilePath, FilesNotice, FilesRecord, FilesReply, FilesRequest,
-    FrameKind, FsClipboard, FsCreate, FsDelete, FsExists, FsExistsResult, FsGrant, FsGrantResult,
-    FsList, FsRename, FsRestore, FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass,
-    GrantSource, LaneId, LinkFrame, LinkMessage, LinkRequest, LinkSide, List, MutationReply,
-    MutationState, NoticeKind, Operation, PathsRequest, PickerList, PickerRequest, Put, PutEnd,
-    RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate,
-    SessionId, TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope,
-    WritePrecondition, decode_files_record, decode_link_message, encode_files_record,
-    encode_request, parse_notice, parse_reply,
+    EntryKind, ErrorCode, ExportKind, FileName, FilePath, FilesNotice, FilesRecord, FilesReply,
+    FilesRequest, FrameKind, FsClipboard, FsCreate, FsDelete, FsExists, FsExistsResult,
+    FsExportBegin, FsExportEntries, FsGrant, FsGrantResult, FsList, FsRead, FsRename, FsRestore,
+    FsSnapshot, FsTransfer, FsUpdate, FsWrite, GitPath, GrantClass, GrantSource, LaneId, LinkFrame,
+    LinkMessage, LinkRequest, LinkSide, List, MutationReply, MutationState, NoticeKind, Operation,
+    PathsRequest, PickerList, PickerRequest, Put, PutEnd, ReadMode, ReadSource, RecordPlace,
+    RequestId, RequestOutcome, RequestOutcomeResult, Root, SafeInteger, ScopeUpdate, SessionId,
+    TransferId, WatchState, WorkspaceId, WorkspaceRequest, WorkspaceScope, WritePrecondition,
+    decode_files_record, decode_link_message, encode_files_record, encode_request, parse_notice,
+    parse_reply,
 };
 
 use super::Services;
@@ -804,4 +805,119 @@ fn a_picker_and_the_clipboard_reach_beyond_the_root_only_as_granted() {
         fixture.file(&format!("elsewhere{separator}moved{separator}inside.txt"))
     );
     assert!(!fixture.0.join("root").join("inside.txt").exists());
+}
+
+#[test]
+fn an_export_numbers_its_entries_and_reads_only_the_files_it_took() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let folder = fixture.0.join("root").join("dir");
+    fs::create_dir_all(folder.join("sub")).unwrap();
+    fs::write(folder.join("a.txt"), b"alpha").unwrap();
+    fs::write(folder.join("sub").join("b.txt"), b"bravo!").unwrap();
+    let outside = fixture.0.join("outside.txt");
+    let linked = match symbolic_links(&folder, &outside, &folder.join("sub")) {
+        Ok(()) => true,
+        Err(error) => {
+            // Creating symbolic links needs Developer Mode or elevation on Windows.
+            eprintln!("symbolic links not created ({error}); the link rules are unverified here");
+            false
+        }
+    };
+    let inside =
+        |relative: &str| fixture.file(&format!("root{}{relative}", std::path::MAIN_SEPARATOR));
+    let export = SessionId::new(1).unwrap();
+    let begin = FilesRequest::FsExportBegin(FsExportBegin {
+        workspace_id: workspace(),
+        export,
+        paths: List::new(vec![inside("dir"), inside("inside.txt")]).unwrap(),
+    });
+    let entries = FilesRequest::FsExportEntries(FsExportEntries {
+        workspace_id: workspace(),
+        export,
+        cursor: None,
+    });
+    // The first page may be asked for before the export answers.
+    link.request(1, &begin);
+    link.request(2, &entries);
+    let replies = link.replies(&[
+        (1, Operation::FsExportBegin),
+        (2, Operation::FsExportEntries),
+    ]);
+    assert_eq!(replies[0], FilesReply::Empty);
+    let FilesReply::FsExportEntries(page) = &replies[1] else {
+        panic!("expected a page, got {:?}", replies[1]);
+    };
+    assert_eq!(page.cursor, None);
+    let listed = page.entries.as_slice();
+    let at = |path: &str| listed.iter().position(|entry| entry.path.as_str() == path);
+    let entry = |path: &str| &listed[at(path).unwrap()];
+    for (number, entry) in listed.iter().enumerate() {
+        assert_eq!(entry.index.get(), number as u64, "numbered in order");
+    }
+    assert!(at("dir") < at("dir/a.txt") && at("dir/sub") < at("dir/sub/b.txt"));
+    assert_eq!(entry("inside.txt").kind, ExportKind::File);
+    let size = entry("dir/sub/b.txt").facts.map(|facts| facts.size.get());
+    assert_eq!(size, Some(6));
+    if linked {
+        assert_eq!(
+            entry("dir/out-link").facts,
+            None,
+            "a link leaving the boundary"
+        );
+        assert_eq!(entry("dir/dir-link").kind, ExportKind::Directory);
+        assert_eq!(
+            entry("dir/dir-link").facts,
+            None,
+            "a directory link is never entered"
+        );
+        let below = listed
+            .iter()
+            .filter(|entry| entry.path.as_str().starts_with("dir/dir-link/"));
+        assert_eq!(below.count(), 0);
+    }
+
+    let read = |id: u64, index: SafeInteger| {
+        FilesRequest::FsRead(FsRead {
+            workspace_id: workspace(),
+            transfer: TransferId::new(id).unwrap(),
+            source: ReadSource::Export { export, index },
+            mode: ReadMode::Bytes,
+            encoding: None,
+            force_text: false,
+            limit: SafeInteger::new(1 << 20).unwrap(),
+        })
+    };
+    link.request(3, &read(3, entry("dir/sub/b.txt").index));
+    let FilesReply::Read(facts) = link.reply(3, Operation::FsRead) else {
+        panic!("expected the read's facts");
+    };
+    assert_eq!(facts.size.get(), 6);
+    // A directory's number, and a skipped link's, name no file the export took.
+    let mut skipped = vec![entry("dir").index];
+    if linked {
+        skipped.push(entry("dir/out-link").index);
+    }
+    for (id, index) in (4..).zip(skipped) {
+        link.request(id, &read(id, index));
+        assert_eq!(
+            error(link.reply(id, Operation::FsRead)),
+            ErrorCode::InvalidRequest
+        );
+    }
+}
+
+/// Links `out-link` in `folder` to the file `file` and `dir-link` to the folder `target`.
+fn symbolic_links(folder: &Path, file: &Path, target: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_file(file, folder.join("out-link"))?;
+        std::os::windows::fs::symlink_dir(target, folder.join("dir-link"))
+    }
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(file, folder.join("out-link"))?;
+        std::os::unix::fs::symlink(target, folder.join("dir-link"))
+    }
 }

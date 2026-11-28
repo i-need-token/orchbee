@@ -242,7 +242,13 @@ impl Services {
                     Ok(path) => self.files.read(call, path, &request),
                     Err(refused) => call.reply(&FilesReply::Error(refused)),
                 },
-                ReadSource::Export { .. } => call.close(CallClose::Unsupported),
+                ReadSource::Export { export, index } => {
+                    let workspace = request.workspace_id;
+                    match self.edit.exported(&call, workspace, *export, index.get()) {
+                        Ok(path) => self.files.read(call, path, &request),
+                        Err(refused) => call.reply(&FilesReply::Error(refused)),
+                    }
+                }
             },
             FilesRequest::FsReadChunk(request) => self.files.read_chunk(call, &request),
             FilesRequest::FsGuessEncoding(request) => match view.read(&request.path) {
@@ -342,9 +348,11 @@ impl Services {
             FilesRequest::FsImportBegin(_)
             | FilesRequest::FsImportItems(_)
             | FilesRequest::FsImportFile(_)
-            | FilesRequest::FsImportEnd(_)
-            | FilesRequest::FsExportBegin(_)
-            | FilesRequest::FsExportEntries(_) => call.close(CallClose::Unsupported),
+            | FilesRequest::FsImportEnd(_) => call.close(CallClose::Unsupported),
+            FilesRequest::FsExportBegin(request) => self.edit.export_begin(call, view, &request),
+            FilesRequest::FsExportEntries(request) => self.detach(call, move |services, call| {
+                services.edit.export_entries(call, &request);
+            }),
             FilesRequest::GitStageContent(request) => {
                 // An open upload holds the services weakly, so it never keeps them alive.
                 let services = Arc::downgrade(self);

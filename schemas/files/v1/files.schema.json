@@ -2211,7 +2211,7 @@
 			"additionalProperties": false
 		},
 		"exportEntry": {
-			"description": "One entry of an export, numbered in order, each directory before what it holds; `skipped` marks a link whose target leaves the boundary or an entry that could not be read.",
+			"description": "One entry of an export, numbered in order, each directory before what it holds; `skipped` marks an entry the export does not take: a link to a directory, which it never enters, a link whose target leaves the boundary, or an entry it could not read or that is neither a file nor a directory.",
 			"type": "object",
 			"properties": {
 				"index": {

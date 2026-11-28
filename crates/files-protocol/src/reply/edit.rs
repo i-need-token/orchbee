@@ -217,8 +217,9 @@ pub struct ExportEntry {
     pub path: RelativePath,
     /// What it is.
     pub kind: ExportKind,
-    /// Its size and modification time, or `None` for an entry the export skips: a link whose
-    /// target leaves the boundary, or one it could not read.
+    /// Its size and modification time, or `None` for an entry the export skips: a link to a
+    /// directory, which it never enters, a link whose target leaves the boundary, or an entry it
+    /// could not read or that is neither a file nor a directory.
     pub facts: Option<ExportFacts>,
 }
 
