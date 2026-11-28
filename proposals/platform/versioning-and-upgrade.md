@@ -13,8 +13,9 @@
   [Automatic updates](automatic-updates.md#outcomes) rank this above every other outcome.
 - An update replaces only the components it changed: a Client-only change needs only a Client
   reopen.
-- Versions coexist: a CLI and Desktop of different versions, or a remote machine that was not
-  upgraded, share one Session.
+- Versions coexist: a CLI and Desktop of different versions share one Session. A machine the
+  Session borrows runs the Session's own release, and the older side updates
+  ([Sessions and Machines](sessions-and-machines.md#versions)).
 - An upgrade that skips releases inside the [compatibility window](#compatibility-window) behaves
   exactly like one from the release before.
 - One explicit rule decides whether a restart is needed, including after changes that no code
@@ -41,19 +42,19 @@ installation's cohort digest — serves diagnostics and integrity; only
 
 ## Connections
 
-| Connection                                       | Contracts                                                              | Today                                                   | Target                                                      |
-| ------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------- |
-| Client ↔ Server                                  | OBHS, then OBLC, OBWP, OBCS, OBAP                                      | OBLC `ClientHello` admits only an equal cohort identity | Negotiated in the [handshake](#handshake)                   |
-| Terminal frames, Host → Worker → Server → Client | OBTF, OBPB, OBRW, OBKG                                                 | Exact `0.1.0`                                           | A generation per format, negotiated per attachment          |
-| Worker ↔ Terminal Host                           | OBHS, then OBTP                                                        | OBTP `Hello` with exact `0.1.0`                         | Negotiated; the first released generation stays through 1.x |
-| Agent hook → Server                              | Rich observation envelope, correlation hint, and private APC           | Closed `version: 1`; older Capsules stay installed      | [Agent hook deliveries](#agent-hook-deliveries)             |
-| Server ↔ local Worker                            | OBLW, OBCN                                                             | Exact cohort identity                                   | [Exact](#what-stays-exact)                                  |
-| Desktop Main ↔ bundled Client                    | OBWP relayed over stdio                                                | One package                                             | [Exact](#what-stays-exact)                                  |
-| Saved machine, local Client → remote Orchbee     | `machine-link` helper, a hub Session stream, and routed command packet | Equal product version, protocols, and cohort            | [Saved machines](#saved-machines)                           |
-| Server ↔ remote Worker                           | OBCN                                                                   | Not implemented                                         | Negotiated, when ORC-297 and ORC-338 build it               |
-| Release feed → `orchbee update`                  | Release manifest                                                       | Closed, unsigned `schemaVersion: 1`; never published    | [Release manifest](#release-manifest)                       |
-| Client → runtime store                           | Store layout, active version, and Server start                         | Built on Windows: the store's active version starts     | [Shared runtime store](#shared-runtime-store)               |
-| Persisted data                                   | Session catalogs, checkpoints, configuration, and plugin registrations | No migration step yet                                   | [Persisted data](#persisted-data)                           |
+| Connection                                       | Contracts                                                              | Today                                                   | Target                                                                                            |
+| ------------------------------------------------ | ---------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Client ↔ Server                                  | OBHS, then OBLC, OBWP, OBCS, OBAP                                      | OBLC `ClientHello` admits only an equal cohort identity | Negotiated in the [handshake](#handshake)                                                         |
+| Terminal frames, Host → Worker → Server → Client | OBTF, OBPB, OBRW, OBKG                                                 | Exact `0.1.0`                                           | A generation per format, negotiated per attachment                                                |
+| Worker ↔ Terminal Host                           | OBHS, then OBTP                                                        | OBTP `Hello` with exact `0.1.0`                         | Negotiated; the first released generation stays through 1.x                                       |
+| Agent hook → Server                              | Rich observation envelope, correlation hint, and private APC           | Closed `version: 1`; older Capsules stay installed      | [Agent hook deliveries](#agent-hook-deliveries)                                                   |
+| Server ↔ local Worker                            | OBLW, OBCN                                                             | Exact cohort identity                                   | [Exact](#what-stays-exact)                                                                        |
+| Desktop Main ↔ bundled Client                    | OBWP relayed over stdio                                                | One package                                             | [Exact](#what-stays-exact)                                                                        |
+| Saved machine, local Client → remote Orchbee     | `machine-link` helper, a hub Session stream, and routed command packet | Equal product version, protocols, and cohort            | [Saved machines](#saved-machines)                                                                 |
+| Server ↔ remote Worker                           | OBCN                                                                   | Not implemented                                         | Same release; the older side updates ([Sessions and Machines](sessions-and-machines.md#versions)) |
+| Release feed → `orchbee update`                  | Release manifest                                                       | Closed, unsigned `schemaVersion: 1`; never published    | [Release manifest](#release-manifest)                                                             |
+| Client → runtime store                           | Store layout, active version, and Server start                         | Built on Windows: the store's active version starts     | [Shared runtime store](#shared-runtime-store)                                                     |
+| Persisted data                                   | Session catalogs, checkpoints, configuration, and plugin registrations | No migration step yet                                   | [Persisted data](#persisted-data)                                                                 |
 
 ## Handshake
 
