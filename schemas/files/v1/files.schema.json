@@ -2352,6 +2352,38 @@
 			"required": ["op", "workspaceId", "requestId", "repository", "name", "url"],
 			"additionalProperties": false
 		},
+		"gitCloneRequest": {
+			"type": "object",
+			"properties": {
+				"op": {
+					"const": "git.clone"
+				},
+				"workspaceId": {
+					"$ref": "#/$defs/workspaceId"
+				},
+				"requestId": {
+					"$ref": "#/$defs/requestId"
+				},
+				"picker": {
+					"description": "The picker `parent` was chosen in, which the connection holds open in the Workspace.",
+					"$ref": "#/$defs/session"
+				},
+				"parent": {
+					"description": "The folder the clone's own folder is created in.",
+					"$ref": "#/$defs/path"
+				},
+				"url": {
+					"description": "The repository to clone, as Git reads it: a URL or a path, which never starts with `-`.",
+					"$ref": "#/$defs/gitName"
+				},
+				"recursive": {
+					"description": "Also clone its submodules. Absent means false.",
+					"type": "boolean"
+				}
+			},
+			"required": ["op", "workspaceId", "requestId", "picker", "parent", "url"],
+			"additionalProperties": false
+		},
 		"historyListRequest": {
 			"type": "object",
 			"properties": {
@@ -2683,6 +2715,9 @@
 				},
 				{
 					"$ref": "#/$defs/gitRemoteAddRequest"
+				},
+				{
+					"$ref": "#/$defs/gitCloneRequest"
 				},
 				{
 					"$ref": "#/$defs/historyListRequest"
@@ -4209,6 +4244,7 @@
 					"pattern": "^[^\\u0000]*$"
 				},
 				"repository": {
+					"description": "The repository whose operation asks; for `git.clone`, the folder the clone fills.",
 					"$ref": "#/$defs/path"
 				},
 				"path": {

@@ -416,7 +416,7 @@ pub struct Prompt {
     pub kind: PromptKind,
     /// The asking program's own text, shown verbatim.
     pub text: Text<0, 4096>,
-    /// The repository whose operation asks.
+    /// The repository whose operation asks; for `git.clone`, the folder the clone fills.
     pub repository: FilePath,
     /// The file an editor prompt edits.
     #[serde(

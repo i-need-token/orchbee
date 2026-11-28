@@ -1,11 +1,11 @@
 //! The operations that reach a remote, each as VS Code's Git extension runs it at ef5ca45 with
 //! its default settings, since this process reads none: fetch, pull and sync take tags along, a
-//! lease push also requires the remote branch to be included where Git can check it, and a sync
-//! pushes only what the pull left ahead. Git reports progress, so the watchdog that fails a
-//! silent command sees a slow transfer move.
+//! lease push also requires the remote branch to be included where Git can check it, a sync
+//! pushes only what the pull left ahead, and a clone fills a new folder outside any repository.
+//! Git reports progress, so the watchdog that fails a silent command sees a slow transfer move.
 
 use super::{
-    command::Access,
+    command::{self, Access},
     discovery::Found,
     errors::{Classifier, GitError, GitErrorCode, PushMode},
     mutations::{Context, retried, retried_while},
@@ -13,7 +13,8 @@ use super::{
     runner::{self, Ran},
 };
 use orchbee_files_protocol::{ErrorCode, PushForce};
-use std::time::Duration;
+use orchbee_git_process::canonical_path;
+use std::{fs, io, path::Path, time::Duration};
 
 /// A remote command fails after an hour, or after five minutes without output while no prompt
 /// waits on the user.
@@ -45,6 +46,17 @@ pub(super) struct Fetch {
     pub(super) prune: bool,
 }
 
+/// What a clone takes: the folder the person chose, the new folder of it the clone fills, and the
+/// repository it clones.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(super) struct Cloning {
+    pub(super) parent: String,
+    pub(super) target: String,
+    pub(super) url: String,
+    /// Also clone the submodules.
+    pub(super) recursive: bool,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(super) struct Push {
     pub(super) remote: Option<String>,
@@ -70,6 +82,33 @@ pub(super) fn fetch(found: &Found, fetch: &Fetch, context: &Context<'_>) -> Resu
         run(found, &arguments, context)?.checked(Classifier::Fetch)
     })
     .map(drop)
+}
+
+/// `git.clone` in the chosen folder, with the URL after `--`, so no URL reads as an option; its
+/// answer is the new repository's canonical toplevel. Git removes the folder of a clone that
+/// fails, but cannot once stopped, so a clone this process cancelled or stopped at its deadline
+/// removes the folder it created; one that was there before stays.
+pub(super) fn clone(cloning: &Cloning, context: &Context<'_>) -> Result<String, GitError> {
+    let target = Path::new(&cloning.target);
+    let created = fs::symlink_metadata(target)
+        .is_err_and(|failure| failure.kind() == io::ErrorKind::NotFound);
+    let mut command = command::git(Path::new(&cloning.parent), Access::Write, context.relay);
+    command.args(["clone", "--progress"]);
+    if cloning.recursive {
+        command.arg("--recursive");
+    }
+    command.arg("--").arg(&cloning.url).arg(target);
+    let ran = runner::run(command, Vec::new(), context.limits, context.output);
+    if let Err(error) = &ran
+        && created
+        && matches!(error.code, ErrorCode::Cancelled | ErrorCode::Timeout)
+    {
+        let _ = fs::remove_dir_all(target);
+    }
+    ran?.checked(Classifier::General)?;
+    canonical_path(target)
+        .map(|canonical| canonical.as_native().to_owned())
+        .map_err(|_| GitError::new(ErrorCode::Failed))
 }
 
 /// `git.pull`: from the current branch's upstream when it has one, else as Git decides.

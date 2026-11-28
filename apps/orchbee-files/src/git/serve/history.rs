@@ -1,6 +1,7 @@
 //! The `files-history` side of the Git dispatch: the history reads, whose continuations name the
-//! index the next page starts at, and the writes that move branches, HEAD and the stash, each a
-//! [`Mutation::Branching`] under its request identity as the other writes are.
+//! index the next page starts at; the writes that move branches, HEAD and the stash, each a
+//! [`Mutation::Branching`] under its request identity as the other writes are; and a clone, whose
+//! folder is named here, in the folder the picker granted.
 
 use super::{
     super::{
@@ -9,16 +10,21 @@ use super::{
         engine::Mutation,
         history::{ChangesQuery, LogQuery},
         records,
+        remote::Cloning,
     },
-    Service, replying,
+    Service, caller, replying,
 };
-use crate::{calls::Call, scope::View};
+use crate::{
+    calls::Call,
+    scope::{View, path::NativePath},
+};
 use orchbee_files_protocol::{
     AbortOperation, GitAbort, GitBlame, GitBranchCreate, GitBranchDelete, GitBranchUpstream,
-    GitChanges, GitCheckout, GitLog, GitMergeBase, GitName, GitNamed, GitRemoteAdd, GitRemoteRef,
-    GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
-    GitUndoCommit, RepositoryMutation,
+    GitChanges, GitCheckout, GitClone, GitLog, GitMergeBase, GitName, GitNamed, GitRemoteAdd,
+    GitRemoteRef, GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
+    GitUndoCommit, MAXIMUM_PATH_BYTES, RepositoryMutation,
 };
+use std::{borrow::Cow, fs, path::MAIN_SEPARATOR};
 
 impl Service {
     /// `git.log`.
@@ -448,6 +454,29 @@ impl Service {
         );
     }
 
+    /// `git.clone` into `parent`, which the picker granted. Naming the clone's folder reads which
+    /// names `parent` holds, so it runs on a thread of its own.
+    pub(crate) fn clone_repository(
+        &self,
+        call: Call,
+        view: View,
+        request: &GitClone,
+        parent: &NativePath,
+    ) {
+        let Some((git, call)) = self.engine(call) else {
+            return;
+        };
+        let url = request.url.as_str();
+        let cloning = Cloning {
+            parent: parent.as_str().to_owned(),
+            target: destination(parent, url),
+            url: url.to_owned(),
+            recursive: request.recursive,
+        };
+        let caller = caller(&call, view, request.workspace_id, request.request_id);
+        git.clone_repository(caller, cloning, replying(call, records::done));
+    }
+
     /// `git.stash-apply`, or `git.stash-pop` when `pop` holds.
     fn apply_stash(&self, call: Call, view: View, request: &GitStashApply, pop: bool) {
         let mutation = Mutation::Branching(Branching::StashApply {
@@ -469,4 +498,69 @@ impl Service {
 
 fn name(name: &GitName) -> String {
     name.as_str().to_owned()
+}
+
+/// The folder of `parent` a clone of `url` fills, named as VS Code names it: the URL's last
+/// segment, its escapes decoded as `decodeURI` decodes them, without a trailing `.git`, or
+/// `repository` when that leaves nothing or a name this machine cannot hold in a folder, where VS
+/// Code would fail. While something of that name exists, `-1` up to `-19` is appended, and Git
+/// refuses the last of those unless it is an empty folder.
+fn destination(parent: &NativePath, url: &str) -> String {
+    let decoded = decode_uri(url);
+    let last = decoded
+        .trim_end_matches('/')
+        .rsplit(['/', '\\'])
+        .next()
+        .unwrap_or_default();
+    let named = last.strip_suffix(".git").unwrap_or(last);
+    let holdable = !named.is_empty()
+        && !named.chars().any(char::is_control)
+        && NativePath::parse(&joined(parent, named))
+            .is_ok_and(|path| path.as_str().len() <= MAXIMUM_PATH_BYTES);
+    let base = if holdable { named } else { "repository" };
+    let mut target = joined(parent, base);
+    for count in 1..20 {
+        if fs::symlink_metadata(&target).is_err() {
+            break;
+        }
+        target = joined(parent, &format!("{base}-{count}"));
+    }
+    target
+}
+
+/// `name` in `parent`.
+fn joined(parent: &NativePath, name: &str) -> String {
+    if parent.parent().is_some() {
+        format!("{}{MAIN_SEPARATOR}{name}", parent.as_str())
+    } else {
+        format!("{}{name}", parent.as_str())
+    }
+}
+
+/// `url` with its escapes decoded as JavaScript's `decodeURI` decodes them, which keeps the escape
+/// of each character a URI reserves; a URL whose escapes do not decode to UTF-8 stays as it is,
+/// where `decodeURI` throws.
+fn decode_uri(url: &str) -> Cow<'_, str> {
+    if !url.contains('%') {
+        return Cow::Borrowed(url);
+    }
+    let bytes = url.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while let Some(&byte) = bytes.get(index) {
+        let escaped = bytes
+            .get(index + 1..index + 3)
+            .filter(|digits| byte == b'%' && digits.iter().all(u8::is_ascii_hexdigit))
+            .and_then(|digits| std::str::from_utf8(digits).ok())
+            .and_then(|digits| u8::from_str_radix(digits, 16).ok())
+            .filter(|value| !b";/?:@&=+$,#".contains(value));
+        if let Some(value) = escaped {
+            decoded.push(value);
+            index += 3;
+        } else {
+            decoded.push(byte);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).map_or(Cow::Borrowed(url), Cow::Owned)
 }

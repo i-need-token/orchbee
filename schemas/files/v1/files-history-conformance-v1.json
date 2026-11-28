@@ -191,6 +191,13 @@
 			"result": "emptyResult"
 		},
 		{
+			"op": "git.clone",
+			"stream": "request",
+			"grant": "lifecycle",
+			"afterClose": false,
+			"result": "gitInitResult"
+		},
+		{
 			"op": "history.list",
 			"stream": "request",
 			"grant": "terminal-create",
@@ -559,6 +566,29 @@
 					"repository": "/home/dev/project",
 					"name": "upstream",
 					"url": "https://example.com/project.git"
+				}
+			},
+			{
+				"name": "git-clone",
+				"json": {
+					"op": "git.clone",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"picker": "3",
+					"parent": "/home/dev",
+					"url": "git@example.com:team/project.git"
+				}
+			},
+			{
+				"name": "git-clone-recursive",
+				"json": {
+					"op": "git.clone",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"picker": "3",
+					"parent": "/home/dev",
+					"url": "https://example.com/project.git",
+					"recursive": true
 				}
 			},
 			{
@@ -994,6 +1024,27 @@
 					"requestId": "fedcba9876543210fedcba9876543210",
 					"repository": "/home/dev/project",
 					"name": "upstream",
+					"url": "--upload-pack=touch"
+				}
+			},
+			{
+				"name": "git-clone-without-picker",
+				"json": {
+					"op": "git.clone",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"parent": "/home/dev",
+					"url": "https://example.com/project.git"
+				}
+			},
+			{
+				"name": "git-clone-option-url",
+				"json": {
+					"op": "git.clone",
+					"workspaceId": "0123456789abcdef0123456789abcdef",
+					"requestId": "fedcba9876543210fedcba9876543210",
+					"picker": "3",
+					"parent": "/home/dev",
 					"url": "--upload-pack=touch"
 				}
 			},
@@ -1437,6 +1488,13 @@
 					"error": {
 						"code": "stale-revision"
 					}
+				}
+			},
+			{
+				"name": "git-clone",
+				"op": "git.clone",
+				"json": {
+					"repository": "/home/dev/project"
 				}
 			},
 			{

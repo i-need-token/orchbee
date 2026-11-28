@@ -611,7 +611,7 @@ pub struct GitCommitResult {
     pub commit: CommitName,
 }
 
-/// `git.init`.
+/// `git.init` and `git.clone`.
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct GitInitResult {
@@ -632,7 +632,7 @@ pub enum MutationReply {
     FsDelete(FsDeleteResult),
     /// `git.commit`.
     GitCommit(GitCommitResult),
-    /// `git.init`.
+    /// `git.init` and `git.clone`.
     GitInit(GitInitResult),
     /// `fs.write`.
     FsWrite(FsWriteResult),
@@ -767,7 +767,7 @@ pub enum FilesReply {
     GitClean(PathItemsResult),
     /// `git.commit`.
     GitCommit(GitCommitResult),
-    /// `git.init`.
+    /// `git.init` and `git.clone`.
     GitInit(GitInitResult),
     /// `request.outcome`.
     RequestOutcome(RequestOutcomeResult),
@@ -884,7 +884,7 @@ pub fn parse_reply(operation: Operation, json: &[u8]) -> Result<FilesReply, Inva
         Operation::GitOutput => FilesReply::GitOutput(read_object(json)?),
         Operation::GitClean => FilesReply::GitClean(read_object(json)?),
         Operation::GitCommit => FilesReply::GitCommit(read_object(json)?),
-        Operation::GitInit => FilesReply::GitInit(read_object(json)?),
+        Operation::GitInit | Operation::GitClone => FilesReply::GitInit(read_object(json)?),
         Operation::RequestOutcome => FilesReply::RequestOutcome(read_object(json)?),
         Operation::FsWrite => FilesReply::FsWrite(read_object(json)?),
         Operation::FsCreate | Operation::FsRename => FilesReply::FsEntry(read_object(json)?),

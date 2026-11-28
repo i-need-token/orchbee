@@ -1,7 +1,7 @@
 //! Local History through the dispatch: a save that names a reason is recorded, an entry reads back
 //! through a read transfer, a restore writes an entry over its file under its identity and is
 //! recorded in turn, a named entry takes no later save, deletions remove what they name, and a
-//! rename takes the history along.
+//! rename takes the history along. A clone reaches beyond the root only through an open picker.
 
 use std::{
     fs,
@@ -13,11 +13,12 @@ use std::{
 
 use orchbee_files_protocol::{
     CallClose, Chunk, ChunkLength, Counter, Empty, ErrorCode, FilePath, FilesRecord, FilesReply,
-    FilesRequest, FrameKind, FsRead, FsReadChunk, FsRename, HistoryDelete, HistoryEntry,
-    HistoryEntryId, HistoryRename, HistoryRestore, HistorySource, HistoryTarget, LinkFrame,
-    LinkMessage, List, MutationReply, MutationState, Operation, PathRequest, ReadMode, ReadSource,
-    RecordPlace, RequestId, RequestOutcome, RequestOutcomeResult, SafeInteger, Text, TransferId,
-    WorkspaceScope, WriteHistory, decode_files_record,
+    FilesRequest, FrameKind, FsRead, FsReadChunk, FsRename, GitClone, GitName, HistoryDelete,
+    HistoryEntry, HistoryEntryId, HistoryRename, HistoryRestore, HistorySource, HistoryTarget,
+    LinkFrame, LinkMessage, List, MutationReply, MutationState, Operation, PathRequest,
+    PickerRequest, ReadMode, ReadSource, RecordPlace, RequestId, RequestOutcome,
+    RequestOutcomeResult, SafeInteger, SessionId, Text, TransferId, WorkspaceScope, WriteHistory,
+    decode_files_record,
 };
 use orchbee_local_runtime::DataRoot;
 
@@ -276,4 +277,31 @@ fn saves_are_recorded_read_restored_named_deleted_and_follow_a_rename() {
     });
     assert_eq!(link.mutate(calls.next(), &clear), FilesReply::Empty);
     assert!(listed(&link, &mut calls, &renamed, |_| true).is_empty());
+}
+
+#[test]
+fn a_clone_reaches_beyond_the_root_only_through_an_open_picker() {
+    let fixture = Fixture::new();
+    let link = Link::new();
+    link.scope(WorkspaceScope::Root(fixture.path("root")));
+    let picker = SessionId::new(1).unwrap();
+    let clone = |request: u8| {
+        FilesRequest::GitClone(GitClone {
+            workspace_id: workspace(),
+            request_id: identity(request),
+            picker,
+            parent: fixture.file("folder"),
+            url: GitName::new(fixture.path("missing")).unwrap(),
+            recursive: false,
+        })
+    };
+    assert_eq!(error(link.mutate(1, &clone(1))), ErrorCode::InvalidRequest);
+    let opened = PickerRequest {
+        workspace_id: workspace(),
+        picker,
+    };
+    link.request(2, &FilesRequest::PickerOpen(opened));
+    link.reply(2, Operation::PickerOpen);
+    // Granted, the clone runs, and Git finds nothing to clone.
+    assert_eq!(error(link.mutate(3, &clone(3))), ErrorCode::GitFailed);
 }

@@ -1,14 +1,16 @@
 //! The `files-history` Git operations as the dispatch reaches them: a log page's continuation
 //! starts the next page where it stopped, with times in milliseconds; a blame describes each
-//! commit it names once, however many ranges name it; and a branching write answers under its
-//! identity.
+//! commit it names once, however many ranges name it; a branching write answers under its
+//! identity; and a clone fills a new folder of the chosen one, named after its URL.
 
 use super::{super::fixture::Fixture, Harness, connection};
+use crate::scope::path::NativePath;
 use orchbee_files_protocol::{
-    Empty, FilePath, FilesReply, GitBlame, GitBranchCreate, GitLog, GitName, LogLimit,
-    MutationReply, MutationState, Operation, RequestId, RequestOutcome, WorkspaceId,
+    Empty, FilePath, FilesReply, GitBlame, GitBranchCreate, GitClone, GitLog, GitName, LogLimit,
+    MutationReply, MutationState, Operation, RequestId, RequestOutcome, SessionId, WorkspaceId,
     WorkspaceScope,
 };
+use std::fs;
 
 #[test]
 fn history_pages_continue_where_they_stopped_and_a_branching_write_answers() {
@@ -144,4 +146,46 @@ fn history_pages_continue_where_they_stopped_and_a_branching_write_answers() {
         outcome.state,
         MutationState::Completed(MutationReply::Empty(Empty {}))
     );
+}
+
+#[test]
+fn a_clone_fills_a_new_folder_named_after_its_url() {
+    let fixture = Fixture::new();
+    fixture.repository("source");
+    fixture.write("source/a.txt", "a\n");
+    fixture.git("source", &["add", "a.txt"]);
+    fixture.git("source", &["commit", "-q", "-m", "first"]);
+    fixture.git("", &["clone", "-q", "--bare", "source", "remote.git"]);
+    fs::create_dir(fixture.path("chosen")).unwrap();
+
+    let harness = Harness::new();
+    let workspace = WorkspaceId::from_bytes([7; 16]).unwrap();
+    harness.state(workspace, WorkspaceScope::Root(fixture.path("source")));
+    let parent = NativePath::parse(&fixture.path("chosen")).unwrap();
+    // A second clone of the same URL takes the next free name, as VS Code's does.
+    for (id, folder) in [(1, "chosen/remote"), (2, "chosen/remote-1")] {
+        let clone = GitClone {
+            workspace_id: workspace,
+            request_id: RequestId::from_bytes([u8::try_from(id).unwrap(); 16]).unwrap(),
+            picker: SessionId::new(1).unwrap(),
+            parent: FilePath::new(fixture.path("chosen")).unwrap(),
+            url: GitName::new(fixture.path("remote.git")).unwrap(),
+            recursive: false,
+        };
+        let view = harness
+            .scopes
+            .view(workspace, connection(), Operation::GitClone)
+            .unwrap();
+        harness
+            .service()
+            .clone_repository(harness.open(id), view, &clone, &parent);
+        let FilesReply::GitInit(cloned) = harness.reply(id, Operation::GitClone) else {
+            panic!("expected the clone's repository");
+        };
+        assert_eq!(cloned.repository.as_str(), fixture.path(folder));
+        assert_eq!(
+            fixture.commit_of(folder, "HEAD"),
+            fixture.commit_of("source", "HEAD")
+        );
+    }
 }

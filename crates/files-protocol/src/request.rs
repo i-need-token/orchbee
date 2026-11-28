@@ -16,7 +16,7 @@ pub use edit::{
 };
 pub use history::{
     AbortOperation, GitAbort, GitBlame, GitBranchCreate, GitBranchDelete, GitBranchUpstream,
-    GitChanges, GitCheckout, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
+    GitChanges, GitCheckout, GitClone, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
     GitRemoteRef, GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
     GitUndoCommit, HistoryDelete, HistoryLabel, HistoryRename, HistoryRestore, HistoryTarget,
     LogLimit, LogPattern, RepositoryMutation,
@@ -390,6 +390,8 @@ operations! {
     GitRemoteAdd(GitRemoteAdd) = "git.remote-add", FilesHistory, Request, Lifecycle, false;
     /// Removes a remote.
     GitRemoteRemove(GitNamed) = "git.remote-remove", FilesHistory, Request, Lifecycle, false;
+    /// Clones a repository into a folder chosen in a picker.
+    GitClone(GitClone) = "git.clone", FilesHistory, Request, Lifecycle, false;
     /// A file's Local History entries.
     HistoryList(PathRequest) = "history.list", FilesHistory, Request, TerminalCreate, true;
     /// Copies a Local History entry's content over its file.

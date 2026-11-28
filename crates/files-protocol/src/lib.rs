@@ -59,7 +59,7 @@ pub use reply::{
 };
 pub use request::{
     AbortOperation, GitAbort, GitBlame, GitBranchCreate, GitBranchDelete, GitBranchUpstream,
-    GitChanges, GitCheckout, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
+    GitChanges, GitCheckout, GitClone, GitLog, GitMergeBase, GitMessage, GitNamed, GitRemoteAdd,
     GitRemoteRef, GitRevision, GitStashApply, GitStashDrop, GitStashPush, GitStashes, GitTagCreate,
     GitUndoCommit, HistoryDelete, HistoryLabel, HistoryRename, HistoryRestore, HistoryTarget,
     LogLimit, LogPattern, RepositoryMutation,

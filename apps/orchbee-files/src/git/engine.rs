@@ -25,7 +25,7 @@ use super::{
     ports::{Change, Members, Report, Scope, ShowRead, Trash, Watches},
     reads::{self, RefsPage, UserConfig},
     relay::{self, Answer, Ask, Relay, Token},
-    remote::{self, Fetch, Push},
+    remote::{self, Cloning, Fetch, Push},
     runner::{self, Limits},
     show::{self, Reference, Shows},
     status::{self, Snapshot},
@@ -609,6 +609,22 @@ impl Git {
         self.path_work(call, path, Work::MarkSafe, reply);
     }
 
+    /// `git.clone` into a folder the picker granted, which no Workspace needs to contain.
+    pub(super) fn clone_repository(&self, call: Call, cloning: Cloning, reply: Reply<Done>) {
+        if !native_paths::well_formed(&cloning.parent)
+            || !native_paths::well_formed(&cloning.target)
+        {
+            reply(Err(GitError::new(ErrorCode::InvalidRequest)));
+            return;
+        }
+        self.send(Message::Mutate {
+            call,
+            repository: cloning.target.clone(),
+            work: Work::Clone(cloning),
+            reply,
+        });
+    }
+
     /// `request.outcome`.
     pub(super) fn outcome(
         &self,
@@ -783,6 +799,7 @@ enum Work {
     Mutation(Mutation),
     Init(String),
     MarkSafe(String),
+    Clone(Cloning),
 }
 
 /// One caller of a job, which a joined fetch shares with others.
@@ -792,7 +809,7 @@ struct Caller {
     reply: Reply<Done>,
 }
 
-/// A queued or running write, or a running initialization or trust.
+/// A queued or running write, or a running initialization, trust or clone.
 struct Job {
     id: u64,
     /// The repository a mutation writes to; none for a folder's job.
@@ -835,8 +852,11 @@ struct RelaySubscriber {
 /// One operation whose helpers may prompt, by its token.
 struct Operation {
     workspace: WorkspaceId,
-    /// Its repository, whose Git directories hold every file its editor prompts may name.
-    found: Found,
+    /// The repository its prompts name: a write's toplevel, or the folder a clone fills.
+    repository: String,
+    /// A write's repository, whose Git directories hold every file its editor prompts may name;
+    /// a clone starts no editor.
+    found: Option<Found>,
     connection: ConnectionId,
     background: bool,
     /// Its open prompts, during which the idle watchdog waits.
@@ -1461,6 +1481,8 @@ impl Actor {
             Work::MarkSafe(path) => {
                 (!space.workspace.lists_unsafe(path)).then_some(ErrorCode::NotFound)
             }
+            // The picker granted the clone's folder.
+            Work::Clone(_) => None,
         };
         if let Some(code) = refused {
             finish(space, caller, Err(GitError::new(code)), now);
@@ -1533,9 +1555,11 @@ impl Actor {
             .spaces
             .get_mut(&workspace)
             .and_then(|space| waiting(&mut space.queues, &mut space.loose, repository, id))
-            .is_some_and(
-                |job| matches!(&job.work, Some(Work::Mutation(mutation)) if mutation.prompts()),
-            );
+            .is_some_and(|job| match &job.work {
+                Some(Work::Mutation(mutation)) => mutation.prompts(),
+                Some(Work::Clone(_)) => true,
+                _ => false,
+            });
         let relay = if prompts { self.relay() } else { None };
         let Some(space) = self.spaces.get_mut(&workspace) else {
             return;
@@ -1577,6 +1601,34 @@ impl Actor {
                 };
                 mutations::mark_safe(&path, &context).map(|()| Done::Empty)
             }),
+            Work::Clone(cloning) => {
+                let prompts = Arc::new(AtomicUsize::new(0));
+                let operation = Operation {
+                    workspace,
+                    repository: cloning.target.clone(),
+                    found: None,
+                    connection: job.connection,
+                    background: false,
+                    prompts: Arc::clone(&prompts),
+                    cancel: Arc::clone(&cancel),
+                };
+                let relayed = relayed(&mut self.tokens, relay, job, operation);
+                let limits = Limits {
+                    kind: "clone",
+                    deadline: remote::DEADLINE,
+                    idle: Some(remote::IDLE),
+                    cancel,
+                    prompts: relayed.as_ref().map(|_| prompts),
+                };
+                Box::new(move || {
+                    let context = Context {
+                        limits: &limits,
+                        output: &output,
+                        relay: relayed.as_ref(),
+                    };
+                    remote::clone(&cloning, &context).map(Done::Initialized)
+                })
+            }
             Work::Mutation(mutation) => {
                 let Some(found) = job.found.clone() else {
                     // A write's job always names its repository.
@@ -1597,32 +1649,19 @@ impl Actor {
                     .write_running(&found.toplevel, mutation.busy());
                 space.dirty = true;
                 let prompts = Arc::new(AtomicUsize::new(0));
-                let relayed = match relay {
-                    Some((endpoint, executable)) => relay::random::<32>().ok().map(|token| {
-                        let background = job
-                            .fetch
-                            .as_ref()
-                            .is_some_and(|(_, background)| *background);
-                        self.tokens.insert(
-                            token,
-                            Operation {
-                                workspace,
-                                found: found.clone(),
-                                connection: job.connection,
-                                background,
-                                prompts: Arc::clone(&prompts),
-                                cancel: Arc::clone(&cancel),
-                            },
-                        );
-                        job.token = Some(token);
-                        RelayVariables {
-                            executable,
-                            endpoint,
-                            token: relay::hex(&token),
-                        }
-                    }),
-                    None => None,
+                let operation = Operation {
+                    workspace,
+                    repository: found.toplevel.clone(),
+                    found: Some(found.clone()),
+                    connection: job.connection,
+                    background: job
+                        .fetch
+                        .as_ref()
+                        .is_some_and(|(_, background)| *background),
+                    prompts: Arc::clone(&prompts),
+                    cancel: Arc::clone(&cancel),
                 };
+                let relayed = relayed(&mut self.tokens, relay, job, operation);
                 let limits = mutation.limits(cancel, relayed.as_ref().map(|_| prompts));
                 Box::new(move || {
                     let context = Context {
@@ -1945,7 +1984,13 @@ impl Actor {
             return;
         };
         let admitted = match ask.path.as_deref() {
-            Some(path) => path.len() <= PATH_LIMIT && operation.found.in_git_directories(path),
+            Some(path) => {
+                path.len() <= PATH_LIMIT
+                    && operation
+                        .found
+                        .as_ref()
+                        .is_some_and(|found| found.in_git_directories(path))
+            }
             None => ask.kind != PromptKind::Editor,
         };
         if !admitted {
@@ -1971,7 +2016,7 @@ impl Actor {
             id,
             kind: ask.kind,
             text: ask.text,
-            repository: operation.found.toplevel.clone(),
+            repository: operation.repository.clone(),
             path: ask.path,
         };
         let expires = now
@@ -2234,6 +2279,26 @@ fn waiting<'a>(
         None => loose.get_mut(&id)?,
     };
     (!job.started).then_some(job)
+}
+
+/// Registers `operation`, the operation of `job`, whose helpers may prompt, under a token of its
+/// own, and gives the variables that let its helpers reach the relay; none when the relay is
+/// unavailable, so its prompts fail as in a terminal without one.
+fn relayed(
+    tokens: &mut HashMap<Token, Operation>,
+    relay: Option<(OsString, OsString)>,
+    job: &mut Job,
+    operation: Operation,
+) -> Option<RelayVariables> {
+    let (endpoint, executable) = relay?;
+    let token = relay::random::<32>().ok()?;
+    tokens.insert(token, operation);
+    job.token = Some(token);
+    Some(RelayVariables {
+        executable,
+        endpoint,
+        token: relay::hex(&token),
+    })
 }
 
 /// The open Workspace `workspace`.

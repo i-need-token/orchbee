@@ -51,8 +51,9 @@ These rules are the contract a Client builds on; no single declaration holds the
   chose it explicitly. The entry is read before the grant is recorded, so a grant that fails grants
   nothing, and a directory is refused; a Save As destination where nothing is yet is granted
   without an entry, and the save creates it.
-- An open picker session lists any directory and grants nothing else; `picker.close`, ten minutes
-  without a request or the connection's end closes it. The paths of a connection's last
+- An open picker session lists any directory, and `git.clone` may create its folder in a folder
+  chosen in it; it grants nothing else. `picker.close`, ten minutes without a request or the
+  connection's end closes it. The paths of a connection's last
   `fs.clipboard`, each in scope when it arrived, stay readable and copyable, and movable when cut,
   after the root moves, until the next `fs.clipboard` or the connection's end.
 - Each successful grant of a file adds one grant, and each path of `fs.ungrant` releases one, so

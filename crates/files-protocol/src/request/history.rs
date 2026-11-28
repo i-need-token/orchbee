@@ -1,13 +1,14 @@
 //! The requests of the `files-history` operations: Local History, and the Git reads and writes of
 //! VS Code's Source Control Graph, Timeline and blame and of its branch, merge, rebase,
-//! cherry-pick, stash, tag and remote commands, each with the arguments VS Code's Git extension
-//! passes at ef5ca45. Values are validated here; whether a path lies inside a Workspace's scope,
-//! and whether a revision names anything, is decided by `orchbee-files` when the operation starts.
+//! cherry-pick, stash, tag, remote and clone commands, each with the arguments VS Code's Git
+//! extension passes at ef5ca45. Values are validated here; whether a path lies inside a
+//! Workspace's scope, and whether a revision names anything, is decided by `orchbee-files` when the
+//! operation starts.
 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    identity::{HistoryEntryId, RequestId, WorkspaceId},
+    identity::{HistoryEntryId, RequestId, SessionId, WorkspaceId},
     value::{
         CommitName, FilePath, GitName, Integer, InvalidValue, List, PageCursor, SafeInteger, Text,
         is_false, some,
@@ -447,6 +448,25 @@ pub struct GitRemoteAdd {
     pub name: GitName,
     /// Its URL.
     pub url: GitName,
+}
+
+/// `git.clone`: clones a repository into a new folder of a folder the person chose in a picker.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct GitClone {
+    /// The Workspace.
+    pub workspace_id: WorkspaceId,
+    /// The mutation's identity.
+    pub request_id: RequestId,
+    /// The picker `parent` was chosen in, which the connection holds open in the Workspace.
+    pub picker: SessionId,
+    /// The folder the clone's own folder is created in.
+    pub parent: FilePath,
+    /// The repository to clone, as Git reads it: a URL or a path.
+    pub url: GitName,
+    /// Also clone its submodules, as VS Code's Clone (Recursive) does.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub recursive: bool,
 }
 
 /// A Local History entry's name, which `history.rename` gives it: 1 to 1,024 bytes.

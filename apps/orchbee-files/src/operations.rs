@@ -470,6 +470,18 @@ impl Services {
             }
             FilesRequest::GitRemoteAdd(request) => self.git.remote_add(call, view, &request),
             FilesRequest::GitRemoteRemove(request) => self.git.remote_remove(call, view, &request),
+            FilesRequest::GitClone(request) => {
+                let (workspace, picker) = (request.workspace_id, request.picker);
+                match self
+                    .edit
+                    .picked(call.connection(), workspace, picker, &request.parent)
+                {
+                    Ok(parent) => self.detach(call, move |services, call| {
+                        services.git.clone_repository(call, view, &request, &parent);
+                    }),
+                    Err(refused) => call.reply(&FilesReply::Error(refused)),
+                }
+            }
             FilesRequest::HistoryList(request) => self.detach(call, move |services, call| {
                 services.history.list(call, &view, &request);
             }),
