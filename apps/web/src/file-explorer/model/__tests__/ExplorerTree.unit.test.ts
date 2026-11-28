@@ -155,6 +155,8 @@ describe('ExplorerTree', () => {
 			session,
 		});
 		await settle();
+		// The first root's title shows while its tree loads, with nothing else to show.
+		expect(tree.state).toEqual({ kind: 'opening', name: 'w', root: '/w' });
 		port.flush();
 		await settle();
 		const first = modelOf(tree);

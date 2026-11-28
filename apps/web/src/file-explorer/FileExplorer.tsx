@@ -70,6 +70,7 @@ export function FileExplorer({
 					<p className={styles['empty']}>{intl.formatMessage(fileExplorerMessages.noDirectory)}</p>
 				</div>
 			);
+		case 'opening':
 		case 'tree':
 		case 'unresolved':
 			return (
@@ -91,9 +92,10 @@ export function FileExplorer({
 								renderRow={renderRow}
 								rowHeight={EXPLORER_ROW_HEIGHT}
 							/>
-						) : (
+						) : null}
+						{state.kind === 'unresolved' ? (
 							<ExplorerUnresolvedRow error={state.error} name={state.name} />
-						)}
+						) : null}
 					</div>
 				</div>
 			);

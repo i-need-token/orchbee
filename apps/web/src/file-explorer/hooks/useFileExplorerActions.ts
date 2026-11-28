@@ -69,10 +69,13 @@ export function useFileExplorerActions({
 				defineAction({
 					category: VIEW_CATEGORY,
 					execution,
-					// A root that cannot be listed refreshes too, which retries it.
+					// A root that cannot be listed refreshes too, which retries it, and so does one whose
+					// first listing runs, as VS Code's Refresh stays enabled while the title shows.
 					getAvailability: () => ({
 						kind:
-							tree?.state.kind === 'tree' || tree?.state.kind === 'unresolved'
+							tree?.state.kind === 'opening' ||
+							tree?.state.kind === 'tree' ||
+							tree?.state.kind === 'unresolved'
 								? 'enabled'
 								: 'disabled',
 					}),

@@ -27,6 +27,8 @@ export type ExplorerTreeState =
 	| { readonly kind: 'loading' }
 	/** The Workspace has no current directory. */
 	| { readonly kind: 'none' }
+	/** A root's tree is loading with no other tree to show meanwhile, so its title shows alone. */
+	| { readonly kind: 'opening'; readonly name: string; readonly root: string }
 	| {
 			readonly kind: 'tree';
 			readonly model: VirtualTreeModel<string, ExplorerItem>;
@@ -73,7 +75,7 @@ interface RootTree {
 const CHANGE_DELAY_MILLISECONDS = 500;
 /**
  * How long a listing runs before VS Code's progress bar shows; it waits longer while the window
- * restores, which the Explorer's first root stands for here.
+ * restores, which the Explorer's first root stands for here until it settles.
  */
 const PROGRESS_DELAY_MILLISECONDS = 800;
 const RESTORE_PROGRESS_DELAY_MILLISECONDS = 1500;
@@ -82,6 +84,10 @@ const NONE: ExplorerTreeState = { kind: 'none' };
 
 function rootName(root: string, rules: FilePathRules): string {
 	return filePathName(root, rules) || root;
+}
+
+function openingTree(root: string, rules: FilePathRules): ExplorerTreeState {
+	return { kind: 'opening', name: rootName(root, rules), root };
 }
 
 function shownTree(tree: RootTree): ExplorerTreeState {
@@ -136,6 +142,8 @@ export class ExplorerTree {
 	#progress = false;
 	#progressTimer: ReturnType<typeof setTimeout> | null = null;
 	readonly #reportUnreadable: (name: string, error: FileError) => void;
+	/** Whether the Explorer has shown its root's tree, an error or no directory since it opened. */
+	#settled = false;
 	/** The first snapshot's: a session stays on one machine, so they hold for its listings. */
 	#rules: FilePathRules | null = null;
 	readonly #session: FileWorkspaceSession;
@@ -170,10 +178,10 @@ export class ExplorerTree {
 		};
 	};
 
-	/** Lists every loaded folder again, as Refresh Explorer does. */
+	/** Lists every loaded folder again, as Refresh Explorer does; a root's first listing runs anyway. */
 	refresh(): void {
 		const current = this.#current;
-		if (current !== null) this.#reload(current);
+		if (current !== null && this.#state.kind !== 'opening') this.#reload(current);
 	}
 
 	dispose(): void {
@@ -256,7 +264,10 @@ export class ExplorerTree {
 		if (current?.key === key) {
 			this.#cancelPending();
 			// The root came back, or records about it were lost.
-			if (stale || this.#state.kind !== 'tree') this.#reload(current);
+			if (stale || this.#state.kind !== 'tree') {
+				if (this.#state.kind === 'opening') this.#setState(openingTree(current.root, rules));
+				this.#reload(current);
+			}
 			return;
 		}
 		this.#load(listings, rules, root.path);
@@ -297,6 +308,8 @@ export class ExplorerTree {
 			unsubscribe: null,
 		};
 		this.#pending = tree;
+		// A shown tree stays until the new one has loaded; anything else gives way to the new title.
+		if (this.#state.kind !== 'tree') this.#setState(openingTree(root, rules));
 		model.restoreViewState(restore.state).then(
 			() => this.#adopt(tree, null),
 			(error: unknown) => this.#adopt(tree, rootFailure(error)),
@@ -455,9 +468,7 @@ export class ExplorerTree {
 					this.#progressTimer = null;
 					this.#setProgress(true);
 				},
-				this.#state.kind === 'loading'
-					? RESTORE_PROGRESS_DELAY_MILLISECONDS
-					: PROGRESS_DELAY_MILLISECONDS,
+				this.#settled ? PROGRESS_DELAY_MILLISECONDS : RESTORE_PROGRESS_DELAY_MILLISECONDS,
 			);
 			return;
 		}
@@ -475,6 +486,7 @@ export class ExplorerTree {
 	#setState(state: ExplorerTreeState): void {
 		if (this.#disposed) return;
 		this.#state = state;
+		if (state.kind !== 'loading' && state.kind !== 'opening') this.#settled = true;
 		for (const listener of this.#listeners) listener();
 	}
 }
